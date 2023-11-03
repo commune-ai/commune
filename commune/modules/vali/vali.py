@@ -1,6 +1,7 @@
 import torch
 import traceback
 import commune as c
+import concurrent
 
 
 class Vali(c.Module):
@@ -19,22 +20,12 @@ class Vali(c.Module):
         self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
-        self.sync()
-        self.ip = c.ip()
-        if self.config.check_loop:
-            self.ensure_check_loop()
-
-        if self.config.refresh_stats:
-            self.refresh_stats(network=self.config.network, tag=self.tag)
-        if self.config.start == False:
-            return
-        self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
-        if self.config.run_mode == 'thread':
+        if config.start:
+            self.sync()
+            self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             c.thread(self.run)
-        elif self.config.run_mode == 'process':
-            c.process(self.run)
-        c.thread(self.vote_loop)
- 
+            c.thread(self.vote_loop)
+    
     @property
     def sync_staleness(self):
         return int(c.time() - self.last_sync_time) 
@@ -120,16 +111,17 @@ class Vali(c.Module):
 
         try:
             # this is where we connect to the client
-            module_client = c.connect(module['address'], key=self.key, virtual=self.config.virtual_module)
-            response = self.score_module(module_client, info=module, **module)
+            module_client = c.connect(module['address'], key=self.key, virtual=True)
+            response = self.score_module(module_client)
+            color= 'green'
+            c.print(f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} ')
+
         except Exception as e:
-            if is_my_module:
-                c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
+            c.print(f'{c.emoji("cross")} {module["name"]} {e} {c.emoji("cross")}', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
+
+            color = 'red'
         
-        c.print(response, color='green', verbose=self.config.verbose)
-        if is_my_module or response["w"] > 0 or self.config.verbose:
-            c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         
         self.count += 1
 
@@ -155,6 +147,7 @@ class Vali(c.Module):
         if tag == None:
             tag = 'base'
         return f'stats/{network}/{tag}'
+        
     def refresh_stats(self, network='main', tag=None):
         tag = self.tag if tag == None else tag
         path = self.resolve_stats_path(network=network, tag=tag)
@@ -342,6 +335,12 @@ class Vali(c.Module):
     
 
     def run(self, vote=False):
+
+        self.sync()
+        if self.config.check_loop:
+            self.ensure_check_loop()
+        if self.config.refresh_stats:
+            self.refresh_stats(network=self.config.network, tag=self.tag)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
         c.new_event_loop()
         self.running = True
@@ -350,9 +349,13 @@ class Vali(c.Module):
 
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
+  
             for i, module in enumerate(modules):
                 c.sleep(self.config.sleep_time)
-                self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+
+            
+
+                future = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
                 num_tasks = self.executor.num_tasks
 
                 if self.sync_staleness > self.config.sync_interval:
@@ -427,7 +430,7 @@ class Vali(c.Module):
     @classmethod
     def ensure_check_loop(self):
         if self.check_loop_running() == False:
-            c.thread(self.check_loop, remote=True)
+            self.check_loop(remote=True)
 
     # @classmethod
     # def stake_spread(cls, modulenetwork='main'):

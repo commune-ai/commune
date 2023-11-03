@@ -3,19 +3,19 @@ from typing import *
 import json
 
 Vali = c.module('vali')
-class ValiTextTruthfulQA(Vali):
+class ValiTextMMLU(Vali):
     def __init__(self,**kwargs):
         config = self.set_config(kwargs=kwargs)
-        self.dataset = c.module(self.config.dataset)()
-        self.init_vali(config)
+        self.dataset = c.module('data.hf')(path=self.config.dataset)
 
+        self.init_vali(config)
 
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
         prompt = f'''
         {sample}
-        GIVE THE ANSWER AS AN INDEX -> {{answer:int}} ?
-        EXAMPLE: {{answer:0}}
+        GIVE THE ANSWER AS AN INDEX -> {{answer:str}} ?
+        EXAMPLE: {{answer:A}}
         ```json'''
         return prompt
 
@@ -27,12 +27,10 @@ class ValiTextTruthfulQA(Vali):
         sample = self.dataset.sample()
 
         target = sample.pop(self.config.target) # a list of correct answers
+
         # create the prompt
         prompt = self.create_prompt(sample)
-
-        # generate the output
         output: str = model.generate(prompt)
-
         prediction = json.loads(output)['answer']
 
         # get the correct answer
@@ -40,8 +38,10 @@ class ValiTextTruthfulQA(Vali):
 
         return {'w': w, 'target': target, 'prediction': prediction, 'sample': sample, 'output': output}
 
-            
     @classmethod
-    def test(cls, module='model.openai', **kwargs):
+    def test(cls):
         vali = cls(start=False)
-        return vali.score_module(module=module, **kwargs)
+        return vali.score_module(module='model.openai')
+
+            
+
