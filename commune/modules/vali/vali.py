@@ -383,7 +383,7 @@ class Vali(c.Module):
     @classmethod
     def check_valis(cls, network='main', max_staleness=300, return_all=True, remote=False):
         # get the up to date vali stats
-        vali_stats = cls.vali_stats(network=network, df=False, return_all=return_all, update=True)
+        vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:
             c.print(v)
             if 'serving' not in v:
