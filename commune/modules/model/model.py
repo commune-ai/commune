@@ -38,64 +38,27 @@ class Model( nn.Module, c.Module):
 
     def init_model(self):
         nn.Module.__init__(self) 
-    @classmethod
-    def train_fleet(cls, *args, **kwargs):
-        return cls.module('model.hf').train_fleet(*args, **kwargs)
          
     @classmethod
     def shortcuts(cls, *args, **kwargs):
         return cls.module('model.hf').shortcuts
-    
-    @property
-    def stats(self):
-        return self.config.get('stats', {})
 
-    @stats.setter
-    def stats(self, stats):
-        assert isinstance(stats, dict)
-        self.config['stats'] = stats
-        self.save(keys=['config'])
-    
-    def reset_stats(self):
-        self.stats = {}
-    
-    def set_stats(self, stats: dict = None,):
-        if stats == None:
-            stats = {}
-        assert isinstance(stats, dict)
-        self.stats = stats
-        
     @classmethod
     def learn(cls, *args, **kwargs):
         return cls.module('model.hf').learn(*args, **kwargs)
         
-    def set_optimizer(self, optimizer:dict=None):
-        
-        if optimizer == None:
-            optimizer  = dict(
-                module='torch.optim.Adam',
-                lr=1e-5
-            )
-        if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', 'torch.optim.Adam')
-            optimizer_kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
 
-        else:
-            raise NotImplementedError(optimizer)
-
-        optimizer_class = self.import_object(module_path) 
-        self.optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
-        
-        self.config['optimizer'] = {
-            'module': module_path,
-            **optimizer_kwargs,
-        }
-        
-        c.print('OPTIMIZER SET -> ', self.config.optimizer)
-
-
-
-        
+    @classmethod
+    def get_optimizer(cls, 
+                      model: nn.Module,
+                      optimizer='torch.optim.Adam',
+                      lr=1e-5,
+                      **kwargs):
+        optimizer_map = {'adam':'torch.optim.Adam'}
+        optimizer = optimizer_map.get(optimizer, optimizer)
+        params = model.parameters()
+        optimizer = c.import_object(optimizer)(params,**kwargs) 
+        return optimizer
         
     def set_lr(self, lr:float):
         assert lr > 0, f'lr must be greater than 0, got {lr}'
@@ -143,56 +106,6 @@ class Model( nn.Module, c.Module):
             torch.cuda.empty_cache()
         return result
 
-
-    
-    # def process_forward_locals(self, locals):
-    #     kwargs = self.locals2kwargs(locals)
-        
-    #     # import ipdb; ipdb.set_trace()
-    #     no_grad = kwargs.pop('no_grad', True)
-    #     autocast = kwargs.pop('autocast', True)
-    #     empty_cache = kwargs.pop('empty_cache', True)
-    #     train = kwargs['train'] = kwargs.get('train', False)
-
-    #     # set the model to train mode
-    #     if train:
-    #         no_grad = False
-    #         if self.training == False:
-    #             self.train()
-    #             self.training = True
-    #     else:
-    #         no_grad = True
-            
-    #     if no_grad == True:
-    #         # need to set no_grad to false to run forward ,or it will recurse  forever
-    #         kwargs['no_grad'] = False
-    #         with torch.no_grad():
-    #             return self.forward(**kwargs)
-    #     if autocast == True:
-    #         kwargs['autocast'] = False
-    #         with torch.cuda.amp.autocast():
-    #             return self.forward(**kwargs)
-            
-       
-
-    def _forward(self, **kwargs):
-        raise NotImplementedError
-    @property
-    def device(self):
-        # deepspeed has .module.device to access device
-        if 'device' not in  self.config:
-            self.set_device(device=None)
-            
-        return self.config['device']
-    @device.setter
-    def device(self, device):
-        # deepspeed has .module.device to access device
-        if self.is_number(device):
-            device = f'cuda:{device}'
-        self.set_device(device)
-            
-        return self.config['device']
-
     def set_device(self, device:str = None, resolve_device: bool = True):
         '''
         Sets the device for the model and returns the device
@@ -205,13 +118,10 @@ class Model( nn.Module, c.Module):
         self.config['device'] = device
         return device
     
-
-
-
-    def resolve_tag(self, tag):
-        if tag == None:
-            tag = self.tag
-        return tag
+    def cuda_is_available(cls) -> bool:
+        return torch.cuda.is_available()
+        
+    
 
     def save(self, 
              tag:str = None,  
@@ -457,16 +367,6 @@ class Model( nn.Module, c.Module):
                 total_params += param.numel()
                 
         return total_params
-
-    @classmethod
-    def serve(cls, *args, **kwargs):
-        return cls.base_model().serve(*args, **kwargs)
-
-
-    @classmethod
-    def serve_fleet(cls, *args, **kwargs):
-        return cls.base_model().serve_fleet(*args, **kwargs)
-    fleet = serve_fleet
     
     @classmethod
     def base_model(cls):
@@ -488,13 +388,14 @@ class Model( nn.Module, c.Module):
 
 
     @classmethod
-    def quantize(cls,
-                 model:str,
-                 dynamic_q_layer : set = {torch.nn.Linear}, 
-                 dtype=torch.qint8, **kwargs):
+    def quantize(cls,model:str,dynamic_q_layer : set = {torch.nn.Linear}, dtype=torch.qint8) :
+        
+        """
+        Qauntized the emodel
+        """
         self = torch.ao.quantization.quantize_dynamic( model,  # the original model
-        dynamic_q_layer,  # a set of layers to dynamically quantize
-        dtype=torch.qint8)
+                dynamic_q_layer,  # a set of layers to dynamically quantize
+                dtype=torch.qint8, **kwargs)
         return self
     
     @classmethod
@@ -514,11 +415,4 @@ class Model( nn.Module, c.Module):
                 trainable_params += param.numel()
 
         return trainable_params
-
-
-if __name__ == "__main__":
-    
-    Model.run()
-    # TransformerModel.test()
-
 
