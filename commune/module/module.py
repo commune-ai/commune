@@ -2507,11 +2507,16 @@ class c:
         
         
         kwargs = kwargs or {}
+        if 'kwargs' in kwargs:
+            kwargs = kwargs['kwargs']
         kwargs = {**kwargs, **extra_kwargs}
         extra_kwargs = {}
 
         if module == None:
             module = cls.module_path()
+
+
+        # module::tag
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
@@ -3303,7 +3308,6 @@ class c:
     def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-module', '--module', dest='module', help='select a moduel', type=str, default=None)
         parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
@@ -3318,6 +3322,8 @@ class c:
     def run(cls, name:str = None, verbose:bool = False) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
+
+            c.print(args)
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
             else:
@@ -7215,7 +7221,9 @@ class c:
     def multistake(cls, *args, **kwargs):
         return c.module('subspace')().multistake(*args, **kwargs)
 
-    
+    @classmethod
+    def random_word(cls, *args, n=2, seperator='_', **kwargs):
+        return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
 
     @classmethod
     def multiunstake(cls, *args, **kwargs):
@@ -7223,8 +7231,7 @@ class c:
 
     @classmethod
     def repo_url(cls, *args, **kwargs):
-        return c.module('git').repo_url(*args, **kwargs)
-    
+        return c.module('git').repo_url(*args, **kwargs)    
 
     @classmethod
     def get_stake(cls, *args, **kwargs):

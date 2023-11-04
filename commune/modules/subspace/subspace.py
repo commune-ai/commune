@@ -441,7 +441,7 @@ class Subspace(c.Module):
         netuid : int = None,
     ) -> bool:
         
-        key = c.get_key(key)
+        key = self.resolve_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)
         account_balance = self.get_balance( key.ss58_address , fmt='j' )
@@ -1060,7 +1060,7 @@ class Subspace(c.Module):
             key = c.get_key(key)
         if isinstance(key, str):
             if c.is_valid_ss58_address(key):
-                key_address = key
+                return key
             else:
                 if c.key_exists( key ):
                     key = c.get_key( key )
@@ -1087,7 +1087,6 @@ class Subspace(c.Module):
         if isinstance(key, str):
             if c.key_exists( key ):
                 key = c.get_key( key )
-
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
         
@@ -1190,6 +1189,7 @@ class Subspace(c.Module):
         for i, module in enumerate(modules):
             if module in name2key:
                 modules[i] = name2key[module]
+
         module_keys = modules
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
@@ -1224,6 +1224,12 @@ class Subspace(c.Module):
             key2name = self.key2name(netuid=netuid)
             name2key = {key2name[k]:k for k in stake_to.keys()}
             modules = [name2key[m] for m in name2key.keys() if modules in m]
+
+        for i, module in enumerate(modules):
+            if not c.is_valid_ss58_address(module):
+                name2key = self.name2key(netuid=netuid)
+                assert module in name2key, f"Invalid module {module} not found in SubNetwork {netuid}"
+                modules[i] = name2key[module]
 
         # RESOLVE AMOUNTS
         if amounts == None:
@@ -1485,15 +1491,12 @@ class Subspace(c.Module):
     def subnet(self, 
                     netuid=netuid,
                     network = network,
-                    update: bool = False,
                     block : Optional[int] = None,
-                    cache:bool = False,
                     fmt:str='j') -> list:
-        
-        if cache and not update:
-            subnet_states =  self.state_dict(network=network, key='subnets', update=update )
-            if len(subnet_states) > netuid:
-                return subnet_states[netuid]
+
+        network = self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+
         subnet_stake = self.query( 'TotalStake', params=netuid , block=block).value
         subnet_emission = self.query( 'SubnetEmission', params=netuid, block=block ).value
         subnet_founder = self.query( 'Founder', params=netuid, block=block ).value
@@ -1553,9 +1556,6 @@ class Subspace(c.Module):
     def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
         return {k.value:v.value for k,v  in self.query_map('RegistrationBlock',params=netuid, block=block ) }
-
-
-
 
     def age(self, netuid: int = None) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
@@ -2797,6 +2797,7 @@ class Subspace(c.Module):
                     process_events : bool = True,
                     color: str = 'yellow',
                     verbose: bool = True,
+                    save_history : bool = True,
                      **kwargs):
 
         """
@@ -2830,9 +2831,24 @@ class Subspace(c.Module):
             response.process_events()
 
         if response.is_success:
-            return {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
         else:
-            return {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
+            response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
+
+        response['']
+        if save_history:
+            self.add_history(response)
+            
+
+    history_path = f'history'
+
+    @classmethod
+    def add_history(cls, response:dict) -> dict:
+        return cls.put(cls.history_path,response)
+
+    @classmethod
+    def clear_history(cls):
+        return cls.put(cls.history_path,[])
 
     @classmethod
     def convert_snapshot(cls, from_version=1, to_version=2, network=network):
