@@ -110,7 +110,7 @@ class Dashboard(c.Module):
         kwargs[k] = v
         return kwargs
     @classmethod
-    def launcher_dashboard(cls, module, mode:str='pm2', fn_name='__init__'):
+    def launchdfer_dashboard(cls, module, mode:str='pm2', fn_name='__init__'):
 
         module_path = module.module_path()
         st.write(f'## Module: {module.module_path()}')
