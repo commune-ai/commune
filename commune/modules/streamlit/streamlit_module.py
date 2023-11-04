@@ -267,10 +267,7 @@ class StreamlitModule(c.Module):
                 elif v in ['True', 'False']:
                     v = eval(v)
                 else:
-                    try:
-                        v = eval(v) 
-                    except:
-                        pass
+                    v = v
             
             kwargs[k] = v
         return kwargs

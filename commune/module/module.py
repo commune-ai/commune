@@ -804,6 +804,7 @@ class c:
         if port != None:
             cmd += f' --server.port {port}'
         cmd+= f' -- --fn {fn}'
+        c.print(cmd)
         c.cmd(cmd, verbose=True)
 
     @staticmethod
@@ -1625,14 +1626,10 @@ class c:
         tree_folder = [f for f in tree_folder if f != tree_path ]
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
-    
-
-
-        
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
-        return c.st('subspace')
+        return c.st('subspace.dashboard')
 
     dash = dashboard
 
@@ -3305,7 +3302,8 @@ class c:
     @classmethod
     def argparse(cls, verbose: bool = False):
         import argparse
-        parser = argparse.ArgumentParser(description='Gradio API and Functions')
+        parser = argparse.ArgumentParser(description='Argparse for the module')
+        parser.add_argument('-module', '--module', dest='module', help='select a moduel', type=str, default=None)
         parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
