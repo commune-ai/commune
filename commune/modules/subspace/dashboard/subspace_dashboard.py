@@ -55,7 +55,9 @@ class SubspaceDashboard(c.Module):
             self.key =  c.get_key(key)
             if self.key.path == None:
                 self.key.path = key
-            self.key_info_dict = {}
+            self.key_info_dict = {
+                'balance': self.stats
+            }
 
             st.write('Address: ', self.key.ss58_address)
             st.write('Stake', self.key_info_dict.get('stake', 0))

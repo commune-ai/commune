@@ -577,11 +577,8 @@ class Subspace(c.Module):
         tempo: int = None,
         name:str = None,
         founder: str = None,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization = True,
         key: str = None,
         network = network,
-        prompt: bool = False,
     ) -> bool:
             
         self.resolve_network(network)
@@ -622,6 +619,49 @@ class Subspace(c.Module):
         response = self.compose_call(fn='update_network',params=params, key=key)
 
         return response
+
+
+
+
+    #################
+    #### Serving ####
+    #################
+    def update_global(
+        self,
+        netuid: int = None,
+        max_name_length: int = None,
+        max_allowed_subnets : int = None,
+        max_allowed_modules: int = None,
+        max_registrations_per_block : int = None,
+        unit_emission : int =11904761905,
+        tx_rate_limit: int = None,
+        key: str = None,
+        network = network,
+    ) -> bool:
+            
+        self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        global_params = self.global_params( netuid=netuid )
+        key = self.resolve_key(key)
+
+        params = {
+            'max_name_length': max_name_length,
+            'max_allowed_subnets': max_allowed_subnets,
+            'max_allowed_modules': max_allowed_modules,
+            'max_registrations_per_block': max_registrations_per_block,
+            'unit_emission': unit_emission,
+            'tx_rate_limit': tx_rate_limit
+        }
+
+        # remove the params that are the same as the module info
+        for k, v in params.items():
+            if v == None:
+                params[k] = global_params[k]
+                
+        response = self.compose_call(fn='update_global',params=global_params, key=key)
+
+        return response
+
 
 
     def get_unique_tag(self, module:str, tag:str=None, netuid:int=None, **kwargs):
@@ -1652,8 +1692,29 @@ class Subspace(c.Module):
         key_stats['addresss'] = key_address
         return key_stats
 
+     
+    def global_params(self, network: str = network, netuid: int = 0 ) -> Optional[float]:
+
+        """
+        max_name_length: Option<u16>,
+		max_allowed_subnets: Option<u16>,
+		max_allowed_modules: Option<u16>,
+		max_registrations_per_block: Option<u16>,
+		unit_emission: Option<u64>,
+		tx_rate_limit: Option<u64>,
         
-    
+        """
+        self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        global_params = {}
+        global_params['max_name_length'] = self.query_constant( 'MaxNameLength').value
+        global_params['max_allowed_subnets'] = self.query_constant( 'MaxAllowedSubnets').value
+        global_params['max_allowed_modules'] = self.query_constant( 'MaxAllowedModules' ).value
+        global_params['max_registrations_per_block'] = self.query_constant( 'MaxRegistrationsPerBlock' ).value
+        global_params['unit_emission'] = self.query_constant( 'UnitEmission' ).value
+        global_params['tx_rate_limit'] = self.query_constant( 'TxRateLimit' ).value
+
+        return global_params
 
 
 
@@ -3523,7 +3584,6 @@ class Subspace(c.Module):
         docker = c.module('docker')
         if docker.exists(node_path):
             docker.kill(node_path)
-        
         return cls.rm(f'local_nodes/{chain}/{node}')
 
     @classmethod
