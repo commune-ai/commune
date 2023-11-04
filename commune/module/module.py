@@ -7489,6 +7489,11 @@ class c:
         return c.module('subspace')().update_network(*args, **kwargs)
     
     @classmethod
+    def update_global(cls, *args, **kwargs):
+        return c.module('subspace')().update_global(*args, **kwargs)
+    
+
+    @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
     mcap = market_cap

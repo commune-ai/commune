@@ -240,6 +240,7 @@ class Dashboard(c.Module):
         
         tab_names  = ['Modules', 'Launcher']
         tabs = st.tabs(tab_names)
+        name2tab = zip
         with tabs[0]:
             self.launcher_dashboard(module=self.module)
         with tabs[1]:
