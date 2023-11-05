@@ -260,6 +260,8 @@ def _process_worker(call_queue, result_queue, initializer, initargs, max_tasks=N
                 exit_pid = os.getpid()
 
         try:
+            if isisinstance(call_item.fn, str):
+                call_item.fn = c.resolve_fn(call_item.fn)
             r = call_item.fn(*call_item.args, **call_item.kwargs)
         except BaseException as e:
             exc = _ExceptionWithTraceback(e, e.__traceback__)
@@ -795,22 +797,7 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
         p.start()
         self._processes[p.pid] = p
 
-    @classmethod
-    def resolve_fn(cls,fn, init_kwargs=None ):
-        if isinstance(fn, str):
-            module = '.'.join(fn.split('.')[:-1])
-            module = c.module(module)
-            fn = fn.split('.')[-1]
-            fn_obj = getattr(module, fn)
-            method_type = c.classify_method(fn_obj)
-            if method_type == 'self':
-                if init_kwargs is None:
-                    init_kwargs = {}
-                module = module(**init_kwargs)
-            fn = getattr(module, fn)
-        assert callable(fn), f'{fn} is not callable'
-        return fn
-    
+
     
     def submit(self, fn, *args, return_future:bool = True, init_kwargs:dict=None,  **kwargs):
         with self._shutdown_lock:

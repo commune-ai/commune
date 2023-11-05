@@ -42,10 +42,6 @@ class ModelTransformer(Model):
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
 
-        if max_input_tokens > self.config.max_input_tokens:
-            max_input_tokens = self.config.max_input_tokens
-            logger.warning(f"max_input_tokens is larger than the model's max_input_tokens. Clipping to {max_input_tokens}")
-        
         sample = {
         'input_ids': input_ids[:, -max_input_tokens:],
         'attention_mask': attention_mask[:, -max_input_tokens:] if attention_mask is not None else None
@@ -73,6 +69,7 @@ class ModelTransformer(Model):
 
         if output_topk:
             output['topk']=self.encode_topk(output['logits'].detach(), topk=topk)
+        
         return {key:output[key] for key in return_keys}
         
     
@@ -134,22 +131,20 @@ class ModelTransformer(Model):
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
-        c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
-        if not config.quantize: # cant finetune with quantization
-            self.set_finetune(config.finetune) 
-            self.set_optimizer(config.optimizer)
+        self.optmizer = self.get_optimizer(**config.optimizer)
 
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
 
-
-        c.print('SETTING Tokenizer -> ', config.model)
         self.set_tokenizer(config.model)
         c.print('Tokenizer SET -> ', config.model)
         
 
     def set_tokenizer(self, tokenizer:str):
+
+        c.print('SETTING Tokenizer -> ', tokenizer)
+
         from transformers import AutoTokenizer
         try:
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)

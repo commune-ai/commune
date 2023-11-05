@@ -62,8 +62,7 @@ class SubspaceDashboard(c.Module):
         for k in ['stake_to']:
             self.key_info[k] = {self.key2name.get(k, k): v for k,v in self.key_info[k].items()}
 
-
-    
+        self.subnet_info = self.state['subnets'][0]
     def select_key(self,):
         with st.expander('Select Key', expanded=True):
             key = 'module'
@@ -363,7 +362,8 @@ class SubspaceDashboard(c.Module):
     
     def validator_dashboard(self):
         pass
-    def register_dashboard(self, expanded=True, prefix= None ):
+    def register_dashboard(self, expanded=True, prefix= None, form = True ):
+
 
         if expanded : 
             with st.expander('Register Module', expanded=True):
@@ -372,56 +372,60 @@ class SubspaceDashboard(c.Module):
         self.st.line_seperator()
         cols = st.columns([3,1, 6])
 
-        with cols[0]:
-            module  = st.selectbox('Select A Module', modules, 0)
-            tag = c.random_word(n=2)
-            subnet = st.text_input('subnet', self.subnet, key=f'subnet.{prefix}')
-            tag = st.text_input('tag', tag, key=f'tag.{prefix}')
-            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-            serve = st.checkbox('serve', True, key=f'serve.{prefix}')
-            register = st.button('Register', key=f'register.{prefix}')
+        with st.form(key='register'):
+            with cols[0]:
+                module  = st.selectbox('Select A Module', modules, 0)
+                tag = c.random_word(n=2)
+                subnet = st.text_input('subnet', self.subnet, key=f'subnet.{prefix}')
+                tag = st.text_input('tag', tag, key=f'tag.{prefix}')
+                # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+                serve = st.checkbox('serve', True, key=f'serve.{prefix}')
+                st.write(self.subnet_info)
+                stake = st.number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}')
+                register = st.button('Register', key=f'register.{prefix}')
+                serve = st.button('Serve', key=f'serve.{prefix}.button')
 
-    
-        with cols[-1]:
-            st.write(f'#### {module.upper()} Kwargs ')
-
-            fn_schema = c.fn_schema(c.module(module), '__init__')
-            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
-
-            kwargs = self.st.process_kwargs(kwargs, fn_schema)
-            self.st.line_seperator()
-
-        n = 1
         
-        if 'None' == tag:
-            tag = None
-            
-            
-        if 'tag' in kwargs:
-            kwargs['tag'] = tag
+            with cols[-1]:
+                st.write(f'#### {module.upper()} Kwargs ')
 
-        if register:
-            try:
-                if n > 1:
-                    tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
+                fn_schema = c.fn_schema(c.module(module), '__init__')
+                kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+
+                kwargs = self.st.process_kwargs(kwargs, fn_schema)
+                self.st.line_seperator()
+
+            n = 1
+            
+            if 'None' == tag:
+                tag = None
+                
+                
+            if 'tag' in kwargs:
+                kwargs['tag'] = tag
+
+            if register:
+                try:
+                    if n > 1:
+                        tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
+                    else:
+                        tags = [tag]
+
+                    module_name = module
+                    module = c.module(module)
+
+                    for tag in tags:
+                        st.write(f'Registering {module_name} with tag {tag}, {kwargs}')
+                        response = module.register(tag=tag, subnet=subnet,)
+                        st.write(response)
+                except Exception as e:
+                    response = {'success': False, 'message': str(e)}
+                    raise e
+                if response['success']:
+                    st.success('Module Registered')
                 else:
-                    tags = [tag]
-
-                module_name = module
-                module = c.module(module)
-
-                for tag in tags:
-                    st.write(f'Registering {module_name} with tag {tag}, {kwargs}')
-                    response = module.register(tag=tag, subnet=subnet,)
-                    st.write(response)
-            except Exception as e:
-                response = {'success': False, 'message': str(e)}
-                raise e
-            if response['success']:
-                st.success('Module Registered')
-            else:
-                st.error(response['message'])
-            
+                    st.error(response['message'])
+                
 
 
 
