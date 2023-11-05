@@ -8,6 +8,8 @@ import plotly.express as px
 class SubspaceDashboard(c.Module):
     
     def __init__(self, netuid = 0, network = 'main'): 
+
+        st.set_page_config(layout="wide")
         config = self.set_config(locals())
         self.load_state()
         self.st = c.module('streamlit')()
@@ -74,7 +76,8 @@ class SubspaceDashboard(c.Module):
             }
 
             st.write('Address: ', self.key.ss58_address)
-            st.write('Stake', self.key_info.get('stake_to', 0))
+            stake = sum([v for v in self.key_info.get('stake_to', {}).values()])
+            st.write('Stake', stake )
             st.write('Balance', self.key_info.get('balance', 0))
 
     def create_key(self):
@@ -122,18 +125,21 @@ class SubspaceDashboard(c.Module):
             subnet = st.selectbox('Subnet', subnets, index=subnet2index['commune'])
             self.netuid = self.subspace.subnet2netuid(subnet)
             
-    def sidebar(self):
-        with st.sidebar:
-            st.write('# commune')
+
+    def select_network(self):            
+        with st.expander('Network', expanded=True):
+            st.write('# Network')
             key2index = {k:i for i,k in enumerate(self.keys)}
-            st.write('## Select Subnet')
             self.subnet = st.selectbox(' ', self.subnet_names, 0, key='Select Subnet')
             self.netuid = self.subnet2netuid[self.subnet]
             sync = st.button('Sync')
             if sync:
                 self.sync()
-        
+
+    def sidebar(self):
+        with st.sidebar:
             self.select_key()
+            self.select_network()
 
     def get_module_stats(self, modules):
         df = pd.DataFrame(modules)
@@ -357,18 +363,6 @@ class SubspaceDashboard(c.Module):
     
     def validator_dashboard(self):
         pass
-        # df = c.df(validators)
-        # if len(df) == 0:
-        #     st.error('No Validators')
-        #     return
-
-        # df['stake'] = df['stake']/1e9
-        # df['emission'] = df['emission']/1e9
-        # st.dataframe(df)
-        # with st.expander('Register Validator', expanded=False):
-        #     self.register_dashboard(expanded=False, prefix='vali')
-        
-            
     def register_dashboard(self, expanded=True, prefix= None ):
 
         if expanded : 

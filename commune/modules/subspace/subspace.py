@@ -1492,7 +1492,9 @@ class Subspace(c.Module):
                     netuid=netuid,
                     network = network,
                     block : Optional[int] = None,
+                    update = False,
                     fmt:str='j') -> list:
+        
 
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
