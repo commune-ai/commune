@@ -10,7 +10,7 @@ class Access(c.Module):
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
 
     def __init__(self, 
-                module : Any, # the module or any python object
+                module : Union[c.Module, str], # the module or any python object
                 network: str =  'main', # mainnet
                 netuid: int = 0, # subnet id
                 sync_interval: int =  1000, #  1000 seconds per sync with the network
@@ -53,6 +53,7 @@ class Access(c.Module):
             fn = input.get('fn')
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
+
 
             # RATE LIMIT CHECKING HERE
             stake = self.stakes.get(address, 0)

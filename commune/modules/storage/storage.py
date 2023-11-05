@@ -8,7 +8,7 @@ class Storage(c.Module):
     def __init__(self, 
                  max_replicas:int = 2, 
                 network='local',
-                validate:bool = False,
+                validate:bool = True,
                 match_replica_prefix : bool = False,
                 tag = None,
                 **kwargs):
@@ -170,7 +170,7 @@ class Storage(c.Module):
         path = self.store_dirpath(tag=tag)
         return [x for x in c.ls(path)]
 
-    def items(self, search=None, include_replicas=False, tag=None) -> List:
+    def items(self, search=None, include_replicas:bool=False, tag=None) -> List:
         path = self.store_dirpath(tag=tag)
         items = [x.split('/')[-1] for x in c.ls(path)]
         
@@ -200,7 +200,6 @@ class Storage(c.Module):
     item2replicas = {}
     def validate(self, refresh=False):
 
-        self.ls()
 
         # get the item2info
         item2info = self.item2info()

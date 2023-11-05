@@ -793,6 +793,7 @@ class c:
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
     
+    
     @classmethod
     def st(cls, module = None, fn='dashboard', port=8501):
         module = c.module(module)
@@ -1629,7 +1630,7 @@ class c:
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
-        return c.st('subspace.dashboard')
+        return c.st('dashboard')
 
     dash = dashboard
 
@@ -2689,38 +2690,44 @@ class c:
     help = info
 
 
+    
 
     @classmethod
     def schema(cls,search: str = None,
                     code : bool = False,
-                    docs: bool = False,
+                    docs: bool = True,
                     include_parents:bool = False,
-                     defaults:bool = False,) -> 'Schema':
+                     defaults:bool = True) -> 'Schema':
 
         kwargs = c.locals2kwargs(locals())
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
+    
+    @classmethod
+    def init_schema(cls):
+        return cls.fn_schema('__init__')
+
     @classmethod
     def get_schema(cls,
-                                obj = None,
                                 search = None,
+                                module = None,
                                 code : bool = False,
                                 docs: bool = False,
                                 include_parents:bool = False,
                                 defaults:bool = False,):
         
-        obj = obj if obj else cls
+        module = module if module else cls
         
-        if isinstance(obj, str):
-            obj = c.module(obj)
+        if isinstance(module, str):
+            module = c.module(module)
             
         function_schema_map = {}
-        for fn in cls.get_functions(obj, include_parents=include_parents):
+        for fn in cls.get_functions(module, include_parents=include_parents):
                
             if search != None :
                 if search not in fn:
                     continue
-            fn_obj = getattr(obj, fn )
-            if callable(fn_obj):
+            module_fn = getattr(module, fn )
+            if callable(module_fn):
                 function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
     
         return function_schema_map
@@ -3308,14 +3315,16 @@ class c:
     def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
+        parser.add_argument('-module', '--module', dest='module', help='module', type=str, default="__init__")
+        parser.add_argument('-fn', '--fn', dest='function', help='fn', type=str, default="__init__")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
         if verbose:
             c.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
+
         return args
 
     @classmethod
@@ -3363,11 +3372,7 @@ class c:
             
 
         
-    @classmethod
-    def get_self_methods(cls, obj=None) -> List[str]:
-        from commune.utils.function import get_self_methods
-        return get_self_methods(obj if obj else cls)
-           
+
     ## RAY LAND
     @classmethod
     def ray_stop(cls):
@@ -4944,12 +4949,12 @@ class c:
     
     @classmethod
     def resolve_fn(cls,fn, init_kwargs=None ):
-        if '.' not in 'fn':
-            module = cls.module_path()
         if isinstance(fn, str):
             if '.' in fn:
                 module = '.'.join(fn.split('.')[:-1])
-            module = c.module(module)
+                module = c.module(module)
+            else:
+                module = c.module(fn)
             fn = fn.split('.')[-1]
             fn_obj = getattr(module, fn)
             method_type = c.classify_method(fn_obj)
@@ -4958,6 +4963,7 @@ class c:
                     init_kwargs = {}
                 module = module(**init_kwargs)
             fn = getattr(module, fn)
+        
         assert callable(fn), f'{fn} is not callable'
         return fn
     
@@ -5055,8 +5061,6 @@ class c:
         iso_date = dt.date().isoformat()
 
         return iso_date
-
-       
     
     @classmethod
     def verify(cls, auth, module='subspace', **kwargs ) -> bool:    
@@ -6690,6 +6694,9 @@ class c:
             cls.serve(tag=str(i), **kwargs)
         
 
+    def self_methods(self):
+        return c.get_self_methods(self)
+
     @classmethod
     def classify_methods(cls, obj= None):
         obj = obj or cls
@@ -6880,6 +6887,19 @@ class c:
         return [k for k, v in signature_map.items() if 'self' in v]
     
     self_methods = self_fns = get_self_methods
+
+
+    @classmethod
+    def get_class_methods(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = obj or cls
+        functions =  c.get_functions(obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if 'cls' in v]
+    
+    class_methods = class_fns = get_class_methods
 
     @classmethod
     def get_static_methods(cls: Union[str, type], obj=None):
@@ -7224,6 +7244,12 @@ class c:
     @classmethod
     def random_word(cls, *args, n=2, seperator='_', **kwargs):
         return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
+
+    @classmethod
+    def remove_number_from_word(cls, word:str) -> str:
+        while word[-1].isdigit():
+            word = word[:-1]
+        return word
 
     @classmethod
     def multiunstake(cls, *args, **kwargs):
@@ -8052,7 +8078,11 @@ class c:
     @classmethod
     def play(cls):
         c.module('music').play()
-    
+
+    @classmethod
+    def type(cls,x ):
+        return type(x).__name_
+        
 Module = c
 Module.run(__name__)
     

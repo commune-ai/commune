@@ -44,8 +44,6 @@ class Subspace(c.Module):
         **kwargs,
     ):
         config = self.set_config(kwargs=locals())
-        if config.loop:
-            c.thread(self.loop)
 
     def set_network(self, 
                 network:str = network,
@@ -1294,7 +1292,6 @@ class Subspace(c.Module):
             return None
         return blocks[-1]
 
-        
     @classmethod
     def loop(cls, 
                 network = network,
@@ -2837,7 +2834,6 @@ class Subspace(c.Module):
         else:
             response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
 
-        response['']
         if save_history:
             self.add_history(response)
             

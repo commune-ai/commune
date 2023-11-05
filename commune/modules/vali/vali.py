@@ -45,6 +45,14 @@ class Vali(c.Module):
                     continue
 
 
+    @property               
+    def module_search(self):
+        if self.config.module_search == None:
+            self.config.module_search = self.tag
+        assert isinstance(self.config.module_search, str), f'Module search must be a string, got {type(self.config.module_search)}'
+        return self.config.module_search
+
+
     def sync(self, network:str=None, netuid:int=None, update: bool = True):
         
         try:

@@ -197,7 +197,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = True, num_trials=5, **kwargs):
 
         output = {}
         host_map = cls.hosts(search=search)
@@ -271,7 +271,6 @@ class Remote(c.Module):
         if refresh:
             c.rm_namespace(network=network)
         servers = list(cls.cmd('c addy', verbose=True).values())
-        namespace = cls.namespace(network=network)
         for i, server in enumerate(servers):
             if server.endswith('\n'):
                 servers[i] = server[:-1]
@@ -296,7 +295,6 @@ class Remote(c.Module):
             c.print(f)
             futures += [f]
         return c.wait(futures, timeout=timeout)
-            
 
     @classmethod
     def logs(cls, module, n=3 , **kwargs):
@@ -315,8 +313,8 @@ class Remote(c.Module):
 
         if update:
             namespace = {}
-            host2namespace = cls.call('namespace', public=True)
-            for host, host_namespace in host2namespace.items():
+            host2namespace = cls.call('namespace')
+            for host, host_amespace in host2namespace.items():
                 for name, address in host_namespace.items():
                     tag = ''
                     while name + str(tag) in namespace:
