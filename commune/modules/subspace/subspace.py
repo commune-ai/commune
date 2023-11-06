@@ -1873,13 +1873,13 @@ class Subspace(c.Module):
         if key != None:
             return key2name[key]
         
-    def name2uid(self, name: str = None, netuid: int = None, network: str = None) -> int:
+    def name2uid(self,search:str=None, netuid: int = None, network: str = None) -> int:
         modules = self.modules(netuid=netuid)
         name2uid =  { m['name']: m['uid']for m in modules}
-        if name != None:
-            return name2uid[name]
+        if search != None:
+            name2uid = {k:v for k,v in name2uid.items() if search in k}
         return name2uid
-            
+    
         
     def name2key(self, search:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)

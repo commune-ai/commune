@@ -38,6 +38,8 @@ class Remote(c.Module):
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 
+
+
         # Connect to the remote server
         client.connect(host['host'],
                        port=host['port'], 
@@ -48,28 +50,35 @@ class Remote(c.Module):
             command = "sudo -S -p '' %s" % command
         stdin, stdout, stderr = client.exec_command(command)
 
-        if sudo:
-            stdin.write(host['pwd'] + "\n")
-            stdin.flush()
-        color = c.random_color()
-        # Print the output of ls command
-        outputs = {'error': '', 'output': ''}
 
-        for line in stdout.readlines():
-            if verbose:
-                c.print(f'[bold]{host_name}[/bold]', line.strip('\n'), color=color)
-            outputs['output'] += line
 
-        for line in stderr.readlines():
-            if verbose:
-                c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
-            outputs['error'] += line
-    
 
-        if len(outputs['error']) == 0:
-            outputs = outputs['output']
+        try:
+            if sudo:
+                stdin.write(host['pwd'] + "\n")
+                stdin.flush()
+            color = c.random_color()
+            # Print the output of ls command
+            outputs = {'error': '', 'output': ''}
 
-    
+            for line in stdout.readlines():
+                if verbose:
+                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'), color=color)
+                outputs['output'] += line
+
+            for line in stderr.readlines():
+                if verbose:
+                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
+                outputs['error'] += line
+        
+
+            if len(outputs['error']) == 0:
+                outputs = outputs['output']
+        except Exception as e:
+            c.print(e)
+            pass
+
+        
         stdin.close()
         stdout.close()
         stderr.close()
@@ -197,7 +206,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = True, num_trials=5, **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
         host_map = cls.hosts(search=search)
@@ -253,7 +262,7 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, refresh=False, network='remote'):
+    def add_servers(cls, *args, add_admins:bool=False, refresh=True, network='remote'):
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()
@@ -372,11 +381,11 @@ class Remote(c.Module):
         c.add_servers()
     
     @classmethod
-    def check_servers(cls, timeout=100):
+    def check_servers(cls, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():
             futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
-        results = c.wait(futures)
+        results = c.wait(futures, timeout=timeout)
         return results
     
     @classmethod
