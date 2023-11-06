@@ -99,7 +99,7 @@ class Client(c.Module):
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
                     # Process SSE events
-                    result = []
+                    result = ''
                     async for line in response.content:
                         # remove the "data: " prefix
                         event_data = line.decode('utf-8').strip().replace("data: {", "{")

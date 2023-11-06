@@ -1488,14 +1488,14 @@ class Subspace(c.Module):
 
     mcap = market_cap = total_supply
             
-    def subnet(self, 
+        
+    def subnet_params(self, 
                     netuid=netuid,
                     network = network,
                     block : Optional[int] = None,
                     update = False,
                     fmt:str='j') -> list:
         
-
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
 
@@ -1525,6 +1525,8 @@ class Subspace(c.Module):
             subnet[k] = self.format_amount(subnet[k], fmt=fmt)
 
         return subnet
+    
+    subnet = subnet_params
             
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
@@ -1996,7 +1998,19 @@ class Subspace(c.Module):
     @property
     def block_time(self):
         return self.config.block_time
+    
+    def epoch_time(self, netuid=None, network=None):
+        return self.subnet(netuid=netuid, network=network)['tempo']*self.block_time
 
+    def blocks_per_day(self, netuid=None, network=None):
+        return 24*60*60/self.block_time
+    
+
+    def epochs_per_day(self, netuid=None, network=None):
+        return 24*60*60/self.epoch_time(netuid=netuid, network=network)
+    
+    def emission_per_epoch(self, netuid=None, network=None):
+        return self.subnet(netuid=netuid, network=network)['emission']*self.epoch_time(netuid=netuid, network=network)
 
     def get_block(self, network=None, block_hash=None): 
         self.resolve_network(network)
