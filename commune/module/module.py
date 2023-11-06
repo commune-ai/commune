@@ -808,6 +808,8 @@ class c:
         c.print(cmd)
         c.cmd(cmd, verbose=True)
 
+    
+
     @staticmethod
     def stside(fn):
         import streamlit as st
@@ -3315,7 +3317,6 @@ class c:
     def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-module', '--module', dest='module', help='module', type=str, default="__init__")
         parser.add_argument('-fn', '--fn', dest='function', help='fn', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  

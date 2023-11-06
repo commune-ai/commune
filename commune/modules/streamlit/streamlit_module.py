@@ -23,19 +23,18 @@ class StreamlitModule(c.Module):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
     
 
-    @classmethod
-    def run(cls, data, plots=[], default_plot  ='histogram', title=None ):
+    def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
-        cls.cols= st.columns([1,3])
+        self.cols= st.columns([1,3])
         if len(plots) == 0:
-            plots = cls.plot_options()
+            plots = self.plot_options()
 
         if default_plot not in plots:
             default_plot = plots[0]
         supported_types = [pd.DataFrame]
         if isinstance(data, pd.DataFrame):
             df = data
-            with cls.cols[1]:
+            with self.cols[1]:
                 if len(plots) > 1:
                     name2index = {_name:_idx for _idx, _name in enumerate(plots)}
                     plot = st.selectbox('Choose a Plot', plots, name2index[default_plot])
@@ -43,13 +42,13 @@ class StreamlitModule(c.Module):
                     plot = plots[0]
             form = st.form(F'Params for {plot}')
             with form:
-                fig = getattr(cls, 'st_plot_'+ plot)(df)
+                fig = getattr(self, 'st_plot_'+ plot)(df)
                 form.form_submit_button("Render")
 
         else:
             raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
         fig.update_layout(height=800)
-        cls.show(fig)
+        self.show(fig)
         
     @staticmethod
     def metrics_dict(x, num_rows:int = 1):

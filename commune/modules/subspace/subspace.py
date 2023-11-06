@@ -363,6 +363,8 @@ class Subspace(c.Module):
         module_key : str = None,
         network: str = network,
         update_if_registered = False,
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
         fmt = 'nano',
 
 
@@ -418,8 +420,8 @@ class Subspace(c.Module):
                     'module_key': module_key.ss58_address,
                 } 
         # create extrinsic call
-        response = self.compose_call('register', params=params, key=key)
-
+        response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization)
+        c.print(response)
         if response['success']:
             response['msg'] = f'Registered {name} with {stake} stake'
 
@@ -656,7 +658,8 @@ class Subspace(c.Module):
             if v == None:
                 params[k] = global_params[k]
                 
-        response = self.compose_call(fn='update_global',params=global_params, key=key)
+        # this is a sudo call
+        response = self.compose_call(fn='update_global',params=params, key=key, sudo=True)
 
         return response
 
@@ -2797,6 +2800,7 @@ class Subspace(c.Module):
                     color: str = 'yellow',
                     verbose: bool = True,
                     save_history : bool = True,
+                    sudo:bool  = False,
                      **kwargs):
 
         """
@@ -2813,36 +2817,51 @@ class Subspace(c.Module):
                 return self.compose_call(**kwargs)
 
 
+
+
         with self.substrate as substrate:
             call = substrate.compose_call(
                 call_module=module,
                 call_function=fn,
                 call_params=params
             )
+            if sudo:
+                call = substrate.compose_call(
+                    call_module='Sudo',
+                    call_function='sudo',
+                    call_params={
+                        'call': call.value,
+                    }
+                )
             extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key)
 
             response = substrate.submit_extrinsic(extrinsic=extrinsic,
                                                   wait_for_inclusion=wait_for_inclusion, 
                                                   wait_for_finalization=wait_for_finalization)
 
-    
-        if process_events:
-            response.process_events()
 
-        if response.is_success:
-            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+        if wait_for_finalization:
+            if process_events:
+                response.process_events()
+
+            if response.is_success:
+                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+            else:
+                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
+
+            if save_history:
+                self.add_history(response)
         else:
-            response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
-
-        if save_history:
-            self.add_history(response)
+            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+            
+        return response
             
 
     history_path = f'history'
 
     @classmethod
     def add_history(cls, response:dict) -> dict:
-        return cls.put(cls.history_path,response)
+        return cls.put(cls.history_path + f'/{c.time()}',response)
 
     @classmethod
     def clear_history(cls):
