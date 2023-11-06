@@ -2,28 +2,27 @@ import commune as c
 import multiprocessing as mp
 import os
 from typing import *
-class Process(c.Module):
-    
-    process_map = {}
-    @classmethod
-    def queue(cls, *args, **kwargs):
-        return mp.Queue(*args, **kwargs)
-    @classmethod
-    def process(cls,fn: Union['callable', str],  
-                    args:list = None, 
-                    kwargs:dict = None, 
-                    daemon:bool = True, 
-                    tag = None,
-                    name = None,
-                    start:bool = True,
-                    tag_seperator:str=':'):
+class Pool(c.Module):
 
+    def __init__(self, module, replicas = 3 , queue_size=1000, args=None, kwargs=None):
+        self.args = args or []
+        self.kwargs = kwargs or {}
+        self.mp = mp.Queue(queue_size=quue)
+        self.replicas = []
+        for i in range(replicas):
+            self.add_replica(module, args=self.args, kwargs=self.kwargs)
+        
+    
+
+
+    def add_replica(self, module:str, args=None, kwargs=None):
         if args == None:
-            args = []
+            args = self.args
         if kwargs == None:
-            kwargs = {}
-        assert  isinstance(args, list), f'args must be a list, got {args}'
-        assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
+            kwargs = self.kwargs
+        
+        replica = c.module(module)(*args, **kwargs)
+        self.replicas.append(replica)
 
         if isinstance(fn, str):
             fn = c.get_fn(fn)
@@ -49,9 +48,18 @@ class Process(c.Module):
             cnt += 1
             name = fn_name + tag_seperator + tag + str(cnt)
 
-        cls.process_map[name] = t
 
-        return t
+    def num_replicas(self):
+        return len(self.replicas)
+
+    def pop_replica(self):
+        replica = self.replicas.pop()
+        del replica
+        return {
+            'success':True,
+            'msg':'replica removed',
+            'n':self.num_replicas()
+        }
 
     start = process 
 
@@ -160,6 +168,9 @@ class Process(c.Module):
     def semaphore(cls, n:int = 100):
         semaphore = mp.Semaphore(n)
         return semaphore
+
+
+        
 
     def __delete__(self):
         self.join()

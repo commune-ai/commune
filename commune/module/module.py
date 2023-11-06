@@ -948,7 +948,7 @@ class c:
         return os.makedirs(*args, **kwargs)
 
     @classmethod
-    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
+    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
         '''
         Resolves path for saving items that relate to the module
         
@@ -975,8 +975,8 @@ class c:
                 if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
             
-        if not os.path.exists(path) and os.path.exists(path+'.json'):
-            path = path + '.json'       
+        if not os.path.exists(path) and os.path.exists(path + f'.{file_type}'):
+            path = path + f'.{file_type}'       
                  
         return path
     
@@ -1653,6 +1653,17 @@ class c:
     @classmethod
     def tmp_dir(cls):
         return f'{c.cache_path()}/{cls.module_path()}'
+    storage_dir = tmp_dir
+    
+    @classmethod
+    def refresh_storage(cls):
+        c.rm(cls.tmp_dir())
+
+    @classmethod
+    def refresh_tmp_dir(cls):
+        c.rm(cls.tmp_dir())
+        c.makedirs(cls.tmp_dir())
+        
 
     ############ JSON LAND ###############
 
@@ -1807,9 +1818,8 @@ class c:
     def rm(cls, path, extension=None, root=False, mode = 'json'):
         path = cls.resolve_path(path=path, extension=extension, root=root)
 
-        if not os.path.exists(path):
+        if not os.path.exists(path) and os.path.exists(path+'.json'):
             path += f'.{mode}'
-        
 
         if os.path.exists(path):
             if os.path.isdir(path):
@@ -2484,7 +2494,8 @@ class c:
         if c.server_exists(server_name, network=network): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                address = c.get_address(server_name, network=network)    
+                address = c.get_address(server_name, network=network)
+                c.print(address)    
                 if ':' in address:
                     port = address.split(':')[-1]        
                     c.kill(server_name)
@@ -2782,11 +2793,14 @@ class c:
 
         futures = []
         for s in servers:
-            future = c.submit(c.kill, args=[s], kwargs=kwargs, mode='process')
+            future = c.submit(c.kill, kwargs={'module':server, **kwargs}, mode='process', return_future = True)
             futures.append(futures)
+
+        results = c.wait(futures)
+
+        
             
-            
-        return {'success':True, 'message':f'Killed servers with prefix {search}'}
+        return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
     delete = kill_server = kill
     def destroy(self):

@@ -1603,9 +1603,10 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from', 'regblock'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'trust', 'stake', 'regblock', 'last_update'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
+              include_total : bool = True,
               **kwargs
               ):
 
@@ -1638,6 +1639,10 @@ class Subspace(c.Module):
             return df_stats
         df_stats = df_stats[cols]
 
+        if 'emission' in cols:
+            epochs_per_day = self.epochs_per_day(netuid=netuid)
+            df_stats['emission'] = df_stats['emission'] * epochs_per_day
+
 
         sort_cols = [c for c in sort_cols if c in df_stats.columns]  
         df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
@@ -1665,9 +1670,10 @@ class Subspace(c.Module):
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
     
-    def check_servers(self, search=None,  netuid=None, wait_for_server=False, update=True):
+    def check_servers(self, search=None,  netuid=None, wait_for_server=False, update:bool=False):
         cols = ['name', 'registered', 'serving', 'address']
-        for m in c.stats(search=search, netuid=netuid, cols=cols, df=False, update=True):
+        module_stats = self.stats(search=search, netuid=netuid, cols=cols, df=False, update=update)
+        for m in module_stats:
             if m['serving'] == False and m['registered'] == True:
                 ip = m['address'].split(':')[0]
                 if ':' in ip:
@@ -1879,6 +1885,7 @@ class Subspace(c.Module):
         if search != None:
             name2uid = {k:v for k,v in name2uid.items() if search in k}
         return name2uid
+
     
         
     def name2key(self, search:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
@@ -2117,7 +2124,9 @@ class Subspace(c.Module):
                 netuid: int = 0,
                 block: Optional[int] = None,
                 fmt='nano', 
-                keys = None,
+                keys : List[str] = ['uid2key', 'addresses', 'names', 'emission', 
+                    'incentive', 'dividends', 'regblock', 'last_update', 
+                    'stake_from', 'delegation_fee', 'trust'],
                 update: bool = False,
                 include_weights = False,
                 df = False,
@@ -2127,14 +2136,11 @@ class Subspace(c.Module):
                 mode = 'process',
                 
                 ) -> Dict[str, ModuleInfo]:
-        import inspect
-
-
+        import inspec
 
         cache_path = f'modules/{network}.{netuid}'
 
         modules = []
-
         if not update :
             modules = self.get(cache_path, [])
 
@@ -2143,10 +2149,7 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
             block = self.block if block == None else block
-            
-            keys = ['uid2key', 'addresses', 'names', 'emission', 
-                    'incentive', 'dividends', 'regblock', 'last_update', 
-                    'stake_from', 'delegation_fee']
+ 
             
             if include_balances:
                 keys += ['balances']
@@ -2184,12 +2187,14 @@ class Subspace(c.Module):
                     'key': key,
                     'emission': state['emission'][uid],
                     'incentive': state['incentive'][uid],
+                    'trust': state['trust'][uid],
                     'dividends': state['dividends'][uid],
                     'stake_from': state['stake_from'].get(key, []),
                     'regblock': state['regblock'].get(uid, 0),
                     'last_update': state['last_update'][uid],
                     'delegation_fee': state['delegation_fee'].get(key, 20)
                 }
+
                 module['stake'] = sum([v for k,v in module['stake_from']])
                 
                 if include_weights:
@@ -2234,20 +2239,19 @@ class Subspace(c.Module):
         if df:
             modules = c.df(modules)
 
-
-
         return modules
     
 
-    def my_modules(self,search=None, *args, **kwargs):
+    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=None, **kwargs):
         my_modules = []
         address2key = c.address2key()
-        for module in self.modules(*args, **kwargs):
+        if modules == None:
+            modules = self.modules(netuid=netuid **kwargs)
+        for module in modules:
             if search != None and search not in module['name']:
                 continue
             if module['key'] in address2key:
                 my_modules += [module]
-            
         return my_modules
 
     def my_servers(self, search=None,  **kwargs):
