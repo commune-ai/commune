@@ -481,6 +481,9 @@ class c:
         return data
     
 
+    @classmethod
+    def obj_age(cls, item:dict) -> int:
+        return c.timestamp() - int(cls.get_json(item).get('timestamp', 0))
 
     @classmethod
     def get_many(cls,
@@ -828,92 +831,14 @@ class c:
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
     
-
     @classmethod
-    def cmd(cls, 
-                    command:Union[str, list],
-                    verbose:bool = True, 
-                    env:Dict[str, str] = {}, 
-                    output_text:bool = False,
-                    sudo:bool = False,
-                    password: bool = None,
-                    color: str = 'white',
-                    bash : bool = False,
-                    **kwargs) -> 'subprocess.Popen':
-        '''
-        Runs  a command in the shell.
-        
-        '''
-        if output_text : 
-            verbose = False
-        if isinstance(command, list):
-            kwargs = c.locals2kwargs(locals())
-            for idx,cmd in enumerate(command):
-                assert isinstance(cmd, str), f'command must be a string, not {type(cmd)}'
-                kwargs['command'] = cmd
-                response = c.cmd(**kwargs)
-            return response
-
-        import subprocess
-        import shlex
-        import time
-        import signal
-        
-        def kill_process(process):
-            import signal
-            process.stdout.close()
-            process.send_signal(signal.SIGINT)
-            process.wait()
-            # sys.exit(0)
-            
-        if password != None:
-            sudo = True
-            
-        if sudo:
-            command = f'sudo {command}'
-            
-            
-        if bash:
-            command = f'bash -c "{command}"'
-        process = subprocess.Popen(shlex.split(command),
-                                    stdout=subprocess.PIPE, 
-                                    stderr=subprocess.STDOUT,
-                                    env={**os.environ, **env}, **kwargs)
-
-            
-        new_line = b''
-        stdout_text = ''
-        line_count_idx = 0
-        line_delay_period = 0
-        last_time_line_printed = time.time()
- 
-        try:
-            
-            for ch in iter(lambda: process.stdout.read(1), b""):
-                
-
-                if  ch == b'\n':
-                    stdout_text += (new_line + ch).decode()
-                    line_count_idx += 1
-                    if verbose:
-                        c.print(new_line.decode(), color='cyan')
-                    new_line = b''
-                    continue
-
-                new_line += ch
-
-
-        except KeyboardInterrupt:
-            kill_process(process)
-        
-        return stdout_text
-
-
+    def cmd(cls, *args, **kwargs):
+        return c.module('os').cmd(*args, **kwargs)
     run_command = shell = cmd 
+
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
-
         return import_module(import_path)
 
 
@@ -1049,7 +974,10 @@ class c:
             if not os.path.isdir(path):
                 if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
-
+            
+        if not os.path.exists(path) and os.path.exists(path+'.json'):
+            path = path + '.json'       
+                 
         return path
     
     @classmethod
@@ -3729,7 +3657,7 @@ class c:
     module_cache = {}
     
     @classmethod
-    def module(cls,module: Any = 'module' , tree=None, **kwargs):
+    def module(cls,module: Any = 'module' , **kwargs):
         '''
         Wraps a python class as a module
         '''
@@ -4834,8 +4762,20 @@ class c:
                 prefix = encrypted_prefix) -> bytes:
 
         key = c.get_key(key)
+        path = None
+        if c.exists(data):
+            path = data
+            data =  c.get_text(data)
+
         data = c.python2str(data)
+
+        c.print(f'Encrypting {data} with {key}', color='cyan')
+
         encrypted_data = key.encrypt(data)
+
+        if path != None:
+            c.put_text(path, encrypted_data)
+
         return encrypted_data
     
 
@@ -4846,9 +4786,20 @@ class c:
                 prefix = encrypted_prefix) -> bytes:
 
         key = c.get_key(key)
-        data = c.python2str(data)
-        encrypted_data = key.decrypt(data)
-        return encrypted_data
+        path = None
+        if c.exists(data):
+            c.print(f'Decrypting from {data} as it exists', color='cyan')
+            path = data
+            data =  c.get_text(path)
+
+        c.print(data, 'FA', path)   
+        data = key.decrypt(data)
+
+
+        if path != None:
+            c.put_text(path, c.python2str(data))
+
+        return data
     
     @classmethod
     def put_cache(cls,k,v ):
