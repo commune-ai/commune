@@ -21,7 +21,6 @@ class Access(c.Module):
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
                 **kwargs):
         config = self.set_config(kwargs=locals())
-        c.print(config)
         self.module = module
         self.user_info = {}
 
@@ -39,11 +38,13 @@ class Access(c.Module):
             self.stakes = {}
             return
         
+    def is_module_key(self, address: str) -> bool:
+        return bool(self.module.key.ss58_address == address)
 
     def verify(self, input:dict) -> dict:
 
         address = input['address']
-        if c.is_admin(address):
+        if c.is_admin(address) or self.module.key.ss58_address == address:
             return input
         else:
             self.sync()
@@ -64,7 +65,6 @@ class Access(c.Module):
                 rate = self.config.rate
             rate_limit = (stake / self.config.stake2rate)
             rate_limit = rate_limit + self.config.base_rate
-
             # convert the rate limit to the correct timescale
             rate_limit = rate_limit / self.timescale_map[self.config.timescale]
 

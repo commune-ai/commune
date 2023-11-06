@@ -44,6 +44,9 @@ class Dashboard(c.Module):
         self.namespace = {m['name']: m['address'] for m in self.modules}
         self.module_names = [m['name'] for m in self.modules]
         self.block = self.state['block']
+        for i, m in enumerate(self.modules):
+            self.modules[i]['stake'] = self.modules[i]['stake']/1e9
+            self.modules[i]['emission'] = self.modules[i]['emission']/1e9
 
 
         self.key_info = {
@@ -59,8 +62,12 @@ class Dashboard(c.Module):
         for k in ['stake_to']:
             self.key_info[k] = {self.key2name.get(k, k): v for k,v in self.key_info[k].items()}
 
+        total_balance = sum(self.state['balances'].values())
         self.subnet_info = self.state['subnets'][0]
-    
+        balances = self.state['balances']
+        self.total_balance = sum(balances.values())/1e9
+        for k in ['stake', 'emission', 'min_stake']:
+            self.subnet_info[k] = self.subnet_info[k]/1e9
     def select_key(self,):
         with st.expander('Select Key', expanded=True):
             key = 'module'
@@ -137,6 +144,7 @@ class Dashboard(c.Module):
         with st.sidebar:
             self.select_key()
             self.select_network()
+            st.write(self.subnet_info)
 
     def get_module_stats(self, modules):
         df = pd.DataFrame(modules)
@@ -258,41 +266,6 @@ class Dashboard(c.Module):
     def playground_dashboard(self):
         st.write('# Playground')
 
-    def modules_dashboard(self):
-        # self.register_dashboard(expanded=False)
-        netuid = 0 
-        st.write('# Modules')
-        for m in self.modules:
-            m['delegate_stake'] = sum([s[1] for s in m['stake_from'][1:]])
-            # m['address'] = m['address'].split(':')[0]
-            for k in [ 'stake', 'delegate_stake', 'emission']:
-                m[k] = m[k]/1e9
-            for del_k in ['key', 'stake_from']:
-                del m[del_k]  
-        df = pd.DataFrame(self.modules)
-        df.sort_values('emission', inplace=True, ascending=False)
-        df.reset_index(inplace=True)
-
-        stats = {
-            'total_stake': sum(df['stake']),
-            'total_emission': sum(df['emission']),
-            'total_delegate_stake': sum(df['delegate_stake']),
-            'block': self.block,
-
-        }
-
-        # make df hit the edge of the screen
-        st.write(df)
-
-
-        import plotly.graph_objects as go
-
-        # Create traces
-
-
-        # make a pie chart of the stake
-        self.st.metrics_dict(stats, num_rows=1)
-
 
     def archive_dashboard(self):
         # self.register_dashboard(expanded=False)
@@ -318,7 +291,6 @@ class Dashboard(c.Module):
         block = st.selectbox('Block', blocks, index=0)
         path = block2path[block]
         state = c.get(path)
-        st.write(state.keys())
         modules = state['modules'][netuid]
         for i in range(len(modules)):
             for k in ['stake_to', 'stake_from', 'key', 'address']:
@@ -384,33 +356,27 @@ class Dashboard(c.Module):
                 return self.register_dashboard(prefix=prefix, expanded=False)
         modules = c.modules(prefix)
         self.st.line_seperator()
-        cols = st.columns([3,1, 6])
+        cols = st.columns([2,2,2])
 
         with st.form(key='register'):
-            with cols[0]:
-                module  = st.selectbox('Select A Module', modules, 0)
-                tag = c.random_word(n=2)
-                subnet = st.text_input('subnet', self.subnet, key=f'subnet.{prefix}')
-                tag = st.text_input('tag', tag, key=f'tag.{prefix}')
-                # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-                serve = st.checkbox('serve', True, key=f'serve.{prefix}')
-                st.write(self.subnet_info)
-                stake = st.number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}')
-                register = st.button('Register', key=f'register.{prefix}')
-                serve = st.button('Serve', key=f'serve.{prefix}.button')
+            module  = cols[0].selectbox('Select A Module', modules, 0)
+            tag = cols[1].text_input('tag', c.random_word(n=2), key=f'tag.{prefix}')
+            stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}')
+            n = st.slider('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}')
+            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            register = st.form_submit_button('Register')
 
         
-            with cols[-1]:
-                st.write(f'#### {module.upper()} Kwargs ')
+            st.write(f'#### {module.upper()} Kwargs ')
 
-                fn_schema = c.fn_schema(c.module(module), '__init__')
-                fns = list(fn_schema.keys())
-                fn2index = {f:i for i,f in enumerate(fns)}
-                # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
-                kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+            fn_schema = c.fn_schema(c.module(module), '__init__')
+            fns = list(fn_schema.keys())
+            fn2index = {f:i for i,f in enumerate(fns)}
+            # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
+            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
 
-                kwargs = self.st.process_kwargs(kwargs, fn_schema)
-                self.st.line_seperator()
+            kwargs = self.st.process_kwargs(kwargs, fn_schema)
+            self.st.line_seperator()
 
             n = 1
             
@@ -433,7 +399,7 @@ class Dashboard(c.Module):
 
                     for tag in tags:
                         st.write(f'Registering {module_name} with tag {tag}, {kwargs}')
-                        response = module.register(tag=tag, subnet=subnet,)
+                        response = module.register(tag=tag, subnet= self.subnet, stake=stake)
                         st.write(response)
                 except Exception as e:
                     response = {'success': False, 'message': str(e)}
@@ -466,6 +432,7 @@ class Dashboard(c.Module):
             with st.expander('Historam'):
                 key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
                 
+                self.st.run(df)
                 fig = px.histogram(
                     x = df[key].to_list(),
                 )
@@ -473,8 +440,5 @@ class Dashboard(c.Module):
                 st.plotly_chart(fig)
 
 
-
-
-
-
-Dashboard.run()
+if __name__ == '__main__':
+    Dashboard.run()

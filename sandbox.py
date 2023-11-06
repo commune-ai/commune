@@ -6,4 +6,4 @@ import commune as c
 
 
 ''
-
+c.rcmd('cd commune && git pull',search='tang')

@@ -201,16 +201,6 @@ class Remote(c.Module):
 
         output = {}
         host_map = cls.hosts(search=search)
-        if search != None:
-            if isinstance(search, str):
-                host_map = {k:v for k,v in host_map.items() if hosts in k}
-            elif isinstance(search, list):
-                host_map = {k:v for k,v in host_map.items() if k in hosts}
-            else:
-                raise Exception(f'hosts must be a list or a string')
-            
-        hosts = host_map
-
         for i in range(num_trials):
             try:
                 results = {}
