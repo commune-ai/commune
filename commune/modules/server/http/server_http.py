@@ -15,7 +15,7 @@ class ServerHTTP(c.Module):
         name: str = None,
         network:str = 'local',
         port: Optional[int] = None,
-        sse: bool = True,
+        sse: bool = False,
         chunk_size: int = 42_000,
         max_request_staleness: int = 60, 
         max_workers: int = None,
