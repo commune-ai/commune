@@ -11,6 +11,15 @@ import aiohttp
 import json
 
 
+from aiohttp.streams import StreamReader
+
+# Define a custom StreamReader with a higher limit
+class CustomStreamReader(StreamReader):
+    def __init__(self, *args, **kwargs):
+        # You can adjust the limit here to a value that fits your needs
+        # This example sets it to 1MB
+        super().__init__(*args, limit=1024*1024, **kwargs)
+
 
 class Client(c.Module):
 
@@ -58,9 +67,7 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'},
-        stream : bool = False,
-         **extra_kwargs):
+        headers : dict ={'Content-Type': 'application/json'}):
 
         self.resolve_client(ip=ip, port=port)
 
@@ -85,6 +92,8 @@ class Client(c.Module):
         request = self.key.sign(request_data, return_json=True)
 
         result = '{}'
+
+
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
@@ -96,10 +105,13 @@ class Client(c.Module):
                         event_data = line.decode('utf-8').strip().replace("data: {", "{")
                         if event_data == "":
                             continue
-                        result += [self.process_output(json.loads(event_data))]
+                        if isinstance(event_data, str):
+                            result += event_data
+
+                        
+                    result = self.process_output(json.loads(result))
                     
-                    if len(result) == 1: 
-                        result = result[0]
+
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
                     result = self.process_output(result)
