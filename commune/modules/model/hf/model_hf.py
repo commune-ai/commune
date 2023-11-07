@@ -42,10 +42,6 @@ class ModelTransformer(Model):
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
 
-        if max_input_tokens > self.config.max_input_tokens:
-            max_input_tokens = self.config.max_input_tokens
-            logger.warning(f"max_input_tokens is larger than the model's max_input_tokens. Clipping to {max_input_tokens}")
-        
         sample = {
         'input_ids': input_ids[:, -max_input_tokens:],
         'attention_mask': attention_mask[:, -max_input_tokens:] if attention_mask is not None else None
@@ -73,6 +69,7 @@ class ModelTransformer(Model):
 
         if output_topk:
             output['topk']=self.encode_topk(output['logits'].detach(), topk=topk)
+        
         return {key:output[key] for key in return_keys}
         
     
@@ -108,8 +105,6 @@ class ModelTransformer(Model):
         config.model = config.shortcuts.get(config.model, config.model)
         from transformers import  AutoModelForCausalLM
 
-
-        
         config = self.resolve_quantize(config)
 
         config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
@@ -136,22 +131,20 @@ class ModelTransformer(Model):
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
-        c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
-        if not config.quantize: # cant finetune with quantization
-            self.set_finetune(config.finetune) 
-            self.set_optimizer(config.optimizer)
+        self.optmizer = self.get_optimizer(**config.optimizer)
 
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
 
-
-        c.print('SETTING Tokenizer -> ', config.model)
         self.set_tokenizer(config.model)
         c.print('Tokenizer SET -> ', config.model)
         
 
     def set_tokenizer(self, tokenizer:str):
+
+        c.print('SETTING Tokenizer -> ', tokenizer)
+
         from transformers import AutoTokenizer
         try:
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
@@ -317,14 +310,17 @@ class ModelTransformer(Model):
         
         
         return model
-                
+
+    @classmethod
+    def hf2commune(cls, path:str):
+        return path.split('/')[-1].lower()     
 
     @property
     def tag(self):
         if self.config.get('tag', None) == None:
             self.config['tag'] = 'base'
-            
-        return  self.config['tag']
+        commune_model_path = self.hf2commune(path)
+        return  commune_model_path + self.config['tag']
     
     @tag.setter
     def tag(self, tag):
@@ -346,7 +342,7 @@ class ModelTransformer(Model):
     @classmethod
     def resolve_server_name(cls, tag=None, **kwargs):
         config = cls.get_config(kwargs=kwargs)
-        server_name = 'model.'+config.model
+        server_name = 'model.'+ cls.hf2commune(config.model)
         if tag != None :
             server_name += '::' +  str(tag)
         return server_name

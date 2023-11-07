@@ -1,4 +1,5 @@
 import commune as c
+from typing import *
 
 class Peers(c.Module):
     @classmethod

@@ -19,6 +19,7 @@ class Dashboard(commune.Module):
     def sync(self):
         self.subspace.sync()
         return self.subspace.load_state()
+    
 
     @classmethod
     def function2streamlit(cls, 

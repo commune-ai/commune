@@ -18,24 +18,24 @@ class Process(c.Module):
                     start:bool = True,
                     tag_seperator:str=':'):
 
-        if isinstance(fn, str):
-            fn = c.get_fn(fn)
         if args == None:
             args = []
         if kwargs == None:
             kwargs = {}
-
-        assert callable(fn), f'target must be callable, got {fn}'
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
-        
-        t = mp.Process(target=fn, args=args, kwargs=kwargs)
-        t.__dict__['start_time'] = c.time()
-        t.daemon = daemon
 
+        if isinstance(fn, str):
+            fn = c.get_fn(fn)
+        assert callable(fn), f'target must be callable, got {fn}'
+        t = mp.Process(target=fn, args=args, kwargs=kwargs)
+        fn_name = fn.__name__
+
+        t.__dict__['start_time'] = c.time()
+
+        t.daemon = daemon
         if start:
             t.start()
-        fn_name = fn.__name__
         if tag == None:
             tag = ''
         else:

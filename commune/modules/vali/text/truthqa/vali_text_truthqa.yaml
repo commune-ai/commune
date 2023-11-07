@@ -3,8 +3,10 @@ network: main # global or local network
 alpha: 0.9
 timeout: 2
 tag: null
+target: 'answers'
 module_search: model
 start: True
-dataset : data.text.truth
+dataset : data.text.truthqa
 verbose: False
+
 
