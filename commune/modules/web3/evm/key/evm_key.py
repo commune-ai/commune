@@ -15,40 +15,30 @@ from eth_keys import keys
 from copy import deepcopy
 from eth_account import Account
 
-import commune
+import commune as c
 from typing import List, Dict, Union, Optional, Any
 
 logger = logging.getLogger(__name__)
 
 
-class EVMAccount(commune.Module, Account):
-
-
+class EVMAccount(c.Module, Account):
 
     _last_tx_count = dict()
-    ENV_PRIVATE_KEY = 'PRIVATE_KEY'
     def __init__(
         self,
-        *args,
-        config = None,
+        network:str = 'local.main',
         **kwargs
     ) -> None:
         """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
-        self.config = self.set_config(config, kwargs=kwargs)
-        
-        Account.__init__(self, *args, **kwargs)
+        self.config = self.set_config( kwargs=kwargs)
+        Account.__init__(self, **kwargs)
         self.set_network(network)
 
 
     @property
     def private_key(self):
         return self._private_key
-
-
-    @property
-    def key(self) -> str:
-        return self.private_key
 
     @staticmethod
     def reset_tx_count() -> None:
@@ -286,19 +276,20 @@ class EVMAccount(commune.Module, Account):
         
     def test(self):
         self.test_sign()
-        # self.test_recover_message()
-        # self.test_verify_message()
         self.test_hash()
+        self.test_recover_message()
+        self.test_verify_message()
         
        
     @classmethod
-    def from_password(cls, password:str, salt:str='commune'):
+    def from_password(cls, password:str, salt:str='commune', prompt=False):
         
         from web3.auto import w3
         from Crypto.Protocol.KDF import PBKDF2
 
         # Prompt the user for a password and salt
-        password = input("Enter password: ")
+        if prompt :
+            password = input("Enter password: ")
         # Derive a key using PBKDF2
         key = PBKDF2(password.encode(), salt, dkLen=32, count=100000)
 
@@ -310,9 +301,5 @@ class EVMAccount(commune.Module, Account):
         print("Private key:", account.privateKey.hex())
         
         return account
-
-if __name__ == '__main__':
-    EVMAccount.test_hash()
-
 
 

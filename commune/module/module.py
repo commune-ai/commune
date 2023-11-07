@@ -1208,9 +1208,17 @@ class c:
             
     
     @classmethod
-    def kill_all(cls,*args,**kwargs):
-        for module in c.servers(*args, **kwargs):
-            c.print(c.kill(module))
+    def kill_all(cls, network='local'):
+        futures = []
+        for s in c.servers(network=network):
+            futures += [c.submit(c.kill, args=[s], return_future=True)]
+
+        results = c.wait(futures)
+        c.update_namespace(network=network)
+
+        return {'namespace': c.namespace(network=network)}
+
+        
         
             
     @classmethod
@@ -2788,17 +2796,14 @@ class c:
     @classmethod
     def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
         servers = c.servers(network=network)
-        killed_servers = []
         servers = [s for s in servers if  search in s]
 
         futures = []
         for s in servers:
-            future = c.submit(c.kill, kwargs={'module':server, **kwargs}, mode='process', return_future = True)
-            futures.append(futures)
+            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='process', return_future = True)
+            futures.append(future)
 
         results = c.wait(futures)
-
-        
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
@@ -5063,6 +5068,8 @@ class c:
     @classmethod
     def network(cls) -> str:
         return c.resolve_network()
+    
+    
     net = network
     
     @classmethod
