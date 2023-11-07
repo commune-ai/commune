@@ -6,7 +6,7 @@ from seamless_communication.models.inference import Translator
 class ModelText2speech(c.Module):
     def __init__(self, config = None, **kwargs):
         self.set_config(config, kwargs=kwargs)
-        self.translator = Translator("seamlessM4T_medium", "vocoder_36langs", torch.device("cpu"), torch.float32)
+        self.translator = Translator("seamlessM4T_large", "vocoder_36langs", torch.device("cpu"), torch.float32)
         self.src_lang = 'eng'
 
     def call(self, x:int = 1, y:int = 2) -> int:
