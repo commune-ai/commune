@@ -364,7 +364,7 @@ class Subspace(c.Module):
         network: str = network,
         update_if_registered = False,
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+        wait_for_finalization: bool = True,
         fmt = 'nano',
 
 
@@ -1048,8 +1048,12 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
+    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100) -> int:
         netuid = self.resolve_netuid( netuid )
+        path = f'cache/stakes.{netuid}.json'
+        stakes = c.get(path, {})
+            
+
         return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
 
     """ Returns the stake under a coldkey - hotkey pairing """

@@ -30,7 +30,7 @@ class Access(c.Module):
         try:
             if sync_time >  self.config.sync_interval :
                 self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-                self.stakes = self.subspace.stakes(fmt='j')
+                self.stakes = self.subspace.stakes(fmt='j', max_staleness=100)
                 self.sync_time = c.time()
         except Exception as e:
             c.print(f"Error syncing {e}")
