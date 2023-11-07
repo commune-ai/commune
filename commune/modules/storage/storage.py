@@ -3,17 +3,18 @@ from typing import *
 import streamlit as st
 
 class Storage(c.Module):
-    whitelist: List = ['put_item', 'get_item', 'item_hash']
+    whitelist: List = ['put_item', 'get_item', 'hash_item']
+    replica_prefix = 'replica::'
 
     def __init__(self, 
                  max_replicas:int = 2, 
                 network='local',
                 validate:bool = False,
                 match_replica_prefix : bool = False,
-                peer_network:str = 'local',
+                network:str = 'local',
                 tag = None,
                 **kwargs):
-        self.peer_network = peer_network
+        self.network = network
         self.max_replicas = max_replicas
         self.network = network
         self.set_config(kwargs=locals()) 
@@ -30,20 +31,17 @@ class Storage(c.Module):
 
     
 
-    def store_dirpath(self, tag=None) -> str:
+    def store_dir(self, tag=None) -> str:
         tag = self.resolve_tag(tag)
         if tag == None:
             tag = 'base'
         return self.resolve_path(f'{tag}/store')
 
     def resolve_item_path(self, key: str, tag=None) -> str:
-        return f'{self.store_dirpath(tag=tag)}/{key}'
-
-    def num_files(self) -> int:
-        return len(self.files)
+        return f'{self.store_dir(tag=tag)}/{key}'
     
     def files(self, tag=None) -> List:
-        return sorted(c.ls(self.store_dirpath(tag=tag)))
+        return sorted(c.ls(self.store_dir(tag=tag)))
     
     def item2info(self, search=None):
         files = self.files()
@@ -61,9 +59,8 @@ class Storage(c.Module):
         
         return item2info
 
-    def peers(self, tag=None) -> List:
-        server_name = self.server_name
-        return c.servers('storage', network=self.peer_network)
+    def peers(self,) -> List:
+        return c.namespace(self.module_path(), network=self.peer_network)
 
     def file2size(self, fmt:str='b') -> int:
         files = self.files()
@@ -79,16 +76,26 @@ class Storage(c.Module):
             key = c.get_key(key)
         return key
 
-    def put_metadata(self, k, metadata:Dict, tag=None):
+    def put_metadata(self, k:str, metadata:Dict, tag=None):
         assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
         k = self.resolve_item_path(k, tag=tag)
         path = k + '/metadata'
         return self.put_json(path, metadata)
 
-    def get_metadata(self, k, tag=None):
+    def get_item_metadata(self, k, tag=None):
         k = self.resolve_item_path(k, tag=tag)
         path = k + '/metadata'
         return c.get_json(path, default={})  
+    
+    def get_item_replicas(self, k:str, tag:str=None) -> List[str]:
+        metadata = self.get_item_metadata(k, tag=tag)
+        return metadata.get('replicas', [])
+    
+    def put_metadata(self, k, metadata:Dict, tag=None):
+        assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
+        k = self.resolve_item_path(k, tag=tag)
+        path = k + '/metadata'
+        return self.put_json(path, metadata)
 
     def put_item(self, k,  v: Dict, encrypt:bool=False, replicas = 1, tag=None):
         timestamp = c.timestamp()
@@ -138,7 +145,7 @@ class Storage(c.Module):
             self.rm_item(item)
         return {'success': True, 'items': items}
 
-    def get_item(self,k, deserialize:bool= True, key=None) -> Any:
+    def get_item(self,k:str, deserialize:bool= True, include_metadata=False) -> Any:
         k = self.resolve_item_path(k)
         data = self.get_json(k+'/data', {})
         metadata = self.get_json(k+'/metadata', {})
@@ -149,21 +156,26 @@ class Storage(c.Module):
 
         if deserialize:
             data['data'] = self.serializer.deserialize(data['data'])
-        return data['data']
+
+        # include
+        if include_metadata:
+            data['metadata'] = metadata
+            return data
+        else:
+            return data['data']
     
 
-    def item_hash(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', obj=None) -> str:
-        if obj == None:
+    def hash_item(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', data=None) -> str:
+        """
+        Hash a string
+        """
+        if data == None:
             assert k != None, 'Must provide k or obj'
-            obj = self.get_item(k, deserialize=False)
+            data = self.get_item(k, deserialize=False)
         if seed != None:
-            obj = str(obj) + seed_sep + str(seed)
-        return self.hash(obj, seed=seed)
+            data = str(data) + seed_sep + str(seed)
+        return self.hash(data, seed=seed)
 
-    def resolve_seed(self, seed: int = None) -> int:
-        return c.timestamp() if seed == None else seed
-
-        
     def item_exists(self, k, tag=None) -> bool:
         path = self.resolve_item_path(k, tag=tag)
         return c.exists(path)
@@ -176,109 +188,87 @@ class Storage(c.Module):
     
 
     def item_paths(self, tag=None):
-        path = self.store_dirpath(tag=tag)
-        return [x for x in c.ls(path)]
+        sore_dir = self.store_dir(tag=tag)
+        return [x for x in c.ls(sore_dir)]
 
     def items(self, search=None, include_replicas:bool=False, tag=None) -> List:
-        path = self.store_dirpath(tag=tag)
+        """
+        List the item names
+        """
+        path = self.store_dir(tag=tag)
         items = [x.split('/')[-1] for x in c.ls(path)]
         
         if search != None:
             items = [x for x in items if search in x]
 
         if include_replicas == False:
-            items = [x for x in items if "replica::" not in x]
+            items = [x for x in items if x.startswith(self.replica_prefix)]
 
         return items
     
-    def replicas(self, tag=None) -> List:
-        return self.items(search='replica::', tag=tag)
+    def replica_items(self, tag:str=None) -> List:
+        return [x for x in self.items(tag=tag) if x.startswith(self.replica_prefix)]
         
 
-    def refresh(self, tag=None) -> None:
-        path = self.store_dirpath(tag=tag)
+    def refresh(self, tag:str=None) -> None:
+        path = self.store_dir(tag=tag)
         return c.rm(path)
-
-    def refresh_replicas(self, tag=None) -> None:
-        path =self.replica_map_path(tag)
-        return c.rm(path)
-
-    def replica_map_path(self, tag=None):
-        tag = self.resolve_tag(tag=tag)
-        return f'{tag}/replica_map'
-
-    def get_replica_map(self, tag=None ):
-        path = self.replica_map_path(tag=tag)
-        return self.get(path, default={})
-
-    replica_map = {}
     
-    def set_replica_map(self, value, tag=None):
-        path = self.replica_map_path(tag=tag)
-        self.put(path, value)
-
-
-
-
-    item2replicas = {}
-    def validate(self, item_key = None, refresh=False):
-
-
-        # get the item2info
-        item2info = self.item2info()
-        item_keys = list(item2info.keys())
-        # avoid the replicas
-        if item_key == None:
-            item_key = ''
-            while not item_key.startswith('replica::') and len(item_key) > 0:
-                item_key = c.choice(item_keys)
-        item = self.get_item(item_key)
-        item_hash = c.hash(item)
-        remote_item_key = f'replica::{item_hash}'
+    def validate(self, item_key:str = None):
+        item_key = c.choice(self.items()) if item_key == None else item_key
+        item_data = self.get_item(item_key)
+        metadata = self.get_item_metadata(item_key)
 
         # get the peers 
         peers = self.peers()
         max_replicas = min(self.max_replicas, len(peers)) 
-
-        # get the replica_map
-        replica_map = {} if refresh else self.get(f'replica_map/{self.tag}',{})
-        replica_peers = replica_map.get(item_key, [])
+        replica_peers = metadata.get('replicas', [])
         has_enough_replicas = bool(len(replica_peers) >= max_replicas)
-        
+
+        # get the remote replica key
+        remote_item_key = f'{self.replica_prefix}{c.hash(item_data)}'
+
         if has_enough_replicas: 
             # check if replicas match
             peer = c.choice(replica_peers)
-            seed = c.timestamp()
-            # get the local hash
-            local_hash = self.item_hash(obj=item, seed=seed)
 
+            # use the timestamp for the check seed
+            seed = c.timestamp()
+
+            # get the local hash
+            local_hash = self.hash_item(data=item_data, seed=seed)
             # check if remote hash matches
-            remote_hash= c.call(peer, 'item_hash', remote_item_key, seed=seed)
+            remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
 
             if local_hash != remote_hash:
-                # remove replica
+                # remove replica from the registry
                 replica_peers.remove(peer)
                 c.print(f'Hashes do not match for {item_key} on {peer}', color='red')
+                has_enough_replicas = False
             else:
+                # Dope, the pass had checked
                 c.print(f'Hashes match for {item_key} on {peer}', color='green')
                 
-        else:
-            # find peer to add replica
+        # now check it again 
+        if not has_enough_replicas:
+            # find peer to add replica and add it
             candidate_peers = [peer for peer in peers if peer not in replica_peers]
             peer = c.choice(candidate_peers)
+            
             # add replica
-            response = c.call(peer, 'put_item', remote_item_key, item)
+            response = c.call(peer, 'put_item', remote_item_key, item_data)
             if 'error' in response:
                 c.print(f'Failed to add replica for {item_key} on {peer} ', color='red')
             else:
+                # dope no
                 replica_peers += [peer]
                 c.print(f'Added replica for {item_key} on {peer}', color='green')
+        
+        metadata['replicas'] = replica_peers
+        self.put_metadata(item_key, metadata)
 
-        replica_map[item_key] = replica_peers
-        self.put(f'replica_map/{self.tag}', replica_map)
-
-        return {'success': True, 'replica_map': replica_map}
-    
+        return {'success': True, 'metadata': metadata, 'msg': f'Validated {item_key}'}
+   
 
     def validate_loop(self, tag=None, interval=1.0, vote_inteval=1, init_timeout = 10):
         c.sleep(init_timeout)
@@ -302,14 +292,20 @@ class Storage(c.Module):
         for encrypt in [True, False]:
             for obj in object_list:
                 c.print(f'putting {obj}')
-                self.put_item('test', obj,encrypt=encrypt)
-                get_obj = self.get('test', deserialize=False)
-                obj_str = self.serializer.serialize(obj)
+                k = 'test'
+                self.put_item(k, obj,encrypt=encrypt)
+                assert self.item_exists(k), f'Failed to put {obj}'
+                get_obj = self.get_item(k, deserialize=False)
+                c.print(f'putting {k} and got {get_obj}')
 
+                obj_str = self.serializer.serialize(get_obj)
+                assert obj_str == self.serializer.serialize(get_obj), f'Failed to put {obj} and get {get_obj}'
                 # test hash
-                assert self.item_hash('test', seed=1) == self.item_hash('test', seed=1)
-                assert self.item_hash('test', seed=1) != self.item_hash('test', seed=2)
+                assert self.hash_item(k, seed=1) == self.hash_item(k, seed=1)
+                assert self.hash_item(k, seed=1) != self.hash_item(k, seed=2)
                 assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
 
-                self.rm('test')
+                self.rm(k)
+
+                assert not self.item_exists(k)
 
