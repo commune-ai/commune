@@ -11,7 +11,6 @@ class Storage(c.Module):
                 network='local',
                 validate:bool = False,
                 match_replica_prefix : bool = False,
-                network:str = 'local',
                 tag = None,
                 **kwargs):
         self.network = network
