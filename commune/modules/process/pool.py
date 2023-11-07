@@ -812,7 +812,7 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
         return fn
     
     
-    def submit(self, fn, *args, return_future:bool = True, init_kwargs:dict=None,  **kwargs):
+    def submit(self, fn, *args, return_future:bool = False, init_kwargs:dict=None,  **kwargs):
         with self._shutdown_lock:
 
             fn = self.resolve_fn(fn, init_kwargs=init_kwargs)

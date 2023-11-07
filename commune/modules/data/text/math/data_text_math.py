@@ -18,7 +18,7 @@ class DataTextMath(c.Module):
         return output
 
 
-    def sample(self, n = 10):
+    def sample(self, n = 2):
         op_chain = []
         y = self.random_value()
         for i in range(n):
@@ -27,6 +27,8 @@ class DataTextMath(c.Module):
             op_chain.append([op])
             # float between -1 and 1
             x = self.random_value()
+            y = c.round(y, 3)
+            x = c.round(x, 3)
             
             opstr = f'{y} {self.operations[op]} {x}'
             y = eval(opstr)

@@ -165,7 +165,6 @@ class ThreadPoolExecutor(c.Module):
         """
 
         max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
-        c.print("max_workers", max_workers)
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             

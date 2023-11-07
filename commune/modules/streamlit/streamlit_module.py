@@ -21,6 +21,7 @@ class StreamlitModule(c.Module):
     @property
     def streamlit_functions(self):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
+    
 
     def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
@@ -267,10 +268,7 @@ class StreamlitModule(c.Module):
                 elif v in ['True', 'False']:
                     v = eval(v)
                 else:
-                    try:
-                        v = eval(v) 
-                    except:
-                        pass
+                    v = v
             
             kwargs[k] = v
         return kwargs

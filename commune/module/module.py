@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # AGI BEGINS 
 class c:
-    description = """This is a module"""
+    descrition = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
     homepath = os.path.expanduser('~')
@@ -41,7 +41,6 @@ class c:
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
-
 
     def __init__(self, config:Dict=None, **kwargs):
         self.set_config(config=config,kwargs=kwargs)  
@@ -249,7 +248,8 @@ class c:
         from commune.utils.dict import load_yaml
         config = load_yaml(path)
         return config
-
+    
+    get_yaml = load_yaml
 
 
     @classmethod
@@ -481,6 +481,9 @@ class c:
         return data
     
 
+    @classmethod
+    def obj_age(cls, item:dict) -> int:
+        return c.timestamp() - int(cls.get_json(item).get('timestamp', 0))
 
     @classmethod
     def get_many(cls,
@@ -793,6 +796,7 @@ class c:
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
     
+    
     @classmethod
     def st(cls, module = None, fn='dashboard', port=8501):
         module = c.module(module)
@@ -804,7 +808,10 @@ class c:
         if port != None:
             cmd += f' --server.port {port}'
         cmd+= f' -- --fn {fn}'
+        c.print(cmd)
         c.cmd(cmd, verbose=True)
+
+    
 
     @staticmethod
     def stside(fn):
@@ -824,92 +831,14 @@ class c:
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
     
-
     @classmethod
-    def cmd(cls, 
-                    command:Union[str, list],
-                    verbose:bool = True, 
-                    env:Dict[str, str] = {}, 
-                    output_text:bool = False,
-                    sudo:bool = False,
-                    password: bool = None,
-                    color: str = 'white',
-                    bash : bool = False,
-                    **kwargs) -> 'subprocess.Popen':
-        '''
-        Runs  a command in the shell.
-        
-        '''
-        if output_text : 
-            verbose = False
-        if isinstance(command, list):
-            kwargs = c.locals2kwargs(locals())
-            for idx,cmd in enumerate(command):
-                assert isinstance(cmd, str), f'command must be a string, not {type(cmd)}'
-                kwargs['command'] = cmd
-                response = c.cmd(**kwargs)
-            return response
-
-        import subprocess
-        import shlex
-        import time
-        import signal
-        
-        def kill_process(process):
-            import signal
-            process.stdout.close()
-            process.send_signal(signal.SIGINT)
-            process.wait()
-            # sys.exit(0)
-            
-        if password != None:
-            sudo = True
-            
-        if sudo:
-            command = f'sudo {command}'
-            
-            
-        if bash:
-            command = f'bash -c "{command}"'
-        process = subprocess.Popen(shlex.split(command),
-                                    stdout=subprocess.PIPE, 
-                                    stderr=subprocess.STDOUT,
-                                    env={**os.environ, **env}, **kwargs)
-
-            
-        new_line = b''
-        stdout_text = ''
-        line_count_idx = 0
-        line_delay_period = 0
-        last_time_line_printed = time.time()
- 
-        try:
-            
-            for ch in iter(lambda: process.stdout.read(1), b""):
-                
-
-                if  ch == b'\n':
-                    stdout_text += (new_line + ch).decode()
-                    line_count_idx += 1
-                    if verbose:
-                        c.print(new_line.decode(), color='cyan')
-                    new_line = b''
-                    continue
-
-                new_line += ch
-
-
-        except KeyboardInterrupt:
-            kill_process(process)
-        
-        return stdout_text
-
-
+    def cmd(cls, *args, **kwargs):
+        return c.module('os').cmd(*args, **kwargs)
     run_command = shell = cmd 
+
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
-
         return import_module(import_path)
 
 
@@ -966,6 +895,7 @@ class c:
 
             # Try to connect to the specified IP and port
             try:
+                port=int(port)
                 sock.connect((ip, port))
                 return True
             except socket.error:
@@ -1011,9 +941,14 @@ class c:
     
 
     get_used_ports = used_ports
-   
+    
     @classmethod
-    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
+    def makedirs(cls, *args, **kwargs):
+        import os
+        return os.makedirs(*args, **kwargs)
+
+    @classmethod
+    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
         '''
         Resolves path for saving items that relate to the module
         
@@ -1039,7 +974,10 @@ class c:
             if not os.path.isdir(path):
                 if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
-
+            
+        if not os.path.exists(path) and os.path.exists(path + f'.{file_type}'):
+            path = path + f'.{file_type}'       
+                 
         return path
     
     @classmethod
@@ -1275,7 +1213,15 @@ class c:
             c.print(c.kill(module))
         
             
-        
+    @classmethod
+    def restart_peers(cls, timeout=20):
+        futures = []
+        for p in cls.peers():
+            futures += [c.submit(c.restart_server, args=[p], return_future=True, timeout=timeout)]
+
+        results = c.wait(futures,timeout=timeout)
+        return results
+
 
 
     @classmethod
@@ -1611,14 +1557,10 @@ class c:
         tree_folder = [f for f in tree_folder if f != tree_path ]
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
-    
-
-
-        
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
-        return c.st('subspace')
+        return c.st('dashboard')
 
     dash = dashboard
 
@@ -1711,6 +1653,17 @@ class c:
     @classmethod
     def tmp_dir(cls):
         return f'{c.cache_path()}/{cls.module_path()}'
+    storage_dir = tmp_dir
+    
+    @classmethod
+    def refresh_storage(cls):
+        c.rm(cls.tmp_dir())
+
+    @classmethod
+    def refresh_tmp_dir(cls):
+        c.rm(cls.tmp_dir())
+        c.makedirs(cls.tmp_dir())
+        
 
     ############ JSON LAND ###############
 
@@ -1865,9 +1818,8 @@ class c:
     def rm(cls, path, extension=None, root=False, mode = 'json'):
         path = cls.resolve_path(path=path, extension=extension, root=root)
 
-        if not os.path.exists(path):
+        if not os.path.exists(path) and os.path.exists(path+'.json'):
             path += f'.{mode}'
-        
 
         if os.path.exists(path):
             if os.path.isdir(path):
@@ -2023,11 +1975,15 @@ class c:
         """
         Root module
         """
-        if not c.server_exists(name, network=network):
-            c.serve(name, network=network, wait_for_server=True, **kwargs)
-        address = c.call('module', 'address', network=network, timeout=timeout)
-        ip = c.ip()
-        address = ip+':'+address.split(':')[-1]
+        try:
+            if not c.server_exists(name, network=network):
+                c.serve(name, network=network, wait_for_server=True, **kwargs)
+            address = c.call('module', 'address', network=network, timeout=timeout)
+            ip = c.ip()
+            address = ip+':'+address.split(':')[-1]
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            address = None
         return address
     addy = root_address
 
@@ -2476,13 +2432,14 @@ class c:
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True , # waits for the server to start before returning
+              wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
               update:bool = False,
               max_workers:int = None,
               mode:str = "thread",
+              public: bool = False,
               **extra_kwargs
               ):
 
@@ -2491,11 +2448,16 @@ class c:
         
         
         kwargs = kwargs or {}
+        if 'kwargs' in kwargs:
+            kwargs = kwargs['kwargs']
         kwargs = {**kwargs, **extra_kwargs}
         extra_kwargs = {}
 
         if module == None:
             module = cls.module_path()
+
+
+        # module::tag
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
@@ -2503,7 +2465,7 @@ class c:
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
-
+        
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
@@ -2519,15 +2481,21 @@ class c:
         
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
+
+  
         # this automatically adds 
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
+        self.key = server_name
+
+
 
         if c.server_exists(server_name, network=network): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                address = c.get_address(server_name, network=network)    
+                address = c.get_address(server_name, network=network)
+                c.print(address)    
                 if ':' in address:
                     port = address.split(':')[-1]        
                     c.kill(server_name)
@@ -2535,7 +2503,15 @@ class c:
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
-        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network, max_workers=max_workers, mode=mode)
+        
+
+        c.module(f'server.{server_mode}')(module=self, 
+                                          name=server_name, 
+                                          port=port, 
+                                          network=network, 
+                                          max_workers=max_workers, 
+                                          mode=mode, 
+                                          public=public)
         
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
@@ -2655,38 +2631,44 @@ class c:
     help = info
 
 
+    
 
     @classmethod
     def schema(cls,search: str = None,
                     code : bool = False,
-                    docs: bool = False,
+                    docs: bool = True,
                     include_parents:bool = False,
-                     defaults:bool = False,) -> 'Schema':
+                     defaults:bool = True) -> 'Schema':
 
         kwargs = c.locals2kwargs(locals())
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
+    
+    @classmethod
+    def init_schema(cls):
+        return cls.fn_schema('__init__')
+
     @classmethod
     def get_schema(cls,
-                                obj = None,
                                 search = None,
+                                module = None,
                                 code : bool = False,
                                 docs: bool = False,
                                 include_parents:bool = False,
                                 defaults:bool = False,):
         
-        obj = obj if obj else cls
+        module = module if module else cls
         
-        if isinstance(obj, str):
-            obj = c.module(obj)
+        if isinstance(module, str):
+            module = c.module(module)
             
         function_schema_map = {}
-        for fn in cls.get_functions(obj, include_parents=include_parents):
+        for fn in cls.get_functions(module, include_parents=include_parents):
                
             if search != None :
                 if search not in fn:
                     continue
-            fn_obj = getattr(obj, fn )
-            if callable(fn_obj):
+            module_fn = getattr(module, fn )
+            if callable(module_fn):
                 function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
     
         return function_schema_map
@@ -2785,9 +2767,9 @@ class c:
         for m in delete_modules:
             if m in servers:
                 c.deregister_server(m)
-        
 
         return {'server_killed': delete_modules, 'update': update}
+
 
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
@@ -2798,7 +2780,27 @@ class c:
                 c.kill(s, **kwargs)
                 killed_servers.append(s)
         return {'success':True, 'message':f'Killed servers with prefix {prefix}'}
+        
     killpre = kill_prefix
+
+
+
+    @classmethod
+    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+        servers = c.servers(network=network)
+        killed_servers = []
+        servers = [s for s in servers if  search in s]
+
+        futures = []
+        for s in servers:
+            future = c.submit(c.kill, kwargs={'module':server, **kwargs}, mode='process', return_future = True)
+            futures.append(futures)
+
+        results = c.wait(futures)
+
+        
+            
+        return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
     delete = kill_server = kill
     def destroy(self):
@@ -3256,21 +3258,24 @@ class c:
     @classmethod
     def argparse(cls, verbose: bool = False):
         import argparse
-        parser = argparse.ArgumentParser(description='Gradio API and Functions')
-        parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
+        parser = argparse.ArgumentParser(description='Argparse for the module')
+        parser.add_argument('-fn', '--fn', dest='function', help='fn', type=str, default="__init__")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
         if verbose:
             c.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
+
         return args
 
     @classmethod
     def run(cls, name:str = None, verbose:bool = False) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
+
+            c.print(args)
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
             else:
@@ -3279,10 +3284,6 @@ class c:
     
        
     
-    @classmethod
-    def api(cls, *args, **kwargs):
-        from commune.api import API
-        return API(*args, **kwargs)
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -3314,11 +3315,7 @@ class c:
             
 
         
-    @classmethod
-    def get_self_methods(cls, obj=None) -> List[str]:
-        from commune.utils.function import get_self_methods
-        return get_self_methods(obj if obj else cls)
-           
+
     ## RAY LAND
     @classmethod
     def ray_stop(cls):
@@ -3674,7 +3671,7 @@ class c:
     module_cache = {}
     
     @classmethod
-    def module(cls,module: Any = 'module' , tree=None, **kwargs):
+    def module(cls,module: Any = 'module' , **kwargs):
         '''
         Wraps a python class as a module
         '''
@@ -4779,8 +4776,20 @@ class c:
                 prefix = encrypted_prefix) -> bytes:
 
         key = c.get_key(key)
+        path = None
+        if c.exists(data):
+            path = data
+            data =  c.get_text(data)
+
         data = c.python2str(data)
+
+        c.print(f'Encrypting {data} with {key}', color='cyan')
+
         encrypted_data = key.encrypt(data)
+
+        if path != None:
+            c.put_text(path, encrypted_data)
+
         return encrypted_data
     
 
@@ -4791,9 +4800,20 @@ class c:
                 prefix = encrypted_prefix) -> bytes:
 
         key = c.get_key(key)
-        data = c.python2str(data)
-        encrypted_data = key.decrypt(data)
-        return encrypted_data
+        path = None
+        if c.exists(data):
+            c.print(f'Decrypting from {data} as it exists', color='cyan')
+            path = data
+            data =  c.get_text(path)
+
+        c.print(data, 'FA', path)   
+        data = key.decrypt(data)
+
+
+        if path != None:
+            c.put_text(path, c.python2str(data))
+
+        return data
     
     @classmethod
     def put_cache(cls,k,v ):
@@ -4813,10 +4833,12 @@ class c:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
         else:
-            futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
+            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
         if return_future:
             return futures
-        return c.gather(futures)
+        
+        results =  c.gather(futures)
+        return results
     
     @classmethod
     async def async_call(cls,
@@ -4893,12 +4915,12 @@ class c:
     
     @classmethod
     def resolve_fn(cls,fn, init_kwargs=None ):
-        if '.' not in 'fn':
-            module = cls.module_path()
         if isinstance(fn, str):
             if '.' in fn:
                 module = '.'.join(fn.split('.')[:-1])
-            module = c.module(module)
+                module = c.module(module)
+            else:
+                module = c.module(fn)
             fn = fn.split('.')[-1]
             fn_obj = getattr(module, fn)
             method_type = c.classify_method(fn_obj)
@@ -4907,6 +4929,7 @@ class c:
                     init_kwargs = {}
                 module = module(**init_kwargs)
             fn = getattr(module, fn)
+        
         assert callable(fn), f'{fn} is not callable'
         return fn
     
@@ -5004,8 +5027,6 @@ class c:
         iso_date = dt.date().isoformat()
 
         return iso_date
-
-       
     
     @classmethod
     def verify(cls, auth, module='subspace', **kwargs ) -> bool:    
@@ -5122,24 +5143,30 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=1,  **kwargs):
-        executor = c.module('executor')(max_workers=max_workers)
-        futures = []
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20,  **kwargs):
+
         if tag == None:
             tag = ''
 
-        if max_workers == 1:
+        if parallel:
+            executor = c.module('executor')(max_workers=max_workers, mode='process')
+            futures = []
+            for i in range(n):
+                server_kwargs={'tag':tag + str(i), **kwargs}
+                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout, return_future=True)
+                futures = futures + [future]
+            
+            results =  c.wait(futures, timeout=timeout)
+            for result in results:
+                c.register_server(name=result['name'], address=result['address'])
+
+        else:
             results = []
             for i in range(n):
                 c.print(f'Launching {tag}')
                 server_kwargs={'tag':tag + str(i), **kwargs}
                 result = cls.serve(**server_kwargs)
                 results = results + [result]
-        else:
-            for i in range(n):
-                future = executor.submit(fn=cls.serve, kwargs=server_kwargs)
-                futures = futures + [future]
-                results =  c.wait(futures)
 
         return results
         
@@ -5151,7 +5178,7 @@ class c:
 
         path = cls.resolve_server_name(tag=tag)
         servers = c.servers(path, network=network)
-        executor = c.module('executor')()
+        executor = c.module('executor')(mode='process')
         for server in servers:
             futures += [executor.submit(fn=cls.kill_server, kwargs={'server_name':p, 'network':network})]
 
@@ -5883,7 +5910,7 @@ class c:
                 fn = getattr(module, fn)
             else:
                 return None
-        assert callable(fn), 'Is not callable'
+        # assert callable(fn), 'Is not callable'
         return fn
     
 
@@ -6633,6 +6660,9 @@ class c:
             cls.serve(tag=str(i), **kwargs)
         
 
+    def self_methods(self):
+        return c.get_self_methods(self)
+
     @classmethod
     def classify_methods(cls, obj= None):
         obj = obj or cls
@@ -6726,11 +6756,10 @@ class c:
         '''
         is the function a property
         '''
-        try:
-            fn = cls.get_fn(fn)
-            return isinstance(fn, property)
-        except:
-            return False
+        fn = cls.get_fn(fn)
+
+        return isinstance(fn, property)
+
 
     @classmethod
     def property_fns(cls) -> bool:
@@ -6824,6 +6853,19 @@ class c:
         return [k for k, v in signature_map.items() if 'self' in v]
     
     self_methods = self_fns = get_self_methods
+
+
+    @classmethod
+    def get_class_methods(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = obj or cls
+        functions =  c.get_functions(obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if 'cls' in v]
+    
+    class_methods = class_fns = get_class_methods
 
     @classmethod
     def get_static_methods(cls: Union[str, type], obj=None):
@@ -7165,7 +7207,15 @@ class c:
     def multistake(cls, *args, **kwargs):
         return c.module('subspace')().multistake(*args, **kwargs)
 
-    
+    @classmethod
+    def random_word(cls, *args, n=2, seperator='_', **kwargs):
+        return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
+
+    @classmethod
+    def remove_number_from_word(cls, word:str) -> str:
+        while word[-1].isdigit():
+            word = word[:-1]
+        return word
 
     @classmethod
     def multiunstake(cls, *args, **kwargs):
@@ -7173,8 +7223,7 @@ class c:
 
     @classmethod
     def repo_url(cls, *args, **kwargs):
-        return c.module('git').repo_url(*args, **kwargs)
-    
+        return c.module('git').repo_url(*args, **kwargs)    
 
     @classmethod
     def get_stake(cls, *args, **kwargs):
@@ -7244,6 +7293,7 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
+            c.print(self.server_name, 'FAM')
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
@@ -7253,7 +7303,7 @@ class c:
 
     @key.setter
     def key(self, key):
-        self._key = c.get_key(key)
+        self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
 
     @classmethod
@@ -7438,21 +7488,38 @@ class c:
         return c.module('subspace')().update_network(*args, **kwargs)
     
     @classmethod
+    def update_global(cls, *args, **kwargs):
+        return c.module('subspace')().update_global(*args, **kwargs)
+    
+
+    @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
     mcap = market_cap
     @classmethod
     def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **kwargs)
+        return c.module('subspace')().n(*args, **wkwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
         t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
 
     @classmethod
-    def vali_stats(cls, *args, **kwargs):
-        return c.module('vali').vali_stats(*args, **kwargs)
-    vstats = vali_stats
+    def vstats(cls, *args, **kwargs):
+        return c.module('vali').all_stats(*args, **kwargs)
+
+    @classmethod
+    def restart_valis(cls, search=None, network= 'local'):
+        namespace = c.namespace('vali', network=network)
+        for name, address in namespace.items():
+            if search != None:
+                if search not in name:
+                    continue
+                c.restart(name)
+
+        return namespace
+
+        
 
     @classmethod
     def check_valis(cls, *args, **kwargs):
@@ -7799,6 +7866,15 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.print(m)
             c.restart(m)
+
+    @classmethod
+    def restart_many(cls, search:str = None, network = None, **kwargs):
+        servers = c.servers(search, network=network)
+        for m in servers:
+            c.restart(m, **kwargs)
+        return servers
+
+        
     
     @classmethod
     def kill_replicas(self, network:str=None, **kwargs):
@@ -7968,7 +8044,11 @@ class c:
     @classmethod
     def play(cls):
         c.module('music').play()
-    
+
+    @classmethod
+    def type(cls,x ):
+        return type(x).__name_
+        
 Module = c
 Module.run(__name__)
     
