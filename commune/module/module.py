@@ -438,6 +438,7 @@ class c:
             max_age:str = None,
             cache :bool = False,
             full :bool = False,
+            key: 'Key' = None,
             **kwargs) -> Any:
         
         '''

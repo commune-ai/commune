@@ -104,9 +104,6 @@ class Vali(c.Module):
         The following evaluates a module server, from the dictionary
         """
         
-        epoch = self.count // self.n
-        prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
-        is_my_module = bool(self.ip in module['address'])
         # load the module stats (if it exists)
         module_stats = self.load_module_stats( module['name'], default=module)
 
@@ -140,6 +137,7 @@ class Vali(c.Module):
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = response['timestamp']
+        
         # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [response]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
