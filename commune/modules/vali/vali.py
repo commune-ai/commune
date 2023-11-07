@@ -119,14 +119,15 @@ class Vali(c.Module):
             # this is where we connect to the client
             module_client = c.connect(module['address'], key=self.key, virtual=True)
             response = self.score_module(module_client)
-            color= 'green'
-            c.print(f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} ')
+            msg = f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} '
+            color = 'green'
 
         except Exception as e:
-            c.print(f'{c.emoji("cross")} {module["name"]} {e} {c.emoji("cross")}', color='red')        
+            msg = f'{c.emoji("cross")} {module["name"]} {e} {c.emoji("cross")}'  
             response = {'error': c.detailed_error(e), 'w': 0}
-
             color = 'red'
+
+        c.print(msg, color=color)
         
         
         self.count += 1
@@ -137,7 +138,7 @@ class Vali(c.Module):
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = response['timestamp']
-        
+
         # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [response]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
@@ -457,6 +458,7 @@ class Vali(c.Module):
                     vali_stats += [vote_info]
             cls.put(cache_path, vali_stats)    
 
+        
         for v in vali_stats:
             v['staleness'] = int(c.time() - v['timestamp'])
             del v['timestamp']
@@ -466,7 +468,6 @@ class Vali(c.Module):
             vali_stats = c.df(vali_stats)
             # filter out NaN values for registered modules
             if len(vali_stats) > 0:
-                vali_stats = vali_stats[vali_stats['registered'].notna()]
                 vali_stats.sort_values(sortby, ascending=False, inplace=True)
 
         
@@ -495,7 +496,6 @@ class Vali(c.Module):
         if df == True:
             df =  c.df(all_vote_stats)
             # filter out NaN values for registered modules
-            df = df[df['registered'].notna()]
             df.sort_values(sortby, ascending=False, inplace=True)
             return df
         return all_vote_stats
