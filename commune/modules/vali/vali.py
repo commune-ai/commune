@@ -53,7 +53,7 @@ class Vali(c.Module):
         return self.config.module_search
 
 
-    def sync(self, network:str=None, netuid:int=None, update: bool = True):
+    def sync(self, network:str=None, netuid:int=None, update: bool = False):
         
         try:
             if network == None:
@@ -61,13 +61,9 @@ class Vali(c.Module):
             if netuid == None:
                 netuid = self.config.netuid
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
-
-            self.modules = self.subspace.modules(update=False, netuid=netuid)
-            self.n  = len(self.modules)
-
-            if self.config.module_search != None:
-                self.modules = [m for m in self.modules if self.config.module_search in m['name'] ]
-                
+            
+            self.modules = self.subspace.modules(search=self.config.module_search, update=update, netuid=netuid)
+            self.n  = len(self.modules)                
             self.subnet = self.subspace.subnet(netuid=netuid)
 
             if self.config.vote_interval == None: 
@@ -84,7 +80,7 @@ class Vali(c.Module):
 
         return {'modules': self.modules, 'subnet': self.subnet}
 
-    def score_module(self, module, **kwargs):
+    def score_module(self, module):
 
         '''
         params:
@@ -128,7 +124,6 @@ class Vali(c.Module):
             color = 'red'
 
         c.print(msg, color=color)
-        
         
         self.count += 1
 
@@ -337,29 +332,29 @@ class Vali(c.Module):
 
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
+            module = c.choice(modules)
   
-            for i, module in enumerate(modules):
-                c.sleep(self.config.sleep_time)
+            c.sleep(self.config.sleep_time)
 
-            
+        
 
-                future = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
-                num_tasks = self.executor.num_tasks
+            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
 
-                if self.sync_staleness > self.config.sync_interval:
-                    self.sync()
 
-                if self.count % 10 == 0 and self.count > 0:
-                    stats =  {
-                    'total_modules': self.count,
-                    'lifetime': int(self.lifetime),
-                    'modules_per_second': int(self.modules_per_second()), 
-                    'vote_staleness': self.vote_staleness,
-                    'errors': self.errors,
-                    'vote_interval': self.config.vote_interval,
-                    'epochs': self.epochs,
-                     }
-                    c.print(f'STATS  --> {stats}\n', color='white')
+            if self.sync_staleness > self.config.sync_interval:
+                self.sync()
+
+            if self.count % 10 == 0 and self.count > 0:
+                stats =  {
+                'total_modules': self.count,
+                'lifetime': int(self.lifetime),
+                'modules_per_second': int(self.modules_per_second()), 
+                'vote_staleness': self.vote_staleness,
+                'errors': self.errors,
+                'vote_interval': self.config.vote_interval,
+                'epochs': self.epochs,
+                    }
+                c.print(f'STATS  --> {stats}\n', color='white')
 
 
     @property
