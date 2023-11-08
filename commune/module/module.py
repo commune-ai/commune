@@ -7896,14 +7896,14 @@ class c:
         Get the auth modules (modules that process the message to authrize the right people)
         '''
         if not hasattr(self, '_access_module'):
-            # each module has a verify function, that takes in the input and returns the input
-            access_config = self.config.get('access_module', c.config()['access_module'])
-
+            access_config = {}
+            if hasattr(self, 'config') and not callable(self.config):
+                access_config = self.config.get('access', {})
             # sets self._access_module
             self.set_access_module(**access_config)
         return self._access_module
 
-    default_access_module='access'
+    default_access_module='server.access'
     def set_access_module(self, refresh=False, **access_config):
         if hasattr(self, '_access_module'):
             if not refresh:
