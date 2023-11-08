@@ -89,17 +89,20 @@ class Access(c.Module):
                 # reset the requests
                 user_info['requests'] = 0
             passed = bool(user_info['requests'] <= rate_limit)
-            assert  passed,  f"Rate limit too high (calls per second) {user_info}"
             # update the user info
 
 
         user_info['rate_limit'] = rate_limit
-        user_info['requests'] +=  1
-        user_info['last_time_called'] = c.time()
         user_info['stake'] = stake
         user_info['seconds_in_period'] = seconds_in_period
         user_info['passed'] = passed
+        user_info['time_since_called'] = time_since_called
         self.user_info[address] = user_info
+
+        assert  passed,  f"Rate limit too high (calls per second) {user_info}"
+
+        user_info['last_time_called'] = c.time()
+        user_info['requests'] +=  1
         # check the rate limit
         return user_info
 
