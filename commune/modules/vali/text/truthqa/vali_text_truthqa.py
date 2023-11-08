@@ -39,7 +39,7 @@ class ValiTextTruthfulQA(Vali):
         w = float(prediction in target)
 
         if w == 0:
-            w = 0.1
+            w = self.config.base_score
 
         return {'w': w, 'target': target, 'prediction': prediction, 'sample': sample, 'output': output}
 
