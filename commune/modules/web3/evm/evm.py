@@ -299,7 +299,7 @@ class EVM(c.Module):
     def network2contract(self) -> Dict[str, List[str]]:
         network2contract = {}
         for network, address_list in self.network2address.items():
-            network2contract[network] = [address2contract[address] for address in address_list]
+            network2contract[network] = [self.address2contract[address] for address in address_list]
         return network2contract
     
 
@@ -350,20 +350,6 @@ class EVM(c.Module):
         deserializer = EVMContract
         serialized_data = (self.config)
         return deserializer, serialized_data
-
-
-    @classmethod
-    def streamlit(cls):
-        import streamlit as st
-        c.new_event_loop()
-        st.write("## "+cls.__name__)
-        EVMContract.new_event_loop()
-
-        self =  EVMContract()
-        # print(self.artifacts)
-        contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
-        # print(contract)
-        print(contract.balanceOf(self.account.address))
 
 
  

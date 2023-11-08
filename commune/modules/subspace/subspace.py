@@ -364,7 +364,7 @@ class Subspace(c.Module):
         network: str = network,
         update_if_registered = False,
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+        wait_for_finalization: bool = True,
         fmt = 'nano',
 
 
@@ -633,12 +633,12 @@ class Subspace(c.Module):
         max_allowed_subnets : int = None,
         max_allowed_modules: int = None,
         max_registrations_per_block : int = None,
-        unit_emission : int =11904761905,
+        unit_emission : int =None ,
         tx_rate_limit: int = None,
         key: str = None,
         network = network,
     ) -> bool:
-            
+
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         global_params = self.global_params( netuid=netuid )
@@ -1048,8 +1048,12 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
+    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None) -> int:
+        self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
+        path = f'cache/stakes.{netuid}.json'
+            
+
         return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
 
     """ Returns the stake under a coldkey - hotkey pairing """
@@ -1210,6 +1214,51 @@ class Subspace(c.Module):
 
         return response
                     
+
+
+    def multitransfer( self, 
+                        modules:List[str],
+                        amounts:Union[List[str], float, int],
+                        key: str = None, 
+                        netuid:int = 0,
+                        n:str = 10,
+                        network: str = None) -> Optional['Balance']:
+        network = self.resolve_network( network )
+        key = self.resolve_key( key )
+        balance = self.get_balance(key=key, fmt='j')
+        name2key = self.name2key(netuid=netuid)
+
+        if isinstance(modules, str):
+            modules = [m for m in name2key.keys() if modules in m]
+
+        assert len(modules) > 0, f"No modules found with name {modules}"
+        modules = modules[:n] # only stake to the first n modules
+        # resolve module keys
+        for i, module in enumerate(modules):
+            if module in name2key:
+                modules[i] = name2key[module]
+
+        module_keys = modules
+        if isinstance(amounts, (float, int)): 
+            amounts = [amounts] * len(modules)
+
+        for i, amount in enumerate(amounts):
+            amounts[i] = self.to_nanos(amount)
+
+        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+
+        params = {
+            "netuid": netuid,
+            "module_keys": module_keys,
+            "amounts": amounts
+        }
+
+        response = self.compose_call('add_stake_multiple', params=params, key=key)
+
+        return response
+                    
+
+
 
     def multiunstake( self, 
                         modules:List[str],
@@ -2116,7 +2165,6 @@ class Subspace(c.Module):
         c.print(f"Got {key} for netuid {netuid} at block {block}")
         return results
     
-    cached_modules = {}
               
     def modules(self,
                 search=None,
@@ -2136,7 +2184,7 @@ class Subspace(c.Module):
                 mode = 'process',
                 
                 ) -> Dict[str, ModuleInfo]:
-        import inspec
+        import inspect
 
         cache_path = f'modules/{network}.{netuid}'
 
@@ -4068,20 +4116,6 @@ class Subspace(c.Module):
 
         s.multistake(key=key, modules=module_keys, amounts=stake_per_module)
 
-    
-
-    @classmethod
-    def unstake_many(cls, modules:list ='vali', key=None, remove_staketo:bool = False):
-        if isinstance(modules, str):
-            modules = c.my_modules(modules, fmt='j')
-        assert balance > 0, f'balance must be greater than 0, not {balance}'
-        module_names = [m['name'] for m in modules]
-        c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
-        for m in modules:
-            for module_key, module_stake in m['stake_to']:
-                # if the module_key is the same as the module we are unstaking, then unstake it
-                if remove_staketo or m['key'] ==  module_key:
-                    c.unstake(key=m['key'], module_key=module_key)
         
 
     @classmethod
