@@ -49,16 +49,12 @@ class CustomHTTPProvider(HTTPProvider):
                 "http://",
                 HTTPAdapter(pool_connections=25, pool_maxsize=25, pool_block=True),
             )
-            session.mount(
-                "https://",
-                HTTPAdapter(pool_connections=25, pool_maxsize=25, pool_block=True),
-            )
             self._session_cache[cache_key] = session
         return self._session_cache[cache_key]
 
 
-    def make_post_request(self, endpoint_uri, data, *args, **kwargs):
-        kwargs.setdefault("timeout", 10)
+    def make_post_request(self, endpoint_uri, data, *args, timeout:int=10, **kwargs):
+        kwargs.setdefault("timeout", timeout)
         session = self._get_session(endpoint_uri)
         response = session.post(endpoint_uri, data=data, *args, **kwargs)
         response.raise_for_status()
@@ -178,7 +174,7 @@ class EVMNetwork(c.Module):
             raise AssertionError(msg)
         
     @classmethod
-    def test_url(cls, url:str)
+    def test_url(cls, url:str):
         # Setup
         from web3 import Web3
 
