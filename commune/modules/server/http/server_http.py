@@ -22,6 +22,7 @@ class ServerHTTP(c.Module):
         mode:str = 'thread',
         verbose: bool = False,
         timeout: int = 256,
+        access_module: str = 'server.access',
         public: bool = False,
         ) -> 'Server':
         
@@ -57,7 +58,11 @@ class ServerHTTP(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.access_module = c.module('server.access')(module=module)
+
+        if not hasattr(module, 'access_module'):
+            self.access_module = c.module(access_module)(module=module)
+        else:
+            self.access_module = module.access_module
         c.print('fam')
 
         self.set_api(ip=self.ip, port=self.port)

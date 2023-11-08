@@ -2331,6 +2331,7 @@ class c:
         return c.module("namespace").has_server(*args, **kwargs)
     @classmethod
     def server_exists(cls, name:str, network:str = 'local',  prefix_match:bool=False, **kwargs) -> bool:
+
         return c.module("namespace").server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
     @classmethod
     def register_server(cls, name: str, address:str, network='local')-> dict:
@@ -2501,13 +2502,17 @@ class c:
 
 
         if c.server_exists(server_name, network=network): 
+            
+
+
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 address = c.get_address(server_name, network=network)
-                c.print(address)    
-                if ':' in address:
-                    port = address.split(':')[-1]        
+                if c.pm2_exists(server_name): 
                     c.kill(server_name)
+
+                if ':' in address:
+                    port = address.split(':')[-1]    
                     c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
@@ -5151,13 +5156,14 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20,  **kwargs):
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20,  **kwargs):
 
+        c.update()
         if tag == None:
             tag = ''
 
         if parallel:
-            executor = c.module('executor')(max_workers=max_workers, mode='process')
+            executor = c.module('executor')(max_workers=max_workers, mode='thread')
             futures = []
             for i in range(n):
                 server_kwargs={'tag':tag + str(i), **kwargs}
