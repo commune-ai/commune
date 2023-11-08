@@ -155,31 +155,25 @@ class Vali(c.Module):
         tag = self.tag if tag == None else tag
         path = self.resolve_stats_path(network=network, tag=tag)
         return self.rm(path)
+    
+    def resolve_tag(self, tag:str=None):
+        return self.tag if tag == None else tag
 
 
-    @classmethod
-    def votes(cls, network='main', tag=None, base_score=0.01):
-        stats = cls.load_stats(network=network, keys=['name','uid', 'w'], tag=tag)
+
+    def votes(self, network='main', tag=None):
+        tag = self.resolve_tag(tag)
+        stats = self.module_stats(network=network, keys=['name','uid', 'w'], tag=tag)
+
         votes = {
             'names'     : [v['name'] for v in stats],            # get all names where w > 0
             'uids'      : [v['uid'] for v in stats],             # get all uids where w > 0
-            'weights'   : [v['w'] + base_score for v in stats],  # get all weights where w > 0
+            'weights'   : [v['w'] + self.config.base_score for v in stats],  # get all weights where w > 0
             'timestamp' : c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-        return votes
-
-    def vote(self):
-        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
-        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
-
-        if stake < self.config.min_stake:
-            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
-            c.print(result, color='red')
-            return result
-
-        votes = self.votes(network=self.config.network, tag=self.tag)
-
+        
+        
         c.copy(votes['uids']) # is line needed ?
         new_votes = {'names': [], 'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
         for i in range(len(votes['names'])):
@@ -197,9 +191,21 @@ class Vali(c.Module):
         votes['weights'] = torch.tensor(votes['weights'])
         votes['weights'] = (votes['weights'] / votes['weights'].sum())
         votes['weights'] = votes['weights'].tolist()
+        return votes
+
+    def vote(self):
+        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
+        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
+
+        if stake < self.config.min_stake:
+            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
+            c.print(result, color='red')
+            return result
+
+        # calculate votes
+        votes = self.votes()
 
         c.print(f'Voting on {len(votes["names"])} modules', color='cyan')
-
         self.subspace.vote(uids=votes['names'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
@@ -207,7 +213,6 @@ class Vali(c.Module):
                         netuid=self.config.netuid)
 
         self.save_votes(votes)
-
 
         return {'success': True, 'message': 'Voted', 'votes': votes }
 
@@ -261,7 +266,7 @@ class Vali(c.Module):
         return modules
         
     @classmethod
-    def load_stats(cls,
+    def module_stats(cls,
                      tag=None,
                       network:str='main', 
                     batch_size:int=20 , 
@@ -291,7 +296,6 @@ class Vali(c.Module):
         
         return module_stats
     
-    get_stats = load_stats
 
     def ls_stats(self):
         paths = self.ls(f'stats/{self.config.network}')
@@ -336,9 +340,13 @@ class Vali(c.Module):
   
             c.sleep(self.config.sleep_time)
 
-        
+            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+            # complete the futures as they come in
 
-            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+            if len(futures) > :
+                for f in concurrent.futures.as_completed([futures]):
+                    f.result()
+                    break
 
 
             if self.sync_staleness > self.config.sync_interval:

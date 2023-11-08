@@ -179,6 +179,13 @@ class Storage(c.Module):
         for item in items:
             self.rm_item(item)
         return {'success': True, 'items': items}
+    
+
+    def drop_peers(self, item_key):
+        metadata = self.get_metadata(item_key)
+        return peers
+
+
 
     def get_item(self,k:str, deserialize:bool= True, include_metadata=False) -> Any:
         k = self.resolve_item_path(k)
@@ -299,8 +306,9 @@ class Storage(c.Module):
             # check if remote hash matches
             success_remote_hash = False
             try:
+                c.print(f'Checking {item_key} on {peer}')
                 remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
-                success_remote_hash = local_hash == remote_hash
+                success_remote_hash = bool(local_hash == remote_hash)
             except Exception as e:
                 c.print(e)
                 c.print(f'Failed to get remote hash for {item_key} on {peer}', color='red')
