@@ -17,14 +17,13 @@ class Access(c.Module):
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
                 rate: int =  1,  # 1 call per timescale
-                base_rate: int =  1,# base level of calls per timescale (free calls) per account
+                base_rate: int =  100,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
                 **kwargs):
         config = self.set_config(kwargs=locals())
         self.module = module
         self.user_info = {}
         self.stakes = {}
-        self.sync()
         c.thread(self.sync_loop)
         
 
@@ -59,37 +58,28 @@ class Access(c.Module):
 
 
         address = input['address']
-
         user_info = self.user_info.get(address, {'last_time_called':0 , 'requests': 0})
+        stake = self.stakes.get(address, 0)
+        fn = input.get('fn')
 
         if c.is_admin(address) or self.module.key.ss58_address == address:
-            passed = True
+            rate_limit = 10e42
         else:
-            fn = input.get('fn')
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
-            # RATE LIMIT CHECKING HERE
-            stake = self.stakes.get(address, 0)
-
-            # get the rate limit for the function
-            if fn in self.config.fn2rate:
-                rate = self.config.fn2rate[fn]
-            else:
-                rate = self.config.rate
             rate_limit = (stake / self.config.stake2rate)
             rate_limit = rate_limit + self.config.base_rate # add the base rate
-            rate_limit =rate_limit
-            rate_limit = rate_limit * rate # multiply by the rate
+            rate_limit = rate_limit * self.config.rate # multiply by the rate
 
-            time_since_called = c.time() - user_info['last_time_called']
-            seconds_in_period = self.timescale_map[self.config.timescale]
+        time_since_called = c.time() - user_info['last_time_called']
+        seconds_in_period = self.timescale_map[self.config.timescale]
 
-            if time_since_called > seconds_in_period:
-                # reset the requests
-                user_info['requests'] = 0
-            passed = bool(user_info['requests'] <= rate_limit)
-            # update the user info
+        if time_since_called > seconds_in_period:
+            # reset the requests
+            user_info['requests'] = 0
+        passed = bool(user_info['requests'] <= rate_limit)
+        # update the user info
 
 
         user_info['rate_limit'] = rate_limit

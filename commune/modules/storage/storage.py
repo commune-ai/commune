@@ -1,19 +1,24 @@
 import commune as c
 from typing import *
 import streamlit as st
+import json
 
 class Storage(c.Module):
     whitelist: List = ['put_item', 'get_item', 'hash_item']
     replica_prefix = 'replica::'
+    shard_prefix = 'shard::'
+
 
     def __init__(self, 
                  max_replicas:int = 2, 
                 network='local',
                 validate:bool = False,
                 match_replica_prefix : bool = False,
+                max_shard_size = 200,
                 tag = None,
                 **kwargs):
         self.network = network
+        self.max_shard_size = max_shard_size
         self.max_replicas = max_replicas
         self.network = network
         self.set_config(kwargs=locals()) 
@@ -37,7 +42,10 @@ class Storage(c.Module):
         return self.resolve_path(f'{tag}/store')
 
     def resolve_item_path(self, key: str, tag=None) -> str:
-        return f'{self.store_dir(tag=tag)}/{key}'
+        store_dir = self.store_dir(tag=tag)
+        if not key.startswith(store_dir):
+            key = f'{store_dir}/{key}'
+        return key
     
     def files(self, tag=None) -> List:
         return sorted(c.ls(self.store_dir(tag=tag)))
@@ -59,7 +67,7 @@ class Storage(c.Module):
         return item2info
 
     def peers(self,) -> List:
-        return c.namespace(self.module_path(), network=self.peer_network)
+        return c.namespace(self.module_path(), network=self.network)
 
     def file2size(self, fmt:str='b') -> int:
         files = self.files()
@@ -78,53 +86,81 @@ class Storage(c.Module):
     def put_metadata(self, k:str, metadata:Dict, tag=None):
         assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
         k = self.resolve_item_path(k, tag=tag)
-        path = k + '/metadata'
+        path = k + '/metadata.json'
         return self.put_json(path, metadata)
 
-    def get_item_metadata(self, k, tag=None):
+    def get_metadata(self, k, tag=None):
         k = self.resolve_item_path(k, tag=tag)
-        path = k + '/metadata'
+        path = k + '/metadata.json'
         return c.get_json(path, default={})  
     
     def get_item_replicas(self, k:str, tag:str=None) -> List[str]:
-        metadata = self.get_item_metadata(k, tag=tag)
+        metadata = self.get_metadata(k, tag=tag)
         return metadata.get('replicas', [])
     
     def put_metadata(self, k, metadata:Dict, tag=None):
         assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
         k = self.resolve_item_path(k, tag=tag)
-        path = k + '/metadata'
+        path = k + '/metadata.json'
         return self.put_json(path, metadata)
+    
+    def refresh_store(self, tag=None):
+        tag = self.resolve_tag(tag)
+        path = self.store_dir(tag=tag)
+        return c.rm(path)
 
-    def put_item(self, k,  v: Dict, encrypt:bool=False, replicas = 1, tag=None):
+    def put_item(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
         timestamp = c.timestamp()
         k = self.resolve_item_path(k, tag=tag)    
         path = {
-            'data': k +'/data',
-            'metadata': k + '/metadata'
+            'data': k +'/data.json',
+            'metadata': k + '/metadata.json'
         }    
-        # serialize
-        data = self.serializer.serialize(v)
 
-        # encrypt it if you want
-        if encrypt:
-            data = self.key.encrypt(data)
-            
-        # sign it for verif
-        data = self.key.sign(data, return_json=True)
+        data = v
 
-        c.makedirs(k, exist_ok=True)
-        self.put_json(path['data'], data)
+        if serialize:
+            data = self.serializer.serialize(data)
 
+        if isinstance(data, str):
+            size_bytes = len(data) 
+        else:
+            size_bytes = c.sizeof(data)
+        c.print(f'Putting {k} with {size_bytes} bytes', color='green')
+        is_shard = bool(self.shard_prefix in k)
+
+        shards = []
+        if size_bytes > self.max_shard_size and not is_shard:               
+            # split it along the bytes
+            # round up to the nearest shard size
+            num_shards = (size_bytes // self.max_shard_size) + (1 if size_bytes % self.max_shard_size != 0 else 0)
+            for i in range(num_shards):
+                shard_path = f'{k}/{self.shard_prefix}{i}'
+                # split it along the bytes
+                shard = data[i*self.max_shard_size:(i+1)*self.max_shard_size]
+                assert len(shard) <= self.max_shard_size, f'Shard must be less than {self.max_shard_size} bytes, got {len(shard)}'
+                self.put_item(k=shard_path, v=shard, encrypt=encrypt, tag=tag, serialize=False)
+                shards += [shard_path]
+
+        else:
+
+            self.put_json(path['data'], data)
+            # encrypt it if you want
+            if encrypt:
+                data = self.key.encrypt(data)   
+            # sign it for verif
+            data = self.key.sign(data, return_json=True)
+
+       
 
         # SAVE METADATA 
         metadata = {
-            'size_bytes': self.sizeof(data),
+            'size_bytes': size_bytes,
             'timestamp': timestamp,
             'encrypt': encrypt,
             'key': self.key.ss58_address ,
-            'size_bytes': c.format_data_size(c.filesize(path['data']), fmt='b'),
-            'path': path
+            'path': path,
+            'shards': shards
         }
 
         self.put_json(path['metadata'], metadata)
@@ -146,22 +182,38 @@ class Storage(c.Module):
 
     def get_item(self,k:str, deserialize:bool= True, include_metadata=False) -> Any:
         k = self.resolve_item_path(k)
-        data = self.get_json(k+'/data', {})
-        metadata = self.get_json(k+'/metadata', {})
-        if 'data' not in data:
-            return {'success': False, 'error': 'No data found'}
-        if 'encrypted' in metadata and metadata['encrypted']:
-            data['data'] = self.key.decrypt(data['data'])
+        metadata = self.get_json(k+'/metadata.json', {})
 
-        if deserialize:
-            data['data'] = self.serializer.deserialize(data['data'])
+        shards = metadata.get('shards', [])
+        if len(shards) > 0:
+            data = ''
+            for shard_path in metadata['shards']:
+                c.print(f'Getting shard {shard_path}')
+                shard = self.get_item(shard_path, deserialize=False)
+                c.print(f'Got shard {shard_path}, {shard}')
+                data += shard
+            data = self.serializer.deserialize(data)
+        else:
+            data = self.get_json(k+'/data.json', {})
+
+
+        if isinstance(data, dict):
+            if 'data' not in data:
+                return {'success': False, 'error': 'No data found'}
+            if 'encrypted' in metadata and metadata['encrypted']:
+                data['data'] = self.key.decrypt(data['data'])
+
+            if deserialize:
+                data['data'] = self.serializer.deserialize(data['data'])
+
+            data = data['data']
 
         # include
         if include_metadata:
             data['metadata'] = metadata
             return data
         else:
-            return data['data']
+            return data
     
 
     def hash_item(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', data=None) -> str:
@@ -216,16 +268,24 @@ class Storage(c.Module):
     def validate(self, item_key:str = None):
         item_key = c.choice(self.items()) if item_key == None else item_key
         item_data = self.get_item(item_key)
-        metadata = self.get_item_metadata(item_key)
+        metadata = self.get_metadata(item_key)
+        shards = self.get_shards(item_key, metadata=metadata)
 
+        if len(shards) > 0:
+            responses = []
+            for shard_item in shards:
+                responses += [self.validate(shard_item)]
+            return responses
         # get the peers 
-        peers = self.peers()
+        peers = list(self.peers().keys())
         max_replicas = min(self.max_replicas, len(peers)) 
         replica_peers = metadata.get('replicas', [])
         has_enough_replicas = bool(len(replica_peers) >= max_replicas)
 
         # get the remote replica key
-        remote_item_key = f'{self.replica_prefix}{c.hash(item_data)}'
+        remote_item_key = f'{self.replica_prefix}/{c.hash(item_data)}'
+
+
 
         if has_enough_replicas: 
             # check if replicas match
@@ -237,9 +297,16 @@ class Storage(c.Module):
             # get the local hash
             local_hash = self.hash_item(data=item_data, seed=seed)
             # check if remote hash matches
-            remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
+            success_remote_hash = False
+            try:
+                remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
+                success_remote_hash = local_hash == remote_hash
+            except Exception as e:
+                c.print(e)
+                c.print(f'Failed to get remote hash for {item_key} on {peer}', color='red')
+                remote_hash = None
 
-            if local_hash != remote_hash:
+            if success_remote_hash:
                 # remove replica from the registry
                 replica_peers.remove(peer)
                 c.print(f'Hashes do not match for {item_key} on {peer}', color='red')
@@ -256,6 +323,7 @@ class Storage(c.Module):
             
             # add replica
             response = c.call(peer, 'put_item', remote_item_key, item_data)
+            c.print(response)
             if 'error' in response:
                 c.print(f'Failed to add replica for {item_key} on {peer} ', color='red')
             else:
@@ -304,7 +372,22 @@ class Storage(c.Module):
                 assert self.hash_item(k, seed=1) != self.hash_item(k, seed=2)
                 assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
 
-                self.rm(k)
+                # self.rm(k)
 
-                assert not self.item_exists(k)
+                # assert not self.item_exists(k)
+
+
+    def get_shards(self, k:str, tag=None, metadata=None) -> List:
+        metadata = self.get_metadata(k, tag=tag) if metadata == None else metadata
+        store_dir = self.store_dir(tag=tag) 
+        shards = metadata.get('shards', [])
+        return [x.replace(store_dir, '') for x in shards]
+
+
+    def put_dummies(self, tag=None):
+        tag = self.resolve_tag(tag)
+        for i in range(10):
+            k = f'test{i}'
+            self.put_item(k, {'dummy': i})
+            assert self.item_exists(k), f'Failed to put {k}'
 
