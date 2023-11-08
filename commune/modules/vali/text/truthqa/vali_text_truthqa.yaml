@@ -8,5 +8,6 @@ module_search: model
 start: True
 dataset : data.text.truthqa
 verbose: False
+base_score: 0.1
 
 
