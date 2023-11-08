@@ -22,7 +22,7 @@ class ServerHTTP(c.Module):
         mode:str = 'thread',
         verbose: bool = False,
         timeout: int = 256,
-        public: bool = False
+        public: bool = False,
         ) -> 'Server':
         
         self.serializer = c.module('serializer')()
@@ -49,7 +49,6 @@ class ServerHTTP(c.Module):
             else:
                 name = module.__class__.__name__
         
-
         self.module = module 
         c.print(self.module, type(self.module), module.key)
         self.key = module.key      
@@ -58,6 +57,9 @@ class ServerHTTP(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+        self._access_module = c.module('server.access')(module=module)
+        c.print('fam')
+
         self.set_api(ip=self.ip, port=self.port)
 
 
@@ -148,6 +150,7 @@ class ServerHTTP(c.Module):
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
+        self._access_module.verify(input)
 
         return input
 

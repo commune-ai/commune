@@ -1048,10 +1048,10 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100) -> int:
+    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None) -> int:
+        self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
         path = f'cache/stakes.{netuid}.json'
-        stakes = c.get(path, {})
             
 
         return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
