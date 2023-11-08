@@ -303,9 +303,14 @@ class Subspace(c.Module):
         if isinstance(weights, list):
             weights = torch.tensor(weights)
 
+
+        
+
         weights = weights / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
+
+
 
         # uids = [int(uid) for uid in uids]
         uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
