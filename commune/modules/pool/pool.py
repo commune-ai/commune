@@ -7,23 +7,17 @@ class Pool(c.Module):
     def __init__(self, module, replicas = 3 , queue_size=1000, args=None, kwargs=None):
         self.args = args or []
         self.kwargs = kwargs or {}
-        self.mp = mp.Queue(queue_size=quue)
+        self.queue = mp.Queue(queue_size=queue_size)
         self.replicas = []
         for i in range(replicas):
             self.add_replica(module, args=self.args, kwargs=self.kwargs)
         
-    
-
 
     def add_replica(self, module:str, args=None, kwargs=None):
         if args == None:
             args = self.args
         if kwargs == None:
             kwargs = self.kwargs
-        
-        replica = c.module(module)(*args, **kwargs)
-        self.replicas.append(replica)
-
         if isinstance(fn, str):
             fn = c.get_fn(fn)
         assert callable(fn), f'target must be callable, got {fn}'
@@ -32,9 +26,8 @@ class Pool(c.Module):
 
         t.__dict__['start_time'] = c.time()
 
-        t.daemon = daemon
-        if start:
-            t.start()
+        t.daemon = True
+        t.start()
         if tag == None:
             tag = ''
         else:

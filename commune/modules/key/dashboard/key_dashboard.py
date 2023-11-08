@@ -1,21 +1,23 @@
 import commune as c
+import streamlit as st
 
 class KeyDashboard(c.Module):
-    def __init__(self, **kwargs):
-        config = self.set_config(kwargs)
-
-    def select_key(self,):
+    def select_key(self):
         with st.expander('Select Key', expanded=True):
             key = 'module'
             key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
             self.key =  c.get_key(key)
             if self.key.path == None:
                 self.key.path = key
-            self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')
+            self.key_info_dict = {
+                'balance': self.stats
+            }
 
             st.write('Address: ', self.key.ss58_address)
-            st.write('Stake', self.key_info_dict.get('stake', 0))
-            st.write('Balance', self.key_info_dict.get('balance', 0))
+            stake = sum([v for v in self.key_info.get('stake_to', {}).values()])
+            st.write('Stake', stake )
+            st.write('Balance', self.key_info.get('balance', 0))
+            return self.key
 
     def create_key(self):
         with st.expander('Create Key', expanded=False):                
@@ -44,7 +46,7 @@ class KeyDashboard(c.Module):
             if rm_key_button:
                 c.rm_keys(rm_keys)
 
-    def key_dashboard(self):
+    def dashboard(self):
         # self.select_key()
         self.create_key()
         self.rename_key()

@@ -438,6 +438,7 @@ class c:
             max_age:str = None,
             cache :bool = False,
             full :bool = False,
+            key: 'Key' = None,
             **kwargs) -> Any:
         
         '''
@@ -1208,9 +1209,17 @@ class c:
             
     
     @classmethod
-    def kill_all(cls,*args,**kwargs):
-        for module in c.servers(*args, **kwargs):
-            c.print(c.kill(module))
+    def kill_all(cls, network='local'):
+        futures = []
+        for s in c.servers(network=network):
+            futures += [c.submit(c.kill, args=[s], return_future=True)]
+
+        results = c.wait(futures)
+        c.update_namespace(network=network)
+
+        return {'namespace': c.namespace(network=network)}
+
+        
         
             
     @classmethod
@@ -2322,6 +2331,7 @@ class c:
         return c.module("namespace").has_server(*args, **kwargs)
     @classmethod
     def server_exists(cls, name:str, network:str = 'local',  prefix_match:bool=False, **kwargs) -> bool:
+
         return c.module("namespace").server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
     @classmethod
     def register_server(cls, name: str, address:str, network='local')-> dict:
@@ -2492,13 +2502,17 @@ class c:
 
 
         if c.server_exists(server_name, network=network): 
+            
+
+
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 address = c.get_address(server_name, network=network)
-                c.print(address)    
-                if ':' in address:
-                    port = address.split(':')[-1]        
+                if c.pm2_exists(server_name): 
                     c.kill(server_name)
+
+                if ':' in address:
+                    port = address.split(':')[-1]    
                     c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
@@ -2788,17 +2802,14 @@ class c:
     @classmethod
     def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
         servers = c.servers(network=network)
-        killed_servers = []
         servers = [s for s in servers if  search in s]
 
         futures = []
         for s in servers:
-            future = c.submit(c.kill, kwargs={'module':server, **kwargs}, mode='process', return_future = True)
-            futures.append(futures)
+            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='process', return_future = True)
+            futures.append(future)
 
         results = c.wait(futures)
-
-        
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
@@ -5063,6 +5074,8 @@ class c:
     @classmethod
     def network(cls) -> str:
         return c.resolve_network()
+    
+    
     net = network
     
     @classmethod
@@ -5143,13 +5156,14 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20,  **kwargs):
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20,  **kwargs):
 
+        c.update()
         if tag == None:
             tag = ''
 
         if parallel:
-            executor = c.module('executor')(max_workers=max_workers, mode='process')
+            executor = c.module('executor')(max_workers=max_workers, mode='thread')
             futures = []
             for i in range(n):
                 server_kwargs={'tag':tag + str(i), **kwargs}
@@ -7880,32 +7894,6 @@ class c:
     def kill_replicas(self, network:str=None, **kwargs):
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
-
-    @property 
-    def access_module(self):
-
-        '''
-        Get the auth modules (modules that process the message to authrize the right people)
-        '''
-        if not hasattr(self, '_access_module'):
-            # each module has a verify function, that takes in the input and returns the input
-            access_config = self.config.get('access_module', c.config()['access_module'])
-
-            # sets self._access_module
-            self.set_access_module(**access_config)
-        return self._access_module
-
-    default_access_module='access'
-    def set_access_module(self, refresh=False, **access_config):
-        if hasattr(self, '_access_module'):
-            if not refresh:
-                return self._access_module
-            # each module has a verify function, that takes in the input and returns the input
-            access_config = {**self._access_module.config, **access_config}
-        # get the access module if specified
-        access_module_name = access_config.pop('module_name', self.default_access_module)
-        self._access_module = c.module(access_module_name)(module=self, **access_config)
-        return self._access_module
 
     @classmethod
     def gc(cls):
