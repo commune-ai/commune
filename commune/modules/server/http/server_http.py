@@ -57,7 +57,7 @@ class ServerHTTP(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self._access_module = c.module('server.access')(module=module)
+        self.access_module = c.module('server.access')(module=module)
         c.print('fam')
 
         self.set_api(ip=self.ip, port=self.port)
@@ -150,7 +150,7 @@ class ServerHTTP(c.Module):
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
-        self._access_module.verify(input)
+        self.access_module.verify(input)
 
         return input
 
