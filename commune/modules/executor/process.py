@@ -819,7 +819,6 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
             self._queue_count += 1
             # Wake up queue management thread
             self._executor_manager_thread_wakeup.wakeup()
-
             if self._safe_to_dynamically_spawn_children:
                 self._adjust_process_count()
             self._start_executor_manager_thread()
