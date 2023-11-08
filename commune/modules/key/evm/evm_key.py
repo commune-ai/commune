@@ -15,37 +15,30 @@ from eth_keys import keys
 from copy import deepcopy
 from eth_account import Account
 
-import commune
+import commune as c
 from typing import List, Dict, Union, Optional, Any
 
 logger = logging.getLogger(__name__)
 
 
-class EVMAccount(commune.Module, Account):
+class EVMAccount(c.Module, Account):
+
     _last_tx_count = dict()
-    ENV_PRIVATE_KEY = 'PRIVATE_KEY'
     def __init__(
         self,
-        *args,
-        config = None,
+        network:str = 'local.main',
         **kwargs
     ) -> None:
         """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
-        config = self.set_config(config, kwargs=kwargs)
-        
-        Account.__init__(self, *args, **kwargs)
-        self.set_network(config.network)
+        self.config = self.set_config( kwargs=kwargs)
+        Account.__init__(self, **kwargs)
+        self.set_network(network)
 
 
     @property
     def private_key(self):
         return self._private_key
-
-
-    @property
-    def key(self) -> str:
-        return self.private_key
 
     @staticmethod
     def reset_tx_count() -> None:
@@ -70,7 +63,7 @@ class EVMAccount(commune.Module, Account):
         tx: Dict[str, Union[int, str, bytes]],
     ) -> HexBytes:
         if tx.get('nonce') == None:
-            tx['nonce'] = self.get_nonce(web3=self.web3, address=self.address)
+            nonce = self.get_nonce(web3=self.web3, address=self.address)
         if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
             max_gas_price = os.getenv('ENV_MAX_GAS_PRICE', None)
@@ -81,7 +74,8 @@ class EVMAccount(commune.Module, Account):
 
 
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
-
+        logger.debug(f"Using gasPrice: {gas_price}")
+        logger.debug(f"`EVMAccount` signed tx is {signed_tx}")
         return signed_tx.rawTransaction
 
     @property
@@ -103,7 +97,6 @@ class EVMAccount(commune.Module, Account):
         'nonce': self.nonce,
         'gasPrice':self.gas_price,
         }
-    
     def send_contract_tx(self, fn:str , value=0):
         '''
         send a contract transaction for your python objecs
@@ -283,19 +276,20 @@ class EVMAccount(commune.Module, Account):
         
     def test(self):
         self.test_sign()
-        # self.test_recover_message()
-        # self.test_verify_message()
         self.test_hash()
+        self.test_recover_message()
+        self.test_verify_message()
         
        
     @classmethod
-    def from_password(cls, password:str, salt:str='commune'):
+    def from_password(cls, password:str, salt:str='commune', prompt=False):
         
         from web3.auto import w3
         from Crypto.Protocol.KDF import PBKDF2
 
         # Prompt the user for a password and salt
-        password = input("Enter password: ")
+        if prompt :
+            password = input("Enter password: ")
         # Derive a key using PBKDF2
         key = PBKDF2(password.encode(), salt, dkLen=32, count=100000)
 

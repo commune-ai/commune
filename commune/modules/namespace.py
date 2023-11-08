@@ -115,6 +115,7 @@ class Namespace(c.Module):
 
         namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
         addresses = c.copy(list(namespace.values()))
+        namespace = {}
 
         if full_scan == True or len(addresses) == 0:
             addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
