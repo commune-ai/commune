@@ -7889,32 +7889,6 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
 
-    @property 
-    def access_module(self):
-
-        '''
-        Get the auth modules (modules that process the message to authrize the right people)
-        '''
-        if not hasattr(self, '_access_module'):
-            access_config = {}
-            if hasattr(self, 'config') and not callable(self.config):
-                access_config = self.config.get('access', {})
-            # sets self._access_module
-            self.set_access_module(**access_config)
-        return self._access_module
-
-    default_access_module='server.access'
-    def set_access_module(self, refresh=False, **access_config):
-        if hasattr(self, '_access_module'):
-            if not refresh:
-                return self._access_module
-            # each module has a verify function, that takes in the input and returns the input
-            access_config = {**self._access_module.config, **access_config}
-        # get the access module if specified
-        access_module_name = access_config.pop('module_name', self.default_access_module)
-        self._access_module = c.module(access_module_name)(module=self, **access_config)
-        return self._access_module
-
     @classmethod
     def gc(cls):
         import gc
