@@ -13,7 +13,7 @@ class Access(c.Module):
                 module : Union[c.Module, str], # the module or any python object
                 network: str =  'main', # mainnet
                 netuid: int = 0, # subnet id
-                sync_interval: int =  60, #  1000 seconds per sync with the network
+                sync_interval: int =  30, #  1000 seconds per sync with the network
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
                 rate: int =  1,  # 1 call per timescale
@@ -40,7 +40,6 @@ class Access(c.Module):
         state = self.get(sync_path, default={})
 
         sync_time = state.get('sync_time', 0)
-        c.print(sync_time)
         if c.time() - sync_time > self.config.sync_interval:
             
             self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
@@ -50,6 +49,8 @@ class Access(c.Module):
             state['block'] = self.subspace.block
             self.put(sync_path, state)
         self.stakes = state['stakes']
+
+        c.print({'sync_time': sync_time, 'n': len(self.stakes), 'block': state['block']})
         
     def is_module_key(self, address: str) -> bool:
         return bool(self.module.key.ss58_address == address)
