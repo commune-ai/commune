@@ -2450,6 +2450,7 @@ class c:
               max_workers:int = None,
               mode:str = "thread",
               public: bool = False,
+              verbose:bool = False,
               **extra_kwargs
               ):
 
