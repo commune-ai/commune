@@ -310,7 +310,6 @@ class Storage(c.Module):
                 # remove replica from the registry
                 replica_peers.remove(peer)
                 c.print(f'Hashes do not match for {item_key} on {peer}', color='red')
-                has_enough_replicas = False
             else:
                 # Dope, the pass had checked
                 c.print(f'Hashes match for {item_key} on {peer}', color='green')
