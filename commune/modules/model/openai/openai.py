@@ -22,6 +22,7 @@ class OpenAILLM(c.Module):
                 prompt:bool = None,
                 max_input_tokens: int = 100_000,
                 max_output_tokens: int = 100_000,
+                **kwargs
                 ):
         self.set_config(kwargs=locals())
         self.output_tokens = 0

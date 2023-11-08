@@ -13,8 +13,8 @@ class Process(c.Module):
                     args:list = None, 
                     kwargs:dict = None, 
                     daemon:bool = True, 
-                    tag = None,
-                    name = None,
+                    tag:str = None,
+                    name:str = None,
                     start:bool = True,
                     tag_seperator:str=':'):
 
