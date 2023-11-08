@@ -16,20 +16,19 @@ class Access(c.Module):
                 sync_interval: int =  60, #  1000 seconds per sync with the network
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
-                rate: int =  10,  # 1 call per timescale
+                rate: int =  1,  # 1 call per timescale
                 base_rate: int =  1,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
                 **kwargs):
         config = self.set_config(kwargs=locals())
-        c.print('fam')
         self.module = module
         self.user_info = {}
         self.stakes = {}
+        self.sync()
         c.thread(self.sync_loop)
         
 
     def sync_loop(self):
-        self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
         while True:
             self.sync()
             c.sleep(self.config.sync_interval//2)
@@ -41,12 +40,15 @@ class Access(c.Module):
         state = self.get(sync_path, default={})
 
         sync_time = state.get('sync_time', 0)
+        c.print(sync_time)
         if c.time() - sync_time > self.config.sync_interval:
+            
+            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+
             state['sync_time'] = c.time()
             state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
             state['block'] = self.subspace.block
             self.put(sync_path, state)
-        c.print({k: v for k, v in state.items() if k != 'stakes'})
         self.stakes = state['stakes']
         
     def is_module_key(self, address: str) -> bool:
@@ -54,9 +56,13 @@ class Access(c.Module):
 
     def verify(self, input:dict) -> dict:
 
+
         address = input['address']
+
+        user_info = self.user_info.get(address, {'last_time_called':0 , 'requests': 0})
+
         if c.is_admin(address) or self.module.key.ss58_address == address:
-            return input
+            passed = True
         else:
             fn = input.get('fn')
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
@@ -64,6 +70,7 @@ class Access(c.Module):
 
             # RATE LIMIT CHECKING HERE
             stake = self.stakes.get(address, 0)
+
             # get the rate limit for the function
             if fn in self.config.fn2rate:
                 rate = self.config.fn2rate[fn]
@@ -74,47 +81,42 @@ class Access(c.Module):
             rate_limit =rate_limit
             rate_limit = rate_limit * rate # multiply by the rate
 
-            default_user_info = {
-                                'requests': 0, 
-                                'last_time_called': 0,
-                                'rate': 0,
-                                'stake': stake,
-                                }
-
+            time_since_called = c.time() - user_info['last_time_called']
             seconds_in_period = self.timescale_map[self.config.timescale]
-            
 
-            user_info = self.user_info.get(address, default_user_info)
-            time_since_called = c.time() - user_info['last_time_called'] 
-            periods_since_called = time_since_called // seconds_in_period
-            if periods_since_called > 1:
+            if time_since_called > seconds_in_period:
                 # reset the requests
                 user_info['requests'] = 0
-    
-            user_info['rate_limit'] = rate_limit
-            assert rate <= rate_limit, f"Rate limit too high (calls per second) {user_info}"
+            passed = bool(user_info['requests'] <= rate_limit)
+            assert  passed,  f"Rate limit too high (calls per second) {user_info}"
             # update the user info
-            user_info['requests'] += 1
-            user_info['last_time_called'] = c.time()
-            user_info['time_since_called'] = time_since_called
-            user_info['stake'] = stake
-            user_info['period'] = seconds_in_period
-            c.print(user_info)
-            self.user_info[address] = user_info
-            # check the rate limit
-            return input
+
+
+        user_info['rate_limit'] = rate_limit
+        user_info['requests'] +=  1
+        user_info['last_time_called'] = c.time()
+        user_info['stake'] = stake
+        user_info['seconds_in_period'] = seconds_in_period
+        user_info['passed'] = passed
+        self.user_info[address] = user_info
+        # check the rate limit
+        return user_info
 
 
     @classmethod
-    def test(cls, key=None):
-        module = cls(module=c.module('module')())
-        key = c.get_key('fam')
+    def test(cls, key='vali::fam', base_rate=2):
+        
+        module = cls(module=c.module('module')(),  base_rate=base_rate)
+        key = c.get_key(key)
 
-        for i in range(10):
+        for i in range(base_rate*3):
             c.sleep(0.1)
             try:
                 c.print(module.verify(input={'address': key.ss58_address, 'fn': 'info'}))
             except Exception as e:
                 c.print(e)
+                assert i > base_rate
+
+            
 
             
