@@ -1,6 +1,6 @@
 dataset: data.text.realfake
 netuid: 0
-module_search: model
+search: model
 tag: base
 target: real
 

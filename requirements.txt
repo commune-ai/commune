@@ -35,6 +35,5 @@ nest_asyncio
 
 # Module for text2speech
 fairseq2
-git+https://github.com/facebookresearch/seamless_communication
 huggingface_hub
 torchaudio

@@ -46,11 +46,11 @@ class Vali(c.Module):
 
 
     @property               
-    def module_search(self):
-        if self.config.module_search == None:
-            self.config.module_search = self.tag
-        assert isinstance(self.config.module_search, str), f'Module search must be a string, got {type(self.config.module_search)}'
-        return self.config.module_search
+    def search(self):
+        if self.config.search == None:
+            self.config.search = self.tag
+        assert isinstance(self.config.search, str), f'Module search must be a string, got {type(self.config.search)}'
+        return self.config.search
 
 
     def sync(self, network:str=None, netuid:int=None, update: bool = False):
@@ -62,7 +62,7 @@ class Vali(c.Module):
                 netuid = self.config.netuid
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
             
-            self.modules = self.subspace.modules(search=self.config.module_search, update=update, netuid=netuid)
+            self.modules = self.subspace.modules(search=self.config.search, update=update, netuid=netuid)
             self.n  = len(self.modules)                
             self.subnet = self.subspace.subnet(netuid=netuid)
 
