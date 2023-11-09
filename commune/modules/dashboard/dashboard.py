@@ -180,15 +180,13 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
         
-        tabs = st.tabs(['Wallet', 'App', 'Key']) 
+        tabs = st.tabs(['LOCAL','SUBSPACE', 'REMOTE']) 
         with tabs[0]:
-            self.wallet_dashboard()
+            self.local_dashboard()
         with tabs[1]:   
-            self.modules_dashboard()
-        with tabs[2]:   
-            self.validator_dashboard()
-        with tabs[3]:
-            self.key_dashboard()
+            self.subspace_dashboard()
+        with tabs[2]:
+            self.remote_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -314,13 +312,10 @@ class Dashboard(c.Module):
 
         # st.write(histogram)
        
-    def wallet_dashboard(self):
-
-
-
-
+    def subspace_dashboard(self):
         # pie map of stake
 
+        st.write(self.modules_dashboard())
         # remove the 
         st.write('# Wallet')
         self.register_dashboard()
@@ -362,24 +357,14 @@ class Dashboard(c.Module):
             module  = cols[0].selectbox('Select A Module', modules, 0)
             tag = cols[1].text_input('tag', c.random_word(n=2), key=f'tag.{prefix}')
             stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}')
-            n = st.slider('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}')
+            n = st.number_input('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}')
             # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
             register = st.form_submit_button('Register')
-
-        
             st.write(f'#### {module.upper()} Kwargs ')
-
-            fn_schema = c.fn_schema(c.module(module), '__init__')
-            fns = list(fn_schema.keys())
-            fn2index = {f:i for i,f in enumerate(fns)}
             # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
             kwargs = self.st.function2streamlit(module=module, fn='__init__' )
-
-            kwargs = self.st.process_kwargs(kwargs, fn_schema)
             self.st.line_seperator()
 
-            n = 1
-            
             if 'None' == tag:
                 tag = None
                 
@@ -410,6 +395,53 @@ class Dashboard(c.Module):
                     st.error(response['message'])
                 
 
+    def serve_dashboard(self , ):
+
+        modules = c.modules()
+        self.st.line_seperator()
+        cols = st.columns([2,2,2])
+
+        with st.form(key='serve'):
+            module  = cols[0].selectbox('Select A Module', modules, 0, key=f'serve.module')
+            tag = cols[1].text_input('tag', '', key=f'serve.tag.{module}')
+            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            tag = None if tag == '' else tag
+            st.write(f'#### {module.upper()} Kwargs ')
+                        
+            # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
+            
+            
+            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+
+
+            cols = st.columns(2)
+            n = cols[0].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
+
+            serve = cols[0].form_submit_button('Serve')
+
+            if 'None' == tag:
+                tag = None
+                
+                
+            if 'tag' in kwargs:
+                kwargs['tag'] = tag
+
+            network = 'local'
+            if serve:
+                for i in range(n):
+                    try:
+                        if 'tag' in kwargs:
+                            tag = kwargs['tag']
+                        response = c.module(module).serve( kwargs = kwargs, network=network)
+                    except Exception as e:
+                        response = {'success': False, 'message': str(e)}
+
+                    if response['success']:
+                        st.write(response)
+                    else:
+                        st.error(response)
+                
+
 
 
     def modules_dashboard(self):
@@ -427,8 +459,6 @@ class Dashboard(c.Module):
             st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
             del df['stake_from']
             st.write(df)
-
-        
             with st.expander('Historam'):
                 key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
                 
@@ -440,5 +470,24 @@ class Dashboard(c.Module):
                 st.plotly_chart(fig)
 
 
+
+    def local_dashboard(self):
+        import pandas as pd
+        # search  for all of the modules with yaml files. Format of the file
+        df = None
+        cols = st.columns(2)
+        search = cols[0].text_input('Search', '', key='search_module')
+        modules = c.modules(search=search)
+        network = st.text_input('Network', 'local')
+        module_path = cols[1].selectbox('Select Module', modules, 0)
+        module = c.module(module_path)
+        with st.expander('Serve', expanded=True):
+            self.serve_dashboard()
+
+        st.write(c.servers_info())
+
+        
+    def remote_dashboard(self):
+        st.write('# Remote')
 if __name__ == '__main__':
     Dashboard.run()
