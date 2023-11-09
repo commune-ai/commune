@@ -8043,6 +8043,85 @@ class c:
     def type(cls,x ):
         return type(x).__name_
         
+
+    def set_api_key(self, api_key:str, cache:bool = True):
+        import os
+        api_key = os.getenv(str(api_key), None)
+        if api_key == None:
+            api_key = self.get_api_key()
+
+        
+        self.api_key = api_key
+        if cache:
+            self.add_api_key(api_key)
+
+        assert isinstance(api_key, str)
+
+
+    ## API MANAGEMENT ##
+
+    @classmethod
+    def add_api_key(cls, api_key:str):
+        assert isinstance(api_key, str)
+        api_keys = cls.get('api_keys', [])
+        api_keys.append(api_key)
+        api_keys = list(set(api_keys))
+        cls.put('api_keys', api_keys)
+        return {'api_keys': api_keys}
+
+
+    @classmethod
+    def add_api_keys(cls, api_keys:str):
+        api_keys = list(set(api_keys + cls.get('api_keys', [])))
+        cls.put('api_keys', api_keys)
+        return {'api_keys': api_keys}
+
+    @classmethod
+    def set_api_keys(cls, api_keys:str):
+        api_keys = list(set(api_keys))
+        cls.put('api_keys', api_keys)
+        return {'api_keys': api_keys}
+
+
+    @classmethod
+    def rm_api_key(cls, api_key:str):
+        assert isinstance(api_key, str)
+        api_keys = cls.get('api_keys', [])
+        for i in range(len(api_keys)):
+            if api_key == api_keys[i]:
+                api_keys.pop(i)
+                break   
+
+        cls.put('api_keys', api_keys)
+        return {'api_keys': api_keys}
+
+
+    @classmethod
+    def get_api_key(cls):
+        api_keys = cls.api_keys()
+        if len(api_keys) == 0:
+            return None
+        else:
+            return c.choice(api_keys)
+
+    @classmethod
+    def api_keys(cls):
+        return cls.get('api_keys', [])
+    
+
+    @classmethod
+    def rm_api_keys(self):
+        self.put('api_keys', [])
+        return {'api_keys': []}
+
+    @classmethod
+    def send_api_keys(cls, module:str, network='local'):
+        api_keys = cls.api_keys()
+        assert len(api_keys) > 0, 'no api keys to send'
+        module = c.connect(module, network=network)
+        return module.add_api_keys(api_keys)
+
+ 
 Module = c
 Module.run(__name__)
     

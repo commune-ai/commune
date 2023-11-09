@@ -3,6 +3,7 @@ import requests
 import json
 import os
 from dotenv import load_dotenv
+from typing import List
 
 load_dotenv()
 
@@ -13,17 +14,20 @@ class OpenRouterModule(c.Module):
                 model: str = "mistralai/mistral-7b-instruct",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
-                api_key: str = None,
+                api_key: str = 'OPEN_ROUTER_API_KEY',
                 x_title: str = "Communne"
                 ):
         self.url = url
-        self.api_key = os.getenv("OPEN_ROUTER_API_KEY", self.get_api_key())
+        self.set_api_key(api_key)
+    
+
         self.model = model
         self.role = role
         self.http_referer = http_referer
         self.x_title = x_title
 
-    def prompt(self, content: str):
+    def prompt(self, content: str, text_only:bool = True, model=None):
+        model = model or self.model
         response = requests.post(
             url=self.url,
             headers={
@@ -38,16 +42,73 @@ class OpenRouterModule(c.Module):
                 ]
             })
             )
+        response = json.loads(response.text)
+        
+        if text_only:
+            return response["choices"][0]["message"]["content"]
 
-        return response.text
+        return response
+    
+    generate = prompt
 
-    @classmethod
-    def set_api_key(cls, api_key:str):
+    def set_api_key(self, api_key:str):
+        api_key = os.getenv(api_key, None)
+        if api_key == None:
+            api_keys = self.api_keys()
+            assert len(api_keys) > 0, "No API keys found. Please set an API key with OpenRouterModule.set_api_key()"
+            api_key = c.choice(api_keys)
         assert isinstance(api_key, str), "API key must be a string"
-        cls.put('api_key', api_key)
-        return {'msg': f"API Key has been set to {api_key}", 'success': True}
+        self.api_key = api_key
 
     @classmethod
-    def get_api_key(cls):
-        api_key = cls.get('api_key')
+    def get_api_key(cls)->str :
+        api_keys = cls.api_keys()
+        assert len(api_keys) > 0
+        api_key = c.choice(api_keys)
         return api_key
+    
+    
+    
+    @classmethod
+    def add_api_key(cls, api_key:str):
+        assert isinstance(api_key, str), "API key must be a string"
+        api_keys = list(set(cls.get('api_keys', []) + [api_key]))
+        cls.put('api_keys', api_keys)
+        return {'msg': f"API Key set to {api_key}", 'success': True}
+    
+    @classmethod
+    def rm_api_key(cls, api_key:str):
+        new_keys = []
+        api_keys = cls.api_keys()
+        for k in api_keys: 
+            if api_key in k:
+                continue
+            else:
+                new_keys.append(k)
+        cls.put('api_keys', new_keys)
+        return {'msg': f"Removed API Key {api_key}", 'success': True}
+                
+    
+    @classmethod
+    def api_keys(cls):
+        return  cls.get('api_keys', [])
+    
+    @classmethod
+    def save_api_keys(cls, api_keys:List[str]):
+        cls.put('api_keys', api_keys)
+        return {'msg': f"Saved API Keys", 'success': True}
+
+
+    
+    def test(self):
+        response = self.prompt("Hello")
+        assert isinstance(response, str)
+        return response
+    
+    @classmethod
+    def models(cls):
+        url = 'https://openrouter.ai/api/v1/models'
+
+        response = requests.get(url)
+        response = json.loads(response.text)
+        return response 
