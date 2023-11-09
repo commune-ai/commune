@@ -3,6 +3,7 @@
 import inspect
 import numpy as np
 import os
+import concurrent
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
@@ -3293,10 +3294,17 @@ class c:
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
             else:
+                fn = getattr(cls, args.function)
+                fn_type = cls.classify_method(fn)
+
+                if fn_type == 'self':
+                    self = cls(*args.args, **args.kwargs)
+
+                    return
+
                 return getattr(cls, args.function)(*args.args, **args.kwargs)     
 
     
-       
     
     
     @classmethod
@@ -6148,6 +6156,10 @@ class c:
     @classmethod
     def rand_tag(cls):
         return cls.choice(cls.tags())
+
+    @classmethod
+    def as_completed(cls , futures:list, timeout:int=10, **kwargs):
+        return concurrent.futures.as_completed(futures, timeout=timeout)
     @staticmethod
     def wait(futures:list, timeout:int = 20, verbose:bool = False) -> list:
         
