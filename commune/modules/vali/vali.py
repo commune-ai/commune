@@ -340,15 +340,8 @@ class Vali(c.Module):
   
             c.sleep(self.config.sleep_time)
 
-            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
             # complete the futures as they come in
-
-            if len(futures) > :
-                for f in concurrent.futures.as_completed([futures]):
-                    f.result()
-                    break
-
-
             if self.sync_staleness > self.config.sync_interval:
                 self.sync()
 

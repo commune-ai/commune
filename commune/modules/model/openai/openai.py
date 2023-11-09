@@ -20,8 +20,8 @@ class OpenAILLM(c.Module):
                 models: List[str]= ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo'],
                 save:bool = False,
                 prompt:bool = None,
-                max_input_tokens: int = 100_000,
-                max_output_tokens: int = 100_000,
+                max_input_tokens: int = 10_000_000,
+                max_output_tokens: int = 10_000_000,
                 **kwargs
                 ):
         self.set_config(kwargs=locals())
