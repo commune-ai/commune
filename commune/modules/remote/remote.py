@@ -267,7 +267,7 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, refresh=True, network='remote'):
+    def add_servers(cls, *args, add_admins:bool=True, refresh=True, network='remote'):
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()

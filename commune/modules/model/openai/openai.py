@@ -335,6 +335,7 @@ class OpenAILLM(c.Module):
             response[s] = result
 
         return response
+   
     
     @classmethod
     def add_key(cls, api_key:str):
@@ -343,7 +344,6 @@ class OpenAILLM(c.Module):
         cls.put('api_keys', api_keys)
         return {'msg': f"API Key set to {api_key}", 'success': True}
     
-
     @classmethod
     def rm_key(cls, api_key:str):
         new_keys = []
