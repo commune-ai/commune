@@ -194,10 +194,15 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def servers_info(cls, search=None, network=network) -> List[str]:
-        servers = cls.servers(search=search, network=network)
-        futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info', 'network': network}, return_future=True) for s in servers]
-        return c.wait(futures)
+    def servers_info(cls, search=None, network=network, update:str=True) -> List[str]:
+        if not update:
+            servers_info = cls.get('servers_info', [])
+        if update or len(servers_info) == 0:
+            servers = cls.servers(search=search, network=network)
+            futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info', 'network': network}, return_future=True) for s in servers]
+            servers_info = c.wait(futures)
+            cls.put('servers_info', servers_info)
+        return servers_info
     
     @classmethod
     def rm_server(cls,  name, network:str = 'local', **kwargs):

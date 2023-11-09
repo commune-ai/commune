@@ -1964,7 +1964,8 @@ class c:
             assert len(modules) > 0, f'No modules with {module} found in namespace {namespace.keys()}'
             address = namespace[module]
 
-        ip, port = address.split(':')
+        port = address.split(':')[-1]
+        ip = address.replace(f':{port}', '')
 
         # CONNECT TO THE MODULE
         if 'None' in address:
@@ -2153,8 +2154,6 @@ class c:
     @classmethod
     def is_address(cls, address:str) -> bool:
         conds = []
-        if '::' in address:
-            return False
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
@@ -2457,8 +2456,6 @@ class c:
               **extra_kwargs
               ):
 
-        if update:
-            c.update()
         
         
         kwargs = kwargs or {}
@@ -2475,16 +2472,24 @@ class c:
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
+        if 'tag' in kwargs:
+            tag = kwargs.pop('tag')
+    
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
         
+        address = c.get_address(server_name, network=network)
+        if address != None and ':' in address:
+            port = address.split(':')[-1]   
+        # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
-            remote_kwargs['port'] = c.resolve_port(remote_kwargs['port'])
+            remote_kwargs.pop('address') # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs)
             c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
@@ -2503,21 +2508,18 @@ class c:
         self.server_name = server_name
         self.key = server_name
 
+        address = c.get_address(server_name, network=network)
+        if address != None and ':' in address:
+            port = address.split(':')[-1]   
 
 
         if c.server_exists(server_name, network=network): 
             
-
-
             if refresh:
-                c.print(f'Stopping existing server {server_name}', color='yellow')
-                address = c.get_address(server_name, network=network)
+                c.print(f'Stopping existing server {server_name}', color='yellow') 
+                c.deregister_server(server_name, network=network)
                 if c.pm2_exists(server_name): 
                     c.kill(server_name)
-
-                if ':' in address:
-                    port = address.split(':')[-1]    
-                    c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
@@ -2620,7 +2622,7 @@ class c:
             yield i
         
     def info(self , 
-             schema: bool = False,
+             schema: bool = True,
              namespace:bool = False,
              peers: bool = False) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2632,7 +2634,6 @@ class c:
             name = self.server_name() if callable(self.server_name) else self.server_name, # get the name of the module
             path = self.module_path(), # get the path of the module
             chash = self.chash(), # get the hash of the module (code)
-
         )
         info['hash'] = c.hash(info)
 

@@ -357,7 +357,7 @@ class StreamlitModule(c.Module):
             kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
      
         kwargs = cls.process_kwargs(kwargs, fn_schema)       
-            
+        
         return kwargs
         
     @classmethod
