@@ -5,22 +5,22 @@ class Agent(c.Module):
                 name='agent',
                 description='This is a base agent that does nothing.', 
                 tags=['defi', 'agent'],
-                llm = 'openai::gpt4',
+                model = 'model.openai::obama12',
                 tools=[]
                 ):
         self.name = name
         self.description = description
         self.tags = tags
-        self.llm = llm
+        self.model = c.connect(model)
         self.tools = tools
 
+    def 
 
-    def call(self, prompt:str) -> str:
-        return {
-            'prompt': prompt,
-            'response': 'This is a base agent that does nothing.',
-            'history': []
-            }
+
+    def call(self, prompt:str, model=None) -> str:
+        if model != None:
+            self.model = c.connect(model)
+        return self.model.generate(prompt)
 
     # prompt tooling 
 

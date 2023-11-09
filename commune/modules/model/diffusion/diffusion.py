@@ -7,8 +7,9 @@ class DiffisionPipeline(c.Module):
                     model: str =  'stabilityai/stable-diffusion-xl-base-1.0',
                     variant : str = 'fp16',
                     device: str=  None,
-                    test: bool = True
-                    ):
+                    test: bool = True,
+                    **kwargs):
+                    
         self.set_model(model=model, device=device , variant=variant)
         self.test()
 
@@ -48,9 +49,7 @@ class DiffisionPipeline(c.Module):
             return images
 
 
-    @classmethod
-    def test(cls, **kwargs):
-        self = cls(**kwargs)
+    def test(self, **kwargs):
         return self.generate()
 
 
