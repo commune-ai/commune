@@ -124,6 +124,7 @@ class Vali(c.Module):
             color = 'red'
 
         c.print(msg, color=color)
+        c.print(response)
         
         self.count += 1
 
@@ -338,10 +339,17 @@ class Vali(c.Module):
             time_between_interval = c.time()
             module = c.choice(modules)
 
-            c.print(f'Running {module["name"]}', color='cyan')
+            c.print(f'Sending -> {module["name"]} {c.emoji("rocket")} ({module["address"]}) {c.emoji("rocket")}', color='yellow')
             c.sleep(self.config.sleep_time)
 
-            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            futures.append(future)
+
+            if len(futures) >= self.config.max_futures:
+                for future in c.as_completed(futures, timeout=self.config.timeout):
+                    result = future.result()
+                    futures.remove(future)
+                    break
             
             # complete the futures as they come in
             if self.sync_staleness > self.config.sync_interval:
