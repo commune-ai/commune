@@ -132,7 +132,6 @@ class Client(c.Module):
         ## handles 
         if isinstance(result, str):
             result = json.loads(result)
-
         result = self.serializer.deserialize(result['data'])
 
         
