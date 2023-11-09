@@ -58,52 +58,14 @@ class OpenRouterModule(c.Module):
             assert len(api_keys) > 0, "No API keys found. Please set an API key with OpenRouterModule.set_api_key()"
             api_key = c.choice(api_keys)
         assert isinstance(api_key, str), "API key must be a string"
-        self.api_key = api_key
-
-    @classmethod
-    def get_api_key(cls)->str :
-        api_keys = cls.api_keys()
-        assert len(api_keys) > 0
-        api_key = c.choice(api_keys)
-        return api_key
+        self.api_key = api_key   
     
-    
-    
-    @classmethod
-    def add_api_key(cls, api_key:str):
-        assert isinstance(api_key, str), "API key must be a string"
-        api_keys = list(set(cls.get('api_keys', []) + [api_key]))
-        cls.put('api_keys', api_keys)
-        return {'msg': f"API Key set to {api_key}", 'success': True}
-    
-    @classmethod
-    def rm_api_key(cls, api_key:str):
-        new_keys = []
-        api_keys = cls.api_keys()
-        for k in api_keys: 
-            if api_key in k:
-                continue
-            else:
-                new_keys.append(k)
-        cls.put('api_keys', new_keys)
-        return {'msg': f"Removed API Key {api_key}", 'success': True}
-                
-    
-    @classmethod
-    def api_keys(cls):
-        return  cls.get('api_keys', [])
-    
-    @classmethod
-    def save_api_keys(cls, api_keys:List[str]):
-        cls.put('api_keys', api_keys)
-        return {'msg': f"Saved API Keys", 'success': True}
-
 
     
     def test(self):
         response = self.prompt("Hello")
         assert isinstance(response, str)
-        return response
+        return {"status": "success", "response": response}
     
     @classmethod
     def models(cls):
