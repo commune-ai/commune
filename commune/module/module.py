@@ -886,6 +886,8 @@ class c:
     
         return module_list
 
+
+
     @classmethod
     def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
         import socket
@@ -4884,20 +4886,14 @@ class c:
         return cls.call_pool(fn='address', **kwargs)
 
     @classmethod
-    def call_pool(cls, *args, **kwargs):
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
-    
-    cpool = call_pool
-
-    @classmethod
-    async def async_call_pool(cls,
-                              modules, 
-                              fn = 'info',
-                              *args, 
-                              network =  'local',
-                              n=None,
-                            **kwargs):
+    def call_pool(cls, 
+                    modules, 
+                    fn = 'info',
+                    *args, 
+                    network =  'local',
+                    timeout = 10,
+                    n=None,
+                    **kwargs):
         
         args = args or []
         kwargs = kwargs or {}
@@ -4910,19 +4906,13 @@ class c:
         assert isinstance(modules, list), 'modules must be a list'
         c.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
+        
         for m in modules:
-            job = c.call(m, fn, *args, return_future=True, network=network, **kwargs)
+            job_kwargs = {'module':  m, 'fn': fn, **kwargs}
+            job = c.submit(c.call, kwargs=kwargs, args=[m, fn, *args] , timeout=timeout, return_future=True)
             jobs.append(job)
-        
-        responses = await asyncio.gather(*jobs)
-        
-        is_error = lambda r: isinstance(r, dict) and 'error' in r
-        successes  = [r for r in responses if not is_error(r)]
-        errors = [r for r in responses if is_error(r)]
-        
-        if len(successes) == 0:
-            c.print(f'ERRORS {errors}', color='red')
-        return dict(zip(modules, successes))
+        responses = c.wait(jobs, timeout=timeout)
+        return responses
     
     @classmethod
     def resolve_fn(cls,fn, init_kwargs=None ):
@@ -7521,6 +7511,9 @@ class c:
     @classmethod
     def vstats(cls, *args, **kwargs):
         return c.module('vali').all_stats(*args, **kwargs)
+    @classmethod
+    def valis(cls, network=None):
+        return c.servers('vali', network=network)
 
     @classmethod
     def restart_valis(cls, search=None, network= 'local'):

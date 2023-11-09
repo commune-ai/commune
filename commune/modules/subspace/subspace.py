@@ -336,22 +336,19 @@ class Subspace(c.Module):
         c.cmd('make enter', cwd=cls.chain_path)
 
     def register_servers(self, search=None, **kwargs):
+        stakes = self.stakes()
         for m in c.servers(network='local'):
             try:
-                self.register(name=m)
+                key = c.get_key(m)
+                if key.ss58_address in stakes:
+                    self.update_module(module=m)
+                else:
+                    self.register(name=m)
             except Exception as e:
                 c.print(e, color='red')
     reg_servers = register_servers
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
-        c.print(servers)
-    def register_ghosts(self, n=10, **kwargs):
-        ip = c.ip()
-        for i in range(n):
-            self.register(name=f'ghost{i}',
-                         address= ip + ':' + str(8000 + i), 
-                          **kwargs)
-
 
     def register(
         self,
@@ -520,6 +517,7 @@ class Subspace(c.Module):
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
         module_info = self.get_module(module)
+        c.print(module_info)
 
         if name == None:
             name = module
@@ -543,6 +541,7 @@ class Subspace(c.Module):
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
         }
 
+        c.print()
         # remove the params that are the same as the module info
         for k in ['name', 'address', 'delegation_info']:
             if params[k] == module_info[k]:
@@ -1486,6 +1485,10 @@ class Subspace(c.Module):
         return latest_time
 
     @classmethod
+    def lag(cls, network:str = network):
+        return c.timestamp() - cls.latest_archive_time(network=network) 
+
+    @classmethod
     def latest_archive_datetime(cls, network=network):
         latest_archive_time = cls.latest_archive_time(network=network)
         assert latest_archive_time != None, f"No archives found for network {network}"
@@ -1722,6 +1725,7 @@ class Subspace(c.Module):
     def check_servers(self, search=None,  netuid=None, wait_for_server=False, update:bool=False):
         cols = ['name', 'registered', 'serving', 'address']
         module_stats = self.stats(search=search, netuid=netuid, cols=cols, df=False, update=update)
+        c.print(module_stats)
         for m in module_stats:
             if m['serving'] == False and m['registered'] == True:
                 ip = m['address'].split(':')[0]
@@ -2290,14 +2294,12 @@ class Subspace(c.Module):
         return modules
     
 
-    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=None, **kwargs):
+    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=None, df:bool = True, **kwargs):
         my_modules = []
         address2key = c.address2key()
         if modules == None:
-            modules = self.modules(netuid=netuid **kwargs)
+            modules = self.modules(search=search, netuid=netuid, df=False, **kwargs)
         for module in modules:
-            if search != None and search not in module['name']:
-                continue
             if module['key'] in address2key:
                 my_modules += [module]
         return my_modules

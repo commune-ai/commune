@@ -48,8 +48,9 @@ class Access(c.Module):
             state['block'] = self.subspace.block
             self.put(sync_path, state)
         self.stakes = state['stakes']
+        until_sync = self.config.sync_interval + (c.timestamp() - sync_time) 
 
-        c.print({'sync_time': sync_time, 'n': len(self.stakes), 'block': state['block']})
+        c.print({'sync_time': sync_time, 'n': len(self.stakes), 'block': state['block'],  'until_sync': until_sync})
         
     def is_module_key(self, address: str) -> bool:
         return bool(self.module.key.ss58_address == address)
