@@ -180,7 +180,7 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
         
-        tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key']) 
+        tabs = st.tabs(['Wallet', 'App', 'Key']) 
         with tabs[0]:
             self.wallet_dashboard()
         with tabs[1]:   
