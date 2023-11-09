@@ -1,5 +1,5 @@
 dataset: data.text.math
 netuid: 0
-module_search: model
+search: model
 tag: base
 

@@ -3,6 +3,7 @@
 import inspect
 import numpy as np
 import os
+import concurrent
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
@@ -885,6 +886,8 @@ class c:
             module_list = [m for m in module_list if search in m]
     
         return module_list
+
+
 
     @classmethod
     def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
@@ -2450,6 +2453,7 @@ class c:
               max_workers:int = None,
               mode:str = "thread",
               public: bool = False,
+              verbose:bool = False,
               **extra_kwargs
               ):
 
@@ -2471,7 +2475,7 @@ class c:
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
@@ -3290,10 +3294,17 @@ class c:
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
             else:
+                fn = getattr(cls, args.function)
+                fn_type = cls.classify_method(fn)
+
+                if fn_type == 'self':
+                    self = cls(*args.args, **args.kwargs)
+
+                    return
+
                 return getattr(cls, args.function)(*args.args, **args.kwargs)     
 
     
-       
     
     
     @classmethod
@@ -4884,20 +4895,14 @@ class c:
         return cls.call_pool(fn='address', **kwargs)
 
     @classmethod
-    def call_pool(cls, *args, **kwargs):
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
-    
-    cpool = call_pool
-
-    @classmethod
-    async def async_call_pool(cls,
-                              modules, 
-                              fn = 'info',
-                              *args, 
-                              network =  'local',
-                              n=None,
-                            **kwargs):
+    def call_pool(cls, 
+                    modules, 
+                    fn = 'info',
+                    *args, 
+                    network =  'local',
+                    timeout = 10,
+                    n=None,
+                    **kwargs):
         
         args = args or []
         kwargs = kwargs or {}
@@ -4910,19 +4915,13 @@ class c:
         assert isinstance(modules, list), 'modules must be a list'
         c.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
+        
         for m in modules:
-            job = c.call(m, fn, *args, return_future=True, network=network, **kwargs)
+            job_kwargs = {'module':  m, 'fn': fn, **kwargs}
+            job = c.submit(c.call, kwargs=kwargs, args=[m, fn, *args] , timeout=timeout, return_future=True)
             jobs.append(job)
-        
-        responses = await asyncio.gather(*jobs)
-        
-        is_error = lambda r: isinstance(r, dict) and 'error' in r
-        successes  = [r for r in responses if not is_error(r)]
-        errors = [r for r in responses if is_error(r)]
-        
-        if len(successes) == 0:
-            c.print(f'ERRORS {errors}', color='red')
-        return dict(zip(modules, successes))
+        responses = c.wait(jobs, timeout=timeout)
+        return responses
     
     @classmethod
     def resolve_fn(cls,fn, init_kwargs=None ):
@@ -6157,6 +6156,10 @@ class c:
     @classmethod
     def rand_tag(cls):
         return cls.choice(cls.tags())
+
+    @classmethod
+    def as_completed(cls , futures:list, timeout:int=10, **kwargs):
+        return concurrent.futures.as_completed(futures, timeout=timeout)
     @staticmethod
     def wait(futures:list, timeout:int = 20, verbose:bool = False) -> list:
         
@@ -7521,6 +7524,9 @@ class c:
     @classmethod
     def vstats(cls, *args, **kwargs):
         return c.module('vali').all_stats(*args, **kwargs)
+    @classmethod
+    def valis(cls, network=None):
+        return c.servers('vali', network=network)
 
     @classmethod
     def restart_valis(cls, search=None, network= 'local'):

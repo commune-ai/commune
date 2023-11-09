@@ -206,10 +206,15 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=100, verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
+
         host_map = cls.hosts(search=search)
+
+
+        if hosts != None:
+            host_map = {k:v for k,v in host_map.items() if k in hosts}
         for i in range(num_trials):
             try:
                 results = {}
@@ -396,10 +401,39 @@ class Remote(c.Module):
         c.print(cls.cmd(f'cd commune && pip install -e .', **kwargs))
         c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
         c.print(cls.cmd(f'c serve', **kwargs))
-    
+
+
+    def cmd_dashboard(self):
+        import streamlit as st
+        host_map = self.hosts()
+        cols = st.columns(2)
+        host_names = list(host_map.keys())
+        search = cols[0].text_input('Search')
+        if len(search) > 0:
+            host_names = [h for h in host_names if search in h]
+        host_names = st.multiselect('Host', host_names, host_names)
+        timeout = cols[1].number_input('Timeout', 1, 100, 10)
+
+        cmd = st.text_area('Command', 'ls')
+        host2future = {}
+        if st.button('Run'):
+            for host in host_map:
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False), return_future=True)
+                host2future[host] = future
+
+
+            futures = list(host2future.values())
+            import concurrent
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                st.write(result)
+
+
+
 
 
     # @classmethod
     # def refresh_servers(cls):
     #     cls.cmd('')
     
+Remote.run(__name__)

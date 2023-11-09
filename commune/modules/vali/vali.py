@@ -46,11 +46,11 @@ class Vali(c.Module):
 
 
     @property               
-    def module_search(self):
-        if self.config.module_search == None:
-            self.config.module_search = self.tag
-        assert isinstance(self.config.module_search, str), f'Module search must be a string, got {type(self.config.module_search)}'
-        return self.config.module_search
+    def search(self):
+        if self.config.search == None:
+            self.config.search = self.tag
+        assert isinstance(self.config.search, str), f'Module search must be a string, got {type(self.config.search)}'
+        return self.config.search
 
 
     def sync(self, network:str=None, netuid:int=None, update: bool = False):
@@ -62,7 +62,7 @@ class Vali(c.Module):
                 netuid = self.config.netuid
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
             
-            self.modules = self.subspace.modules(search=self.config.module_search, update=update, netuid=netuid)
+            self.modules = self.subspace.modules(search=self.config.search, update=update, netuid=netuid)
             self.n  = len(self.modules)                
             self.subnet = self.subspace.subnet(netuid=netuid)
 
@@ -168,7 +168,7 @@ class Vali(c.Module):
         votes = {
             'names'     : [v['name'] for v in stats],            # get all names where w > 0
             'uids'      : [v['uid'] for v in stats],             # get all uids where w > 0
-            'weights'   : [v['w'] + self.config.base_score for v in stats],  # get all weights where w > 0
+            'weights'   : [v['w'] for v in stats],  # get all weights where w > 0
             'timestamp' : c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
@@ -337,18 +337,13 @@ class Vali(c.Module):
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             module = c.choice(modules)
-  
+
+            c.print(f'Running {module["name"]}', color='cyan')
             c.sleep(self.config.sleep_time)
 
-            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            
             # complete the futures as they come in
-
-            if len(futures) > :
-                for f in concurrent.futures.as_completed([futures]):
-                    f.result()
-                    break
-
-
             if self.sync_staleness > self.config.sync_interval:
                 self.sync()
 
@@ -455,7 +450,7 @@ class Vali(c.Module):
                     vote_info['name'] = name
                     vote_info['n'] = len(v['uids'])
                     vote_info['timestamp'] = v['timestamp']
-                    vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
+                    vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
 
                     
                     vali_stats += [vote_info]
