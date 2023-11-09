@@ -28,7 +28,7 @@ class ServerHTTP(c.Module):
         
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
-        self.port = int(c.resolve_port(port))
+        self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
