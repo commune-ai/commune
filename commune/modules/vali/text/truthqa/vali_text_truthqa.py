@@ -38,6 +38,9 @@ class ValiTextTruthfulQA(Vali):
         # get the correct answer
         w = float(prediction in target)
 
+        if w == 0:
+            w = self.config.base_score
+
         return {'w': w, 'target': target, 'prediction': prediction, 'sample': sample, 'output': output}
 
             

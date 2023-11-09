@@ -21,3 +21,4 @@ shortcuts:
   vicuna.33b: lmsys/vicuna-33b-v1.3
   vicuna.7b: lmsys/vicuna-7b-v1.3
   wizardcoder: WizardLM/WizardCoder-15B-V1.0
+  huckmodel: btqa/btqa-base

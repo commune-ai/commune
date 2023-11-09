@@ -168,7 +168,7 @@ class Vali(c.Module):
         votes = {
             'names'     : [v['name'] for v in stats],            # get all names where w > 0
             'uids'      : [v['uid'] for v in stats],             # get all uids where w > 0
-            'weights'   : [v['w'] + self.config.base_score for v in stats],  # get all weights where w > 0
+            'weights'   : [v['w'] for v in stats],  # get all weights where w > 0
             'timestamp' : c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
@@ -337,10 +337,12 @@ class Vali(c.Module):
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             module = c.choice(modules)
-  
+
+            c.print(f'Running {module["name"]}', color='cyan')
             c.sleep(self.config.sleep_time)
 
             futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            
             # complete the futures as they come in
             if self.sync_staleness > self.config.sync_interval:
                 self.sync()
@@ -448,7 +450,7 @@ class Vali(c.Module):
                     vote_info['name'] = name
                     vote_info['n'] = len(v['uids'])
                     vote_info['timestamp'] = v['timestamp']
-                    vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
+                    vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
 
                     
                     vali_stats += [vote_info]

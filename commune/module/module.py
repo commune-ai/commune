@@ -2452,6 +2452,7 @@ class c:
               max_workers:int = None,
               mode:str = "thread",
               public: bool = False,
+              verbose:bool = False,
               **extra_kwargs
               ):
 
@@ -2473,7 +2474,7 @@ class c:
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
