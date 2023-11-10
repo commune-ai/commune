@@ -2475,7 +2475,7 @@ class c:
         if 'tag' in kwargs:
             tag = kwargs.pop('tag')
     
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 

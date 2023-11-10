@@ -373,7 +373,8 @@ class Dashboard(c.Module):
                         response = module.register(tag=tag, subnet= self.subnet, stake=stake)
                         st.write(response)
                 except Exception as e:
-                    response = {'success': False, 'message': str(e)}
+                    e = c.detailed_error(e)
+                    response = {'success': False, 'message': e}
                     raise e
                 if response['success']:
                     st.success('Module Registered')
@@ -414,10 +415,15 @@ class Dashboard(c.Module):
             if serve:
                 for i in range(n):
                     try:
-                        response = c.module(module).serve( kwargs = kwargs, tag=tag + str(i), network=network)
+                        if tag != None:
+                            s_tag = f'{tag}.{i}'
+                        else:
+                            s_tag = str(i)
+                        response = c.module(module).serve( kwargs = kwargs, tag=s_tag, network=network)
                     except Exception as e:
-                        response = {'success': False, 'message': str(e)}
-
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
+        
                     if response['success']:
                         st.write(response)
                     else:
