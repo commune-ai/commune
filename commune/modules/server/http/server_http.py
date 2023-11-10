@@ -100,12 +100,8 @@ class ServerHTTP(c.Module):
                 input_kwargs = dict(fn=fn, args=args, kwargs=kwargs)
                 fn_name = f"{self.name}::{fn}"
                 c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
-                c.print(input_kwargs)
-                if self.sse:
-                    result = self.forward(**input_kwargs)
-                else: 
-                    result = self.executor.submit(self.forward, kwargs=input_kwargs, timeout=self.timeout)
-                    result = result.result()
+
+                result = self.forward(**input_kwargs)
                 # if the result is a future, we need to wait for it to finish
                 if isinstance(result, dict) and 'error' in result:
                     success = False 
