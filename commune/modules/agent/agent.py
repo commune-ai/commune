@@ -1,11 +1,12 @@
 import commune as c
+import json
 
 class Agent(c.Module):
     def __init__(self,
                 name='agent',
                 description='This is a base agent that does nothing.', 
                 tags=['defi', 'agent'],
-                model = 'model.openai::obama12',
+                model = 'model.openai',
                 tools=[]
                 ):
         self.name = name
@@ -14,14 +15,23 @@ class Agent(c.Module):
         self.model = c.connect(model)
         self.tools = tools
 
-    def 
 
 
-    def call(self, prompt:str, model=None) -> str:
+
+    def call(self, prompt:str, model=None, history=None,) -> str:
         if model != None:
             self.model = c.connect(model)
-        return self.model.generate(prompt)
 
+        prompt = {
+            'description': self.description,
+            'prompt': prompt,
+            'history': history,
+            'response': None,
+            'instruction': 'complete response'
+        }
+
+        prompt.update(json.loads(self.model.generate(json.dumps(prompt))))
+        return prompt
     # prompt tooling 
 
 

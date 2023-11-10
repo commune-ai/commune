@@ -2475,7 +2475,7 @@ class c:
         if 'tag' in kwargs:
             tag = kwargs.pop('tag')
     
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
@@ -5514,12 +5514,15 @@ class c:
         c.ip(update=True)
         c.namespace(network=network, update=True)
         servers = c.servers(network=network)
+        c.servers_info(update=True, network='local')
+
         
 
         return {'success': True, 'servers': servers}
 
     @classmethod
     def sync(cls, *args, **kwargs):
+        
         return c.module('subspace')().sync(*args, **kwargs)
         
 
@@ -8121,6 +8124,25 @@ class c:
         assert len(api_keys) > 0, 'no api keys to send'
         module = c.connect(module, network=network)
         return module.add_api_keys(api_keys)
+
+    @classmethod
+    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            c.remote_fn('loop', kwargs=kwargs, name='loop')
+            return {'success': True, 'msg': 'looping on remote'}
+        start_time = 0
+        subspace = c.module('subspace')()
+        while True:
+            current_time = c.timestamp()
+            elapsed = current_time - start_time
+            if elapsed > interval:
+                c.print('SYNCING AND UPDATING THE SERVERS_INFO')
+                c.print(c.servers_info(update=True, network='local'))
+                # subspace.sync(network=network, remote=remote, local=local, save=save)
+                start_time = current_time
+            c.sleep(interval)
 
  
 Module = c

@@ -30,7 +30,7 @@ class Access(c.Module):
     def sync_loop(self):
         while True:
             self.sync()
-            c.sleep(self.config.sync_interval//2)
+            c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))
 
     def sync(self):
         # if the sync time is greater than the sync interval, we need to sync
