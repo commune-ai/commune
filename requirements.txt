@@ -9,6 +9,7 @@ safetensors
 accelerate
 #visual tools
 streamlit
+streamlit-authenticator
 plotly
 gradio
 sse-starlette

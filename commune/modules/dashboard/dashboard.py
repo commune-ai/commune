@@ -14,6 +14,9 @@ class Dashboard(c.Module):
         self.st.load_style()
         self.load_state(update=False)
 
+        if 'auth_page' not in st.session_state:
+            st.session_state.auth_page = 'login'
+
     def sync(self):
         return self.load_state(update=True)
     
@@ -172,23 +175,76 @@ class Dashboard(c.Module):
     #     fig = px.histogram(df, y=k, title=f'{k.upper()} Distribution')
     #     cols[1].plotly_chart(fig)
 
+    def toRegisterPage(self):
+        st.session_state.auth_page = 'register'
+
+    def toLoginPage(self):
+        st.session_state.auth_page = 'login'
+
+    def auth(self):
+        import streamlit_authenticator as stauth
+        import yaml
+        from yaml.loader import SafeLoader
+        import os
+        current_directory = os.path.dirname(os.path.abspath(__file__))
+
+        # Loading config file
+        with open(current_directory+'/users.yaml') as file:
+            users = yaml.load(file, Loader=SafeLoader)
+
+        # Creating the authenticator object
+        authenticator = stauth.Authenticate(
+            users['credentials'],
+            users['cookie']['name'], 
+            users['cookie']['key'], 
+            users['cookie']['expiry_days'],
+            users['preauthorized']
+        )
+
+        if st.session_state.auth_page == 'login':
+            name, authentication_status, username = authenticator.login('Login', 'main')
+            if st.session_state.authentication_status == True:
+                with st.sidebar:
+                    st.subheader(f'Welcome *{st.session_state.name}*')
+                authenticator.logout('Logout', 'sidebar')
+            if st.session_state.authentication_status == False:
+                st.error('Username/password is incorrect')
+            if st.session_state.authentication_status != True:
+                st.button('Register Page ->', 'primary', on_click=self.toRegisterPage)
+ 
+        if st.session_state.auth_page == 'register':
+            # Creating a new user registration widget            
+            try:
+                if authenticator.register_user('Register', preauthorization=False):
+                    st.success('User registered successfully')
+            except Exception as e:
+                st.error(e)
+            st.button('<- Login Page', 'primary', on_click=self.toLoginPage)
+
+        # Saving users file
+        with open(current_directory + '/users.yaml', 'w') as file:
+            yaml.dump(users, file, default_flow_style=False)
 
     @classmethod
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
         self = cls()
-        self.sidebar()
-        
-        tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key']) 
-        with tabs[0]:
-            self.wallet_dashboard()
-        with tabs[1]:   
-            self.modules_dashboard()
-        with tabs[2]:   
-            self.validator_dashboard()
-        with tabs[3]:
-            self.key_dashboard()
+
+        self.auth()
+
+        if st.session_state.authentication_status:
+            self.sidebar()
+            
+            tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key']) 
+            with tabs[0]:
+                self.wallet_dashboard()
+            with tabs[1]:   
+                self.modules_dashboard()
+            with tabs[2]:   
+                self.validator_dashboard()
+            with tabs[3]:
+                self.key_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
