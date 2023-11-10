@@ -1656,7 +1656,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'trust', 'stake', 'regblock', 'last_update'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'regblock', 'last_update'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
