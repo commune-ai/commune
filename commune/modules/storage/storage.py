@@ -259,7 +259,7 @@ class Storage(c.Module):
             items = [x for x in items if search in x]
 
         if include_replicas == False:
-            items = [x for x in items if x.startswith(self.replica_prefix)]
+            items = [x for x in items if not x.startswith(self.replica_prefix)]
 
         return items
     
@@ -381,6 +381,8 @@ class Storage(c.Module):
                 # self.rm(k)
 
                 # assert not self.item_exists(k)
+
+        return {'success': True, 'msg': 'its all done fam'}
 
 
     def get_shards(self, k:str, tag=None, metadata=None) -> List:
