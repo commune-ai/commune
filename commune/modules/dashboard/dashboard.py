@@ -4,6 +4,11 @@ import pandas as pd
 from streamlit.components.v1 import components
 import plotly.express as px
 
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
+import os
+current_directory = os.path.dirname(os.path.abspath(__file__))
 
 class Dashboard(c.Module):
     
@@ -181,16 +186,7 @@ class Dashboard(c.Module):
     def toLoginPage(self):
         st.session_state.auth_page = 'login'
 
-    def auth(self):
-        import streamlit_authenticator as stauth
-        import yaml
-        from yaml.loader import SafeLoader
-        import os
-        current_directory = os.path.dirname(os.path.abspath(__file__))
-
-        # Loading config file
-        with open(current_directory+'/users.yaml') as file:
-            users = yaml.load(file, Loader=SafeLoader)
+    def auth(self, users):
 
         # Creating the authenticator object
         authenticator = stauth.Authenticate(
@@ -211,6 +207,32 @@ class Dashboard(c.Module):
                 st.error('Username/password is incorrect')
             if st.session_state.authentication_status != True:
                 st.button('Register Page ->', 'primary', on_click=self.toRegisterPage)
+
+                with st.expander("Forgot password?"):
+                    # Creating a forgot password widget
+                    try:
+                        username_forgot_pw, email_forgot_password, random_password = authenticator.forgot_password('Forgot password')
+                        if username_forgot_pw:
+                            st.success('New password sent securely')
+                            st.text(random_password)
+                            # Random password to be transferred to user securely
+                        elif username_forgot_pw != None:
+                            st.error('Username not found')
+                    except Exception as e:
+                        st.error(e)
+
+                with st.expander("Forgot username?"):
+                    # Creating a forgot username widget
+                    try:
+                        username_forgot_username, email_forgot_username = authenticator.forgot_username('Forgot username')
+                        if username_forgot_username:
+                            st.success('Username sent securely')
+                            # Username to be transferred to user securely
+                            st.text(username_forgot_username)
+                        elif username_forgot_username != None:
+                            st.error('Email not found')
+                    except Exception as e:
+                        st.error(e)
  
         if st.session_state.auth_page == 'register':
             # Creating a new user registration widget            
@@ -221,9 +243,28 @@ class Dashboard(c.Module):
                 st.error(e)
             st.button('<- Login Page', 'primary', on_click=self.toLoginPage)
 
-        # Saving users file
-        with open(current_directory + '/users.yaml', 'w') as file:
-            yaml.dump(users, file, default_flow_style=False)
+
+        return authenticator
+
+    def profile(self, authenticator): 
+        st.subheader(f'Your username: *{st.session_state.username}*')
+        st.text(f'Your name: {st.session_state.name}')
+        with st.expander("Update userdetail"): 
+        # Creating an update user details widget
+            try:
+                if authenticator.update_user_details(st.session_state["username"], 'Update user details'):
+                    st.success('Entries updated successfully')
+            except Exception as e:
+                st.error(e)
+
+        with st.expander("Reset password"): 
+            # Creating a password reset widgeta
+            try:
+                if authenticator.reset_password(st.session_state["username"], 'Reset password'):
+                    st.success('Password modified successfully')
+            except Exception as e:
+                st.error(e)
+
 
     @classmethod
     def dashboard(cls, key = None):
@@ -231,12 +272,16 @@ class Dashboard(c.Module):
         # plotly
         self = cls()
 
-        self.auth()
+        # Loading config file
+        with open(current_directory+'/users.yaml') as file:
+            users = yaml.load(file, Loader=SafeLoader)
+
+        authenticator = self.auth(users)
 
         if st.session_state.authentication_status:
             self.sidebar()
             
-            tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key']) 
+            tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key', 'Profile']) 
             with tabs[0]:
                 self.wallet_dashboard()
             with tabs[1]:   
@@ -245,6 +290,12 @@ class Dashboard(c.Module):
                 self.validator_dashboard()
             with tabs[3]:
                 self.key_dashboard()
+            with tabs[4]:
+                self.profile(authenticator)
+        
+        # Saving users file
+        with open(current_directory + '/users.yaml', 'w') as file:
+            yaml.dump(users, file, default_flow_style=False)
 
     def subnet_dashboard(self):
         st.write('# Subnet')
