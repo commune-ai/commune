@@ -1517,6 +1517,18 @@ class Subspace(c.Module):
         self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
+    def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        start_time = 0
+        while True:
+            current_time = c.timestamp()
+            elapsed = current_time - start_time
+            if elapsed > interval:
+                c.print('SYNCING AND UPDATING THE SERVERS_INFO')
+                c.print(c.servers_info(update=True, network='local'))
+                self.sync(network=network, remote=remote, local=local, save=save)
+                start_time = current_time
+            c.sleep(interval)
+
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
         return bool(subnet in subnets)
