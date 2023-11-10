@@ -117,7 +117,6 @@ class Client(c.Module):
                     result = self.process_output(result)
                 elif response.content_type == 'text/plain':
                     # result = await asyncio.wait_for(response.text, timeout=timeout)
-                    c.print(response.text)
                     result = json.loads(result)
                     result = self.process_output(result)
                 else:
@@ -132,7 +131,6 @@ class Client(c.Module):
         ## handles 
         if isinstance(result, str):
             result = json.loads(result)
-        c.print(result)
         result = self.serializer.deserialize(result['data'])
 
         

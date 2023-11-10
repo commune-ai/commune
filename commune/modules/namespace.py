@@ -194,15 +194,27 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def servers_info(cls, search=None, network=network, update:str=True) -> List[str]:
+    def servers_info(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=4) -> List[str]:
         if not update:
             servers_info = cls.get('servers_info', [])
+
         if update or len(servers_info) == 0:
+            servers_info = []
             servers = cls.servers(search=search, network=network)
-            futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info', 'network': network}, return_future=True) for s in servers]
-            servers_info = c.wait(futures)
+            futures = []
+            servers_info = []
+            for s in servers:
+                kwargs = {'module':s, 'fn':'info', 'network': network}
+                future = c.submit(c.call, kwargs=kwargs, return_future=True, timeout=timeout)
+                futures.append(future)
+                if len(futures) >= batch_size:
+                    for f in c.as_completed(futures):
+                        servers_info.append(f.result())
+                        futures.remove(f)
+                        break
+            servers_info += c.wait(futures, timeout=timeout)
             cls.put('servers_info', servers_info)
-        return servers_info
+        return [s for s in servers_info if s != None]
     
     @classmethod
     def rm_server(cls,  name, network:str = 'local', **kwargs):
