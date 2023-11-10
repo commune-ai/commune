@@ -86,14 +86,15 @@ class Task:
 
         self.status = 'running'
         try:
+            c.print(self.args, self.kwargs)
             data = self.fn(*self.args, **self.kwargs)
             self.future.set_result(data)
             self.status = 'done'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
-            self.future.set_exception(e)
             self.status = 'failed'
             data = c.detailed_error(e)
+            c.print(data)
 
    
         # store the result of the task

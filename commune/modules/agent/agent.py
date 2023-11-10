@@ -1,27 +1,37 @@
 import commune as c
+import json
 
 class Agent(c.Module):
     def __init__(self,
                 name='agent',
                 description='This is a base agent that does nothing.', 
                 tags=['defi', 'agent'],
-                llm = 'openai::gpt4',
+                model = 'model.openai',
                 tools=[]
                 ):
         self.name = name
         self.description = description
         self.tags = tags
-        self.llm = llm
+        self.model = c.connect(model)
         self.tools = tools
 
 
-    def call(self, prompt:str) -> str:
-        return {
-            'prompt': prompt,
-            'response': 'This is a base agent that does nothing.',
-            'history': []
-            }
 
+
+    def call(self, prompt:str, model=None, history=None,) -> str:
+        if model != None:
+            self.model = c.connect(model)
+
+        prompt = {
+            'description': self.description,
+            'prompt': prompt,
+            'history': history,
+            'response': None,
+            'instruction': 'complete response'
+        }
+
+        prompt.update(json.loads(self.model.generate(json.dumps(prompt))))
+        return prompt
     # prompt tooling 
 
 

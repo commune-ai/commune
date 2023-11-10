@@ -3,7 +3,7 @@ network: main # global or local network
 alpha: 0.9
 timeout: 2
 tag: null
-module_search: model
+search: model
 start: True
 dataset: mmlu
 verbose: False
