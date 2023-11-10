@@ -1511,15 +1511,11 @@ class Subspace(c.Module):
         return cls.get(path, {})
     
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
+
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)
         self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
-
-    def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
-        while True:
-            self.sync(network=network, remote=remote, local=local, save=save)
-            c.sleep(interval)
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
@@ -1660,7 +1656,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'trust', 'stake', 'regblock', 'last_update'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'regblock', 'last_update'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
