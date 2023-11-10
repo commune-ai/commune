@@ -4,10 +4,9 @@ import streamlit as st
 import json
 
 class Storage(c.Module):
-    whitelist: List = ['put_item', 'get_item', 'hash_item']
+    whitelist: List = ['put_item', 'get_item', 'hash_item', 'items']
     replica_prefix = 'replica::'
     shard_prefix = 'shard::'
-
 
     def __init__(self, 
                  max_replicas:int = 2, 
