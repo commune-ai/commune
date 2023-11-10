@@ -1964,7 +1964,8 @@ class c:
             assert len(modules) > 0, f'No modules with {module} found in namespace {namespace.keys()}'
             address = namespace[module]
 
-        ip, port = address.split(':')
+        port = address.split(':')[-1]
+        ip = address.replace(f':{port}', '')
 
         # CONNECT TO THE MODULE
         if 'None' in address:
@@ -2153,8 +2154,6 @@ class c:
     @classmethod
     def is_address(cls, address:str) -> bool:
         conds = []
-        if '::' in address:
-            return False
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
@@ -2457,8 +2456,6 @@ class c:
               **extra_kwargs
               ):
 
-        if update:
-            c.update()
         
         
         kwargs = kwargs or {}
@@ -2475,16 +2472,24 @@ class c:
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator, **kwargs)
+        if 'tag' in kwargs:
+            tag = kwargs.pop('tag')
+    
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
         
+        address = c.get_address(server_name, network=network)
+        if address != None and ':' in address:
+            port = address.split(':')[-1]   
+        # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
-            remote_kwargs['port'] = c.resolve_port(remote_kwargs['port'])
+            remote_kwargs.pop('address') # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs)
             c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
@@ -2503,21 +2508,18 @@ class c:
         self.server_name = server_name
         self.key = server_name
 
+        address = c.get_address(server_name, network=network)
+        if address != None and ':' in address:
+            port = address.split(':')[-1]   
 
 
         if c.server_exists(server_name, network=network): 
             
-
-
             if refresh:
-                c.print(f'Stopping existing server {server_name}', color='yellow')
-                address = c.get_address(server_name, network=network)
+                c.print(f'Stopping existing server {server_name}', color='yellow') 
+                c.deregister_server(server_name, network=network)
                 if c.pm2_exists(server_name): 
                     c.kill(server_name)
-
-                if ':' in address:
-                    port = address.split(':')[-1]    
-                    c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
@@ -2620,7 +2622,7 @@ class c:
             yield i
         
     def info(self , 
-             schema: bool = False,
+             schema: bool = True,
              namespace:bool = False,
              peers: bool = False) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2632,7 +2634,6 @@ class c:
             name = self.server_name() if callable(self.server_name) else self.server_name, # get the name of the module
             path = self.module_path(), # get the path of the module
             chash = self.chash(), # get the hash of the module (code)
-
         )
         info['hash'] = c.hash(info)
 
@@ -5513,12 +5514,15 @@ class c:
         c.ip(update=True)
         c.namespace(network=network, update=True)
         servers = c.servers(network=network)
+        c.servers_info(update=True, network='local')
+
         
 
         return {'success': True, 'servers': servers}
 
     @classmethod
     def sync(cls, *args, **kwargs):
+        
         return c.module('subspace')().sync(*args, **kwargs)
         
 
@@ -8120,6 +8124,25 @@ class c:
         assert len(api_keys) > 0, 'no api keys to send'
         module = c.connect(module, network=network)
         return module.add_api_keys(api_keys)
+
+    @classmethod
+    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            c.remote_fn('loop', kwargs=kwargs, name='loop')
+            return {'success': True, 'msg': 'looping on remote'}
+        start_time = 0
+        subspace = c.module('subspace')()
+        while True:
+            current_time = c.timestamp()
+            elapsed = current_time - start_time
+            if elapsed > interval:
+                c.print('SYNCING AND UPDATING THE SERVERS_INFO')
+                c.print(c.servers_info(update=True, network='local'))
+                # subspace.sync(network=network, remote=remote, local=local, save=save)
+                start_time = current_time
+            c.sleep(interval)
 
  
 Module = c

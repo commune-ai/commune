@@ -446,6 +446,7 @@ class Vali(c.Module):
         if update == False:
             vali_stats = cls.get(cache_path, default=[])
 
+
         if len(vali_stats) == 0:
             module_path = cls.module_path()
             stats = c.stats(module_path+'::', df=False, network=network)
@@ -454,27 +455,32 @@ class Vali(c.Module):
                 v = cls.get(path)
                 name = module_path + "::" +tag
                 vote_info = name2stats.get(name, {})
+
+                if vote_info.get('registered') == None:
+                    continue
                 if 'timestamp' in v:
                     vote_info['name'] = name
                     vote_info['n'] = len(v['uids'])
                     vote_info['timestamp'] = v['timestamp']
                     vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
-
-                    
                     vali_stats += [vote_info]
             cls.put(cache_path, vali_stats)    
 
         
         for v in vali_stats:
             v['staleness'] = int(c.time() - v['timestamp'])
+
             del v['timestamp']
 
 
         if df:
             vali_stats = c.df(vali_stats)
             # filter out NaN values for registered modules
+            # include nans  for registered modules
             if len(vali_stats) > 0:
                 vali_stats.sort_values(sortby, ascending=False, inplace=True)
+            
+
 
         
         
