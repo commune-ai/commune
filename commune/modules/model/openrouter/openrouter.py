@@ -11,7 +11,7 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "mistralai/mistral-7b-instruct",
+                model: str = "openai/gpt-3.5-turbo",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',

@@ -3,8 +3,10 @@ import commune as c
 class Remote(c.Module):
     filetype = 'yaml'
     host_data_path = f'{c.datapath}/hosts.{filetype}'
+    host_url = 'https://raw.githubusercontent.com/communeai/commune/main/hosts.yaml'
+    executable_path='commune/bin/c'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=100, **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=10,  **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -15,10 +17,15 @@ class Remote(c.Module):
         :param command: Command to be executed on the remote machine.
         :return: Command output.
         """
-        command = ' '.join(cmd_args)
+        command = ' '.join(cmd_args).strip()
+        
+        if command.startswith('c '):
+            command = command.replace('c ', cls.executable_path + ' ')
 
         if cwd != None:
             command = f'cd {cwd} ; {command}'
+
+        
 
 
         import paramiko
@@ -74,15 +81,16 @@ class Remote(c.Module):
 
             if len(outputs['error']) == 0:
                 outputs = outputs['output']
+
+                
+            stdin.close()
+            stdout.close()
+            stderr.close()
+            client.close()
         except Exception as e:
             c.print(e)
             pass
 
-        
-        stdin.close()
-        stdout.close()
-        stderr.close()
-        client.close()
 
         return outputs
 
@@ -206,7 +214,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=100, verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=20, verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
 
@@ -254,30 +262,30 @@ class Remote(c.Module):
 
     
     @classmethod
-    def add_admin(cls):
+    def add_admin(cls, timeout=10):
         root_key_address = c.root_key().ss58_address
-        return cls.cmd(f'c add_admin {root_key_address}')
+        return cls.cmd(f'c add_admin {root_key_address}', timeout=timeout)
     
     @classmethod
-    def is_admin(cls):
+    def is_admin(cls, timeout=10):
         root_key_address = c.root_key().ss58_address
-        results =  cls.cmd(f'c is_admin {root_key_address}')
+        results =  cls.cmd(f'c is_admin {root_key_address}', timeout=timeout)
         for host, r in results.items():
             results[host] = bool(r)
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=True, refresh=True, network='remote'):
-        if add_admins:
-            c.print('Adding admin')
-            cls.add_admin()
-        cls.check_servers()
+    def add_servers(cls, *args, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
         if refresh:
             c.rm_namespace(network=network)
-        servers = list(cls.cmd('c addy', verbose=True).values())
-        for i, server in enumerate(servers):
-            if server.endswith('\n'):
-                servers[i] = server[:-1]
+        server_addresses = list(cls.cmd('c addy', verbose=True).values())
+        servers = c.servers(network=network)
+        for i, server_address in enumerate(server_addresses):
+            if isinstance(server_address, str):
+                if server_address.endswith('\n'):
+                    server_address = server_address[:-1]
+
+                servers += [server_address]
         c.add_servers(*servers, network=network)
         servers = c.servers(network=network)
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
@@ -317,8 +325,8 @@ class Remote(c.Module):
 
         if update:
             namespace = {}
-            host2namespace = cls.call('namespace')
-            for host, host_amespace in host2namespace.items():
+            host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
+            for host, host_namespace in host2namespace.items():
                 for name, address in host_namespace.items():
                     tag = ''
                     while name + str(tag) in namespace:
@@ -344,22 +352,22 @@ class Remote(c.Module):
         return c.addresses(network=network)
     
     @classmethod
-    def servers_info(self, network='remote'):
-        return c.servers_info(network=network)
+    def server_infos(self, network='remote'):
+        return c.server_infos(network=network)
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n:int=None, return_future: bool = False,  **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
         futures = {}
         kwargs['network'] =  network
         namespace = c.namespace(search=search, network=network)
         if n == None:
             n = len(namespace)
         for name, address in c.shuffle(list(namespace.items()))[:n]:
-            futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True)
+            futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True, timeout=timeout)
         
         if return_future:
             if len(futures) == 1:
@@ -367,10 +375,12 @@ class Remote(c.Module):
             return futures
         else:
 
-            results = c.wait(list(futures.values()))
+            results = c.wait(list(futures.values()), timeout=timeout)
             results = dict(zip(futures.keys(), results))
             if len(results) == 1:
                 return list(results.values())[0]
+        
+            return results
 
         
         
