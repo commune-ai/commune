@@ -24,7 +24,7 @@ class ModelText2video(c.Module):
         c.print(self.config.sup)
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
-    
+
     def convert(self, prompt, steps=25, output="output"):
         """
         This is the converting function that convert prompt to video

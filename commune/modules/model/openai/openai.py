@@ -20,8 +20,9 @@ class OpenAILLM(c.Module):
                 models: List[str]= ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo'],
                 save:bool = False,
                 prompt:bool = None,
-                max_input_tokens: int = 100_000,
-                max_output_tokens: int = 100_000,
+                max_input_tokens: int = 10_000_000,
+                max_output_tokens: int = 10_000_000,
+                **kwargs
                 ):
         self.set_config(kwargs=locals())
         self.output_tokens = 0
@@ -334,6 +335,7 @@ class OpenAILLM(c.Module):
             response[s] = result
 
         return response
+   
     
     @classmethod
     def add_key(cls, api_key:str):
@@ -342,7 +344,6 @@ class OpenAILLM(c.Module):
         cls.put('api_keys', api_keys)
         return {'msg': f"API Key set to {api_key}", 'success': True}
     
-
     @classmethod
     def rm_key(cls, api_key:str):
         new_keys = []

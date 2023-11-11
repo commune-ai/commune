@@ -22,12 +22,13 @@ class ServerHTTP(c.Module):
         mode:str = 'thread',
         verbose: bool = False,
         timeout: int = 256,
-        public: bool = False
+        access_module: str = 'server.access',
+        public: bool = False,
         ) -> 'Server':
         
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
-        self.port = int(c.resolve_port(port))
+        self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
@@ -49,7 +50,6 @@ class ServerHTTP(c.Module):
             else:
                 name = module.__class__.__name__
         
-
         self.module = module 
         c.print(self.module, type(self.module), module.key)
         self.key = module.key      
@@ -58,6 +58,13 @@ class ServerHTTP(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+
+        if not hasattr(module, 'access_module'):
+            self.access_module = c.module(access_module)(module=module)
+        else:
+            self.access_module = module.access_module
+        c.print('fam')
+
         self.set_api(ip=self.ip, port=self.port)
 
 
@@ -93,12 +100,8 @@ class ServerHTTP(c.Module):
                 input_kwargs = dict(fn=fn, args=args, kwargs=kwargs)
                 fn_name = f"{self.name}::{fn}"
                 c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
-                c.print(input_kwargs)
-                if self.sse:
-                    result = self.forward(**input_kwargs)
-                else: 
-                    result = self.executor.submit(self.forward, kwargs=input_kwargs, timeout=self.timeout)
-                    result = result.result()
+
+                result = self.forward(**input_kwargs)
                 # if the result is a future, we need to wait for it to finish
                 if isinstance(result, dict) and 'error' in result:
                     success = False 
@@ -111,9 +114,8 @@ class ServerHTTP(c.Module):
                 c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
             else:
                 c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
-                
-
             result = self.process_result(result)
+            c.print(result)
             return result
         
         self.serve()
@@ -148,6 +150,7 @@ class ServerHTTP(c.Module):
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
+        self.access_module.verify(input)
 
         return input
 

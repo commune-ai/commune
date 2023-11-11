@@ -180,15 +180,13 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
         
-        tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key']) 
+        tabs = st.tabs(['MY SPACE','GLOBAL SPACE', 'PLAYGROUND', 'CHAT']) 
         with tabs[0]:
-            self.wallet_dashboard()
+            self.local_dashboard()
         with tabs[1]:   
-            self.modules_dashboard()
-        with tabs[2]:   
-            self.validator_dashboard()
-        with tabs[3]:
-            self.key_dashboard()
+            self.subspace_dashboard()
+        with tabs[2]:
+            self.playground_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -262,10 +260,6 @@ class Dashboard(c.Module):
 
 
             
-    
-    def playground_dashboard(self):
-        st.write('# Playground')
-
 
     def archive_dashboard(self):
         # self.register_dashboard(expanded=False)
@@ -314,13 +308,10 @@ class Dashboard(c.Module):
 
         # st.write(histogram)
        
-    def wallet_dashboard(self):
-
-
-
-
+    def subspace_dashboard(self):
         # pie map of stake
 
+        st.write(self.modules_dashboard())
         # remove the 
         st.write('# Wallet')
         self.register_dashboard()
@@ -335,16 +326,7 @@ class Dashboard(c.Module):
         st.plotly_chart(fig)
 
     
-    @classmethod
-    def module2streamlit(cls, module):
-        if isinstance(module, str):
-            module = c.module(module)
-        for fn in cls.fns():
-            if cls.classify_method(fn) == 'function':
-                with st.expander(fn, expanded=False):
-                    kwargs = cls.function2streamlit(fn)
-            with st.expander(fn, expanded=False):
-                kwargs = cls.function2streamlit(fn)
+
 
     def validator_dashboard(self):
         pass
@@ -360,26 +342,15 @@ class Dashboard(c.Module):
 
         with st.form(key='register'):
             module  = cols[0].selectbox('Select A Module', modules, 0)
-            tag = cols[1].text_input('tag', c.random_word(n=2), key=f'tag.{prefix}')
-            stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}')
-            n = st.slider('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}')
+            tag = cols[1].text_input('tag', c.random_word(n=2), key=f'tag.register')
+            stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}.register')
+            n = st.number_input('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}.register')
             # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
             register = st.form_submit_button('Register')
-
-        
-            st.write(f'#### {module.upper()} Kwargs ')
-
-            fn_schema = c.fn_schema(c.module(module), '__init__')
-            fns = list(fn_schema.keys())
-            fn2index = {f:i for i,f in enumerate(fns)}
             # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
-            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
-
-            kwargs = self.st.process_kwargs(kwargs, fn_schema)
+            kwargs = self.function2streamlit(module=module, fn='__init__', salt='register')
             self.st.line_seperator()
 
-            n = 1
-            
             if 'None' == tag:
                 tag = None
                 
@@ -402,12 +373,61 @@ class Dashboard(c.Module):
                         response = module.register(tag=tag, subnet= self.subnet, stake=stake)
                         st.write(response)
                 except Exception as e:
-                    response = {'success': False, 'message': str(e)}
+                    e = c.detailed_error(e)
+                    response = {'success': False, 'message': e}
                     raise e
                 if response['success']:
                     st.success('Module Registered')
                 else:
                     st.error(response['message'])
+                
+
+    def serve_dashboard(self , ):
+
+        modules = c.modules()
+        self.st.line_seperator()
+        cols = st.columns([2,2,1])
+
+        with st.form(key='serve'):
+            module  = cols[0].selectbox('Select A Module', modules, 0, key=f'serve.module')
+            tag = cols[1].text_input('tag', '', key=f'serve.tag.{module}')
+            n = cols[2].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
+
+            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            tag = None if tag == '' else tag
+                        
+            # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
+            
+            
+            kwargs = self.function2streamlit(module=module, fn='__init__' )
+
+
+            serve = st.form_submit_button('Serve')
+
+            if 'None' == tag:
+                tag = None
+                
+                
+            if 'tag' in kwargs:
+                kwargs['tag'] = tag
+
+            network = 'local'
+            if serve:
+                for i in range(n):
+                    try:
+                        if tag != None:
+                            s_tag = f'{tag}.{i}'
+                        else:
+                            s_tag = str(i)
+                        response = c.module(module).serve( kwargs = kwargs, tag=s_tag, network=network)
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
+        
+                    if response['success']:
+                        st.write(response)
+                    else:
+                        st.error(response)
                 
 
 
@@ -427,8 +447,6 @@ class Dashboard(c.Module):
             st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
             del df['stake_from']
             st.write(df)
-
-        
             with st.expander('Historam'):
                 key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
                 
@@ -440,5 +458,160 @@ class Dashboard(c.Module):
                 st.plotly_chart(fig)
 
 
+
+    def local_dashboard(self):
+        import pandas as pd
+        # search  for all of the modules with yaml files. Format of the file
+        df = None
+        cols = st.columns(2)
+        network = st.text_input('Network', 'local')
+        with st.expander('Serve', expanded=True):
+            self.serve_dashboard()
+
+
+
+    def playground_dashboard(self):
+        network = st.text_input('Network', 'local',key='playground.network')
+        update = st.button('Update')
+        servers_info = c.servers_info( network=network, update=update)
+        server2info = {s['name']: s for s in servers_info if s != None}
+        servers = list(server2info.keys())
+        server = st.selectbox('Select Server', servers, 0)
+        info = server2info[server]
+        server_address = info['address']
+        st.write('Name: ', info['name'])
+        schema = info['schema']
+        buttons = {}
+        for fn, fn_schema in schema.items():
+            with st.expander(fn, expanded=False):
+                with st.form(key=f'{fn}.form'):
+                    kwargs = self.function2streamlit(fn=fn, fn_schema=fn_schema)
+                    buttons[fn] = st.form_submit_button(fn)
+                    if buttons[fn]:
+                        st.write(kwargs)
+
+                        result = c.submit(c.call, args=[server_address, fn], timeout=10, kwargs=kwargs, return_future=False)[0]
+                        st.text_area('Result', result)
+
+
+        
+    def remote_dashboard(self):
+        st.write('# Remote')
+
+
+      
+    @classmethod
+    def function2streamlit(cls, 
+                           module = None,
+                           fn:str = '__init__',
+                           fn_schema = None, 
+                           extra_defaults:dict=None,
+                           cols:list=None,
+                           skip_keys = ['self', 'cls'],
+                           salt = None,
+                            mode = 'pm2'):
+        
+        key_prefix = f'{module}.{fn}'
+        if salt != None:
+            key_prefix = f'{key_prefix}.{salt}'
+        if module == None:
+            module = cls
+            
+        elif isinstance(module, str):
+            module = c.module(module)
+        extra_defaults = {} if extra_defaults is None else extra_defaults
+        kwargs = {}
+
+        if fn_schema == None:
+
+            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            if fn == '__init__':
+                config = module.config(to_munch=False)
+                extra_defaults = config
+            fn_schema['default'].pop('self', None)
+            fn_schema['default'].pop('cls', None)
+            fn_schema['default'].update(extra_defaults)
+            fn_schema['default'].pop('config', None)
+            fn_schema['default'].pop('kwargs', None)
+            
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        if len(cols) == 0:
+            return kwargs
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
+            
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if fn_key in skip_keys:
+                continue
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            col_idx = col_idx % (len(cols))
+            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
+        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        
+        return kwargs
+
+   
+    @classmethod
+    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
+        
+        for k,v in kwargs.items():
+            if v == 'None':
+                v = None
+            
+            if isinstance(v, str):
+                if v.startswith('[') and v.endswith(']'):
+                    if len(v) > 2:
+                        v = eval(v)
+                    else:
+                        v = []
+
+                elif v.startswith('{') and v.endswith('}'):
+
+                    if len(v) > 2:
+                        v = c.jload(v)
+                    else:
+                        v = {}               
+                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                    if v.startswith("f'") or v.startswith('f"'):
+                        v = c.ljson(v)
+                    else:
+                        v = v
+
+                elif fn_schema['input'][k] == 'float':
+                    v = float(v)
+
+                elif fn_schema['input'][k] == 'int':
+                    v = int(v)
+
+                elif k == 'kwargs':
+                    continue
+                elif v == 'NA':
+                    assert k != 'NA', f'Key {k} not in default'
+                elif v in ['True', 'False']:
+                    v = eval(v)
+                elif c.is_number(v):
+                    v = eval(v)
+                else:
+                    v = v
+            
+            kwargs[k] = v
+
+        return kwargs
+    
 if __name__ == '__main__':
     Dashboard.run()
