@@ -2326,8 +2326,12 @@ class c:
             return None
         return int(address.split(':')[-1])
     @classmethod
-    def servers_info(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").servers_info(*args, **kwargs)
+    def server_infos(cls, *args, **kwargs) -> List[str]:
+        return c.module("namespace").server_infos(*args, **kwargs)
+    @classmethod
+    def server2info(cls, *args, **kwargs) -> List[str]:
+        return c.module("namespace").server2info(*args, **kwargs)
+    
     @classmethod
     def has_server(cls, *args, **kwargs):
         return c.module("namespace").has_server(*args, **kwargs)
@@ -3112,6 +3116,10 @@ class c:
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
+        return c.module('subspace')().key_stats(*args, **kwargs)
+
+    @classmethod
+    def key2stats(cls, *args, **kwargs):
         return c.module('subspace')().key_stats(*args, **kwargs)
 
     
@@ -5514,7 +5522,7 @@ class c:
         c.ip(update=True)
         c.namespace(network=network, update=True)
         servers = c.servers(network=network)
-        c.servers_info(update=True, network='local')
+        c.server_infos(update=True, network='local')
 
         
 
@@ -8139,7 +8147,7 @@ class c:
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.servers_info(update=True, network='local'))
+                c.print(c.server_infos(update=True, network='local'))
                 # subspace.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)

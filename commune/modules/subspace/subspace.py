@@ -1221,43 +1221,48 @@ class Subspace(c.Module):
 
 
     def multitransfer( self, 
-                        modules:List[str],
+                        destinations:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 10,
+                        n:str = 2,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
         name2key = self.name2key(netuid=netuid)
 
-        if isinstance(modules, str):
-            modules = [m for m in name2key.keys() if modules in m]
+        if isinstance(destinations, str):
+            destinations = [k for n,k in name2key.items() if destinations in n]
 
-        assert len(modules) > 0, f"No modules found with name {modules}"
-        modules = modules[:n] # only stake to the first n modules
+        assert len(destinations) > 0, f"No modules found with name {destinations}"
+        destinations = destinations[:n] # only stake to the first n modules
         # resolve module keys
-        for i, module in enumerate(modules):
-            if module in name2key:
-                modules[i] = name2key[module]
+        for i, destination in enumerate(destinations):
+            if destination in name2key:
+                destinations[i] = name2key[destination]
 
-        module_keys = modules
         if isinstance(amounts, (float, int)): 
-            amounts = [amounts] * len(modules)
+            amounts = [amounts] * len(destinations)
 
+
+        total_amount = sum(amounts)
+        assert total_amount < balance, f'The total amount is {total_amount} > {balance}'
+
+
+        # convert the amounts to their interger amount (1e9)
         for i, amount in enumerate(amounts):
             amounts[i] = self.to_nanos(amount)
 
-        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+        assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
         params = {
             "netuid": netuid,
-            "module_keys": module_keys,
+            "destinations": destinations,
             "amounts": amounts
         }
 
-        response = self.compose_call('add_stake_multiple', params=params, key=key)
+        response = self.compose_call('transfer_multiple', params=params, key=key)
 
         return response
                     
@@ -1524,7 +1529,7 @@ class Subspace(c.Module):
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.servers_info(update=True, network='local'))
+                c.print(c.server_infos(update=True, network='local'))
                 self.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
@@ -1668,7 +1673,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'trust', 'stake', 'regblock', 'last_update'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'regblock', 'last_update'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
@@ -1750,23 +1755,41 @@ class Subspace(c.Module):
             if m['serving'] == True and m['registered'] == False:
                 self.register(m['name'])
                 
-    def key_stats(self, 
-                key : str , 
-                 netuid=netuid, 
-                 network = network,
-                 fmt='j',
+    def key2stats(self, 
+                search : str = None , 
+                 netuid:int=0, 
+                 network:str = network,
+                 state : dict = None,
                 **kwargs):
+        if state == None:
+            state = self.state_dict(network = network,netuid=netuid)
+
+        key2address = c.key2address()
+        key2stats = {}
+        for k, address in key2address.items():
+            if search != None and search not in k:
+                continue
+            key_stats = {
+                'balance': state['balances'].get(address,0) / 1e9,
+                'stake_to': state['stake_to'][0].get(address, {}),
+                'address': address
+            }
+
+            key_stats['stake_to'] = {k:v/1e9 for k,v in key_stats['stake_to'] if v > 0}
+
+            if key_stats['balance'] >0 or len(key_stats['stake_to']) > 0:
+                key2stats[k] = key_stats
+
+
         
-        self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
-        key_address = self.resolve_key_ss58(key)
-        key_stats = {}
-        key_stats['staketo'] =  self.get_staketo(key_address ,netuid=netuid, fmt=fmt)
-        key_stats['total_stake'] = sum([v for k,v in key_stats['staketo']])
-        key_stats['registered'] = self.is_registered(key_address, netuid=netuid)
-        key_stats['balance'] = self.get_balance(key_address, fmt=fmt)
-        key_stats['addresss'] = key_address
-        return key_stats
+
+        return key2stats
+    
+
+    def key_stats(self, key=None):
+        if key == None:
+            key = 'module'
+        return self.key2stats().get(key, None)
 
      
     def global_params(self, network: str = network, netuid: int = 0 ) -> Optional[float]:

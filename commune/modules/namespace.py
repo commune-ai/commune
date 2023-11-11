@@ -153,8 +153,8 @@ class Namespace(c.Module):
     @classmethod
     def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
         module = c.connect(address)
-        module_info = module.info()
-        name = module_info['name'] if name == None else name
+        info = module.info()
+        name = info['name'] if name == None else name
         # check if name exists
         namespace = cls.get_namespace(network=network)
         base_name = c.copy(name)
@@ -164,8 +164,11 @@ class Namespace(c.Module):
                 if v == address:
                     namespace.pop(k)
 
+        suffix_len = 4
         while name in namespace:
-            name = base_name +address[:3 + cnt].replace('.', '')
+            name = base_name +info['ss58_address'][:suffix_len].replace('.', '')
+            if name in namespace:
+                suffix_len += 1
             cnt += 1
 
         namespace[name] = address
@@ -194,28 +197,31 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def servers_info(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=4) -> List[str]:
+    def server_infos(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=4) -> List[str]:
         if not update:
-            servers_info = cls.get('servers_info', [])
+            server_infos = cls.get('server_infos', [])
 
-        if update or len(servers_info) == 0:
-            servers_info = []
+        if update or len(server_infos) == 0:
+            server_infos = []
             servers = cls.servers(search=search, network=network)
             futures = []
-            servers_info = []
+            server_infos = []
             for s in servers:
                 kwargs = {'module':s, 'fn':'info', 'network': network}
                 future = c.submit(c.call, kwargs=kwargs, return_future=True, timeout=timeout)
                 futures.append(future)
                 if len(futures) >= batch_size:
                     for f in c.as_completed(futures):
-                        servers_info.append(f.result())
+                        server_infos.append(f.result())
                         futures.remove(f)
                         break
-            servers_info += c.wait(futures, timeout=timeout)
-            cls.put('servers_info', servers_info)
-        return [s for s in servers_info if s != None]
+            server_infos += c.wait(futures, timeout=timeout)
+            cls.put('server_infos', server_infos)
+        return [s for s in server_infos if s != None]
     
+    @classmethod
+    def server2info(cls, *args, **kwargs):
+        return {m['name']:m for m in cls.server_infos(*args, **kwargs)}
     @classmethod
     def rm_server(cls,  name, network:str = 'local', **kwargs):
         namespace = cls.namespace(network=network)

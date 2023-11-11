@@ -182,7 +182,7 @@ class ThreadPoolExecutor(c.Module):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args=None, kwargs=None, timeout=200, return_future:bool=True) -> Future:
+    def submit(self, fn: Callable, args:dict=None, kwargs:dict=None, timeout=200, return_future:bool=True) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:

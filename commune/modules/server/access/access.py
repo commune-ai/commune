@@ -24,10 +24,10 @@ class Access(c.Module):
         self.module = module
         self.user_info = {}
         self.stakes = {}
-        c.thread(self.sync_loop)
+        c.thread(self.sync_loop_thread)
         
 
-    def sync_loop(self):
+    def sync_loop_thread(self):
         while True:
             self.sync()
             c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))

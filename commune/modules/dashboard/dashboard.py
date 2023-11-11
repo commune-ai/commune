@@ -142,9 +142,15 @@ class Dashboard(c.Module):
 
     def sidebar(self):
         with st.sidebar:
-            self.select_key()
             self.select_network()
-            st.write(self.subnet_info)
+            self.servers = c.servers(network='local')
+            self.module_name = st.selectbox('Select Model', self.servers, 0)
+            self.module = c.connect(self.module_name)
+            reconnect = st.button('Connect')
+            if reconnect:
+                self.module = c.connect(self.module_name)
+            self.select_key()
+
 
     def get_module_stats(self, modules):
         df = pd.DataFrame(modules)
@@ -187,6 +193,8 @@ class Dashboard(c.Module):
             self.subspace_dashboard()
         with tabs[2]:
             self.playground_dashboard()
+    
+        self.chat_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -204,24 +212,44 @@ class Dashboard(c.Module):
         # convert into metrics
         
     def transfer_dashboard(self):
-        with st.expander('Transfer', expanded=True):
+        with st.expander('Transfer', expanded=False):
             amount = st.number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
-            to_address = st.text_input('dest', '')
+            to_address = st.text_input('dest (s) : use , for multiple transfers', '')
+            multi_transfer = False
+            if ',' in to_address:
+                multi_transfer = True
+                to_addresses = [a.strip() for a in to_address.split(',')]
+
             transfer_button = st.button('Transfer')
             if transfer_button:
-                kwargs = {
-                    'dest': to_address,
-                    'amount': amount,
-                    'key': self.key,
-                }
-                self.subspace.transfer(**kwargs)
+
+                if multi_transfer:
+                    kwargs = {
+                        'destinations': to_addresses,
+                        'amounts': amount,
+                        'key': self.key,
+                    }
+                    st.write(kwargs)
+                    response = self.subspace.multitransfer(**kwargs)
+
+                else:
+
+                    kwargs = {
+                        'dest': to_address,
+                        'amount': amount,
+                        'key': self.key,
+                    }
+                    response = self.subspace.transfer(**kwargs)
+
+                st.status(response)
+
 
 
 
 
     def stake_dashboard(self):
         cols = st.columns(2)
-        with st.expander('Stake', expanded=True):
+        with st.expander('Stake', expanded=False):
 
             with st.form(key='stake'):
 
@@ -242,7 +270,7 @@ class Dashboard(c.Module):
 
     def unstake_dashboard(self):
 
-        with st.expander('UnStake', expanded=True):
+        with st.expander('UnStake', expanded=False):
             module2stake_from_key = self.subspace.get_staked_modules(self.key, fmt='j')
             modules = list(self.key_info['stake_to'].keys())
             amount = st.number_input('Unstake Amount',0.0)
@@ -310,14 +338,12 @@ class Dashboard(c.Module):
        
     def subspace_dashboard(self):
         # pie map of stake
-
-        st.write(self.modules_dashboard())
-        # remove the 
         st.write('# Wallet')
         self.register_dashboard()
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
+        self.modules_dashboard()
         # else:
         #     # with emoji
         #     st.error('Please Register Your Key')
@@ -334,7 +360,7 @@ class Dashboard(c.Module):
 
 
         if expanded : 
-            with st.expander('Register Module', expanded=True):
+            with st.expander('Register', expanded=False):
                 return self.register_dashboard(prefix=prefix, expanded=False)
         modules = c.modules(prefix)
         self.st.line_seperator()
@@ -473,8 +499,8 @@ class Dashboard(c.Module):
     def playground_dashboard(self):
         network = st.text_input('Network', 'local',key='playground.network')
         update = st.button('Update')
-        servers_info = c.servers_info( network=network, update=update)
-        server2info = {s['name']: s for s in servers_info if s != None}
+        server_infos = c.server_infos( network=network, update=update)
+        server2info = {s['name']: s for s in server_infos if s != None}
         servers = list(server2info.keys())
         server = st.selectbox('Select Server', servers, 0)
         info = server2info[server]
@@ -612,6 +638,45 @@ class Dashboard(c.Module):
             kwargs[k] = v
 
         return kwargs
+    
+
+    def chat_dashboard(self):
+        import streamlit as st
+        import random
+        import time
+
+        st.title(f"Chating with {self.module_name}")
+        cols = st.columns(3)
+        module = cols[0].text_input('Module', self.module_name)
+        address = cols[1].text_input('Address', '')
+        fn = cols[2].text_input('Function', 'generate')
+
+        # Initialize chat history
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        # Display chat messages from history on app rerun
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+        network = 'local'
+        servers = c.servers(network=network)
+
+            
+        # Accept user input
+        if prompt := st.chat_input("What is up?"):
+            # Display user message in chat message container
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            response = getattr(self.module, fn)(prompt)
+
+            with st.chat_message("assistant"):
+                st.write(response)
+
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt})
+        
     
 if __name__ == '__main__':
     Dashboard.run()
