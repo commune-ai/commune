@@ -8,7 +8,6 @@ import streamlit_authenticator as stauth
 import yaml
 from yaml.loader import SafeLoader
 import os
-current_directory = os.path.dirname(os.path.abspath(__file__))
 
 class Dashboard(c.Module):
     
@@ -18,9 +17,6 @@ class Dashboard(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
         self.load_state(update=False)
-
-        if 'auth_page' not in st.session_state:
-            st.session_state.auth_page = 'login'
 
     def sync(self):
         return self.load_state(update=True)
@@ -179,13 +175,6 @@ class Dashboard(c.Module):
     #     cols[0].plotly_chart(fig)
     #     fig = px.histogram(df, y=k, title=f'{k.upper()} Distribution')
     #     cols[1].plotly_chart(fig)
-
-    def toRegisterPage(self):
-        st.session_state.auth_page = 'register'
-
-    def toLoginPage(self):
-        st.session_state.auth_page = 'login'
-
     def auth(self, users):
 
         # Creating the authenticator object
@@ -197,54 +186,42 @@ class Dashboard(c.Module):
             users['preauthorized']
         )
 
-        if st.session_state.auth_page == 'login':
-            name, authentication_status, username = authenticator.login('Login', 'main')
-            if st.session_state.authentication_status == True:
-                with st.sidebar:
-                    st.subheader(f'Welcome *{st.session_state.name}*')
-                authenticator.logout('Logout', 'sidebar')
-            if st.session_state.authentication_status == False:
-                st.error('Username/password is incorrect')
-            if st.session_state.authentication_status != True:
-                st.button('Register Page ->', 'primary', on_click=self.toRegisterPage)
+        name, authentication_status, username = authenticator.login('Login', 'main')
+        if st.session_state.authentication_status == True:
+            with st.sidebar:
+                st.subheader(f'Welcome *{st.session_state.name}*')
+            authenticator.logout('Logout', 'sidebar')
+        if st.session_state.authentication_status == False:
+            st.error('Username/password is incorrect')
+        if st.session_state.authentication_status != True:
+            with st.expander("Forgot password?"):
+                # Creating a forgot password widget
+                try:
+                    username_forgot_pw, email_forgot_password, random_password = authenticator.forgot_password('Forgot password')
+                    if username_forgot_pw:
+                        st.success('New password sent securely')
+                        st.text(random_password)
+                        # Random password to be transferred to user securely
+                    elif username_forgot_pw != None:
+                        st.error('Username not found')
+                except Exception as e:
+                    st.error(e)
 
-                with st.expander("Forgot password?"):
-                    # Creating a forgot password widget
-                    try:
-                        username_forgot_pw, email_forgot_password, random_password = authenticator.forgot_password('Forgot password')
-                        if username_forgot_pw:
-                            st.success('New password sent securely')
-                            st.text(random_password)
-                            # Random password to be transferred to user securely
-                        elif username_forgot_pw != None:
-                            st.error('Username not found')
-                    except Exception as e:
-                        st.error(e)
-
-                with st.expander("Forgot username?"):
-                    # Creating a forgot username widget
-                    try:
-                        username_forgot_username, email_forgot_username = authenticator.forgot_username('Forgot username')
-                        if username_forgot_username:
-                            st.success('Username sent securely')
-                            # Username to be transferred to user securely
-                            st.text(username_forgot_username)
-                        elif username_forgot_username != None:
-                            st.error('Email not found')
-                    except Exception as e:
-                        st.error(e)
- 
-        if st.session_state.auth_page == 'register':
-            # Creating a new user registration widget            
-            try:
-                if authenticator.register_user('Register', preauthorization=False):
-                    st.success('User registered successfully')
-            except Exception as e:
-                st.error(e)
-            st.button('<- Login Page', 'primary', on_click=self.toLoginPage)
-
+            with st.expander("Forgot username?"):
+                # Creating a forgot username widget
+                try:
+                    username_forgot_username, email_forgot_username = authenticator.forgot_username('Forgot username')
+                    if username_forgot_username:
+                        st.success('Username sent securely')
+                        # Username to be transferred to user securely
+                        st.text(username_forgot_username)
+                    elif username_forgot_username != None:
+                        st.error('Email not found')
+                except Exception as e:
+                    st.error(e)
 
         return authenticator
+
 
     def profile(self, authenticator): 
         st.subheader(f'Your username: *{st.session_state.username}*')
@@ -265,15 +242,15 @@ class Dashboard(c.Module):
             except Exception as e:
                 st.error(e)
 
-
     @classmethod
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
         self = cls()
 
-        # Loading config file
-        with open(current_directory+'/users.yaml') as file:
+        current_directory = os.path.dirname(os.path.abspath(__file__))
+        # Loading admin auth file
+        with open(current_directory+'/admin_auth.yaml') as file:
             users = yaml.load(file, Loader=SafeLoader)
 
         authenticator = self.auth(users)
@@ -281,20 +258,18 @@ class Dashboard(c.Module):
         if st.session_state.authentication_status:
             self.sidebar()
             
-            tabs = st.tabs(['Wallet', 'Modules', 'Validators', 'Key', 'Profile']) 
+            tabs = st.tabs(['MY SPACE','GLOBAL SPACE', 'PLAYGROUND', 'CHAT', 'PROFILE']) 
             with tabs[0]:
-                self.wallet_dashboard()
+                self.local_dashboard()
             with tabs[1]:   
-                self.modules_dashboard()
-            with tabs[2]:   
-                self.validator_dashboard()
-            with tabs[3]:
-                self.key_dashboard()
+                self.subspace_dashboard()
+            # with tabs[2]:
+            #     self.playground_dashboard()
             with tabs[4]:
                 self.profile(authenticator)
-        
+
         # Saving users file
-        with open(current_directory + '/users.yaml', 'w') as file:
+        with open(current_directory + '/admin_auth.yaml', 'w') as file:
             yaml.dump(users, file, default_flow_style=False)
 
     def subnet_dashboard(self):
