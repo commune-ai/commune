@@ -2,10 +2,7 @@ import commune as c
 import requests
 import json
 import os
-from dotenv import load_dotenv
 from typing import List
-
-load_dotenv()
 
 class OpenRouterModule(c.Module):
 
@@ -15,7 +12,8 @@ class OpenRouterModule(c.Module):
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
-                x_title: str = "Communne"
+                x_title: str = "Communne",
+                **kwargs
                 ):
         self.url = url
         self.set_api_key(api_key)
@@ -41,11 +39,13 @@ class OpenRouterModule(c.Module):
                 {"role": self.role, "content": content}
                 ]
             })
+            
             )
         response = json.loads(response.text)
         
         if text_only:
-            return response["choices"][0]["message"]["content"]
+            if 'choices' in response:
+                return response["choices"][0]["message"]["content"]
 
         return response
     

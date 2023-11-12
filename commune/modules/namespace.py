@@ -103,10 +103,10 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
-                        chunk_size:int=10, 
+                        chunk_size:int=50, 
                         timeout:int = 10,
                         full_scan:bool = True,
-                        network:str = network,)-> dict:
+                        network:str = network)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -123,7 +123,12 @@ class Namespace(c.Module):
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
-            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout) for address in addresses_chunk])
+            futures = []
+            for address in addresses_chunk:
+                futures += [c.submit(c.call, kwargs=dict(module=address, fn='server_name'), timeout=timeout ,return_future=True)]
+
+            names_chunk = c.wait(futures, timeout=timeout)
+            
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
@@ -334,6 +339,11 @@ class Namespace(c.Module):
         namespace = {v:k for k,v in address2name.items()}
         return namespace
             
+
+    @classmethod
+    def dashboard(cls):
+        import streamlit as st
+        return cls.namespace()
     
 
 

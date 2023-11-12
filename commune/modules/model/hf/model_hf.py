@@ -355,7 +355,7 @@ class ModelTransformer(Model):
         
     @classmethod
     def init_kwargs(cls):
-        kwargs = c.get_function_defaults(cls.__init__)
+        kwargs = c.fn_defaults(cls.__init__)
         kwargs.pop('self')
         return kwargs
 
