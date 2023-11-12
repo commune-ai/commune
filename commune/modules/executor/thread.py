@@ -58,7 +58,7 @@ class ThreadPoolExecutor(c.Module):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args:dict=None, kwargs:dict=None, timeout=200, return_future:bool=True) -> Future:
+    def submit(self, fn: Callable, args:dict=None, kwargs:dict=None, timeout=200, return_future:bool=True, path:str=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
@@ -71,7 +71,7 @@ class ThreadPoolExecutor(c.Module):
             priority = kwargs.get("priority", 1)
             if "priority" in kwargs:
                 del kwargs["priority"]
-            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task
@@ -147,7 +147,7 @@ class ThreadPoolExecutor(c.Module):
                 #   - The interpreter is shutting down OR
                 #   - The executor that owns the worker has been collected OR
                 #   - The executor that owns the worker has been shutdown.
-                if shutdown or executor is None or executor.shutdown:
+                if executor is None or executor.shutdown:
                     # Flag the executor as shutting down as early as possible if it
                     # is not gc-ed yet.
                     if executor is not None:

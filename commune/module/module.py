@@ -754,7 +754,9 @@ class c:
     
     
     @classmethod
-    def st(cls, module = None, fn='dashboard', port=8501):
+    def st(cls, module = None, fn='dashboard', port=8501, kwargs:dict=None):
+        if module == None: 
+            module = cls.module_path()
         module = c.module(module)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
@@ -763,8 +765,15 @@ class c:
         cmd = f'streamlit run {module_filepath}'
         if port != None:
             cmd += f' --server.port {port}'
-        cmd+= f' -- --fn {fn}'
-        c.print(cmd)
+        
+        if kwargs == None:
+            kwargs = {}
+
+        kwargs_str = json.dumps(kwargs)
+        kwargs_str = kwargs_str.replace('"', "'")
+
+        cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
+
         c.cmd(cmd, verbose=True)
 
     
@@ -1522,6 +1531,7 @@ class c:
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
+        c.print('FAM')
         return c.st('dashboard')
 
     dash = dashboard
@@ -2109,6 +2119,8 @@ class c:
   
     @classmethod
     def is_address(cls, address:str) -> bool:
+        if not isinstance(address, str):
+            return False
         conds = []
         conds.append(isinstance(address, str))
         conds.append(':' in address)
@@ -4889,7 +4901,7 @@ class c:
             n = len(modules)
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
-        c.print(f'Calling {fn} on {len(modules)} modules', color='green')
+        c.print(f'[bold cyan]Calling {fn} on {len(modules)} modules [/bold cyan]', color='yellow')
         jobs = []
         
         for m in modules:
@@ -5423,12 +5435,12 @@ class c:
     def is_error(cls, x:dict):
         return not cls.is_success(x)
 
-    
+
     @staticmethod
     def is_number(value):
         try:
             int(value)
-        except ValueError:
+        except Exception:
             return False
         return True
     
@@ -6142,7 +6154,7 @@ class c:
     def as_completed(cls , futures:list, timeout:int=10, **kwargs):
         return concurrent.futures.as_completed(futures, timeout=timeout)
     @staticmethod
-    def wait(futures:list, timeout:int = 20, verbose:bool = False) -> list:
+    def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         
         import concurrent.futures
         futures = [futures] if not isinstance(futures, list) else futures
@@ -6155,15 +6167,26 @@ class c:
         results = []
         results = [None]*len(futures)
 
-        try:
-            for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                idx = future2idx[future]
-                results[idx] = future.result()
-        except Exception as e:
-            if verbose:
-                c.print(c.detailed_error(e))
+        if timeout == None and hasattr(futures[0], 'timeout'):
+            timeout = futures[0].timeout
 
-        return results
+
+        if generator:
+            def get_results():
+                for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                    if return_dict:
+                        idx = future2idx[future]
+                        yield {'idx': idx, 'result': future.result()}
+                    else:
+                        yield future.result()
+        else:
+            def get_results():
+                for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                    idx = future2idx[future]
+                    results[idx] = future.result()
+                return results
+            
+        return get_results()
 
     @staticmethod
     def as_completed( futures, timeout=10, **kwargs):
