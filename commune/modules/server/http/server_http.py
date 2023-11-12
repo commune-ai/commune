@@ -114,9 +114,8 @@ class ServerHTTP(c.Module):
                 c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
             else:
                 c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
-                
-
             result = self.process_result(result)
+            c.print(result)
             return result
         
         self.serve()

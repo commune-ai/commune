@@ -61,9 +61,10 @@ class c:
     def module_file(cls) -> str:
         # get the file of the module
         return inspect.getfile(cls)
+
     @classmethod
-    def module_dirpath(self, simple:bool=False) -> str:
-        return  os.path.dirname(self.module_file(simple=simple))
+    def module_dirpath(self) -> str:
+        return  os.path.dirname(self.module_file())
 
     @classmethod
     def __module_dir__(cls) -> str :
@@ -102,12 +103,12 @@ class c:
     pythonpath = pypath =  filepath
 
     @classmethod
-    def configpath(cls) -> str:
+    def config_path(cls) -> str:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        return cls.get_module_config_path()
-    cfgpath = config_path = configpath
+        return cls.config_path()
+    cfgpath = config_path = config_path
 
     
     @classmethod
@@ -125,37 +126,6 @@ class c:
     @classmethod
     def images(cls, *args, **kwargs):
         return c.module('docker').images(*args, **kwargs)
-        
-    
-    @classmethod
-    def __local_file__(cls) -> str:
-        '''
-        removes the PWD with respect to where module.py is located
-        '''
-        return cls.get_module_path(simple=False).replace(cls.repo_path+'/', '')
-    
-    @classmethod
-    def __simple_file__(cls) -> str:
-        '''
-        The simple representation of a module path with respect to the module.py
-        home/commune/module.py would assume the module_path would be home/commune/
-        
-        Using this we convert the full path of the module into a simple path for more
-        human readable strings. We do the following
-        
-        1. Remove the MODULE_PATH and assume the module represents the directory
-        2. replace the "/" with "."
-        
-    
-        Examples:
-            commune/dataset/text/dataset.py -> dataset.text
-            commune/model/transformer/dataset.py -> model.transformer
-        
-        '''
-        file =  cls.get_module_path(simple=True)
-
-        return file
-    
     
     @classmethod
     def module_path(cls, simple:bool=True) -> str:
@@ -180,25 +150,7 @@ class c:
             obj = type(obj)
         
         return obj.__name__
-        
     
-    @property
-    def module_tag(self) -> str:
-        '''
-        The tag of the module for many flavors of the module to avoid name conflicts
-        (TODO: Should we call this flavor?)
-        
-        '''
-        if not hasattr(self, '_module_tag'):
-            self.__dict__['_module_tag'] = None
-        return self._module_tag
-    
-    
-    @module_tag.setter
-    def module_tag(self, value):
-        # set the module tag
-        self._module_tag = value
-        return self._module_tag
 
     @classmethod
     def minimal_config(cls) -> Dict:
@@ -213,7 +165,7 @@ class c:
 
 
     @classmethod
-    def get_module_config_path(cls) -> str:
+    def config_path(cls) -> str:
         return cls.get_module_path(simple=False).replace('.py', '.yaml')
     
     @classmethod    
@@ -587,7 +539,7 @@ class c:
         Saves the config to a yaml file
         '''
         if config == None:
-            config = cls.get_config()
+            config = cls.config()
         
         path = path if path else cls.config_path()
         
@@ -609,6 +561,7 @@ class c:
         '''
         path = path if path else self.config_path()
         return self.path_exists(path)
+
     @classmethod
     def get_config(cls, 
                    config:dict = None,
@@ -638,7 +591,9 @@ class c:
         # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
         # for example  model.name=bert is the same as config[model][name]=bert
 
-        kwargs = kwargs if kwargs != None else {}
+        kwargs = kwargs if kwargs != None else cls.init_kwargs()
+
+        # merge kwargs with itself (CAUTION THIS DOES NOT WORK IF KWARGS WAS MEANT TO BE A VARIABLE LOL)
         kwargs.update(kwargs.pop('kwargs', {}))
         for k,v in kwargs.items():
             cls.dict_put(config,k,v )
@@ -685,8 +640,7 @@ class c:
         
         if save_config:
             self.save_config(config=config)
-        
-        
+    
         return self.config
 
     @classmethod
@@ -1304,18 +1258,18 @@ class c:
         return local_path
     @classmethod
     def path2config(cls, path:str, to_munch=False)-> dict:
-        path = cls.path2configpath(path=path)
+        path = cls.path2config_path(path=path)
         return cls.load_config(path, to_munch=to_munch)
     
     @classmethod
-    def path2configpath(cls, path:str):
+    def path2config_path(cls, path:str):
         return path.replace('.py', '.yaml')
     @classmethod
-    def simple2configpath(cls,  path:str):
-        return cls.path2configpath(cls.simple2path(path))
+    def simple2config_path(cls,  path:str):
+        return cls.path2config_path(cls.simple2path(path))
     @classmethod
     def simple2config(cls, path:str, to_munch=False)-> dict:
-        return cls.load_config(cls.simple2configpath(path), to_munch=to_munch)
+        return cls.load_config(cls.simple2config_path(path), to_munch=to_munch)
     
     
     @classmethod
@@ -1448,17 +1402,13 @@ class c:
 
     @classmethod
     def has_config(cls) -> bool:
-        config_path = cls.configpath()
+        config_path = cls.config_path()
         return c.exists(config_path)
-
-        
-        
-        
+  
     @classmethod
     def has_module(cls, module):
         return module in c.modules()
         
-    
     @classmethod
     def valid_module(cls,module,**kwargs ):
         modules = c.servers(module, **kwargs)
@@ -1873,6 +1823,12 @@ class c:
            recursive:bool = False,
            root:bool = False,
            return_full_path:bool = True):
+        """
+        provides a list of files in the path 
+
+        this path is relative to the module path if you dont specifcy ./ or ~/ or /
+        which means its based on the module path
+        """
         path = cls.resolve_path(path, extension=None, root=root)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
@@ -2461,40 +2417,43 @@ class c:
               ):
 
         
-        
+        # RESOLVE THE KWARGS
         kwargs = kwargs or {}
         if 'kwargs' in kwargs:
             kwargs = kwargs['kwargs']
-        kwargs = {**kwargs, **extra_kwargs}
-        extra_kwargs = {}
+        kwargs = {**kwargs, **extra_kwargs} # ADD THE EXTRA KWARGS
+        extra_kwargs = {} # EMPTY THE EXTRA KWARGS
 
         if module == None:
             module = cls.module_path()
-
 
         # module::tag
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
         if 'tag' in kwargs:
-            tag = kwargs.pop('tag')
+            tag = kwargs['tag']
     
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
         
         address = c.get_address(server_name, network=network)
         if address != None and ':' in address:
-            port = address.split(':')[-1]   
+            port = int(address.split(':')[-1])
+        if port == None:
+            port = c.free_port()
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
-            remote_kwargs.pop('extra_kwargs')
-            remote_kwargs['remote'] = False
+            remote_kwargs.pop('extra_kwargs') # REMOVE THE extra_kwargs
+    
+            remote_kwargs['remote'] = False # SET THIS TO FALSE
             remote_kwargs.pop('address') # WE INTRODUCED THE ADDRES
-            c.save_serve_kwargs(server_name, remote_kwargs)
+            c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
             c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
@@ -2671,13 +2630,28 @@ class c:
         return cls.fn_schema('__init__')
 
     @classmethod
+    def init_kwargs(cls):
+        kwargs =  cls.fn_defaults('__init__')
+        kwargs.pop('self')
+        if 'config' in kwargs:
+            if kwargs['config'] != None:
+                kwargs.update(kwargs.pop('config'))
+            del kwargs['config']
+        if 'kwargs' in kwargs:
+            if kwargs['kwargs'] != None:
+                kwargs = kwargs.pop('kwargs')
+            del kwargs['kwargs']
+
+        return kwargs
+
+    @classmethod
     def get_schema(cls,
                                 search = None,
                                 module = None,
                                 code : bool = False,
-                                docs: bool = False,
+                                docs: bool = True,
                                 include_parents:bool = False,
-                                defaults:bool = False,):
+                                defaults:bool = True,):
         
         module = module if module else cls
         
@@ -2703,21 +2677,20 @@ class c:
         
     @classmethod
     def fn_schema(cls, fn:str,
-                            defaults:bool=False,
+                            defaults:bool=True,
                             code:bool = False,
-                            docs:bool = False)->dict:
+                            docs:bool = True)->dict:
         '''
         Get function schema of function in cls
         '''
         import inspect
         fn_schema = {}
-        if isinstance(fn, str):
-            fn = getattr(cls, fn)
+        fn = cls.get_fn(fn)
         fn_args = cls.get_function_args(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
         if defaults:
-            fn_schema['default'] = cls.get_function_defaults(fn=fn) 
+            fn_schema['default'] = cls.fn_defaults(fn=fn) 
             for k,v in fn_schema['default'].items(): 
                 if k not in fn_schema['input'] and v != None:
                     fn_schema['input'][k] = type(v).__name__ if v != None else None
@@ -3177,7 +3150,7 @@ class c:
             return []
         for n in rm_list:
             c.print(f'Restarting {n}', color='cyan')
-            cls.cmd(f"pm2 restart {n}", verbose=False)
+            c.cmd(f"pm2 restart {n}", verbose=False)
             cls.pm2_rm_logs(n)  
         return rm_list
        
@@ -3198,7 +3171,7 @@ class c:
             
     
     @classmethod
-    def restart(cls, name:str, mode:str='server', verbose:bool = False, prefix_match:bool = True):
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
 
@@ -4697,14 +4670,8 @@ class c:
         except:
             return False
             
-
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        if c.server_exists(module):
-            c.print(f'Server {module} does not exist', color='red')
-            c.kill_server(module)
-        address = c.get_address(module, network='local')
-        port = address.split(':')[-1] if address != None else None
         return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
@@ -5923,14 +5890,16 @@ class c:
     def get_fn(cls, fn:str, seperator='.'):
         if isinstance(fn, str):
             if seperator in fn:
-                # module:fn
+                # module{sperator}fn
                 fn_splits = fn.split(seperator)
+                # incase you have multiple seperators in the  name
                 module = seperator.join(fn_splits[:-1])
                 fn = fn_splits[-1]
+                # get the model
                 module = c.module(module)
             else:
                 module = cls
-            # get the mdoule function
+            # get the module function
             if hasattr(module, fn):
                 fn = getattr(module, fn)
             else:
@@ -6907,12 +6876,6 @@ class c:
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
     
     static_meethods = static_fns = get_static_methods
-    
-    @classmethod
-    def get_method_type(cls, fn):
-        return cls.get_function_signature( fn)
-        
-
     @classmethod
     def get_function_signature(cls, fn) -> dict: 
         '''
@@ -6929,7 +6892,12 @@ class c:
         return list(c.get_function_signature(fn).keys())
 
     @classmethod
-    def get_function_defaults(cls, fn):
+    def fn_defaults(cls, fn):
+
+        """
+        Gets the function defaults
+        """
+
         import inspect
         
         fn = cls.get_fn(fn)
@@ -6941,9 +6909,7 @@ class c:
                 function_defaults[k] = None
 
         return function_defaults
-
-
-        
+ 
         
     @staticmethod
     def is_class(obj):

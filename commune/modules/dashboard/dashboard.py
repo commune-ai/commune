@@ -24,7 +24,6 @@ class Dashboard(c.Module):
 
         self.subspace = c.module('subspace')()
         self.state = self.subspace.state_dict(update=update)
-        c.print(f'Loaded State in {t.seconds} seconds')
         self.netuid = 0
         self.subnets = self.state['subnets']
         self.subnet = 'commune'
@@ -33,10 +32,11 @@ class Dashboard(c.Module):
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
 
-
         self.modules = self.state['modules'][self.netuid]
         self.name2key = {k['name']: k['key'] for k in self.modules}
         self.key2name = {k['key']: k['name'] for k in self.modules}
+
+        self.namespace = c.namespace()
 
         self.keys  = c.keys()
         self.key2index = {k:i for i,k in enumerate(self.keys)}
@@ -68,21 +68,27 @@ class Dashboard(c.Module):
         self.total_balance = sum(balances.values())/1e9
         for k in ['stake', 'emission', 'min_stake']:
             self.subnet_info[k] = self.subnet_info[k]/1e9
-    def select_key(self,):
-        with st.expander('Select Key', expanded=True):
-            key = 'module'
-            key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
-            self.key =  c.get_key(key)
-            if self.key.path == None:
-                self.key.path = key
-            self.key_info_dict = {
-                'balance': self.stats
-            }
+    def select_key(self, expanded:bool = True):
+        if expanded:
+            with st.expander('Key', expanded=False):
+                return self.select_key(expanded=False)
 
-            st.write('Address: ', self.key.ss58_address)
-            stake = sum([v for v in self.key_info.get('stake_to', {}).values()])
-            st.write('Stake', stake )
-            st.write('Balance', self.key_info.get('balance', 0))
+        key = 'module'
+        key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
+        self.key =  c.get_key(key)
+        if self.key.path == None:
+            self.key.path = key
+        self.key_info_dict = {
+            'balance': self.stats
+        }
+
+
+        st.write('Address: ', self.key.ss58_address)
+        stake = sum([v for v in self.key_info.get('stake_to', {}).values()])
+        st.write('Stake', stake )
+        st.write('Balance', self.key_info.get('balance', 0))
+
+        info = {}
 
     def create_key(self):
         with st.expander('Create Key', expanded=False):                
@@ -112,7 +118,7 @@ class Dashboard(c.Module):
                 c.rm_keys(rm_keys)
 
     def key_dashboard(self):
-        # self.select_key()
+        self.select_key()
         self.create_key()
         self.rename_key()
         self.remove_key()
@@ -130,26 +136,51 @@ class Dashboard(c.Module):
             self.netuid = self.subspace.subnet2netuid(subnet)
             
 
-    def select_network(self):            
-        with st.expander('Network', expanded=True):
-            st.write('# Network')
-            key2index = {k:i for i,k in enumerate(self.keys)}
-            self.subnet = st.selectbox(' ', self.subnet_names, 0, key='Select Subnet')
-            self.netuid = self.subnet2netuid[self.subnet]
-            sync = st.button('Sync')
-            if sync:
-                self.sync()
 
     def sidebar(self):
         with st.sidebar:
-            self.select_network()
-            self.servers = c.servers(network='local')
+            
+            self.select_network(sidebar=False)
+            self.servers = c.servers(network=self.network)
             self.module_name = st.selectbox('Select Model', self.servers, 0)
-            self.module = c.connect(self.module_name)
-            reconnect = st.button('Connect')
-            if reconnect:
-                self.module = c.connect(self.module_name)
+            self.module = c.connect(self.module_name, network=self.network)
+
+            
+            try:
+                self.module_info = self.module.info(schema=True)
+                self.module_schema = self.module_info['schema']
+
+            except Exception as e:
+                st.error(f'Module Not Found -> {self.module_name} {e}')
+                return
+
+            self.module_functions = self.module_info['functions']
+            self.module_address = self.module_info['address']
+
+
+
+            self.fn = st.selectbox('Select Function', self.module_functions, 0)
+
+            self.fn_path = f'{self.module_name}/{self.fn}'
+            st.write(f'**address** {self.module_address}')
+            with st.expander(f'{self.fn_path} playground', expanded=True):
+
+                kwargs = self.function2streamlit(fn=self.fn, fn_schema=self.module_schema[self.fn], salt='sidebar')
+                call = st.button(f'Call {self.fn_path}')
+                if call:
+                    response = getattr(self.module, self.fn)(**kwargs)
+                    st.write(response)
+
+
             self.select_key()
+    
+
+            sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
+            if sync:
+                c.update_network(self.network)
+                self.sync()
+
+
 
 
     def get_module_stats(self, modules):
@@ -184,17 +215,19 @@ class Dashboard(c.Module):
         import streamlit as st
         # plotly
         self = cls()
+        st.title(f'COMMUNE')
         self.sidebar()
         
-        tabs = st.tabs(['MY SPACE','GLOBAL SPACE', 'PLAYGROUND', 'CHAT']) 
+        tabs = st.tabs(['CHAT', 'MODULES', 'WALLET']) 
+        chat = False
         with tabs[0]:
-            self.local_dashboard()
-        with tabs[1]:   
-            self.subspace_dashboard()
+            chat = True
+        with tabs[1]: 
+            self.modules_dashboard()  
         with tabs[2]:
-            self.playground_dashboard()
-    
-        self.chat_dashboard()
+            self.global_dashboard()
+        if chat:
+            self.chat_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -336,14 +369,13 @@ class Dashboard(c.Module):
 
         # st.write(histogram)
        
-    def subspace_dashboard(self):
+    def global_dashboard(self):
         # pie map of stake
         st.write('# Wallet')
         self.register_dashboard()
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
-        self.modules_dashboard()
         # else:
         #     # with emoji
         #     st.error('Please Register Your Key')
@@ -352,6 +384,31 @@ class Dashboard(c.Module):
         st.plotly_chart(fig)
 
     
+        import pandas as pd
+        # search  for all of the modules with yaml files. Format of the file
+        search = st.text_input('Search', '')
+        df = None
+        self.modules = self.state['modules'][self.netuid]
+
+        
+        self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
+        df = pd.DataFrame(self.searched_modules)
+        if len(df) == 0:
+            st.error(f'{search} does not exist {c.emoji("laughing")}')
+            return
+        else:
+            st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
+            del df['stake_from']
+            st.write(df)
+            with st.expander('Historam'):
+                key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
+                
+                self.st.run(df)
+                fig = px.histogram(
+                    x = df[key].to_list(),
+                )
+
+                st.plotly_chart(fig)
 
 
     def validator_dashboard(self):
@@ -406,105 +463,110 @@ class Dashboard(c.Module):
                     st.success('Module Registered')
                 else:
                     st.error(response['message'])
-                
-
-    def serve_dashboard(self , ):
-
-        modules = c.modules()
-        self.st.line_seperator()
-        cols = st.columns([2,2,1])
-
-        with st.form(key='serve'):
-            module  = cols[0].selectbox('Select A Module', modules, 0, key=f'serve.module')
-            tag = cols[1].text_input('tag', '', key=f'serve.tag.{module}')
-            n = cols[2].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
-
-            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-            tag = None if tag == '' else tag
-                        
-            # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
-            
-            
-            kwargs = self.function2streamlit(module=module, fn='__init__' )
-
-
-            serve = st.form_submit_button('Serve')
-
-            if 'None' == tag:
-                tag = None
-                
-                
-            if 'tag' in kwargs:
-                kwargs['tag'] = tag
-
-            network = 'local'
-            if serve:
-                for i in range(n):
-                    try:
-                        if tag != None:
-                            s_tag = f'{tag}.{i}'
-                        else:
-                            s_tag = str(i)
-                        response = c.module(module).serve( kwargs = kwargs, tag=s_tag, network=network)
-                    except Exception as e:
-                        e = c.detailed_error(e)
-                        response = {'success': False, 'message': e}
         
-                    if response['success']:
-                        st.write(response)
-                    else:
-                        st.error(response)
-                
+    def select_network(self, sidebar=True): 
+
+        if sidebar:
+            with st.sidebar:
+                self.select_network(sidebar=False) 
+        n = c.module('namespace')()
+        self.networks = n.networks()
+        network2index = {n:i for i,n in enumerate(self.networks)}
+        index = network2index['local']
+        self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
+
+        self.subnet = 'commune'
+        self.netuid = 0
+
+
+
+
+
+
+
 
 
 
     def modules_dashboard(self):
         import pandas as pd
-        # search  for all of the modules with yaml files. Format of the file
-        search = st.text_input('Search', '')
-        df = None
+
+        modules = c.modules()
+        self.st.line_seperator()
         
-        self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
-        df = pd.DataFrame(self.searched_modules)
-        if len(df) == 0:
-            st.error(f'{search} does not exist {c.emoji("laughing")}')
-            return
-        else:
-            st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
-            del df['stake_from']
-            st.write(df)
-            with st.expander('Historam'):
-                key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
-                
-                self.st.run(df)
-                fig = px.histogram(
-                    x = df[key].to_list(),
-                )
-
-                st.plotly_chart(fig)
 
 
+        module2index = {m:i for i,m in enumerate(modules)}
+        module  = st.selectbox('Select A Module', modules, module2index['agent'], key=f'serve.module')
 
-    def local_dashboard(self):
-        import pandas as pd
-        # search  for all of the modules with yaml files. Format of the file
-        df = None
-        cols = st.columns(2)
-        network = st.text_input('Network', 'local')
+
+        module = c.module(module)
+        # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+                    
         with st.expander('Serve', expanded=True):
-            self.serve_dashboard()
+
+            with st.form(key='serve'):
+                
+                kwargs = self.function2streamlit(module=module, fn='__init__' )
+
+                cols = st.columns([1,1,2])
+                tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
+                tag = None if tag == '' else tag
+
+                n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
+
+                serve = cols[2].form_submit_button('Serve')
+
+                if serve:
+
+                    if 'None' == tag:
+                        tag = None
+                    if 'tag' in kwargs:
+                        kwargs['tag'] = tag
+                    for i in range(n):
+                        try:
+                            if tag != None:
+                                s_tag = f'{tag}.{i}'
+                            else:
+                                s_tag = str(i)
+                            response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
+                        except Exception as e:
+                            e = c.detailed_error(e)
+                            response = {'success': False, 'message': e}
+            
+                        if response['success']:
+                            st.write(response)
+                        else:
+                            st.error(response)
+
+        with st.expander('Code', expanded=False):
+            code = module.code()
+            st.markdown(f"""
+                        ```python
+                        {code}
+                        ```
+                        """)
+
+        with st.expander('Modules', expanded=False):
+            cols = st.columns([2,2])
+                
+            with cols[0].form('Add Server'):
+                address = st.text_input('Add Address', '')
+                add_server = st.form_submit_button('Add Server')
+                if add_server:
+                    self.subspace.add_server(address)
+            
+            with cols[1].form('Remove Server'):
+                server = st.selectbox('Remove Module', self.servers, 0)
+                rm_server = st.form_submit_button('Remove Server')
+                if rm_server:
+                    self.subspace.rm_server(server)
 
 
 
     def playground_dashboard(self):
-        network = st.text_input('Network', 'local',key='playground.network')
-        update = st.button('Update')
-        server_infos = c.server_infos( network=network, update=update)
-        server2info = {s['name']: s for s in server_infos if s != None}
-        servers = list(server2info.keys())
-        server = st.selectbox('Select Server', servers, 0)
-        info = server2info[server]
-        server_address = info['address']
+        info = self.module_info
+        network = self.network
+        module_address = self.module_address
         st.write('Name: ', info['name'])
         schema = info['schema']
         buttons = {}
@@ -514,10 +576,10 @@ class Dashboard(c.Module):
                     kwargs = self.function2streamlit(fn=fn, fn_schema=fn_schema)
                     buttons[fn] = st.form_submit_button(fn)
                     if buttons[fn]:
-                        st.write(kwargs)
+                        kwargs['network'] = network
 
-                        result = c.submit(c.call, args=[server_address, fn], timeout=10, kwargs=kwargs, return_future=False)[0]
-                        st.text_area('Result', result)
+                        result = c.submit(c.call, args=[module_address, fn], timeout=10, kwargs=kwargs, return_future=False)[0]
+                        st.write('Result', result)
 
 
         
@@ -645,38 +707,80 @@ class Dashboard(c.Module):
         import random
         import time
 
-        st.title(f"Chating with {self.module_name}")
-        cols = st.columns(3)
-        module = cols[0].text_input('Module', self.module_name)
-        address = cols[1].text_input('Address', '')
-        fn = cols[2].text_input('Function', 'generate')
+        module_name = self.module_name
+        fn = self.fn
+
+        module = None
+        if module_name != self.module_name:
+            module = c.connect(module_name, network=self.network)
+            module_info = module.info(schema=True)
+        else:
+            module = self.module
+            module_info = self.module_info
+        
+
+        if fn not in module_info['schema']:
+            st.error(f'{fn} not in {module_name}')
+
+            return
+
+        default_kwargs = module_info['schema'][fn]['default']
+
+        with st.expander('Parameters', expanded=False):
+
+            with st.form(key='chat'):
+                chat_path : str = f'chat/{module}/defaults'
+                kwargs = self.get(chat_path, default={})
+                kwargs.update(default_kwargs)
+                kwargs = self.function2streamlit(fn=fn, fn_schema=module_info['schema'][fn], salt='chat')
+                chat_button = st.form_submit_button('set parameters')
+                if chat_button:
+                    response = self.put(chat_path, kwargs)
+                kwargs = self.get(chat_path, default=kwargs)
+
 
         # Initialize chat history
         if "messages" not in st.session_state:
             st.session_state.messages = []
 
+
+        clear_history = st.button("NOTHING HAPPENED ;)")
+        if clear_history:
+            st.session_state.messages = []
         # Display chat messages from history on app rerun
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
-        network = 'local'
-        servers = c.servers(network=network)
-
-            
+        
+ 
         # Accept user input
         if prompt := st.chat_input("What is up?"):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
             # Display user message in chat message container
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            response = getattr(self.module, fn)(prompt)
 
-            with st.chat_message("assistant"):
+            with st.chat_message(self.module_name):
+                kwargs = {k:v for i, (k,v) in enumerate(kwargs.items()) if i > 0}
+                if 'history' in kwargs:
+                    kwargs['history'] = st.session_state.messages
+                response = getattr(module, fn)(prompt, **kwargs)
+                if isinstance(response, dict):
+                    for k in ['response', 'text', 'content', 'message']:
+                        if k in response:
+                            response = response[k]
+                            break
+                            
+                if isinstance(response, str):
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+
                 st.write(response)
 
+
             # Add user message to chat history
-            st.session_state.messages.append({"role": "user", "content": prompt})
         
-    
+
 if __name__ == '__main__':
     Dashboard.run()
