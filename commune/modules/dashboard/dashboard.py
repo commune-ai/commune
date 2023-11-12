@@ -8,8 +8,9 @@ import plotly.express as px
 class Dashboard(c.Module):
     
     def __init__(self, netuid = 0, network = 'main', ): 
-        st.set_page_config(layout="wide")
         self.set_config(locals())
+    
+        st.set_page_config(layout="wide")
         self.st = c.module('streamlit')()
         self.st.load_style()
         self.load_state(update=False)
@@ -143,6 +144,10 @@ class Dashboard(c.Module):
             self.select_network(sidebar=False)
             self.servers = c.servers(network=self.network)
             self.module_name = st.selectbox('Select Model', self.servers, 0)
+
+            if self.module_name == None:
+                c.serve(wait_for_server=True)
+
             self.module = c.connect(self.module_name, network=self.network)
 
             
@@ -166,9 +171,15 @@ class Dashboard(c.Module):
             with st.expander(f'{self.fn_path} playground', expanded=True):
 
                 kwargs = self.function2streamlit(fn=self.fn, fn_schema=self.module_schema[self.fn], salt='sidebar')
+                cols = st.columns([1,1])
+                timeout = cols[0].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{self.fn_path}')
                 call = st.button(f'Call {self.fn_path}')
                 if call:
-                    response = getattr(self.module, self.fn)(**kwargs)
+                    try:
+                        response = getattr(self.module, self.fn)(**kwargs, timeout=timeout)
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
                     st.write(response)
 
 
@@ -473,7 +484,16 @@ class Dashboard(c.Module):
         self.networks = n.networks()
         network2index = {n:i for i,n in enumerate(self.networks)}
         index = network2index['local']
+
         self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
+        update_network = st.button('Update Network')
+
+        if update_network:
+            # THIS IS WEIRD BUT IT ALLOWS US TO UPDATE THE NETWORK WITHOUT RELOADING THE PAGE
+            self.namespace = c.namespace(network=self.network)
+        else:
+            self.namespace = c.namespace()
+
 
         self.subnet = 'commune'
         self.netuid = 0
@@ -648,7 +668,12 @@ class Dashboard(c.Module):
             
 
             col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
+            if type(v) in [float, int] or c.is_number(v):
+                kwargs[k] = cols[col_idx].number_input(fn_key, v, key=f'{key_prefix}.{k}')
+            elif v in ['True', 'False']:
+                kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')
+            else:
+                kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
         kwargs = cls.process_kwargs(kwargs, fn_schema)       
         
         return kwargs

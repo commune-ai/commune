@@ -6,7 +6,7 @@ class Remote(c.Module):
     host_url = 'https://raw.githubusercontent.com/communeai/commune/main/hosts.yaml'
     executable_path='commune/bin/c'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=10,  **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=True, sudo=False, key=None, timeout=10,  **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -214,7 +214,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=20, verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=20 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
 
@@ -413,31 +413,75 @@ class Remote(c.Module):
         c.print(cls.cmd(f'c serve', **kwargs))
 
 
-    def cmd_dashboard(self):
+
+    @classmethod
+    def dashboard(cls, deploy:bool=True):
+        if deploy:
+            cls.st(kwargs=dict(deploy=False))
+        self = cls()
         import streamlit as st
+
+        st.set_page_config(layout="wide")
+        st.title('Remote Dashboard')
+
+        self.st = c.module('streamlit')()
+        self.st.load_style()
         host_map = self.hosts()
         cols = st.columns(2)
         host_names = list(host_map.keys())
         search = cols[0].text_input('Search')
         if len(search) > 0:
             host_names = [h for h in host_names if search in h]
+        with st.expander('Hosts', expanded=False):
+            st.write(self.hosts())
         host_names = st.multiselect('Host', host_names, host_names)
-        timeout = cols[1].number_input('Timeout', 1, 100, 10)
+        cols = st.columns([4,2,1,1])
+        cmd = cols[0].text_input('Command', 'ls')
 
-        cmd = st.text_area('Command', 'ls')
+        [cols[1].write('') for i in range(2)]
+        run_button = cols[1].button('Run')
+        timeout = cols[2].number_input('Timeout', 1, 100, 10)
+        # add splace to cols[2] vertically
+        [cols[3].write('') for i in range(2)]
+        sudo = cols[3].checkbox('Sudo')
+
         host2future = {}
-        if st.button('Run'):
+        if run_button:
             for host in host_map:
-                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False), return_future=True)
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo), return_future=True, timeout=timeout)
                 host2future[host] = future
 
+        futures = list(host2future.values())
+        hosts = list(host2future.keys())
 
-            futures = list(host2future.values())
-            import concurrent
-            for future in concurrent.futures.as_completed(futures):
-                result = future.result()
-                st.write(result)
+        try:
+            for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                host = hosts[result['idx']]
+                if host == None:
+                    continue
+                host2future.pop(host)
 
+                result = result['result']
+                if c.is_error(result):
+                    with st.expander(host + ' ' +  c.emoji('cross'), expanded=True):
+                        st.markdown(f"""```bash
+                                    {result}```""")
+                else:
+                    with st.expander(host + ' ' +  c.emoji('checkmark'), expanded=True):
+                        st.markdown(f"""```bash
+                                    {result}```""")
+        except Exception as e:
+            pending_hosts = list(host2future.keys())
+            st.error(c.detailed_error(e))
+            st.error(f"Hosts {pending_hosts} timed out")
+
+        
+
+
+
+       
+
+    dash = dashboard
 
 
 

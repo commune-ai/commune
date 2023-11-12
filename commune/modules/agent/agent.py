@@ -48,7 +48,7 @@ class Agent(c.Module):
     
     default_tools = ['module.ls', 'module.fns', 'module.servers', 'module.modules', 'module.module']
 
-    def generate(self, prompt:str, model=None, history=None, tools=default_tools, description:str = None) -> str:
+    def call(self, prompt:str, model=None, history=None, tools=default_tools, description:str = None) -> str:
         if model != None:
             self.model = c.connect(model)
         tools = self.resolve_tools(tools)
@@ -60,17 +60,24 @@ class Agent(c.Module):
             'prompt': prompt,
             'history': history,
             'tools': tools,
-            'instruction': 'complete response',
+            'purpose': ['Please think about it, you have a set of tools, and you should call them if you need to', 
+                            'call_tools: {tool:str, kwargs:dict} please fill in the tool, args, and kwargs', 
+                            'briely say why you are using this tool',
+                            'feel free to write thoughts in the thoughts field', 
+                            'RETURN THE  FOLLOWING FIELDS: response, call_tool, thoughts, confidence'
+                            ],
             'response': None,
+            'thoughts': None,
+            'confidence': None,
             'call_tool': {'tool': None, 'kwargs': None}
         }
         output = self.model.generate(json.dumps(prompt))
         c.print(output)
         output = json.loads(output)
         prompt.update(output)
-        return prompt
+        return output
     # prompt tooling 
-    call = generate
+    generate = call 
 
 
     @classmethod

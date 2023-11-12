@@ -86,17 +86,16 @@ class Task(c.Module):
 
         self.status = 'running'
         try:
-            c.print('Calling {self.fn}', self.kwargs)
+            c.print(f'Calling {self.fn}', self.kwargs)
             data = self.fn(*self.args, **self.kwargs)
-            self.future.set_result(data)
+            
             self.status = 'done'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             self.status = 'failed'
             data = c.detailed_error(e)
-            c.print(data)
-
-   
+        
+        self.future.set_result(data)
         # store the result of the task
         self.data = data       
 
