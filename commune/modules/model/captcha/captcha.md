@@ -46,7 +46,7 @@ This will set the name to `model.captcha::10`.
 To test the model, use:
 
 ```bash
-c model.captha recaptcha2 website_url= "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high" website_key="6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
+c model.captha recaptcha2_proxyless website_url="https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high" website_key="6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
 ```
 
 **Response:**
