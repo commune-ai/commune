@@ -10,7 +10,7 @@ from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, T
 
 class EVM(c.Module):
 
-    base_dir = f'{c.repo_path}/contracts/evm'
+    base_dir = os.path
     contracts_dir_path = base_dir + '/artifacts/'
     interfaces_path = f'{os.environ["PWD"]}/interfaces/'
 

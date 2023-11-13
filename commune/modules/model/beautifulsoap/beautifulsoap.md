@@ -1,4 +1,4 @@
-## Model.BeautifulSoap Module
+ ## Model.BeautifulSoap Module
 
 This module is a wrapper over the Beautiful Soap API
 
