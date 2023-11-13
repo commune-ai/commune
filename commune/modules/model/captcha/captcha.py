@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest, GeetestProxylessRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -61,6 +61,37 @@ class Captcha(c.Module):
             websitePublicKey=website_public_key, # "69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC"
             data=data,
             funcaptchaApiJSSubdomain=funcaptchaApiJSSubdomain
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def geetest_proxyless(self,
+             website_url: str,  # Address of a webpage with FunCaptcha
+             gt: str,   # The GeeTest identifier key for the domain. Static value, rarely updated.
+             challenge: str,   # A dynamic key.
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+             geetestApiServerSubdomain: str = None,  # Optional parameter. May be required for some sites.
+             geetestGetLib: str = None,   # Optional parameter. May be required for some sites. Send JSON as a string.
+             version: int = 3,  # Version number (default is 3). Possible values: 3, 4.
+
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = GeetestProxylessRequest(
+            type="GeeTestTaskProxyless",
+            websiteUrl=website_url, # "https://example.com/geetest.php",
+            gt=gt,  # "81dc9bdb52d04dc20036dbd8313ed055"
+            challenge=challenge,    # "d93591bdf7860e1e4ee2fca799911215"
+            geetestApiServerSubdomain=geetestApiServerSubdomain,
+            geetestGetLib=geetestGetLib,
+            version=version
         )
 
         responses = asyncio.run(_solve_captcha())
