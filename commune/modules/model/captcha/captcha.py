@@ -19,9 +19,9 @@ class Captcha(c.Module):
 
         assert isinstance(api_key, str)
 
-    def recaptcha2(self,
-             website_url: str,
-             website_key: str,
+    def recaptcha2_proxyless(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
              api_key:str = None,    # API key from https://api.capmonster.cloud/
     ) -> str:
         api_key = api_key if api_key != None else self.api_key
@@ -30,11 +30,37 @@ class Captcha(c.Module):
         cap_monster_client = CapMonsterClient(options=client_options)
 
         async def _solve_captcha():
-            return await cap_monster_client.solve_captcha(recaptcha2request)
+            return await cap_monster_client.solve_captcha(request)
         
-        recaptcha2request = RecaptchaV2ProxylessRequest(
+        request = RecaptchaV2ProxylessRequest(
             websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
             websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def funcaptcha_proxyless(self,
+             website_url: str,  # Address of a webpage with FunCaptcha
+             website_public_key: str,   # FunCaptcha website key
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+             funcaptchaApiJSSubdomain: str = None,  # A special subdomain of funcaptcha.com, from which the JS captcha widget should be loaded
+             data: str = None,   # Additional parameter that may be required by Funcaptcha implementation. 
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = FuncaptchaProxylessRequest(
+            type="FunCaptchaTaskProxyless",
+            websiteUrl=website_url, # "https://funcaptcha.com/fc/api/nojs/?pkey=69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC",
+            websitePublicKey=website_public_key, # "69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC"
+            data=data,
+            funcaptchaApiJSSubdomain=funcaptchaApiJSSubdomain
         )
 
         responses = asyncio.run(_solve_captcha())
