@@ -62,15 +62,12 @@ class CustomHTTPProvider(HTTPProvider):
         return response.content
 
 
-
-
-
 class EVMNetwork(c.Module):
     
 
-    def __init__(self, config=None, **kwargs):
-        self.set_config(config=config, kwargs=kwargs)
-        self.set_network(self.config.network)
+    def __init__(self, network:str = 'local.main'):
+        self.set_config(kwargs=locals())
+        self.set_network(network)
 
     @property
     def network(self):
@@ -83,7 +80,7 @@ class EVMNetwork(c.Module):
 
     @network.setter
     def network(self, network):
-        assert network in self.available_networks
+        assert network in self.networks, f'{network} is not here fam'
         self.config['network'] = network
 
     def set_network(self, network:str='local.main.ganache') -> 'Web3':
@@ -97,13 +94,10 @@ class EVMNetwork(c.Module):
 
     @property
     def networks_config(self):
-        return self.config['networks']
+        return c.load_yaml(self.dirpath() + '/networks.yaml')
 
     @property
     def networks(self):
-        return self.get_networks()
-
-    def get_networks(self):
         return list(self.networks_config.keys())
 
     @property
@@ -111,13 +105,7 @@ class EVMNetwork(c.Module):
         return self.get_available_networks()
 
 
-    def get_available_networks(self):
-        networks_config = self.networks_config
-        subnetworks = []
-        for network in self.networks:
-            for subnetwork in networks_config[network].keys():
-                subnetworks.append('.'.join([network,subnetwork]))
-        return subnetworks
+
     def get_url_options(self, network:str ) -> List[str]:
         assert len(network.split('.')) == 2
         network, subnetwork = network.split('.')

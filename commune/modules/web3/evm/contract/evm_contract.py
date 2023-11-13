@@ -7,16 +7,18 @@ import asyncio
 import commune as c
 from glob import glob
 from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, Type, cast
+
 class EVM(c.Module):
 
     base_dir = f'{c.repo_path}/contracts/evm'
-    contracts_dir_path = base_dirir_path = base_dir + '/artifacts/'
+    contracts_dir_path = base_dir + '/artifacts/'
+    interfaces_path = f'{os.environ["PWD"]}/interfaces/'
+
     def __init__(self, 
-                 config:dict=None, 
-                 contract:'c.evm.contract' =None, 
-                 network: 'c.evm.network'= None, 
-                 account: 'c.evm.account'=None,
-                 base_dir:str=None
+    
+                 network: 'c.evm.network' = 'local.main', 
+                 account: 'c.evm.account' = None,
+                 ):
                  
         self.set_network(network)
         self.set_account(account)
@@ -24,10 +26,6 @@ class EVM(c.Module):
     @property
     def address(self):
         return self.contract.address
-
-    @propertymap(self):
-        return {f_a
-        return list(self.fu
     def accounts(self):
         return self.account.accounts
 
@@ -58,7 +56,6 @@ class EVM(c.Module):
         
         return parsedOutputs
 
-
     @property
     def contract_paths(self):
         return list(filter(lambda f: f.endswith('.sol'),self.glob(self.contracts_dir_path+'**')))
@@ -80,7 +77,7 @@ class EVM(c.Module):
 
     def get_abi(self,path):
         return self.get_artifact(path)['abi']
-    interfaces_path = f'{os.environ["PWD"]}/interfaces/'
+
     @property
     def interface_paths(self):
         return list(filter(lambda f: f.endswith('.sol'),self.glob(self.interfaces_path+'**')))
@@ -156,6 +153,7 @@ class EVM(c.Module):
     def set_account(self, account:str):
         self.account = c.module('evm.account')(path=account)
 
+    
     
     def get_contract_address(self, contract, version=-1):
         return self.contract2addresses.get(self.network_name, {}).get(contract,[None])[version]
@@ -349,21 +347,12 @@ class EVM(c.Module):
         return contract_path
 
 
-        
-    def __reduce__(self):
-        deserializer = EVMContract
-        serialized_data = (self.config)
-        return deserializer, serialized_data
-
-
     @classmethod
     def streamlit(cls):
         import streamlit as st
         c.new_event_loop()
         st.write("## "+cls.__name__)
-        EVMContract.new_event_loop()
-
-        self =  EVMContract()
+        self =  cls()
         # print(self.artifacts)
         contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
         # print(contract)
