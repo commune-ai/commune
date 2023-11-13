@@ -35,4 +35,9 @@ urllib3
 # ray
 # ray[default]
 # ray[tune]
-#logging
+# logging
+
+# Module for text2speech
+fairseq2
+huggingface_hub
+torchaudio
