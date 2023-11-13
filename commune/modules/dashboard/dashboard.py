@@ -54,11 +54,13 @@ class Dashboard(c.Module):
             'ss58_address': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
             'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
+            'stakes': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),
             
         }
 
         self.key_info['balance']  = self.key_info['balance']/1e9
         self.key_info['stake_to'] = {k:v/1e9 for k,v in self.key_info['stake_to']}
+        self.key_info['stakes'] = sum([v for k,v in self.key_info['stake_to'].items()])
         # convert keys to names 
         for k in ['stake_to']:
             self.key_info[k] = {self.key2name.get(k, k): v for k,v in self.key_info[k].items()}
@@ -140,13 +142,14 @@ class Dashboard(c.Module):
 
     def sidebar(self):
         with st.sidebar:
-            
+
+            if not c.server_exists('module'):
+                    c.serve(wait_for_server=True)
             self.select_network(sidebar=False)
             self.servers = c.servers(network=self.network)
             self.module_name = st.selectbox('Select Model', self.servers, 0)
 
-            if not c.server_exists('module'):
-                c.serve(wait_for_server=True)
+    
 
             self.module = c.connect(self.module_name, network=self.network)
 
@@ -236,7 +239,7 @@ class Dashboard(c.Module):
         with tabs[1]: 
             self.modules_dashboard()  
         with tabs[2]:
-            self.global_dashboard()
+            self.wallet_dashboard()
         if chat:
             self.chat_dashboard()
 
@@ -285,7 +288,7 @@ class Dashboard(c.Module):
                     }
                     response = self.subspace.transfer(**kwargs)
 
-                st.status(response)
+                st.write(response)
 
 
 
@@ -296,12 +299,18 @@ class Dashboard(c.Module):
         with st.expander('Stake', expanded=False):
 
             with st.form(key='stake'):
+                cols = st.columns(2)
+                staked_modules = list(self.key_info['stake_to'].keys())
 
-                amounts = st.slider('Stake Amount', 0.0,  float(self.key_info['balance']), 0.1)            
-                modules = st.multiselect('Module', self.module_names, [])
-                transfer_button = st.form_submit_button('STAKE')
+                modules = cols[1].multiselect('Module', self.module_names, staked_modules)
+                total_balance = c.balance(self.key.ss58_address)
+                n_modules = len(modules)
+                st.write(f'You have {n_modules} modules staked')
+                st.write(f'You have {total_balance} balance')
+                amounts = cols[0].number_input('Stake Amount', value=(total_balance/n_modules)-1,  max_value=float(self.key_info['balance']), min_value=0.0)            
+                stake_button = st.form_submit_button('STAKE')
 
-                if transfer_button:
+                if stake_button:
                     kwargs = {
                         'amounts': amounts,
                         'modules': modules,
@@ -309,16 +318,15 @@ class Dashboard(c.Module):
                     }
 
                     response = self.subspace.multistake(**kwargs)
-                    st.status(response)
+                    st.write(response)
+        with st.expander('Unstake', expanded=True):
 
-
-    def unstake_dashboard(self):
-
-        with st.expander('UnStake', expanded=False):
-            module2stake_from_key = self.subspace.get_staked_modules(self.key, fmt='j')
             modules = list(self.key_info['stake_to'].keys())
-            amount = st.number_input('Unstake Amount',0.0)
-            modules = st.multiselect('Module', modules, [])
+            cols = st.columns(2)
+            amount = cols[0].number_input('Unstake Amount',0.0)
+            default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
+            st.write(f'You have {len(default_modules)} modules staked')
+            modules = cols[1].multiselect('Module', modules, default_modules)
 
             unstake_button = st.button('UNSTAKE')
             if unstake_button:
@@ -327,16 +335,14 @@ class Dashboard(c.Module):
                     'modules': modules,
                     'key': self.key,
                 }
-                st.write(kwargs)
-                self.subspace.multiunstake(**kwargs)
+                response = self.subspace.multiunstake(**kwargs)
+                st.write(response)
 
 
-            
 
     def archive_dashboard(self):
         # self.register_dashboard(expanded=False)
         netuid = 0 
-        df = self.get_module_stats(self.modules)
         archive_history = self.subspace.archive_history(lookback_hours=24, n=100, update=True)
         df = c.df(archive_history[1:])
         df['block'] = df['block'].astype(int)
@@ -380,46 +386,53 @@ class Dashboard(c.Module):
 
         # st.write(histogram)
        
-    def global_dashboard(self):
+    def wallet_dashboard(self):
         # pie map of stake
         st.write('# Wallet')
-        self.register_dashboard()
-        self.stake_dashboard()
-        self.unstake_dashboard()
-        self.transfer_dashboard()
-        # else:
-        #     # with emoji
-        #     st.error('Please Register Your Key')
+        st.code(self.key.ss58_address)
+    
 
         fig = px.pie(values=list(self.key_info['stake_to'].values()), names=list(self.key_info['stake_to'].keys()), title='Stake To')
         st.plotly_chart(fig)
 
-    
-        import pandas as pd
-        # search  for all of the modules with yaml files. Format of the file
-        search = st.text_input('Search', '')
-        df = None
-        self.modules = self.state['modules'][self.netuid]
+        # pie chart of balance and stake
+        fig = px.pie(values=[self.key_info['balance'], self.key_info['stakes']], names=['balance', 'stakes'], title='Balance and Stakes')
+        st.plotly_chart(fig)
+        st.write('Balance', self.key_info['balance'])
+        st.write('Stake', self.key_info['stakes'])
+        # bar chat of staked modules
+
+
+        self.register_dashboard()
+        self.stake_dashboard()
+        self.transfer_dashboard()
+
+        with st.expander('Modules', expanded=False):
+            import pandas as pd
+            # search  for all of the modules with yaml files. Format of the file
+            search = st.text_input('Search', '')
+            df = None
+            self.modules = self.state['modules'][self.netuid]
 
         
-        self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
-        df = pd.DataFrame(self.searched_modules)
-        if len(df) == 0:
-            st.error(f'{search} does not exist {c.emoji("laughing")}')
-            return
-        else:
-            st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
-            del df['stake_from']
-            st.write(df)
-            with st.expander('Historam'):
-                key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
-                
-                self.st.run(df)
-                fig = px.histogram(
-                    x = df[key].to_list(),
-                )
+            self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
+            df = pd.DataFrame(self.searched_modules)
+            if len(df) == 0:
+                st.error(f'{search} does not exist {c.emoji("laughing")}')
+                return
+            else:
+                st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
+                del df['stake_from']
+                st.write(df)
+                # with st.expander('Historam'):
+                #     key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
+                    
+                #     self.st.run(df)
+                #     fig = px.histogram(
+                #         x = df[key].to_list(),
+                #     )
 
-                st.plotly_chart(fig)
+                #     st.plotly_chart(fig)
 
 
     def validator_dashboard(self):
