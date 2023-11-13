@@ -11,70 +11,64 @@ import commune as c
 
 # we are inheriting from the base model class which is a c.Module and a torch.nn.Module
 Model = c.module('model')
-
 class ModelTransformer(Model):
-    default_config = c.config('model.hf')
-    shortcuts = default_config.shortcuts
     def __init__(self,
-                 config = None,
-                 **kwargs
-                ):
-        config = self.set_config(config=config, kwargs=kwargs)
-        Model.init_model(self)
+                 model: str = 'llama2.7b',  # Assuming 'llama2.7b' is a string identifier for the model
+                 tag: str = 'base',  # Default value 'base' for the tag
+                 device: str = None,  # None is used for null in Python
+                 device_map: str = None,  # Assuming that device_map is a string, though it could be a different type
+                 max_memory: str = None,  # max_memory could be an int or float if it represents an amount
+                 trust_remote_code: bool = True,  # Boolean value for trust_remote_code
+                 finetune: int = 1,  # Assuming finetune should be an integer
+                 optimizer: str = {'module': 'torch.optim.Adam', 'lr':2.0e-05 },  # The module is a string path to the optimizer class
+                 max_input_tokens: int = 256,
+                 max_output_tokens: int = 256,
+                 load: bool = False,  # Assuming load is a boolean
+                 quantize: str = None): # OPTIONS = ['int4', 'int8', None]
+
+        # Here you would initial
+        config = self.set_config(kwargs=locals())
+        self.init_model()
         self.set_model(config)
+
     
     
     def forward(self,  
                 input_ids: Union[str, torch.Tensor], 
-                attention_mask: torch.Tensor = None,
-                return_keys:List[str] = ['topk', 'hidden_states'],
-                topk:int=32,
+                output_hidden_states: bool = False,
+                output_topk: bool = False,
+                topk:int=None,
                 hidden_layer: int = -1, # -1 is the last hidden layer
                 max_input_tokens : int = 256,                        
                 **kwargs):
 
 
-        if isinstance(input_ids, str) or isinstance(input_ids, list):
-            input_ids = self.tokenize(input_ids)['input_ids']
+
+        if isinstance(input_ids, str) or \
+                 bool(isinstance(input_ids, list) and len(input_ids) > 0 and isinstance(input_ids[0], str)):
+            sample = self.tokenize(input_ids)
         elif isinstance(input_ids, torch.Tensor):
             input_ids = input_ids
-
-        # resolve the max sequence length (sometimes we want to clip the input to make it faster)
-        attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
-
-        sample = {
-        'input_ids': input_ids[:, -max_input_tokens:],
-        'attention_mask': attention_mask[:, -max_input_tokens:] if attention_mask is not None else None
-        }
-
-        # move to device for all tensors
-        for k,v in sample.items():
-            if isinstance(v, torch.Tensor):
-                sample[k] = sample[k].to(self.device)
-        
         
         # clip the input ids to the vocab size to avoid index errors
-        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
-        
-        output_hidden_states = 'hidden_states' in return_keys
-        output_topk = 'topk' in return_keys
-
+        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)        
         # forward pass
-        output = self.model(input_ids=sample['input_ids'].to(self.device),
-                            output_hidden_states=output_hidden_states, **kwargs)
-        
+        output = self.model(input_ids=sample['input_ids'].to(self.device), output_hidden_states=output_hidden_states, **kwargs)
 
+        response = {}
+
+        response['logits'] = output['logits']
         if output_hidden_states:
-            output['hidden_states'] = output.hidden_states[hidden_layer].detach()
-
-        if output_topk:
-            output['topk']=self.encode_topk(output['logits'].detach(), topk=topk)
+            response['hidden_states'] = output['hidden_states'][hidden_layer].detach()
+        if topk:
+            response['topk']=self.encode_topk(output['logits'].detach(), topk=topk).detach()
+        else:
+            response['logits']= output['logits'].detach()
         
-        return {key:output[key] for key in return_keys}
+        return response
         
     
     def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
-        kwargs['return_keys'] = ['hidden_states']
         sample  = self.tokenize(text)
         kwargs.update(sample)
         hidden_states = self.forward(**kwargs)['hidden_states']
@@ -85,30 +79,28 @@ class ModelTransformer(Model):
     
     embed = encode
 
-    def resolve_quantize(self, config):
-        if config.quantize == None:
-            for q in ['int4', 'int8']:
-                if q in config.model:
-                    config.quantize = q
+    def set_model(self, config) -> None: 
+        c.print(config)
+        config.model = self.shortcuts().get(config.model, config.model)
+        from transformers import  AutoModelForCausalLM
+
         if config.quantize != None:
             c.ensure_lib('bitsandbytes')
             c.ensure_lib('scipy')
 
-        if config.quantize == 'int4':
+
+        if str(config.quantize) in ['int4', '4', '4bit']:
             config['load_in_4bit'] = True
-        if config.quantize == 'int8':
+        if str(config.quantize) in ['int8', '8', '8bit']:
             config['load_in_8bit'] = True
 
-        return config
+        else:
+            config['load_in_4bit'] = False
+            config['load_in_8bit'] = False
 
-    def set_model(self, config) -> None: 
-        config.model = config.shortcuts.get(config.model, config.model)
-        from transformers import  AutoModelForCausalLM
 
-        config = self.resolve_quantize(config)
-
+        # infer the device map
         config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
-
 
         kwargs = {
             'device_map': config.device_map,
@@ -125,13 +117,14 @@ class ModelTransformer(Model):
         t = c.time()
 
         c.print(f'LAUNCH PARAMS for {config.model} -> ',kwargs)
-        c.print(config.model)
+
+
         self.model = AutoModelForCausalLM.from_pretrained(config.model,**kwargs) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
-        self.optmizer = self.get_optimizer(**config.optimizer)
+        self.set_optimizer(**config.optimizer)
 
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
@@ -360,39 +353,18 @@ class ModelTransformer(Model):
         for i in range(n):
             cls.serve(*args, tag=tag+str(i), **kwargs)
         
-
     @classmethod
-    def serve(cls,
-            model: str,
-            tag = None,
-            refresh = True,    
-            server_name = None,
-            **kwargs
-            ):
-        
-        config = cls.get_config(kwargs=kwargs)
-        config.tag = tag
-        config.model = model
-        config.pop('shortcuts', None)
-        kwargs.update(
-            {
-                'tag': tag,
-                'config': config,
-                'refresh': refresh,
-                'verbose': True,
-                'module': cls.module_path(),
-                'server_name': cls.resolve_server_name(**config) if server_name == None else server_name
-            }
-        )
+    def init_kwargs(cls):
+        kwargs = c.fn_defaults(cls.__init__)
+        kwargs.pop('self')
+        return kwargs
 
-        return c.serve(**kwargs)
-        
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
                     input_ids:torch.Tensor,
                     return_value = False,
                     **kwargs) -> torch.Tensor:
-        '''
+        '''get_fn_defaults
         Calculate the loss for the model.
         '''
         gt = input_ids[:, -(logits.shape[1]-1):].flatten()
@@ -490,14 +462,14 @@ class ModelTransformer(Model):
 
         return output_text
     
-
-    
-    @classmethod
-    def test_generate(cls,model='gpt2.7b', text='Whadup?', **kwargs):
-        model = cls(model=model, **kwargs)
+    def test_generate(self, text='Whadup?', **kwargs):
         output_text = model.generate(text=text, max_output_tokens=100, early_stopping=False)
-
         return output_text
+
+
+    @classmethod
+    def test(self):
+        self.test_generate()
 
     @classmethod
     def test_encode(cls, model='gpt2.7b', text='Whadup?', **kwargs):
@@ -542,3 +514,39 @@ class ModelTransformer(Model):
         )
 
         print(sequences[0]["generated_text"])
+
+
+    @classmethod
+    def shortcuts(cls):
+        return c.load_yaml(cls.dirpath() + '/model_shortcuts.yaml')
+
+    @classmethod
+    def resolve_model(cls, model:str) -> str:
+        shortcuts = cls.shortcuts()
+        return shortcuts.get(model, model)
+        
+    @classmethod
+    def shorten_hf_path(self, path:str):
+        return path.split('/')[-1].lower()
+
+
+    @classmethod
+    def serve(cls, model:str='mistral7b', tag:str=None, **kwargs):
+        model=cls.resolve_model(model)
+        server_name = cls.module_path() + '.' + cls.shorten_hf_path(model)
+        if tag != None:
+            server_name += '::' + tag
+
+        c.serve(module='model.hf', server_name=server_name, model=model )
+
+
+
+    def set_optimizer(self, 
+                      lr:float=1e-5,
+                      module:str='torch.optim.Adam',
+                      **kwargs):
+        optimizer_map = {'adam':'torch.optim.Adam'}
+        module = optimizer_map.get(module, module)
+        module = c.import_object(module)
+        params = self.parameters()
+        self.optimizer = module(params,**kwargs) 

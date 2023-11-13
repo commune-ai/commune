@@ -24,13 +24,13 @@ class Access(c.Module):
         self.module = module
         self.user_info = {}
         self.stakes = {}
-        c.thread(self.sync_loop)
+        c.thread(self.sync_loop_thread)
         
 
-    def sync_loop(self):
+    def sync_loop_thread(self):
         while True:
             self.sync()
-            c.sleep(self.config.sync_interval//2)
+            c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))
 
     def sync(self):
         # if the sync time is greater than the sync interval, we need to sync
@@ -39,17 +39,23 @@ class Access(c.Module):
         state = self.get(sync_path, default={})
 
         sync_time = state.get('sync_time', 0)
-        if c.time() - sync_time > self.config.sync_interval:
+        time_since_sync = c.time() - sync_time
+        if time_since_sync > self.config.sync_interval:
             
             self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-
             state['sync_time'] = c.time()
             state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
             state['block'] = self.subspace.block
             self.put(sync_path, state)
-        self.stakes = state['stakes']
 
-        c.print({'sync_time': sync_time, 'n': len(self.stakes), 'block': state['block']})
+        self.stakes = state['stakes']
+        until_sync = self.config.sync_interval + (c.timestamp() - sync_time) 
+
+        c.print({'sync_time': sync_time,
+                  'n': len(self.stakes),
+                  'block': state['block'],  
+                 'until_sync': until_sync,
+                 'time_since_sync': time_since_sync})
         
     def is_module_key(self, address: str) -> bool:
         return bool(self.module.key.ss58_address == address)
