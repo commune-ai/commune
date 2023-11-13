@@ -145,7 +145,7 @@ class Dashboard(c.Module):
             self.servers = c.servers(network=self.network)
             self.module_name = st.selectbox('Select Model', self.servers, 0)
 
-            if self.module_name == None:
+            if not c.server_exists('module'):
                 c.serve(wait_for_server=True)
 
             self.module = c.connect(self.module_name, network=self.network)
