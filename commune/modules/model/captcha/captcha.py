@@ -148,6 +148,41 @@ class Captcha(c.Module):
         responses = asyncio.run(_solve_captcha())
         return responses
     
+    def funcaptcha_proxyless(self,
+             website_url: str,  # Address of a webpage with FunCaptcha
+             website_public_key: str,   # FunCaptcha website key
+             proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
+             proxyAddress: str, # Proxy IP address IPv4/IPv6. (not allowed to use hostnames, transparent proxies, local networks)
+             proxyPort: str,    # Proxy port
+             proxyLogin: str = "",  # Login for proxy which requires authorizaiton (basic)
+             proxyPassword: str = "",   # Proxy password
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+             funcaptchaApiJSSubdomain: str = None,  # A special subdomain of funcaptcha.com, from which the JS captcha widget should be loaded
+             data: str = None,   # Additional parameter that may be required by Funcaptcha implementation. 
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = FuncaptchaProxylessRequest(
+            websiteUrl=website_url, # "https://funcaptcha.com/fc/api/nojs/?pkey=69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC",
+            websitePublicKey=website_public_key, # "69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC"
+            proxyType=proxyType,    # "http"
+            proxyAddress=proxyAddress,  # "8.8.8.8"
+            proxyPort=proxyPort,    # 8080
+            proxyLogin=proxyLogin,
+            proxyPassword=proxyPassword,
+            data=data,
+            funcaptchaApiJSSubdomain=funcaptchaApiJSSubdomain
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
     def geetest_proxyless(self,
              website_url: str,  # Address of a webpage with FunCaptcha
              gt: str,   # The GeeTest identifier key for the domain. Static value, rarely updated.
