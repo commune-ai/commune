@@ -18,16 +18,14 @@ class Dashboard(c.Module):
     def sync(self):
         return self.load_state(update=True)
     
+    @c.timeit
     def load_state(self, update:bool=False, netuid=0, network='main'):
         self.key = c.get_key()
 
         t = c.timer()
 
         self.subspace = c.module('subspace')()
-        @st.cache_data(ttl=60*60*24*7, show_spinner=False)
-        def get_state():
-            return self.subspace.state_dict(update=update)
-        self.state = get_state()
+        self.state =  self.subspace.state_dict(update=update)
         self.netuid = 0
         self.subnets = self.state['subnets']
         self.subnet = 'commune'
@@ -57,13 +55,13 @@ class Dashboard(c.Module):
             'ss58_address': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
             'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
-            'stakes': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),
+            'stake': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),
             
         }
 
         self.key_info['balance']  = self.key_info['balance']/1e9
         self.key_info['stake_to'] = {k:v/1e9 for k,v in self.key_info['stake_to']}
-        self.key_info['stakes'] = sum([v for k,v in self.key_info['stake_to'].items()])
+        self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
         # convert keys to names 
         for k in ['stake_to']:
             self.key_info[k] = {self.key2name.get(k, k): v for k,v in self.key_info[k].items()}
@@ -148,22 +146,27 @@ class Dashboard(c.Module):
 
             if not c.server_exists('module'):
                     c.serve(wait_for_server=True)
-            self.select_network(sidebar=False)
+            self.network_dashboard(sidebar=False)
             self.servers = c.servers(network=self.network)
-            self.module_name = st.selectbox('Select Model', self.servers, 0)
+            self.module_name = st.selectbox('Select Server', self.servers, 0)
 
     
 
             self.module = c.connect(self.module_name, network=self.network)
 
-            
-            try:
-                self.module_info = self.module.info(schema=True)
-                self.module_schema = self.module_info['schema']
+            module_info_path = f'module_info/{self.module_name}'
 
-            except Exception as e:
-                st.error(f'Module Not Found -> {self.module_name} {e}')
-                return
+            module_info = self.get(module_info_path, default={})
+            
+            if module_info == {}:
+                try:
+                    module_info = self.module.info(schema=True)
+                except Exception as e:
+                    st.error(f'Module Not Found -> {self.module_name} {e}')
+                    return
+            self.module_info = module_info
+            self.module_schema = self.module_info['schema']
+            self.put(module_info_path, self.module_info)
 
             self.module_functions = self.module_info['functions']
             self.module_address = self.module_info['address']
@@ -306,7 +309,7 @@ class Dashboard(c.Module):
                 staked_modules = list(self.key_info['stake_to'].keys())
 
                 modules = cols[1].multiselect('Module', self.module_names, staked_modules)
-                total_balance = c.balance(self.key.ss58_address)
+                total_balance = self.key_info['balance']
                 n_modules = len(modules)
                 st.write(f'You have {n_modules} modules staked')
                 st.write(f'You have {total_balance} balance')
@@ -324,12 +327,15 @@ class Dashboard(c.Module):
 
                     response = self.subspace.multistake(**kwargs)
                     st.write(response)
-        with st.expander('Unstake', expanded=True):
+        with st.expander('Unstake', expanded=False):
             with st.form(key='unstake'):
                 modules = list(self.key_info['stake_to'].keys())
                 cols = st.columns(2)
                 amount = cols[0].number_input('Unstake Amount',0.0)
-                default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
+                if amount > 0:
+                    default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
+                else:
+                    default_modules= []
                 modules = cols[1].multiselect('Module', modules, default_modules)
                 st.write(f'You have {len(default_modules)} modules staked')
 
@@ -394,23 +400,27 @@ class Dashboard(c.Module):
     def wallet_dashboard(self):
         # pie map of stake
         st.write('# Wallet')
-        st.code(self.key.ss58_address)
-    
 
-        fig = px.pie(values=list(self.key_info['stake_to'].values()), names=list(self.key_info['stake_to'].keys()), title='Stake To')
-        st.plotly_chart(fig)
+        with st.expander('Key Info', expanded=False):
+            st.write('ss58_address')
+            st.code( self.key.ss58_address)
+        
+            cols = st.columns(2)
+            cols[0].metric('Balance', int(self.key_info['balance']))
+            cols[1].metric('Stake', int(self.key_info['stake']))
+            
+            cols = st.columns(2)
 
-        # pie chart of balance and stake
-        fig = px.pie(values=[self.key_info['balance'], self.key_info['stakes']], names=['balance', 'stakes'], title='Balance and Stakes')
-        st.plotly_chart(fig)
-        st.write('Balance', self.key_info['balance'])
-        st.write('Stake', self.key_info['stakes'])
+
+            fig = c.module('plotly').treemap(values=list(self.key_info['stake_to'].values()), labels=list(self.key_info['stake_to'].keys()), title='Stake To')
+            cols[0].plotly_chart(fig)
+
         # bar chat of staked modules
 
 
-        self.register_dashboard()
         self.stake_dashboard()
         self.transfer_dashboard()
+        self.register_dashboard()
 
         with st.expander('Modules', expanded=False):
             import pandas as pd
@@ -493,32 +503,23 @@ class Dashboard(c.Module):
                 else:
                     st.error(response['message'])
         
-    def select_network(self, sidebar=True): 
+    def network_dashboard(self, sidebar=True): 
 
         if sidebar:
             with st.sidebar:
-                self.select_network(sidebar=False) 
+                self.network_dashboard(sidebar=False) 
         n = c.module('namespace')()
         self.networks = n.networks()
         network2index = {n:i for i,n in enumerate(self.networks)}
         index = network2index['local']
 
-        self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
-        update_network = st.button('Update Network')
+        cols = st.columns([1,1])
+        self.network = cols[0].selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
 
-        if update_network:
-            # THIS IS WEIRD BUT IT ALLOWS US TO UPDATE THE NETWORK WITHOUT RELOADING THE PAGE
-            self.namespace = c.namespace(network=self.network)
-        else:
-            self.namespace = c.namespace()
 
 
         self.subnet = 'commune'
         self.netuid = 0
-
-
-
-
 
 
 
@@ -530,9 +531,6 @@ class Dashboard(c.Module):
 
         modules = c.modules()
         self.st.line_seperator()
-        
-
-
         module2index = {m:i for i,m in enumerate(modules)}
         module  = st.selectbox('Select A Module', modules, module2index['agent'], key=f'serve.module')
 
@@ -584,20 +582,19 @@ class Dashboard(c.Module):
                         ```
                         """)
 
-        with st.expander('Modules', expanded=False):
-            cols = st.columns([2,2])
-                
-            with cols[0].form('Add Server'):
-                address = st.text_input('Add Address', '')
-                add_server = st.form_submit_button('Add Server')
-                if add_server:
-                    self.subspace.add_server(address)
+        cols = st.columns([2,2])
             
-            with cols[1].form('Remove Server'):
-                server = st.selectbox('Remove Module', self.servers, 0)
-                rm_server = st.form_submit_button('Remove Server')
-                if rm_server:
-                    self.subspace.rm_server(server)
+        with st.expander('Add Server'):
+            address = st.text_input('Server Address', '')
+            add_server = st.button('Add Server')
+            if add_server:
+                self.subspace.add_server(address)
+        
+        with st.expander('Remove Server'):
+            server = st.selectbox('Module Name', self.servers, 0)
+            rm_server = st.button('Remove Server')
+            if rm_server:
+                self.subspace.rm_server(server)
 
 
 
@@ -750,16 +747,13 @@ class Dashboard(c.Module):
         import random
         import time
 
-        module_name = self.module_name
+
+
         fn = self.fn
 
-        module = None
-        if module_name != self.module_name:
-            module = c.connect(module_name, network=self.network)
-            module_info = module.info(schema=True)
-        else:
-            module = self.module
-            module_info = self.module_info
+        module_name = self.module_name
+        module = self.module
+        module_info = self.module_info
         
 
         if fn not in module_info['schema']:

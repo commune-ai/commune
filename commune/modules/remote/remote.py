@@ -1,4 +1,5 @@
 import commune as c
+from typing import *
 
 class Remote(c.Module):
     filetype = 'yaml'
@@ -157,7 +158,8 @@ class Remote(c.Module):
         hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
-            cls.save_hosts(cls.host_data_path, hosts)
+            cls.save_hosts( hosts)
+            c.print(cls.hosts())
             return {'status': 'success', 'msg': f'Host {name} removed'}
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
@@ -214,19 +216,23 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=20 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=20 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
+        if hosts == None:
+            hosts = cls.hosts()
+            if host != None:
+                hosts = {host:hosts[host]}
+        if isinstance(hosts, list):
+            hosts = {h:hosts[h] for h in hosts}
+        elif isinstance(hosts, str):
+            hosts = {hosts:cls.hosts(hosts)}
 
-        host_map = cls.hosts(search=search)
-
-
-        if hosts != None:
-            host_map = {k:v for k,v in host_map.items() if k in hosts}
+        assert isinstance(hosts, dict), f'Hosts must be a dict, got {type(hosts)}'
         for i in range(num_trials):
             try:
                 results = {}
-                for host in host_map:
+                for host in hosts:
                     result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
                     results[host] = result_future
                 result_values = c.wait(list(results.values()), timeout=timeout)
@@ -435,8 +441,6 @@ class Remote(c.Module):
                 host_names = list(self.hosts().keys())
                 rm_host_name = st.selectbox('Host Name', host_names)
                 rm_host = st.button('Remove Host')
-
-
                 if rm_host:
                     self.rm_host(rm_host_name)
 
@@ -470,8 +474,22 @@ class Remote(c.Module):
 
         if len(search) > 0:
             host_names = [h for h in host_names if search in h]
+        hosts = self.hosts()
+        hosts = {k:v for k,v in hosts.items() if k in host_names}
+        host_names = list(hosts.keys())
+
         with st.expander('Hosts', expanded=False):
-            st.write(self.hosts())
+            for host_name, host in hosts.items():
+                cols = st.columns([1,1,1])
+                cols[0].write('### '+host_name)
+                ssh_login_param = f'ssh {host["user"]}@{host["host"]} -p {host["port"]}'
+                cols[1].code(ssh_login_param)
+                cols[1].write(host)
+                remove_host  = cols[2].button(f'Remove {host_name}')
+                if remove_host:
+                    st.write('hey')
+                    st.write(self.rm_host(host_name))
+                
         host_names = st.multiselect('Host', host_names, host_names)
         cols = st.columns([4,2,1,1])
         cmd = cols[0].text_input('Command', 'ls')
@@ -485,7 +503,7 @@ class Remote(c.Module):
 
         host2future = {}
         if run_button:
-            for host in host_map:
+            for host in host_names:
                 future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names), return_future=True, timeout=timeout)
                 host2future[host] = future
 
