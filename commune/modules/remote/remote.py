@@ -418,33 +418,45 @@ class Remote(c.Module):
         import streamlit as st
 
         with st.sidebar:
-            st.markdown('## Hosts')
-            add_host = st.button('Add Host')
+            with st.expander('Add Host', expanded=False):
+                st.markdown('## Hosts')
 
-            host = st.text_input('Host',  '0.0.0.0')
-            port = st.number_input('Port', 22, 10000, 22)
-            user = st.text_input('User', 'root')
-            pwd = st.text_input('Password', type='password')
-            if add_host:
-                self.add_host(host=host, port=port, user=user, pwd=pwd)
+                cols = st.columns(2)
+                host = cols[0].text_input('Host',  '0.0.0.0')
+                port = cols[1].number_input('Port', 22, 10000, 22)
+                user = st.text_input('User', 'root')
+                pwd = st.text_input('Password', type='password')
+                add_host = st.button('Add Host')
 
-            rm_host_name = st.text_input('Host Name')
-            rm_host = st.button('Remove Host')
+                if add_host:
+                    self.add_host(host=host, port=port, user=user, pwd=pwd)
 
-            if rm_host:
-                self.rm_host(rm_host_name)
+            with st.expander('Remove Host', expanded=False):
+                host_names = list(self.hosts().keys())
+                rm_host_name = st.selectbox('Host Name', host_names)
+                rm_host = st.button('Remove Host')
+
+
+                if rm_host:
+                    self.rm_host(rm_host_name)
 
 
 
     @classmethod
     def dashboard(cls, deploy:bool=True):
+
+
         if deploy:
             cls.st(kwargs=dict(deploy=False))
         self = cls()
+
+
         import streamlit as st
 
         st.set_page_config(layout="wide")
         st.title('Remote Dashboard')
+        self.sidebar()
+
 
         self.st = c.module('streamlit')()
         self.st.load_style()
@@ -454,6 +466,8 @@ class Remote(c.Module):
 
             
         search = st.text_input('Search')
+
+
         if len(search) > 0:
             host_names = [h for h in host_names if search in h]
         with st.expander('Hosts', expanded=False):
@@ -472,7 +486,7 @@ class Remote(c.Module):
         host2future = {}
         if run_button:
             for host in host_map:
-                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo), return_future=True, timeout=timeout)
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names), return_future=True, timeout=timeout)
                 host2future[host] = future
 
         futures = list(host2future.values())
