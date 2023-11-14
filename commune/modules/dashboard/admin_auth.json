@@ -13,5 +13,5 @@
             }
         }
     },
-    "preauthorized": {"emails": ["dolchain0@gmail.com"]}
+    "preauthorized": {"emails": ["example@example.com"]}
 }
