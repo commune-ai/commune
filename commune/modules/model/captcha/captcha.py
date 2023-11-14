@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, GeetestProxylessRequest, ImageToTextRequest, HcaptchaProxylessRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, FuncaptchaRequest, GeetestProxylessRequest, GeetestRequest, ImageToTextRequest, HcaptchaProxylessRequest, HcaptchaRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -110,7 +110,7 @@ class Captcha(c.Module):
         async def _solve_captcha():
             return await cap_monster_client.solve_captcha(request)
         
-        request = HcaptchaProxylessRequest(
+        request = HcaptchaRequest(
             websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
             websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
             proxyType=proxyType,    # "http"
@@ -148,7 +148,7 @@ class Captcha(c.Module):
         responses = asyncio.run(_solve_captcha())
         return responses
     
-    def funcaptcha_proxyless(self,
+    def funcaptcha(self,
              website_url: str,  # Address of a webpage with FunCaptcha
              website_public_key: str,   # FunCaptcha website key
              proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
@@ -168,7 +168,7 @@ class Captcha(c.Module):
         async def _solve_captcha():
             return await cap_monster_client.solve_captcha(request)
         
-        request = FuncaptchaProxylessRequest(
+        request = FuncaptchaRequest(
             websiteUrl=website_url, # "https://funcaptcha.com/fc/api/nojs/?pkey=69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC",
             websitePublicKey=website_public_key, # "69A21A01-CC7B-B9C6-0F9A-E7FA06677FFC"
             proxyType=proxyType,    # "http"
@@ -208,6 +208,46 @@ class Captcha(c.Module):
             geetestApiServerSubdomain=geetestApiServerSubdomain,
             geetestGetLib=geetestGetLib,
             version=version
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def geetest(self,
+             website_url: str,  # Address of a webpage with FunCaptcha
+             gt: str,   # The GeeTest identifier key for the domain. Static value, rarely updated.
+             challenge: str,   # A dynamic key.
+             proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
+             proxyAddress: str, # Proxy IP address IPv4/IPv6. (not allowed to use hostnames, transparent proxies, local networks)
+             proxyPort: str,    # Proxy port
+             proxyLogin: str = "",  # Login for proxy which requires authorizaiton (basic)
+             proxyPassword: str = "",   # Proxy password
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+             geetestApiServerSubdomain: str = None,  # Optional parameter. May be required for some sites.
+             geetestGetLib: str = None,   # Optional parameter. May be required for some sites. Send JSON as a string.
+             version: int = 3,  # Version number (default is 3). Possible values: 3, 4.
+
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = GeetestRequest(
+            websiteUrl=website_url, # "https://example.com/geetest.php",
+            gt=gt,  # "81dc9bdb52d04dc20036dbd8313ed055"
+            challenge=challenge,    # "d93591bdf7860e1e4ee2fca799911215"
+            geetestApiServerSubdomain=geetestApiServerSubdomain,
+            geetestGetLib=geetestGetLib,
+            version=version,
+            proxyType=proxyType,    # "http"
+            proxyAddress=proxyAddress,  # "8.8.8.8"
+            proxyPort=proxyPort,    # 8080
+            proxyLogin=proxyLogin,
+            proxyPassword=proxyPassword
         )
 
         responses = asyncio.run(_solve_captcha())
