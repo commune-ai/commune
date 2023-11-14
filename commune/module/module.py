@@ -1556,13 +1556,11 @@ class c:
 
     @staticmethod
     def timeit(fn):
-        from commune.utils.time import Timer
         def wrapper(*args, **kwargs):
             t = c.time()
-
             result = fn(*args, **kwargs)
             c.print(f'Finished {fn.__name__} in {c.time() - t:.2f} seconds')
-            # return result
+            return result
         
         return wrapper
     
