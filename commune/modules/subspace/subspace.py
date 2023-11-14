@@ -1161,6 +1161,13 @@ class Subspace(c.Module):
             stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
     
+    def get_value(self, key=None):
+        balance = self.get_balance(key)
+        stake_to = self.get_staketo(key)
+        total_stake = sum(stake_to.values())
+        return balance + total_stake
+
+    
 
     def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         stake_from = self.get_stakefrom(key=key, block=block, netuid=netuid, fmt=fmt)
@@ -1184,7 +1191,7 @@ class Subspace(c.Module):
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 10,
+                        n:str = 100,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
@@ -1256,7 +1263,7 @@ class Subspace(c.Module):
         for i, amount in enumerate(amounts):
             amounts[i] = self.to_nanos(amount)
 
-        assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+        assert len(destidnations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
         params = {
             "netuid": netuid,
