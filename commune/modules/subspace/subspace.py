@@ -1529,7 +1529,7 @@ class Subspace(c.Module):
             return {}
         return cls.get(path, {})
     
-    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
+    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
 
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)

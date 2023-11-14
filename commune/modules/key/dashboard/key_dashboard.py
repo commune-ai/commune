@@ -2,22 +2,29 @@ import commune as c
 import streamlit as st
 
 class KeyDashboard(c.Module):
-    def select_key(self):
-        with st.expander('Select Key', expanded=True):
-            key = 'module'
-            key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
-            self.key =  c.get_key(key)
-            if self.key.path == None:
-                self.key.path = key
-            self.key_info_dict = {
-                'balance': self.stats
-            }
 
-            st.write('Address: ', self.key.ss58_address)
-            stake = sum([v for v in self.key_info.get('stake_to', {}).values()])
-            st.write('Stake', stake )
-            st.write('Balance', self.key_info.get('balance', 0))
-            return self.key
+    def __init__(self, state: dict=None):
+
+        self.keys = c.keys()
+        self.key2index = {k:i for i,k in enumerate(self.keys)}
+
+
+
+       
+    def select_key(self, expanded:bool = True):
+        if expanded:
+            with st.expander('Key', expanded=False):
+                return self.select_key(expanded=False)
+
+        key = 'module'
+        key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
+        self.key =  c.get_key(key)
+        if self.key.path == None:
+            self.key.path = key
+
+
+        st.write('Address: ', self.key.ss58_address)
+
 
     def create_key(self):
         with st.expander('Create Key', expanded=False):                
@@ -46,8 +53,14 @@ class KeyDashboard(c.Module):
             if rm_key_button:
                 c.rm_keys(rm_keys)
 
-    def dashboard(self):
-        # self.select_key()
+    @classmethod
+    def dashboard(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
+        self.select_key()
         self.create_key()
         self.rename_key()
         self.remove_key()
+        return self.key
+
+KeyDashboard.run(__name__)
+
