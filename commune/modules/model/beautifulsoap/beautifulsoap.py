@@ -110,9 +110,6 @@ class BeautifulSoapModule(c.Module):
 
     def csrf_bypass(self, username, password, login_url, scrap_url):
         login = username
-        # password = "QWERTYUIOP_!@#$%^&*()"
-        # login_url = "https://github.com/session" 
-        # repos_url = "https://github.com/" + login + "/?tab=repositories" 
         
         with requests.session() as s: 
             req = s.get(login_url).text 
@@ -133,4 +130,28 @@ class BeautifulSoapModule(c.Module):
             r = s.get(scrap_url) 
             soup = BeautifulSoup (r.content, "html.parser") 
             
-            print(soup)
+            return soup
+
+    def get_buttons_and_inputs(self, url):
+        # Make a GET request to the website
+        response = requests.get(url)
+
+        # Check if the request was successful (status code 200)
+        if response.status_code == 200:
+            # Parse the HTML content of the page
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Find all buttons and store their HTML representation
+            buttons = [str(button) for button in soup.find_all('button')]
+
+            # Find all input elements and store their HTML representation
+            inputs = [str(input_element) for input_element in soup.find_all('input')]
+
+            # Store the results in a dictionary
+            result = {'buttons': buttons, 'inputs': inputs}
+
+            # Print or use the result as needed
+            return result
+
+        else:
+            print(f"Failed to retrieve the page. Status code: {response.status_code}")
