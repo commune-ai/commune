@@ -1161,6 +1161,13 @@ class Subspace(c.Module):
             stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
     
+    def get_value(self, key=None):
+        balance = self.get_balance(key)
+        stake_to = self.get_staketo(key)
+        total_stake = sum(stake_to.values())
+        return balance + total_stake
+
+    
 
     def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         stake_from = self.get_stakefrom(key=key, block=block, netuid=netuid, fmt=fmt)
@@ -1184,7 +1191,7 @@ class Subspace(c.Module):
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 10,
+                        n:str = 100,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
@@ -1223,43 +1230,48 @@ class Subspace(c.Module):
 
 
     def multitransfer( self, 
-                        modules:List[str],
+                        destinations:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 10,
+                        n:str = 2,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
         name2key = self.name2key(netuid=netuid)
 
-        if isinstance(modules, str):
-            modules = [m for m in name2key.keys() if modules in m]
+        if isinstance(destinations, str):
+            destinations = [k for n,k in name2key.items() if destinations in n]
 
-        assert len(modules) > 0, f"No modules found with name {modules}"
-        modules = modules[:n] # only stake to the first n modules
+        assert len(destinations) > 0, f"No modules found with name {destinations}"
+        destinations = destinations[:n] # only stake to the first n modules
         # resolve module keys
-        for i, module in enumerate(modules):
-            if module in name2key:
-                modules[i] = name2key[module]
+        for i, destination in enumerate(destinations):
+            if destination in name2key:
+                destinations[i] = name2key[destination]
 
-        module_keys = modules
         if isinstance(amounts, (float, int)): 
-            amounts = [amounts] * len(modules)
+            amounts = [amounts] * len(destinations)
 
+
+        total_amount = sum(amounts)
+        assert total_amount < balance, f'The total amount is {total_amount} > {balance}'
+
+
+        # convert the amounts to their interger amount (1e9)
         for i, amount in enumerate(amounts):
             amounts[i] = self.to_nanos(amount)
 
-        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+        assert len(destidnations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
         params = {
             "netuid": netuid,
-            "module_keys": module_keys,
+            "destinations": destinations,
             "amounts": amounts
         }
 
-        response = self.compose_call('add_stake_multiple', params=params, key=key)
+        response = self.compose_call('transfer_multiple', params=params, key=key)
 
         return response
                     
@@ -1524,6 +1536,18 @@ class Subspace(c.Module):
         self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
+    def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        start_time = 0
+        while True:
+            current_time = c.timestamp()
+            elapsed = current_time - start_time
+            if elapsed > interval:
+                c.print('SYNCING AND UPDATING THE SERVERS_INFO')
+                c.print(c.server_infos(update=True, network='local'))
+                self.sync(network=network, remote=remote, local=local, save=save)
+                start_time = current_time
+            c.sleep(interval)
+
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
         return bool(subnet in subnets)
@@ -1756,25 +1780,11 @@ class Subspace(c.Module):
                 self.register(name)
 
 
-            
 
-    def key_stats(self, 
-                key : str , 
-                 netuid=netuid, 
-                 network = network,
-                 fmt='j',
-                **kwargs):
-        
-        self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
-        key_address = self.resolve_key_ss58(key)
-        key_stats = {}
-        key_stats['staketo'] =  self.get_staketo(key_address ,netuid=netuid, fmt=fmt)
-        key_stats['total_stake'] = sum([v for k,v in key_stats['staketo']])
-        key_stats['registered'] = self.is_registered(key_address, netuid=netuid)
-        key_stats['balance'] = self.get_balance(key_address, fmt=fmt)
-        key_stats['addresss'] = key_address
-        return key_stats
+    def key_stats(self, key=None):
+        if key == None:
+            key = 'module'
+        return self.key2stats().get(key, None)
 
      
     def global_params(self, network: str = network, netuid: int = 0 ) -> Optional[float]:

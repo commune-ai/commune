@@ -29,6 +29,10 @@ aiofiles
 aiohttp
 nest_asyncio
 
+# scraping
+beautifulsoup4
+httplib2
+urllib3
 # ray
 # ray[default]
 # ray[tune]

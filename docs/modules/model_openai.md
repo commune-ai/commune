@@ -12,7 +12,7 @@ To serve the module
 c model.openai serve tag=10 api_key=.....
 ```
 #### Python
-```python
+```pythonw
 c.serve('model.openai', tag=10, api_key=...)
 ```
 
