@@ -303,9 +303,8 @@ class Dashboard(c.Module):
         self = cls()
 
         current_directory = os.path.dirname(os.path.abspath(__file__))
-        # Loading admin auth file
-        with open(current_directory+'/admin_auth.yaml') as file:
-            users = yaml.load(file, Loader=SafeLoader)
+        # Loading admin auth on json file
+        users = c.get_json(current_directory + '/admin_auth')
 
         st.title(f'COMMUNE')
 
@@ -329,9 +328,8 @@ class Dashboard(c.Module):
             with tabs[3]:
                 self.password(authenticator)
 
-        # Saving users file
-        with open(current_directory + '/admin_auth.yaml', 'w') as file:
-            yaml.dump(users, file, default_flow_style=False)
+        # Saving admin_auth on json file
+        c.put_json('admin_auth', users, root=True)
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -397,7 +395,8 @@ class Dashboard(c.Module):
                 n_modules = len(modules)
                 st.write(f'You have {n_modules} modules staked')
                 st.write(f'You have {total_balance} balance')
-                amounts = cols[0].number_input('Stake Amount', value=(total_balance/n_modules)-1 if n_modules > 0 else 0.0,  max_value=float(self.key_info['balance']), min_value=0.0)            
+                default_value = (total_balance/n_modules)-1 if n_modules > 0 else 0.0
+                amounts = cols[0].number_input('Stake Amount', value=default_value if default_value > 0 else 0.0, max_value=float(self.key_info['balance']), min_value=0.0)            
                 stake_button = st.form_submit_button('STAKE')
 
                 if stake_button:
