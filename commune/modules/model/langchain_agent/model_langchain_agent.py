@@ -1,4 +1,4 @@
-import commune
+import commune as c
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
