@@ -413,6 +413,28 @@ class Remote(c.Module):
         c.print(cls.cmd(f'c serve', **kwargs))
 
 
+    
+    def sidebar(self):
+        import streamlit as st
+
+        with st.sidebar:
+            st.markdown('## Hosts')
+            add_host = st.button('Add Host')
+
+            host = st.text_input('Host',  '0.0.0.0')
+            port = st.number_input('Port', 22, 10000, 22)
+            user = st.text_input('User', 'root')
+            pwd = st.text_input('Password', type='password')
+            if add_host:
+                self.add_host(host=host, port=port, user=user, pwd=pwd)
+
+            rm_host_name = st.text_input('Host Name')
+            rm_host = st.button('Remove Host')
+
+            if rm_host:
+                self.rm_host(rm_host_name)
+
+
 
     @classmethod
     def dashboard(cls, deploy:bool=True):
@@ -429,7 +451,9 @@ class Remote(c.Module):
         host_map = self.hosts()
         cols = st.columns(2)
         host_names = list(host_map.keys())
-        search = cols[0].text_input('Search')
+
+            
+        search = st.text_input('Search')
         if len(search) > 0:
             host_names = [h for h in host_names if search in h]
         with st.expander('Hosts', expanded=False):
