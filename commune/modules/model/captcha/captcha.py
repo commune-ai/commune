@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest, GeetestProxylessRequest, ImageToTextRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest, GeetestProxylessRequest, ImageToTextRequest, HcaptchaProxylessRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -33,6 +33,28 @@ class Captcha(c.Module):
             return await cap_monster_client.solve_captcha(request)
         
         request = RecaptchaV2ProxylessRequest(
+            websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
+            websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def hcaptcha_proxyless(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
+             api_key:str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = HcaptchaProxylessRequest(
+            type="HCaptchaTaskProxyless",
             websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
             websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
         )
