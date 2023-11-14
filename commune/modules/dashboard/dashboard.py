@@ -28,7 +28,10 @@ class Dashboard(c.Module):
         t = c.timer()
 
         self.subspace = c.module('subspace')()
-        self.state = self.subspace.state_dict(update=update)
+        @st.cache_data(ttl=60*60*24*7, show_spinner=False)
+        def get_state():
+            return self.subspace.state_dict(update=update)
+        self.state = get_state()
         self.netuid = 0
         self.subnets = self.state['subnets']
         self.subnet = 'commune'
@@ -395,8 +398,9 @@ class Dashboard(c.Module):
                 n_modules = len(modules)
                 st.write(f'You have {n_modules} modules staked')
                 st.write(f'You have {total_balance} balance')
-                default_value = (total_balance/n_modules)-1 if n_modules > 0 else 0.0
-                amounts = cols[0].number_input('Stake Amount', value=default_value if default_value > 0 else 0.0, max_value=float(self.key_info['balance']), min_value=0.0)            
+                default_value = max((total_balance/n_modules)-1 if n_modules > 0 else 0.0, 0.0)
+                
+                amounts = cols[0].number_input('Stake Amount', value=default_value,  max_value=float(self.key_info['balance']), min_value=0.0)            
                 stake_button = st.form_submit_button('STAKE')
 
                 if stake_button:
@@ -409,23 +413,23 @@ class Dashboard(c.Module):
                     response = self.subspace.multistake(**kwargs)
                     st.write(response)
         with st.expander('Unstake', expanded=True):
+            with st.form(key='unstake'):
+                modules = list(self.key_info['stake_to'].keys())
+                cols = st.columns(2)
+                amount = cols[0].number_input('Unstake Amount',0.0)
+                default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
+                modules = cols[1].multiselect('Module', modules, default_modules)
+                st.write(f'You have {len(default_modules)} modules staked')
 
-            modules = list(self.key_info['stake_to'].keys())
-            cols = st.columns(2)
-            amount = cols[0].number_input('Unstake Amount',0.0)
-            default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
-            st.write(f'You have {len(default_modules)} modules staked')
-            modules = cols[1].multiselect('Module', modules, default_modules)
-
-            unstake_button = st.button('UNSTAKE')
-            if unstake_button:
-                kwargs = {
-                    'amounts': amount,
-                    'modules': modules,
-                    'key': self.key,
-                }
-                response = self.subspace.multiunstake(**kwargs)
-                st.write(response)
+                unstake_button = st.form_submit_button('UNSTAKE')
+                if unstake_button:
+                    kwargs = {
+                        'amounts': amount,
+                        'modules': modules,
+                        'key': self.key,
+                    }
+                    response = self.subspace.multiunstake(**kwargs)
+                    st.write(response)
 
 
 
