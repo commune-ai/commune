@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest, GeetestProxylessRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, FuncaptchaProxylessRequest, GeetestProxylessRequest, ImageToTextRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -92,6 +92,26 @@ class Captcha(c.Module):
             geetestApiServerSubdomain=geetestApiServerSubdomain,
             geetestGetLib=geetestGetLib,
             version=version
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def image_to_text(self,
+             image_bytes: str,  # File body encoded in base64.
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = ImageToTextRequest(
+            type="ImageToTextTask",
+            image_bytes=image_bytes
         )
 
         responses = asyncio.run(_solve_captcha())
