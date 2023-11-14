@@ -46,6 +46,7 @@ class Captcha(c.Module):
              proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
              proxyAddress: str, # Proxy IP address IPv4/IPv6. (not allowed to use hostnames, transparent proxies, local networks)
              proxyPort: str,    # Proxy port
+             proxyLogin: str = "",  # Login for proxy which requires authorizaiton (basic)
              proxyPassword: str = "",   # Proxy password
              api_key:str = None,    # API key from https://api.capmonster.cloud/
     ) -> str:
@@ -63,6 +64,7 @@ class Captcha(c.Module):
             proxyType=proxyType,    # "http"
             proxyAddress=proxyAddress,  # "8.8.8.8"
             proxyPort=proxyPort,    # 8080
+            proxyLogin=proxyLogin,
             proxyPassword=proxyPassword
         )
 
@@ -85,6 +87,37 @@ class Captcha(c.Module):
         request = HcaptchaProxylessRequest(
             websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
             websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def hcaptcha(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
+             proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
+             proxyAddress: str, # Proxy IP address IPv4/IPv6. (not allowed to use hostnames, transparent proxies, local networks)
+             proxyPort: str,    # Proxy port
+             proxyLogin: str = "",  # Login for proxy which requires authorizaiton (basic)
+             proxyPassword: str = "",   # Proxy password
+             api_key:str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = HcaptchaProxylessRequest(
+            websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=high",
+            websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd"
+            proxyType=proxyType,    # "http"
+            proxyAddress=proxyAddress,  # "8.8.8.8"
+            proxyPort=proxyPort,    # 8080
+            proxyLogin=proxyLogin,
+            proxyPassword=proxyPassword
         )
 
         responses = asyncio.run(_solve_captcha())
