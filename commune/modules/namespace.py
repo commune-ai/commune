@@ -103,10 +103,10 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
-                        chunk_size:int=10, 
+                        chunk_size:int=50, 
                         timeout:int = 10,
                         full_scan:bool = True,
-                        network:str = network,)-> dict:
+                        network:str = network)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -123,7 +123,12 @@ class Namespace(c.Module):
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
-            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout) for address in addresses_chunk])
+            futures = []
+            for address in addresses_chunk:
+                futures += [c.submit(c.call, kwargs=dict(module=address, fn='server_name'), timeout=timeout ,return_future=True)]
+
+            names_chunk = c.wait(futures, timeout=timeout)
+            
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
@@ -153,8 +158,8 @@ class Namespace(c.Module):
     @classmethod
     def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
         module = c.connect(address)
-        module_info = module.info()
-        name = module_info['name'] if name == None else name
+        info = module.info()
+        name = info['name'] if name == None else name
         # check if name exists
         namespace = cls.get_namespace(network=network)
         base_name = c.copy(name)
@@ -164,8 +169,11 @@ class Namespace(c.Module):
                 if v == address:
                     namespace.pop(k)
 
+        suffix_len = 4
         while name in namespace:
-            name = base_name +address[:3 + cnt].replace('.', '')
+            name = base_name +info['ss58_address'][:suffix_len].replace('.', '')
+            if name in namespace:
+                suffix_len += 1
             cnt += 1
 
         namespace[name] = address
@@ -194,11 +202,31 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def servers_info(cls, search=None, network=network) -> List[str]:
-        servers = cls.servers(search=search, network=network)
-        futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info', 'network': network}, return_future=True) for s in servers]
-        return c.wait(futures)
+    def server_infos(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=4) -> List[str]:
+        if not update:
+            server_infos = cls.get('server_infos', [])
+
+        if update or len(server_infos) == 0:
+            server_infos = []
+            servers = cls.servers(search=search, network=network)
+            futures = []
+            server_infos = []
+            for s in servers:
+                kwargs = {'module':s, 'fn':'info', 'network': network}
+                future = c.submit(c.call, kwargs=kwargs, return_future=True, timeout=timeout)
+                futures.append(future)
+                if len(futures) >= batch_size:
+                    for f in c.as_completed(futures):
+                        server_infos.append(f.result())
+                        futures.remove(f)
+                        break
+            server_infos += c.wait(futures, timeout=timeout)
+            cls.put('server_infos', server_infos)
+        return [s for s in server_infos if s != None]
     
+    @classmethod
+    def server2info(cls, *args, **kwargs):
+        return {m['name']:m for m in cls.server_infos(*args, **kwargs)}
     @classmethod
     def rm_server(cls,  name, network:str = 'local', **kwargs):
         namespace = cls.namespace(network=network)
@@ -311,6 +339,11 @@ class Namespace(c.Module):
         namespace = {v:k for k,v in address2name.items()}
         return namespace
             
+
+    @classmethod
+    def dashboard(cls):
+        import streamlit as st
+        return cls.namespace()
     
 
 

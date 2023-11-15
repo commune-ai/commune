@@ -2,6 +2,9 @@
 
 This module is a wrapper over the Open Router API
 
+
+### Add api_key 
+
 #### Set the api key
 ```bash
 c model.openrouter set_api_key 'sk_......'
