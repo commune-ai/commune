@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, FuncaptchaRequest, GeetestProxylessRequest, GeetestRequest, ImageToTextRequest, HcaptchaProxylessRequest, HcaptchaRequest, RecaptchaV2EnterpriseRequest, RecaptchaV2EnterpriseProxylessRequest, RecaptchaV3ProxylessRequest, TurnstileProxylessRequest, TurnstileRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, FuncaptchaRequest, GeetestProxylessRequest, GeetestRequest, ImageToTextRequest, HcaptchaProxylessRequest, HcaptchaRequest, RecaptchaV2EnterpriseRequest, RecaptchaV2EnterpriseProxylessRequest, RecaptchaV3ProxylessRequest, TurnstileProxylessRequest, TurnstileRequest, HcaptchaComplexImageTaskRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -396,6 +396,34 @@ class Captcha(c.Module):
         
         request = ImageToTextRequest(
             image_bytes=image_bytes
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def compleximage_hcaptcha(self,
+             website_url: str,  # Address of a webpage with FunCaptcha
+             imageUrls: [],   # List with image URLs. Max 18 elements per request. (if imagesBase64 is not filled)
+             imagesBase64: [],   # List with images in base64 format. Max 18 elements per request. (if imageUrls is not filled)
+             description: str,   # Task text (in English) (e.g. "Please click each image containing a mountain")
+             api_key: str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = HcaptchaComplexImageTaskRequest(
+            imageUrls=imageUrls,   # [ 'https://i.postimg.cc/kg71cbRt/image-1.jpg', 'https://i.postimg.cc/6381Zx2j/image.jpg' ]
+            websiteUrl=website_url,    # "https://lessons.zennolab.com/captchas/recaptcha/v2_simple.php?level=middle"
+            metadata={
+                "Task": description,    # "Please click each image containing a mountain"
+            },
+            imagesUrls=imageUrls,
+            imagesBase64=imagesBase64,
         )
 
         responses = asyncio.run(_solve_captcha())
