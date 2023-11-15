@@ -2,7 +2,7 @@ import commune as c
 import asyncio
 
 from capmonstercloudclient import CapMonsterClient, ClientOptions
-from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, FuncaptchaRequest, GeetestProxylessRequest, GeetestRequest, ImageToTextRequest, HcaptchaProxylessRequest, HcaptchaRequest
+from capmonstercloudclient.requests import RecaptchaV2ProxylessRequest, RecaptchaV2Request, FuncaptchaProxylessRequest, FuncaptchaRequest, GeetestProxylessRequest, GeetestRequest, ImageToTextRequest, HcaptchaProxylessRequest, HcaptchaRequest, RecaptchaV2EnterpriseRequest, RecaptchaV2EnterpriseProxylessRequest, RecaptchaV3ProxylessRequest
 
 class Captcha(c.Module):
     def __init__(self, api_key:str = None, host='https://api.capmonster.cloud/', cache_key:bool = True):
@@ -19,7 +19,7 @@ class Captcha(c.Module):
 
         assert isinstance(api_key, str)
 
-    def recaptcha2_proxyless(self,
+    def nocaptcha_proxyless(self,
              website_url: str,  # Address of a webpage with Google ReCaptcha
              website_key: str,  # Recaptcha website key.
              api_key:str = None,    # API key from https://api.capmonster.cloud/
@@ -40,7 +40,7 @@ class Captcha(c.Module):
         responses = asyncio.run(_solve_captcha())
         return responses
     
-    def recaptcha2(self,
+    def nocaptcha(self,
              website_url: str,  # Address of a webpage with Google ReCaptcha
              website_key: str,  # Recaptcha website key.
              proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
@@ -248,6 +248,83 @@ class Captcha(c.Module):
             proxyPort=proxyPort,    # 8080
             proxyLogin=proxyLogin,
             proxyPassword=proxyPassword
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def recaptcha2_enterprise_proxyless(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
+             enterprisePayload: str = None, # Some implementations of the reCAPTCHA Enterprise widget may contain additional parameters that are passed to the “grecaptcha.enterprise.render” method along with the sitekey.
+             api_key:str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = RecaptchaV2EnterpriseProxylessRequest(
+            websiteUrl=website_url, # "https://mydomain.com/page-with-recaptcha-enterprise",
+            websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd",
+            enterprisePayload=enterprisePayload
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def recaptcha2_enterprise(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
+             proxyType: str,    # Type of the proxy (http, https, socks3, socks5),
+             proxyAddress: str, # Proxy IP address IPv4/IPv6. (not allowed to use hostnames, transparent proxies, local networks)
+             proxyPort: str,    # Proxy port
+             proxyLogin: str = "",  # Login for proxy which requires authorizaiton (basic)
+             proxyPassword: str = "",   # Proxy password
+             enterprisePayload: str = None, # Some implementations of the reCAPTCHA Enterprise widget may contain additional parameters that are passed to the “grecaptcha.enterprise.render” method along with the sitekey.
+             api_key:str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = RecaptchaV2EnterpriseRequest(
+            websiteUrl=website_url, # "https://mydomain.com/page-with-recaptcha-enterprise",
+            websiteKey=website_key, # "6Lcg7CMUAAAAANphynKgn9YAgA4tQ2KI_iqRyTwd",
+            enterprisePayload=enterprisePayload,
+            proxyType=proxyType,    # "http"
+            proxyAddress=proxyAddress,  # "8.8.8.8"
+            proxyPort=proxyPort,    # 8080
+            proxyLogin=proxyLogin,
+            proxyPassword=proxyPassword
+        )
+
+        responses = asyncio.run(_solve_captcha())
+        return responses
+    
+    def recaptcha3_proxyless(self,
+             website_url: str,  # Address of a webpage with Google ReCaptcha
+             website_key: str,  # Recaptcha website key.
+             api_key:str = None,    # API key from https://api.capmonster.cloud/
+    ) -> str:
+        api_key = api_key if api_key != None else self.api_key
+
+        client_options = ClientOptions(api_key=api_key)
+        cap_monster_client = CapMonsterClient(options=client_options)
+
+        async def _solve_captcha():
+            return await cap_monster_client.solve_captcha(request)
+        
+        request = RecaptchaV3ProxylessRequest(
+            websiteUrl=website_url, # "https://lessons.zennolab.com/captchas/recaptcha/v3.php?level=beta"
+            websiteKey=website_key, # "6Le0xVgUAAAAAIt20XEB4rVhYOODgTl00d8juDob"
         )
 
         responses = asyncio.run(_solve_captcha())
