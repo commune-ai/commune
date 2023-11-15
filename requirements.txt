@@ -28,6 +28,10 @@ aiofiles
 aiohttp
 nest_asyncio
 
+# scraping
+beautifulsoup4
+httplib2
+urllib3
 # ray
 # ray[default]
 # ray[tune]
@@ -35,6 +39,5 @@ nest_asyncio
 
 # Module for text2speech
 fairseq2
-git+https://github.com/facebookresearch/seamless_communication
 huggingface_hub
 torchaudio

@@ -46,11 +46,11 @@ class Vali(c.Module):
 
 
     @property               
-    def module_search(self):
-        if self.config.module_search == None:
-            self.config.module_search = self.tag
-        assert isinstance(self.config.module_search, str), f'Module search must be a string, got {type(self.config.module_search)}'
-        return self.config.module_search
+    def search(self):
+        if self.config.search == None:
+            self.config.search = self.tag
+        assert isinstance(self.config.search, str), f'Module search must be a string, got {type(self.config.search)}'
+        return self.config.search
 
 
     def sync(self, network:str=None, netuid:int=None, update: bool = False):
@@ -62,7 +62,7 @@ class Vali(c.Module):
                 netuid = self.config.netuid
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
             
-            self.modules = self.subspace.modules(search=self.config.module_search, update=update, netuid=netuid)
+            self.modules = self.subspace.modules(search=self.config.search, update=update, netuid=netuid)
             self.n  = len(self.modules)                
             self.subnet = self.subspace.subnet(netuid=netuid)
 
@@ -124,6 +124,7 @@ class Vali(c.Module):
             color = 'red'
 
         c.print(msg, color=color)
+        c.print(response)
         
         self.count += 1
 
@@ -168,7 +169,7 @@ class Vali(c.Module):
         votes = {
             'names'     : [v['name'] for v in stats],            # get all names where w > 0
             'uids'      : [v['uid'] for v in stats],             # get all uids where w > 0
-            'weights'   : [v['w'] + self.config.base_score for v in stats],  # get all weights where w > 0
+            'weights'   : [v['w'] for v in stats],  # get all weights where w > 0
             'timestamp' : c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
@@ -337,18 +338,20 @@ class Vali(c.Module):
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             module = c.choice(modules)
-  
+
+            c.print(f'Sending -> {module["name"]} {c.emoji("rocket")} ({module["address"]}) {c.emoji("rocket")}', color='yellow')
             c.sleep(self.config.sleep_time)
 
-            futures = self.executor.submit(fn=self.eval_module, kwargs={'module':module})
-            # complete the futures as they come in
+            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            futures.append(future)
 
-            if len(futures) > :
-                for f in concurrent.futures.as_completed([futures]):
-                    f.result()
+            if len(futures) >= self.config.max_futures:
+                for future in c.as_completed(futures, timeout=self.config.timeout):
+                    result = future.result()
+                    futures.remove(future)
                     break
-
-
+            
+            # complete the futures as they come in
             if self.sync_staleness > self.config.sync_interval:
                 self.sync()
 
@@ -443,6 +446,7 @@ class Vali(c.Module):
         if update == False:
             vali_stats = cls.get(cache_path, default=[])
 
+
         if len(vali_stats) == 0:
             module_path = cls.module_path()
             stats = c.stats(module_path+'::', df=False, network=network)
@@ -451,27 +455,32 @@ class Vali(c.Module):
                 v = cls.get(path)
                 name = module_path + "::" +tag
                 vote_info = name2stats.get(name, {})
+
+                if vote_info.get('registered') == None:
+                    continue
                 if 'timestamp' in v:
                     vote_info['name'] = name
                     vote_info['n'] = len(v['uids'])
                     vote_info['timestamp'] = v['timestamp']
-                    vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
-
-                    
+                    vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
                     vali_stats += [vote_info]
             cls.put(cache_path, vali_stats)    
 
         
         for v in vali_stats:
             v['staleness'] = int(c.time() - v['timestamp'])
+
             del v['timestamp']
 
 
         if df:
             vali_stats = c.df(vali_stats)
             # filter out NaN values for registered modules
+            # include nans  for registered modules
             if len(vali_stats) > 0:
                 vali_stats.sort_values(sortby, ascending=False, inplace=True)
+            
+
 
         
         

@@ -98,7 +98,7 @@ def get_function_signature(fn) -> dict:
 def get_function_input_variables(fn)-> dict:
     return get_function_signature(fn).keys()
 
-def get_function_defaults(fn, include_null = False, mode=['input','output'],output_example_key='output_example'):
+def fn_defaults(fn, include_null = False, mode=['input','output'],output_example_key='output_example'):
     import inspect
     
     if  not callable(fn):
@@ -141,7 +141,7 @@ def get_function_schema(fn=None, include_self=True, defaults_dict=None,*args, **
 
     if defaults_dict == None:
         assert fn != None
-        defaults_dict = get_function_defaults(fn=fn, **kwargs)
+        defaults_dict = fn_defaults(fn=fn, **kwargs)
         if defaults_dict == None:
             defaults_dict = {}
     function_schema = {}   
@@ -205,10 +205,10 @@ def get_module_function_defaults(module, completed_only=False):
     schema_dict = {}
     for cls_function_name in cls_function_names:
         fn = getattr(cls, cls_function_name)
-        fn_schema = get_function_defaults(fn)
+        fn_schema = fn_defaults(fn)
         if not is_fn_schema_complete(fn_schema) and completed_only:
             continue
-        schema_dict[cls_function_name] = get_function_defaults(fn)
+        schema_dict[cls_function_name] = fn_defaults(fn)
 
     return schema_dict
 
