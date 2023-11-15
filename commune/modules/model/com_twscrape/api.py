@@ -196,7 +196,7 @@ class API():
 
     # retweeters
 
-    async def retweeters_raw(self, twid: int, limit=-1, kv=None):
+    async def retweeters_raw(self, twid: int, limit=10, kv=None):
         op = OP_Retweeters
         kv = {"tweetId": str(twid), "count": 20, "includePromotedContent": True, **(kv or {})}
         async for x in self._gql_items(op, kv, limit=limit):
