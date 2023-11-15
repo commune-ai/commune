@@ -1424,6 +1424,7 @@ class Subspace(c.Module):
                     update:bool=False, 
                     verbose:bool=False, 
                     netuids: List[int] = [0],
+                    parallel:bool=False,
                     **kwargs):
         # cache and update are mutually exclusive 
         if  update == False:
@@ -1437,7 +1438,7 @@ class Subspace(c.Module):
             block = self.block
             netuids = self.netuids() if netuids == None else netuids
             state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True) for netuid in netuids],
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
                         'balances': self.balances(network=network, block=block),
                         'block': block,

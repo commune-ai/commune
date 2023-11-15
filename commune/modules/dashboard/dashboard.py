@@ -186,11 +186,21 @@ class Dashboard(c.Module):
             if search != '':
                 staked_modules = [m for m in staked_modules if search in m]
             default_staked_modules = staked_modules if my_staked_button else []
+            entire_balance = cols[2].checkbox('Entire Balance', key='entire_balance')
 
             
 
+
+
             modules = cols[2].multiselect('Module', self.module_names, default_staked_modules)
-            amounts = cols[0].number_input('Stake Amount', value=0.0,  max_value=float(self.key_info['balance']), min_value=0.0 ) # format with the value of the balance            
+
+
+            if entire_balance:
+                default_amount = c.balance(self.key.ss58_address)  / len(modules)
+            else:
+                default_amount = 0.0
+            st.write(default_amount)
+            amounts = cols[0].number_input('Stake Amount', value=default_amount,  max_value=1000000000000.0, min_value=0.0 ) # format with the value of the balance            
             stake_button = st.button('STAKE')
 
             if stake_button:
@@ -204,19 +214,22 @@ class Dashboard(c.Module):
                 st.write(response)
         with st.expander('Unstake', expanded=False):
             modules = list(self.key_info['stake_to'].keys())
-            cols = st.columns(2)
-            amount = cols[0].number_input('Unstake Amount',0.0)
-            if amount > 0:
-                default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amount]
-            else:
-                default_modules= []
+            cols = st.columns(3)
+            cols[2].write('\n'*3)
+            default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amounts]
+            search = cols[1].text_input('Search', '', key='search.unstake')
+            amounts = cols[0].number_input('Unstake Amount',0)
+            if search != '':
+                modules = [m for m in modules if search in m]
             modules = cols[1].multiselect('Module', modules, default_modules)
-            st.write(f'You have {len(default_modules)} modules staked')
+            total_stake_amount = amounts * len(modules)
+            
+            st.write(f'You have {len(modules)} ready to staked for a total of {total_stake_amount} ')
 
             unstake_button = st.button('UNSTAKE')
             if unstake_button:
                 kwargs = {
-                    'amounts': amount,
+                    'amounts': amounts,
                     'modules': modules,
                     'key': self.key,
                 }
