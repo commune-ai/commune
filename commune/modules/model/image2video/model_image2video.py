@@ -33,6 +33,16 @@ class ModelImage2video(c.Module):
         return x + y
 
     def resize(self, width, img):
+        """
+        This is the function that resize the image same as specific width.
+
+            Paramaters:
+                width (int): basic width
+                img (Image): image to resize
+
+            Return:
+                Nothing
+        """
         basewidth = width
         img = Image.open(img)
         wpercent = (basewidth / float(img.size[0]))
@@ -41,6 +51,17 @@ class ModelImage2video(c.Module):
         return img
 
     def resize_img(self, img1, img2, output_name):
+        """
+        This is the function that resize the image according to the specific image.
+
+            Parameters:
+                img1 (str): target image
+                img2 (str): image to resize
+                output_name(str): name of the output
+
+            Return:
+                Nothing
+        """
         img_target_size = Image.open(img1)
         img_to_resize = resize_and_crop(
             img2,
@@ -50,7 +71,17 @@ class ModelImage2video(c.Module):
         img_to_resize.save(output_name)
 
     def generate_interpolation(self, frames, times_to_interpolate, fps):
-    
+        """
+        This is the main generation function.
+
+            Parameters:
+                frames([]): instances of the image files
+                times_to_interpolate(int): It's the number of times to interpolate
+                fps(int): It's the number of fps for the output video
+
+            Return:
+                It returns one video file.
+        """
         resized_frames = []
         for i, frame in enumerate(frames):
             resized_frame = self.resize(256, frame.name)
@@ -73,7 +104,10 @@ class ModelImage2video(c.Module):
     def gradio(self):
         """
         This function is for gradio UI generation.
-        Parameters: Nothing
+            Parameters:
+                Nothing
+            Return: 
+                Nothing
         Gradio provides for users to do all things in the UI
         """
         demo = gr.Blocks()
