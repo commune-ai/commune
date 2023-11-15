@@ -67,13 +67,13 @@ c model.com_twscrape user_tweets_and_replies USER_ID
 c model.com_twscrape search "commune" 
 ``````
 <div align="center">
-    <img src="https://i.ibb.co/HnhZp5T/commune-search1.png" alt="example of cli usage" width="560px">   
-    <img src="https://i.ibb.co/bND3bsN/commune-search2.png" alt="example of cli usage" width="560px">
+    <img src="https://i.ibb.co/HnhZp5T/commune-search1.png" alt="example of search usage" width="560px">   
+    <img src="https://i.ibb.co/bND3bsN/commune-search2.png" alt="example of search usage" width="560px">
 </div>
 
 ```sh
 c model.com_twscrape tweet_details 1724619757721444670
 ``````
 <div align="center">
-    <img src="https://i.ibb.co/F6YJL2J/tweet-details.png" alt="example of cli usage" width="560px">
+    <img src="https://i.ibb.co/F6YJL2J/tweet-details.png" alt="example of tweet_details" width="560px">
 </div>
