@@ -58,13 +58,15 @@ class com_twscrape(c.Module):
 
     def retweeters(self, tweetId: int):
         loop = asyncio.get_event_loop()
-        res = loop.run_until_complete(self._collect_search_results(self.tw_api.retweeters(tweetId, 10)))
+        res = loop.run_until_complete(self._collect_retweeters_results(self.tw_api.retweeters(tweetId, 10)))
         loop.close()
         print(res)
         return res
     
     async def _collect_retweeters_results(self, async_gen):
         return [item async for item in async_gen]
+    
+    
 
     def test(self):
         print("hello, i'm twscape")
