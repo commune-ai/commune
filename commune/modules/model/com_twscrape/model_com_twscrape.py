@@ -49,6 +49,12 @@ class com_twscrape(c.Module):
     
     async def _collect_search_results(self, async_gen):
         return [item async for item in async_gen]
+    
+    def tweet_details(self, tweetId: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self.tw_api.tweet_details(twid=tweetId))
+        loop.close()
+        print(res)
 
     def test(self):
         print("hello, i'm twscape")
