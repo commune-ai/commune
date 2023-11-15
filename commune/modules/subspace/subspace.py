@@ -2868,9 +2868,6 @@ class Subspace(c.Module):
 
     @classmethod
     def dashboard(cls):
-        import streamlit as st
-        block = 7014
-        netuid = 0
         c.module('subspace.dashboard').dashboard()
         
 
@@ -4324,11 +4321,5 @@ class Subspace(c.Module):
 
 
     
-
-
-
-        
-
-
-        
+Subspace.run(__name__)
 
