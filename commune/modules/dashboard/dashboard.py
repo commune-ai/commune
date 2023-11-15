@@ -105,24 +105,104 @@ class Dashboard(c.Module):
     #     cols[1].plotly_chart(fig)
 
 
+    # login page first showed
+    def auth(self, users):
+
+        import streamlit_authenticator as stauth
+        # Creating the authenticator object
+        authenticator = stauth.Authenticate(
+            users['credentials'],
+            users['cookie']['name'], 
+            users['cookie']['key'], 
+            users['cookie']['expiry_days'],
+            users['preauthorized']
+        )
+        # Creating a login widget
+        name, authentication_status, username = authenticator.login('Login', 'main')
+        if st.session_state.authentication_status == True:
+            with st.sidebar:
+                st.subheader(f'Welcome *{st.session_state.name}*')
+            authenticator.logout('Logout', 'sidebar')
+        if st.session_state.authentication_status == False:
+            st.error('Username/password is incorrect')
+        if st.session_state.authentication_status != True:
+            with st.expander("Forgot password?"):
+                # Creating a forgot password widget
+                try:
+                    username_forgot_pw, email_forgot_password, random_password = authenticator.forgot_password('Forgot password')
+                    if username_forgot_pw:
+                        st.success('New password sent securely')
+                        st.text(random_password)
+                        # Random password to be transferred to user securely
+                    elif username_forgot_pw != None:
+                        st.error('Username not found')
+                except Exception as e:
+                    st.error(e)
+
+            with st.expander("Forgot username?"):
+                # Creating a forgot username widget
+                try:
+                    username_forgot_username, email_forgot_username = authenticator.forgot_username('Forgot username')
+                    if username_forgot_username:
+                        st.success('Username sent securely')
+                        # Username to be transferred to user securely
+                        st.text(username_forgot_username)
+                    elif username_forgot_username != None:
+                        st.error('Email not found')
+                except Exception as e:
+                    st.error(e)
+
+        return authenticator
+
+    # password setting tab
+    def password(self, authenticator): 
+        st.subheader(f'Your username: *{st.session_state.username}*')
+        st.text(f'Your name: {st.session_state.name}')
+        with st.expander("Update userdetail"): 
+        # Creating an update user details widget
+            try:
+                if authenticator.update_user_details(st.session_state["username"], 'Update user details'):
+                    st.success('Entries updated successfully')
+            except Exception as e:
+                st.error(e)
+
+        with st.expander("Reset password"): 
+            # Creating a password reset widgeta
+            try:
+                if authenticator.reset_password(st.session_state["username"], 'Reset password'):
+                    st.success('Password modified successfully')
+            except Exception as e:
+                st.error(e)
+
     @classmethod
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
         self = cls()
         st.title(f'COMMUNE')
-        self.sidebar()
         
-        tabs = st.tabs(['CHAT', 'MODULES', 'WALLET']) 
-        chat = False
-        with tabs[0]:
-            chat = True
-        with tabs[1]: 
-            self.modules_dashboard()  
-        with tabs[2]:
-            self.wallet_dashboard()
-        if chat:
-            self.chat_dashboard()
+        import os
+        current_directory = os.path.dirname(os.path.abspath(__file__))
+        # Loading admin auth on json file
+        users = c.get_json(current_directory + '/admin_auth')
+        # put login page and get authenticator from it
+        authenticator = self.auth(users)
+
+        if st.session_state.authentication_status:
+            self.sidebar()
+            
+            tabs = st.tabs(['CHAT', 'MODULES', 'WALLET', 'PASSWORD']) 
+            chat = False
+            with tabs[0]:
+                chat = True
+            with tabs[1]: 
+                self.modules_dashboard()  
+            with tabs[2]:
+                self.wallet_dashboard()
+            if chat:
+                self.chat_dashboard()
+            with tabs[3]:
+                self.password(authenticator)
 
     def subnet_dashboard(self):
         st.write('# Subnet')
