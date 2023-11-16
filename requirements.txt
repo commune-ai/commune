@@ -36,3 +36,11 @@ urllib3
 # ray[default]
 # ray[tune]
 # logging
+
+# Module for text2speech
+fairseq2
+huggingface_hub
+torchaudio
+
+# Module for captcha
+capmonstercloudclient
