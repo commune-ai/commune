@@ -18,7 +18,8 @@ class Access(c.Module):
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
                 rate: int =  1,  # 1 call per timescale
                 base_rate: int =  100,# base level of calls per timescale (free calls) per account
-                fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
+                fn2rate: dict =  {}, # function name to rate map, this overrides the default rate,
+                path = f'sync_state',
                 **kwargs):
         config = self.set_config(kwargs=locals())
         self.module = module
@@ -37,25 +38,21 @@ class Access(c.Module):
 
         # if the sync time is greater than the sync interval, we need to sync
 
-        sync_path = f'sync_state.{self.config.network}'
-        state = self.get(sync_path, default={})
+        
+        state = self.get(self.sync_path, default={})
 
-        sync_time = state.get('sync_time', 0)
-        time_since_sync = c.time() - sync_time
+        time_since_sync = c.time() - state.get('sync_time', 0)
         if time_since_sync > self.config.sync_interval:
-            
-            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-            state['sync_time'] = c.time()
+            self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
             state['block'] = self.subspace.block
-            self.put(sync_path, state)
+            state['sync_time'] = c.time()
+            self.put(self.sync_path, state)
 
         self.stakes = state['stakes']
-        until_sync = self.config.sync_interval + (c.timestamp() - sync_time) 
+        until_sync = self.config.sync_interval - time_since_sync
 
-        c.print({'sync_time': sync_time,
-                  'n': len(self.stakes),
-                  'block': state['block'],  
+        c.print({'block': state['block'],  
                  'until_sync': until_sync,
                  'time_since_sync': time_since_sync})
         
