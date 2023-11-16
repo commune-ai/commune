@@ -1161,6 +1161,13 @@ class Subspace(c.Module):
             stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
     
+    def get_value(self, key=None):
+        balance = self.get_balance(key)
+        stake_to = self.get_staketo(key)
+        total_stake = sum(stake_to.values())
+        return balance + total_stake
+
+    
 
     def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         stake_from = self.get_stakefrom(key=key, block=block, netuid=netuid, fmt=fmt)
@@ -1184,7 +1191,7 @@ class Subspace(c.Module):
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 10,
+                        n:str = 100,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
@@ -1256,7 +1263,7 @@ class Subspace(c.Module):
         for i, amount in enumerate(amounts):
             amounts[i] = self.to_nanos(amount)
 
-        assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+        assert len(destidnations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
         params = {
             "netuid": netuid,
@@ -1417,6 +1424,7 @@ class Subspace(c.Module):
                     update:bool=False, 
                     verbose:bool=False, 
                     netuids: List[int] = [0],
+                    parallel:bool=False,
                     **kwargs):
         # cache and update are mutually exclusive 
         if  update == False:
@@ -1430,7 +1438,7 @@ class Subspace(c.Module):
             block = self.block
             netuids = self.netuids() if netuids == None else netuids
             state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True) for netuid in netuids],
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
                         'balances': self.balances(network=network, block=block),
                         'block': block,
@@ -1522,7 +1530,7 @@ class Subspace(c.Module):
             return {}
         return cls.get(path, {})
     
-    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
+    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
 
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)
@@ -2860,9 +2868,6 @@ class Subspace(c.Module):
 
     @classmethod
     def dashboard(cls):
-        import streamlit as st
-        block = 7014
-        netuid = 0
         c.module('subspace.dashboard').dashboard()
         
 
@@ -4316,11 +4321,5 @@ class Subspace(c.Module):
 
 
     
-
-
-
-        
-
-
-        
+Subspace.run(__name__)
 
