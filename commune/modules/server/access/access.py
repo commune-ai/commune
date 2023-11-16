@@ -19,7 +19,7 @@ class Access(c.Module):
                 rate: int =  1,  # 1 call per timescale
                 base_rate: int =  100,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate,
-                path = f'sync_state',
+                state_path = f'state_path',
                 **kwargs):
         config = self.set_config(kwargs=locals())
         self.module = module
