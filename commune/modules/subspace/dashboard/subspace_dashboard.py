@@ -11,17 +11,17 @@ class SubspaceDashboard(c.Module):
     def __init__(self, state=None, key=None): 
 
         self.load_state()
-        self.set_key(key)
-
-
+        if key != None:
+            self.key = key
 
         
         # convert into metrics
         
     def transfer_dashboard(self):
         with st.expander('Transfer', expanded=False):
-            amount = st.number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
-            to_address = st.text_input('dest (s) : use , for multiple transfers', '')
+            cols = st.columns(2)
+            amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
+            to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
             multi_transfer = False
             if ',' in to_address:
                 multi_transfer = True
@@ -95,7 +95,6 @@ class SubspaceDashboard(c.Module):
                 st.write(response)
 
 
-
     def unstake_dashboard(self):
         with st.expander('Unstake', expanded=False):
             modules = list(self.key_info['stake_to'].keys())
@@ -159,7 +158,7 @@ class SubspaceDashboard(c.Module):
         st.write(df)
         subnet_df = pd.DataFrame(state['subnets'])
         st.write(subnet_df)
-        # st.write(state)
+        # st.write(state)f
 
         st.write(fig)
         # options = ['emission', 'incentive', 'dividends', 'stake']
@@ -268,7 +267,7 @@ class SubspaceDashboard(c.Module):
 
             fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
             # increase the width of the plot
-            fig.update_layout(width=1200, height=750)
+            fig.update_layout(width=900, height=750)
             st.plotly_chart(fig)
 
         # bar chat of staked modules

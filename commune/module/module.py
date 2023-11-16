@@ -8157,14 +8157,11 @@ class c:
             state =  subspace.state_dict(update=update)
             return state
         
-        self.state = get_state() if state == None else state
+        if state == None:
+            state = get_state()
+        self.state =  state
         self.netuid = 0
         self.subnets = self.state['subnets']
-        self.subnet = 'commune'
-
-        self.subnet2info = {s['netuid']: s for s in self.subnets}
-        self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
-        self.subnet_names = [s['name'] for s in self.subnets]
 
         self.modules = self.state['modules'][self.netuid]
         self.name2key = {k['name']: k['key'] for k in self.modules}
@@ -8182,13 +8179,11 @@ class c:
             self.modules[i]['stake'] = self.modules[i]['stake']/1e9
             self.modules[i]['emission'] = self.modules[i]['emission']/1e9
 
-
         self.key_info = {
             'ss58_address': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
             'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
             'stake': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),
-            
         }
 
         self.key_info['balance']  = self.key_info['balance']/1e9
