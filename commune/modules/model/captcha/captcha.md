@@ -60,3 +60,17 @@ x8bYfnXnf_5jrC8xDdpK8RCP46g4buAPZKh0kCiECXcXn8UgWrgjZVdxQ2TLeuQsDqW2zgcW1ToKA-QP
     'cookies': {'nocookies': 'true'}
 }
 ```
+
+## Supported Captcha types
+
+- `nocaptcha_proxyless`, `nocaptcha` : solving Google recaptcha with/without proxy
+- `hcaptcha_proxyless`, `hcaptcha` : hCaptcha puzzle solving with/without proxy
+- `funcaptcha_proxyless`, `funcaptcha` : solving FunCaptcha with/without proxy
+- `geetest_proxyless`, `geetest` : GeeTest captcha recognition with/without proxy
+- `recaptcha2_enterprise_proxyless`, `recaptcha2_enterprise` : solving Google reCAPTCHA Enterprise with/without proxy
+- `recaptcha3_proxyless` : solving Google ReCaptcha v.3
+- `turnstile_proxyless`, `turnstile` : solving Turnstile without proxy
+- `image_to_text` : solve image captcha
+- `compleximage_hcaptcha` : hCaptcha captcha solution
+- `compleximage_recaptcha` : Google captcha solution
+- `compleximage_funcaptcha` : Funcaptcha solving
