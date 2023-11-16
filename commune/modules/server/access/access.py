@@ -32,10 +32,12 @@ class Access(c.Module):
             self.sync()
             c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))
 
+
     def sync(self):
+
         # if the sync time is greater than the sync interval, we need to sync
 
-        sync_path = f'sync_state.{self.config.network}{self.config.netuid}'
+        sync_path = f'sync_state.{self.config.network}'
         state = self.get(sync_path, default={})
 
         sync_time = state.get('sync_time', 0)
