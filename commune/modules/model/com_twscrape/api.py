@@ -209,13 +209,13 @@ class API():
 
     # favoriters
 
-    async def favoriters_raw(self, twid: int, limit=-1, kv=None):
+    async def favoriters_raw(self, twid: int, limit=10, kv=None):
         op = OP_Favoriters
         kv = {"tweetId": str(twid), "count": 20, "includePromotedContent": True, **(kv or {})}
         async for x in self._gql_items(op, kv, limit=limit):
             yield x
 
-    async def favoriters(self, twid: int, limit=-1, kv=None):
+    async def favoriters(self, twid: int, limit=10, kv=None):
         async for rep in self.favoriters_raw(twid, limit=limit, kv=kv):
             for x in parse_users(rep.json(), limit):
                 yield x
