@@ -26,15 +26,10 @@ class Dashboard(c.Module):
             self.network_dashboard(sidebar=False)
             self.servers = c.servers(network=self.network)
             self.module_name = st.selectbox('Select Server', self.servers, 0)
-
-    
-
             self.module = c.connect(self.module_name, network=self.network)
 
             module_info_path = f'module_info/{self.module_name}'
-
             module_info = self.get(module_info_path, default={})
-            
             if module_info == {}:
                 try:
                     module_info = self.module.info(schema=True)
@@ -47,8 +42,6 @@ class Dashboard(c.Module):
 
             self.module_functions = self.module_info['functions']
             self.module_address = self.module_info['address']
-
-
 
             self.fn = st.selectbox('Select Function', self.module_functions, 0)
 
@@ -114,6 +107,7 @@ class Dashboard(c.Module):
         self.sidebar()
         
         tabs = st.tabs(['CHAT', 'MODULES', 'SUBSPACE']) 
+        st.write(self.key)
         chat = False
         with tabs[0]:
             chat = True
@@ -254,41 +248,40 @@ class Dashboard(c.Module):
         module = c.module(module)
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
                     
-        with st.expander('Serve', expanded=True):
 
-            with st.form(key='serve'):
-                
-                kwargs = self.function2streamlit(module=module, fn='__init__' )
-
-                cols = st.columns([1,1,2])
-                tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
-                tag = None if tag == '' else tag
-
-                n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
-
-                serve = cols[2].form_submit_button('Serve')
-
-                if serve:
-
-                    if 'None' == tag:
-                        tag = None
-                    if 'tag' in kwargs:
-                        kwargs['tag'] = tag
-                    for i in range(n):
-                        try:
-                            if tag != None:
-                                s_tag = f'{tag}.{i}'
-                            else:
-                                s_tag = str(i)
-                            response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
-                        except Exception as e:
-                            e = c.detailed_error(e)
-                            response = {'success': False, 'message': e}
+        with st.form(key='serve'):
             
-                        if response['success']:
-                            st.write(response)
+            kwargs = self.function2streamlit(module=module, fn='__init__' )
+
+            cols = st.columns([1,1,2])
+            tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
+            tag = None if tag == '' else tag
+
+            n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
+
+            serve = cols[2].form_submit_button('Serve')
+
+            if serve:
+
+                if 'None' == tag:
+                    tag = None
+                if 'tag' in kwargs:
+                    kwargs['tag'] = tag
+                for i in range(n):
+                    try:
+                        if tag != None:
+                            s_tag = f'{tag}.{i}'
                         else:
-                            st.error(response)
+                            s_tag = str(i)
+                        response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
+        
+                    if response['success']:
+                        st.write(response)
+                    else:
+                        st.error(response)
 
         with st.expander('Code', expanded=False):
             code = module.code()
@@ -314,7 +307,7 @@ class Dashboard(c.Module):
 
 
     def subspace_dashboard(self):
-        return c.module('subspace.dashboard').dashboard()
+        return c.module('subspace.dashboard').dashboard(key=self.key)
     
     @classmethod
     def dash(cls, *args, **kwargs):
