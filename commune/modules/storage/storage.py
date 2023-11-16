@@ -5,7 +5,7 @@ import json
 
 class Storage(c.Module):
     whitelist: List = ['put_item', 'get_item', 'hash_item', 'items']
-    replica_prefix = 'replica::'
+    replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
     def __init__(self, 
@@ -13,35 +13,39 @@ class Storage(c.Module):
                 network='local',
                 validate:bool = False,
                 match_replica_prefix : bool = False,
-                max_shard_size = 200,
+                max_shard_size:str = 200,
+                min_check_interval:str = 100,
                 tag = None,
                 **kwargs):
-        self.network = network
-        self.max_shard_size = max_shard_size
-        self.max_replicas = max_replicas
-        self.network = network
-        self.set_config(kwargs=locals()) 
+        
+        config = self.set_config(kwargs=locals()) 
+
+        self.network = config.network
+        self.max_shard_size = config.max_shard_size
+        self.max_replicas = config.max_replicas 
+        self.min_check_interval = config.min_check_interval       
         self.serializer = c.module('serializer')()
-        self.executor = c.module('executor')()
+
         if validate:
             self.match_replica_prefix = match_replica_prefix
             c.thread(self.validate_loop)
-
 
     def resolve_tag(self, tag=None):
         tag = tag if tag != None else self.tag
         return tag
 
-    
-
     def store_dir(self, tag=None) -> str:
         tag = self.resolve_tag(tag)
         if tag == None:
             tag = 'base'
-        return self.resolve_path(f'{tag}/store')
+        path = self.resolve_path(f'{tag}/store')
+        if not c.exists(path):
+            c.mkdir(path)
+        return path
 
     def resolve_item_path(self, key: str, tag=None) -> str:
         store_dir = self.store_dir(tag=tag)
+
         if not key.startswith(store_dir):
             key = f'{store_dir}/{key}'
         return key
@@ -126,6 +130,7 @@ class Storage(c.Module):
         else:
             size_bytes = c.sizeof(data)
         c.print(f'Putting {k} with {size_bytes} bytes', color='green')
+
         is_shard = bool(self.shard_prefix in k)
 
         shards = []
@@ -186,8 +191,8 @@ class Storage(c.Module):
 
 
 
-    def get_item(self,k:str, deserialize:bool= True, include_metadata=False) -> Any:
-        k = self.resolve_item_path(k)
+    def get_item(self,k:str, deserialize:bool= True, include_metadata=False, tag=None) -> Any:
+        k = self.resolve_item_path(k, tag=tag)
         metadata = self.get_json(k+'/metadata.json', {})
 
         shards = metadata.get('shards', [])
@@ -222,13 +227,13 @@ class Storage(c.Module):
             return data
     
 
-    def hash_item(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', data=None) -> str:
+    def hash_item(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', data=None, tag=None) -> str:
         """
         Hash a string
         """
         if data == None:
             assert k != None, 'Must provide k or obj'
-            data = self.get_item(k, deserialize=False)
+            data = self.get_item(k, deserialize=False, tag=tag)
         if seed != None:
             data = str(data) + seed_sep + str(seed)
         return self.hash(data, seed=seed)
@@ -248,11 +253,13 @@ class Storage(c.Module):
         sore_dir = self.store_dir(tag=tag)
         return [x for x in c.ls(sore_dir)]
 
-    def items(self, search=None, include_replicas:bool=False, tag=None) -> List:
+    def items(self, search=None, include_replicas:bool=True, tag=None) -> List:
         """
         List the item names
         """
         path = self.store_dir(tag=tag)
+
+
         items = [x.split('/')[-1] for x in c.ls(path)]
         
         if search != None:
@@ -272,9 +279,18 @@ class Storage(c.Module):
         return c.rm(path)
     
     def validate(self, item_key:str = None):
-        item_key = c.choice(self.items()) if item_key == None else item_key
+        items = self.items()
+        if len(items) == 0:
+            return {'success': False, 'msg': 'No items to validate'}
+        item_key = c.choice(items) if item_key == None else item_key
         item_data = self.get_item(item_key)
         metadata = self.get_metadata(item_key)
+        metadata['last_checked'] = metadata.get('last_checked', 0)
+        time_since_checked = c.timestamp() - metadata['last_checked']
+        if time_since_checked < self.min_check_interval:
+            msg = {'success': False, 'msg': f'Not enough time since last check {time_since_checked}/{self.min_check_interval}'}
+            c.print(msg, color='red')
+            return msg
         shards = self.get_shards(item_key, metadata=metadata)
 
         if len(shards) > 0:
@@ -291,65 +307,76 @@ class Storage(c.Module):
         # get the remote replica key
         remote_item_key = f'{self.replica_prefix}/{c.hash(item_data)}'
 
+        seed = c.timestamp()
 
+        local_hash = self.hash_item(data=item_data, seed=seed)
+
+        color = c.random_color()
+
+        prefix = f'[bold {color}]{item_key}[/bold {color}]'
 
         if has_enough_replicas: 
             # check if replicas match
             peer = c.choice(replica_peers)
-
-            # use the timestamp for the check seed
-            seed = c.timestamp()
-
-            # get the local hash
-            local_hash = self.hash_item(data=item_data, seed=seed)
             # check if remote hash matches
             success_remote_hash = False
+            remote_hash = None
             try:
-                c.print(f'Checking {item_key} on {peer}')
                 remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
                 success_remote_hash = bool(local_hash == remote_hash)
+                c.print(f'{prefix}: Checking {item_key} on {peer} {c.emoji("checkmark")}', color=color)
+
             except Exception as e:
-                c.print(e)
-                c.print(f'Failed to get remote hash for {item_key} on {peer}', color='red')
-                remote_hash = None
+                c.print(str(e) + " "+c.emoji("cross"), color=f'red')
+                success_remote_hash = False
 
             if success_remote_hash:
+                c.print(f'{prefix} Hashes match for {item_key} on {peer} during validation', color=color)
+            else:
                 # remove replica from the registry
                 replica_peers.remove(peer)
-                c.print(f'Hashes do not match for {item_key} on {peer}', color='red')
-            else:
-                # Dope, the pass had checked
-                c.print(f'Hashes match for {item_key} on {peer}', color='green')
+                c.print(f'{prefix} Hashes do not match for {item_key}', color='red')
+                has_enough_replicas = False
                 
-        # now check it again 
         if not has_enough_replicas:
             # find peer to add replica and add it
             candidate_peers = [peer for peer in peers if peer not in replica_peers]
             peer = c.choice(candidate_peers)
-            
-            # add replica
             response = c.call(peer, 'put_item', remote_item_key, item_data)
-            c.print(response)
+            remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
+            assert bool(local_hash == remote_hash), f'{prefix} Hashes do not match for {item_key} on {peer} {local_hash} {remote_hash}'
+        
+            # add replica
             if 'error' in response:
-                c.print(f'Failed to add replica for {item_key} on {peer} ', color='red')
+                c.print(f'Failed to add replica for {item_key} on {peer} {c.emoji("incorrect")} ', color='red')
             else:
                 # dope no
                 replica_peers += [peer]
-                c.print(f'Added replica for {item_key} on {peer}', color='green')
+                c.print(f'Added replica for {item_key} on {peer} {c.emoji("correct")}', color=color)
         
         metadata['replicas'] = replica_peers
+        metadata['last_checked'] = c.timestamp()
         self.put_metadata(item_key, metadata)
 
         return {'success': True, 'metadata': metadata, 'msg': f'Validated {item_key}'}
    
 
-    def validate_loop(self, tag=None, interval=1.0, vote_inteval=1, init_timeout = 10):
+    def validate_loop(self, tag=None, interval=0.1, vote_inteval=1, init_timeout = 1):
         c.sleep(init_timeout)
         import time
         tag = self.tag if tag == None else tag
         while True:
             try:
-                self.validate()
+                items = self.items(tag=tag)
+                if len(items) == 0:
+                    c.print('No items to validate', color='red')
+                    time.sleep(1.0)
+                    continue
+                item_key = c.choice(items)
+                metadata = self.get_metadata(item_key)
+                num_replicas = len(metadata.get('replicas', []))
+                c.print(f'Validating {item_key} key with {num_replicas} replicas -->', color='green')
+                self.validate(item_key)
                 time.sleep(interval)
             except Exception as e:
                 c.print(e, color='red')
