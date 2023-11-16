@@ -23,6 +23,9 @@ class SubspaceDashboard(c.Module):
             amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
             to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
             multi_transfer = False
+
+            
+
             if ',' in to_address:
                 multi_transfer = True
                 to_addresses = [a.strip() for a in to_address.split(',')]
