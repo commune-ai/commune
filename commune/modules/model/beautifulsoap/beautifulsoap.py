@@ -155,3 +155,25 @@ class BeautifulSoapModule(c.Module):
 
         else:
             print(f"Failed to retrieve the page. Status code: {response.status_code}")
+
+    def get_components(self, url, tags):
+        # Make a GET request to the website
+        response = requests.get(url)
+
+        # Check if the request was successful (status code 200)
+        if response.status_code == 200:
+            # Parse the HTML content of the page
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            result={}
+            for tag in tags:
+                # Find all components on their HTML representation
+                components = [str(component) for component in soup.find_all(tag)]
+                result[tag] = components
+
+
+            # Print or use the result as needed
+            return result
+
+        else:
+            print(f"Failed to retrieve the page. Status code: {response.status_code}")
