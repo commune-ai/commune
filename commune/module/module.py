@@ -7793,6 +7793,8 @@ class c:
         if tag != None:
             tag = str(tag)
             name = fn_name + tag_seperator + tag
+        else:
+            name = fn_name + tag_seperator
         cnt = 0
         while name in cls.thread_map:
             cnt += 1
@@ -7970,6 +7972,10 @@ class c:
             'error': '💥',
             'cross': '❌',
             'check': '✅',
+            'wrong': '❌',
+            'right': '✅',
+            'correct': '✅',
+            'incorrect': '❌',
             'checkmark': '✅',
             'check_mark': '✅',
             'checkered_flag': '🏁',
