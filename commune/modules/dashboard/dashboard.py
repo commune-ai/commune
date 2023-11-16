@@ -26,8 +26,6 @@ class Dashboard(c.Module):
 
         st.title(f'COMMUNE')
 
-        key2index = {k:i for i,k in enumerate(self.keys)}
-        self.key = st.selectbox('Select Key', c.keys(), key2index['module'], key='key.sidebar')
 
         if not c.server_exists('module'):
                 c.serve(wait_for_server=True)
@@ -37,20 +35,19 @@ class Dashboard(c.Module):
         index = network2index['local']
 
         self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
-        sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
         namespace = c.namespace(network=self.network)
-        with st.expander('Namespace', expanded=False):
+        with st.expander('Namespace', expanded=True):
             search = st.text_input('Search Namespace', '', key='search.namespace')
             df = pd.DataFrame(namespace.items(), columns=['key', 'value'])
-            st.write(f'**{len(df)}** servers with {search} in it')
             if search != '':
                 df = df[df['key'].str.contains(search)]
+            st.write(f'**{len(df)}** servers with **{search}** in it')
+
             df.set_index('key', inplace=True)
             st.dataframe(df, width=1000)
+        sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
 
         self.servers = c.servers(network=self.network)
-        self.keys = c.keys()
-        key2index = {k:i for i,k in enumerate(self.keys)}
 
         if sync:
             c.sync()
@@ -92,13 +89,15 @@ class Dashboard(c.Module):
         # plotly
         self = cls()
         self.sidebar()
-        key_address = self.key.ss58_address
-        key_path = self.key.path
 
-        st.title(f'COMMUNE')
-        st.write('\n\n')
-        st.code(key_address)
-        st.write('\n\n')
+        cols = st.columns([1,2])
+        self.keys = c.keys()
+        key2index = {k:i for i,k in enumerate(self.keys)}
+        self.key = cols[0].selectbox('Select Key', c.keys(), key2index['module'], key='key.sidebar')
+        key_address = self.key.ss58_address
+        cols[1].write('\n\n\n'*2)
+        cols[1].code(key_address)
+
 
 
 
@@ -244,38 +243,43 @@ class Dashboard(c.Module):
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
                     
 
-        with st.form(key='serve'):
-            cols = st.columns([1,1])
+        with st.expander('serve'):
+            cols = st.columns([2,2,1])
             tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
             tag = None if tag == '' else tag
 
             n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
- 
+            
+            [cols[2].write('\n\n\n') for _ in range(2)]
+            register = cols[2].checkbox('Register', key=f'serve.register.{module}')
+            if register:
+                stake = cols[2].number_input('Stake', 0, 100000, 1000, 100, key=f'serve.stake.{module}')
             st.write(f'### {module_name.upper()} kwargs')
-            kwargs = self.function2streamlit(module=module, fn='__init__' )
-            serve = st.form_submit_button('Serve')
+            with st.form(key=f'serve.{module}'):
+                kwargs = self.function2streamlit(module=module, fn='__init__' )
+                serve = st.form_submit_button('Serve')
 
-            if serve:
+                if serve:
 
-                if 'None' == tag:
-                    tag = None
-                if 'tag' in kwargs:
-                    kwargs['tag'] = tag
-                for i in range(n):
-                    try:
-                        if tag != None:
-                            s_tag = f'{tag}.{i}'
+                    if 'None' == tag:
+                        tag = None
+                    if 'tag' in kwargs:
+                        kwargs['tag'] = tag
+                    for i in range(n):
+                        try:
+                            if tag != None:
+                                s_tag = f'{tag}.{i}'
+                            else:
+                                s_tag = str(i)
+                            response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
+                        except Exception as e:
+                            e = c.detailed_error(e)
+                            response = {'success': False, 'message': e}
+            
+                        if response['success']:
+                            st.write(response)
                         else:
-                            s_tag = str(i)
-                        response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
-                    except Exception as e:
-                        e = c.detailed_error(e)
-                        response = {'success': False, 'message': e}
-        
-                    if response['success']:
-                        st.write(response)
-                    else:
-                        st.error(response)
+                            st.error(response)
 
         with st.expander('Code', expanded=False):
             code = module.code()
