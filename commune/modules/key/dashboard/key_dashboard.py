@@ -53,7 +53,7 @@ class KeyDashboard(c.Module):
 
         for k in ['select', 'create', 'rename', 'remove']:
             fn_name = k + '_key'
-            with st.expander(k.capitalize()):
+            with st.expander(fn_name.capitalize().replace('_',' ')):
                 getattr(self, fn_name)()
 
         return self.key

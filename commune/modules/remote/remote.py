@@ -480,14 +480,12 @@ class Remote(c.Module):
 
         with st.expander('Hosts', expanded=False):
             for host_name, host in hosts.items():
-                cols = st.columns([1,1,1])
-                cols[0].write('### '+host_name)
+                cols = st.columns([1,4,2])
+                cols[0].write('#### '+host_name)
                 ssh_login_param = f'ssh {host["user"]}@{host["host"]} -p {host["port"]}'
                 cols[1].code(ssh_login_param)
-                cols[1].write(host)
                 remove_host  = cols[2].button(f'Remove {host_name}')
                 if remove_host:
-                    st.write('hey')
                     st.write(self.rm_host(host_name))
                 
         host_names = st.multiselect('Host', host_names, host_names)
