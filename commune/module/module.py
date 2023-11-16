@@ -1532,7 +1532,10 @@ class c:
     @classmethod
     def dash(cls, *args, **kwargs):
         c.print('FAM')
-        return cls.st()
+        if cls.module_path() == 'module':
+            return cls.st('dashboard')
+        else:
+            return cls.st()
     
     @classmethod
     def dashboard(cls):
@@ -7756,9 +7759,6 @@ class c:
         c.print('hello')
 
 
-
-        
-    
     thread_map = {}
     @classmethod
     def thread(cls,fn: Union['callable', str],  
@@ -7782,16 +7782,17 @@ class c:
         
         import threading
         t = threading.Thread(target=fn, args=args, kwargs=kwargs)
-        t.__dict__['time'] = c.time()
+        
+        # set the time it starts
+        t.__dict__['start_time'] = c.time()
+        
         t.daemon = daemon
         if start:
             t.start()
         fn_name = fn.__name__
-        if tag == None:
-            tag = ''
-        else:
+        if tag != None:
             tag = str(tag)
-        name = fn_name + tag_seperator + tag
+            name = fn_name + tag_seperator + tag
         cnt = 0
         while name in cls.thread_map:
             cnt += 1
