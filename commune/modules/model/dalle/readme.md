@@ -63,8 +63,8 @@ c model.dalle edit prompt="A sunlit indoor lounge area with a pool containing a 
 c model.dalle variation image="image.png"
 ```
 
-### Test image generation with gradio
+### Test with gradio
 
 ```bash
-c model.dalle gradio prompt="A sunlit indoor lounge area with a pool containing a flamingo"
+c model.dalle gradio
 ```

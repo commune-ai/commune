@@ -37,8 +37,10 @@ class DallE(c.Module):
                 ) -> str: 
         api_key = api_key if api_key != None else self.api_key
 
+        # Create a client object with api key
         client = OpenAI(api_key = api_key)
 
+        # Get generated response 
         response = client.images.generate(
             prompt=prompt,
             model=model,
@@ -65,6 +67,7 @@ class DallE(c.Module):
 
         client = OpenAI(api_key = api_key)
 
+        # Get edited response 
         response = client.images.edit(
             prompt=prompt,
             model=model,
@@ -89,6 +92,7 @@ class DallE(c.Module):
 
         client = OpenAI(api_key = api_key)
 
+        # Get variation response 
         response = client.images.create_variation(
             model=model,
             image=open(image, "rb"),
@@ -102,6 +106,7 @@ class DallE(c.Module):
     def generateFromGradio(self, prompt):
         response = self.generate(prompt=prompt, response_format='b64_json', size="256x256")
 
+        # Get Image object from the base64 encoded data
         return Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
     
     def editFromGradio(self, prompt, image):
@@ -119,37 +124,38 @@ class DallE(c.Module):
         with gr.Blocks() as demo:
             with gr.Tab("Generate Testing"):
                 with gr.Row():
-                    # Left column (inputs)
+                    # Left column (inputs); prompt, generate button
                     with gr.Column():
                         input_gen=gr.Text(label="prompt") 
                         button_gen = gr.Button("Generate")
-                    # Right column (outputs)
+                    # Right column (outputs); generated image
                     with gr.Column():
                         output_gen = gr.Image(label="generated image")            
-                    # Bind functions to buttons
+                    # Bind function to output_gen
                     button_gen.click(fn=self.generateFromGradio, inputs=input_gen, outputs=output_gen)
 
             with gr.Tab("Edit Testing"):
                 with gr.Row():
-                    # Left column (inputs)
+                    # inputs: {prompt, image, mask}, edit button
                     with gr.Column():
                         input_edit=[gr.Text(label="prompt") , gr.Image(label="image", type="filepath"), gr.Image(label="mask", type="filepath")]
                         button_edit = gr.Button("Edit")
-                    # Right column (outputs)
+                    # edited image
                     with gr.Column():
                         output_edit = gr.Image(label="edited image")
-                    # Bind functions to buttons
+                    # Bind function to button_edit
                     button_edit.click(fn=self.editFromGradio, inputs=input_edit, outputs=output_edit)
 
             with gr.Tab("Variation Testing"):
                 with gr.Row():
-                    # Left column (inputs)
+                    # image, change button
                     with gr.Column():
                         input_var = gr.Image(label="image", type="filepath")
                         button_var = gr.Button("Change")
-                    # Right column (outputs)
+                    # changed image
                     with gr.Column():
                         output_var = gr.Image(label="changed image")            
-                    # Bind functions to buttons
+                    # Bind function to button_var
                     button_var.click(fn=self.variationFromGradio, inputs=input_var, outputs=output_var)
+        # Launch the gradio block and share
         demo.launch(quiet=True, share=True)
