@@ -321,5 +321,5 @@ ENV/
 env.bak/
 venv.bak/
 
-
+embeddings.db
 
