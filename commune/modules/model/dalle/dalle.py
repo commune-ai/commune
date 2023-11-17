@@ -52,15 +52,15 @@ class DallE(c.Module):
         return response
     
     def edit( self, 
-                prompt: str, # required; max len is 1000 for dall-e-2 and 4000 for dall-e-3
-                image: str, # required; PNG file, less than 4MB,
-                mask: str, # fully transparent areas; PNG file, less than 4MB,
-                model: str = "dall-e-2", # "dall-e-2"
-                n: int = 1, # number of images Must be between 1 and 10
-                response_format: str = "url", # "url" or "b64_json"
-                size: str = "1024x1024", #  256x256, 512x512, 1024x1024 
-                api_key: str = None, # api_key "sk-..."
-                ) -> str: 
+            prompt: str, # required; max len is 1000 for dall-e-2 and 4000 for dall-e-3
+            image: str, # required; PNG file, less than 4MB,
+            mask: str, # fully transparent areas; PNG file, less than 4MB,
+            model: str = "dall-e-2", # "dall-e-2"
+            n: int = 1, # number of images Must be between 1 and 10
+            response_format: str = "url", # "url" or "b64_json"
+            size: str = "1024x1024", #  256x256, 512x512, 1024x1024 
+            api_key: str = None, # api_key "sk-..."
+        ) -> str: 
         api_key = api_key if api_key != None else self.api_key
 
         client = OpenAI(api_key = api_key)
@@ -102,18 +102,54 @@ class DallE(c.Module):
     def generateFromGradio(self, prompt):
         response = self.generate(prompt=prompt, response_format='b64_json', size="256x256")
 
-        # Decode the base64 string
-        image_bytes = base64.b64decode(response.data[0].b64_json)
-        # Convert to a bytes stream
-        image_stream = BytesIO(image_bytes)
-        # Use PIL to open the image stream
-        image = Image.open(image_stream)
-        # Now you can use the image object as a PIL Image
-        return image
+        return Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
+    
+    def editFromGradio(self, prompt, image):
+        response = self.edit(prompt = prompt, image = image, response_format='b64_json', size="256x256")
+        
+        return Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
+
+    
+    def variationFromGradio(self, image):
+        response = self.variation(image = image, response_format='b64_json', size="256x256")
+
+        return Image.open(BytesIO(base64.b64decode(response.data[0].b64_json)))
 
     def gradio(self):
-        interface = gr.Interface(fn=self.generateFromGradio, 
-                                inputs="text",
-                                outputs="image", 
-                                title='Text to Image with Dall-E')
-        interface.launch(share=True, quiet=True)
+        with gr.Blocks() as demo:
+            with gr.Tab("Generate Testing"):
+                with gr.Row():
+                    # Left column (inputs)
+                    with gr.Column():
+                        input_gen=gr.Text(label="prompt") 
+                        button_gen = gr.Button("Generate")
+                    # Right column (outputs)
+                    with gr.Column():
+                        output_gen = gr.Image(label="generated image")            
+                    # Bind functions to buttons
+                    button_gen.click(fn=self.generateFromGradio, inputs=input_gen, outputs=output_gen)
+
+            with gr.Tab("Edit Testing"):
+                with gr.Row():
+                    # Left column (inputs)
+                    with gr.Column():
+                        input_edit=[gr.Text(label="prompt") , gr.Image(label="image", type="filepath"), gr.Image(label="mask", type="filepath")]
+                        button_edit = gr.Button("Edit")
+                    # Right column (outputs)
+                    with gr.Column():
+                        output_edit = gr.Image(label="edited image")
+                    # Bind functions to buttons
+                    button_edit.click(fn=self.editFromGradio, inputs=input_edit, outputs=output_edit)
+
+            with gr.Tab("Variation Testing"):
+                with gr.Row():
+                    # Left column (inputs)
+                    with gr.Column():
+                        input_var = gr.Image(label="image", type="filepath")
+                        button_var = gr.Button("Change")
+                    # Right column (outputs)
+                    with gr.Column():
+                        output_var = gr.Image(label="changed image")            
+                    # Bind functions to buttons
+                    button_var.click(fn=self.variationFromGradio, inputs=input_var, outputs=output_var)
+        demo.launch(quiet=True, share=True)
