@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import numpy as np
 import cv2
 from PIL import Image
-
+import gradio as gr
 import commune as c
 
 class Yolo(c.Module):
@@ -31,8 +31,8 @@ class Yolo(c.Module):
     for r in results:
       for i in range(len(r.boxes.cls.numpy())):
         response.append({
-          # label of the boxes.
-          "label": r.names[int(r.boxes.cls.numpy()[i])],
+          # label   of the boxes.
+          "label " : r.names[int(r.boxes.cls.numpy()[i])],
           # confidence values of the boxes.
           "confidence": r.boxes.conf.numpy()[i],
           # boxes in xywh format.
@@ -49,7 +49,7 @@ class Yolo(c.Module):
     for r in results:
       for i in range(len(r.boxes.cls.numpy())):
         response.append({
-          "label": r.names[int(r.boxes.cls.numpy()[i])],
+          "label " : r.names[int(r.boxes.cls.numpy()[i])],
           "confidence": r.boxes.conf.numpy()[i],
           "xywh": r.boxes.xywh.numpy()[i],
           # A list of segments in pixel coordinates represented as tensors.
@@ -66,8 +66,8 @@ class Yolo(c.Module):
     for r in results:
       for i in range(len(r.probs.top5)):
         response.append({
-          # label of indices of the top 5 classes.
-          "label": r.names[int(r.probs.top5[i])],
+          # label   of indices of the top 5 classes.
+          "label " : r.names[int(r.probs.top5[i])],
           # Confidences of the top 5 classes.
           "confidence": r.probs.top5conf.numpy()[i],
         })
@@ -90,3 +90,55 @@ class Yolo(c.Module):
 
     return response
   
+  def gradioDetect(self, image = "test_image.png"):
+    results = self.detectModel(image)
+
+    for r in results:
+        im_array = r.plot()  # plot a BGR numpy array of predictions
+        return Image.fromarray(im_array[..., ::-1])  # RGB PIL image
+    
+  def gradioSegment(self, image = "test_image.png"):
+    results = self.segmentModel(image)
+
+    for r in results:
+        im_array = r.plot()  # plot a BGR numpy array of predictions
+        return Image.fromarray(im_array[..., ::-1])  # RGB PIL image
+    
+  def gradioClassify(self, image = "test_image.png"):
+    results = self.classifyModel(image)
+
+    for r in results:
+        im_array = r.plot()  # plot a BGR numpy array of predictions
+        return Image.fromarray(im_array[..., ::-1])  # RGB PIL image
+  def gradioPose(self, image = "test_image.png"):
+    results = self.poseModel(image)
+
+    for r in results:
+        im_array = r.plot()  # plot a BGR numpy array of predictions
+        return Image.fromarray(im_array[..., ::-1])  # RGB PIL image
+
+  def gradio(self):
+    with gr.Blocks() as demo:
+      with gr.Row():
+        with gr.Column():             
+          img_in = gr.Image(label = "image", type = "filepath")
+        with gr.Column():
+          with gr.Tab("Detection"):
+            detect_but = gr.Button("Detect")
+            detect_out = gr.Image(label = "result")   
+          with gr.Tab("Segmentation"):
+            segment_but = gr.Button("Segment")
+            segment_out = gr.Image(label = "result")   
+          with gr.Tab("Classification"):
+            classify_but = gr.Button("Classify")
+            classify_out = gr.Image(label = "result")   
+          with gr.Tab("Pose"):
+            pose_but = gr.Button("Pose")
+            pose_out = gr.Image(label = "result")     
+        # Bind function to output_gen
+        detect_but.click(fn = self.gradioDetect, inputs = img_in, outputs = detect_out)
+        segment_but.click(fn = self.gradioSegment, inputs = img_in, outputs = segment_out)
+        classify_but.click(fn = self.gradioClassify, inputs = img_in, outputs = classify_out)
+        pose_but.click(fn = self.gradioPose, inputs = img_in, outputs = pose_out)
+
+    demo.launch(quiet=True, share=True)
