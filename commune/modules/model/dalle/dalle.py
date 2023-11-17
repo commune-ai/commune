@@ -1,13 +1,10 @@
 import http.client
-import json
 import commune as c
 from openai import OpenAI
-# import base64
-
-# from PIL import Image
-# from io import BytesIO
-
-
+import gradio as gr
+from io import BytesIO
+import base64
+from PIL import Image
 
 class DallE(c.Module):
     
@@ -101,3 +98,22 @@ class DallE(c.Module):
         )
 
         return response
+        
+    def generateFromGradio(self, prompt):
+        response = self.generate(prompt=prompt, response_format='b64_json', size="256x256")
+
+        # Decode the base64 string
+        image_bytes = base64.b64decode(response.data[0].b64_json)
+        # Convert to a bytes stream
+        image_stream = BytesIO(image_bytes)
+        # Use PIL to open the image stream
+        image = Image.open(image_stream)
+        # Now you can use the image object as a PIL Image
+        return image
+
+    def gradio(self):
+        interface = gr.Interface(fn=self.generateFromGradio, 
+                                inputs="text",
+                                outputs="image", 
+                                title='Text to Image with Dall-E')
+        interface.launch(share=True, quiet=True)
