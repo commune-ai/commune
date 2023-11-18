@@ -3653,7 +3653,7 @@ class Subspace(c.Module):
 
     @classmethod
     def start_public_nodes(cls, node:str='nonvali', 
-                           n:int=4,
+                           n:int=10,
                             i=0,
                             mode=mode, 
                            chain=chain, 
