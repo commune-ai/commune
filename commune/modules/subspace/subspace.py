@@ -4462,7 +4462,7 @@ class Subspace(c.Module):
         c.print('testing url -> ', url, color='yellow' )
 
         try:
-            self.set_network(url=url)
+            self.set_network(url=url, max_trials=1)
             success = isinstance(self.block, int)
         except Exception as e:
             c.print(c.detailed_error(e))
