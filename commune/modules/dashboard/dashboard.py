@@ -103,8 +103,7 @@ class Dashboard(c.Module):
         key2index = {k:i for i,k in enumerate(keys)}
         self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
         key_address = self.key.ss58_address
-        st.write(f'**address** {self.key.__dict__}')
-        st.write('\n\n\n'*2)
+        st.write('address')
         st.code(key_address)
         return self.key
 

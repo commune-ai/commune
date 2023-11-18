@@ -2468,19 +2468,21 @@ class c:
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
         
-        address = c.get_address(server_name, network=network)
-        if address != None and ':' in address:
-            port = int(address.split(':')[-1])
+
         if port == None:
+            address = c.get_address(server_name, network=network)
+            if address != None and ':' in address:
+                port = int(address.split(':')[-1])
             port = c.free_port()
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
-            remote_kwargs.pop('extra_kwargs') # REMOVE THE extra_kwargs
-    
             remote_kwargs['remote'] = False # SET THIS TO FALSE
-            remote_kwargs.pop('address') # WE INTRODUCED THE ADDRES
+
+            # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
             c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
