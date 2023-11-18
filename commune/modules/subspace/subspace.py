@@ -4491,7 +4491,8 @@ class Subspace(c.Module):
         node2pass = cls.test_endpoints(timeout=timeout)
         chain_info = cls.chain_info(chain=chain)
         for node in list(chain_info['nodes'].keys()):
-            if node not in node2pass:
+            if node2pass[node] != True:
+                c.print(f'removing node {node} from chain {chain}')
                 del chain_info['nodes'][node]
         cls.putc(f'chain_info.{chain}', chain_info)
 
