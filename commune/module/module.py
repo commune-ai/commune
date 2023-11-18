@@ -2484,7 +2484,7 @@ class c:
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
-            c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
+            c.print(f'Serving [bold]{server_name}[/bold]', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)

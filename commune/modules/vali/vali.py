@@ -382,7 +382,7 @@ class Vali(c.Module):
         self.running = False
         
     @classmethod
-    def check_valis(cls, network='main', interval:int = 20, max_staleness:int=300, return_all=True, remote=False):
+    def check_valis(cls, network='main', interval:int = 1, max_staleness:int=300, return_all:bool=True, remote=False):
         # get the up to date vali stats
         vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:
