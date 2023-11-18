@@ -3867,7 +3867,7 @@ class Subspace(c.Module):
             boot_nodes = cls.boot_nodes(chain=chain)
         # add the node to the boot nodes
         if len(boot_nodes) > 0:
-            node_info['boot_nodes'] = c.choice(boot_nodes)  # choose a random boot node (at we chose one)
+            node_info['boot_nodes'] = ' '.join(c.shuffle(boot_nodes)[:10])  # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
         if node_key != None:
@@ -4409,10 +4409,15 @@ class Subspace(c.Module):
         if peer2nodes == None:
             peer2nodes = cls.peer2nodes(chain=chain)
         for peer, nodes in peer2nodes.items():
-
             for node in nodes:
                 node2peer[node] = peer
         return node2peer
+
+    @classmethod
+    def vali2peer(cls, chain='main'):
+        node2peer = cls.node2peer(chain=chain)
+        vali2peer = {k:v for k,v in node2peer.items() if '.vali' in k}
+        return len(vali2peer)
 
     @classmethod
     def peer2ip(cls):
