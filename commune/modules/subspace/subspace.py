@@ -3767,7 +3767,7 @@ class Subspace(c.Module):
         return nodes
 
     @classmethod
-    def start_vali(cls,*args, **kwargs)
+    def start_vali(cls,*args, **kwargs):
         kwargs['validator'] = True
         return cls.start_node(*args, **kwargs)
     @classmethod
@@ -3793,7 +3793,7 @@ class Subspace(c.Module):
                  daemon : bool = True,
                  key_mems:dict = None, # pass the keys mems {aura: '...', gran: '...'}
                  module : str = None , # remote module to call
-                 remote = False,
+                 remote = False
                  ):
                 
         if remote and module == None:
@@ -3803,11 +3803,11 @@ class Subspace(c.Module):
         if module != None:
             remote_kwargs = c.locals2kwargs(locals())
             remote_kwargs['module'] = None
-            remote_kwargs['remote'] = False
+            remote_kwargs.pop('remote', None)
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
             kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=100, network=network)[0]
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=8, network='remote')[0]
             return response
 
 
@@ -3973,7 +3973,7 @@ class Subspace(c.Module):
                     remote:bool = True,
                     build_spec :bool = False,
                     push:bool = True,
-                    trials:int = 4
+                    trials:int = 10
                     ):
 
         # KILL THE CHAIN
@@ -4008,7 +4008,7 @@ class Subspace(c.Module):
         remote_address_cnt = 1
         avoid_ports = []
 
-        peer2nodes = cls.peer2nodes(chain=chain)
+        peer2nodes = cls.peer2nodes(chain=chain, update=True)
         node2peer = cls.node2peer(peer2nodes=peer2nodes)
 
 
