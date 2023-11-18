@@ -24,7 +24,7 @@ class Remote(c.Module):
             command = command.replace('c ', cls.executable_path + ' ')
 
         if cwd != None:
-            command = f'cd {cwd} ; {command}'
+            command = f'cd {cwd} && {command}'
 
         
 
@@ -173,6 +173,16 @@ class Remote(c.Module):
             hosts = {k:v for k,v in hosts.items() if search in k}
         return hosts
 
+
+    @classmethod
+    def host2ip(cls):
+        hosts = cls.hosts()
+        return {k:v['host'] for k,v in hosts.items()}
+
+    @classmethod
+    def ip2host(cls):
+        host2ip = cls.host2ip()
+        return {v:k for k,v in host2ip.items()}
     @classmethod
     def names(cls, search=None):
         return list(cls.hosts(search=search).keys())
@@ -216,7 +226,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=20 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
         if hosts == None:
@@ -229,42 +239,25 @@ class Remote(c.Module):
             hosts = {hosts:cls.hosts(hosts)}
 
         assert isinstance(hosts, dict), f'Hosts must be a dict, got {type(hosts)}'
-        for i in range(num_trials):
-            try:
-                results = {}
-                for host in hosts:
-                    result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
-                    results[host] = result_future
-                result_values = c.wait(list(results.values()), timeout=timeout)
-                results =  dict(zip(results.keys(), result_values))
-                results =  {k:v for k,v in results.items()}
 
+        results = {}
+        for host in hosts:
+            result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
+            results[host] = result_future
 
-                if all([v == None for v in results.values()]):
-                    raise Exception(f'all results are None')
-                
-                unfinished_hosts  = []
-                for k, v in results.items():
-                    if v == None:
-                        unfinished_hosts += [k]
-                    else:
-                        output[k] = v
+        result_values = c.wait(list(results.values()), timeout=timeout)
+        results =  dict(zip(results.keys(), result_values))
+        results =  {k:v for k,v in results.items()}
 
-                host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
+        if all([v == None for v in results.values()]):
+            raise Exception(f'all results are None')
+        
 
-                if len(host_map) == 0:
-                    break
-
-            except Exception as e:
-                c.print('Retrying')
-                c.print(c.detailed_error(e))
-                continue
-
-        for k,v in output.items():
+        for k,v in results.items():
             if isinstance(v, str):
-                output[k] = v.strip('\n')
+                results[k] = v.strip('\n')
 
-        return output 
+        return results 
 
     
     @classmethod
@@ -281,16 +274,15 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
+    def add_servers(cls, *args, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
         if refresh:
             c.rm_namespace(network=network)
-        server_addresses = list(cls.cmd('c addy', verbose=True).values())
+        server_addresses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
         servers = c.servers(network=network)
         for i, server_address in enumerate(server_addresses):
             if isinstance(server_address, str):
                 if server_address.endswith('\n'):
                     server_address = server_address[:-1]
-
                 servers += [server_address]
         c.add_servers(*servers, network=network)
         servers = c.servers(network=network)

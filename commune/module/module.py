@@ -2322,6 +2322,10 @@ class c:
     @classmethod
     def add_servers(cls, *args, **kwargs):
         return c.module("namespace").add_servers(*args, **kwargs)
+
+    @classmethod
+    def readd_servers(cls, *args, **kwargs):
+        return c.module("namespace").readd_servers(*args, **kwargs)
     @classmethod
     def rm_server(cls, *args, **kwargs):
         return c.module("namespace").rm_server(*args, **kwargs)
@@ -2339,6 +2343,16 @@ class c:
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
         return c.module("namespace").rm_namespace(*args, **kwargs)
+
+    @classmethod
+    def empty_namespace(cls, *args, **kwargs):
+        return c.module("namespace").empty_namespace(*args, **kwargs)
+
+    @classmethod
+    def add_namespace(cls, *args, **kwargs):
+        return c.module("namespace").empty_namespace(*args, **kwargs)
+
+
     
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
@@ -6183,9 +6197,12 @@ class c:
                         yield future.result()
         else:
             def get_results():
-                for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                    idx = future2idx[future]
-                    results[idx] = future.result()
+                try:
+                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                        idx = future2idx[future]
+                        results[idx] = future.result()
+                except Exception as e:
+                    print(e)
                 return results
             
         return get_results()
