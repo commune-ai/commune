@@ -14,17 +14,35 @@ class Namespace(c.Module):
         namespace[name] = address
         cls.put_namespace(network, namespace)
         return {'success': True, 'msg': f'Block {name} registered to {network}.'}
-
     @classmethod
     def deregister_server(cls, name:str, network=network) -> Dict:
 
         namespace = cls.get_namespace(network=network)
+        address2name = {v: k for k, v in namespace.items()}
+        if name in address2name:
+            name = address2name[name]
+        
         if name in namespace:
             del namespace[name]
             cls.put_namespace(network, namespace)
             return {'status': 'success', 'msg': f'Block {name} deregistered.'}
         else:
             return {'success': False, 'msg': f'Block {name} not found.'}
+    
+    @classmethod
+    def rm_server(self,  name:str, network=network):
+        return self.deregister_server(name, network=network)
+
+    @classmethod
+    def empty_servers(cls,network=network):
+        cls.put_namespace(network, {})
+        c.print('hey')
+        return {'success': True, 'msg': f'Blocks {names} deregistered.'}
+    
+    @classmethod
+    def empty_namespace(cls, network=network):
+        cls.put_namespace(network, {})
+        return {'success': True, 'msg': f'Namespace {network} emptied.'}
 
     @classmethod
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
@@ -41,7 +59,7 @@ class Namespace(c.Module):
             network = cls.network
 
         if network == 'subspace':
-            namespace =  c.module(network)().namespace(update=update)
+            return c.module(network)().namespace(update=update)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))
@@ -52,15 +70,19 @@ class Namespace(c.Module):
         if public:
             ip = c.ip()
             namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
+
         return namespace
     
     
     @classmethod
-    def put_namespace(cls, network:str, namespace:dict) -> None:
+    def put_namespace(cls, network:str, namespace:dict = None) -> None:
+        if namespace == None:
+            namespace = cls.get_namespace(network=network)
         assert isinstance(namespace, dict), 'Namespace must be a dict.'
         cls.put(network, namespace)
         return {'success': False, 'msg': f'Namespace {network} updated.'}
-
+    
+    add_namespace = put_namespace
     
 
     @classmethod
@@ -79,6 +101,13 @@ class Namespace(c.Module):
         address = address.replace(c.default_ip, ip)
         assert ip in address, f'ip {ip} not in address {address}'
         return address
+    
+    @classmethod
+    def address2name(cls, name:str, network:str=network ):
+        namespace = cls.get_namespace(network=network)
+        address2name = {v: k for k, v in namespace.items()}
+        return address2name
+    
     @classmethod
     def networks(cls) -> dict:
         return [p.split('/')[-1].split('.')[0] for p in cls.ls()]
@@ -155,29 +184,33 @@ class Namespace(c.Module):
 
 
     remote_modules_path ='remote_modules'
+
+    @classmethod
+    def readd_servers(cls, search=None,  network= 'local', timeout=10):
+        import tqdm
+        futures = []
+        for serve, address in tqdm.tqdm(c.namespace(network=network).items()):
+            futures += [c.submit(cls.add_server, args=[address], kwargs=dict(network=network), return_future=True, timeout=timeout)]
+        c.wait(futures, timeout=timeout)
+        servers = c.servers(network=network)
+        return {'success': True, 'servers': servers}
+
     @classmethod
     def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
         module = c.connect(address)
         info = module.info()
         name = info['name'] if name == None else name
         # check if name exists
+        address = info['address']
+        module_ip = address.split(':')[0]
+        is_remote = bool(module_ip != c.ip())
         namespace = cls.get_namespace(network=network)
         base_name = c.copy(name)
         cnt = 0
-        if address in namespace.values():
-            for k, v in c.copy(list(namespace.items())):
-                if v == address:
-                    namespace.pop(k)
-
-        suffix_len = 4
-        while name in namespace:
-            name = base_name +info['ss58_address'][:suffix_len].replace('.', '')
-            if name in namespace:
-                suffix_len += 1
-            cnt += 1
-
+        if is_remote:
+            name = name + '_' + str(module_ip)
         namespace[name] = address
-        cls.put_namespace(network, namespace)
+        c.put_namespace(network, namespace)
 
         return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': cls.servers(network=network), 'network': network}
     
