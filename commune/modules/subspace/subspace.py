@@ -59,7 +59,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 10,
+                max_trials:int = 1,
                 **kwargs):
 
         '''
@@ -4453,6 +4453,48 @@ class Subspace(c.Module):
         avoid_ports = []
         free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
         avoid_ports += free_ports
+
+    @classmethod
+    def test_endpoint(cls, url=None):
+        if url == None:
+            url = c.choice(cls.urls())
+        self = cls()
+        c.print('testing url -> ', url, color='yellow' )
+
+        try:
+            self.set_network(url=url)
+            success = isinstance(self.block, int)
+        except Exception as e:
+            c.print(c.detailed_error(e))
+            success = False
+
+        c.print(f'success {url}-> ', success, color='yellow' )
+        
+        return success
+
+    @classmethod
+    def test_endpoints(cls, timeout=10):
+        node2url = cls.node2url()
+        futures = []
+        node2future = {}
+        for node, url in node2url.items():
+            future = c.submit(cls.test_endpoint, kwargs=dict(url=url), return_future=True, timeout=timeout)
+            c.print(future)
+            node2future[node] = future
+        futures = list(node2future.values())
+        results = c.wait(futures, timeout=timeout)
+        node2results = {k:v for k,v in zip(node2future.keys(), results)}
+        return node2results
+
+    @classmethod
+    def filter_endpoints(cls, timeout=10, chain='main'):
+        node2pass = cls.test_endpoints(timeout=timeout)
+        chain_info = cls.chain_info(chain=chain)
+        for node in list(chain_info['nodes'].keys()):
+            if node not in node2pass:
+                del chain_info['nodes'][node]
+        cls.putc(f'chain_info.{chain}', chain_info)
+
 
     
 Subspace.run(__name__)
