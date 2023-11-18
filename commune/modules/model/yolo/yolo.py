@@ -120,8 +120,10 @@ class Yolo(c.Module):
   def gradio(self):
     with gr.Blocks() as demo:
       with gr.Row():
+        # input; image
         with gr.Column():             
           img_in = gr.Image(label = "image", type = "filepath")
+        # output; 4 tabs each contain a button and a image output
         with gr.Column():
           with gr.Tab("Detection"):
             detect_but = gr.Button("Detect")
@@ -135,7 +137,7 @@ class Yolo(c.Module):
           with gr.Tab("Pose"):
             pose_but = gr.Button("Pose")
             pose_out = gr.Image(label = "result")     
-        # Bind function to output_gen
+        # Bind function to each button
         detect_but.click(fn = self.gradioDetect, inputs = img_in, outputs = detect_out)
         segment_but.click(fn = self.gradioSegment, inputs = img_in, outputs = segment_out)
         classify_but.click(fn = self.gradioClassify, inputs = img_in, outputs = classify_out)
