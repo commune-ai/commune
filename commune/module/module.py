@@ -2473,7 +2473,8 @@ class c:
             address = c.get_address(server_name, network=network)
             if address != None and ':' in address:
                 port = int(address.split(':')[-1])
-            port = c.free_port()
+            else:
+                port = c.free_port()
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
