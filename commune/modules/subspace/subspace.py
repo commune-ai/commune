@@ -3610,9 +3610,13 @@ class Subspace(c.Module):
 
     @classmethod
     def pull(cls, rpull:bool = False):
+
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
+
+
+
 
     @classmethod
     def push(cls, rpull:bool=False, image:bool = False ):
@@ -3665,8 +3669,6 @@ class Subspace(c.Module):
         node_infos = cls.node_infos(chain= chain)
         served_nodes = []
         remote_addresses = []
-        if remote:
-            remote_addresses = c.module('remote').addresses()
 
         while len(served_nodes) <= n:
             i += 1
@@ -3676,7 +3678,6 @@ class Subspace(c.Module):
                 continue
             else:
                 c.print(f'Deploying {node_name}')
-
 
             if remote:
                 kwargs['module'] = remote_addresses[i % len(remote_addresses)]
@@ -3730,7 +3731,6 @@ class Subspace(c.Module):
         if url != None:
             if url in node2url: 
                 url = node2url[url] 
-            return url
         else:
             if local:
                 local_node_paths = cls.local_nodes(chain=chain)
@@ -3743,8 +3743,8 @@ class Subspace(c.Module):
             else:
                 url = c.choice(cls.urls(network=chain))
 
-            if not url.startswith('ws://'):
-                url = 'ws://' + url
+        if not url.startswith('ws://'):
+            url = 'ws://' + url
 
         return url
 
@@ -4473,7 +4473,7 @@ class Subspace(c.Module):
         return success
 
     @classmethod
-    def test_endpoints(cls, timeout=10):
+    def test_endpoints(cls, timeout:int=30):
         node2url = cls.node2url()
         futures = []
         node2future = {}
@@ -4497,6 +4497,5 @@ class Subspace(c.Module):
         cls.putc(f'chain_info.{chain}', chain_info)
 
 
-    
 Subspace.run(__name__)
 
