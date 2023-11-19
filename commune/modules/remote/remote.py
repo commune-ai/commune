@@ -324,6 +324,7 @@ class Remote(c.Module):
         if update:
             namespace = {}
             host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
+            c.print(host2namespace, type(host2namespace))
             for host, host_namespace in host2namespace.items():
                 for name, address in host_namespace.items():
                     tag = ''
@@ -499,6 +500,7 @@ class Remote(c.Module):
 
         futures = list(host2future.values())
         hosts = list(host2future.keys())
+        host2error = {}
 
         try:
             for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
@@ -509,18 +511,23 @@ class Remote(c.Module):
 
                 result = result['result']
                 if c.is_error(result):
-                    with st.expander(host + ' ' +  c.emoji('cross'), expanded=True):
-                        st.markdown(f"""```bash
-                                    {result}```""")
+                    host2error[host] = result
                 else:
-                    with st.expander(host + ' ' +  c.emoji('checkmark'), expanded=True):
-                        st.markdown(f"""```bash
-                                    {result}```""")
+                    st.markdown(host + ' ' + c.emoji('check_mark'))
+                    st.markdown(f"""```bash\n{result}```""")
+
         except Exception as e:
             pending_hosts = list(host2future.keys())
             st.error(c.detailed_error(e))
             st.error(f"Hosts {pending_hosts} timed out")
 
+        for host, result in host2error.items():
+            st.markdown(host + ' ' + c.emoji('cross'))
+            st.markdown(f"""```bash\n{result}```""")
+
+      
+
+        
         
 
 

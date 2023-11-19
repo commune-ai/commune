@@ -1424,7 +1424,7 @@ class Subspace(c.Module):
                     update:bool=False, 
                     verbose:bool=False, 
                     netuids: List[int] = [0],
-                    parallel:bool=False,
+                    parallel:bool=True,
                     **kwargs):
         # cache and update are mutually exclusive 
         if  update == False:
@@ -1533,7 +1533,7 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
 
         network = self.resolve_network(network)
-        self.state_dict(update=True, network=network)
+        self.state_dict(update=True, network=network, parallel=True)
         self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
@@ -1768,7 +1768,7 @@ class Subspace(c.Module):
 
                 if m_stats['serving']:
 
-                    address = namespace.get(m_name)
+                    address = namespace.get(name)
                     if address != m_stats['address'] or name != m_stats['name']:
                         c.update_module(module=m_stats['name'], address=address, name=name)
                 else:
@@ -2241,13 +2241,24 @@ class Subspace(c.Module):
                 keys += ['weights']
             if parallel:
                 executor = c.module('executor')(max_workers=len(keys), mode=mode)
-                futures = []
-                for key in keys:
-                    futures += [executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) ]
-                
-                c.print(f"Waiting for {len(futures)} futures to complete")
-                results  = c.wait(futures, timeout=timeout)
-                state = {key: result  for key, result in zip(keys, results)}
+                state = {}
+                while len(state) < len(keys):
+                    futures = []
+                    remaining_keys = [k for k in keys if k not in state]
+                    future2key = {}
+                    for key in remaining_keys:
+                        future = executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) 
+                        futures.append(future)
+                    c.print(f"Waiting for {len(futures)} futures to complete")
+                    # remove completed futures
+                    results = c.wait(futures, timeout=timeout)
+                    for key, result in zip(remaining_keys, results):
+                        if result == None:
+                            continue
+                        if c.is_error(result):
+                            continue
+                        state[key] = result
+                    c.print(f"Got {len(state)} of {len(keys)} keys", color='cyan')
             else: 
                 state = {}
 
