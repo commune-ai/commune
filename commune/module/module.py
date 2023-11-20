@@ -7103,11 +7103,15 @@ class c:
         module = cls.resolve_module(module)
         return c.get_text_line( module.pypath(), *args, **kwargs)
     pycode = code
+
     @classmethod
-    def codehash(cls,  *args, **kwargs):
+    def chash(cls,  *args, **kwargs):
+        """
+        The hash of the code, where the code is the code of the class (cls)
+        """
         code = cls.code(*args, **kwargs)
         return c.hash(code)
-    chash = pyhash = codehash
+    
     @classmethod
     def match_module_hash(cls, hash:str, module:str=None, *args, **kwargs):
         '''
