@@ -110,7 +110,6 @@ class c:
         return cls.config_path()
     cfgpath = config_path = config_path
 
-    
     @classmethod
     def dirpath(cls) -> str:
         '''
@@ -118,13 +117,18 @@ class c:
         '''
         return os.path.dirname(cls.filepath())
 
-
     @classmethod
     def dlogs(cls, *args, **kwargs):
+        '''
+        logs of the docker contianer
+        '''
         return c.module('docker').logs(*args, **kwargs)
 
     @classmethod
     def images(cls, *args, **kwargs):
+        """
+        images
+        """
         return c.module('docker').images(*args, **kwargs)
     
     @classmethod
@@ -566,13 +570,12 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
-                   module = None,
                    to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
         '''
         if not cls.has_config():
-            config =  {}
+            config =  cls.init_kwargs()
         else:
             if config == None:
                 config = cls.load_config()
@@ -610,7 +613,6 @@ class c:
     def cfg(cls, *args, **kwargs):
         return cls.get_config(*args, **kwargs)
 
-
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict=None,
@@ -635,6 +637,8 @@ class c:
         # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
+
+        
         self.config = config 
         self.kwargs = kwargs
         
@@ -663,8 +667,8 @@ class c:
 
     @classmethod
     def start_chain(cls, *args, **kwargs):
-        c.module('subspace').start_chain(*args, **kwargs)
-        return {'success': True, 'msg': 'started chain'}
+        return c.module('subspace').start_chain(*args, **kwargs)
+    
     @classmethod
     def kill_chain(cls, *args, **kwargs):
         c.module('subspace').kill_chain(*args, **kwargs)
@@ -2342,10 +2346,16 @@ class c:
         return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
+        """
+        remove the namespace
+        """
         return c.module("namespace").rm_namespace(*args, **kwargs)
 
     @classmethod
     def empty_namespace(cls, *args, **kwargs):
+        """
+        empty the namespace
+        """
         return c.module("namespace").empty_namespace(*args, **kwargs)
 
     @classmethod
@@ -2638,14 +2648,8 @@ class c:
         if schema:
             schema = self.schema(defaults=True)
             info['schema'] = {fn: schema[fn] for fn in fns}
-
         return info
-    
     help = info
-
-
-    
-
     @classmethod
     def schema(cls,search: str = None,
                     code : bool = False,
@@ -2717,7 +2721,6 @@ class c:
         import inspect
         fn_schema = {}
         fn = cls.get_fn(fn)
-        fn_args = cls.get_function_args(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
         if defaults:
@@ -4022,7 +4025,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info_map(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info(cls) -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -4038,7 +4041,7 @@ class c:
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
-        return {k:v['total'] for k,v in c.gpu_info_map().items()}
+        return {k:v['total'] for k,v in c.gpu_info().items()}
     
 
     @classmethod
@@ -4046,7 +4049,7 @@ class c:
         import torch
         return c.format_data_size(c.gpu_total_map()[idx])
     
-    gpu_map =gpu_info_map
+    gpu_map =gpu_info
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4160,7 +4163,10 @@ class c:
         if device is None:
             device = 0
         gpu_map = cls.gpu_map()
-        return gpu_map[device]
+        if device in gpu_map:
+            return gpu_map[device]
+        else:
+            return gpu_map
 
     # CPU LAND
     
@@ -4886,7 +4892,7 @@ class c:
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs)    
         try:
-            module = c.connect(module, prefix_match=prefix_match, network=network, virtual=False, key=key)
+            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
             future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
             result = await asyncio.wait_for(future, timeout=timeout)
         except Exception as e:
@@ -4920,14 +4926,12 @@ class c:
             n = len(modules)
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
-        c.print(f'[bold cyan]Calling {fn} on {len(modules)} modules [/bold cyan]', color='yellow')
-        jobs = []
-        
+        futures = []
         for m in modules:
-            job_kwargs = {'module':  m, 'fn': fn, **kwargs}
-            job = c.submit(c.call, kwargs=kwargs, args=[m, fn, *args] , timeout=timeout, return_future=True)
-            jobs.append(job)
-        responses = c.wait(jobs, timeout=timeout)
+            job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
+            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout, return_future=True)
+            futures.append(future)
+        responses = c.wait(futures, timeout=timeout)
         return responses
     
     @classmethod
@@ -5699,17 +5703,17 @@ class c:
         
         buffer_memory = c.resolve_memory(buffer_memory)
         
-        gpu_info_map = cls.gpu_map()
-        gpus = [int(gpu) for gpu in gpu_info_map.keys()] 
+        gpu_info = cls.gpu_map()
+        gpus = [int(gpu) for gpu in gpu_info.keys()] 
         
         if  reserved_gpus != False:
             reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
             assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
             
             for r_gpu, r_gpu_memory in reserved_gpus.items():
-                gpu_info_map[r_gpu]['total'] -= r_gpu_memory
+                gpu_info[r_gpu]['total'] -= r_gpu_memory
                
-        for gpu_id, gpu_info in gpu_info_map.items():
+        for gpu_id, gpu_info in gpu_info.items():
             if int(gpu_id) in gpus or str(gpu_id) in gpus:
                 gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
                 if gpu_memory <= 0:
@@ -6617,6 +6621,10 @@ class c:
         dataframe = pd.read_json(json_data)
         return dataframe
     
+    @property
+    def ss58_address(self):
+        return self.key.ss58_address
+    
     @staticmethod
     def ss58_encode(*args, **kwargs):
         from scalecodec.utils.ss58 import ss58_encode, ss58_decode
@@ -6793,10 +6801,10 @@ class c:
 
     @staticmethod
     def get_parent_functions(cls) -> List[str]:
-        parent_classes = get_parents(cls)
+        parent_classes = c.get_parents(cls)
         function_list = []
         for parent in parent_classes:
-            function_list += get_functions(parent)
+            function_list += c.get_functions(parent)
 
         return list(set(function_list))
 
@@ -7102,6 +7110,8 @@ class c:
     def get_text_line(cls, module = None, *args, **kwargs):
         module = cls.resolve_module(module)
         return c.get_text_line( module.pypath(), *args, **kwargs)
+    
+
     pycode = code
 
     @classmethod
@@ -7122,7 +7132,7 @@ class c:
             module = c.module(module)
         else:
             module = cls
-        return module.script_hash(*args, **kwargs) == hash
+        return module.chash(*args, **kwargs) == hash
     
     @classmethod
     def find_code_line(cls, search:str, code:str = None):
@@ -7131,7 +7141,7 @@ class c:
         found_lines = [] # list of found lines
         for i, line in enumerate(code.split('\n')):
             if search in line:
-                found_lines.append({'idx': i, 'text': line})
+                found_lines.append({'idx': i+1, 'text': line})
         if len(found_lines) == 0:
             return None
         elif len(found_lines) == 1:
@@ -7139,12 +7149,16 @@ class c:
         return found_lines
     
     @classmethod
-    def fn_info(cls, fn) -> dict:
+    def fn_info(cls, fn:str='info') -> dict:
         r = {}
         code = cls.fn_code(fn)
         lines = code.split('\n')
-        start_line = cls.find_code_line(lines[0])
-        end_line = start_line + len(lines)
+        start_line_text = lines[0]
+        for l in lines:
+            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
+                start_line_text = l
+        start_line = cls.find_code_line(start_line_text)
+        end_line = start_line + len(lines) - 1 # find the endline
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
 
@@ -7152,7 +7166,7 @@ class c:
             'start_line': start_line,
             'end_line': end_line,
             'has_docs': has_docs,
-            'code': code,
+            'code': code.split('\n'),
             'n_lines': len(lines),
             'hash': c.hash(code),
             'path': filepath
@@ -8358,6 +8372,10 @@ class c:
             kwargs[k] = v
 
         return kwargs
+    
+    @classmethod
+    def memory_info(cls, fmt:str='gb'):
+        return c.module('os').memory_info(fmt=fmt)
     
  
 Module = c

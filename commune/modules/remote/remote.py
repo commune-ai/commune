@@ -137,7 +137,11 @@ class Remote(c.Module):
         elif filetype == 'yaml':
             cls.put_yaml(path, hosts)
 
-        return {'status': 'success', 'msg': f'Hosts saved', 'hosts': hosts, 'path': cls.host_data_path, 'filetype': filetype}
+        return {'status': 'success', 
+                'msg': f'Hosts saved', 
+                'hosts': hosts, 
+                'path': cls.host_data_path, 
+                'filetype': filetype}
     @classmethod
     def load_hosts(cls, path = None, filetype=filetype):
         if path == None:
@@ -324,8 +328,9 @@ class Remote(c.Module):
         if update:
             namespace = {}
             host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
-            c.print(host2namespace, type(host2namespace))
             for host, host_namespace in host2namespace.items():
+                if c.is_error(host_namespace):
+                    continue
                 for name, address in host_namespace.items():
                     tag = ''
                     while name + str(tag) in namespace:
@@ -334,7 +339,6 @@ class Remote(c.Module):
                         else:
                             tag += 1
                     namespace[name + str(tag)] = address
-            c.print(namespace)
             c.put_namespace(namespace=namespace, network=network)
         else:
             namespace = c.get_namespace(search, network=network)
@@ -353,6 +357,10 @@ class Remote(c.Module):
     @classmethod
     def server_infos(self, network='remote'):
         return c.server_infos(network=network)
+    @classmethod
+    def server_addresses(cls, network:str='remote'):
+        infos = c.server_infos(network=network)
+        return {k:v['address'] for k,v in infos.items()}
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
