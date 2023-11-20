@@ -280,17 +280,25 @@ class Subspace(c.Module):
         min_allowed_weights = subnet['min_allowed_weights']
         max_allowed_weights = subnet['max_allowed_weights']
 
+        if weights is None:
+            weights = [1 for _ in uids]
+
         if uids is None:
             uids = self.uids()
+
+        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
+
+        
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
             return False
+        
         if len(uids) > max_allowed_weights:
             c.print(f'Only {max_allowed_weights} uids are allowed to be voted on.')
             uids = uids[:max_allowed_weights]
+            weights = weights[:max_allowed_weights]
 
-        
         if len(uids) < min_allowed_weights:
             while len(uids) < min_allowed_weights:
                 uid = c.choice(list(range(subnet['n'])))
@@ -298,30 +306,27 @@ class Subspace(c.Module):
                     uids.append(uid)
                     weights.append(0)
             
-        if weights is None:
-            weights = [1 for _ in uids]
-        if isinstance(weights, list):
-            weights = torch.tensor(weights)
-
-
-        
-
         weights = weights / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
 
-
+        if isinstance(weights, list):
+            weights = torch.tensor(weights)
 
         # uids = [int(uid) for uid in uids]
         uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
 
-        params = {'uids': uids,'weights': weights, 'netuid': netuid}
+        params = {'uids': uids,
+                  'weights': weights, 
+                  'netuid': netuid}
+        
         response = self.compose_call('set_weights',params = params , key=key)
             
         if response['success']:
             return {'success': True, 'weights': weights, 'uids': uids, 'message': 'Set weights'}
+        
         return response
 
     set_weights = vote
@@ -367,6 +372,7 @@ class Subspace(c.Module):
         update_if_registered = False,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
+        existential_balance = 0.1,
         fmt = 'nano',
 
 
@@ -403,15 +409,15 @@ class Subspace(c.Module):
 
             
         # convert to nanos
+        min_stake = min_stake + existential_balance
         balance = self.get_balance(key.ss58_address, fmt=fmt)
         if balance < min_stake:
             return {'success': False, 'message': f'Insufficient balance: {balance} < {min_stake}'}
         if stake == None:
-            stake = 0
-
-
+            stake = min_stake 
         if stake < min_stake:
             stake = min_stake
+
         stake = self.to_nanos(stake)
 
         params = { 

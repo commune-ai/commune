@@ -93,10 +93,54 @@ class OsModule(c.Module):
     def get_pid():
         return os.getpid()
     
-    def memory_info(self):
+    @classmethod
+    def memory_usage_info(cls, fmt='gb'):
         import psutil
         process = psutil.Process(os.getpid())
-        return process.memory_info()
+        memory_info = process.memory_info()
+        response = {
+            'rss': memory_info.rss,
+            'vms': memory_info.vms,
+            'pageins' : memory_info.pageins,
+            'pfaults': memory_info.pfaults,
+        }
+
+
+        for key, value in response.items():
+            response[key] = cls.format_data_size(value, fmt=fmt)
+
+        return response
+
+
+
+    @classmethod
+    def memory_info(cls, fmt='gb'):
+        import psutil
+
+        """
+        Returns the current memory usage and total memory of the system.
+        """
+        # Get memory statistics
+        memory_stats = psutil.virtual_memory()
+
+        # Total memory in the system
+        c.print(memory_stats)
+        response = {
+            'total': memory_stats.total,
+            'available': memory_stats.available,
+            'used': memory_stats.total - memory_stats.available,
+            'free': memory_stats.available,
+            'active': memory_stats.active,
+            'inactive': memory_stats.inactive,
+            'wired': memory_stats.wired,
+            'percent': memory_stats.percent,
+        }
+
+        for key, value in response.items():
+            response[key] = cls.format_data_size(value, fmt=fmt)    
+  
+        return response
+
 
     def virtual_memory_available(self):
         import psutil
@@ -204,6 +248,26 @@ class OsModule(c.Module):
        
 
         return stdout_text
+
+
+    @staticmethod
+    def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
+        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        fmt2scale = {
+            'b': 1,
+            'kb': 1000,
+            'mb': 1000**2,
+            'gb': 1000**3,
+            'GiB': 1024**3,
+            'tb': 1000**4,
+        }
+            
+        assert fmt in fmt2scale.keys(), f'fmt must be one of {fmt2scale.keys()}'
+        scale = fmt2scale[fmt] 
+        x = x/scale 
+        
+        return x
+        
 
 
 
