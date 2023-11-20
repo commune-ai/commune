@@ -4,6 +4,7 @@ import http.client
 import os
 from moviepy.editor import VideoFileClip
 from PIL import Image
+import gradio as gr
 
 class Video2Text(c.Module):  
   """
@@ -125,4 +126,19 @@ class Video2Text(c.Module):
 
     c.print("Summarized: ", full_response)
 
-    return {"description": descriptions, "summary": full_response}
+    return "\n".join(descriptions), full_response
+
+
+  def gradio(self):
+    with gr.Blocks() as demo:
+      with gr.Row():
+        with gr.Column():             
+          api_key = gr.Text(label = "api_key")
+          video = gr.Video(label = "video", interactive = True)
+          button = gr.Button("Describe")
+        with gr.Column():
+          description = gr.Textbox(lines = 3, label = "description")
+          summary = gr.Text(label = "summary")
+        button.click(fn = self.describe, inputs = [api_key, video], outputs = [description, summary])
+
+    demo.launch(quiet=True, share=True)
