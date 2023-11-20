@@ -147,10 +147,11 @@ class Dashboard(c.Module):
 
             kwargs = self.function2streamlit(fn=self.fn, fn_schema=self.server_schema[self.fn], salt='sidebar')
 
-            st.write(kwargs)
-            cols = st.columns([1,1])
-            timeout = cols[0].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{self.fn_path}')
-            call = st.button(f'Call {self.fn_path}')
+            cols = st.columns([3,1])
+            timeout = cols[1].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{self.fn_path}')
+            cols[0].write('\n')
+            cols[0].write('\n')
+            call = cols[0].button(f'Call {self.fn_path}')
             if call:
                 try:
                     response = getattr(self.server, self.fn)(**kwargs, timeout=timeout)
