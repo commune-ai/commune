@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 
 class SushiSwapDataAnalysis(c.Module):
-    def __init__(self, start_date="2021-01-01", end_date="2023-01-01", input_shape=(1,2)):
+    def __init__(self, start_date="2021-01-01", end_date="2023-01-01", input_shape=(1,1)):
         self.start_date = start_date
         self.end_date = end_date
         self.input_shape = input_shape
@@ -48,11 +48,19 @@ class SushiSwapDataAnalysis(c.Module):
 
     # Preprocess the data
     def preprocess_data(self, df):
-        df['amountOutUSD'] = pd.to_numeric(df['amountOutUSD'])
-        df['amountInUSD'] = pd.to_numeric(df['amountInUSD'])
+        # Ensure there are no NaN values
+        df = df.dropna(subset=['amountInUSD', 'amountOutUSD'])
+        df['amountOutUSD'] = pd.to_numeric(df['amountOutUSD'], errors='coerce')
+        df['amountInUSD'] = pd.to_numeric(df['amountInUSD'], errors='coerce')
+        df = df.dropna(subset=['amountInUSD', 'amountOutUSD'])
+        
+        # Calculate the conversion rate
         df['conversion_rate'] = df['amountOutUSD'] / df['amountInUSD']
+        
+        # Scale the 'amountInUSD' feature
         scaler = MinMaxScaler()
-        df[['amountInUSD']] = scaler.fit_transform(df[['amountInUSD']])
+        df['scaled_amountInUSD'] = scaler.fit_transform(df[['amountInUSD']])
+        
         return df, scaler
 
     # Define the Transformer model
@@ -78,10 +86,11 @@ class SushiSwapDataAnalysis(c.Module):
         df = self.fetch_sushiswap_data(start_timestamp, end_timestamp)
         df, scaler = self.preprocess_data(df)
 
-        # Split the data into features and target
-        X = df[['amountInUSD']].values
-        y = df['conversion_rate'].values # This is a placeholder target variable
+        valid_rows = ~df['conversion_rate'].isnull()
+        X = df.loc[valid_rows, 'scaled_amountInUSD'].values.reshape(-1, 1)
+        y = df.loc[valid_rows, 'conversion_rate'].values
 
+        assert X.shape[0] == y.shape[0], "The number of samples in X and y must be the same"
         # Train/Test split
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 

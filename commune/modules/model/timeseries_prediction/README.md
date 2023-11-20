@@ -25,7 +25,7 @@ You can install the required libraries using the following command:
 pip install requests pandas scikit-learn tensorflow
 ```
 
-## ETH to USDT Conversion Rate Prediction
+## WETH to USDT Conversion Rate Prediction
 
 This project is focused on predicting the conversion rate between Ethereum (ETH) and Tether (USDT). We use historical data of ETH and USDT prices, fetched from The Graph's API, to train a time series prediction model.
 
