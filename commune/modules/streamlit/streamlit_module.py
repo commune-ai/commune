@@ -491,3 +491,5 @@ class StreamlitModule(c.Module):
                         df = df[df[column].astype(str).str.contains(user_text_input)]
 
         return df
+    
+
