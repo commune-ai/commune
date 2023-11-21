@@ -1378,6 +1378,8 @@ class c:
 
     @classmethod
     def get_module(cls, path:str) -> str:
+        if path == None:
+            path = 'module'
         path = cls.simple2path(path)
         path = cls.path2objectpath(path)
         return c.import_object(path)
