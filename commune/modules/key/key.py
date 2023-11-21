@@ -78,6 +78,7 @@ class Keypair(c.Module):
                  derive_path: str = None,
                  mnemonic: str = None,
                  path:str = None,
+                 **kwargs
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
