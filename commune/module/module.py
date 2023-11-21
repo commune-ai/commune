@@ -1358,7 +1358,7 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str, search=['c.Module', 'commune.Module']) -> str:
+    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
             
@@ -1381,7 +1381,7 @@ class c:
         if path == None:
             path = 'module'
         path = cls.simple2path(path)
-        path = cls.path2objectpath(path)
+        path = cls.path2objectpath(path, search=None)
         return c.import_object(path)
 
 
@@ -1509,7 +1509,7 @@ class c:
                     modules.append(f)
                 else:
                     # FIX ME
-                    f_classes = cls.find_python_class(f, search=['commune.Module', 'c.Module'])
+                    f_classes = cls.find_python_class(f, search=['c.Module'])
                     # f_classes = []
                     if len(f_classes) > 0:
                         modules.append(f)
