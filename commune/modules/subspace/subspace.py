@@ -28,6 +28,7 @@ class Subspace(c.Module):
     fmt = 'j'
     whitelist = []
     chain_name = 'subspace'
+    git_url = 'https://github.com/commune-ai/subspace.git'
     default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
     network = default_config['network']
@@ -288,7 +289,6 @@ class Subspace(c.Module):
 
         assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
 
-        
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
@@ -2503,6 +2503,7 @@ class Subspace(c.Module):
         names = {v[0].value: v[1].value for v in self.query_map('Names', params=[netuid], **kwargs)}
         names = {k: names[k] for k in sorted(names)}
         return names
+    
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.uid2name(netuid=netuid, **kwargs).values())
 
@@ -3628,6 +3629,8 @@ class Subspace(c.Module):
     @classmethod
     def pull(cls, rpull:bool = False):
 
+        if len(cls.ls(cls.libpath)) < 5:
+            c.rm(cls.libpath)
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
@@ -4512,6 +4515,14 @@ class Subspace(c.Module):
                 c.print(f'removing node {node} from chain {chain}')
                 del chain_info['nodes'][node]
         cls.putc(f'chain_info.{chain}', chain_info)
+
+
+
+    @classmethod
+    def git_clone(cls):
+        if len(c.ls(cls.libpath)) < 10:
+            libpath = libpath
+            c.cmd(f'git clone {cls.git_url()} {cls.chain_path()}')
 
 
 Subspace.run(__name__)

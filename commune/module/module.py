@@ -16,11 +16,13 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 # AGI BEGINS 
 class c:
     descrition = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
+    git_url = 'https://github.com/commune-ai/commune.git'
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
@@ -1799,16 +1801,15 @@ class c:
         if not os.path.exists(path) and os.path.exists(path+'.json'):
             path += f'.{mode}'
 
-        if os.path.exists(path):
-            if os.path.isdir(path):
-                cls.rmdir(path)
-            else:
-                os.remove(path)
-            assert not os.path.exists(path)
-            return {'success':True, 'message':f'{path} removed'}
-        else:
+        if not os.path.exists(path):
             return {'success':False, 'message':f'{path} does not exist'}
+        if os.path.isdir(path):
+            cls.rmdir(path)
+        else:
+            os.remove(path)
+        assert not os.path.exists(path), f'{path} was not removed'
 
+        return {'success':True, 'message':f'{path} removed'}
     
     @classmethod
     def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
@@ -4034,22 +4035,20 @@ class c:
                 'name': torch.cuda.get_device_name(gpu_id),
                 'free': mem_info[0],
                 'used': (mem_info[1]- mem_info[0]),
-                'total': mem_info[1]
+                'total': mem_info[1], 
+                'ratio': mem_info[0]/mem_info[1],
             }
         return gpu_info
 
+
+    
+
+    gpu_map =gpu_info
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
         return {k:v['total'] for k,v in c.gpu_info().items()}
-    
 
-    @classmethod
-    def gpu_total(cls, idx=0, fmt='b') -> Dict[int, Dict[str, float]]:
-        import torch
-        return c.format_data_size(c.gpu_total_map()[idx])
-    
-    gpu_map =gpu_info
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4809,6 +4808,10 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 prefix = encrypted_prefix) -> bytes:
+        
+        """
+        encrypt data with key
+        """
 
         key = c.get_key(key)
         path = None
@@ -4832,22 +4835,18 @@ class c:
     def decrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix) -> bytes:
+                prefix = encrypted_prefix,
+                path=None) -> bytes:
 
         key = c.get_key(key)
-        path = None
         if c.exists(data):
             c.print(f'Decrypting from {data} as it exists', color='cyan')
             path = data
             data =  c.get_text(path)
 
-        c.print(data, 'FA', path)   
         data = key.decrypt(data)
-
-
         if path != None:
             c.put_text(path, c.python2str(data))
-
         return data
     
     @classmethod
@@ -4904,10 +4903,6 @@ class c:
         return result
 
     @classmethod
-    def live_modules(cls, **kwargs):
-        return cls.call_pool(fn='address', **kwargs)
-
-    @classmethod
     def call_pool(cls, 
                     modules, 
                     fn = 'info',
@@ -4954,15 +4949,6 @@ class c:
         assert callable(fn), f'{fn} is not callable'
         return fn
     
-    @classmethod
-    def resolve_fn_module(cls, fn, module=None ) -> str:
-    
-        if module == None and len(fn.split('.')) > 1:
-            module = '.'.join(fn.split('.')[:-1])
-            module = cls.connect(module)
-        
-        return  fn, module
-    
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -4987,8 +4973,7 @@ class c:
     def get_mem(cls, *args, **kwargs):
         return c.module('key').get_mem(*args, **kwargs)
     
-
-
+    mem = get_mem
     
     @classmethod
     def set_key(self, key:str = None, **kwargs) -> None:
@@ -5928,9 +5913,9 @@ class c:
     thread_map = {}
 
     @classmethod
-    def get_fn(cls, fn:str, seperator='.'):
+    def get_fn(cls, fn:str, seperator='.', ignore_module_pattern:bool = False):
         if isinstance(fn, str):
-            if seperator in fn:
+            if seperator in fn and (not ignore_module_pattern):
                 # module{sperator}fn
                 fn_splits = fn.split(seperator)
                 # incase you have multiple seperators in the  name
@@ -6186,7 +6171,11 @@ class c:
     def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         
         import concurrent.futures
+
         futures = [futures] if not isinstance(futures, list) else futures
+        # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
+        #     return c.gather(futures, timeout=timeout)
+            
         future2idx = {future:i for i,future in enumerate(futures)}
 
         results = []
@@ -6215,7 +6204,7 @@ class c:
                         idx = future2idx[future]
                         results[idx] = future.result()
                 except Exception as e:
-                    print(e)
+                    c.print(e)
                 return results
             
         return get_results()
@@ -6227,19 +6216,21 @@ class c:
 
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 20)-> list:
+    def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
+
+        if loop == None:
+            loop = c.get_event_loop()
+
         if not isinstance(jobs, list):
             singleton = True
             jobs = [jobs]
         else:
             singleton = False
-        assert isinstance(jobs, list)
-        if mode == 'asyncio':
-            if loop == None:
-                loop = c.get_event_loop()
-            results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
-        else:
-            raise NotImplementedError
+            
+        assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
+        # determine if we are using asyncio or multiprocessing
+
+        results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
 
         if singleton:
             return results[0]
@@ -6331,10 +6322,11 @@ class c:
             if not os.path.isdir(path2_dirpath):
                 os.makedirs(path2_dirpath, exist_ok=True)
         shutil.move(path1, path2)
+        assert os.path.exists(path2), path2
+        assert not os.path.exists(path1), path1
         return path2
 
-        
-        
+
     @classmethod
     def cp(cls, path1:str, path2:str, refresh:bool = False):
         import shutil
@@ -6621,10 +6613,6 @@ class c:
         dataframe = pd.read_json(json_data)
         return dataframe
     
-    @property
-    def ss58_address(self):
-        return self.key.ss58_address
-    
     @staticmethod
     def ss58_encode(*args, **kwargs):
         from scalecodec.utils.ss58 import ss58_encode, ss58_decode
@@ -6813,7 +6801,7 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.get_fn(fn)
+        fn = cls.get_fn(fn, ignore_module_pattern=True)
 
         return isinstance(fn, property)
 
@@ -7040,12 +7028,6 @@ class c:
     @classmethod
     def bro(cls, x):
         return x
-    
-    
-    @classmethod
-    def giturl(cls):
-        return c.cmd('git remote -v', verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
-    url = giturl
 
     @classmethod
     def my_modules(cls, *args, **kwargs):

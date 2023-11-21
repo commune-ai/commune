@@ -278,17 +278,25 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
+    def add_servers(cls, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
+        """
+        Adds servers to the network by running `c add_servers` on each server.
+        
+        """
+        
         if refresh:
             c.rm_namespace(network=network)
-        server_addresses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
-        servers = c.servers(network=network)
-        for i, server_address in enumerate(server_addresses):
+        if add_admins:
+            cls.add_admin(timeout=timeout)
+    
+        server_addresses = []
+        server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
+        for i, server_address in enumerate(server_addresses_responses):
             if isinstance(server_address, str):
                 if server_address.endswith('\n'):
                     server_address = server_address[:-1]
-                servers += [server_address]
-        c.add_servers(*servers, network=network)
+                server_addresses.append(server_address)
+        c.add_servers(*server_addresses, network=network)
         servers = c.servers(network=network)
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
@@ -328,6 +336,7 @@ class Remote(c.Module):
         if update:
             namespace = {}
             host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
+            c.print('fam')
             for host, host_namespace in host2namespace.items():
                 if c.is_error(host_namespace):
                     continue
@@ -353,6 +362,9 @@ class Remote(c.Module):
     @classmethod
     def addresses(self, network='remote'):
         return c.addresses(network=network)
+    
+    def keys(self):
+        return [info.get('ss58_address', None)for info in self.server_infos()]
     
     @classmethod
     def server_infos(self, network='remote'):
