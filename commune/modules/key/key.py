@@ -78,6 +78,7 @@ class Keypair(c.Module):
                  derive_path: str = None,
                  mnemonic: str = None,
                  path:str = None,
+                 **kwargs
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -252,7 +253,7 @@ class Keypair(c.Module):
         if key_info['path'] == None:
             key_info['path'] = path.replace('.json', '').split('/')[-1]
 
-        cls.add_key(**key_info) /home/endless/commune/data/keys.json
+        cls.add_key(**key_info)
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
 
