@@ -81,6 +81,52 @@ class com_twscrape(c.Module):
         res = loop.run_until_complete(self.tw_api.user_by_id(uid=USER_ID))
         loop.close()
         print(res)
+
+    def user_By_login(self, USER_NAME: str):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self.tw_api.user_by_login(login=USER_NAME))
+        loop.close()
+        print(res)
+
+    def followers(self, USER_ID: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self._collect_followers_results(self.tw_api.followers(USER_ID, 10))) 
+        loop.close()
+        print(res)
+        return res
+
+    async def _collect_followers_results(self, async_gen):
+        return [item async for item in async_gen]
+    
+    def following(self, USER_ID: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self._collect_following_results(self.tw_api.following(USER_ID, 10))) 
+        loop.close()
+        print(res)
+        return res
+
+    async def _collect_following_results(self, async_gen):
+        return [item async for item in async_gen]
+    
+    def user_tweets(self, USER_ID: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self._collect_following_results(self.tw_api.user_tweets(USER_ID, 10))) 
+        loop.close()
+        print(res)
+        return res
+
+    async def _collect_user_tweets_results(self, async_gen):
+        return [item async for item in async_gen]
+    
+    def user_tweets_and_replies(self, USER_ID: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self._collect_following_results(self.tw_api.user_tweets_and_replies(USER_ID, 10))) 
+        loop.close()
+        print(res)
+        return res
+
+    async def _collect_user_tweets_and_replies_results(self, async_gen):
+        return [item async for item in async_gen]
     
     def test(self):
         print("hello, i'm twscape")
