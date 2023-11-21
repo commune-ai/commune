@@ -4763,6 +4763,12 @@ class c:
     @classmethod
     def root_keys(cls, search='module'):
         return c.keys(search)
+    
+
+    def add_root_key(self, *args, **kwargs):
+        c.random_words()
+        return c.module('key').add_key(name)
+
 
     
     @classmethod
@@ -7271,9 +7277,11 @@ class c:
         return c.module('subspace')().multistake(*args, **kwargs)
 
     @classmethod
-    def random_word(cls, *args, n=2, seperator='_', **kwargs):
+    def random_word(cls, *args, n=1, seperator='_', **kwargs):
         return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
-
+    @classmethod
+    def random_words(cls, n=2, **kwargs):
+        return c.module('key').generate_mnemonic(n=n, **kwargs)
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)

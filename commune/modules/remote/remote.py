@@ -297,6 +297,11 @@ class Remote(c.Module):
                     server_address = server_address[:-1]
                 server_addresses.append(server_address)
         c.add_servers(*server_addresses, network=network)
+        namespace = c.get_namespace(network=network)
+        host2ip = cls.host2ip()
+        ip_seperator = '_'
+        for name, address in namespace.items():
+            name = name.split(ip_seperator)[0] + ip_seperator + host2ip[name.split(ip_seperator)[1]]
         servers = c.servers(network=network)
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
