@@ -16,11 +16,13 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
 # AGI BEGINS 
 class c:
     descrition = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
+    git_url = 'https://github.com/commune-ai/commune.git'
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
@@ -110,7 +112,6 @@ class c:
         return cls.config_path()
     cfgpath = config_path = config_path
 
-    
     @classmethod
     def dirpath(cls) -> str:
         '''
@@ -118,13 +119,18 @@ class c:
         '''
         return os.path.dirname(cls.filepath())
 
-
     @classmethod
     def dlogs(cls, *args, **kwargs):
+        '''
+        logs of the docker contianer
+        '''
         return c.module('docker').logs(*args, **kwargs)
 
     @classmethod
     def images(cls, *args, **kwargs):
+        """
+        images
+        """
         return c.module('docker').images(*args, **kwargs)
     
     @classmethod
@@ -566,13 +572,12 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
-                   module = None,
                    to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
         '''
         if not cls.has_config():
-            config =  {}
+            config =  cls.init_kwargs()
         else:
             if config == None:
                 config = cls.load_config()
@@ -610,7 +615,6 @@ class c:
     def cfg(cls, *args, **kwargs):
         return cls.get_config(*args, **kwargs)
 
-
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict=None,
@@ -635,6 +639,8 @@ class c:
         # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
+
+        
         self.config = config 
         self.kwargs = kwargs
         
@@ -663,8 +669,8 @@ class c:
 
     @classmethod
     def start_chain(cls, *args, **kwargs):
-        c.module('subspace').start_chain(*args, **kwargs)
-        return {'success': True, 'msg': 'started chain'}
+        return c.module('subspace').start_chain(*args, **kwargs)
+    
     @classmethod
     def kill_chain(cls, *args, **kwargs):
         c.module('subspace').kill_chain(*args, **kwargs)
@@ -754,10 +760,12 @@ class c:
     
     
     @classmethod
-    def st(cls, module = None, fn='dashboard', port=8501, kwargs:dict=None):
+    def st(cls, module:str = None, fn='dashboard', port=8501, kwargs:dict=None):
         if module == None: 
             module = cls.module_path()
-        module = c.module(module)
+        
+        module_path = module
+        module = c.module(module_path)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
         # add port to the command
@@ -765,6 +773,11 @@ class c:
         cmd = f'streamlit run {module_filepath}'
         if port != None:
             cmd += f' --server.port {port}'
+
+        port2dashboard = c.get('port2dashboard', {})
+        port2dashboard[str(port)] = module_path
+        c.put('port2dashboard', port2dashboard)
+
         
         if kwargs == None:
             kwargs = {}
@@ -1345,11 +1358,11 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str) -> str:
+    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
             
-        object_name = cls.find_python_class(path)
+        object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
         object_name = object_name[-1]
@@ -1365,6 +1378,8 @@ class c:
 
     @classmethod
     def get_module(cls, path:str) -> str:
+        if path == None:
+            path = 'module'
         path = cls.simple2path(path)
         path = cls.path2objectpath(path)
         return c.import_object(path)
@@ -1795,16 +1810,15 @@ class c:
         if not os.path.exists(path) and os.path.exists(path+'.json'):
             path += f'.{mode}'
 
-        if os.path.exists(path):
-            if os.path.isdir(path):
-                cls.rmdir(path)
-            else:
-                os.remove(path)
-            assert not os.path.exists(path)
-            return {'success':True, 'message':f'{path} removed'}
-        else:
+        if not os.path.exists(path):
             return {'success':False, 'message':f'{path} does not exist'}
+        if os.path.isdir(path):
+            cls.rmdir(path)
+        else:
+            os.remove(path)
+        assert not os.path.exists(path), f'{path} was not removed'
 
+        return {'success':True, 'message':f'{path} removed'}
     
     @classmethod
     def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
@@ -1967,6 +1981,19 @@ class c:
             address = None
         return address
     addy = root_address
+
+    @property
+    def ss58_address(self):
+        if not hasattr(self, '_ss58_address'):
+            self._ss58_address = self.key.ss58_address
+        return self._ss58_address
+    
+    @ss58_address.setter
+    def ss58_address(self, value):
+        self._ss58_address = value
+        return self._ss58_address
+    
+
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -2322,6 +2349,10 @@ class c:
     @classmethod
     def add_servers(cls, *args, **kwargs):
         return c.module("namespace").add_servers(*args, **kwargs)
+
+    @classmethod
+    def readd_servers(cls, *args, **kwargs):
+        return c.module("namespace").readd_servers(*args, **kwargs)
     @classmethod
     def rm_server(cls, *args, **kwargs):
         return c.module("namespace").rm_server(*args, **kwargs)
@@ -2338,7 +2369,23 @@ class c:
         return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
+        """
+        remove the namespace
+        """
         return c.module("namespace").rm_namespace(*args, **kwargs)
+
+    @classmethod
+    def empty_namespace(cls, *args, **kwargs):
+        """
+        empty the namespace
+        """
+        return c.module("namespace").empty_namespace(*args, **kwargs)
+
+    @classmethod
+    def add_namespace(cls, *args, **kwargs):
+        return c.module("namespace").empty_namespace(*args, **kwargs)
+
+
     
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
@@ -2454,21 +2501,24 @@ class c:
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
         
-        address = c.get_address(server_name, network=network)
-        if address != None and ':' in address:
-            port = int(address.split(':')[-1])
+
         if port == None:
-            port = c.free_port()
+            address = c.get_address(server_name, network=network)
+            if address != None and ':' in address:
+                port = int(address.split(':')[-1])
+            else:
+                port = c.free_port()
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
-            remote_kwargs.pop('extra_kwargs') # REMOVE THE extra_kwargs
-    
             remote_kwargs['remote'] = False # SET THIS TO FALSE
-            remote_kwargs.pop('address') # WE INTRODUCED THE ADDRES
+
+            # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
-            c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
+            c.print(f'Serving [bold]{server_name}[/bold]', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
@@ -2621,14 +2671,8 @@ class c:
         if schema:
             schema = self.schema(defaults=True)
             info['schema'] = {fn: schema[fn] for fn in fns}
-
         return info
-    
     help = info
-
-
-    
-
     @classmethod
     def schema(cls,search: str = None,
                     code : bool = False,
@@ -2700,7 +2744,6 @@ class c:
         import inspect
         fn_schema = {}
         fn = cls.get_fn(fn)
-        fn_args = cls.get_function_args(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
         if defaults:
@@ -4005,7 +4048,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info_map(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info(cls, device:int = None, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -4014,22 +4057,26 @@ class c:
                 'name': torch.cuda.get_device_name(gpu_id),
                 'free': mem_info[0],
                 'used': (mem_info[1]- mem_info[0]),
-                'total': mem_info[1]
+                'total': mem_info[1], 
+                'ratio': mem_info[0]/mem_info[1],
             }
+        if device != None:
+            return gpu_info[device]
+        if fmt != None:
+            keys = ['free', 'used', 'total']
+            for k in keys:
+                gpu_info[k] = c.format_data_size(gpu_info[k], fmt=fmt)
         return gpu_info
 
+
+    
+
+    gpu_map =gpu_info
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
-        return {k:v['total'] for k,v in c.gpu_info_map().items()}
-    
+        return {k:v['total'] for k,v in c.gpu_info().items()}
 
-    @classmethod
-    def gpu_total(cls, idx=0, fmt='b') -> Dict[int, Dict[str, float]]:
-        import torch
-        return c.format_data_size(c.gpu_total_map()[idx])
-    
-    gpu_map =gpu_info_map
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4143,7 +4190,10 @@ class c:
         if device is None:
             device = 0
         gpu_map = cls.gpu_map()
-        return gpu_map[device]
+        if device in gpu_map:
+            return gpu_map[device]
+        else:
+            return gpu_map
 
     # CPU LAND
     
@@ -4287,11 +4337,7 @@ class c:
 
     @classmethod
     def model_gpus(cls, model, num_shard=2):
-        return list(cls.model_gpu_memory(model,num_shard).keys())
-        
-
-
-            
+        return list(cls.model_gpu_memory(model,num_shard).keys())     
 
     
     @classmethod
@@ -4348,6 +4394,8 @@ class c:
         return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
 
     model_size = get_model_size
+
+
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
@@ -4388,6 +4436,8 @@ class c:
         return self.get_num_params(self)
     
 
+    ### DICT LAND ###
+
     def to_dict(self)-> Dict:
         return self.__dict__
     
@@ -4402,6 +4452,13 @@ class c:
         assert self.jsonable(state_dict), 'State dict must be jsonable'
         return json.dumps(state_dict)
     
+    @classmethod
+    def from_json(cls, json_str:str) -> 'Module':
+        import json
+        return cls.from_dict(json.loads(json_str))
+    
+
+    ### LOGGER LAND ###
     @classmethod
     def resolve_logger(cls, logger = None):
         if not hasattr(cls,'logger'):
@@ -4477,11 +4534,6 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
-    @classmethod
-    def from_json(cls, json_str:str) -> 'Module':
-        import json
-        return cls.from_dict(json.loads(json_str))
-    
     
      
     @classmethod
@@ -4507,18 +4559,8 @@ class c:
             c.print(f'Test Results: {module_test_results}', color='white')
         return test_results
         
-               
-    @classmethod
-    def import_bittensor(cls):
-        try:
-            import bittensor
-        except RuntimeError:
-            cls.new_event_loop()
-            import bittensor
-        return bittensor
-         
 
-    # TIME LAND
+    ### TIME LAND ###
     
     @classmethod  
     def time( cls, t=None) -> float:
@@ -4715,6 +4757,21 @@ class c:
         return c.get_key()
 
     @classmethod
+    def root_key_address(cls) -> str:
+        return c.root_key().ss58_address
+    
+    @classmethod
+    def root_keys(cls, search='module'):
+        return c.keys(search)
+
+    
+    @classmethod
+    def root_key2address(cls, search='module'):
+        return c.key2address(search)
+    
+
+
+    @classmethod
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
     
@@ -4786,6 +4843,10 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 prefix = encrypted_prefix) -> bytes:
+        
+        """
+        encrypt data with key
+        """
 
         key = c.get_key(key)
         path = None
@@ -4809,22 +4870,18 @@ class c:
     def decrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix) -> bytes:
+                prefix = encrypted_prefix,
+                path=None) -> bytes:
 
         key = c.get_key(key)
-        path = None
         if c.exists(data):
             c.print(f'Decrypting from {data} as it exists', color='cyan')
             path = data
             data =  c.get_text(path)
 
-        c.print(data, 'FA', path)   
         data = key.decrypt(data)
-
-
         if path != None:
             c.put_text(path, c.python2str(data))
-
         return data
     
     @classmethod
@@ -4869,7 +4926,7 @@ class c:
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs)    
         try:
-            module = c.connect(module, prefix_match=prefix_match, network=network, virtual=False, key=key)
+            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
             future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
             result = await asyncio.wait_for(future, timeout=timeout)
         except Exception as e:
@@ -4879,10 +4936,6 @@ class c:
                 raise e
         
         return result
-
-    @classmethod
-    def live_modules(cls, **kwargs):
-        return cls.call_pool(fn='address', **kwargs)
 
     @classmethod
     def call_pool(cls, 
@@ -4903,14 +4956,12 @@ class c:
             n = len(modules)
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
-        c.print(f'[bold cyan]Calling {fn} on {len(modules)} modules [/bold cyan]', color='yellow')
-        jobs = []
-        
+        futures = []
         for m in modules:
-            job_kwargs = {'module':  m, 'fn': fn, **kwargs}
-            job = c.submit(c.call, kwargs=kwargs, args=[m, fn, *args] , timeout=timeout, return_future=True)
-            jobs.append(job)
-        responses = c.wait(jobs, timeout=timeout)
+            job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
+            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout, return_future=True)
+            futures.append(future)
+        responses = c.wait(futures, timeout=timeout)
         return responses
     
     @classmethod
@@ -4932,15 +4983,6 @@ class c:
         
         assert callable(fn), f'{fn} is not callable'
         return fn
-    
-    @classmethod
-    def resolve_fn_module(cls, fn, module=None ) -> str:
-    
-        if module == None and len(fn.split('.')) > 1:
-            module = '.'.join(fn.split('.')[:-1])
-            module = cls.connect(module)
-        
-        return  fn, module
     
     
     def resolve_key(self, key: str = None) -> str:
@@ -4966,8 +5008,7 @@ class c:
     def get_mem(cls, *args, **kwargs):
         return c.module('key').get_mem(*args, **kwargs)
     
-
-
+    mem = get_mem
     
     @classmethod
     def set_key(self, key:str = None, **kwargs) -> None:
@@ -5187,10 +5228,16 @@ class c:
 
         return c.wait(futures)
 
+    executor_cache = {}
     @classmethod
-    def executor(cls, max_workers:int=None, mode:str="thread", **kwargs):
-        return c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
+    def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
+        executor = cls.executor_cache.get(mode, None)
+        if executor != None and cache:
+            return executor
 
+        executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
+        cls.executor_cache[mode] = executor
+        return executor
     @classmethod
     def submit(cls, 
                 fn, 
@@ -5676,17 +5723,17 @@ class c:
         
         buffer_memory = c.resolve_memory(buffer_memory)
         
-        gpu_info_map = cls.gpu_map()
-        gpus = [int(gpu) for gpu in gpu_info_map.keys()] 
+        gpu_info = cls.gpu_map()
+        gpus = [int(gpu) for gpu in gpu_info.keys()] 
         
         if  reserved_gpus != False:
             reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
             assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
             
             for r_gpu, r_gpu_memory in reserved_gpus.items():
-                gpu_info_map[r_gpu]['total'] -= r_gpu_memory
+                gpu_info[r_gpu]['total'] -= r_gpu_memory
                
-        for gpu_id, gpu_info in gpu_info_map.items():
+        for gpu_id, gpu_info in gpu_info.items():
             if int(gpu_id) in gpus or str(gpu_id) in gpus:
                 gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
                 if gpu_memory <= 0:
@@ -5901,9 +5948,9 @@ class c:
     thread_map = {}
 
     @classmethod
-    def get_fn(cls, fn:str, seperator='.'):
+    def get_fn(cls, fn:str, seperator='.', ignore_module_pattern:bool = False):
         if isinstance(fn, str):
-            if seperator in fn:
+            if seperator in fn and (not ignore_module_pattern):
                 # module{sperator}fn
                 fn_splits = fn.split(seperator)
                 # incase you have multiple seperators in the  name
@@ -6159,7 +6206,11 @@ class c:
     def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         
         import concurrent.futures
+
         futures = [futures] if not isinstance(futures, list) else futures
+        # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
+        #     return c.gather(futures, timeout=timeout)
+            
         future2idx = {future:i for i,future in enumerate(futures)}
 
         results = []
@@ -6183,9 +6234,12 @@ class c:
                         yield future.result()
         else:
             def get_results():
-                for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                    idx = future2idx[future]
-                    results[idx] = future.result()
+                try:
+                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                        idx = future2idx[future]
+                        results[idx] = future.result()
+                except Exception as e:
+                    c.print(e)
                 return results
             
         return get_results()
@@ -6197,19 +6251,21 @@ class c:
 
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 20)-> list:
+    def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
+
+        if loop == None:
+            loop = c.get_event_loop()
+
         if not isinstance(jobs, list):
             singleton = True
             jobs = [jobs]
         else:
             singleton = False
-        assert isinstance(jobs, list)
-        if mode == 'asyncio':
-            if loop == None:
-                loop = c.get_event_loop()
-            results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
-        else:
-            raise NotImplementedError
+            
+        assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
+        # determine if we are using asyncio or multiprocessing
+
+        results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
 
         if singleton:
             return results[0]
@@ -6301,10 +6357,11 @@ class c:
             if not os.path.isdir(path2_dirpath):
                 os.makedirs(path2_dirpath, exist_ok=True)
         shutil.move(path1, path2)
+        assert os.path.exists(path2), path2
+        assert not os.path.exists(path1), path1
         return path2
 
-        
-        
+
     @classmethod
     def cp(cls, path1:str, path2:str, refresh:bool = False):
         import shutil
@@ -6767,10 +6824,10 @@ class c:
 
     @staticmethod
     def get_parent_functions(cls) -> List[str]:
-        parent_classes = get_parents(cls)
+        parent_classes = c.get_parents(cls)
         function_list = []
         for parent in parent_classes:
-            function_list += get_functions(parent)
+            function_list += c.get_functions(parent)
 
         return list(set(function_list))
 
@@ -6779,7 +6836,7 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.get_fn(fn)
+        fn = cls.get_fn(fn, ignore_module_pattern=True)
 
         return isinstance(fn, property)
 
@@ -7006,12 +7063,6 @@ class c:
     @classmethod
     def bro(cls, x):
         return x
-    
-    
-    @classmethod
-    def giturl(cls):
-        return c.cmd('git remote -v', verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
-    url = giturl
 
     @classmethod
     def my_modules(cls, *args, **kwargs):
@@ -7076,12 +7127,18 @@ class c:
     def get_text_line(cls, module = None, *args, **kwargs):
         module = cls.resolve_module(module)
         return c.get_text_line( module.pypath(), *args, **kwargs)
+    
+
     pycode = code
+
     @classmethod
-    def codehash(cls,  *args, **kwargs):
+    def chash(cls,  *args, **kwargs):
+        """
+        The hash of the code, where the code is the code of the class (cls)
+        """
         code = cls.code(*args, **kwargs)
         return c.hash(code)
-    chash = pyhash = codehash
+    
     @classmethod
     def match_module_hash(cls, hash:str, module:str=None, *args, **kwargs):
         '''
@@ -7092,7 +7149,7 @@ class c:
             module = c.module(module)
         else:
             module = cls
-        return module.script_hash(*args, **kwargs) == hash
+        return module.chash(*args, **kwargs) == hash
     
     @classmethod
     def find_code_line(cls, search:str, code:str = None):
@@ -7101,7 +7158,7 @@ class c:
         found_lines = [] # list of found lines
         for i, line in enumerate(code.split('\n')):
             if search in line:
-                found_lines.append({'idx': i, 'text': line})
+                found_lines.append({'idx': i+1, 'text': line})
         if len(found_lines) == 0:
             return None
         elif len(found_lines) == 1:
@@ -7109,12 +7166,16 @@ class c:
         return found_lines
     
     @classmethod
-    def fn_info(cls, fn) -> dict:
+    def fn_info(cls, fn:str='info') -> dict:
         r = {}
         code = cls.fn_code(fn)
         lines = code.split('\n')
-        start_line = cls.find_code_line(lines[0])
-        end_line = start_line + len(lines)
+        start_line_text = lines[0]
+        for l in lines:
+            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
+                start_line_text = l
+        start_line = cls.find_code_line(start_line_text)
+        end_line = start_line + len(lines) - 1 # find the endline
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
 
@@ -7122,7 +7183,7 @@ class c:
             'start_line': start_line,
             'end_line': end_line,
             'has_docs': has_docs,
-            'code': code,
+            'code': code.split('\n'),
             'n_lines': len(lines),
             'hash': c.hash(code),
             'path': filepath
@@ -7140,17 +7201,7 @@ class c:
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
         return lines[idx]
-
     
-    
-    def ensure_self_attr(self, attr, default=None):
-        if not hasattr(self, attr):
-            setattr(self, attr, default)
-    @classmethod
-    def ensure_class_attr(cls, attr, default=None):
-        if not hasattr(cls, attr):
-            setattr(cls, attr, default)
-
     tokenizer_cache = {}
     @classmethod
     def tokenizer(cls, tokenizer='gpt2', cache = True,  **kwargs):
@@ -7173,7 +7224,6 @@ class c:
     def num_tokens(cls, text, **kwargs):
         return len(cls.tokenize(text, **kwargs))
 
-    
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
         code = self.code()
         code_lines = code.split('\n')
@@ -7183,7 +7233,6 @@ class c:
         else:
             raise ValueError(f'unknown mode {mode}')
         return 
-    
     
     ## SUBSPACE FNS
     @classmethod
@@ -7207,12 +7256,6 @@ class c:
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
-
-    def update_servers(self, *args, **kwargs):
-        subspace = c.module('subspace')()
-        for name, address in c.namespace(network='localf').items():
-            subspace.update_module(name, address)
-        return subspacec 
     
     @classmethod
     def vote(cls, *args, **kwargs):
@@ -7230,12 +7273,6 @@ class c:
     @classmethod
     def random_word(cls, *args, n=2, seperator='_', **kwargs):
         return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
-
-    @classmethod
-    def remove_number_from_word(cls, word:str) -> str:
-        while word[-1].isdigit():
-            word = word[:-1]
-        return word
 
     @classmethod
     def multiunstake(cls, *args, **kwargs):
@@ -7313,7 +7350,6 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            c.print(self.server_name, 'FAM')
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
@@ -8279,8 +8315,8 @@ class c:
         kwargs = cls.process_kwargs(kwargs, fn_schema)       
         
         return kwargs
-
-   
+    
+    
 
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
@@ -8329,6 +8365,16 @@ class c:
 
         return kwargs
     
+    @classmethod
+    def memory_info(cls, fmt:str='gb'):
+        return c.module('os').memory_info(fmt=fmt)
+    
+    @classmethod
+    def remove_number_from_word(cls, word:str) -> str:
+        while word[-1].isdigit():
+            word = word[:-1]
+        return word
+
  
 Module = c
 Module.run(__name__)

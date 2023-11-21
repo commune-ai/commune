@@ -11,8 +11,9 @@ class Agent(c.Module):
     """
     def __init__(self,
                 name='agent',
-                description= None, 
-                model = 'model.openai',
+                description : str = None, 
+                model : str = 'model.openai',
+                network : str = 'local',
                 tools:list = []
                 ):
         self.name = name
@@ -21,8 +22,12 @@ class Agent(c.Module):
         self.set_tools(tools)
 
 
-    def set_model(self, model:str):
-        self.model = c.connect(model)
+    def set_model(self, model:str, network:str = 'local'):
+        self.model_namespace = c.namespace(model, netowrk=network)
+        assert len(self.model_namespace) > 0, f"no models found in {model}, please check the model path"
+        model = c.choice(list(model_namespace.values()))
+        self.network = network
+        self.model = c.connect(model, network=network)
         return self.model
 
     
@@ -52,8 +57,7 @@ class Agent(c.Module):
         if model != None:
             self.model = c.connect(model)
         tools = self.resolve_tools(tools)
-        if description == None:
-            description = self.description
+        description = self.description if description == None else description
 
         prompt = {
             'description': description,
