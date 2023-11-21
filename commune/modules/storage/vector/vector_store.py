@@ -20,6 +20,7 @@ class VectorStore(c.Module):
         self.model = c.connect(model)
         
         
+        
     def encode(self, text:str, **kwargs):
         return self.model.encode(text, **kwargs)
     

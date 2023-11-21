@@ -1789,6 +1789,7 @@ class Subspace(c.Module):
 
 
     def key_stats(self, key=None):
+        self.block = self.block
         if key == None:
             key = 'module'
         return self.key2stats().get(key, None)
