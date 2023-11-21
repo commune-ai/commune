@@ -171,6 +171,11 @@ class OsModule(c.Module):
         has_cuda = torch.cuda.is_available()
         if not has_cuda:
             return {'num_gpus': 0}
+        return {
+            'num_gpus': self.num_gpus(),
+            'gpu_memory': self.gpu_memory(),
+            'gpu_name': torch.cuda.get_device_name(0),
+        }
 
     
     
@@ -327,4 +332,54 @@ class OsModule(c.Module):
             raise ValueError(f'path1 is not a file or a folder: {path1}')
         return path2
     
+    
+    @classmethod
+    def cuda_available(cls) -> bool:
+        import torch
+        return torch.cuda.is_available()
+    @classmethod
+    def gpu_info(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        gpu_info = {}
+        for gpu_id in cls.gpus():
+            mem_info = torch.cuda.mem_get_info(gpu_id)
+            gpu_info[int(gpu_id)] = {
+                'name': torch.cuda.get_device_name(gpu_id),
+                'free': mem_info[0],
+                'used': (mem_info[1]- mem_info[0]),
+                'total': mem_info[1], 
+                'ratio': mem_info[0]/mem_info[1],
+            }
+        return gpu_info
+
+    gpu_map =gpu_info
+
+    @classmethod
+    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        return {k:v['total'] for k,v in c.gpu_info().items()}
+
+    
+
+    @classmethod
+    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
+        
+        '''
+        Resolves the device that is used the least to avoid memory overflow.
+        '''
+        import torch
+        if device == None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            assert torch.cuda.is_available(), 'Cuda is not available'
+            gpu_id = 0
+            if find_least_used:
+                gpu_id = cls.most_free_gpu()
+                
+            device = f'cuda:{gpu_id}'
+        
+            if verbose:
+                device_info = cls.gpu_info(gpu_id)
+                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
+        return device  
     

@@ -760,10 +760,12 @@ class c:
     
     
     @classmethod
-    def st(cls, module = None, fn='dashboard', port=8501, kwargs:dict=None):
+    def st(cls, module:str = None, fn='dashboard', port=8501, kwargs:dict=None):
         if module == None: 
             module = cls.module_path()
-        module = c.module(module)
+        
+        module_path = module
+        module = c.module(module_path)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
         # add port to the command
@@ -771,6 +773,11 @@ class c:
         cmd = f'streamlit run {module_filepath}'
         if port != None:
             cmd += f' --server.port {port}'
+
+        port2dashboard = c.get('port2dashboard', {})
+        port2dashboard[str(port)] = module_path
+        c.put('port2dashboard', port2dashboard)
+
         
         if kwargs == None:
             kwargs = {}
@@ -1972,6 +1979,18 @@ class c:
             address = None
         return address
     addy = root_address
+
+    @property
+    def ss58_address(self):
+        if not hasattr(self, '_ss58_address'):
+            self._ss58_address = self.key.ss58_address
+        return self._ss58_address
+    
+    @ss58_address.setter
+    def ss58_address(self, value):
+        self._ss58_address = value
+    
+
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -4309,11 +4328,7 @@ class c:
 
     @classmethod
     def model_gpus(cls, model, num_shard=2):
-        return list(cls.model_gpu_memory(model,num_shard).keys())
-        
-
-
-            
+        return list(cls.model_gpu_memory(model,num_shard).keys())     
 
     
     @classmethod
@@ -4370,6 +4385,8 @@ class c:
         return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
 
     model_size = get_model_size
+
+
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
@@ -4410,6 +4427,8 @@ class c:
         return self.get_num_params(self)
     
 
+    ### DICT LAND ###
+
     def to_dict(self)-> Dict:
         return self.__dict__
     
@@ -4424,6 +4443,13 @@ class c:
         assert self.jsonable(state_dict), 'State dict must be jsonable'
         return json.dumps(state_dict)
     
+    @classmethod
+    def from_json(cls, json_str:str) -> 'Module':
+        import json
+        return cls.from_dict(json.loads(json_str))
+    
+
+    ### LOGGER LAND ###
     @classmethod
     def resolve_logger(cls, logger = None):
         if not hasattr(cls,'logger'):
@@ -4499,11 +4525,6 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
-    @classmethod
-    def from_json(cls, json_str:str) -> 'Module':
-        import json
-        return cls.from_dict(json.loads(json_str))
-    
     
      
     @classmethod
@@ -4529,18 +4550,8 @@ class c:
             c.print(f'Test Results: {module_test_results}', color='white')
         return test_results
         
-               
-    @classmethod
-    def import_bittensor(cls):
-        try:
-            import bittensor
-        except RuntimeError:
-            cls.new_event_loop()
-            import bittensor
-        return bittensor
-         
 
-    # TIME LAND
+    ### TIME LAND ###
     
     @classmethod  
     def time( cls, t=None) -> float:
@@ -7166,17 +7177,7 @@ class c:
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
         return lines[idx]
-
     
-    
-    def ensure_self_attr(self, attr, default=None):
-        if not hasattr(self, attr):
-            setattr(self, attr, default)
-    @classmethod
-    def ensure_class_attr(cls, attr, default=None):
-        if not hasattr(cls, attr):
-            setattr(cls, attr, default)
-
     tokenizer_cache = {}
     @classmethod
     def tokenizer(cls, tokenizer='gpt2', cache = True,  **kwargs):
@@ -7199,7 +7200,6 @@ class c:
     def num_tokens(cls, text, **kwargs):
         return len(cls.tokenize(text, **kwargs))
 
-    
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
         code = self.code()
         code_lines = code.split('\n')
@@ -7209,7 +7209,6 @@ class c:
         else:
             raise ValueError(f'unknown mode {mode}')
         return 
-    
     
     ## SUBSPACE FNS
     @classmethod
@@ -7233,12 +7232,6 @@ class c:
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
-
-    def update_servers(self, *args, **kwargs):
-        subspace = c.module('subspace')()
-        for name, address in c.namespace(network='localf').items():
-            subspace.update_module(name, address)
-        return subspacec 
     
     @classmethod
     def vote(cls, *args, **kwargs):
@@ -7256,12 +7249,6 @@ class c:
     @classmethod
     def random_word(cls, *args, n=2, seperator='_', **kwargs):
         return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
-
-    @classmethod
-    def remove_number_from_word(cls, word:str) -> str:
-        while word[-1].isdigit():
-            word = word[:-1]
-        return word
 
     @classmethod
     def multiunstake(cls, *args, **kwargs):
@@ -7339,7 +7326,6 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            c.print(self.server_name, 'FAM')
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
@@ -8306,8 +8292,6 @@ class c:
         
         return kwargs
 
-   
-
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
@@ -8359,6 +8343,12 @@ class c:
     def memory_info(cls, fmt:str='gb'):
         return c.module('os').memory_info(fmt=fmt)
     
+    @classmethod
+    def remove_number_from_word(cls, word:str) -> str:
+        while word[-1].isdigit():
+            word = word[:-1]
+        return word
+
  
 Module = c
 Module.run(__name__)
