@@ -132,7 +132,6 @@ class OsModule(c.Module):
             'free': memory_stats.available,
             'active': memory_stats.active,
             'inactive': memory_stats.inactive,
-            'wired': memory_stats.wired,
             'percent': memory_stats.percent,
             'ratio': memory_stats.percent/100,
         }
