@@ -27,13 +27,19 @@ class Dashboard(c.Module):
         st.title(f'COMMUNE')
 
 
+        self.select_key()
+        self.select_network()
+
+
+    def select_network(self, network=None):
+        if network == None:
+            network = self.network
         if not c.server_exists('module'):
                 c.serve(wait_for_server=True)
 
         self.networks = c.networks()
         network2index = {n:i for i,n in enumerate(self.networks)}
         index = network2index['local']
-
         self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
         namespace = c.namespace(network=self.network)
         with st.expander('Namespace', expanded=True):
@@ -46,11 +52,12 @@ class Dashboard(c.Module):
             df.set_index('key', inplace=True)
             st.dataframe(df, width=1000)
         sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
-
         self.servers = c.servers(network=self.network)
-
         if sync:
             c.sync()
+
+
+
 
 
 
@@ -90,13 +97,20 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
 
-        cols = st.columns([1,2])
-        self.keys = c.keys()
-        key2index = {k:i for i,k in enumerate(self.keys)}
-        self.key = cols[0].selectbox('Select Key', c.keys(), key2index['module'], key='key.sidebar')
+
+    def select_key(self):
+        keys = c.keys()
+        key2index = {k:i for i,k in enumerate(keys)}
+        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
         key_address = self.key.ss58_address
-        cols[1].write('\n\n\n'*2)
-        cols[1].code(key_address)
+        st.write('address')
+        st.code(key_address)
+        return self.key
+
+    @classmethod
+    def dashboard(cls):
+        self = cls()
+        self.sidebar()
 
 
 
@@ -117,23 +131,27 @@ class Dashboard(c.Module):
 
         server2index = {s:i for i,s in enumerate(self.servers)}
         default_servers = [self.servers[0]]
-        self.server_name = st.selectbox('Select Server',self.servers, 0, key=f'serve.module.playground')
+        cols = st.columns([1,1])
+        self.server_name = cols[0].selectbox('Select Server',self.servers, 0, key=f'serve.module.playground')
         self.server = c.connect(self.server_name, network=self.network)
-        self.server_info = self.server.info(schema=True)
+        self.server_info = self.server.info(schema=True, timeout=2)
         self.server_schema = self.server_info['schema']
         self.server_functions = list(self.server_schema.keys())
         self.server_address = self.server_info['address']
 
-        self.fn = st.selectbox('Select Function', self.server_functions, 0)
+        self.fn = cols[1].selectbox('Select Function', self.server_functions, 0)
 
         self.fn_path = f'{self.server_name}/{self.fn}'
         st.write(f'**address** {self.server_address}')
         with st.expander(f'{self.fn_path} playground', expanded=True):
 
             kwargs = self.function2streamlit(fn=self.fn, fn_schema=self.server_schema[self.fn], salt='sidebar')
-            cols = st.columns([1,1])
-            timeout = cols[0].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{self.fn_path}')
-            call = st.button(f'Call {self.fn_path}')
+
+            cols = st.columns([3,1])
+            timeout = cols[1].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{self.fn_path}')
+            cols[0].write('\n')
+            cols[0].write('\n')
+            call = cols[0].button(f'Call {self.fn_path}')
             if call:
                 try:
                     response = getattr(self.server, self.fn)(**kwargs, timeout=timeout)
@@ -257,7 +275,9 @@ class Dashboard(c.Module):
             st.write(f'### {module_name.upper()} kwargs')
             with st.form(key=f'serve.{module}'):
                 kwargs = self.function2streamlit(module=module, fn='__init__' )
+
                 serve = st.form_submit_button('Serve')
+
 
                 if serve:
 
