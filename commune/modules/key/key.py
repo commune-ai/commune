@@ -165,7 +165,8 @@ class Keypair(c.Module):
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
         
         if cls.key_exists(path) and not refresh :
-            return {'status': 'error', 'message': f'key already exists at {path}'}
+            c.print(f'key already exists at {path}', color='red')
+            return json.loads(cls.get(path))
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         kwargs['mnemonic'] = mnemonic
