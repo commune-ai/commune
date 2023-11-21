@@ -223,20 +223,24 @@ class Namespace(c.Module):
     
     @classmethod
     def add_servers(cls, *servers, network:str='local', **kwargs):
+        if len(servers) == 1 and isinstance(servers[0], list):
+            servers = servers[0]
         responses = []
         for server in servers:
             try:
                 response = cls.add_server(server, network=network)
+                responses.append(response)
             except Exception as e:
-                response = {'success': False, 'msg': str(e)}
-            responses.append(response)
+                e = c.detailed_error(e)
+                c.print(f'Could not add {e} to {network} modules. {e}', color='red')
+                responses.append({'success': False, 'msg': f'Could not add {server} to {network} modules. {e}'})
 
         return responses
 
 
     
     @classmethod
-    def server_infos(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=4) -> List[str]:
+    def server_infos(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=20) -> List[str]:
         if not update:
             server_infos = cls.get('server_infos', [])
 

@@ -159,17 +159,20 @@ class OsModule(c.Module):
         import platform
         return platform.processor()
     
-
-    def info(self):
+    def cpu_info(self):
         return {
             'cpu_count': self.cpu_count(),
             'cpu_type': self.cpu_type(),
-            'free_memory': self.virtual_memory_available(),
-            'total_memory': self.virtual_memory_total(),
-            'num_gpus': self.num_gpus(),
-            'gpu_memory': self.gpu_memory(),
-            
         }
+    
+    
+    def gpu_info(self):
+        import torch
+        has_cuda = torch.cuda.is_available()
+        if not has_cuda:
+            return {'num_gpus': 0}
+
+    
     
     def gpu_memory(self):
         import torch
@@ -269,5 +272,59 @@ class OsModule(c.Module):
         return x
         
 
+    def disk_info(self, path:str = '/', fmt:str='gb'):
+        path = c.resolve_path(path)
+        import shutil
+        response = shutil.disk_usage(path)
+        response = {
+            'total': response.total,
+            'used': response.used,
+            'free': response.free,
+        }
+        for key, value in response.items():
+            response[key] = self.format_data_size(value, fmt=fmt)
+        return response
 
 
+        
+    @classmethod
+    def mv(cls, path1, path2):
+        import shutil
+        path1 = cls.resolve_path(path1)
+        path2 = cls.resolve_path(path2)
+        assert os.path.exists(path1), path1
+        if not os.path.isdir(path2):
+            path2_dirpath = os.path.dirname(path2)
+            if not os.path.isdir(path2_dirpath):
+                os.makedirs(path2_dirpath, exist_ok=True)
+        shutil.move(path1, path2)
+        assert os.path.exists(path2), path2
+        assert not os.path.exists(path1), path1
+        return path2
+
+ 
+    @classmethod
+    def cp(cls, path1:str, path2:str, refresh:bool = False):
+        import shutil
+        # what if its a folder?
+        assert os.path.exists(path1), path1
+        if refresh == False:
+            assert not os.path.exists(path2), path2
+        
+        path2_dirpath = os.path.dirname(path2)
+        if not os.path.isdir(path2_dirpath):
+            os.makedirs(path2_dirpath, exist_ok=True)
+            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
+
+        if os.path.isdir(path1):
+            shutil.copytree(path1, path2)
+
+
+        elif os.path.isfile(path1):
+            
+            shutil.copy(path1, path2)
+        else:
+            raise ValueError(f'path1 is not a file or a folder: {path1}')
+        return path2
+    
+    
