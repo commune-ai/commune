@@ -518,6 +518,8 @@ class Remote(c.Module):
                 
         host_names = st.multiselect('Host', host_names, host_names)
         cols = st.columns([4,2,1,1])
+
+
         cmd = cols[0].text_input('Command', 'ls')
 
         [cols[1].write('') for i in range(2)]
