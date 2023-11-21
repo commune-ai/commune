@@ -24,6 +24,7 @@ class Access(c.Module):
         self.user_info = {}
         self.stakes = {}
         self.module_path = self.module.module_path()
+        self.state_path = state_path
         c.thread(self.sync_loop_thread)
         
     def sync_loop_thread(self):
@@ -34,7 +35,7 @@ class Access(c.Module):
     def sync(self):
 
         # if the sync time is greater than the sync interval, we need to sync
-        state = self.get(self.sync_path, default={})
+        state = self.get(self.state_path, default={})
 
         time_since_sync = c.time() - state.get('sync_time', 0)
         if time_since_sync > self.config.sync_interval:
@@ -42,7 +43,7 @@ class Access(c.Module):
             state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
             state['block'] = self.subspace.block
             state['sync_time'] = c.time()
-            self.put(self.sync_path, state)
+            self.put(self.state_path, state)
 
         self.stakes = state['stakes']
         until_sync = self.config.sync_interval - time_since_sync
