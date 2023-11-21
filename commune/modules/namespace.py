@@ -197,9 +197,9 @@ class Namespace(c.Module):
         return {'success': True, 'servers': servers}
 
     @classmethod
-    def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
+    def add_server(cls, address:str, name=None, network:str = 'local',timeout:int=10, **kwargs):
         module = c.connect(address)
-        info = module.info()
+        info = module.info(timeout=timeout)
         name = info['name'] if name == None else name
         # check if name exists
         address = info['address']
@@ -240,7 +240,7 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def server_infos(cls, search=None, network=network, update:str=False, batch_size = 10, timeout=20) -> List[str]:
+    def server_infos(cls, search=None, network=network, update:str=True, batch_size = 10, timeout=20) -> List[str]:
         if not update:
             server_infos = cls.get('server_infos', [])
 
