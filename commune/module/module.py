@@ -1358,7 +1358,7 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
+    def path2objectpath(cls, path:str, search=['c.Module', 'commune.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
             
@@ -1983,17 +1983,8 @@ class c:
     addy = root_address
 
     @property
-    def ss58_address(self):
-        if not hasattr(self, '_ss58_address'):
-            self._ss58_address = self.key.ss58_address
-        return self._ss58_address
-    
-    @ss58_address.setter
-    def ss58_address(self, value):
-        self._ss58_address = value
-        return self._ss58_address
-    
-
+    def key_address(self):
+        return self.key.ss58_address
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -5832,7 +5823,7 @@ class c:
         class_name = ''.join([m.capitalize() for m in module.split('_')])
         
         for code_ln in base_code.split('\n'):
-            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]):
+            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) or all([ k in code_ln for k in ['class','commune.Module', ')', '(']]):
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)

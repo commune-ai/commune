@@ -206,8 +206,6 @@ class Namespace(c.Module):
         module_ip = address.split(':')[0]
         is_remote = bool(module_ip != c.ip())
         namespace = cls.get_namespace(network=network)
-        base_name = c.copy(name)
-        cnt = 0
         if is_remote:
             name = name + '_' + str(module_ip)
         namespace[name] = address
