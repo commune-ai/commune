@@ -134,9 +134,12 @@ class OsModule(c.Module):
             'inactive': memory_stats.inactive,
             'wired': memory_stats.wired,
             'percent': memory_stats.percent,
+            'ratio': memory_stats.percent/100,
         }
 
         for key, value in response.items():
+            if key in ['percent', 'ratio']:
+                continue
             response[key] = cls.format_data_size(value, fmt=fmt)    
   
         return response
@@ -165,19 +168,7 @@ class OsModule(c.Module):
             'cpu_type': self.cpu_type(),
         }
     
-    
-    def gpu_info(self):
-        import torch
-        has_cuda = torch.cuda.is_available()
-        if not has_cuda:
-            return {'num_gpus': 0}
-        return {
-            'num_gpus': self.num_gpus(),
-            'gpu_memory': self.gpu_memory(),
-            'gpu_name': torch.cuda.get_device_name(0),
-        }
 
-    
     
     def gpu_memory(self):
         import torch
