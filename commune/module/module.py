@@ -1358,11 +1358,11 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str) -> str:
+    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
             
-        object_name = cls.find_python_class(path)
+        object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
         object_name = object_name[-1]
