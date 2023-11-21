@@ -373,9 +373,24 @@ class Remote(c.Module):
     def server_addresses(cls, network:str='remote'):
         infos = c.server_infos(network=network)
         return {k:v['address'] for k,v in infos.items()}
+
+    @classmethod
+    def key_addresses(cls, network:str='remote'):
+        infos = c.server_infos(network=network)
+        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
+    
+    @classmethod
+    def balances(cls, timeout=10):
+        futures = []
+        for address in cls.key_addresses():
+            future = c.submit(cls.call, args=['ls'], return_future=True, timeout=timeout)
+            futures += [future]
+        
+        return c.wait(futures, timeout=timeout)
+        
     
 
     @classmethod

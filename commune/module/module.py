@@ -4045,7 +4045,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info(cls, device:int = None, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -4057,6 +4057,12 @@ class c:
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
+        if device != None:
+            return gpu_info[device]
+        if fmt != None:
+            keys = ['free', 'used', 'total']
+            for k in keys:
+                gpu_info[k] = c.format_data_size(gpu_info[k], fmt=fmt)
         return gpu_info
 
 
