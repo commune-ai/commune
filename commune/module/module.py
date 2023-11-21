@@ -1989,6 +1989,7 @@ class c:
     @ss58_address.setter
     def ss58_address(self, value):
         self._ss58_address = value
+        return self._ss58_address
     
 
 
@@ -4752,6 +4753,21 @@ class c:
     @classmethod
     def root_key(cls):
         return c.get_key()
+
+    @classmethod
+    def root_key_address(cls) -> str:
+        return c.root_key().ss58_address
+    
+    @classmethod
+    def root_keys(cls, search='module'):
+        return c.keys(search)
+
+    
+    @classmethod
+    def root_key2address(cls, search='module'):
+        return c.key2address(search)
+    
+
 
     @classmethod
     def address2key(cls,*args, **kwargs ):

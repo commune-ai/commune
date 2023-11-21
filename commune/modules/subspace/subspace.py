@@ -117,6 +117,9 @@ class Subspace(c.Module):
                 c.print(e, url)
                 self.config.local = False
                 url = None
+                if trials == max_trials:
+                    c.print(f'Could not connect to {url}')
+                    raise e 
                 
         self.url = url
         self.network = network
@@ -1240,12 +1243,15 @@ class Subspace(c.Module):
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
-                        n:str = 2,
+                        n:str = 10,
+                        local:bool = False,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
-        name2key = self.name2key(netuid=netuid)
+
+        # name2key = self.name2key(netuid=netuid)
+        name2key = c.address2key() if local else self.name2key(netuid=netuid)
 
         if isinstance(destinations, str):
             destinations = [k for n,k in name2key.items() if destinations in n]
@@ -1259,6 +1265,10 @@ class Subspace(c.Module):
 
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(destinations)
+
+        assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+        assert all([c.is_valid_ss58_address(d) for d in destinations]), f"Invalid destination address {destinations}"
+
 
 
         total_amount = sum(amounts)
@@ -1789,10 +1799,9 @@ class Subspace(c.Module):
 
 
     def key_stats(self, key=None):
-        self.block = self.block
-        if key == None:
-            key = 'module'
-        return self.key2stats().get(key, None)
+        
+        key2name = self.key2name()
+
 
      
     def global_params(self, network: str = network, netuid: int = 0 ) -> Optional[float]:
@@ -1980,8 +1989,10 @@ class Subspace(c.Module):
 
     
         
-    def name2key(self, search:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
+    def name2key(self, search:str=None, network=network, netuid: int = None ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
+
+        
         self.resolve_network(network)
         names = self.names(netuid=netuid)
         keys = self.keys(netuid=netuid)
