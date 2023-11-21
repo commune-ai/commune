@@ -41,3 +41,6 @@ urllib3
 fairseq2
 huggingface_hub
 torchaudio
+
+# Module for captcha
+capmonstercloudclient
