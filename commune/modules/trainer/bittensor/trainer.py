@@ -602,7 +602,6 @@ class CortexTrainer(commune.Module):
     @classmethod
     def import_object(cls, key:str)-> 'Object':
         module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
         obj =  getattr(import_module(module), object_name)
         return obj
 
