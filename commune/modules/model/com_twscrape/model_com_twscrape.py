@@ -76,5 +76,16 @@ class com_twscrape(c.Module):
     async def _collect_favoriters_results(self, async_gen):
         return [item async for item in async_gen]
     
+    def user_By_Id(self, USER_ID: int):
+        loop = asyncio.get_event_loop()
+        res = loop.run_until_complete(self.tw_api.user_by_id(uid=USER_ID))
+        loop.close()
+        print(res)
+    
     def test(self):
         print("hello, i'm twscape")
+
+# tweet_id 1724976642034934218
+# user_id Alex 1676216841629470721
+# user_id Jack 1676015808093323264
+# https://commentpicker.com/twitter-id.php
