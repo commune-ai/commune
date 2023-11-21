@@ -47,3 +47,23 @@ c model.beautifulsoap image_scrap https://www.ayush.nz/technology
 ```bash
 c model.beautifulsoap generate_random_url
 ```
+
+#### Get all buttons and inputs from the website
+```bash
+c model.beautifulsoap get_buttons_and_inputs url={url}
+```
+
+Ex:
+```bash
+c model.beautifulsoap get_buttons_and_inputs https://blockchain.news/
+```
+
+#### Get all components based on user input
+```bash
+c model.beautifulsoap get_components url={url} tags={tags}
+```
+
+Ex:
+```bash
+c model.beautifulsoap get_components https://blockchain.news/ tags="["button", "input", "h1"]"
+```

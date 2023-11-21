@@ -28,6 +28,7 @@ class Subspace(c.Module):
     fmt = 'j'
     whitelist = []
     chain_name = 'subspace'
+    git_url = 'https://github.com/commune-ai/subspace.git'
     default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
     network = default_config['network']
@@ -59,7 +60,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 10,
+                max_trials:int = 4,
                 **kwargs):
 
         '''
@@ -280,17 +281,24 @@ class Subspace(c.Module):
         min_allowed_weights = subnet['min_allowed_weights']
         max_allowed_weights = subnet['max_allowed_weights']
 
+        if weights is None:
+            weights = [1 for _ in uids]
+
         if uids is None:
             uids = self.uids()
+
+        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
+
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
             return False
+        
         if len(uids) > max_allowed_weights:
             c.print(f'Only {max_allowed_weights} uids are allowed to be voted on.')
             uids = uids[:max_allowed_weights]
+            weights = weights[:max_allowed_weights]
 
-        
         if len(uids) < min_allowed_weights:
             while len(uids) < min_allowed_weights:
                 uid = c.choice(list(range(subnet['n'])))
@@ -298,30 +306,27 @@ class Subspace(c.Module):
                     uids.append(uid)
                     weights.append(0)
             
-        if weights is None:
-            weights = [1 for _ in uids]
-        if isinstance(weights, list):
-            weights = torch.tensor(weights)
-
-
-        
-
         weights = weights / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
 
-
+        if isinstance(weights, list):
+            weights = torch.tensor(weights)
 
         # uids = [int(uid) for uid in uids]
         uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
 
-        params = {'uids': uids,'weights': weights, 'netuid': netuid}
+        params = {'uids': uids,
+                  'weights': weights, 
+                  'netuid': netuid}
+        
         response = self.compose_call('set_weights',params = params , key=key)
             
         if response['success']:
             return {'success': True, 'weights': weights, 'uids': uids, 'message': 'Set weights'}
+        
         return response
 
     set_weights = vote
@@ -367,6 +372,7 @@ class Subspace(c.Module):
         update_if_registered = False,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
+        existential_balance = 0.1,
         fmt = 'nano',
 
 
@@ -403,15 +409,15 @@ class Subspace(c.Module):
 
             
         # convert to nanos
+        min_stake = min_stake + existential_balance
         balance = self.get_balance(key.ss58_address, fmt=fmt)
         if balance < min_stake:
             return {'success': False, 'message': f'Insufficient balance: {balance} < {min_stake}'}
         if stake == None:
-            stake = 0
-
-
+            stake = min_stake 
         if stake < min_stake:
             stake = min_stake
+
         stake = self.to_nanos(stake)
 
         params = { 
@@ -1424,7 +1430,7 @@ class Subspace(c.Module):
                     update:bool=False, 
                     verbose:bool=False, 
                     netuids: List[int] = [0],
-                    parallel:bool=False,
+                    parallel:bool=True,
                     **kwargs):
         # cache and update are mutually exclusive 
         if  update == False:
@@ -1533,7 +1539,7 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
 
         network = self.resolve_network(network)
-        self.state_dict(update=True, network=network)
+        self.state_dict(update=True, network=network, parallel=True)
         self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
@@ -1768,7 +1774,7 @@ class Subspace(c.Module):
 
                 if m_stats['serving']:
 
-                    address = namespace.get(m_name)
+                    address = namespace.get(name)
                     if address != m_stats['address'] or name != m_stats['name']:
                         c.update_module(module=m_stats['name'], address=address, name=name)
                 else:
@@ -1783,6 +1789,7 @@ class Subspace(c.Module):
 
 
     def key_stats(self, key=None):
+        self.block = self.block
         if key == None:
             key = 'module'
         return self.key2stats().get(key, None)
@@ -2241,13 +2248,24 @@ class Subspace(c.Module):
                 keys += ['weights']
             if parallel:
                 executor = c.module('executor')(max_workers=len(keys), mode=mode)
-                futures = []
-                for key in keys:
-                    futures += [executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) ]
-                
-                c.print(f"Waiting for {len(futures)} futures to complete")
-                results  = c.wait(futures, timeout=timeout)
-                state = {key: result  for key, result in zip(keys, results)}
+                state = {}
+                while len(state) < len(keys):
+                    futures = []
+                    remaining_keys = [k for k in keys if k not in state]
+                    future2key = {}
+                    for key in remaining_keys:
+                        future = executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) 
+                        futures.append(future)
+                    c.print(f"Waiting for {len(futures)} futures to complete")
+                    # remove completed futures
+                    results = c.wait(futures, timeout=timeout)
+                    for key, result in zip(remaining_keys, results):
+                        if result == None:
+                            continue
+                        if c.is_error(result):
+                            continue
+                        state[key] = result
+                    c.print(f"Got {len(state)} of {len(keys)} keys", color='cyan')
             else: 
                 state = {}
 
@@ -2486,6 +2504,7 @@ class Subspace(c.Module):
         names = {v[0].value: v[1].value for v in self.query_map('Names', params=[netuid], **kwargs)}
         names = {k: names[k] for k in sorted(names)}
         return names
+    
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.uid2name(netuid=netuid, **kwargs).values())
 
@@ -2868,9 +2887,6 @@ class Subspace(c.Module):
 
     @classmethod
     def dashboard(cls):
-        import streamlit as st
-        block = 7014
-        netuid = 0
         c.module('subspace.dashboard').dashboard()
         
 
@@ -3224,6 +3240,10 @@ class Subspace(c.Module):
     @classmethod
     def node_infos(cls, chain=chain):
         return cls.getc(f'chain_info.{chain}.nodes', {})
+
+    @classmethod
+    def vali_infos(cls, chain=chain):
+        return {k:v for k,v in cls.node_infos(chain=chain).items() if v['validator']}
 
     @classmethod
     def nodes(cls, chain=chain):
@@ -3609,9 +3629,15 @@ class Subspace(c.Module):
 
     @classmethod
     def pull(cls, rpull:bool = False):
+
+        if len(cls.ls(cls.libpath)) < 5:
+            c.rm(cls.libpath)
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
+
+
+
 
     @classmethod
     def push(cls, rpull:bool=False, image:bool = False ):
@@ -3652,7 +3678,7 @@ class Subspace(c.Module):
 
     @classmethod
     def start_public_nodes(cls, node:str='nonvali', 
-                           n:int=4,
+                           n:int=10,
                             i=0,
                             mode=mode, 
                            chain=chain, 
@@ -3664,8 +3690,6 @@ class Subspace(c.Module):
         node_infos = cls.node_infos(chain= chain)
         served_nodes = []
         remote_addresses = []
-        if remote:
-            remote_addresses = c.module('remote').addresses()
 
         while len(served_nodes) <= n:
             i += 1
@@ -3675,7 +3699,6 @@ class Subspace(c.Module):
                 continue
             else:
                 c.print(f'Deploying {node_name}')
-
 
             if remote:
                 kwargs['module'] = remote_addresses[i % len(remote_addresses)]
@@ -3729,7 +3752,6 @@ class Subspace(c.Module):
         if url != None:
             if url in node2url: 
                 url = node2url[url] 
-            return url
         else:
             if local:
                 local_node_paths = cls.local_nodes(chain=chain)
@@ -3742,8 +3764,8 @@ class Subspace(c.Module):
             else:
                 url = c.choice(cls.urls(network=chain))
 
-            if not url.startswith('ws://'):
-                url = 'ws://' + url
+        if not url.startswith('ws://'):
+            url = 'ws://' + url
 
         return url
 
@@ -3765,6 +3787,10 @@ class Subspace(c.Module):
 
         return nodes
 
+    @classmethod
+    def start_vali(cls,*args, **kwargs):
+        kwargs['validator'] = True
+        return cls.start_node(*args, **kwargs)
     @classmethod
     def start_node(cls,
                  node : str,
@@ -3788,18 +3814,21 @@ class Subspace(c.Module):
                  daemon : bool = True,
                  key_mems:dict = None, # pass the keys mems {aura: '...', gran: '...'}
                  module : str = None , # remote module to call
+                 remote = False
                  ):
+                
+        if remote and module == None:
+            module = cls.peer_with_least_nodes(chain=chain)
+
 
         if module != None:
             remote_kwargs = c.locals2kwargs(locals())
-            namespace = c.namespace(network='remote') # default to remote namespace
-            c.print(f'calling remote module {module}')
-            if module in namespace:
-                module = namespace[module]
-            remote_kwargs.pop('module')
+            remote_kwargs['module'] = None
+            remote_kwargs.pop('remote', None)
+            module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
-            response =  c.call(module,  fn='submit', kwargs={'fn': 'subspace.start_node', 'kwargs': remote_kwargs}, timeout=100)[0]
-            c.print(response, 'repsonse')
+            kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=8, network='remote')[0]
             return response
 
 
@@ -3846,6 +3875,8 @@ class Subspace(c.Module):
 
         if validator :
             cmd_kwargs += ' --validator'
+            cmd_kwargs += f" --pruning={pruning}"
+            cmd_kwargs += f" --sync {sync}"
         else:
             cmd_kwargs += ' --ws-external --rpc-external'
             cmd_kwargs += f" --pruning={pruning}"
@@ -3857,7 +3888,7 @@ class Subspace(c.Module):
             boot_nodes = cls.boot_nodes(chain=chain)
         # add the node to the boot nodes
         if len(boot_nodes) > 0:
-            node_info['boot_nodes'] = c.choice(boot_nodes)  # choose a random boot node (at we chose one)
+            node_info['boot_nodes'] = ' '.join(c.shuffle(boot_nodes)[:10])  # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
         if node_key != None:
@@ -3944,55 +3975,74 @@ class Subspace(c.Module):
     def rm_sudo(cls):
         cmd = f'chown -R $USER:$USER {c.cache_path()}'
         c.cmd(cmd, sudo=True)
+
+
+    @classmethod
+    def peer_with_least_nodes(cls, peer2nodes=None):
+        peer2nodes = cls.peer2nodes() if peer2nodes == None else peer2nodes
+        peer2n_nodes = {k:len(v) for k,v in peer2nodes.items()}
+        return c.choice([k for k,v in peer2n_nodes.items() if v == min(peer2n_nodes.values())])
     
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 8,
+                    valis:int = 42,
                     nonvalis:int = 1,
                     verbose:bool = False,
                     purge_chain:bool = True,
-                    refresh: bool = True,
-                    port_keys: list = ['port', 'rpc_port', 'ws_port'],
-                    remote:bool = False,
-                    build_spec :bool = True,
+                    refresh: bool = False,
+                    remote:bool = True,
+                    build_spec :bool = False,
                     push:bool = True,
-                    trials:int = 4
+                    trials:int = 10
                     ):
 
         # KILL THE CHAIN
         if refresh:
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
+            chain_info = {'nodes':{}, 'boot_nodes':[]}
+        else:
+            chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
+
             
         ## VALIDATOR NODES
         vali_node_keys  = cls.vali_node_keys(chain=chain)
+        num_vali_keys = len(vali_node_keys)
+        c.print(f'{num_vali_keys} vali keys found for chain {chain} with {valis} valis needed')
+
         if len(vali_node_keys) <= valis:
             cls.add_node_keys(chain=chain, valis=valis, refresh=False)
             vali_node_keys  = cls.vali_node_keys(chain=chain)
+
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
 
-        
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
         if build_spec:
+            c.print(f'building spec for chain {chain}')
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
             if push:
                 cls.push(rpull=remote)
-
-        chain_info = {'nodes':{}, 'boot_nodes':[]}
         
-
+    
         remote_address_cnt = 1
         avoid_ports = []
 
-        if remote: 
-            remote_addresses = c.addresses('module', network='remote')
+        peer2nodes = cls.peer2nodes(chain=chain, update=True)
+        node2peer = cls.node2peer(peer2nodes=peer2nodes)
+
 
         # START THE VALIDATOR NODES
         for i, node in enumerate(vali_nodes):
+            
             c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
             name = f'{cls.node_prefix()}.{chain}.{node}'
+
+            if name in node2peer:
+                c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
+                continue
+
 
             # BUILD THE KWARGS TO CREATE A NODE
             
@@ -4007,25 +4057,24 @@ class Subspace(c.Module):
 
 
             success = False
-
             for t in range(trials):
                 try:
                     if remote:  
+                        remote_address = c.choice(list(peer2nodes.keys()))
                         remote_address_cnt += 1
-                        node_kwargs['module'] = remote_addresses[remote_address_cnt % len(remote_addresses)]
+                        node_kwargs['module'] = remote_address
                         node_kwargs['boot_nodes'] = chain_info['boot_nodes']
 
                     else:
-                        node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+                        port_keys = ['port', 'rpc_port', 'ws_port']
+                        node_ports = c.free_ports(n=len(port_keys), avoid_ports=avoid_ports)
                         for k, port in zip(port_keys, node_ports):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
 
-
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
-
-                    response = {}
                     response = cls.start_node(**node_kwargs, refresh=refresh)
+                    c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
@@ -4033,10 +4082,15 @@ class Subspace(c.Module):
                     chain_info['boot_nodes'].append(boot_node)
                     chain_info['nodes'][node] = node_info
                     success = True 
+
+                    if remote:
+                        peer2nodes[remote_address].append(node)
                     break
                 except Exception as e:
                     c.print(c.detailed_error(e))
                     c.print(f'failed to start node {node} for chain {chain}, trying again -> {t}/{trials} trials')
+
+  
 
             assert success, f'failed to start node {node} for chain {chain} after {trials} trials'
 
@@ -4323,12 +4377,154 @@ class Subspace(c.Module):
         c.print(f'testing network {network} with {n} transfers of {balance} each')
 
 
+    @classmethod
+    def remote_nodes(cls, chain='main'):
+        import commune as c
+        ps_map = c.module('remote').call('ps', f'subspace.node.{chain}')
+        all_ps = []
+        empty_peers = [p for p, peers in ps_map.items() if len(peers) == 0]
+        for ps in ps_map.values():
+            all_ps.extend(ps)
+        vali_ps = sorted([p for p in all_ps if 'vali' in p and 'subspace' in p])
+        return vali_ps
+
+    @classmethod
+    def peer2nodes(cls, chain='main', update:bool = False):
+        path = f'chain_info.{chain}.peer2nodes'
+        if not update:
+            peer2nodes = cls.get(path, {})
+            if len(peer2nodes) > 0:
+                return peer2nodes
+        peer2nodes = c.module('remote').call('ps', f'subspace.node.{chain}')
+        namespace = c.namespace(network='remote')
+        peer2nodes = {namespace.get(k):v for k,v in peer2nodes.items() if isinstance(v, list)}
+
+        cls.put(path, peer2nodes)
+
+        return peer2nodes
+
+    @classmethod
+    def clean_bootnodes(cls, peer2nodes=None):
+        peer2nodes = cls.peer2nodes() if peer2nodes == None else peer2nodes
+        boot_nodes = cls.boot_nodes()
+        cleaned_boot_nodes = []
+        for peer, nodes in peer2nodes.items():
+            if len(nodes) > 0:
+                peer_ip = ':'.join(peer.split(':')[:-1])
+                for i in range(len(boot_nodes)):
+  
+                    if peer_ip in boot_nodes[i]:
+                        if boot_nodes[i] in cleaned_boot_nodes:
+                            continue
+                        cleaned_boot_nodes.append(boot_nodes[i])
     
 
+        cls.putc('chain_info.main.boot_nodes', cleaned_boot_nodes)
+        return len(cleaned_boot_nodes)
+
+                
+
+    @classmethod
+    def node2peer(cls, chain='main', peer2nodes = None):
+        node2peer = {}
+        if peer2nodes == None:
+            peer2nodes = cls.peer2nodes(chain=chain)
+        for peer, nodes in peer2nodes.items():
+            for node in nodes:
+                node2peer[node] = peer
+        return node2peer
+
+    @classmethod
+    def vali2peer(cls, chain='main'):
+        node2peer = cls.node2peer(chain=chain)
+        vali2peer = {k:v for k,v in node2peer.items() if '.vali' in k}
+        return len(vali2peer)
+
+    @classmethod
+    def peer2ip(cls):
+        namespace = c.namespace(network='remote')
+        peer2ip = {k:':'.join(v.split(':')[:-1]) for k,v in namespace.items()}
+        return peer2ip
+
+    @classmethod
+    def ip2peer(cls):
+        peer2ip = cls.peer2ip()
+        ip2peer = {v:k for k,v in peer2ip.items()}
+        return ip2peer
+
+    def empty_peers(self, chain='main'):
+        peer2nodes = self.peer2nodes(chain=chain)
+        empty_peers = [p for p, nodes in peer2nodes.items() if len(nodes) == 0]
+        return empty_peers
+
+    @classmethod
+    def random_peer(self, network='remote', search=None):
+        return c.choice(c.servers(search=search, network=network))
 
 
+    def unfound_nodes(self, chain='main', peer2nodes=None):
+        node2peer = self.node2peer(peer2nodes=peer2nodes)
+        vali_infos = self.vali_infos(chain=chain)
+        vali_nodes = [f'subspace.node.{chain}.' + v for v in vali_infos.keys()]
+
+        unfound_nodes = [n for n in vali_nodes if n not in node2peer]
+        return unfound_nodes
+    @classmethod
+    def fix(cls):
+        avoid_ports = []
+        free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+        avoid_ports += free_ports
+
+    @classmethod
+    def test_endpoint(cls, url=None):
+        if url == None:
+            url = c.choice(cls.urls())
+        self = cls()
+        c.print('testing url -> ', url, color='yellow' )
+
+        try:
+            self.set_network(url=url, max_trials=1)
+            success = isinstance(self.block, int)
+        except Exception as e:
+            c.print(c.detailed_error(e))
+            success = False
+
+        c.print(f'success {url}-> ', success, color='yellow' )
         
+        return success
+
+    @classmethod
+    def test_endpoints(cls, timeout:int=30):
+        node2url = cls.node2url()
+        futures = []
+        node2future = {}
+        for node, url in node2url.items():
+            future = c.submit(cls.test_endpoint, kwargs=dict(url=url), return_future=True, timeout=timeout)
+            c.print(future)
+            node2future[node] = future
+        futures = list(node2future.values())
+        results = c.wait(futures, timeout=timeout)
+        node2results = {k:v for k,v in zip(node2future.keys(), results)}
+        return node2results
+
+    @classmethod
+    def filter_endpoints(cls, timeout=10, chain='main'):
+        node2pass = cls.test_endpoints(timeout=timeout)
+        chain_info = cls.chain_info(chain=chain)
+        for node in list(chain_info['nodes'].keys()):
+            if node2pass[node] != True:
+                c.print(f'removing node {node} from chain {chain}')
+                del chain_info['nodes'][node]
+        cls.putc(f'chain_info.{chain}', chain_info)
 
 
-        
+
+    @classmethod
+    def git_clone(cls):
+        if len(c.ls(cls.libpath)) < 10:
+            libpath = libpath
+            c.cmd(f'git clone {cls.git_url()} {cls.chain_path()}')
+
+
+Subspace.run(__name__)
 
