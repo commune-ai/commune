@@ -1381,7 +1381,7 @@ class c:
         if path == None:
             path = 'module'
         path = cls.simple2path(path)
-        path = cls.path2objectpath(path)
+        path = cls.path2objectpath(path, search=None)
         return c.import_object(path)
 
 
@@ -1509,7 +1509,7 @@ class c:
                     modules.append(f)
                 else:
                     # FIX ME
-                    f_classes = cls.find_python_class(f, search=['commune.Module', 'c.Module'])
+                    f_classes = cls.find_python_class(f, search=['c.Module'])
                     # f_classes = []
                     if len(f_classes) > 0:
                         modules.append(f)
@@ -1983,17 +1983,8 @@ class c:
     addy = root_address
 
     @property
-    def ss58_address(self):
-        if not hasattr(self, '_ss58_address'):
-            self._ss58_address = self.key.ss58_address
-        return self._ss58_address
-    
-    @ss58_address.setter
-    def ss58_address(self, value):
-        self._ss58_address = value
-        return self._ss58_address
-    
-
+    def key_address(self):
+        return self.key.ss58_address
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -4763,6 +4754,12 @@ class c:
     @classmethod
     def root_keys(cls, search='module'):
         return c.keys(search)
+    
+
+    def add_root_key(self, *args, **kwargs):
+        c.random_words()
+        return c.module('key').add_key(name)
+
 
     
     @classmethod
@@ -5826,7 +5823,7 @@ class c:
         class_name = ''.join([m.capitalize() for m in module.split('_')])
         
         for code_ln in base_code.split('\n'):
-            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]):
+            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) or all([ k in code_ln for k in ['class','commune.Module', ')', '(']]):
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)
@@ -7271,9 +7268,11 @@ class c:
         return c.module('subspace')().multistake(*args, **kwargs)
 
     @classmethod
-    def random_word(cls, *args, n=2, seperator='_', **kwargs):
+    def random_word(cls, *args, n=1, seperator='_', **kwargs):
         return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
-
+    @classmethod
+    def random_words(cls, n=2, **kwargs):
+        return c.module('key').generate_mnemonic(n=n, **kwargs)
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)
