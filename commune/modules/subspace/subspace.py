@@ -289,6 +289,7 @@ class Subspace(c.Module):
 
         if uids is None:
             uids = self.uids()
+        weights = weights[:len(uids)]
 
         assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
 
@@ -308,6 +309,8 @@ class Subspace(c.Module):
                 if uid not in uids:
                     uids.append(uid)
                     weights.append(0)
+
+        weights = torch.tensor(weights)
             
         weights = weights / weights.sum()
         weights = weights * U16_MAX
@@ -1750,6 +1753,7 @@ class Subspace(c.Module):
 
         if search is not None:
             df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
+
         if not df:
             return df_stats.to_dict('records')
         else:
@@ -1773,10 +1777,13 @@ class Subspace(c.Module):
     
     def check_servers(self, search=None,  netuid=None, wait_for_server=False, update:bool=False):
         cols = ['name', 'registered', 'serving', 'address']
-        module_stats = self.stats(search=search, netuid=netuid, cols=cols, df=False, update=update)
+        module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
-
-        namespace = c.namespace(search=search, network='local')
+        c.print(module2stats)
+        namespace = c.namespace(search=search, network='local', update=True)
+        for module, stats in module2stats.items():
+            if not c.server_exists(module):
+                c.serve(module)
         c.print('checking', list(namespace.keys()))
         for name, address in namespace.items():
             if name in module2stats :

@@ -7,8 +7,9 @@ import json
 import sys
 import inspect
 import time
-import commune
-class AESKey(commune.Module):
+import commune as c
+
+class AESKey(c.Module):
 
     def __init__(self, key:str ): 
         self.bs = AES.block_size
@@ -117,6 +118,3 @@ class AESKey(commune.Module):
         with st.expander('Tests'):
             cls.test()
         
-
-if __name__ =='__main__':
-    AESKey.streamlit()
