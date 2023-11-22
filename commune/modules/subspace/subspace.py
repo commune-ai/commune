@@ -60,7 +60,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 4,
+                max_trials:int = 20,
                 **kwargs):
 
         '''
@@ -4180,7 +4180,7 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=20):
+    def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=50):
         key = self.resolve_key(key)
         name2key = self.name2key()
         if modules == None:
