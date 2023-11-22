@@ -26,8 +26,7 @@ class Vali(c.Module):
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             # launch a thread to run the vali
             c.thread(self.run)
-            if self.config.network == 'subspace':
-                c.thread(self.vote_loop)
+            c.thread(self.vote_loop)
     
     @property
     def sync_staleness(self):
@@ -131,7 +130,6 @@ class Vali(c.Module):
 
         end_timestamp = c.time()
         latency = end_timestamp - start_timestamp
-        c.print(response, color=color)
         
         self.count += 1
 
@@ -351,7 +349,6 @@ class Vali(c.Module):
             time_between_interval = c.time()
             module = c.choice(modules)
 
-            c.print(f'Sending -> {module["name"]} {c.emoji("rocket")} ({module["address"]}) {c.emoji("rocket")}', color='yellow')
             c.sleep(self.config.sleep_time)
 
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)

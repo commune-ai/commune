@@ -419,8 +419,8 @@ class ModelTransformer(Model):
 
     hf = c.module('hf')()
     def generate(self, text: str, 
-                max_output_tokens: int = 256,
-                max_input_tokens: int = 20, 
+                max_output_tokens: int = 1000,
+                max_input_tokens: int = 4000, 
                 early_stopping: bool = True,
                 stream:bool = False,
                 **kwargs) -> List[str]:
