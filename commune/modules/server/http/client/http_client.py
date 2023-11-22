@@ -131,11 +131,11 @@ class Client(c.Module):
         ## handles 
         if isinstance(result, str):
             result = json.loads(result)
-        result = self.serializer.deserialize(result['data'])
-
-        
-
-        return result['data']
+        if 'data' in result:
+            result = self.serializer.deserialize(result['data'])
+            return result['data']
+        else:
+            return result
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)
