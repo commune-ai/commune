@@ -1743,6 +1743,10 @@ class Subspace(c.Module):
             return df_stats
         df_stats = df_stats[cols]
 
+        if 'last_update' in cols:
+            block = self.block
+            df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
+
         if 'emission' in cols:
             epochs_per_day = self.epochs_per_day(netuid=netuid)
             df_stats['emission'] = df_stats['emission'] * epochs_per_day
@@ -1774,32 +1778,45 @@ class Subspace(c.Module):
                 break
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
+
+
+    def check_valis(self):
+        return self.check_servers(search='vali', netuid=None, wait_for_server=False, update=False)
     
     def check_servers(self, search=None,  netuid=None, wait_for_server=False, update:bool=False):
-        cols = ['name', 'registered', 'serving', 'address']
+        cols = ['name', 'registered', 'serving', 'address', 'last_update']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
+
         module2stats = {m['name']:m for m in module_stats}
-        c.print(module2stats)
+
+        subnet = self.subnet(netuid=netuid)
         namespace = c.namespace(search=search, network='local', update=True)
+
         for module, stats in module2stats.items():
             if not c.server_exists(module):
                 c.serve(module)
+
         c.print('checking', list(namespace.keys()))
         for name, address in namespace.items():
             if name in module2stats :
+                # get the stats for this module
                 m_stats = module2stats.get(name)
-
-                if m_stats['serving']:
-
-                    address = namespace.get(name)
-                    if address != m_stats['address'] or name != m_stats['name']:
-                        c.update_module(module=m_stats['name'], address=address, name=name)
+                if 'vali' in module: # if its a vali
+                    if stats['last_update'] > subnet['tempo']:
+                        c.print(f"Vali {module} has not voted in {vote_staleness} blocks. Restarting...")
+                        c.restart(module)
                 else:
-                    if ':' in m_stats['address']:
-                        port = int(m_stats['address'].split(':')[-1])
+
+                    if m_stats['serving']:
+                        address = namespace.get(name)
+                        if address != m_stats['address'] or name != m_stats['name']:
+                            c.update_module(module=m_stats['name'], address=address, name=name)
                     else:
-                        port = None
-                    c.serve(m_stats['name'], port=port, wait_for_server=wait_for_server)
+                        if ':' in m_stats['address']:
+                            port = int(m_stats['address'].split(':')[-1])
+                        else:
+                            port = None
+                        c.serve(m_stats['name'], port=port, wait_for_server=wait_for_server)
             else:
                 self.register(name)
 

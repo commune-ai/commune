@@ -7581,7 +7581,7 @@ class c:
 
     @classmethod
     def check_valis(cls, *args, **kwargs):
-        return c.module('vali').check_valis(*args, **kwargs)
+        return c.module('subspace')().check_valis(*args, **kwargs)
     
     @classmethod
     def check_servers(cls, *args, **kwargs):
