@@ -321,5 +321,6 @@ ENV/
 env.bak/
 venv.bak/
 
-
+# Vector Store
+embeddings.db
 
