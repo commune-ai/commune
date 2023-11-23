@@ -8,7 +8,7 @@ from PIL import Image
 
 class DallE(c.Module):
     
-    whitelist = []
+    whitelist = ['generate', 'edit', 'variation', 'gradio']
 
     def __init__(self, api_key:str = None, host='api.openai.com/v1/images', cache_key:bool = True):
         config = self.set_config(kwargs=locals())
@@ -54,7 +54,7 @@ class DallE(c.Module):
         return response
     
     def edit( self, 
-            prompt: str, # required; max len is 1000 for dall-e-2 and 4000 for dall-e-3
+            prompt: str, # required; max len is 1000 for dall-e-2
             image: str, # required; PNG file, less than 4MB,
             mask: str, # fully transparent areas; PNG file, less than 4MB,
             model: str = "dall-e-2", # "dall-e-2"
