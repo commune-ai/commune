@@ -3695,7 +3695,12 @@ class Subspace(c.Module):
         return c.status(cwd=cls.libpath)
 
     @classmethod
-    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
+    def add_local_node(cls,
+                     node:str='alice', 
+                     mode=mode, 
+                     chain=chain, 
+                     max_boot_nodes:int=24,
+                      **kwargs):
         cls.pull_image()
         cls.add_node_key(node=node, chain=chain, mode=mode)
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
@@ -3703,6 +3708,18 @@ class Subspace(c.Module):
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
         return response
+
+    start_local_node = add_local_node
+
+    @classmethod
+    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, **kwargs):
+        responses = []
+        for i in range(n):
+            responses += [cls.add_local_node(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)]
+        return responses
+        
+
+
 
 
 
@@ -3766,8 +3783,14 @@ class Subspace(c.Module):
 
      
     @classmethod
-    def local_nodes(cls, chain=chain):
+    def local_node_paths(cls, chain=chain):
         return [p for p in cls.ls(f'local_nodes/{chain}')]
+
+    @classmethod
+    def local_nodes(cls, chain=chain):
+        return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
+    
+
 
     @classmethod
     def kill_local_node(cls, node, chain=chain):
@@ -3789,7 +3812,7 @@ class Subspace(c.Module):
                 url = node2url[url] 
         else:
             if local:
-                local_node_paths = cls.local_nodes(chain=chain)
+                local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 if local_node_info == None:
                     url = c.choice(list(node2url.values()))
