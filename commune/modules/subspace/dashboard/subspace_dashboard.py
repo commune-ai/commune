@@ -321,8 +321,9 @@ class SubspaceDashboard(c.Module):
         
             daily_dividends_per_token = current_emission_per_day * (1 / total_emission) * dividend_rate
             current_burned_emission_per_module = current_burned_emission_per_day / n
-            state.dividends_per_token.append(daily_dividends_per_token)
             state.required_stake_to_cover_burn.append(current_burned_emission_per_module / daily_dividends_per_token)
+            state.dividends_per_token.append(daily_dividends_per_token)
+
 
             state.burn_price_per_day.append(current_burned_emission_per_module)
 
@@ -408,14 +409,24 @@ class SubspaceDashboard(c.Module):
             df['stake_over_time'] = stake_over_time
             df['appreciation'] = appreciation
 
+            # make subplots 
+            from plotly.subplots import make_subplots
+            import plotly.graph_objects as go
+            figure = make_subplots(specs=[[{"secondary_y": True}]])
             # green if positive red if negative
-            figure = px.line(df, x='day', y='stake_over_time', title='Stake Over Time')
+            figure.add_trace(
+                go.Scatter(x=df['day'], y=df['stake_over_time'], name='stake_over_time'),
+                secondary_y=True,
+            )
+            figure.add_trace(
+                go.Scatter(x=df['day'], y=df['appreciation'], name='appreciation'),
+                secondary_y=False,
+            )
+            
             # dual axis
             # do this with red and green if the line is positive or negative
             st.plotly_chart(figure)
 
-            figure = px.line(df, x='day', y='appreciation', title='Appreciation ratio over time over investment')
-            st.plotly_chart(figure)
 
 
 
