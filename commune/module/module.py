@@ -760,7 +760,7 @@ class c:
     
     
     @classmethod
-    def st(cls, module:str = None, fn='dashboard', port=8501, kwargs:dict=None):
+    def st(cls, module:str = None, fn='dashboard', port=8501, public:bool = False, kwargs:dict=None):
         if module == None: 
             module = cls.module_path()
         
@@ -770,6 +770,8 @@ class c:
         c.print(f'Running {module_filepath}', color='green')
         # add port to the command
         port = c.get_port(port)
+        if public == True:
+            port = c.free_port()
         cmd = f'streamlit run {module_filepath}'
         if port != None:
             cmd += f' --server.port {port}'
