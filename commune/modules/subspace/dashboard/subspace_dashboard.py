@@ -250,31 +250,37 @@ class SubspaceDashboard(c.Module):
                 else:
                     st.error(response['message'])
 
+    
+    def key_info(self, expander = True):
+        if expander:
+            with st.expander('Key Info', expanded=False):
+                return self.key_info(expander=False)
+
+        # pie map of stake
+        st.write('# Wallet')
+        st.write('ss58_address')
+        cols = st.columns([2,2,2])
+        cols[0].code( self.key.ss58_address)
+        cols[1].metric('Balance', int(self.key_info['balance']))
+        cols[2].metric('Stake', int(self.key_info['stake']))
+            
+
+        values = list(self.key_info['stake_to'].values())
+        labels = list(self.key_info['stake_to'].keys())
+
+        fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
+        # increase the width of the plot
+        fig.update_layout(width=900, height=750)
+        st.plotly_chart(fig)
+
     @classmethod
     def dashboard(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
        
-        # pie map of stake
-        st.write('# Wallet')
-
-        with st.expander('Key Info', expanded=False):
-            st.write('ss58_address')
-            cols = st.columns([2,2,2])
-            cols[0].code( self.key.ss58_address)
-            cols[1].metric('Balance', int(self.key_info['balance']))
-            cols[2].metric('Stake', int(self.key_info['stake']))
-            
-    
-            values = list(self.key_info['stake_to'].values())
-            labels = list(self.key_info['stake_to'].keys())
-
-            fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
-            # increase the width of the plot
-            fig.update_layout(width=900, height=750)
-            st.plotly_chart(fig)
 
         # bar chat of staked modules
 
+        self.tokenomics()
 
         self.stake_dashboard()
         self.unstake_dashboard()
@@ -282,6 +288,171 @@ class SubspaceDashboard(c.Module):
         self.register_dashboard()
 
 
+    def emission_schedule(self, 
+                          days = 10000, 
+                        starting_emission = 0, 
+                        emission_per_day = 1,
+                        emission_per_halving = 250_000_000,
+                        burn_rate = 0.5,
+                        n = 1000,
+                        dividend_rate = 0.5,
+                        ):
+        emission_per_day = emission_per_day
+        halving_factor = 0.5
+
+        state = c.munch({
+            'emission_per_day': [],
+            'burned_emission_per_day': [],
+            'total_emission': [],
+            'halving_factor': [],
+            'day': [],
+            'burn_price_per_day': [],
+            'dividends_per_token': [],
+            'required_stake_to_cover_burn': [],
+        })
+        total_emission = starting_emission
+        
+        for day in range(days):
+            halvings = total_emission // emission_per_halving
+            curring_halving_factor = halving_factor ** halvings
+            current_emission_per_day = emission_per_day * curring_halving_factor
+
+            current_burned_emission_per_day = current_emission_per_day * burn_rate
+        
+            daily_dividends_per_token = current_emission_per_day * (1 / total_emission) * dividend_rate
+            current_burned_emission_per_module = current_burned_emission_per_day / n
+            state.dividends_per_token.append(daily_dividends_per_token)
+            state.required_stake_to_cover_burn.append(current_burned_emission_per_module / daily_dividends_per_token)
+
+            state.burn_price_per_day.append(current_burned_emission_per_module)
+
+            
+            current_emission_per_day -= current_burned_emission_per_day
+
+            total_emission += current_emission_per_day
+            state.total_emission.append(total_emission)
+            state.emission_per_day.append(current_emission_per_day)
+            state.burned_emission_per_day.append(current_burned_emission_per_day)
+            state.day.append(day)
+            state.halving_factor.append(curring_halving_factor)
+
+
+            # calculate the expected apy
+            # 1. calculate the total supply
+            # 2. calculate the total stake
+            # 3. calculate the total stake / total supply
+
+
+
+        state = c.munch2dict(state)
+    
+        df = c.df(state)
+        df['day'] = pd.to_datetime(df['day'], unit='D', origin='2023-11-23')
+
+        return df
+    
+    def tokenomics(self): 
+        st.write('# Tokenomics')
+        cols = st.columns(2)
+
+        emission_per_day = cols[0].number_input('Emission Per Day', 0, 1_000_000, 250_000, 1)
+        
+        starting_emission = cols[1].number_input('Starting Emission', 0, 100_000_000_000, 60_000_000, 1) 
+
+        days = st.slider('Days', 1, 3_000, 800, 1)
+
+        n = st.number_input('Number of Modules', 1, 1000000, 8400, 1, key=f'n.modules')
+
+        burn_rate = st.slider('Burn Rate', 0.0, 1.0, 0.0, 0.01, key=f'burn.rate')
+
+        dividend_rate = st.slider('Dividend Rate', 0.0, 1.0, 0.5, 0.01, key=f'dividend.rate')
+
+        burned_emission_per_day = emission_per_day * burn_rate
+        block_time = 8
+        tempo = 100
+        seconds_per_day =  24 * 60 * 60 
+        seconds_per_year = 365 * seconds_per_day
+        blocks_per_day = seconds_per_day / block_time
+        blocks_per_year = seconds_per_year / block_time
+        emission_per_block = emission_per_day / blocks_per_day
+        emission_per_year = blocks_per_year * emission_per_block
+
+        df = self.emission_schedule(days=days, 
+                                    starting_emission=starting_emission, 
+                                    emission_per_day=emission_per_day, 
+                                    emission_per_halving=250_000_000,
+                                    burn_rate = burn_rate,
+                                    n=n,
+                                    dividend_rate=dividend_rate
+
+
+                                    )
+        
+
+        with st.expander('Dividends Calculator', expanded=True):
+
+            my_stake = st.number_input('My Stake', 0, 1000000000000, 1000, 1, key=f'my.stake')
+            final_stake = my_stake
+            stake_over_time = [my_stake]
+            appreciation = []
+
+
+            for i in range(len(df['dividends_per_token'])):
+                burn_price_per_day = df['burn_price_per_day'][i]
+                stake_over_time.append(df['dividends_per_token'][i] * stake_over_time[-1] + stake_over_time[-1] - burn_price_per_day)
+                appreciation.append(stake_over_time[-1] / stake_over_time[0])
+            stake_over_time = stake_over_time[1:]
+
+
+            
+            df['stake_over_time'] = stake_over_time
+            df['appreciation'] = appreciation
+
+            # green if positive red if negative
+            figure = px.line(df, x='day', y='stake_over_time', title='Stake Over Time')
+            # dual axis
+            # do this with red and green if the line is positive or negative
+            st.plotly_chart(figure)
+
+            figure = px.line(df, x='day', y='appreciation', title='Appreciation ratio over time over investment')
+            st.plotly_chart(figure)
+
+
+
+        st.markdown(f"""
+         Emission per Block: {emission_per_block} \n
+         Emission per Day: {emission_per_day} \n
+         Emission per Year: {emission_per_year} \n
+         Emission per Tempo: {emission_per_day * tempo} \n
+         Emission per Tempo per Year: {emission_per_year * tempo}
+        """)
+
+        st.write(df)
+
+
+        # convert day into datetime from now
+
+
+        y_options = df.columns
+        x_options = df.columns
+
+        y = st.selectbox('Select Y', y_options, 0)
+        x = st.selectbox('Select X', ['day'], 0)
+
+
+        fig = px.line(df, x=x, y=y, title='Emission Schedule')
+        # add vertical lines for halving
+
+
+
+        # add a lien for the total supply
+        # ensure the scales are side by side
+
+        st.plotly_chart(fig)
+
+        fig = px.line(x=df['day'], y=df['total_emission'], title='Total Emission')
+
+        st.plotly_chart(fig)
 
 
 
