@@ -1,4 +1,5 @@
 import commune as c
+from typing import *
 
 class Remote(c.Module):
     filetype = 'yaml'
@@ -23,7 +24,7 @@ class Remote(c.Module):
             command = command.replace('c ', cls.executable_path + ' ')
 
         if cwd != None:
-            command = f'cd {cwd} ; {command}'
+            command = f'cd {cwd} && {command}'
 
         
 
@@ -97,6 +98,7 @@ class Remote(c.Module):
 
     @classmethod
     def add_host(cls, 
+                 cmd:str = None, # in the format of 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
@@ -136,7 +138,11 @@ class Remote(c.Module):
         elif filetype == 'yaml':
             cls.put_yaml(path, hosts)
 
-        return {'status': 'success', 'msg': f'Hosts saved', 'hosts': hosts, 'path': cls.host_data_path, 'filetype': filetype}
+        return {'status': 'success', 
+                'msg': f'Hosts saved', 
+                'hosts': hosts, 
+                'path': cls.host_data_path, 
+                'filetype': filetype}
     @classmethod
     def load_hosts(cls, path = None, filetype=filetype):
         if path == None:
@@ -157,7 +163,8 @@ class Remote(c.Module):
         hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
-            cls.save_hosts(cls.host_data_path, hosts)
+            cls.save_hosts( hosts)
+            c.print(cls.hosts())
             return {'status': 'success', 'msg': f'Host {name} removed'}
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
@@ -171,6 +178,16 @@ class Remote(c.Module):
             hosts = {k:v for k,v in hosts.items() if search in k}
         return hosts
 
+
+    @classmethod
+    def host2ip(cls):
+        hosts = cls.hosts()
+        return {k:v['host'] for k,v in hosts.items()}
+
+    @classmethod
+    def ip2host(cls):
+        host2ip = cls.host2ip()
+        return {v:k for k,v in host2ip.items()}
     @classmethod
     def names(cls, search=None):
         return list(cls.hosts(search=search).keys())
@@ -214,51 +231,38 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts:list = None, cwd=None, timeout=20 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
+        if hosts == None:
+            hosts = cls.hosts()
+            if host != None:
+                hosts = {host:hosts[host]}
+        if isinstance(hosts, list):
+            hosts = {h:hosts[h] for h in hosts}
+        elif isinstance(hosts, str):
+            hosts = {hosts:cls.hosts(hosts)}
 
-        host_map = cls.hosts(search=search)
+        assert isinstance(hosts, dict), f'Hosts must be a dict, got {type(hosts)}'
 
+        results = {}
+        for host in hosts:
+            result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
+            results[host] = result_future
 
-        if hosts != None:
-            host_map = {k:v for k,v in host_map.items() if k in hosts}
-        for i in range(num_trials):
-            try:
-                results = {}
-                for host in host_map:
-                    result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
-                    results[host] = result_future
-                result_values = c.wait(list(results.values()), timeout=timeout)
-                results =  dict(zip(results.keys(), result_values))
-                results =  {k:v for k,v in results.items()}
+        result_values = c.wait(list(results.values()), timeout=timeout)
+        results =  dict(zip(results.keys(), result_values))
+        results =  {k:v for k,v in results.items()}
 
+        if all([v == None for v in results.values()]):
+            raise Exception(f'all results are None')
+        
 
-                if all([v == None for v in results.values()]):
-                    raise Exception(f'all results are None')
-                
-                unfinished_hosts  = []
-                for k, v in results.items():
-                    if v == None:
-                        unfinished_hosts += [k]
-                    else:
-                        output[k] = v
-
-                host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
-
-                if len(host_map) == 0:
-                    break
-
-            except Exception as e:
-                c.print('Retrying')
-                c.print(c.detailed_error(e))
-                continue
-
-        for k,v in output.items():
+        for k,v in results.items():
             if isinstance(v, str):
-                output[k] = v.strip('\n')
+                results[k] = v.strip('\n')
 
-        return output 
+        return results 
 
     
     @classmethod
@@ -275,18 +279,30 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
+    def add_servers(cls, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
+        """
+        Adds servers to the network by running `c add_servers` on each server.
+        
+        """
+        
         if refresh:
             c.rm_namespace(network=network)
-        server_addresses = list(cls.cmd('c addy', verbose=True).values())
-        servers = c.servers(network=network)
-        for i, server_address in enumerate(server_addresses):
+        if add_admins:
+            cls.add_admin(timeout=timeout)
+    
+        server_addresses = []
+        server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
+        for i, server_address in enumerate(server_addresses_responses):
             if isinstance(server_address, str):
                 if server_address.endswith('\n'):
                     server_address = server_address[:-1]
-
-                servers += [server_address]
-        c.add_servers(*servers, network=network)
+                server_addresses.append(server_address)
+        c.add_servers(*server_addresses, network=network)
+        namespace = c.get_namespace(network=network)
+        host2ip = cls.host2ip()
+        ip_seperator = '_'
+        for name, address in namespace.items():
+            name = name.split(ip_seperator)[0] + ip_seperator + host2ip[name.split(ip_seperator)[1]]
         servers = c.servers(network=network)
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
@@ -326,7 +342,10 @@ class Remote(c.Module):
         if update:
             namespace = {}
             host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
+            c.print('fam')
             for host, host_namespace in host2namespace.items():
+                if c.is_error(host_namespace):
+                    continue
                 for name, address in host_namespace.items():
                     tag = ''
                     while name + str(tag) in namespace:
@@ -335,7 +354,6 @@ class Remote(c.Module):
                         else:
                             tag += 1
                     namespace[name + str(tag)] = address
-            c.print(namespace)
             c.put_namespace(namespace=namespace, network=network)
         else:
             namespace = c.get_namespace(search, network=network)
@@ -351,12 +369,34 @@ class Remote(c.Module):
     def addresses(self, network='remote'):
         return c.addresses(network=network)
     
+    def keys(self):
+        return [info.get('ss58_address', None)for info in self.server_infos()]
+    
     @classmethod
     def server_infos(self, network='remote'):
         return c.server_infos(network=network)
     @classmethod
+    def server_addresses(cls, network:str='remote'):
+        infos = c.server_infos(network=network)
+        return {k:v['address'] for k,v in infos.items()}
+
+    @classmethod
+    def key_addresses(cls, network:str='remote'):
+        infos = c.server_infos(network=network)
+        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
+    @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
+    
+    @classmethod
+    def balances(cls, timeout=10):
+        futures = []
+        for address in cls.key_addresses():
+            future = c.submit(cls.call, args=['ls'], return_future=True, timeout=timeout)
+            futures += [future]
+        
+        return c.wait(futures, timeout=timeout)
+        
     
 
     @classmethod
@@ -435,8 +475,6 @@ class Remote(c.Module):
                 host_names = list(self.hosts().keys())
                 rm_host_name = st.selectbox('Host Name', host_names)
                 rm_host = st.button('Remove Host')
-
-
                 if rm_host:
                     self.rm_host(rm_host_name)
 
@@ -470,10 +508,25 @@ class Remote(c.Module):
 
         if len(search) > 0:
             host_names = [h for h in host_names if search in h]
+        hosts = self.hosts()
+        hosts = {k:v for k,v in hosts.items() if k in host_names}
+        host_names = list(hosts.keys())
+
         with st.expander('Hosts', expanded=False):
-            st.write(self.hosts())
+            for host_name, host in hosts.items():
+                cols = st.columns([1,4,2,2])
+                cols[0].write('#### '+host_name)
+                ssh_login_param = f'ssh {host["user"]}@{host["host"]} -p {host["port"]}'
+                cols[1].code(ssh_login_param)
+                cols[2].code(host['pwd'])
+                remove_host  = cols[3].button(f'Remove {host_name}')
+                if remove_host:
+                    st.write(self.rm_host(host_name))
+                
         host_names = st.multiselect('Host', host_names, host_names)
         cols = st.columns([4,2,1,1])
+
+
         cmd = cols[0].text_input('Command', 'ls')
 
         [cols[1].write('') for i in range(2)]
@@ -485,12 +538,13 @@ class Remote(c.Module):
 
         host2future = {}
         if run_button:
-            for host in host_map:
+            for host in host_names:
                 future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names), return_future=True, timeout=timeout)
                 host2future[host] = future
 
         futures = list(host2future.values())
         hosts = list(host2future.keys())
+        host2error = {}
 
         try:
             for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
@@ -501,18 +555,23 @@ class Remote(c.Module):
 
                 result = result['result']
                 if c.is_error(result):
-                    with st.expander(host + ' ' +  c.emoji('cross'), expanded=True):
-                        st.markdown(f"""```bash
-                                    {result}```""")
+                    host2error[host] = result
                 else:
-                    with st.expander(host + ' ' +  c.emoji('checkmark'), expanded=True):
-                        st.markdown(f"""```bash
-                                    {result}```""")
+                    st.markdown(host + ' ' + c.emoji('check_mark'))
+                    st.markdown(f"""```bash\n{result}```""")
+
         except Exception as e:
             pending_hosts = list(host2future.keys())
             st.error(c.detailed_error(e))
             st.error(f"Hosts {pending_hosts} timed out")
 
+        for host, result in host2error.items():
+            st.markdown(host + ' ' + c.emoji('cross'))
+            st.markdown(f"""```bash\n{result}```""")
+
+      
+
+        
         
 
 

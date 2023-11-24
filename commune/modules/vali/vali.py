@@ -24,6 +24,7 @@ class Vali(c.Module):
         if self.config.start:
             self.sync()
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
+            # launch a thread to run the vali
             c.thread(self.run)
             c.thread(self.vote_loop)
     
@@ -33,7 +34,6 @@ class Vali(c.Module):
 
     def vote_loop(self):
         while True:
-            c.sleep(1)
             if self.vote_staleness > self.config.vote_interval:
                 try:
                     c.print('Voting...', color='cyan')
@@ -43,6 +43,8 @@ class Vali(c.Module):
                     c.print(traceback.format_exc(), color='red')
                     c.sleep(1)
                     continue
+
+            c.sleep(self.config.vote_interval//2)
 
 
     @property               
@@ -81,23 +83,21 @@ class Vali(c.Module):
         return {'modules': self.modules, 'subnet': self.subnet}
 
     def score_module(self, module):
-
         '''
         params:
             module: module client
             kwargs : the key word arguments
         
         '''
-
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
-        assert 'address' in info, f'Response must have an error key, got {info.keys()}'
+        assert 'address' in info, f'Response must have an error key, got {info}'
         return {'success': True, 'w': 1}
 
 
     def eval_module(self, module:dict):
         """
-        The following evaluates a module server, from the dictionary
+        The following evaluates a module server
         """
         
         # load the module stats (if it exists)
@@ -106,25 +106,30 @@ class Vali(c.Module):
         # update the module state with the module stats
         module_stats.update(module)
         
-        staleness = c.time() - module_stats.get('timestamp', 0)
-        if staleness < self.config.max_staleness:
-            # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
-            return {'error': f'{module["name"]} is too new as we pinged it {staleness}(s) ago'}
+        seconds_since_called = c.time() - module_stats.get('timestamp', 0)
 
+        # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
+        if seconds_since_called < self.config.max_staleness:
+            # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
+            return {'error': f'{module["name"]} is too new as we pinged it {seconds_since_called}(s) ago'}
+
+        start_timestamp = c.time()
         try:
             # this is where we connect to the client
             module_client = c.connect(module['address'], key=self.key, virtual=True)
             response = self.score_module(module_client)
-            msg = f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} '
             color = 'green'
+            response['msg'] = f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} '
 
         except Exception as e:
-            msg = f'{c.emoji("cross")} {module["name"]} {e} {c.emoji("cross")}'  
-            response = {'error': c.detailed_error(e), 'w': 0}
+            response = {'error': c.detailed_error(e),
+                        'w': 0, 
+                        'msg': f'{c.emoji("cross")} {module["name"]} --> {e} {c.emoji("cross")}'  
+                        }
             color = 'red'
 
-        c.print(msg, color=color)
-        c.print(response)
+        end_timestamp = c.time()
+        latency = end_timestamp - start_timestamp
         
         self.count += 1
 
@@ -134,10 +139,11 @@ class Vali(c.Module):
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = response['timestamp']
+        module_stats['start_timestamp'] = start_timestamp
+        module_stats['end_timestamp'] = end_timestamp
+        module_stats['latency'] = latency
 
-        # add the history of this module
-        module_stats['history'] = module_stats.get('history', []) + [response]
-        module_stats['history'] = module_stats['history'][-self.config.max_history:]
+
         self.save_module_stats(module['name'], module_stats)
 
         return module_stats
@@ -325,10 +331,14 @@ class Vali(c.Module):
     def run(self, vote=False):
 
         self.sync()
+
+        # CHECK THE CHECK LOOP IS RUNNING
         if self.config.check_loop:
             self.ensure_check_loop()
+
         if self.config.refresh_stats:
             self.refresh_stats(network=self.config.network, tag=self.tag)
+
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
         c.new_event_loop()
         self.running = True
@@ -339,7 +349,6 @@ class Vali(c.Module):
             time_between_interval = c.time()
             module = c.choice(modules)
 
-            c.print(f'Sending -> {module["name"]} {c.emoji("rocket")} ({module["address"]}) {c.emoji("rocket")}', color='yellow')
             c.sleep(self.config.sleep_time)
 
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
@@ -382,7 +391,7 @@ class Vali(c.Module):
         self.running = False
         
     @classmethod
-    def check_valis(cls, network='main', interval:int = 20, max_staleness:int=300, return_all=True, remote=False):
+    def check_valis(cls, network='main', interval:int = 1, max_staleness:int=300, return_all:bool=True, remote=False):
         # get the up to date vali stats
         vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:

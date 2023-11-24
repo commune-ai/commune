@@ -33,9 +33,20 @@ import gc
 
 
 class Task(c.Module):
-    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10, priority:int=1, path=None, **extra_kwargs):
+    def __init__(self, 
+                 fn:str,
+                args:list, 
+                kwargs:dict, 
+                timeout:int=10, 
+                priority:int=1, 
+                path=None,
+                **extra_kwargs):
+        
+        self.path = path
         self.future = Future()
         self.fn = fn # the function to run
+        if self.fn == None:
+            return None
         self.start_time = time.time() # the time the task was created
         self.args = args # the arguments of the task
         self.kwargs = kwargs # the arguments of the task
@@ -45,20 +56,20 @@ class Task(c.Module):
         self.status = 'pending' # pending, running, done
         self.data = None # the result of the task
 
+        self.fn_name = fn.__name__ # the name of the function
+
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.extra_kwargs = extra_kwargs
         self.__dict__.update(extra_kwargs)
 
         # store the state of the task if a path is given
-        if self.path:
+        if path != None:
+            self.path = f'{self.path}/{self.fn_name}_utc_{self.start_time}'
             self.save()
+
     @property
     def lifetime(self) -> float:
         return time.time() - self.start_time
-
-    @property
-    def save(self):
-        self.put(self.path, self.state)
 
     @property
     def state(self) -> dict:
@@ -71,10 +82,15 @@ class Task(c.Module):
             'priority': self.lifetime,
             'status': self.status,
             'data': self.data, 
-            **{k: self.__dict__[k] for k,v in self.extra_kwargs.items()}
+            **self.extra_kwargs
         }
-
     
+    @property
+    def save(self, path= None):
+        path = path if path else self.path
+        self.put(path, self.state)
+        return {'path': path, 'state': self.state}
+
 
     def run(self):
         """Run the given work item"""
@@ -86,9 +102,7 @@ class Task(c.Module):
 
         self.status = 'running'
         try:
-            c.print(f'Calling {self.fn}', self.kwargs)
             data = self.fn(*self.args, **self.kwargs)
-            
             self.status = 'done'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
@@ -99,12 +113,8 @@ class Task(c.Module):
         # store the result of the task
         self.data = data       
 
-        # store the state of the task 
-        if self.path:
+        if self.path != None:
             self.save()
-
-        # set the result of the future
-        
 
     def result(self) -> object:
         return self.future.result()

@@ -1,9 +1,9 @@
 
 
-import commune
+import commune as c
 
 
-class Hash(commune.Module):
+class Hash(c.Module):
 
     @classmethod
     def hash(cls, x, mode: str='sha256',*args,**kwargs):
@@ -15,7 +15,7 @@ class Hash(commune.Module):
             return hash_output.hex()
         elif mode == 'ss58':
             # only works for 32 byte hex strings
-            hash_fn = commune.import_object('scalecodec.utils.ss58.ss58_encode')
+            hash_fn = c.import_object('scalecodec.utils.ss58.ss58_encode')
             # convert to hex
             return hash_fn(x, *args,**kwargs) 
         elif mode == 'python':
