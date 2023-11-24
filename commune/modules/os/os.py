@@ -143,37 +143,42 @@ class OsModule(c.Module):
   
         return response
 
-
-    def virtual_memory_available(self):
+    @classmethod
+    def virtual_memory_available(cls):
         import psutil
         return psutil.virtual_memory().available
     
-    def virtual_memory_total(self):
+    @classmethod
+    def virtual_memory_total(cls):
         import psutil
         return psutil.virtual_memory().total
     
-    def virtual_memory_percent(self):
+    @classmethod
+    def virtual_memory_percent(cls):
         import psutil
         return psutil.virtual_memory().percent
     
-
-    def cpu_type(self):
+    @classmethod
+    def cpu_type(cls):
         import platform
         return platform.processor()
     
-    def cpu_info(self):
+    @classmethod
+    def cpu_info(cls):
         return {
-            'cpu_count': self.cpu_count(),
-            'cpu_type': self.cpu_type(),
+            'cpu_count': cls.cpu_count(),
+            'cpu_type': cls.cpu_type(),
         }
     
 
     
-    def gpu_memory(self):
+    @classmethod
+    def gpu_memory(cls):
         import torch
         return torch.cuda.memory_allocated()
     
-    def num_gpus(self):
+    @classmethod
+    def num_gpus(cls):
         import torch
         return torch.cuda.device_count()
     
@@ -267,7 +272,8 @@ class OsModule(c.Module):
         return x
         
 
-    def disk_info(self, path:str = '/', fmt:str='gb'):
+    @classmethod
+    def disk_info(cls, path:str = '/', fmt:str='gb'):
         path = c.resolve_path(path)
         import shutil
         response = shutil.disk_usage(path)
@@ -277,7 +283,7 @@ class OsModule(c.Module):
             'free': response.free,
         }
         for key, value in response.items():
-            response[key] = self.format_data_size(value, fmt=fmt)
+            response[key] = cls.format_data_size(value, fmt=fmt)
         return response
 
 
@@ -328,7 +334,7 @@ class OsModule(c.Module):
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info(cls, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -340,9 +346,24 @@ class OsModule(c.Module):
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
+
+        for gpu_id, gpu_info in gpu_info.items():
+            for key, value in gpu_info.items():
+                if key in ['ratio', 'total']:
+                    continue
+                gpu_info[key] = cls.format_data_size(value, fmt=fmt)
         return gpu_info
 
     gpu_map =gpu_info
+
+    @classmethod
+    def hardware_info(cls, fmt:str='gb'):
+        return {
+            'cpu': cls.cpu_info(),
+            'memory': cls.memory_info(fmt=fmt),
+            'disk': cls.disk_info(fmt=fmt),
+            'gpu': cls.gpu_info(fmt=fmt),
+        }
 
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:

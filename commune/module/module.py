@@ -767,6 +767,7 @@ class c:
         kwargs = kwargs if kwargs != None else {}
 
         while c.port_used(port):
+
             c.print(f'Port {port} is already in use', color='red')
             port = port + 1
 
@@ -2688,6 +2689,9 @@ class c:
 
         kwargs = c.locals2kwargs(locals())
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
+    
+    def hardware_info(cls, fmt:str = 'gb'):
+        return c.module('os').hardware_info(fmt=fmt)
     
     @classmethod
     def init_schema(cls):

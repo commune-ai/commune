@@ -114,29 +114,30 @@ class SubspaceDashboard(c.Module):
             # do this with red and green if the line is positive or negative
             st.plotly_chart(figure)
 
-
-
-
-    
     @classmethod
     def dashboard(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
         st.write('# Tokenomics')
-        cols = st.columns(2)
 
-        emission_per_day = cols[0].number_input('Emission Per Day', 0, 1_000_000, 250_000, 1)
+
+
         
-        starting_emission = cols[1].number_input('Starting Emission', 0, 100_000_000_000, 60_000_000, 1) 
+        with st.expander('Emission Schedule', expanded=True):
+            cols = st.columns(2)
 
-        days = st.slider('Days', 1, 3_000, 800, 1)
+            emission_per_day = cols[0].number_input('Emission Per Day', 0, 1_000_000, 250_000, 1)
+            
+            starting_emission = cols[1].number_input('Starting Emission', 0, 100_000_000_000, 60_000_000, 1) 
 
-        n = st.number_input('Number of Modules', 1, 1000000, 8400, 1, key=f'n.modules')
+            days = st.slider('Days', 1, 3_000, 800, 1)
 
-        burn_rate = st.slider('Burn Rate', 0.0, 1.0, 0.0, 0.01, key=f'burn.rate')
+            n = st.number_input('Number of Modules', 1, 1000000, 8400, 1, key=f'n.modules')
 
-        dividend_rate = st.slider('Dividend Rate', 0.0, 1.0, 0.5, 0.01, key=f'dividend.rate')
+            burn_rate = st.slider('Burn Rate', 0.0, 1.0, 0.0, 0.01, key=f'burn.rate')
 
-        emission_per_halving = st.number_input('Emission Per Halving', 0, 1_000_000_000, 250_000_000, 1, key=f'emission.per.halving')
+            dividend_rate = st.slider('Dividend Rate', 0.0, 1.0, 0.5, 0.01, key=f'dividend.rate')
+
+            emission_per_halving = st.number_input('Emission Per Halving', 0, 1_000_000_000, 250_000_000, 1, key=f'emission.per.halving')
 
 
     
