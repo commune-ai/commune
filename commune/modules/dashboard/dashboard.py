@@ -116,7 +116,7 @@ class Dashboard(c.Module):
 
 
         
-        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND']) 
+        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'TOKENOMICS']) 
         chat = False
         with tabs[0]: 
             self.modules_dashboard()  
@@ -124,17 +124,27 @@ class Dashboard(c.Module):
             self.subspace_dashboard()
         with tabs[2]:
             self.playground_dashboard()
+        with tabs[3]:
+            self.tokenomics_dashboard()
         if chat:
             self.chat_dashboard()
 
-    def playground_dashboard(self):
+    def playground_dashboard(self, exception_handle=True):
+        
 
         server2index = {s:i for i,s in enumerate(self.servers)}
         default_servers = [self.servers[0]]
         cols = st.columns([1,1])
         self.server_name = cols[0].selectbox('Select Server',self.servers, 0, key=f'serve.module.playground')
         self.server = c.connect(self.server_name, network=self.network)
-        self.server_info = self.server.info(schema=True, timeout=2)
+        
+        
+        try:
+            self.server_info = self.server.info(schema=True, timeout=2)
+        except Exception as e:
+            st.error(e)
+            return
+
         self.server_schema = self.server_info['schema']
         self.server_functions = list(self.server_schema.keys())
         self.server_address = self.server_info['address']
@@ -326,6 +336,9 @@ class Dashboard(c.Module):
 
     def subspace_dashboard(self):
         return c.module('subspace.dashboard').dashboard(key=self.key)
+    
+    def tokenomics_dashboard(self):
+        return c.module('subspace.tokenomics').dashboard(key=self.key)
     
     @classmethod
     def dash(cls, *args, **kwargs):
