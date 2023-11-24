@@ -8,7 +8,7 @@ import streamlit as st
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self, state=None, key=None): 
+    def __init__(self, state=None, key=None, **kwargs): 
 
         self.load_state()
         if key != None:
