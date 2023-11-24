@@ -124,7 +124,6 @@ class OsModule(c.Module):
         memory_stats = psutil.virtual_memory()
 
         # Total memory in the system
-        c.print(memory_stats)
         response = {
             'total': memory_stats.total,
             'available': memory_stats.available,

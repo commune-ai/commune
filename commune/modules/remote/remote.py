@@ -98,6 +98,7 @@ class Remote(c.Module):
 
     @classmethod
     def add_host(cls, 
+                 cmd:str = None, # in the format of 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
@@ -513,11 +514,12 @@ class Remote(c.Module):
 
         with st.expander('Hosts', expanded=False):
             for host_name, host in hosts.items():
-                cols = st.columns([1,4,2])
+                cols = st.columns([1,4,2,2])
                 cols[0].write('#### '+host_name)
                 ssh_login_param = f'ssh {host["user"]}@{host["host"]} -p {host["port"]}'
                 cols[1].code(ssh_login_param)
-                remove_host  = cols[2].button(f'Remove {host_name}')
+                cols[2].code(host['pwd'])
+                remove_host  = cols[3].button(f'Remove {host_name}')
                 if remove_host:
                     st.write(self.rm_host(host_name))
                 
