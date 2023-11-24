@@ -8,7 +8,7 @@ import numpy as np
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 translator = Translator(
-    model_name_or_card="seamlessM4T_medium",
+    model_name_or_card="seamlessM4T_large",
     vocoder_name_or_card="vocoder_36langs",
     device=device,
     dtype=torch.float16 if "cuda" in device.type else torch.float32,
@@ -29,7 +29,7 @@ class ModelText2speech(c.Module):
         
         torchaudio.save(
             output_file,
-            wav[0],
+            wav[0].cpu().detach(),
             sr,
         )
 
@@ -50,7 +50,7 @@ class ModelText2speech(c.Module):
         
         torchaudio.save(
             output_file,
-            wav[0],
+            wav[0].cpu().detach(),
             sr,
         )
 
@@ -589,13 +589,13 @@ with gr.Blocks(css=css) as demo:
             input_audio_mic = gr.Audio(
                 label="Input speech",
                 type="filepath",
-                source="microphone",
+                # source="microphone",
                 visible=False,
             )
             input_audio_file = gr.Audio(
                 label="Input speech",
                 type="filepath",
-                source="upload",
+                # source="upload",
                 visible=True,
             )
         input_text = gr.Textbox(label="Input text", visible=False)
@@ -609,30 +609,30 @@ with gr.Blocks(css=css) as demo:
             )
             output_text = gr.Textbox(label="Translated text")
 
-    # with gr.Row(visible=True) as s2st_example_row:
-    #     s2st_examples = gr.Examples(
-    #         examples=[
-    #             ["assets/sample_input.mp3", "French"],
-    #             ["assets/sample_input.mp3", "Mandarin Chinese"],
-    #             ["assets/sample_input_2.mp3", "Hindi"],
-    #             ["assets/sample_input_2.mp3", "Spanish"],
-    #         ],
-    #         inputs=[input_audio_file, target_language],
-    #         outputs=[output_audio, output_text],
-    #         fn=process_s2st_example,
-    #     )
-    # with gr.Row(visible=False) as s2tt_example_row:
-    #     s2tt_examples = gr.Examples(
-    #         examples=[
-    #             ["assets/sample_input.mp3", "French"],
-    #             ["assets/sample_input.mp3", "Mandarin Chinese"],
-    #             ["assets/sample_input_2.mp3", "Hindi"],
-    #             ["assets/sample_input_2.mp3", "Spanish"],
-    #         ],
-    #         inputs=[input_audio_file, target_language],
-    #         outputs=[output_audio, output_text],
-    #         fn=process_s2tt_example,
-    #     )
+    with gr.Row(visible=True) as s2st_example_row:
+        s2st_examples = gr.Examples(
+            examples=[
+                # ["assets/sample_input.mp3", "French"],
+                # ["assets/sample_input.mp3", "Mandarin Chinese"],
+                # ["assets/sample_input_2.mp3", "Hindi"],
+                # ["assets/sample_input_2.mp3", "Spanish"],
+            ],
+            inputs=[input_audio_file, target_language],
+            outputs=[output_audio, output_text],
+            fn=process_s2st_example,
+        )
+    with gr.Row(visible=False) as s2tt_example_row:
+        s2tt_examples = gr.Examples(
+            examples=[
+                # ["assets/sample_input.mp3", "French"],
+                # ["assets/sample_input.mp3", "Mandarin Chinese"],
+                # ["assets/sample_input_2.mp3", "Hindi"],
+                # ["assets/sample_input_2.mp3", "Spanish"],
+            ],
+            inputs=[input_audio_file, target_language],
+            outputs=[output_audio, output_text],
+            fn=process_s2tt_example,
+        )
     with gr.Row(visible=False) as t2st_example_row:
         t2st_examples = gr.Examples(
             examples=[
@@ -676,8 +676,8 @@ with gr.Blocks(css=css) as demo:
     with gr.Row(visible=False) as asr_example_row:
         asr_examples = gr.Examples(
             examples=[
-                ["assets/sample_input.mp3", "English"],
-                ["assets/sample_input_2.mp3", "English"],
+                # ["assets/sample_input.mp3", "English"],
+                # ["assets/sample_input_2.mp3", "English"],
             ],
             inputs=[input_audio_file, target_language],
             outputs=[output_audio, output_text],
@@ -715,8 +715,8 @@ with gr.Blocks(css=css) as demo:
         fn=update_example_ui,
         inputs=task_name,
         outputs=[
-            # s2st_example_row,
-            # s2tt_example_row,
+            s2st_example_row,
+            s2tt_example_row,
             t2st_example_row,
             t2tt_example_row,
             asr_example_row,
@@ -739,6 +739,3 @@ with gr.Blocks(css=css) as demo:
         outputs=[output_audio, output_text],
         api_name="run",
     )
-
-if __name__ == "__main__":
-    demo.queue().launch()
