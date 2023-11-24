@@ -8,16 +8,6 @@ import streamlit as st
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self, state=None, key=None, **kwargs): 
-
-        self.load_state()
-        if key != None:
-            self.key = key
-
-        
-        # convert into metrics
-
-
 
     def emission_schedule(self, 
                           days = 10000, 
