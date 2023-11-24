@@ -760,16 +760,32 @@ class c:
     
     
     @classmethod
-    def st(cls, module:str = None, fn='dashboard', port=8501, kwargs:dict=None):
+    def st(cls, module:str = None, fn='dashboard', port=8501, public:bool = False, remote:bool = False, kwargs=None):
         if module == None: 
             module = cls.module_path()
+
+        kwargs = kwargs if kwargs != None else {}
+
+        while c.port_used(port):
+
+            c.print(f'Port {port} is already in use', color='red')
+            port = port + 1
+
+        if public == True:
+            port = c.free_port()
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals())
+            remote_kwargs['remote'] = False
+            c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
+            url = f'http://{c.ip()}:{port}'
+
+            return {'success': True, 'msg': f'running {module} on {port}', 'url': url}
         
         module_path = module
         module = c.module(module_path)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
         # add port to the command
-        port = c.get_port(port)
         cmd = f'streamlit run {module_filepath}'
         if port != None:
             cmd += f' --server.port {port}'
@@ -1550,7 +1566,7 @@ class c:
         if cls.module_path() == 'module':
             return cls.st('dashboard')
         else:
-            return cls.st()
+            return cls.st(*args, **kwargs)
     
     @classmethod
     def dashboard(cls):
@@ -2673,6 +2689,10 @@ class c:
 
         kwargs = c.locals2kwargs(locals())
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
+    
+    @classmethod
+    def hardware_info(cls, fmt:str = 'gb'):
+        return c.module('os').hardware_info(fmt=fmt)
     
     @classmethod
     def init_schema(cls):
@@ -7581,7 +7601,7 @@ class c:
 
     @classmethod
     def check_valis(cls, *args, **kwargs):
-        return c.module('vali').check_valis(*args, **kwargs)
+        return c.module('subspace')().check_valis(*args, **kwargs)
     
     @classmethod
     def check_servers(cls, *args, **kwargs):
