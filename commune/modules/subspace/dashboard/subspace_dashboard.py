@@ -16,6 +16,7 @@ class SubspaceDashboard(c.Module):
 
         
         # convert into metrics
+
         
     def transfer_dashboard(self):
         with st.expander('Transfer', expanded=False):
@@ -250,41 +251,85 @@ class SubspaceDashboard(c.Module):
                 else:
                     st.error(response['message'])
 
+    
+    def key_info_dashboard(self, expander = True):
+        if expander:
+            with st.expander('Key Info', expanded=False):
+                return self.key_info_dashboard(expander=False)
+
+        # pie map of stake
+        st.write('# Wallet')
+        st.write('ss58_address')
+        cols = st.columns([2,2,2])
+        cols[0].code( self.key.ss58_address)
+        cols[1].metric('Balance', int(self.key_info['balance']))
+        cols[2].metric('Stake', int(self.key_info['stake']))
+            
+
+        values = list(self.key_info['stake_to'].values())
+        labels = list(self.key_info['stake_to'].keys())
+
+        fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
+        # increase the width of the plot
+        fig.update_layout(width=900, height=750)
+        st.plotly_chart(fig)
+
+
+    def network_dashboard(self):
+        df = []
+        for m in self.modules:
+            m.pop('stake_from')
+            df.append(m)
+        df = pd.DataFrame(df)
+        df['ip'] = df['address'].apply(lambda x: x.split(':')[0])
+
+        # historgram
+
+        # st.write(df)
+        import plotly.express as px
+
+        cols = st.columns(3)
+        x_options = ['name', 'address', 'key', 'ip']
+        x = cols[0].selectbox('Select X', x_options, 0)
+        y_options = ['stake', 'emission', 'incentive', 'dividends', 'trust'] 
+        y = cols[1].selectbox('Select Y', y_options, 0)
+    
+        top_n = cols[2].slider('Top N', 1, 8400, 10, 1, key=f'top.n')
+        df = df.sort_values(y, ascending=False)
+
+        df = df[:top_n]
+
+        # bar chart of the top staked modules 
+        group_mode = 'group'
+        fig = px.bar(df, x=x, y=y, title=f'Top {y} Modules', barmode=group_mode)
+
+        # sum all of modules based on X
+        df = df.groupby(x).sum()
+        df.reset_index(inplace=True)
+        # st.write(df)
+
+
+        st.plotly_chart(fig)
+
+        # df = pd.DataFrame(self.modules)
+        st.write(df)
+
     @classmethod
     def dashboard(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
        
-        # pie map of stake
-        st.write('# Wallet')
 
-        with st.expander('Key Info', expanded=False):
-            st.write('ss58_address')
-            cols = st.columns([2,2,2])
-            cols[0].code( self.key.ss58_address)
-            cols[1].metric('Balance', int(self.key_info['balance']))
-            cols[2].metric('Stake', int(self.key_info['stake']))
-            
-    
-            values = list(self.key_info['stake_to'].values())
-            labels = list(self.key_info['stake_to'].keys())
-
-            fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
-            # increase the width of the plot
-            fig.update_layout(width=900, height=750)
-            st.plotly_chart(fig)
 
         # bar chat of staked modules
-
-
+        self.network_dashboard()
+        self.key_info_dashboard()
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
         self.register_dashboard()
-
-
-
-
-
+        tokenomics = st.checkbox('Get Tokenomics')
+        # if tokenomics:
+        #     c.module('subspace.tokenomics').dashboard()
 
 
 SubspaceDashboard.run(__name__)

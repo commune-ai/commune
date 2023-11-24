@@ -14,31 +14,31 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 
 ## Setup
 
-
 ### Setting up Commune with Docker
 
 Install Docker: If you don't have Docker installed on your system, download and install it from the official Docker website: [https://www.docker.com/get-started](https://www.docker.com/get-started).
 
 Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
-```bash 
+```bash
 git clone https://github.com/commune-ai/commune.git
 ```
 
 ```bash
 make up
 ```
-To enter the docker container do 
+
+To enter the docker container do
+
 ```bash
 make enter
 ```
 
 To exit the container
 
-```bash 
+```bash
 exit
 ```
-
 
 Sync Commune with the Network: Inside the Docker container, run the following command to sync Commune with the network:
 
@@ -46,16 +46,15 @@ Sync Commune with the Network: Inside the Docker container, run the following co
 c sync
 ```
 
-
 Congratulations! Commune is now set up and running inside a Docker container.
 
 ### Setting up Commune Without Docker
+
 Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
 ```bash
 git clone https://github.com/commune-ai/commune.git
 ```
-
 
 Install Dependencies: Navigate to the cloned Commune repository and install the required dependencies:
 
@@ -63,15 +62,16 @@ Install Dependencies: Navigate to the cloned Commune repository and install the 
 cd commune
 pip install -e ./
 ```
-# ENSURE YOU HAVE AN NPM ENVIRONMENT FOR PM2
 
+# ENSURE YOU HAVE AN NPM ENVIRONMENT FOR PM2
 
 ```bash
 chmod +x ./scripts/*
 sudo ./scripts/install_npm_env.sh
 npm install -g pm2
 ```
-Congratulations! Commune is now set up and running wihtou Docker
+
+Congratulations! Commune is now set up and running without Docker
 
 ## Deploy Your Object From Anywhere
 
@@ -126,6 +126,7 @@ my_model.function_schema()
 The `module.py` file serves as an anchor, organizing future modules in what we call a module filesystem. For example, you can store a dataset module in `{PWD}/dataset/text`, which will have a path of `dataset.text`. The current limitation is to have a config where the name of the config is that of the Python object.
 
 Example:
+
 ```bash
 model/text/ # model folder (model.text)
     text_model.py # python script for text model
@@ -133,6 +134,7 @@ model/text/ # model folder (model.text)
 ```
 
 You can get this using the path (`model.text`):
+
 ```python
 # Get the model class
 model_class = commune.module('model.text')
@@ -153,7 +155,6 @@ Subspace is a blockchain that Commune uses for several purposes:
 - **DNS for Python**: Decentralized Name Service for deployed objects.
 - **Evaluating Performance through Voting**: Stake-weighted voting system for users to evaluate each other instead of self-reported networks. This provides users with
 
-
 ## Register
 
 To register a module, do the following
@@ -162,8 +163,7 @@ To register a module, do the following
 c register {module_path} name={module_name (OPTIONAL)}
 ```
 
-The module path is specified 
-
+The module path is specified
 
 Yo, listen up! I'm about to drop some updated knowledge on how to create a dope module and register it on the blockchain. Here's the revised step-by-step guide:
 
@@ -205,6 +205,3 @@ c register my_module_path tag=1
 ```
 
 That's it, my friend! You've created a dope module and registered it on the blockchain with the option to customize the name and tag. Now you can share your module with the world and let others benefit from your greatness. Keep on coding and stay fresh!
-
-
-

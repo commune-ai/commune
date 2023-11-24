@@ -60,7 +60,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 4,
+                max_trials:int = 20,
                 **kwargs):
 
         '''
@@ -1743,6 +1743,10 @@ class Subspace(c.Module):
             return df_stats
         df_stats = df_stats[cols]
 
+        if 'last_update' in cols:
+            block = self.block
+            df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
+
         if 'emission' in cols:
             epochs_per_day = self.epochs_per_day(netuid=netuid)
             df_stats['emission'] = df_stats['emission'] * epochs_per_day
@@ -1774,32 +1778,45 @@ class Subspace(c.Module):
                 break
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
+
+
+    def check_valis(self):
+        return self.check_servers(search='vali', netuid=None, wait_for_server=False, update=False)
     
     def check_servers(self, search=None,  netuid=None, wait_for_server=False, update:bool=False):
-        cols = ['name', 'registered', 'serving', 'address']
+        cols = ['name', 'registered', 'serving', 'address', 'last_update']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
+
         module2stats = {m['name']:m for m in module_stats}
-        c.print(module2stats)
+
+        subnet = self.subnet(netuid=netuid)
         namespace = c.namespace(search=search, network='local', update=True)
+
         for module, stats in module2stats.items():
             if not c.server_exists(module):
                 c.serve(module)
+
         c.print('checking', list(namespace.keys()))
         for name, address in namespace.items():
             if name in module2stats :
+                # get the stats for this module
                 m_stats = module2stats.get(name)
-
-                if m_stats['serving']:
-
-                    address = namespace.get(name)
-                    if address != m_stats['address'] or name != m_stats['name']:
-                        c.update_module(module=m_stats['name'], address=address, name=name)
+                if 'vali' in module: # if its a vali
+                    if stats['last_update'] > subnet['tempo']:
+                        c.print(f"Vali {module} has not voted in {vote_staleness} blocks. Restarting...")
+                        c.restart(module)
                 else:
-                    if ':' in m_stats['address']:
-                        port = int(m_stats['address'].split(':')[-1])
+
+                    if m_stats['serving']:
+                        address = namespace.get(name)
+                        if address != m_stats['address'] or name != m_stats['name']:
+                            c.update_module(module=m_stats['name'], address=address, name=name)
                     else:
-                        port = None
-                    c.serve(m_stats['name'], port=port, wait_for_server=wait_for_server)
+                        if ':' in m_stats['address']:
+                            port = int(m_stats['address'].split(':')[-1])
+                        else:
+                            port = None
+                        c.serve(m_stats['name'], port=port, wait_for_server=wait_for_server)
             else:
                 self.register(name)
 
@@ -3678,7 +3695,12 @@ class Subspace(c.Module):
         return c.status(cwd=cls.libpath)
 
     @classmethod
-    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
+    def add_local_node(cls,
+                     node:str='alice', 
+                     mode=mode, 
+                     chain=chain, 
+                     max_boot_nodes:int=24,
+                      **kwargs):
         cls.pull_image()
         cls.add_node_key(node=node, chain=chain, mode=mode)
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
@@ -3686,6 +3708,18 @@ class Subspace(c.Module):
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
         return response
+
+    start_local_node = add_local_node
+
+    @classmethod
+    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, **kwargs):
+        responses = []
+        for i in range(n):
+            responses += [cls.add_local_node(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)]
+        return responses
+        
+
+
 
 
 
@@ -3749,8 +3783,14 @@ class Subspace(c.Module):
 
      
     @classmethod
-    def local_nodes(cls, chain=chain):
+    def local_node_paths(cls, chain=chain):
         return [p for p in cls.ls(f'local_nodes/{chain}')]
+
+    @classmethod
+    def local_nodes(cls, chain=chain):
+        return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
+    
+
 
     @classmethod
     def kill_local_node(cls, node, chain=chain):
@@ -3772,7 +3812,7 @@ class Subspace(c.Module):
                 url = node2url[url] 
         else:
             if local:
-                local_node_paths = cls.local_nodes(chain=chain)
+                local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 if local_node_info == None:
                     url = c.choice(list(node2url.values()))
@@ -4187,7 +4227,7 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=20):
+    def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=50):
         key = self.resolve_key(key)
         name2key = self.name2key()
         if modules == None:
