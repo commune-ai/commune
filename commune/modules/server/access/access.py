@@ -2,9 +2,6 @@ import commune as c
 from typing import *
 
 
-
-
-
 class Access(c.Module):
     sync_time = 0
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
@@ -18,51 +15,44 @@ class Access(c.Module):
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
                 rate: int =  1,  # 1 call per timescale
                 base_rate: int =  100,# base level of calls per timescale (free calls) per account
-                fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
+                fn2rate: dict =  {}, # function name to rate map, this overrides the default rate,
+                state_path = f'state_path', # the path to the state
                 **kwargs):
+        
         config = self.set_config(kwargs=locals())
         self.module = module
         self.user_info = {}
         self.stakes = {}
+        self.module_path = self.module.module_path()
+        self.state_path = state_path
         c.thread(self.sync_loop_thread)
         
-
     def sync_loop_thread(self):
         while True:
             self.sync()
             c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))
 
     def sync(self):
+
         # if the sync time is greater than the sync interval, we need to sync
+        state = self.get(self.state_path, default={})
 
-        sync_path = f'sync_state.{self.config.network}{self.config.netuid}'
-        state = self.get(sync_path, default={})
-
-        sync_time = state.get('sync_time', 0)
-        time_since_sync = c.time() - sync_time
+        time_since_sync = c.time() - state.get('sync_time', 0)
         if time_since_sync > self.config.sync_interval:
-            
-            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-            state['sync_time'] = c.time()
+            self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
             state['block'] = self.subspace.block
-            self.put(sync_path, state)
+            state['sync_time'] = c.time()
+            self.put(self.state_path, state)
 
         self.stakes = state['stakes']
-        until_sync = self.config.sync_interval + (c.timestamp() - sync_time) 
+        until_sync = self.config.sync_interval - time_since_sync
 
-        c.print({'sync_time': sync_time,
-                  'n': len(self.stakes),
-                  'block': state['block'],  
+        c.print({'block': state['block'],  
                  'until_sync': until_sync,
                  'time_since_sync': time_since_sync})
         
-    def is_module_key(self, address: str) -> bool:
-        return bool(self.module.key.ss58_address == address)
-
     def verify(self, input:dict) -> dict:
-
-
         address = input['address']
         user_info = self.user_info.get(address, {'last_time_called':0 , 'requests': 0})
         stake = self.stakes.get(address, 0)
@@ -73,7 +63,6 @@ class Access(c.Module):
         else:
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
-
             rate_limit = (stake / self.config.stake2rate)
             rate_limit = rate_limit + self.config.base_rate # add the base rate
             rate_limit = rate_limit * self.config.rate # multiply by the rate

@@ -93,45 +93,91 @@ class OsModule(c.Module):
     def get_pid():
         return os.getpid()
     
-    def memory_info(self):
+    @classmethod
+    def memory_usage_info(cls, fmt='gb'):
         import psutil
         process = psutil.Process(os.getpid())
-        return process.memory_info()
+        memory_info = process.memory_info()
+        response = {
+            'rss': memory_info.rss,
+            'vms': memory_info.vms,
+            'pageins' : memory_info.pageins,
+            'pfaults': memory_info.pfaults,
+        }
 
-    def virtual_memory_available(self):
+
+        for key, value in response.items():
+            response[key] = cls.format_data_size(value, fmt=fmt)
+
+        return response
+
+
+
+    @classmethod
+    def memory_info(cls, fmt='gb'):
+        import psutil
+
+        """
+        Returns the current memory usage and total memory of the system.
+        """
+        # Get memory statistics
+        memory_stats = psutil.virtual_memory()
+
+        # Total memory in the system
+        response = {
+            'total': memory_stats.total,
+            'available': memory_stats.available,
+            'used': memory_stats.total - memory_stats.available,
+            'free': memory_stats.available,
+            'active': memory_stats.active,
+            'inactive': memory_stats.inactive,
+            'percent': memory_stats.percent,
+            'ratio': memory_stats.percent/100,
+        }
+
+        for key, value in response.items():
+            if key in ['percent', 'ratio']:
+                continue
+            response[key] = cls.format_data_size(value, fmt=fmt)    
+  
+        return response
+
+    @classmethod
+    def virtual_memory_available(cls):
         import psutil
         return psutil.virtual_memory().available
     
-    def virtual_memory_total(self):
+    @classmethod
+    def virtual_memory_total(cls):
         import psutil
         return psutil.virtual_memory().total
     
-    def virtual_memory_percent(self):
+    @classmethod
+    def virtual_memory_percent(cls):
         import psutil
         return psutil.virtual_memory().percent
     
-
-    def cpu_type(self):
+    @classmethod
+    def cpu_type(cls):
         import platform
         return platform.processor()
     
-
-    def info(self):
+    @classmethod
+    def cpu_info(cls):
         return {
-            'cpu_count': self.cpu_count(),
-            'cpu_type': self.cpu_type(),
-            'free_memory': self.virtual_memory_available(),
-            'total_memory': self.virtual_memory_total(),
-            'num_gpus': self.num_gpus(),
-            'gpu_memory': self.gpu_memory(),
-            
+            'cpu_count': cls.cpu_count(),
+            'cpu_type': cls.cpu_type(),
         }
     
-    def gpu_memory(self):
+
+    
+    @classmethod
+    def gpu_memory(cls):
         import torch
         return torch.cuda.memory_allocated()
     
-    def num_gpus(self):
+    @classmethod
+    def num_gpus(cls):
         import torch
         return torch.cuda.device_count()
     
@@ -206,4 +252,144 @@ class OsModule(c.Module):
         return stdout_text
 
 
+    @staticmethod
+    def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
+        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        fmt2scale = {
+            'b': 1,
+            'kb': 1000,
+            'mb': 1000**2,
+            'gb': 1000**3,
+            'GiB': 1024**3,
+            'tb': 1000**4,
+        }
+            
+        assert fmt in fmt2scale.keys(), f'fmt must be one of {fmt2scale.keys()}'
+        scale = fmt2scale[fmt] 
+        x = x/scale 
+        
+        return x
+        
 
+    @classmethod
+    def disk_info(cls, path:str = '/', fmt:str='gb'):
+        path = c.resolve_path(path)
+        import shutil
+        response = shutil.disk_usage(path)
+        response = {
+            'total': response.total,
+            'used': response.used,
+            'free': response.free,
+        }
+        for key, value in response.items():
+            response[key] = cls.format_data_size(value, fmt=fmt)
+        return response
+
+
+        
+    @classmethod
+    def mv(cls, path1, path2):
+        import shutil
+        path1 = cls.resolve_path(path1)
+        path2 = cls.resolve_path(path2)
+        assert os.path.exists(path1), path1
+        if not os.path.isdir(path2):
+            path2_dirpath = os.path.dirname(path2)
+            if not os.path.isdir(path2_dirpath):
+                os.makedirs(path2_dirpath, exist_ok=True)
+        shutil.move(path1, path2)
+        assert os.path.exists(path2), path2
+        assert not os.path.exists(path1), path1
+        return path2
+
+ 
+    @classmethod
+    def cp(cls, path1:str, path2:str, refresh:bool = False):
+        import shutil
+        # what if its a folder?
+        assert os.path.exists(path1), path1
+        if refresh == False:
+            assert not os.path.exists(path2), path2
+        
+        path2_dirpath = os.path.dirname(path2)
+        if not os.path.isdir(path2_dirpath):
+            os.makedirs(path2_dirpath, exist_ok=True)
+            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
+
+        if os.path.isdir(path1):
+            shutil.copytree(path1, path2)
+
+
+        elif os.path.isfile(path1):
+            
+            shutil.copy(path1, path2)
+        else:
+            raise ValueError(f'path1 is not a file or a folder: {path1}')
+        return path2
+    
+    
+    @classmethod
+    def cuda_available(cls) -> bool:
+        import torch
+        return torch.cuda.is_available()
+    @classmethod
+    def gpu_info(cls, fmt='gb') -> Dict[int, Dict[str, float]]:
+        import torch
+        gpu_info = {}
+        for gpu_id in cls.gpus():
+            mem_info = torch.cuda.mem_get_info(gpu_id)
+            gpu_info[int(gpu_id)] = {
+                'name': torch.cuda.get_device_name(gpu_id),
+                'free': mem_info[0],
+                'used': (mem_info[1]- mem_info[0]),
+                'total': mem_info[1], 
+                'ratio': mem_info[0]/mem_info[1],
+            }
+
+        for gpu_id, gpu_info in gpu_info.items():
+            for key, value in gpu_info.items():
+                if key in ['ratio', 'total']:
+                    continue
+                gpu_info[key] = cls.format_data_size(value, fmt=fmt)
+        return gpu_info
+
+    gpu_map =gpu_info
+
+    @classmethod
+    def hardware_info(cls, fmt:str='gb'):
+        return {
+            'cpu': cls.cpu_info(),
+            'memory': cls.memory_info(fmt=fmt),
+            'disk': cls.disk_info(fmt=fmt),
+            'gpu': cls.gpu_info(fmt=fmt),
+        }
+
+    @classmethod
+    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        return {k:v['total'] for k,v in c.gpu_info().items()}
+
+    
+
+    @classmethod
+    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
+        
+        '''
+        Resolves the device that is used the least to avoid memory overflow.
+        '''
+        import torch
+        if device == None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            assert torch.cuda.is_available(), 'Cuda is not available'
+            gpu_id = 0
+            if find_least_used:
+                gpu_id = cls.most_free_gpu()
+                
+            device = f'cuda:{gpu_id}'
+        
+            if verbose:
+                device_info = cls.gpu_info(gpu_id)
+                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
+        return device  
+    
