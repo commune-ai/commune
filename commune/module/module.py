@@ -2690,6 +2690,7 @@ class c:
         kwargs = c.locals2kwargs(locals())
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
     
+    @classmethod
     def hardware_info(cls, fmt:str = 'gb'):
         return c.module('os').hardware_info(fmt=fmt)
     
