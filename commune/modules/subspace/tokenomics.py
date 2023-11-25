@@ -122,7 +122,7 @@ class SubspaceDashboard(c.Module):
 
 
         
-        with st.expander('Emission Schedule', expanded=True):
+        with st.expander('Parameters', expanded=False):
             cols = st.columns(2)
 
             emission_per_day = cols[0].number_input('Emission Per Day', 0, 1_000_000, 250_000, 1)

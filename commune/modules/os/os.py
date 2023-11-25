@@ -4,9 +4,8 @@ import commune as c
 from typing import Dict, List, Optional, Union
 
 
+
 class OsModule(c.Module):
-
-
     @staticmethod
     def check_pid(pid):        
         """ Check For the existence of a unix pid. """
@@ -392,4 +391,32 @@ class OsModule(c.Module):
                 device_info = cls.gpu_info(gpu_id)
                 c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
-    
+        
+    @classmethod
+    def get_folder_size(cls, folder_path:str='/'):
+        folder_path = c.resolve_path(folder_path)
+        """Calculate the total size of all files in the folder."""
+        total_size = 0
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if not os.path.islink(file_path):
+                    total_size += os.path.getsize(file_path)
+        return total_size
+
+    @classmethod
+    def find_largest_folder(cls, directory: str = '~/'):
+        directory = c.resolve_path(directory)
+        """Find the largest folder in the given directory."""
+        largest_size = 0
+        largest_folder = ""
+
+        for folder_name in os.listdir(directory):
+            folder_path = os.path.join(directory, folder_name)
+            if os.path.isdir(folder_path):
+                folder_size = cls.get_folder_size(folder_path)
+                if folder_size > largest_size:
+                    largest_size = folder_size
+                    largest_folder = folder_path
+
+        return largest_folder, largest_size
