@@ -78,6 +78,8 @@ class Namespace(c.Module):
     def put_namespace(cls, network:str, namespace:dict = None) -> None:
         if namespace == None:
             namespace = cls.get_namespace(network=network)
+        address2name = {v: k for k, v in namespace.items()}
+        namespace = {v:k for k,v in address2name.items()}
         assert isinstance(namespace, dict), 'Namespace must be a dict.'
         cls.put(network, namespace)
         return {'success': False, 'msg': f'Namespace {network} updated.'}
@@ -208,6 +210,9 @@ class Namespace(c.Module):
         namespace = cls.get_namespace(network=network)
         if is_remote:
             name = name + '_' + str(module_ip)
+        addresses = list(namespace.values())
+        if address not in addresses:
+            return {'success': False, 'msg': f'{address} not in {addresses}'}
         namespace[name] = address
         c.put_namespace(network, namespace)
 

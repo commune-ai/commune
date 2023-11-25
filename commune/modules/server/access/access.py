@@ -63,7 +63,7 @@ class Access(c.Module):
         else:
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
-            rate_limit = (stake / self.config.stake2rate)
+            rate_limit = (stake / self.config.stake2rate) # convert the stake to a rate
             rate_limit = rate_limit + self.config.base_rate # add the base rate
             rate_limit = rate_limit * self.config.rate # multiply by the rate
 

@@ -1,4 +1,5 @@
 import commune as c
+import streamlit as st
 from typing import *
 
 class Remote(c.Module):
@@ -41,13 +42,10 @@ class Remote(c.Module):
         # Create an Remote client instance.
         client = paramiko.SSHClient()
 
-
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 
-
-
         # Connect to the remote server
         client.connect(host['host'],
                        port=host['port'], 
@@ -57,9 +55,6 @@ class Remote(c.Module):
         if sudo and host['user'] != "root":
             command = "sudo -S -p '' %s" % command
         stdin, stdout, stderr = client.exec_command(command)
-
-
-
 
         try:
             if sudo:
@@ -79,11 +74,9 @@ class Remote(c.Module):
                     c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
                 outputs['error'] += line
         
-
             if len(outputs['error']) == 0:
                 outputs = outputs['output']
-
-                
+    
             stdin.close()
             stdout.close()
             stderr.close()
@@ -91,14 +84,11 @@ class Remote(c.Module):
         except Exception as e:
             c.print(e)
             pass
-
-
         return outputs
-
 
     @classmethod
     def add_host(cls, 
-                 cmd:str = None, # in the format of 
+                 cmd:str = None , # in the format of 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
@@ -180,13 +170,13 @@ class Remote(c.Module):
 
 
     @classmethod
-    def host2ip(cls):
-        hosts = cls.hosts()
+    def host2ip(cls, search=None):
+        hosts = cls.hosts(search=search)
         return {k:v['host'] for k,v in hosts.items()}
 
     @classmethod
-    def ip2host(cls):
-        host2ip = cls.host2ip()
+    def ip2host(cls, search=None):
+        host2ip = cls.host2ip(search=search)
         return {v:k for k,v in host2ip.items()}
     @classmethod
     def names(cls, search=None):
@@ -203,6 +193,10 @@ class Remote(c.Module):
     @classmethod
     def n(cls, search=None):
         return len(cls.hosts(search=search))
+    
+    @classmethod
+    def n_servers(self):
+        return len(self.servers())
     
     @classmethod
     def host(self, name):
@@ -278,51 +272,73 @@ class Remote(c.Module):
             results[host] = bool(r)
         return results
     
+    def add_server(self, address):
+        return c.add_server(address, network='remote')
+    
     @classmethod
-    def add_servers(cls, add_admins:bool=False, timeout=10, refresh=False, network='remote'):
+    def add_servers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
         """
         Adds servers to the network by running `c add_servers` on each server.
         
         """
-        
         if refresh:
             c.rm_namespace(network=network)
         if add_admins:
             cls.add_admin(timeout=timeout)
+
+        namespace = c.namespace(network=network)
+        address2name = {v:k for k,v in namespace.items()}
+        ip2host = cls.ip2host()
+
+
     
         server_addresses = []
         server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
         for i, server_address in enumerate(server_addresses_responses):
             if isinstance(server_address, str):
-                if server_address.endswith('\n'):
-                    server_address = server_address[:-1]
-                server_addresses.append(server_address)
-        c.add_servers(*server_addresses, network=network)
-        namespace = c.get_namespace(network=network)
-        host2ip = cls.host2ip()
-        ip_seperator = '_'
-        for name, address in namespace.items():
-            name = name.split(ip_seperator)[0] + ip_seperator + host2ip[name.split(ip_seperator)[1]]
-        servers = c.servers(network=network)
-        return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
+                if server_address in address2name:
+                    server_name = address2name[server_address]
+                    c.print(f'{server_name} already in namespace')
+                    continue
+                else:
+                    ip = c.address2ip(server_address)
+                    if ip in ip2host:
+                        host = ip2host[ip]
+                    server_name = 'module' + '_' +  str(host)
+                    namespace[server_name] = server_address
+
+        c.put_namespace(network=network, namespace=namespace)
+        return {'status': 'success', 'msg': f'Servers added', 'servers': namespace}
 
     @classmethod
     def servers(self,search: str ='module', network='remote'):
         return c.servers(search, network=network)
     
     @classmethod
-    def serve(cls, *args, n=1, **kwargs):
-        return cls.call('serve', *args, search='module', n=n, **kwargs)
+    def serve(cls, *args, update=False, min_memory:int=10, timeout=10, **kwargs):
+        modules = cls.available_servers(update=update, min_memory=min_memory)
+        module = c.choice(modules)
+        c.print(f'Serving  on {module}')
+        module = c.connect(module, network='remote')
+        return module.serve(*args, **kwargs, timeout=timeout)
+    
     @classmethod
-    def fleet(cls, module, tag='', n=1, timeout=100, **kwargs):
-
-        futures = []
-
+    def fleet(cls, *args, update=False, min_memory:int=20, n=10, tag=None, **kwargs):
+        
+        responses = []
         for i in range(n):
-            f = cls.call('serve', f'{module}::{tag}{i}', return_future=True, n=1, **kwargs)
-            c.print(f)
-            futures += [f]
-        return c.wait(futures, timeout=timeout)
+            try:
+                response = cls.serve(*args, 
+                        update=update, 
+                        min_memory=min_memory, 
+                        tag= '' if tag == None else tag + str(i), 
+                        **kwargs
+                        )
+            except Exception as e:
+                response = c.detailed_error(e)
+            c.print(response)
+            responses += [response]
+        return responses
 
     @classmethod
     def logs(cls, module, n=3 , **kwargs):
@@ -337,12 +353,12 @@ class Remote(c.Module):
         
     
     @classmethod
-    def namespace(cls, search='module', network='remote', update=True):
+    def namespace(cls, search=None, network='remote', update=False):
 
         if update:
             namespace = {}
-            host2namespace = cls.call('namespace', public=True, search=search, timeout=20)
-            c.print('fam')
+            host2namespace = cls.call('namespace', public=True, timeout=20)
+
             for host, host_namespace in host2namespace.items():
                 if c.is_error(host_namespace):
                     continue
@@ -354,9 +370,18 @@ class Remote(c.Module):
                         else:
                             tag += 1
                     namespace[name + str(tag)] = address
+            address2name = {v:k for k,v in namespace.items()}
+            ip2host = cls.ip2host()
+
+            for address, name in address2name.items():
+                namespace[name] = address
+            
+
             c.put_namespace(namespace=namespace, network=network)
         else:
             namespace = c.get_namespace(search, network=network)
+        if search != None: 
+            namespace = {k:v for k,v in namespace.items() if search in k}
 
         return namespace
 
@@ -400,13 +425,16 @@ class Remote(c.Module):
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module', module=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
         futures = {}
         kwargs['network'] =  network
+            
         namespace = c.namespace(search=search, network=network)
         if n == None:
             n = len(namespace)
+            
         for name, address in c.shuffle(list(namespace.items()))[:n]:
+            c.print(f'Calling {name} {address}')
             futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True, timeout=timeout)
         
         if return_future:
@@ -417,8 +445,8 @@ class Remote(c.Module):
 
             results = c.wait(list(futures.values()), timeout=timeout)
             results = dict(zip(futures.keys(), results))
-            if len(results) == 1:
-                return list(results.values())[0]
+            # if len(results) == 1:
+            #     return list(results.values())[0]
         
             return results
 
@@ -427,6 +455,70 @@ class Remote(c.Module):
     @classmethod
     def pull(cls, stash=True, hosts=None):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
+    
+    @classmethod
+    def hardware_info(cls, timeout=10, update= False, cache_path:str = 'hardware_info.json'):
+
+        if not update:
+            server2hardware =  c.get_json(cache_path, {})
+            if len(server2hardware) > 0:
+                return server2hardware
+    
+
+        server2hardware_info =  cls.call('hardware_info', timeout=timeout)
+        server2hardware = {}
+        for server, info in server2hardware_info.items():
+            if isinstance(info, dict) and 'memory' in info:
+                server2hardware[server] = info
+        c.put_json(cache_path, server2hardware)
+        return server2hardware
+    
+
+    def server2memory(self, min_memory:int=10, **kwargs):
+        server2hardware_info = self.hardware_info(**kwarg)
+        server2memory = {}
+        
+        for server, hardware_info in server2hardware_info.items():
+            memory_info = hardware_info['memory']
+        
+            if isinstance(memory_info, dict) and 'available' in memory_info:
+                if memory_info['available'] >= min_memory:
+                    server2memory[server] = memory_info['available']
+
+        return server2memory
+    
+    @classmethod
+    def available_servers(cls, min_memory:int=10, update: bool=False):
+        server2hardware_info = cls.hardware_info(update=update)
+        server2memory = {}
+        
+        for server, hardware_info in server2hardware_info.items():
+            memory_info = hardware_info['memory']
+        
+            if isinstance(memory_info, dict) and 'available' in memory_info:
+                if memory_info['available'] >= min_memory:
+                    server2memory[server] = memory_info['available']
+
+        return list(server2memory.keys())
+    
+
+    @classmethod
+    def most_available_server(cls, min_memory:int=8, update: bool=False):
+        server2hardware_info = cls.hardware_info(update=update)
+        server2memory = {}
+        
+        for server, hardware_info in server2hardware_info.items():
+            memory_info = hardware_info['memory']
+            if isinstance(memory_info, dict) and 'available' in memory_info:
+                server2memory[server] = memory_info['available']
+        
+        # get the top n servers with the most memory
+        server2memory = {k:v for k,v in sorted(server2memory.items(), key=lambda x: x[1], reverse=True)}
+        most_available_server = list(server2memory.keys())[0]
+        most_available_server_memory = server2memory[most_available_server]
+        assert most_available_server_memory >= min_memory, f'Not enough memory, {most_available_server_memory} < {min_memory}'
+        c.print(f'Most available server: {most_available_server} with {most_available_server_memory} GB memory')
+        return most_available_server
     
     @classmethod
     def push(self):
@@ -452,15 +544,12 @@ class Remote(c.Module):
         c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
         c.print(cls.cmd(f'c serve', **kwargs))
 
-
-    
     def sidebar(self):
         import streamlit as st
 
         with st.sidebar:
             with st.expander('Add Host', expanded=False):
                 st.markdown('## Hosts')
-
                 cols = st.columns(2)
                 host = cols[0].text_input('Host',  '0.0.0.0')
                 port = cols[1].number_input('Port', 22, 10000, 22)
@@ -483,11 +572,9 @@ class Remote(c.Module):
     @classmethod
     def dashboard(cls, deploy:bool=True):
 
-
         if deploy:
             cls.st(kwargs=dict(deploy=False))
         self = cls()
-
 
         import streamlit as st
 
@@ -495,9 +582,84 @@ class Remote(c.Module):
         st.title('Remote Dashboard')
         self.sidebar()
 
-
         self.st = c.module('streamlit')()
         self.st.load_style()
+
+        tabs = st.tabs(['Servers', 'Modules'])
+
+
+        with tabs[0]:
+            st.markdown('## Servers')
+            self.ssh_dashboard()
+        with tabs[1]:
+            st.markdown('## Servers')
+            self.servers_dashboard()
+
+
+    def servers_dashboard(self):
+        import streamlit as st
+
+        cols = st.columns(2)
+        search = cols[0].text_input('Search', 'module')
+        namespace = c.namespace(search=search, network='remote')
+        n = cols[1].number_input('Number of servers', 1, len(namespace), 10)
+        module_names = list(namespace.keys())
+        module_names = st.multiselect('Modules', module_names, module_names)
+        namespace = {k:v for k,v in namespace.items() if k in module_names}
+        module_addresses = list(namespace.values())
+        
+        module_names = list(namespace.keys())
+        if len(module_names) == 0:
+            st.error('No modules found')
+            return
+        
+        
+        module_name = st.selectbox('Module', module_names, index=0)
+        module_address = namespace[module_name]
+        module = c.connect(module_address)
+
+        cache = st.checkbox('Cache')
+        cache_path = f'module_info_cache/{module_address}'
+        t1 = c.time()
+        if cache:
+            module_info = self.get_json(cache_path, {})
+        else:
+            module_info = {}
+
+        if len(module_info) == 0:
+            module_info = module.info()
+            self.put_json(cache_path, module_info)
+
+        fns = list(module_info['schema'].keys())
+        fn_name = st.selectbox('Function', fns, index=0)
+
+        module_fn = getattr(module, fn_name)
+        
+
+        kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
+
+
+        run = st.button(f'Run {fn_name}')
+        if run:
+            future2module = {}
+            for module_address in module_addresses:
+                future = c.submit(c.call, args=[module_address], kwargs=kwargs, return_future=True)
+                future2module[future] = module_address
+            futures = list(future2module.values())
+            import concurrent
+            kwargs['return_future'] = True
+            result = module_fn(**kwargs)
+            st.write(result)
+        
+        t2 = c.time()
+        st.write(f'Info took {t2-t1} seconds')
+
+
+
+
+
+    def ssh_dashboard(self):
+        import streamlit as st
         host_map = self.hosts()
         cols = st.columns(2)
         host_names = list(host_map.keys())
@@ -545,7 +707,6 @@ class Remote(c.Module):
         futures = list(host2future.values())
         hosts = list(host2future.keys())
         host2error = {}
-
         try:
             for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
                 host = hosts[result['idx']]
@@ -569,6 +730,9 @@ class Remote(c.Module):
             st.markdown(host + ' ' + c.emoji('cross'))
             st.markdown(f"""```bash\n{result}```""")
 
+        
+
+
       
 
         
@@ -579,6 +743,10 @@ class Remote(c.Module):
        
 
     dash = dashboard
+
+
+
+
 
 
 

@@ -2374,6 +2374,7 @@ class c:
                   network:str='local',
                   update: bool = False, **kwargs):
         return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
+    get_namespace = namespace
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
         """
@@ -6255,11 +6256,20 @@ class c:
                     for future in concurrent.futures.as_completed(futures, timeout=timeout):
                         idx = future2idx[future]
                         results[idx] = future.result()
+                        del future2idx[future]
+
                 except Exception as e:
-                    c.print(e)
+                    unfinished_futures = [future for future in futures if future in future2idx]
+                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures')
+
                 return results
             
         return get_results()
+    
+
+    @staticmethod
+    def address2ip(address:str) -> str:
+        return str('.'.join(address.split(':')[:-1]))
 
     @staticmethod
     def as_completed( futures, timeout=10, **kwargs):

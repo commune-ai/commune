@@ -1,0 +1,31 @@
+
+
+key : null
+netuid: 0
+search: null
+network: main 
+max_history: 10
+alpha: 0.5
+timeout: 10
+tag: null
+num_workers: 10
+start: True
+verbose: True
+batch_size: 4
+refresh_stats: False
+vote_interval: 100
+sync_interval: 1000
+sleep_time: 0.05
+vote: True
+min_stake: 1
+connect_score: 0.1 
+max_staleness: 10
+virtual_module: False
+check_loop: True
+run_mode : thread
+max_futures: 20
+
+
+
+
+
