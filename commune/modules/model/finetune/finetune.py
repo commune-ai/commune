@@ -68,3 +68,26 @@ class ModelFinetune(c.Module):
         self.train_model(model, tokenizer, dataset)
 
         return self.prompt_model(model, tokenizer, prompt)
+
+    def train(self, sentences, epochs=1, learning_rate=1e-5):
+        # Load the model
+        tokenizer, model = self.load_model()
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = model.to(device)
+        model.train()
+
+        optimizer = AdamW(model.parameters(), lr=learning_rate)
+
+        for epoch in range(epochs):
+            for idx, sentence in enumerate(sentences):
+                inputs = tokenizer(sentence, return_tensors='pt').to(device)
+                outputs = model(**inputs, labels=inputs["input_ids"])
+                loss = outputs.loss
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+
+                if idx % 100 == 0:
+                    print(f"Epoch: {epoch}, Loss:  {loss.item()}")
+                    

@@ -164,6 +164,22 @@ class ModelVectorstore(c.Module):
     def add_sentence(self, sentence):
         return sentence_manager.add_sentence(sentence)
 
+    def add_from_file(self, path):
+        with open(path, 'r') as file:
+            data = file.read()
+
+        return sentence_manager.add_sentence(sentence)
+
+    def add_from_url(self, url):
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        text = soup.get_text()
+        sentences = text.split('.')
+        for sentence in sentences:
+            sentence_manager.add_sentence(sentence.strip())
+
+        return {'success': True}
+
     def prompt(self, query):
         result = sentence_manager.prompt(query)
         return {'result': result, 'success': True}
