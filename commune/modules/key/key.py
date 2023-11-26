@@ -173,10 +173,11 @@ class Keypair(c.Module):
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
-        
         cls.put(path, key_json)
-        
         return  json.loads(key_json)
+    
+
+    
     
     @classmethod
     def rename_key(self, new_path):
@@ -1136,6 +1137,18 @@ class Keypair(c.Module):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
     mems_path = c.repo_path + '/data/keymems.json'
+
+    def save(self, path=None):
+        if path == None:
+            path = self.path
+        c.print(f'saving key to {path}')
+        c.put_json(path, self.to_json())
+        return {'saved':path}
+    
+    def diplicate(self, new_path):
+        c.print(f'copying key from {self.path} to {new_path}')
+        c.cp(self.path, new_path)
+        return {'copied':new_path}
     
     @classmethod
     def savemems(cls, path=mems_path):

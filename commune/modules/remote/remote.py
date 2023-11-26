@@ -379,12 +379,14 @@ class Remote(c.Module):
 
         address2name = {v:k for k,v in namespace.items()}
         ip2host = cls.ip2host()
+        local_ip = c.ip()
         for address, name in address2name.items():
             if 'module' in name:
                 if address in address2name:
                     continue
                 else:
-                    ip = c.address2ip(address)
+                    ip = c.address2ip(address)                        
+
                     if ip in ip2host:
                         host = ip2host[ip]
                     server_name = 'module' + '_' +  str(host)
@@ -735,6 +737,31 @@ class Remote(c.Module):
             st.markdown(host + ' ' + c.emoji('cross'))
             st.markdown(f"""```bash\n{result}```""")
 
+
+
+    def reg_servers(self, search='vali::cc', stake:str=200, timeout=40, batch_size=10):
+        namespace = self.namespace(search=search)
+        subspace = c.module('subspace')()
+        launcher_keys = subspace.launcher_keys()
+        c.print(f'Registering with launcher keys {len(launcher_keys)} for {len(namespace)} servers')
+        subspace_namespace = subspace.namespace(update=True)
+
+        for i, (name, address) in enumerate(namespace.items()):
+            if name in subspace_namespace:
+                c.print(f'{name} already registered')
+                continue
+            if len(launcher_keys) == 0:
+                c.print(f'No more launcher keys')
+                break
+            key = launcher_keys.pop(i % len(launcher_keys))
+            c.print(f'Registering {name} {address} {key}')
+            try:
+                result = subspace.register(name=name, address=address, stake=stake, key=key)
+            except Exception as e:
+                result = c.detailed_error(e)
+            c.print(result)
+
+            
         
 
 

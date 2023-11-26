@@ -338,8 +338,7 @@ class Subspace(c.Module):
     set_weights = vote
 
     def get_netuid_for_subnet(self, network: str = None) -> int:
-        netuid = self.subnet_namespace.get(network, None)
-        return netuid
+        return {'commune': 0}.get(network, 0)
 
 
 
@@ -396,29 +395,21 @@ class Subspace(c.Module):
             address = c.namespace(network='local')[name]
             address = address.replace(c.default_ip,c.ip())
         
-        module_key = self.resolve_key(name)
+        if module_key == None:
+            info = c.connect(address).info(timeout=5)
+            module_key = info['ss58_address']
+
+
         key = self.resolve_key(key)
 
         # Validate address.
-        if self.subnet_exists(subnet, network=network):
-            netuid = self.get_netuid_for_subnet(subnet)
-            if self.is_registered(module_key.ss58_address, netuid=netuid):
-                if update_if_registered: 
-                    return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-                else: 
-                    return {'success': False, f'msg': 'Module {name} already registered'}
-            min_stake = self.min_stake(netuid=netuid, registration=True)
+        netuid = self.get_netuid_for_subnet(subnet)
+        min_stake = self.min_stake(netuid=netuid, registration=True)
 
-        else: 
-            c.print(f"YOU ARE CREATING A NEW SUBNET: {subnet}")
-            min_stake = self.min_stake(netuid=0, registration=True)
 
-            
         # convert to nanos
         min_stake = min_stake + existential_balance
-        balance = self.get_balance(key.ss58_address, fmt=fmt)
-        if balance < min_stake:
-            return {'success': False, 'message': f'Insufficient balance: {balance} < {min_stake}'}
+
         if stake == None:
             stake = min_stake 
         if stake < min_stake:
@@ -431,7 +422,7 @@ class Subspace(c.Module):
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
-                    'module_key': module_key.ss58_address,
+                    'module_key': module_key,
                 } 
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization)
@@ -931,15 +922,11 @@ class Subspace(c.Module):
 
         return response
             
-    def stake_from(self, netuid = None, block=None, network=None, update=False):
-        network = self.resolve_network(network)
-        netuid  = self.resolve_netuid(netuid)
-        return {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', netuid, block=block, update=update)}
+    def stake_from(self, netuid = 0, block=None, update=False, network=network):
+        return {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', netuid, block=block, update=update, network=network)}
     
-    def delegation_fee(self, netuid = None, block=None, network=None, update=False):
-        network = self.resolve_network(network)
-        netuid  = self.resolve_netuid(netuid)
-        return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update)}
+    def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
+        return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update, network=network)}
     
     def stake_to(self, netuid = None, network=None, block=None, update=False):
         network = self.resolve_network(network)
@@ -1867,7 +1854,7 @@ class Subspace(c.Module):
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
             c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
 
-        return  self.format_amount(result['data']['free'] , fmt=fmt)
+        return  self.format_amount(result['data']['free'].value , fmt=fmt)
 
     balance =  get_balance
 
@@ -3010,9 +2997,10 @@ class Subspace(c.Module):
                 call_params=params,
         )
 
-        tx_state = dict(status = 'pending',start_time=start_time, end_time=None, **compose_kwargs)
+        c.print('compose_kwargs', compose_kwargs, color=color)
+        tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
 
-        self.put_json(pending_path, compose_kwargs)
+        self.put_json(pending_path, tx_state)
 
         with self.substrate as substrate:
             call = substrate.compose_call(**compose_kwargs)
@@ -3050,6 +3038,7 @@ class Subspace(c.Module):
         tx_state['status'] = 'completed'
         tx_state['response'] = response
 
+        # remo 
         self.rm(pending_path)
         self.put_json(complete_path, tx_state)
 
@@ -4639,6 +4628,8 @@ class Subspace(c.Module):
     
 
     
+
+    
     
     def my_balances(self, search=None, min_value=1000, **kwargs):
         balances = self.balances(**kwargs)
@@ -4651,6 +4642,20 @@ class Subspace(c.Module):
             my_balances = {k:v for k,v in my_balances.items() if v >= min_value}
         return my_balances
     
+
+    def launcher_key(self, search=None, min_value=1000, **kwargs):
+        
+        my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
+        key_address =  c.choice(list(my_balances.keys()))
+        key_name = c.address2key(key_address)
+        return key_name
+    
+    def launcher_keys(self, search=None, min_value=1000, n=1000, **kwargs):
+        my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
+        key_addresses = list(my_balances.keys())[:n]
+        address2key = c.address2key()
+        return [address2key[k] for k in key_addresses]
+    
     def my_total_balance(self, search=None, min_value=1000, **kwargs):
         my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
         return sum(my_balances.values())
@@ -4661,6 +4666,11 @@ class Subspace(c.Module):
 
     def total_balance(self, **kwargs):
         balances = self.balances(**kwargs)
+        return sum(balances.values())
+    
+
+    def sand(self, **kwargs):
+        balances = self.my_balances(**kwargs)
         return sum(balances.values())
     
 
