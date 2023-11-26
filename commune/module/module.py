@@ -8419,7 +8419,14 @@ class c:
             word = word[:-1]
         return word
 
- 
+    @classmethod
+    def users(cls):
+        users = cls.get('users', {})
+        root_key_address  = c.root_key().ss58_address
+        if root_key_address not in users:
+            cls.add_admin(root_key_address)
+        return cls.get('users', {})
+
 Module = c
 Module.run(__name__)
     

@@ -1713,24 +1713,24 @@ class Subspace(c.Module):
 
         df_stats =  c.df(stats)
 
-        if len(stats) == 0:
-            return df_stats
-        df_stats = df_stats[cols]
+        if len(stats) > 0:
 
-        if 'last_update' in cols:
-            block = self.block
-            df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
+            df_stats = df_stats[cols]
 
-        if 'emission' in cols:
-            epochs_per_day = self.epochs_per_day(netuid=netuid)
-            df_stats['emission'] = df_stats['emission'] * epochs_per_day
+            if 'last_update' in cols:
+                block = self.block
+                df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
+
+            if 'emission' in cols:
+                epochs_per_day = self.epochs_per_day(netuid=netuid)
+                df_stats['emission'] = df_stats['emission'] * epochs_per_day
 
 
-        sort_cols = [c for c in sort_cols if c in df_stats.columns]  
-        df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
+            sort_cols = [c for c in sort_cols if c in df_stats.columns]  
+            df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
-        if search is not None:
-            df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
+            if search is not None:
+                df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
 
         if not df:
             return df_stats.to_dict('records')
