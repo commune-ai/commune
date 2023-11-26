@@ -24,7 +24,7 @@ class OpenRouterModule(c.Module):
         self.http_referer = http_referer
         self.x_title = x_title
 
-    def prompt(self, content: str, text_only:bool = True, model=None):
+    def generate(self, content: str, text_only:bool = True, model=None):
         model = model or self.model
         response = requests.post(
             url=self.url,
@@ -39,7 +39,6 @@ class OpenRouterModule(c.Module):
                 {"role": self.role, "content": content}
                 ]
             })
-            
             )
         response = json.loads(response.text)
         
@@ -49,7 +48,7 @@ class OpenRouterModule(c.Module):
 
         return response
     
-    generate = prompt
+    prompt = generate
 
     def set_api_key(self, api_key:str):
         api_key = os.getenv(api_key, None)
@@ -60,12 +59,13 @@ class OpenRouterModule(c.Module):
         assert isinstance(api_key, str), "API key must be a string"
         self.api_key = api_key   
     
-
-    
     def test(self):
+        t1 = c.time()
         response = self.prompt("Hello")
+        latency = c.time() - t1
+
         assert isinstance(response, str)
-        return {"status": "success", "response": response}
+        return {"status": "success", "response": response, 'latency': latency}
     
     @classmethod
     def models(cls):

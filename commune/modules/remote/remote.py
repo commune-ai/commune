@@ -481,14 +481,22 @@ class Remote(c.Module):
     def server2memory(self, min_memory:int=10, **kwargs):
         server2hardware_info = self.hardware_info(**kwargs)
         server2memory = {}
-        
         for server, hardware_info in server2hardware_info.items():
             memory_info = hardware_info['memory']
-        
             if isinstance(memory_info, dict) and 'available' in memory_info:
                 if memory_info['available'] >= min_memory:
                     server2memory[server] = memory_info['available']
+        return server2memory
+    
 
+    def server2memory(self, min_memory:int=10, **kwargs):
+        server2hardware_info = self.hardware_info(**kwargs)
+        server2memory = {}
+        for server, hardware_info in server2hardware_info.items():
+            memory_info = hardware_info['memory']
+            if isinstance(memory_info, dict) and 'available' in memory_info:
+                if memory_info['available'] >= min_memory:
+                    server2memory[server] = memory_info['available']
         return server2memory
     
     @classmethod
@@ -622,12 +630,12 @@ class Remote(c.Module):
             st.error('No modules found')
             return
         
-        
-        module_name = st.selectbox('Module', module_names, index=0)
+        cols = st.columns(3)
+        module_name = cols[2].selectbox('Module', module_names, index=0)
         module_address = namespace[module_name]
         module = c.connect(module_address)
 
-        cache = st.checkbox('Cache')
+        cache = cols[2].checkbox('Cache')
         cache_path = f'module_info_cache/{module_address}'
         t1 = c.time()
         if cache:
