@@ -336,14 +336,17 @@ class Keypair(c.Module):
     def key2address(cls, prefix=None):
         key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
         return key2address
+    
     @classmethod
-    def address2key(cls, prefix:Optional[str]=None):
+    def address2key(cls, search:Optional[str]=None):
         address2key =  { v: k for k,v in cls.key2address().items()}
-        if prefix in address2key:
-            return address2key[prefix]
+        if search in address2key:
+            return address2key[search]
+        else:
+            if search != None:
+                address2key =  {k:v for k,v in address2key.items() if  search in v}
         return address2key
     
-
     @classmethod
     def get_address(cls, key):
         return cls.key2address()[key]

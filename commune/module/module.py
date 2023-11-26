@@ -2161,7 +2161,7 @@ class c:
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
-    
+        conds.append('.' in address and c.is_number(address.split('.')[0]))
         return all(conds)
     
     @classmethod
@@ -4586,7 +4586,7 @@ class c:
     def datetime(cls):
         import datetime
         # UTC 
-        return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.datetime.utcnow().strftime("%Y-%m-%d_%H:%M:%S")
 
     @classmethod
     def time2datetime(cls, t:float):
@@ -4740,7 +4740,7 @@ class c:
             
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        return c.serve(module, port=port, **kwargs)
+        return c.serve(module, **kwargs)
     
     server_restart = restart_server
     
@@ -4773,22 +4773,35 @@ class c:
         return c.root_key().ss58_address
     
     @classmethod
-    def root_keys(cls, search='module'):
-        return c.keys(search)
+    def root_keys(cls, search='module', address:bool = False):
+        keys = c.keys(search)
+        if address:
+            key2address = c.key2address(search)
+            keys = [key2address.get(k) for k in keys]
+        return keys
+    
+    @classmethod
+    def root_addys(cls):
+        return c.root_keys(address=True)
     
 
-    def add_root_key(self, *args, **kwargs):
-        c.random_words()
-        return c.module('key').add_key(name)
+    def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
+        destinations = c.root_addys()[:n]
+        c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
+        s = c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
 
 
-    
+
+
+
     @classmethod
     def root_key2address(cls, search='module'):
         return c.key2address(search)
     
-
-
+    @classmethod
+    def root_balances(cls, search='module'):
+        return 
+    
     @classmethod
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
@@ -7296,6 +7309,9 @@ class c:
     @classmethod
     def multistake(cls, *args, **kwargs):
         return c.module('subspace')().multistake(*args, **kwargs)
+    @classmethod
+    def multitransfer(cls, *args, **kwargs):
+        return c.module('subspace')().multitransfer(*args, **kwargs)
 
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
