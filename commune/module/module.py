@@ -1547,11 +1547,7 @@ class c:
         c.put(path, tree_folder, **kwargs)
         return {'module_tree_folders': tree_folder}
     
-    @classmethod
-    def ls_trees(cls):
-        path = tree_folders_path
-        tree_folders = c.get(path, [])
-        return tree_folders
+    
     @classmethod
     def rm_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
@@ -1598,6 +1594,7 @@ class c:
             return result
         
         return wrapper
+    
     
     @staticmethod
     def remotewrap(fn):
@@ -3128,33 +3125,35 @@ class c:
                  stake : int = None,
                  subnet:str = 'commune',
                  refresh:bool =False,
+                 address = None,
                  wait_for_server:bool = False,
+                 network = 'local',
                  **kwargs ):
         subspace = c.module('subspace')()
 
         # resolve module name and tag if they are in the server_name
-        if isinstance(module, str) and  '::' in module:
-            module, tag = module.split('::')
-        server_name = cls.resolve_server_name(module=module, tag=tag)
+        if address == None:
+            if isinstance(module, str) and  '::' in module:
+                module, tag = module.split('::')
+            name = cls.resolve_server_name(module=module, tag=tag)
+            if not c.key_exists(name):
+                c.add_key(name)
+            if c.server_exists(name, network='local') and refresh == False:
+                c.print(f'Server already Exists ({name})')
+                address = c.get_address(name)
+            
+            else:
+                module = cls.resolve_module(module)
+                serve_info =  module.serve(
+                                    server_name=name, 
+                                    wait_for_server=wait_for_server, 
+                                    refresh=refresh, 
+                                    tag=tag,
+                                    **kwargs)
+                name = serve_info['name']
+                address = serve_info['address']
 
-        if not c.key_exists(server_name):
-            c.add_key(server_name)
-        if c.server_exists(server_name, network='local') and refresh == False:
-            c.print(f'Server already Exists ({server_name})')
-            address = c.get_address(server_name)
-        
-        else:
-            module = cls.resolve_module(module)
-            serve_info =  module.serve(
-                                server_name=server_name, 
-                                wait_for_server=wait_for_server, 
-                                refresh=refresh, 
-                                tag=tag,
-                                **kwargs)
-            server_name = serve_info['name']
-            address = serve_info['address']
-
-        return subspace.register(name=server_name, address=address, subnet=subnet, key=key, stake=stake)
+        return subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake)
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
