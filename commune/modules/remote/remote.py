@@ -292,10 +292,11 @@ class Remote(c.Module):
 
 
     
-        server_addresses = []
         server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
         for i, server_address in enumerate(server_addresses_responses):
             if isinstance(server_address, str):
+                server_address = server_address.split('\n')[-1]
+
                 if server_address in address2name:
                     server_name = address2name[server_address]
                     c.print(f'{server_name} already in namespace')
@@ -370,19 +371,24 @@ class Remote(c.Module):
                         else:
                             tag += 1
                     namespace[name + str(tag)] = address
-            address2name = {v:k for k,v in namespace.items()}
-            ip2host = cls.ip2host()
-
-            for address, name in address2name.items():
-                namespace[name] = address
-            
-
             c.put_namespace(namespace=namespace, network=network)
         else:
             namespace = c.get_namespace(search, network=network)
         if search != None: 
             namespace = {k:v for k,v in namespace.items() if search in k}
 
+        address2name = {v:k for k,v in namespace.items()}
+        ip2host = cls.ip2host()
+        for address, name in address2name.items():
+            if 'module' in name:
+                if address in address2name:
+                    continue
+                else:
+                    ip = c.address2ip(address)
+                    if ip in ip2host:
+                        host = ip2host[ip]
+                    server_name = 'module' + '_' +  str(host)
+                    namespace[server_name] = address
         return namespace
 
     @classmethod
@@ -391,19 +397,21 @@ class Remote(c.Module):
 
     
     @classmethod
-    def addresses(self, network='remote'):
-        return c.addresses(network=network)
+    def addresses(self, search=None, network='remote'):
+        return c.addresses(search=search, network=network)
+    
+    
     
     def keys(self):
         return [info.get('ss58_address', None)for info in self.server_infos()]
     
     @classmethod
-    def server_infos(self, network='remote'):
-        return c.server_infos(network=network)
+    def server_infos(self, search=None,  network='remote', update=False):
+        return c.server_infos(search=search, network=network, update=update)
     @classmethod
-    def server_addresses(cls, network:str='remote'):
-        infos = c.server_infos(network=network)
-        return {k:v['address'] for k,v in infos.items()}
+    def server2key(cls, search=None, network:str='remote', update=False):
+        infos = c.server_infos(search=search, network=network, update=update)
+        return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
 
     @classmethod
     def key_addresses(cls, network:str='remote'):
@@ -412,17 +420,7 @@ class Remote(c.Module):
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
-    
-    @classmethod
-    def balances(cls, timeout=10):
-        futures = []
-        for address in cls.key_addresses():
-            future = c.submit(cls.call, args=['ls'], return_future=True, timeout=timeout)
-            futures += [future]
-        
-        return c.wait(futures, timeout=timeout)
-        
-    
+
 
     @classmethod
     def call(cls, fn:str='info' , *args, search:str='module', module=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
@@ -474,8 +472,12 @@ class Remote(c.Module):
         return server2hardware
     
 
+    def peers(self, network='remote'):
+        return self.servers(search='module', network=network)
+    
+
     def server2memory(self, min_memory:int=10, **kwargs):
-        server2hardware_info = self.hardware_info(**kwarg)
+        server2hardware_info = self.hardware_info(**kwargs)
         server2memory = {}
         
         for server, hardware_info in server2hardware_info.items():
@@ -488,7 +490,7 @@ class Remote(c.Module):
         return server2memory
     
     @classmethod
-    def available_servers(cls, min_memory:int=10, update: bool=False):
+    def available_servers(cls, min_memory:int=10, update: bool=False, address=False):
         server2hardware_info = cls.hardware_info(update=update)
         server2memory = {}
         
@@ -498,8 +500,13 @@ class Remote(c.Module):
             if isinstance(memory_info, dict) and 'available' in memory_info:
                 if memory_info['available'] >= min_memory:
                     server2memory[server] = memory_info['available']
-
-        return list(server2memory.keys())
+        
+        if address :
+            namespace = c.namespace(network='remote')
+            servers = [namespace.get(k) for k in server2memory]
+        else :
+            servers = list(server2memory.keys())
+        return servers
     
 
     @classmethod
@@ -676,12 +683,10 @@ class Remote(c.Module):
 
         with st.expander('Hosts', expanded=False):
             for host_name, host in hosts.items():
-                cols = st.columns([1,4,2,2])
+                cols = st.columns([1,4,2])
                 cols[0].write('#### '+host_name)
-                ssh_login_param = f'ssh {host["user"]}@{host["host"]} -p {host["port"]}'
-                cols[1].code(ssh_login_param)
-                cols[2].code(host['pwd'])
-                remove_host  = cols[3].button(f'Remove {host_name}')
+                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+                remove_host  = cols[2].button(f'Remove {host_name}')
                 if remove_host:
                     st.write(self.rm_host(host_name))
                 

@@ -263,7 +263,10 @@ class Namespace(c.Module):
                         break
             server_infos += c.wait(futures, timeout=timeout)
             cls.put('server_infos', server_infos)
-        return [s for s in server_infos if s != None]
+        server_infos = [s for s in server_infos if s != None]
+        if search != None:
+            server_infos = [s for s in server_infos if 'name' in s and search in s['name']]
+        return server_infos
     
     @classmethod
     def server2info(cls, *args, **kwargs):
