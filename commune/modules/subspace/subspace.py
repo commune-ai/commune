@@ -266,10 +266,10 @@ class Subspace(c.Module):
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
     def vote(
         self,
-        key: 'c.key' = None,
         uids: Union[torch.LongTensor, list] = None,
         weights: Union[torch.FloatTensor, list] = None,
         netuid: int = None,
+        key: 'c.key' = None,
         network = None,
     ) -> bool:
         network = self.resolve_network(network)
@@ -1537,7 +1537,7 @@ class Subspace(c.Module):
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.server_infos(update=True, network='local'))
+                c.print(c.infos(update=True, network='local'))
                 self.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
@@ -1636,9 +1636,9 @@ class Subspace(c.Module):
         return self.query( 'Uids', block=block, params=[ netuid, key_ss58 ] )  
 
 
-    def total_emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
-        netuid = self.resolve_netuid( netuid )
-        return sum(self.emission(netuid=netuid, block=block))
+    def total_emission( self, netuid: int = 0, block: Optional[int] = None, fmt:str = 'j', **kwargs ) -> Optional[float]:
+        total_emission =  sum(self.emission(netuid=netuid, block=block, **kwargs))
+        return self.format_amount(total_emission, fmt=fmt)
 
 
     def regblock(self, netuid: int = None, block: Optional[int] = None, update=False ) -> Optional[float]:
@@ -2476,9 +2476,7 @@ class Subspace(c.Module):
         return self.query('MaxRegistrationsPerBlock', params=[], network=network, **kwargs)
     max_regsperblock = max_registrations_per_block
 
-    
-    def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=True):
-        
+    def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False):
         cache_path = f'query/{name}'
         if not update:
             value = self.get(cache_path, None)

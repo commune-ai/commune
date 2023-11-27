@@ -1,6 +1,7 @@
 import commune as c
 import streamlit as st
 from typing import *
+import json
 
 class Remote(c.Module):
     filetype = 'yaml'
@@ -415,22 +416,22 @@ class Remote(c.Module):
     
     
     def keys(self):
-        return [info.get('ss58_address', None)for info in self.server_infos()]
+        return [info.get('ss58_address', None)for info in self.infos()]
     
     @classmethod
-    def server_infos(self, search=None,  network='remote', update=False):
-        return c.server_infos(search=search, network=network, update=update)
+    def infos(self, search=None,  network='remote', update=False):
+        return c.infos(search=search, network=network, update=update)
     def peer2info(self, network='remote', update=False):
-        server_infos = self.call('info', search='module')
-        return {info['name']:info for info in server_infos if 'name' in info and 'error' not in info}
+        infos = self.call('info', search='module')
+        return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
-        infos = c.server_infos(search=search, network=network, update=update)
+        infos = c.infos(search=search, network=network, update=update)
         return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
 
     @classmethod
     def peer_addresses(cls, network:str='remote'):
-        infos = c.server_infos(network=network)
+        infos = c.infos(network=network)
         return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     @classmethod
     def push(cls,**kwargs):
@@ -635,8 +636,8 @@ class Remote(c.Module):
         module_names = st.multiselect('Modules', module_names, module_names)
         namespace = {k:v for k,v in namespace.items() if k in module_names}
         module_addresses = list(namespace.values())
-        
         module_names = list(namespace.keys())
+        
         if len(module_names) == 0:
             st.error('No modules found')
             return
@@ -800,43 +801,20 @@ class Remote(c.Module):
             c.print(f'{server} {info}')
             info['timestamp'] = c.time()
             server2info[server] = info
-        
 
+    def gpus(self, **kwargs):
+        response = self.cmd('c gpus', **kwargs)
+        gpus = {}
+
+        for host, gpu in response.items():
+            if isinstance(gpu, str):
+                gpus[host] = json.loads(gpu)
                 
+        return gpus
         
-
-        
-            
-                    
-
-            
-
-
-    
-
-
-
-            
-        
-
-
-      
-
-        
-        
-
-
-
        
 
     dash = dashboard
-
-
-
-
-
-
-
 
     # @classmethod
     # def refresh_servers(cls):
