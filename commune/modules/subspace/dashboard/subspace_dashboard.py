@@ -282,7 +282,7 @@ class SubspaceDashboard(c.Module):
 
 
         # bar chat of staked modules
-        self.key_info_dashboard()
+        self.key_info_dashboard() 
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
