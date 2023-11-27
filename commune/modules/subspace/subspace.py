@@ -1736,7 +1736,7 @@ class Subspace(c.Module):
             return df_stats.to_dict('records')
         else:
             return df_stats
-
+        ['anthropic/claude-1.2', 'anthropic/claude-v1', 'anthropic/claude-instant-v1', 'anthropic/claude-2.0']
 
     def least_useful_module(self, *args, stats=None,  **kwargs):
 

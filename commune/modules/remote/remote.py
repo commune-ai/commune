@@ -194,6 +194,12 @@ class Remote(c.Module):
     def n(cls, search=None):
         return len(cls.hosts(search=search))
     
+    def num_servers(self):
+        return len(self.servers())
+    
+    def num_peers(self):
+        return len(self.peers())
+    
     @classmethod
     def n_servers(self):
         return len(self.servers())
@@ -276,9 +282,9 @@ class Remote(c.Module):
         return c.add_server(address, network='remote')
     
     @classmethod
-    def add_servers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
+    def add_peers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
         """
-        Adds servers to the network by running `c add_servers` on each server.
+        Adds servers to the network by running `c add_peers` on each server.
         
         """
         if refresh:
@@ -309,6 +315,7 @@ class Remote(c.Module):
                     namespace[server_name] = server_address
 
         c.put_namespace(network=network, namespace=namespace)
+
         return {'status': 'success', 'msg': f'Servers added', 'servers': namespace}
 
     @classmethod
@@ -317,10 +324,13 @@ class Remote(c.Module):
     
     @classmethod
     def serve(cls, *args, update=False, min_memory:int=10, timeout=10, **kwargs):
-        modules = cls.available_servers(update=update, min_memory=min_memory)
+        modules = cls.available_peers(update=update, min_memory=min_memory)
+        c.print(f'Available modules: {modules}')
         module = c.choice(modules)
         c.print(f'Serving  on {module}')
-        module = c.connect(module, network='remote')
+        namespace = c.namespace(network='remote')
+        address = namespace[module]
+        module = c.connect(address)
         return module.serve(*args, **kwargs, timeout=timeout)
     
     @classmethod
@@ -411,12 +421,12 @@ class Remote(c.Module):
     def server_infos(self, search=None,  network='remote', update=False):
         return c.server_infos(search=search, network=network, update=update)
     @classmethod
-    def server2key(cls, search=None, network:str='remote', update=False):
+    def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.server_infos(search=search, network=network, update=update)
         return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
 
     @classmethod
-    def key_addresses(cls, network:str='remote'):
+    def peer_addresses(cls, network:str='remote'):
         infos = c.server_infos(network=network)
         return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     @classmethod
@@ -457,95 +467,93 @@ class Remote(c.Module):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
     @classmethod
-    def hardware_info(cls, timeout=10, update= False, cache_path:str = 'hardware_info.json'):
+    def hardware(cls, timeout=20, update= False, cache_path:str = 'hardware.json'):
 
         if not update:
-            server2hardware =  c.get_json(cache_path, {})
-            if len(server2hardware) > 0:
-                return server2hardware
+            peer2hardware =  c.get_json(cache_path, {})
+            if len(peer2hardware) > 0:
+                return peer2hardware
     
 
-        server2hardware_info =  cls.call('hardware_info', timeout=timeout)
-        server2hardware = {}
-        for server, info in server2hardware_info.items():
+        peer2hardware =  cls.call('hardware', timeout=timeout)
+        peer2hardware = {}
+        for server, info in peer2hardware.items():
             if isinstance(info, dict) and 'memory' in info:
-                server2hardware[server] = info
-        c.put_json(cache_path, server2hardware)
-        return server2hardware
+                peer2hardware[server] = info
+        c.put_json(cache_path, peer2hardware)
+        return peer2hardware
     
-
     def peers(self, network='remote'):
         return self.servers(search='module', network=network)
     
+    def peer2hash(self, search='module', network='remote'):
+        return self.call('chash', search=search, network=network)
 
-    def server2memory(self, min_memory:int=10, **kwargs):
-        server2hardware_info = self.hardware_info(**kwargs)
-        server2memory = {}
-        for server, hardware_info in server2hardware_info.items():
-            memory_info = hardware_info['memory']
+    def peer2memory(self, min_memory:int=0, **kwargs):
+        peer2hardware = self.hardware(**kwargs)
+        peer2memory = {}
+        for server, hardware in peer2hardware.items():
+            memory_info = hardware['memory']
             if isinstance(memory_info, dict) and 'available' in memory_info:
                 if memory_info['available'] >= min_memory:
-                    server2memory[server] = memory_info['available']
-        return server2memory
+                    peer2memory[server] = memory_info['available']
+        return peer2memory
     
 
-    def server2memory(self, min_memory:int=10, **kwargs):
-        server2hardware_info = self.hardware_info(**kwargs)
-        server2memory = {}
-        for server, hardware_info in server2hardware_info.items():
-            memory_info = hardware_info['memory']
-            if isinstance(memory_info, dict) and 'available' in memory_info:
-                if memory_info['available'] >= min_memory:
-                    server2memory[server] = memory_info['available']
-        return server2memory
+
+    def ps(self, update=False, **kwargs):
+        peer2ps = {}
+        for peer, ps in self.call('ps', **kwargs).items():
+            peer2ps[peer] = ps
+        return peer2ps
     
     @classmethod
-    def available_servers(cls, min_memory:int=10, update: bool=False, address=False):
-        server2hardware_info = cls.hardware_info(update=update)
-        server2memory = {}
+    def available_peers(cls, min_memory:int=10, update: bool=False, address=False):
+        peer2hardware = cls.hardware(update=update)
+        peer2memory = {}
         
-        for server, hardware_info in server2hardware_info.items():
-            memory_info = hardware_info['memory']
+        for peer, hardware in peer2hardware.items():
+            memory_info = hardware['memory']
         
             if isinstance(memory_info, dict) and 'available' in memory_info:
                 if memory_info['available'] >= min_memory:
-                    server2memory[server] = memory_info['available']
+                    peer2memory[peer] = memory_info['available']
         
         if address :
             namespace = c.namespace(network='remote')
-            servers = [namespace.get(k) for k in server2memory]
+            peers = [namespace.get(k) for k in peer2memory]
         else :
-            servers = list(server2memory.keys())
-        return servers
+            peers = list(peer2memory.keys())
+        return peers
     
 
     @classmethod
-    def most_available_server(cls, min_memory:int=8, update: bool=False):
-        server2hardware_info = cls.hardware_info(update=update)
-        server2memory = {}
+    def most_available_peer(cls, min_memory:int=8, update: bool=False):
+        peer2hardware = cls.hardware(update=update)
+        peer2memory = {}
         
-        for server, hardware_info in server2hardware_info.items():
-            memory_info = hardware_info['memory']
+        for peer, hardware in peer2hardware.items():
+            memory_info = hardware['memory']
             if isinstance(memory_info, dict) and 'available' in memory_info:
-                server2memory[server] = memory_info['available']
+                peer2memory[peer] = memory_info['available']
         
-        # get the top n servers with the most memory
-        server2memory = {k:v for k,v in sorted(server2memory.items(), key=lambda x: x[1], reverse=True)}
-        most_available_server = list(server2memory.keys())[0]
-        most_available_server_memory = server2memory[most_available_server]
-        assert most_available_server_memory >= min_memory, f'Not enough memory, {most_available_server_memory} < {min_memory}'
-        c.print(f'Most available server: {most_available_server} with {most_available_server_memory} GB memory')
-        return most_available_server
+        # get the top n peers with the most memory
+        peer2memory = {k:v for k,v in sorted(peer2memory.items(), key=lambda x: x[1], reverse=True)}
+        most_available_peer = list(peer2memory.keys())[0]
+        most_available_peer_memory = peer2memory[most_available_peer]
+        assert most_available_peer_memory >= min_memory, f'Not enough memory, {most_available_peer_memory} < {min_memory}'
+        c.print(f'Most available peer: {most_available_peer} with {most_available_peer_memory} GB memory')
+        return most_available_peer
     
     @classmethod
     def push(self):
         c.push()
         c.rcmd('c pull', verbose=True)
         c.rcmd('c serve', verbose=True)
-        c.add_servers()
+        c.add_peers()
     
     @classmethod
-    def check_servers(cls, timeout=10):
+    def check_peers(cls, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():
             futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
@@ -610,10 +618,10 @@ class Remote(c.Module):
             self.ssh_dashboard()
         with tabs[1]:
             st.markdown('## Servers')
-            self.servers_dashboard()
+            self.peers_dashboard()
 
 
-    def servers_dashboard(self):
+    def peers_dashboard(self):
         import streamlit as st
 
         cols = st.columns(2)
@@ -631,7 +639,7 @@ class Remote(c.Module):
             return
         
         cols = st.columns(3)
-        module_name = cols[2].selectbox('Module', module_names, index=0)
+        module_name = cols[0].selectbox('Module', module_names, index=0)
         module_address = namespace[module_name]
         module = c.connect(module_address)
 
@@ -768,6 +776,10 @@ class Remote(c.Module):
             except Exception as e:
                 result = c.detailed_error(e)
             c.print(result)
+
+    def update(self):
+        # self.add_peers()
+        return [self.hardware(update=True), self.namespace(update=True)]
 
             
         
