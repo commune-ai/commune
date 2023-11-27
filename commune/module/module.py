@@ -8168,10 +8168,15 @@ class c:
 
 
     @classmethod
-    def add_api_keys(cls, api_keys:str):
+    def add_api_keys(cls, *api_keys:str):
+        if len(api_keys) == 1 and isinstance(api_keys[0], list):
+            api_keys = api_keys[0]
+        api_keys = cls.get('api_keys', [])
         api_keys = list(set(api_keys + cls.get('api_keys', [])))
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
+    
+
 
     @classmethod
     def set_api_keys(cls, api_keys:str):
