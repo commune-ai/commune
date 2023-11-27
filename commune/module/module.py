@@ -5226,7 +5226,7 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20,  **kwargs):
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20, remote=False,  **kwargs):
 
         c.update()
         if tag == None:
@@ -5581,18 +5581,17 @@ class c:
     getnet = get_network
     resnet = resolve_network
     
+    # local update  
     @classmethod
     def update(cls, 
                network: str = None,
                ):
-        
         # update local namespace
         c.ip(update=True)
         c.namespace(network=network, update=True)
         servers = c.servers(network=network)
-        c.server_infos(update=True, network='local')
-
-        
+        c.server_infos(network='local',update=True)
+        c.hardware(update=True)
 
         return {'success': True, 'servers': servers}
 
@@ -8171,7 +8170,6 @@ class c:
     def add_api_keys(cls, *api_keys:str):
         if len(api_keys) == 1 and isinstance(api_keys[0], list):
             api_keys = api_keys[0]
-        api_keys = cls.get('api_keys', [])
         api_keys = list(set(api_keys + cls.get('api_keys', [])))
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}

@@ -34,24 +34,28 @@ class Access(c.Module):
 
     def sync(self):
 
-        # if the sync time is greater than the sync interval, we need to sync
-        state = self.get(self.state_path, default={})
+        try:
+            # if the sync time is greater than the sync interval, we need to sync
+            state = self.get(self.state_path, default={})
 
-        time_since_sync = c.time() - state.get('sync_time', 0)
-        if time_since_sync > self.config.sync_interval:
-            self.subspace = c.module('subspace')(network=self.config.network)
-            state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
-            state['block'] = self.subspace.block
-            state['sync_time'] = c.time()
-            self.put(self.state_path, state)
+            time_since_sync = c.time() - state.get('sync_time', 0)
+            if time_since_sync > self.config.sync_interval:
+                self.subspace = c.module('subspace')(network=self.config.network)
+                state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
+                state['block'] = self.subspace.block
+                state['sync_time'] = c.time()
+                self.put(self.state_path, state)
 
-        self.stakes = state['stakes']
-        until_sync = self.config.sync_interval - time_since_sync
+            self.stakes = state['stakes']
+            until_sync = self.config.sync_interval - time_since_sync
 
-        c.print({'block': state['block'],  
-                 'until_sync': until_sync,
-                 'time_since_sync': time_since_sync})
-        
+            c.print({'block': state['block'],  
+                    'until_sync': until_sync,
+                    'time_since_sync': time_since_sync})
+        except Exception as e:
+            e = c.detailed_error(e)
+            c.print(e)
+
     def verify(self, input:dict) -> dict:
         address = input['address']
         user_info = self.user_info.get(address, {'last_time_called':0 , 'requests': 0})

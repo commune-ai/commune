@@ -420,6 +420,9 @@ class Remote(c.Module):
     @classmethod
     def server_infos(self, search=None,  network='remote', update=False):
         return c.server_infos(search=search, network=network, update=update)
+    def peer2info(self, network='remote', update=False):
+        server_infos = self.call('info', search='module')
+        return {info['name']:info for info in server_infos if 'name' in info and 'error' not in info}
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.server_infos(search=search, network=network, update=update)
@@ -777,9 +780,41 @@ class Remote(c.Module):
                 result = c.detailed_error(e)
             c.print(result)
 
-    def update(self):
+    def update(self, interval=30, max_staleness = 30):
         # self.add_peers()
-        return [self.hardware(update=True), self.namespace(update=True)]
+        t1 = c.time()
+        t2 = t1
+        # while True:
+        #     t2 = c.time()
+        #     if t2 - t1 > interval or t2 == t1:
+        #         t1 = c.time()
+        errored = []
+        servers = self.call('info', hardware=True, timeout=20)
+        peers = self.peers()
+
+
+        server2info = self.get('server2info', {})
+        for server, info in servers.items():
+            if isinstance(info, dict) and 'error' in info:
+                continue
+            c.print(f'{server} {info}')
+            info['timestamp'] = c.time()
+            server2info[server] = info
+        
+
+                
+        
+
+        
+            
+                    
+
+            
+
+
+    
+
+
 
             
         

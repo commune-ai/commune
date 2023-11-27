@@ -134,8 +134,8 @@ class Subspace(c.Module):
     def shortyaddy(self, address, first_chars=4):
         return address[:first_chars] + '...' 
 
-    def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
-        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block)
+    def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
+        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block, update=update)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
@@ -167,8 +167,8 @@ class Subspace(c.Module):
         
     key2balance = myb = mybal = my_balance
 
-    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
-        staketo = self.stake_to(netuid=netuid, network=network, block=block)
+    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
+        staketo = self.stake_to(netuid=netuid, network=network, block=block, update=update)
         mystaketo = {}
         key2address = c.key2address()
         for key, address in key2address.items():
@@ -243,10 +243,10 @@ class Subspace(c.Module):
     my_tokens = my_supply = my_value = my_total_supply
 
     key2value = key2tokens    
-    def my_total_stake(self, network = None, netuid=None, fmt=fmt, decimals=2):
-        return sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
-    def my_total_balance(self, network = None, fmt=fmt, decimals=2):
-        return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
+    def my_total_stake(self, network = None, netuid=None, fmt=fmt, decimals=2, update=False):
+        return sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals, update=update).values())
+    def my_total_balance(self, network = None, fmt=fmt, decimals=2, update=False):
+        return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values(), update=update)
 
     def names2uids(self, names: List[str] ) -> Union[torch.LongTensor, list]:
         # queries updated network state
@@ -1562,7 +1562,13 @@ class Subspace(c.Module):
         return sum(list(self.balances(network=network, block=block, fmt=fmt).values()))
 
     def total_supply(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
-        return self.total_stake(network=network, block=block) + self.total_balance(network=network, block=block, fmt=fmt)
+        state = self.state_dict(network=network, block=block)
+        total_balance = sum(list(state['balances'].values()))
+        total_stake = sum([sum([v[1] for v in stake_to]) for k,stake_to in state['stake_to'][0].items()])
+        return self.format_amount(total_balance + total_stake, fmt=fmt)
+    
+
+
 
     mcap = market_cap = total_supply
             
@@ -4630,8 +4636,8 @@ class Subspace(c.Module):
 
     
     
-    def my_balances(self, search=None, min_value=1000, **kwargs):
-        balances = self.balances(**kwargs)
+    def my_balances(self, search=None, min_value=1000, fmt='j', **kwargs):
+        balances = self.balances(fmt=fmt, **kwargs)
         address2key = c.address2key(search)
         my_balances = {k:balances.get(k, 0) for k in address2key.keys()}
 
@@ -4640,6 +4646,11 @@ class Subspace(c.Module):
         if min_value != None:
             my_balances = {k:v for k,v in my_balances.items() if v >= min_value}
         return my_balances
+    
+    def my_stakes(self, search=None, min_value=1000, fmt='j', **kwargs):
+        staketo = self.staketo(search=search, min_value=min_value, fmt=fmt, **kwargs)
+        address2key = c.address2key(search)
+
     
 
     def launcher_key(self, search=None, min_value=1000, **kwargs):

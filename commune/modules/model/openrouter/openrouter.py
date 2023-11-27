@@ -83,7 +83,7 @@ class OpenRouterModule(c.Module):
 
         state = {
             'latency': latency,
-            'output_tokens': state.get('output_tokens') + output_tokens,
+            'output_tokens': state.get('output_tokens', 0) + self.num_tokens(output_tokens),
             'timestamp': t2,
             'count': state.get('count', 0) + 1,
             'data': [state.get('data', []) + [data]][:self.max_history],
@@ -143,3 +143,8 @@ class OpenRouterModule(c.Module):
     @classmethod
     def model_names(cls, search:str = None, update=False):
         return [m['id'] for m in cls.models(search=search, update=update)]
+    
+
+    def num_tokens(self, text):
+        return len(str(text).split(' '))
+    
