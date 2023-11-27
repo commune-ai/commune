@@ -3366,6 +3366,10 @@ class c:
     @classmethod
     def learn(cls, *args, **kwargs):
         return c.module('model.hf').learn(*args, **kwargs)
+    
+    @classmethod
+    def commit_hash(cls):
+        return c.module('git').commit_hash()
         
     
     @classmethod
