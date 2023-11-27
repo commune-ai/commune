@@ -16,6 +16,7 @@ class Access(c.Module):
                 rate: int =  1,  # 1 call per timescale
                 base_rate: int =  100,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate,
+                role2rate: dict =  {'user': 10, 'public': 1}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
                 **kwargs):
         
@@ -23,8 +24,8 @@ class Access(c.Module):
         self.module = module
         self.user_info = {}
         self.stakes = {}
-        self.module_path = self.module.module_path()
         self.state_path = state_path
+        self.role2rate = role2rate
         c.thread(self.sync_loop_thread)
         
     def sync_loop_thread(self):
@@ -49,12 +50,15 @@ class Access(c.Module):
             self.stakes = state['stakes']
             until_sync = self.config.sync_interval - time_since_sync
 
-            c.print({'block': state['block'],  
+            response = {'block': state['block'],  
                     'until_sync': until_sync,
-                    'time_since_sync': time_since_sync})
+                    'time_since_sync': time_since_sync}
+            return response
         except Exception as e:
             e = c.detailed_error(e)
             c.print(e)
+            response = {'error': e}
+        return response
 
     def verify(self, input:dict) -> dict:
         address = input['address']
@@ -64,6 +68,8 @@ class Access(c.Module):
 
         if c.is_admin(address) or self.module.key.ss58_address == address:
             rate_limit = 10e42
+        elif c.is_user(address):
+            rate_limit = self.role2rate.get('user', 1)
         else:
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 

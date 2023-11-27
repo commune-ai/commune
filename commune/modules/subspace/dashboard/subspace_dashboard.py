@@ -58,6 +58,7 @@ class SubspaceDashboard(c.Module):
     def network_dashboard(self):
         modules = self.modules
         modules = self.key_info['stake_to']
+        st.write(modules)
 
 
     def stake_dashboard(self):
@@ -293,10 +294,7 @@ class SubspaceDashboard(c.Module):
         for m in my_modules:
             m.pop('stake_from')
         df = pd.DataFrame(my_modules)
-
         st.write(df)
-
-
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
@@ -305,12 +303,12 @@ class SubspaceDashboard(c.Module):
 
 
         # bar chat of staked modules
+        self.network_dashboard()
         self.key_info_dashboard() 
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
         self.register_dashboard()
-        tokenomics = st.checkbox('Get Tokenomics')
         # if tokenomics:
         #     c.module('subspace.tokenomics').dashboard()
 

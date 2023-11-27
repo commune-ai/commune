@@ -10,6 +10,8 @@ import sqlite3
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+import requests
+
 
 __import__('pysqlite3')
 import sys
@@ -166,8 +168,7 @@ class ModelVectorstore(c.Module):
 
     def add_from_file(self, path):
         with open(path, 'r') as file:
-            data = file.read()
-
+            sentence = file.read()
         return sentence_manager.add_sentence(sentence)
 
     def add_from_url(self, url):

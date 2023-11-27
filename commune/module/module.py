@@ -2327,8 +2327,8 @@ class c:
             return None
         return int(address.split(':')[-1])
     @classmethod
-    def server_infos(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").server_infos(*args, **kwargs)
+    def infos(cls, *args, **kwargs) -> List[str]:
+        return c.module("namespace").infos(*args, **kwargs)
     @classmethod
     def server2info(cls, *args, **kwargs) -> List[str]:
         return c.module("namespace").server2info(*args, **kwargs)
@@ -5584,16 +5584,29 @@ class c:
     # local update  
     @classmethod
     def update(cls, 
-               network: str = None,
+               module = None,
+               network: str = 'local',
+               **kwargs
                ):
+        if module != None:
+            return c.module(module).update()
         # update local namespace
         c.ip(update=True)
-        c.namespace(network=network, update=True)
-        servers = c.servers(network=network)
-        c.server_infos(network='local',update=True)
-        c.hardware(update=True)
-
+        
+        namespace = c.namespace(network=network, update=True)
+        servers = c.servers(network=network, update=True)
+        c.infos(network=network,update=True)
         return {'success': True, 'servers': servers}
+    
+
+    def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
+        t1 = c.timestamp()
+
+        while  True:
+            t2 = c.timestamp()
+            for module, timeout in module2timeout.items():
+                if t2 - t1 > timeout:
+                    c.update(module=module)
 
     @classmethod
     def sync(cls, *args, **kwargs):
@@ -7300,6 +7313,8 @@ class c:
     @classmethod
     def total_supply(self, *args, **kwargs):
         return c.module('subspace')().total_supply(*args, **kwargs)
+    
+    
 
     @classmethod
     def update_module(cls, *args, **kwargs):
@@ -8235,7 +8250,7 @@ class c:
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.server_infos(update=True, network='local'))
+                c.print(c.infos(update=True, network='local'))
                 # subspace.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
@@ -8444,6 +8459,11 @@ class c:
         if root_key_address not in users:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
+    
+
+    @classmethod
+    def lag(cls, *args, **kwargs):
+        return c.module('subspace')().lag(*args, **kwargs)
 
 Module = c
 Module.run(__name__)
