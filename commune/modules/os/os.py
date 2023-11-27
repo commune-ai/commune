@@ -355,7 +355,7 @@ class OsModule(c.Module):
     gpu_map =gpu_info
 
     @classmethod
-    def hardware_info(cls, fmt:str='gb'):
+    def hardware(cls, fmt:str='gb'):
         return {
             'cpu': cls.cpu_info(),
             'memory': cls.memory_info(fmt=fmt),

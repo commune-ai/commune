@@ -2509,7 +2509,7 @@ class c:
 
         if port == None:
             address = c.get_address(server_name, network=network)
-            if address != None and ':' in address:
+            if address != None :
                 port = int(address.split(':')[-1])
             else:
                 port = c.free_port()
@@ -2656,7 +2656,9 @@ class c:
     def info(self , 
              schema: bool = True,
              namespace:bool = False,
-             peers: bool = False) -> Dict[str, Any]:
+             peers: bool = False, 
+             hardware : bool = False,
+             ) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
         info  = dict(
@@ -2676,6 +2678,10 @@ class c:
         if schema:
             schema = self.schema(defaults=True)
             info['schema'] = {fn: schema[fn] for fn in fns}
+
+        if hardware:
+            info['hardware'] = self.hardware()
+
         return info
     help = info
     @classmethod
@@ -2689,8 +2695,8 @@ class c:
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
     
     @classmethod
-    def hardware_info(cls, fmt:str = 'gb'):
-        return c.module('os').hardware_info(fmt=fmt)
+    def hardware(cls, fmt:str = 'gb', **kwargs):
+        return c.module('os').hardware(fmt=fmt, **kwargs)
     
     @classmethod
     def init_schema(cls):
@@ -8226,7 +8232,12 @@ class c:
                 # subspace.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
-
+    @classmethod
+    def update_loop(cls, remote=True, update_loop=True, name='loop'):
+        kwargs = c.locals2kwargs(locals())
+        cls.remote_fn('loop', kwargs=kwargs,name=name)
+        return {'success': True, 'msg': 'looping on remote', 'name': name}
+        
     
     def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
