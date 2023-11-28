@@ -12,7 +12,7 @@ class DataFolder(c.Module):
     def sample(self, idx=None, 
                input_chars:int = 500,
                output_chars: int = 500,
-            w   start_index: int = None,
+               start_index: int = None,
                 real_prob:float=0.5):
         
         if idx == None:

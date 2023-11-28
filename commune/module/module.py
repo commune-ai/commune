@@ -4073,24 +4073,23 @@ class c:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
+            gpu_id = int(gpu_id)
             mem_info = torch.cuda.mem_get_info(gpu_id)
-            gpu_info[int(gpu_id)] = {
+            gpu_info[gpu_id] = {
                 'name': torch.cuda.get_device_name(gpu_id),
                 'free': mem_info[0],
                 'used': (mem_info[1]- mem_info[0]),
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
-        if device != None:
-            return gpu_info[device]
-        if fmt != None:
+
             keys = ['free', 'used', 'total']
             for k in keys:
-                gpu_info[k] = c.format_data_size(gpu_info[k], fmt=fmt)
+                gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
+        if device != None:
+            return gpu_info[device]
+
         return gpu_info
-
-
-    
 
     gpu_map =gpu_info
     @classmethod
@@ -5594,9 +5593,9 @@ class c:
         c.ip(update=True)
         
         namespace = c.namespace(network=network, update=True)
-        servers = c.servers(network=network, update=True)
-        c.infos(network=network,update=True)
-        return {'success': True, 'servers': servers}
+
+
+        return {'success': True, 'servers': namespace}
     
 
     def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
