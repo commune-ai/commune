@@ -1377,7 +1377,7 @@ class c:
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
-            
+        c.print(path)
         object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
@@ -1398,6 +1398,7 @@ class c:
             path = 'module'
         path = cls.simple2path(path)
         path = cls.path2objectpath(path, search=None)
+        c.print(f'Importing {path}', color='green')
         return c.import_object(path)
 
 
@@ -1512,13 +1513,12 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith(dir_name.lower()):
+                elif file_name.lower().endswith(dir_name.lower()):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith('module'):
+                elif file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                    
                 elif 'module' in file_name.lower():
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
@@ -2858,9 +2858,19 @@ class c:
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        if n != None: 
+        if len(servers) == 0:
+            servers = c.pm2ls(search)
+
+
+        if n == None:
+            n = len(servers)
+
+        if n > 0 and n < 1:
+            servers = servers[:int(len(servers)*n)]
+        elif n > 1:
             servers = servers[:n]
-            
+        
+        assert len(servers) > 0, f'No servers found with search {search}'
         if parallel:
             futures = []
             for s in servers:
@@ -7951,9 +7961,6 @@ class c:
         return c.module('user').user(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
-        return c.module('user').is_user(address)
-    @classmethod
-    def is_user(self, address):
         return c.module('user').is_user(address)
     @classmethod
     def get_user(cls, address):
