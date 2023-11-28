@@ -67,3 +67,18 @@ Ex:
 ```bash
 c model.beautifulsoap get_components https://blockchain.news/ tags="["button", "input", "h1"]"
 ```
+
+#### Scrap data from random website with title
+```bash
+c model.beautifulsoap scrap_title title={title}
+```
+
+#### Google search
+```bash
+c model.beautifulsoap google_search keyword={keyword}
+```
+
+#### Bing search
+```bash
+c model.beautifulsoap bing_search keyword={keyword}
+```

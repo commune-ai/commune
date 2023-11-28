@@ -41,6 +41,18 @@ Add embedding sentence
 c model.vectorstore add_sentence sentence="fam is owner of commune."
 ```
 
+Add embedding from file
+#### Bash
+```bash
+c model.vectorstore add_from_file path=...
+```
+
+Add embedding sentence
+#### Bash
+```bash
+c model.vectorstore add_from_url url=...
+```
+
 Get sentence by prompting
 #### Bash
 ```bash
