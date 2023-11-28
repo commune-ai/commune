@@ -1377,7 +1377,7 @@ class c:
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
-            
+        c.print(path)
         object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
@@ -1398,6 +1398,7 @@ class c:
             path = 'module'
         path = cls.simple2path(path)
         path = cls.path2objectpath(path, search=None)
+        c.print(f'Importing {path}', color='green')
         return c.import_object(path)
 
 
@@ -1512,13 +1513,12 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith(dir_name.lower()):
+                elif file_name.lower().endswith(dir_name.lower()):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith('module'):
+                elif file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                    
                 elif 'module' in file_name.lower():
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
@@ -2854,16 +2854,35 @@ class c:
 
 
     @classmethod
-    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+    def kill_many(cls, search:str, network='local', parallel=True, timeout=10, n=None, **kwargs):
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        futures = []
-        for s in servers:
-            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='process', return_future = True)
-            futures.append(future)
+        if len(servers) == 0:
+            servers = c.pm2ls(search)
 
-        results = c.wait(futures)
+
+        if n == None:
+            n = len(servers)
+
+        if n > 0 and n < 1:
+            servers = servers[:int(len(servers)*n)]
+        elif n > 1:
+            servers = servers[:n]
+        
+        assert len(servers) > 0, f'No servers found with search {search}'
+        if parallel:
+            futures = []
+            for s in servers:
+                future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='thread', return_future = True, timeout=timeout)
+                futures.append(future)
+
+            results = c.wait(futures, timeout=timeout)
+        else:
+            results = []
+            for s in servers:
+                results.append(c.kill(s, **kwarsg))
+
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
@@ -4082,10 +4101,10 @@ class c:
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
-
-            keys = ['free', 'used', 'total']
-            for k in keys:
-                gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
+            if fmt != None:
+                keys = ['free', 'used', 'total']
+                for k in keys:
+                    gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
         if device != None:
             return gpu_info[device]
 
@@ -7939,9 +7958,6 @@ class c:
         return c.module('user').user(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
-        return c.module('user').is_user(address)
-    @classmethod
-    def is_user(self, address):
         return c.module('user').is_user(address)
     @classmethod
     def get_user(cls, address):
