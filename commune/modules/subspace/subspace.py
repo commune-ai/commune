@@ -509,6 +509,36 @@ class Subspace(c.Module):
     #### update or replace a module ####
     #################
 
+
+    def switch_module(self, module:str, new_module:str, n=2, timeout=20):
+        stats = c.stats(module, df=False)
+
+        namespace = c.namespace(new_module, public=True)
+        servers = list(namespace.keys())[:2]
+
+
+        kwargs_list = []
+
+        for m in stats:
+            if module in m['name']:
+                if len(servers)> 0: 
+                    server = servers.pop()
+                    server_address = namespace.get(server)
+                    kwargs_list += [{'module': m['name'], 'name': server, 'address': server_address}]
+
+        results = c.wait([c.submit(c.update_module, kwargs=kwargs, timeout=timeout, return_future=True) for kwargs in kwargs_list])
+        
+        return results
+                
+
+
+
+
+
+
+        
+
+
     def update_module(
         self,
         module: str, # the module you want to change
@@ -525,6 +555,7 @@ class Subspace(c.Module):
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
         module_info = self.get_module(module)
+        c.print(module_info,  module)
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
         c.print(module_info)
@@ -553,12 +584,16 @@ class Subspace(c.Module):
 
         c.print()
         # remove the params that are the same as the module info
-        for k in ['name', 'address', 'delegation_info']:
+        for k in ['name', 'address']:
             if params[k] == module_info[k]:
                 params[k] = ''
 
+        for k in ['delegation_fee']:
+            if params[k] == None:
+                params[k] = module_info[k]
+
         # check delegation_bounds
-        assert delegation_fee != None, f"Delegate fee must be provided"
+        assert params[k] != None, f"Delegate fee must be provided"
         delegation_fee = params['delegation_fee']
         if delegation_fee < 1.0 and delegation_fee > 0:
             delegation_fee = delegation_fee * 100
@@ -1040,13 +1075,9 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None) -> int:
-        self.resolve_network(network)
-        netuid = self.resolve_netuid( netuid )
-        path = f'cache/stakes.{netuid}.json'
-            
-
-        return {k: self.format_amount(v, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
+    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
+        stakes =  self.query_map('Stake', netuid , update=update, **kwargs)
+        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -1966,7 +1997,7 @@ class Subspace(c.Module):
         '''
         if netuid == None:
             # If the netuid is not specified, use the default.
-            netuid = self.netuid
+            netuid = 0
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
@@ -2248,10 +2279,11 @@ class Subspace(c.Module):
                 parallel:bool = False ,
                 timeout:int=200, 
                 include_balances = False, 
-                mode = 'process',
                 
                 ) -> Dict[str, ModuleInfo]:
         import inspect
+        if netuid == None:
+            netuid = 0
 
         cache_path = f'modules/{network}.{netuid}'
 
@@ -2367,7 +2399,7 @@ class Subspace(c.Module):
         return modules
     
 
-    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=None, df:bool = True, **kwargs):
+    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=0, df:bool = True, **kwargs):
         my_modules = []
         address2key = c.address2key()
         if modules == None:
@@ -2985,8 +3017,8 @@ class Subspace(c.Module):
             c.print('params', params, color=color)
             kwargs = c.locals2kwargs(locals())
             kwargs['verbose'] = False
-            with c.status(f":satellite: Calling [bold]{fn}[/bold] on [bold yellow]{self.network}[/bold yellow]"):
-                return self.compose_call(**kwargs)
+            c.status(f":satellite: Calling [bold]{fn}[/bold] on [bold yellow]{self.network}[/bold yellow]")
+            return self.compose_call(**kwargs)
 
         start_time = c.datetime()
         ss58_address = key.ss58_address

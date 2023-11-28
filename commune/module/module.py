@@ -2854,16 +2854,25 @@ class c:
 
 
     @classmethod
-    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+    def kill_many(cls, search:str, network='local', parallel=True, timeout=10, n=None, **kwargs):
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        futures = []
-        for s in servers:
-            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='process', return_future = True)
-            futures.append(future)
+        if n != None: 
+            servers = servers[:n]
+            
+        if parallel:
+            futures = []
+            for s in servers:
+                future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='thread', return_future = True, timeout=timeout)
+                futures.append(future)
 
-        results = c.wait(futures)
+            results = c.wait(futures, timeout=timeout)
+        else:
+            results = []
+            for s in servers:
+                results.append(c.kill(s, **kwarsg))
+
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
@@ -4073,6 +4082,7 @@ class c:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
+            gpu_id = int(gpu_id)
             mem_info = torch.cuda.mem_get_info(gpu_id)
             gpu_info[int(gpu_id)] = {
                 'name': torch.cuda.get_device_name(gpu_id),
@@ -4081,12 +4091,13 @@ class c:
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
+            if fmt != None:
+                keys = ['free', 'used', 'total']
+                for k in keys:
+                    gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
         if device != None:
             return gpu_info[device]
-        if fmt != None:
-            keys = ['free', 'used', 'total']
-            for k in keys:
-                gpu_info[k] = c.format_data_size(gpu_info[k], fmt=fmt)
+
         return gpu_info
 
 

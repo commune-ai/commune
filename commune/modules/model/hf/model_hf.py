@@ -16,15 +16,16 @@ class ModelTransformer(Model):
                  model: str = 'llama2.7b',  # Assuming 'llama2.7b' is a string identifier for the model
                  tag: str = 'base',  # Default value 'base' for the tag
                  device: str = None,  # None is used for null in Python
-                 device_map: str = None,  # Assuming that device_map is a string, though it could be a different type
+                 device_map: str = 'auto',  # Assuming that device_map is a string, though it could be a different type
                  max_memory: str = None,  # max_memory could be an int or float if it represents an amount
                  trust_remote_code: bool = True,  # Boolean value for trust_remote_code
                  finetune: int = 1,  # Assuming finetune should be an integer
                  optimizer: str = {'module': 'torch.optim.Adam', 'lr':2.0e-05 },  # The module is a string path to the optimizer class
-                 max_input_tokens: int = 256,
-                 max_output_tokens: int = 256,
+                 max_length: int = 256,
+                 max_new_tokens: int = 256,
                  load: bool = False,  # Assuming load is a boolean
-                 quantize: str = None): # OPTIONS = ['int4', 'int8', None]
+                 quantize: str = None,
+                 test:bool = True): # OPTIONS = ['int4', 'int8', None]
 
         # Here you would initial
         config = self.set_config(kwargs=locals())
@@ -39,7 +40,7 @@ class ModelTransformer(Model):
                 output_topk: bool = False,
                 topk:int=None,
                 hidden_layer: int = -1, # -1 is the last hidden layer
-                max_input_tokens : int = 256,                        
+                max_length : int = 256,                        
                 **kwargs):
 
 
@@ -100,7 +101,8 @@ class ModelTransformer(Model):
 
 
         # infer the device map
-        config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
+        if config.device_map == None:  
+            config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
 
         kwargs = {
             'device_map': config.device_map,
@@ -132,6 +134,10 @@ class ModelTransformer(Model):
 
         self.set_tokenizer(config.model)
         c.print('Tokenizer SET -> ', config.model)
+
+
+        if config.test:
+            self.test()
         
 
     def set_tokenizer(self, tokenizer:str):
@@ -150,6 +156,9 @@ class ModelTransformer(Model):
         if not hasattr(tokenizer, 'pad_token') or tokenizer.pad_token is None:
             assert hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+
+        # set padding token
+
             
         self.tokenizer = tokenizer
                 
@@ -320,8 +329,8 @@ class ModelTransformer(Model):
         self.config['tag'] = tag
         
 
-    def test(self):
-        c.print(self.generate('whatup'))
+    def test(self, ):
+        output = self.generate('whatup')
 
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
@@ -419,34 +428,35 @@ class ModelTransformer(Model):
 
     hf = c.module('hf')()
     def generate(self, text: str, 
-                max_output_tokens: int = 1000,
-                max_input_tokens: int = 4000, 
+                max_new_tokens: int = 1000,
+                max_length: int = 512, 
                 early_stopping: bool = True,
                 stream:bool = False,
+                info : bool = False,
                 **kwargs) -> List[str]:
         if stream:
             return self.generate_stream(text, 
-                                        max_new_tokens=max_output_tokens, 
+                                        max_new_tokens=max_new_tokens, 
                                         early_stopping=early_stopping, **kwargs)
 
         is_string = isinstance(text, str)
         if is_string:
             text = [text]
 
-        # resolve max_input_tokens
-        if max_input_tokens > self.config.max_input_tokens:
-            max_input_tokens = self.config.max_input_tokens
+        # resolve max_length
+        if max_length > self.config.max_length:
+            max_length = self.config.max_length
 
-        # resolve max_output_tokens
-        if max_output_tokens > self.config.max_output_tokens:
-            max_output_tokens = self.config.max_output_tokens
+        # resolve max_new_tokens
+        if max_new_tokens > self.config.max_new_tokens:
+            max_new_tokens = self.config.max_new_tokens
 
         # get tokens
-        input_ids = self.tokenize(text, max_length=max_input_tokens)['input_ids']
+        input_ids = self.tokenize(text, max_length=max_length)
 
         # generate
-        output_ids = self.model.generate(input_ids, 
-                                        max_new_tokens=max_output_tokens,
+        output_ids = self.model.generate(**input_ids, 
+                                        max_new_tokens=max_new_tokens,
                                         early_stopping=early_stopping,
                                           **kwargs)
         
@@ -462,14 +472,10 @@ class ModelTransformer(Model):
 
         return output_text
     
-    def test_generate(self, text='Whadup?', **kwargs):
-        output_text = model.generate(text=text, max_output_tokens=100, early_stopping=False)
+
+    def test(self, text='hey whadup fam?'):
+        output_text = self.generate(text=text, max_new_tokens=100, early_stopping=False)
         return output_text
-
-
-    @classmethod
-    def test(self):
-        self.test_generate()
 
     @classmethod
     def test_encode(cls, model='gpt2.7b', text='Whadup?', **kwargs):
@@ -531,13 +537,16 @@ class ModelTransformer(Model):
 
 
     @classmethod
-    def serve(cls, model:str='mistral7b', tag:str=None, **kwargs):
-        model=cls.resolve_model(model)
+    def serve(cls, model:str='mistral7b', tag:str=None, quantize=None, **kwargs):
         server_name = cls.module_path() + '.' + cls.shorten_hf_path(model)
+
+        if quantize != None:
+            server_name = server_name + '_' + quantize
+    
         if tag != None:
             server_name += '::' + tag
 
-        c.serve(module='model.hf', server_name=server_name, model=model )
+        return c.serve(module='model.hf', server_name=server_name, model=model )
 
 
 
