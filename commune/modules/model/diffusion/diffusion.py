@@ -1,6 +1,7 @@
 import commune as c
 from diffusers import DiffusionPipeline
 import torch
+
 class DiffisionPipeline(c.Module):
 
     def __init__(  self, 

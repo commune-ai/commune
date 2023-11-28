@@ -263,6 +263,7 @@ class Subspace(c.Module):
     #####################
     #### Set Weights ####
     #####################
+
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
     def vote(
         self,
@@ -510,11 +511,12 @@ class Subspace(c.Module):
     #################
 
 
-    def switch_module(self, module:str, new_module:str, n=2, timeout=20):
+    def switch_module(self, module:str, new_module:str, n=10, timeout=20):
         stats = c.stats(module, df=False)
 
         namespace = c.namespace(new_module, public=True)
-        servers = list(namespace.keys())[:2]
+        servers = list(namespace.keys())[:n]
+        stats = stats[:len(servers)]
 
 
         kwargs_list = []
@@ -1246,7 +1248,7 @@ class Subspace(c.Module):
                     
 
 
-    def multitransfer( self, 
+    def transfer_multiple( self, 
                         destinations:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
@@ -1259,10 +1261,18 @@ class Subspace(c.Module):
         balance = self.get_balance(key=key, fmt='j')
 
         # name2key = self.name2key(netuid=netuid)
-        name2key = c.address2key() if local else self.name2key(netuid=netuid)
+
+
+        
+        key2address = c.key2address()
+        name2key = self.name2key(netuid=netuid)
 
         if isinstance(destinations, str):
-            destinations = [k for n,k in name2key.items() if destinations in n]
+            local_destinations = [k for k,v in key2address.items() if destinations in k]
+            if len(destinations) > 0:
+                destinations = local_destinations
+            else:
+                destinations = [_k for _n, _k in name2key.items() if destinations in _n]
 
         assert len(destinations) > 0, f"No modules found with name {destinations}"
         destinations = destinations[:n] # only stake to the first n modules
@@ -1270,6 +1280,8 @@ class Subspace(c.Module):
         for i, destination in enumerate(destinations):
             if destination in name2key:
                 destinations[i] = name2key[destination]
+            if destination in key2address:
+                destinations[i] = key2address[destination]
 
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(destinations)
@@ -1298,8 +1310,8 @@ class Subspace(c.Module):
         response = self.compose_call('transfer_multiple', params=params, key=key)
 
         return response
-                    
 
+    multitransfer = transfer_multiple
 
 
     def multiunstake( self, 
@@ -2303,7 +2315,7 @@ class Subspace(c.Module):
             if include_weights:
                 keys += ['weights']
             if parallel:
-                executor = c.module('executor')(max_workers=len(keys), mode=mode)
+                executor = c.module('executor')(max_workers=len(keys))
                 state = {}
                 while len(state) < len(keys):
                     futures = []
@@ -3059,14 +3071,14 @@ class Subspace(c.Module):
                 response.process_events()
 
             if response.is_success:
-                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
             else:
-                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
+                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
 
             if save_history:
                 self.add_history(response)
         else:
-            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
         
         
         tx_state['end_time'] = c.datetime()
