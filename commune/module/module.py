@@ -1547,11 +1547,7 @@ class c:
         c.put(path, tree_folder, **kwargs)
         return {'module_tree_folders': tree_folder}
     
-    @classmethod
-    def ls_trees(cls):
-        path = tree_folders_path
-        tree_folders = c.get(path, [])
-        return tree_folders
+    
     @classmethod
     def rm_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
@@ -1598,6 +1594,7 @@ class c:
             return result
         
         return wrapper
+    
     
     @staticmethod
     def remotewrap(fn):
@@ -2161,7 +2158,7 @@ class c:
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
-    
+        conds.append('.' in address and c.is_number(address.split('.')[0]))
         return all(conds)
     
     @classmethod
@@ -2330,8 +2327,8 @@ class c:
             return None
         return int(address.split(':')[-1])
     @classmethod
-    def server_infos(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").server_infos(*args, **kwargs)
+    def infos(cls, *args, **kwargs) -> List[str]:
+        return c.module("namespace").infos(*args, **kwargs)
     @classmethod
     def server2info(cls, *args, **kwargs) -> List[str]:
         return c.module("namespace").server2info(*args, **kwargs)
@@ -2374,6 +2371,7 @@ class c:
                   network:str='local',
                   update: bool = False, **kwargs):
         return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
+    get_namespace = namespace
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
         """
@@ -2511,7 +2509,7 @@ class c:
 
         if port == None:
             address = c.get_address(server_name, network=network)
-            if address != None and ':' in address:
+            if address != None :
                 port = int(address.split(':')[-1])
             else:
                 port = c.free_port()
@@ -2658,7 +2656,9 @@ class c:
     def info(self , 
              schema: bool = True,
              namespace:bool = False,
-             peers: bool = False) -> Dict[str, Any]:
+             peers: bool = False, 
+             hardware : bool = False,
+             ) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
         info  = dict(
@@ -2678,6 +2678,10 @@ class c:
         if schema:
             schema = self.schema(defaults=True)
             info['schema'] = {fn: schema[fn] for fn in fns}
+
+        if hardware:
+            info['hardware'] = self.hardware()
+
         return info
     help = info
     @classmethod
@@ -2691,8 +2695,8 @@ class c:
         return {k: v for k,v in cls.get_schema(**kwargs).items()}
     
     @classmethod
-    def hardware_info(cls, fmt:str = 'gb'):
-        return c.module('os').hardware_info(fmt=fmt)
+    def hardware(cls, fmt:str = 'gb', **kwargs):
+        return c.module('os').hardware(fmt=fmt, **kwargs)
     
     @classmethod
     def init_schema(cls):
@@ -2850,16 +2854,25 @@ class c:
 
 
     @classmethod
-    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+    def kill_many(cls, search:str, network='local', parallel=True, timeout=10, n=None, **kwargs):
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        futures = []
-        for s in servers:
-            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='process', return_future = True)
-            futures.append(future)
+        if n != None: 
+            servers = servers[:n]
+            
+        if parallel:
+            futures = []
+            for s in servers:
+                future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='thread', return_future = True, timeout=timeout)
+                futures.append(future)
 
-        results = c.wait(futures)
+            results = c.wait(futures, timeout=timeout)
+        else:
+            results = []
+            for s in servers:
+                results.append(c.kill(s, **kwarsg))
+
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
@@ -3127,33 +3140,35 @@ class c:
                  stake : int = None,
                  subnet:str = 'commune',
                  refresh:bool =False,
+                 address = None,
                  wait_for_server:bool = False,
+                 network = 'local',
                  **kwargs ):
         subspace = c.module('subspace')()
 
         # resolve module name and tag if they are in the server_name
-        if isinstance(module, str) and  '::' in module:
-            module, tag = module.split('::')
-        server_name = cls.resolve_server_name(module=module, tag=tag)
+        if address == None:
+            if isinstance(module, str) and  '::' in module:
+                module, tag = module.split('::')
+            name = cls.resolve_server_name(module=module, tag=tag)
+            if not c.key_exists(name):
+                c.add_key(name)
+            if c.server_exists(name, network='local') and refresh == False:
+                c.print(f'Server already Exists ({name})')
+                address = c.get_address(name)
+            
+            else:
+                module = cls.resolve_module(module)
+                serve_info =  module.serve(
+                                    server_name=name, 
+                                    wait_for_server=wait_for_server, 
+                                    refresh=refresh, 
+                                    tag=tag,
+                                    **kwargs)
+                name = serve_info['name']
+                address = serve_info['address']
 
-        if not c.key_exists(server_name):
-            c.add_key(server_name)
-        if c.server_exists(server_name, network='local') and refresh == False:
-            c.print(f'Server already Exists ({server_name})')
-            address = c.get_address(server_name)
-        
-        else:
-            module = cls.resolve_module(module)
-            serve_info =  module.serve(
-                                server_name=server_name, 
-                                wait_for_server=wait_for_server, 
-                                refresh=refresh, 
-                                tag=tag,
-                                **kwargs)
-            server_name = serve_info['name']
-            address = serve_info['address']
-
-        return subspace.register(name=server_name, address=address, subnet=subnet, key=key, stake=stake)
+        return subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake)
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -3360,6 +3375,10 @@ class c:
     @classmethod
     def learn(cls, *args, **kwargs):
         return c.module('model.hf').learn(*args, **kwargs)
+    
+    @classmethod
+    def commit_hash(cls):
+        return c.module('git').commit_hash()
         
     
     @classmethod
@@ -4063,6 +4082,7 @@ class c:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
+            gpu_id = int(gpu_id)
             mem_info = torch.cuda.mem_get_info(gpu_id)
             gpu_info[int(gpu_id)] = {
                 'name': torch.cuda.get_device_name(gpu_id),
@@ -4071,12 +4091,13 @@ class c:
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
+            if fmt != None:
+                keys = ['free', 'used', 'total']
+                for k in keys:
+                    gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
         if device != None:
             return gpu_info[device]
-        if fmt != None:
-            keys = ['free', 'used', 'total']
-            for k in keys:
-                gpu_info[k] = c.format_data_size(gpu_info[k], fmt=fmt)
+
         return gpu_info
 
 
@@ -4585,7 +4606,7 @@ class c:
     def datetime(cls):
         import datetime
         # UTC 
-        return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.datetime.utcnow().strftime("%Y-%m-%d_%H:%M:%S")
 
     @classmethod
     def time2datetime(cls, t:float):
@@ -4739,7 +4760,7 @@ class c:
             
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        return c.serve(module, port=port, **kwargs)
+        return c.serve(module, **kwargs)
     
     server_restart = restart_server
     
@@ -4772,22 +4793,35 @@ class c:
         return c.root_key().ss58_address
     
     @classmethod
-    def root_keys(cls, search='module'):
-        return c.keys(search)
+    def root_keys(cls, search='module', address:bool = False):
+        keys = c.keys(search)
+        if address:
+            key2address = c.key2address(search)
+            keys = [key2address.get(k) for k in keys]
+        return keys
+    
+    @classmethod
+    def root_addys(cls):
+        return c.root_keys(address=True)
     
 
-    def add_root_key(self, *args, **kwargs):
-        c.random_words()
-        return c.module('key').add_key(name)
+    def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
+        destinations = c.root_addys()[:n]
+        c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
+        s = c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
 
 
-    
+
+
+
     @classmethod
     def root_key2address(cls, search='module'):
         return c.key2address(search)
     
-
-
+    @classmethod
+    def root_balances(cls, search='module'):
+        return 
+    
     @classmethod
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
@@ -5203,7 +5237,7 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20,  **kwargs):
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20, remote=False,  **kwargs):
 
         c.update()
         if tag == None:
@@ -5558,20 +5592,32 @@ class c:
     getnet = get_network
     resnet = resolve_network
     
+    # local update  
     @classmethod
     def update(cls, 
-               network: str = None,
+               module = None,
+               network: str = 'local',
+               **kwargs
                ):
-        
+        if module != None:
+            return c.module(module).update()
         # update local namespace
         c.ip(update=True)
-        c.namespace(network=network, update=True)
-        servers = c.servers(network=network)
-        c.server_infos(update=True, network='local')
-
         
-
+        namespace = c.namespace(network=network, update=True)
+        servers = c.servers(network=network, update=True)
+        c.infos(network=network,update=True)
         return {'success': True, 'servers': servers}
+    
+
+    def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
+        t1 = c.timestamp()
+
+        while  True:
+            t2 = c.timestamp()
+            for module, timeout in module2timeout.items():
+                if t2 - t1 > timeout:
+                    c.update(module=module)
 
     @classmethod
     def sync(cls, *args, **kwargs):
@@ -6255,11 +6301,20 @@ class c:
                     for future in concurrent.futures.as_completed(futures, timeout=timeout):
                         idx = future2idx[future]
                         results[idx] = future.result()
+                        del future2idx[future]
+
                 except Exception as e:
-                    c.print(e)
+                    unfinished_futures = [future for future in futures if future in future2idx]
+                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures')
+
                 return results
             
         return get_results()
+    
+
+    @staticmethod
+    def address2ip(address:str) -> str:
+        return str('.'.join(address.split(':')[:-1]))
 
     @staticmethod
     def as_completed( futures, timeout=10, **kwargs):
@@ -7269,6 +7324,8 @@ class c:
     @classmethod
     def total_supply(self, *args, **kwargs):
         return c.module('subspace')().total_supply(*args, **kwargs)
+    
+    
 
     @classmethod
     def update_module(cls, *args, **kwargs):
@@ -7286,6 +7343,9 @@ class c:
     @classmethod
     def multistake(cls, *args, **kwargs):
         return c.module('subspace')().multistake(*args, **kwargs)
+    @classmethod
+    def multitransfer(cls, *args, **kwargs):
+        return c.module('subspace')().multitransfer(*args, **kwargs)
 
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
@@ -8133,10 +8193,14 @@ class c:
 
 
     @classmethod
-    def add_api_keys(cls, api_keys:str):
+    def add_api_keys(cls, *api_keys:str):
+        if len(api_keys) == 1 and isinstance(api_keys[0], list):
+            api_keys = api_keys[0]
         api_keys = list(set(api_keys + cls.get('api_keys', [])))
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
+    
+
 
     @classmethod
     def set_api_keys(cls, api_keys:str):
@@ -8197,11 +8261,16 @@ class c:
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.server_infos(update=True, network='local'))
+                c.print(c.infos(update=True, network='local'))
                 # subspace.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
-
+    @classmethod
+    def update_loop(cls, remote=True, update_loop=True, name='loop'):
+        kwargs = c.locals2kwargs(locals())
+        cls.remote_fn('loop', kwargs=kwargs,name=name)
+        return {'success': True, 'msg': 'looping on remote', 'name': name}
+        
     
     def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
@@ -8394,7 +8463,19 @@ class c:
             word = word[:-1]
         return word
 
- 
+    @classmethod
+    def users(cls):
+        users = cls.get('users', {})
+        root_key_address  = c.root_key().ss58_address
+        if root_key_address not in users:
+            cls.add_admin(root_key_address)
+        return cls.get('users', {})
+    
+
+    @classmethod
+    def lag(cls, *args, **kwargs):
+        return c.module('subspace')().lag(*args, **kwargs)
+
 Module = c
 Module.run(__name__)
     

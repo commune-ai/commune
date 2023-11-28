@@ -14,8 +14,9 @@ class ValiTextTruthfulQA(Vali):
         # format the prompt
         prompt = f'''
         {sample}
-        GIVE THE ANSWER AS AN INDEX -> {{answer:int}} ?
+        INSTRUCTIONS: ANSWER THE ABOVE MULTIPLE CHOICE?
         EXAMPLE: {{answer:0}}
+        ANSWER_JSON:
         ```json'''
         return prompt
 
@@ -32,8 +33,12 @@ class ValiTextTruthfulQA(Vali):
 
         # generate the output
         output: str = model.generate(prompt)
-
+        c.print(output)
         prediction = json.loads(output)['answer']
+
+
+
+        
 
         # get the correct answer
         w = float(prediction in target)
