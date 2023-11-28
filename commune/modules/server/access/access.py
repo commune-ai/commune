@@ -43,16 +43,14 @@ class Access(c.Module):
             if time_since_sync > self.config.sync_interval:
                 self.subspace = c.module('subspace')(network=self.config.network)
                 state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
-                state['block'] = self.subspace.block
                 state['sync_time'] = c.time()
-                self.put(self.state_path, state)
 
             self.stakes = state['stakes']
             until_sync = self.config.sync_interval - time_since_sync
 
-            response = {'block': state['block'],  
-                    'until_sync': until_sync,
-                    'time_since_sync': time_since_sync}
+            response = {  'until_sync': until_sync,
+                          'time_since_sync': time_since_sync
+                          }
             return response
         except Exception as e:
             e = c.detailed_error(e)

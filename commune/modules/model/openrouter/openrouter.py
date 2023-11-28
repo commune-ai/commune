@@ -5,6 +5,7 @@ import os
 from typing import List
 
 class OpenRouterModule(c.Module):
+    whitelist = ['generate', 'models']
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
@@ -47,7 +48,27 @@ class OpenRouterModule(c.Module):
         
 
 
-    def generate(self, content: str, text_only:bool = True, model=None, history=None, trials=3 ):
+    def generate(self, content: str, text_only:bool = True, model=None, history=None, trials=3, api_key=None ):
+
+
+        # trials 
+        while trials > 1:
+            try:
+                response = self.generate(content=content, text_only=text_only, history=history, trials=1)
+            except Exception as e:
+                e = c.detailed_error(e)
+                trials -= 1
+                c.print('{t} trials Left')
+                c.print(e)
+                continue
+            
+            return response
+
+        assert trials > 0
+
+            
+                
+
         model = model or c.choice(self.models)['id']
         history = history or []
 
@@ -58,6 +79,7 @@ class OpenRouterModule(c.Module):
                 "messages": history + [{"role": self.role, "content": content} ]
             }
         
+
         t1 = c.time()
         response = requests.post(
             url=self.url,
@@ -72,8 +94,10 @@ class OpenRouterModule(c.Module):
         t2 = c.time()
         latency = t2 - t1
         response = json.loads(response.text)
-        tokens_per_word = 2
 
+        c.print(response)
+
+        tokens_per_word = 2
         output_text = response["choices"][0]["message"]["content"]
         output_tokens = output_text * tokens_per_word
 
@@ -147,4 +171,12 @@ class OpenRouterModule(c.Module):
 
     def num_tokens(self, text):
         return len(str(text).split(' '))
+
+    @classmethod
+    def sand(cls): 
+        cls.add_api_keys([
+    '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',
+    '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',
+    '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'
+    ])
     
