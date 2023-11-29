@@ -61,6 +61,7 @@ class Subspace(c.Module):
                 auto_reconnect=True, 
                 verbose:bool=False,
                 max_trials:int = 20,
+                parallel_calls:bool=5,
                 **kwargs):
 
         '''
@@ -86,7 +87,6 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-
         from substrateinterface import SubstrateInterface
         
         if network == None:
@@ -2598,10 +2598,12 @@ class Subspace(c.Module):
             namespace =  c.get_namespace(search=search,network='subspace')
 
         if len(namespace) == 0:
-            futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, **kwargs), return_future=True)for k in ['names', 'addresses']]
+            futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, update=update, **kwargs), return_future=True)for k in ['names', 'addresses']]
             names, addresses = c.wait(futures, timeout=timeout)
             namespace = {n: a for n, a in zip(names, addresses)}
             c.put_namespace('subspace', namespace)
+        if search != None:
+            namespace = {k:v for k,v in namespace.items() if search in k}
 
         return namespace
 
@@ -3784,11 +3786,14 @@ class Subspace(c.Module):
                      mode=mode, 
                      chain=chain, 
                      max_boot_nodes:int=24,
+                     node_info = None,
                       **kwargs):
-        cls.pull_image()
-        cls.add_node_key(node=node, chain=chain, mode=mode)
-        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
-        node_info = response['node_info']
+        if node_info == None:
+            cls.pull_image()
+            cls.add_node_key(node=node, chain=chain, mode=mode)
+            response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
+            node_info = response['node_info']
+
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
         return response
@@ -3796,15 +3801,16 @@ class Subspace(c.Module):
     start_local_node = add_local_node
 
     @classmethod
-    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, **kwargs):
+    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, node_infos=None, **kwargs):
         responses = []
         for i in range(n):
-            responses += [cls.add_local_node(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)]
+            add_node_kwargs  = dict(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)
+            if node_infos != None:
+                assert len(node_infos) == n
+                add_node_kwargs['node_info'] = node_infos[i]
+            responses += [cls.add_local_node(**add_node_kwargs)]
         return responses
         
-
-
-
 
 
     @classmethod
@@ -3878,6 +3884,11 @@ class Subspace(c.Module):
     @classmethod
     def local_nodes(cls, chain=chain):
         return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
+    
+
+    @classmethod
+    def local_node_infos(cls, chain=chain):
+        return [cls.get(p) for p in cls.ls(f'local_nodes/{chain}')]
     
 
 
@@ -4719,6 +4730,8 @@ class Subspace(c.Module):
     def total_balance(self, **kwargs):
         balances = self.balances(**kwargs)
         return sum(balances.values())
+    
+    
     
 
     def sand(self, **kwargs):

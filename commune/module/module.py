@@ -7674,6 +7674,40 @@ class c:
     def check_servers(cls, *args, **kwargs):
         return c.module('subspace')().check_servers(*args, **kwargs)
 
+    @classmethod
+    def scan(cls, 
+                 search=None, 
+                 max_futures:int=100, 
+                 network='local', 
+                 update=False, 
+                 schema=True, 
+                 namespace=True, 
+                 hardware=True, 
+                 **kwargs):
+
+        infos = {} 
+        namespace = c.namespace(search=search, network=network, update=update)
+        futures = []
+        name2future = {}
+        for name, address in namespace.items():
+            future = [c.submit(c.call, kwargs={'fn': 'info', 'hardware': hardware, 'schema': schema }, module='subspace')]
+            name2future[name] = future
+            futures = list(name2future.values())
+            if len(name2future) >= max_futures:
+                for f in c.as_completed(futures):
+                    name2future.pop(f)
+                    result = f.result()
+                    c.print(result)
+                    if 'error' not in result:
+                        infos[name] = result
+        
+
+
+
+
+
+
+
     def my_stats(self, *args, **kwargs):
         return c.module('subspace')().my_stats(*args, **kwargs)
 
