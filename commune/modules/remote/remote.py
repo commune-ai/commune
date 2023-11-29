@@ -413,6 +413,10 @@ class Remote(c.Module):
     def addresses(self, search=None, network='remote'):
         return c.addresses(search=search, network=network)
     
+    @classmethod
+    def peer2address(self, network='remote'):
+        return c.namespace(search='module', network=network)
+    
     
     
     def keys(self):
@@ -439,11 +443,15 @@ class Remote(c.Module):
 
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module', module=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module', modules=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
         futures = {}
         kwargs['network'] =  network
             
         namespace = c.namespace(search=search, network=network)
+
+        if modules != None:
+            assert isinstance(modules, list), f'modules must be a list, got {type(modules)}'
+            namespace = {k:v for k,v in namespace.items() if k in modules}
         if n == None:
             n = len(namespace)
             
@@ -471,19 +479,25 @@ class Remote(c.Module):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
     @classmethod
-    def hardware(cls, timeout=20, update= False, cache_path:str = 'hardware.json'):
+    def hardware(cls, timeout=20, update= True, cache_path:str = 'hardware.json', trials=2):
+
 
         if not update:
-            peer2hardware =  c.get_json(cache_path, {})
+            peer2hardware = c.get_json(cache_path, {})
             if len(peer2hardware) > 0:
                 return peer2hardware
-    
+        peer2hardware = {p:None for p in peers}
 
-        peer2hardware =  cls.call('hardware', timeout=timeout)
-        peer2hardware = {}
-        for server, info in peer2hardware.items():
-            if isinstance(info, dict) and 'memory' in info:
-                peer2hardware[server] = info
+        peers = cls.peers()
+        for i in range(trials):
+            call_modules = [p for p in peers if peer2hardware[p] == None]
+            response =  cls.call('hardware', timeout=timeout, modules=call_modules)
+            for peer, hardware in response.items():
+                if isinstance(hardware, dict) and 'memory' in hardware:
+                    c.print(f'{peer} {hardware}')
+                    peer2hardware[peer] = hardware
+
+
         c.put_json(cache_path, peer2hardware)
         return peer2hardware
     
@@ -815,6 +829,13 @@ class Remote(c.Module):
        
 
     dash = dashboard
+
+    def check_peers(self, timeout=10):
+        futures = []
+        for m,a in c.namespace(network='remote').items():
+            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
+        results = c.wait(futures, timeout=timeout)
+        return results
 
     # @classmethod
     # def refresh_servers(cls):
