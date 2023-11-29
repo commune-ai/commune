@@ -2039,7 +2039,13 @@ class Subspace(c.Module):
             name2uid = {k:v for k,v in name2uid.items() if search in k}
         return name2uid
 
-    
+    def my_name2uid(self,search:str=None, netuid: int = None, network: str = None, update=False) -> int:
+        modules = self.my_modules(netuid=netuid, update=update)
+        name2uid =  { m['name']: m['uid']for m in modules}
+        if search != None:
+            name2uid = {k:v for k,v in name2uid.items() if search in k}
+        return name2uid
+
         
     def name2key(self, search:str=None, network=network, netuid: int = None ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
@@ -3790,7 +3796,6 @@ class Subspace(c.Module):
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
         node_info = response['node_info']
         cls.put(f'local_nodes/{chain}/{node}', node_info)
-
         return response
 
     start_local_node = add_local_node
