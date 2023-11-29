@@ -48,7 +48,7 @@ class OpenRouterModule(c.Module):
         
 
 
-    def generate(self, content: str, text_only:bool = True, model=None, history=None, trials=3, api_key=None ):
+    def generate(self, content: str, text_only:bool = True, model=None, history=None, trials=1, api_key=None ):
 
 
         # trials 
