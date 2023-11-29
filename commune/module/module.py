@@ -6312,7 +6312,7 @@ class c:
 
                 except Exception as e:
                     unfinished_futures = [future for future in futures if future in future2idx]
-                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures')
+                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
 
                 return results
             
@@ -7341,6 +7341,12 @@ class c:
     @classmethod
     def vote(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)
+    @classmethod
+    def self_vote(cls, *args, **kwargs):
+        return c.module('subspace')().self_vote(*args, **kwargs)
+    @classmethod
+    def self_vote_pool(cls, *args, **kwargs):
+        return c.module('subspace')().self_vote_pool(*args, **kwargs)
     
     @classmethod
     def stake(cls, *args, **kwargs):
