@@ -108,6 +108,7 @@ class Task(c.Module):
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             self.status = 'failed'
             data = c.detailed_error(e)
+            c.print(data)
         
         self.future.set_result(data)
         # store the result of the task

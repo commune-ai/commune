@@ -60,7 +60,8 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 20,
+                max_trials:int = 40,
+                parallel_calls:bool=5,
                 **kwargs):
 
         '''
@@ -86,7 +87,6 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-
         from substrateinterface import SubstrateInterface
         
         if network == None:
@@ -142,8 +142,20 @@ class Subspace(c.Module):
             key2stake[key] = c.round_decimals(stake, decimals=decimals)
         if search != None:
             key2stake = {k:v for k,v in key2stake.items() if search in k}
-
         return key2stake
+    
+
+    def rank_modules(self,search=None, k='stake', n=10, modules=None, reverse=True, **kwargs):
+        modules = self.modules(search=search, **kwargs) if modules == None else modules
+        modules = sorted(modules, key=lambda x: x[k], reverse=reverse)
+        return modules[:n]
+    
+    def rank_my_modules(self,search=None, k='stake', n=10, **kwargs):
+        modules = self.my_modules(search=search, **kwargs)
+        ranked_modules = self.rank_modules(modules=modules, search=search, k=k, n=n, **kwargs)
+        return modules[:n]
+
+
     mys =  mystake = key2stake =  my_stake
 
     def my_balance(self, search:str=None, netuid:int = 0, network:str = 'main', fmt=fmt,  decimals=2, block=None, min_value:int = 0):
@@ -264,6 +276,58 @@ class Subspace(c.Module):
     #### Set Weights ####
     #####################
 
+    def parity_votes(self, modules=None, netuid: int = 0, network: str = None, n=None) -> int:
+        if modules == None:
+            modules = self.modules(netuid=netuid, network=network)
+        # sample inversely proportional to emission rate
+        weights = [module['emission'] for module in modules]
+        uids = [module['uid'] for module in modules]
+        weights = torch.tensor(weights)
+        max_weight = weights.max()
+        weights = max_weight - weights
+        weights = weights / weights.sum()
+        # weights = weights * U16_MAX
+        weights = weights.tolist()
+        return {'uids': uids, 'weights': weights}
+    
+    def self_votes(self, search=None, netuid: int = None, network: str = None, parity=False, n=20, normalize=False, key=None) -> int:
+        modules = self.my_modules(search=search, netuid=netuid, network=network)
+        uids = [module['uid'] for module in modules]
+        weights = [1 for _ in uids]
+
+
+
+        if parity:
+            votes = self.parity_votes(modules=modules)
+        else:
+            votes =  {'uids': uids, 'weights': weights}
+
+        if n != None:
+            votes['uids'] = votes['uids'][:n]
+            votes['weights'] = votes['weights'][:n]
+
+        return votes
+    
+
+    def self_vote(self, search= None, netuid: int = None, network: str = None, parity=False, n=20, timeout=100, normalize=False, key=None) -> int:
+        votes = self.self_votes(netuid=netuid, network=network, parity=parity, n=n, normalize=normalize, key=key)
+        if key == None:
+            key = self.rank_my_modules(n=1, k='stake')[0]['name']
+        kwargs={**votes, 'key': key, 'netuid': netuid, 'network': network}        
+        return self.vote(**kwargs)
+
+
+
+    def self_vote_pool(self, netuid: int = None, network: str = None, parity=False, n=20, timeout=20, normalize=False, key=None) -> int:
+        keys = [m['name'] for m in self.rank_my_modules(n=n, k='stake')[:n] ]
+        results = []
+        for key in keys:
+            kwargs = {'key': key, 'netuid': netuid, 'network': network, 'parity': parity, 'n': n, 'normalize': normalize}
+            result = self.self_vote(**kwargs)
+            results += [result]
+        return results
+        
+
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
     def vote(
         self,
@@ -272,15 +336,24 @@ class Subspace(c.Module):
         netuid: int = None,
         key: 'c.key' = None,
         network = None,
+        update=False,
     ) -> bool:
         network = self.resolve_network(network)
-        key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
+        key = self.resolve_key(key)
         
         # checking if the "uids" are passed as names -> strings
         if all(isinstance(item, str) for item in uids):
-            uids = self.names2uids(names=uids)
+            names2uid = self.names2uids(names=uids, update=update)
+            for i, name in enumerate(uids):
+                if name in names2uid:
+                    uids[i] = names2uid[name]
+                else:
+                    c.print(f'Could not find {name} in network {netuid}')
+                    return False
 
+
+            
         subnet = self.subnet( netuid = netuid )
         min_allowed_weights = subnet['min_allowed_weights']
         max_allowed_weights = subnet['max_allowed_weights']
@@ -1730,7 +1803,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'regblock', 'last_update'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'trust', 'regblock', 'last_update'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
@@ -1741,10 +1814,10 @@ class Subspace(c.Module):
         modules = self.modules(netuid=netuid, update=update, fmt=fmt, network=network, **kwargs)
         stats = []
 
-
+        local_key_addresses = list(c.key2address().values())
         for i, m in enumerate(modules):
 
-            if local and ip not in m['address']:
+            if m['key'] not in local_key_addresses :
                 continue
             # sum the stake_from
             m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
@@ -1876,7 +1949,7 @@ class Subspace(c.Module):
 
 
 
-    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None) -> Balance:
+    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None, update=False) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1885,25 +1958,29 @@ class Subspace(c.Module):
             balance (bittensor.utils.balance.Balance):
                 account balance
         """
-        network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
-        
-        try:
-            @retry(delay=2, tries=3, backoff=2, max_delay=4)
-            def make_substrate_call_with_retry():
-                with self.substrate as substrate:
-                    return substrate.query(
-                        module='System',
-                        storage_function='Account',
-                        params=[key_ss58],
-                        block_hash = None if block == None else substrate.get_block_hash( block )
-                    )
-            result = make_substrate_call_with_retry()
-        except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-            c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
 
-        return  self.format_amount(result['data']['free'].value , fmt=fmt)
+        if not update:
+            balances = self.balances(network=network, block=block, update=update)
 
+        else:
+            self.resolve_network(network)
+            try:
+                @retry(delay=2, tries=3, backoff=2, max_delay=4)
+                def make_substrate_call_with_retry():
+                    with self.substrate as substrate:
+                        return substrate.query(
+                            module='System',
+                            storage_function='Account',
+                            params=[key_ss58],
+                            block_hash = None if block == None else substrate.get_block_hash( block )
+                        )
+                result = make_substrate_call_with_retry()
+            except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
+                c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+
+            return  self.format_amount(result['data']['free'].value , fmt=fmt)
+        return balances.get(key_ss58, 0)
     balance =  get_balance
 
 
@@ -2604,10 +2681,12 @@ class Subspace(c.Module):
             namespace =  c.get_namespace(search=search,network='subspace')
 
         if len(namespace) == 0:
-            futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, **kwargs), return_future=True)for k in ['names', 'addresses']]
+            futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, update=update, **kwargs), return_future=True)for k in ['names', 'addresses']]
             names, addresses = c.wait(futures, timeout=timeout)
             namespace = {n: a for n, a in zip(names, addresses)}
             c.put_namespace('subspace', namespace)
+        if search != None:
+            namespace = {k:v for k,v in namespace.items() if search in k}
 
         return namespace
 
@@ -2662,16 +2741,11 @@ class Subspace(c.Module):
     def most_valuable_key(self, **kwargs):
         my_balance = self.my_balance( **kwargs)
         return  dict(sorted(my_balance.items(), key=lambda item: item[1]))
+    
+    def most_stake_key(self, **kwargs):
+        my_stake = self.my_stake( **kwargs)
+        return  dict(sorted(my_stake.items(), key=lambda item: item[1]))
 
-    def most_staketo_key(self, key, netuid = 0,  **kwargs):
-        staketo = self.get_staketo(key, netuid=netuid, names=False, **kwargs)
-        most_stake = 0
-        most_stake_key = None
-        for k, v in staketo.items():
-            if v > most_stake:
-                most_stake = v
-                most_stake_key = k
-        return {'key': most_stake_key, 'stake': most_stake}
 
     reged = registered_keys
     
@@ -3790,26 +3864,30 @@ class Subspace(c.Module):
                      mode=mode, 
                      chain=chain, 
                      max_boot_nodes:int=24,
+                     node_info = None,
                       **kwargs):
-        cls.pull_image()
-        cls.add_node_key(node=node, chain=chain, mode=mode)
-        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
-        node_info = response['node_info']
+        if node_info == None:
+            cls.pull_image()
+            cls.add_node_key(node=node, chain=chain, mode=mode)
+            response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
+            node_info = response['node_info']
+
         cls.put(f'local_nodes/{chain}/{node}', node_info)
         return response
 
     start_local_node = add_local_node
 
     @classmethod
-    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, **kwargs):
+    def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, node_infos=None, **kwargs):
         responses = []
         for i in range(n):
-            responses += [cls.add_local_node(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)]
+            add_node_kwargs  = dict(node=f'{node}_{i}', mode=mode, chain=chain, **kwargs)
+            if node_infos != None:
+                assert len(node_infos) == n
+                add_node_kwargs['node_info'] = node_infos[i]
+            responses += [cls.add_local_node(**add_node_kwargs)]
         return responses
         
-
-
-
 
 
     @classmethod
@@ -3884,6 +3962,10 @@ class Subspace(c.Module):
     def local_nodes(cls, chain=chain):
         return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
     
+
+    @classmethod
+    def local_node_infos(cls, chain=chain):
+        return [cls.get(p) for p in cls.ls(f'local_nodes/{chain}')]
 
 
     @classmethod
@@ -4693,10 +4775,6 @@ class Subspace(c.Module):
         if min_value != None:
             my_balances = {k:v for k,v in my_balances.items() if v >= min_value}
         return my_balances
-    
-    def my_stakes(self, search=None, min_value=1000, fmt='j', **kwargs):
-        staketo = self.staketo(search=search, min_value=min_value, fmt=fmt, **kwargs)
-        address2key = c.address2key(search)
 
     
 
@@ -4724,6 +4802,8 @@ class Subspace(c.Module):
     def total_balance(self, **kwargs):
         balances = self.balances(**kwargs)
         return sum(balances.values())
+    
+    
     
 
     def sand(self, **kwargs):
