@@ -423,11 +423,18 @@ class Remote(c.Module):
         return [info.get('ss58_address', None)for info in self.infos()]
     
     @classmethod
-    def infos(self, search=None,  network='remote', update=False):
+    def infos(self, search='module',  network='remote', update=False):
         return c.infos(search=search, network=network, update=update)
     def peer2info(self, network='remote', update=False):
         infos = self.call('info', search='module')
         return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
+    
+
+    def loop(self, timeout=10, interval=30):
+        while True:
+            infos = self.infos(timeout=timeout, update=True)
+            c.sleep(interval)
+
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)

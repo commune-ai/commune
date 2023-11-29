@@ -243,23 +243,28 @@ class Namespace(c.Module):
         return responses
 
     @classmethod
-    def infos(cls, search=None, network=network, update:str=True, batch_size = 10, timeout=20) -> List[str]:
+    def infos(cls, search=None, network=network, servers=None,  update:str=True, batch_size = 10, timeout=20, hardware=True, namespace=True, schema=True) -> List[str]:
         path = f'infos/{network}'
         if not update:
             infos = cls.get(path, [])
         if update or len(infos) == 0:
             infos = []
-            servers = cls.servers(search=search, network=network)
+            servers = cls.servers(search=search, network=network) if servers == None else servers
             futures = []
             infos = []
             for s in servers:
-                kwargs = {'module':s, 'fn':'info', 'network': network}
+                kwargs = {'module':s, 'fn':'info', 'network': network, 'hardware': hardware, 'namespace': namespace, 'schema': schema}
                 future = c.submit(c.call, kwargs=kwargs, return_future=True, timeout=timeout)
                 futures.append(future)
                 if len(futures) >= batch_size:
                     for f in c.as_completed(futures):
-                        infos.append(f.result())
+                        
+                        result = f.result()
                         futures.remove(f)
+
+                        if isinstance(result, dict) and 'error' not in result:
+                            infos.append(result)
+                        
                         break
             infos += c.wait(futures, timeout=timeout)
             cls.put(path, infos)
