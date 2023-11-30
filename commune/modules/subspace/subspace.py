@@ -145,10 +145,27 @@ class Subspace(c.Module):
         return key2stake
     
 
-    def rank_modules(self,search=None, k='stake', n=10, modules=None, reverse=True, **kwargs):
+    def rank_modules(self,search=None, k='stake', n=10, modules=None, reverse=True, names=False, **kwargs):
         modules = self.modules(search=search, **kwargs) if modules == None else modules
         modules = sorted(modules, key=lambda x: x[k], reverse=reverse)
-        return modules[:n]
+        if names:
+            return [m['name'] for m in modules]
+        if n != None:
+            modules = modules[:n]
+        return modules
+    
+    def top_modules(self,search=None, k='stake', n=10, modules=None, **kwargs):
+        top_modules = self.rank_modules(search=search, k=k, n=n, modules=modules, reverse=True, **kwargs)
+        return top_modules[:n]
+
+    best = best_modules = top_modules
+    
+    def bottom_modules(self,search=None, k='stake', n=None, modules=None, **kwargs):
+        bottom_modules = self.rank_modules(search=search, k=k, n=n, modules=modules, reverse=False, **kwargs)
+        return bottom_modules[:n]
+    
+    worst = worst_modules = bottom_modules
+
     
     def rank_my_modules(self,search=None, k='stake', n=10, **kwargs):
         modules = self.my_modules(search=search, **kwargs)
@@ -1949,7 +1966,7 @@ class Subspace(c.Module):
 
 
 
-    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None, update=False) -> Balance:
+    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None, update=True) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1961,7 +1978,7 @@ class Subspace(c.Module):
         key_ss58 = self.resolve_key_ss58( key )
 
         if not update:
-            balances = self.balances(network=network, block=block, update=update)
+            balances = self.balances(network=network, block=block, update=update, fmt=fmt)
 
         else:
             self.resolve_network(network)
