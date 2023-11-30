@@ -18,13 +18,18 @@ class ValiParity(c.Module):
 
     def run(self):
         while True:
-            try:
-                votes = self.votes()
-                response = self.subspace.vote(**votes, key=self.key)
-            except Exception as e:
-                e = c.detailed_error(e)
-                c.print(e)
-
+            c.print('voting...')
+            r = self.vote()
+            c.print(r)
             self.sleep(self.seconds_per_epoch)
+
+    def vote(self, uid, weight):
+        try:
+            votes = self.votes()
+            response = self.subspace.vote(**votes, key=self.key)
+        except Exception as e:
+            e = c.detailed_error(e)
+            c.print(e)
+        return response
 
     
