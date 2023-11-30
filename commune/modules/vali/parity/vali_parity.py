@@ -12,7 +12,8 @@ class ValiParity(c.Module):
         modules = self.subspace.modules()
         voted_modules = c.shuffle([m for m in modules if m['trust'] < max_trust])[:self.subnet['max_allowed_weights']]
         uids = [m['uid'] for m in voted_modules]
-        weights = [m['trust'] for m in voted_modules]
+        max_trust = max([m['trust'] for m in voted_modules])
+        weights = [max_trust - m['trust'] for m in voted_modules]
         return {'uids': uids, 'weights': weights}
     
 
