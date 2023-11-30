@@ -3153,9 +3153,10 @@ class c:
                  address = None,
                  wait_for_server:bool = True,
                  network = 'local',
+                 module_key = None,
                  **kwargs ):
         subspace = c.module('subspace')()
-
+        
         # resolve module name and tag if they are in the server_name
         if address == None:
             if isinstance(module, str) and  '::' in module:
@@ -3177,8 +3178,9 @@ class c:
                                     **kwargs)
                 name = serve_info['name']
                 address = serve_info['address']
+                module_key = c.get_key(name).ss58_address
 
-        response =  subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake, module_key=name)
+        response =  subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake, module_key=module_key)
         return response
 
     @classmethod
