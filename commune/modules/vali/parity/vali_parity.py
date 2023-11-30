@@ -5,6 +5,7 @@ class ValiParity(c.Module):
         self.set_config(config, kwargs=kwargs)
         self.subspace = c.module('subspace')()
         self.subnet = self.subspace.subnet()
+        self.seconds_per_epoch = self.subnet['tempo'] * 8
 
     def votes(self, max_trust = 25) -> int:
         modules = self.subspace.modules()
@@ -17,7 +18,7 @@ class ValiParity(c.Module):
     def run(self, config = None, **kwargs):
         while True:
             votes = self.votes()
-            c.vote(**votes, key=self.key)
-            self.sleep(60)
+            self.subspace.vote(**votes, key=self.key)
+            self.sleep(self.seconds_per_epoch)
 
     
