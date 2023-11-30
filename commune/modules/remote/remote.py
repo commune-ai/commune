@@ -714,26 +714,24 @@ class Remote(c.Module):
         cols = st.columns(2)
         host_names = list(host_map.keys())
 
-            
-        search = st.text_input('Search')
+        with st.sidebar:  
+            search = st.text_input('Search')
 
 
-        if len(search) > 0:
-            host_names = [h for h in host_names if search in h]
-        hosts = self.hosts()
-        hosts = {k:v for k,v in hosts.items() if k in host_names}
-        host_names = list(hosts.keys())
+            if len(search) > 0:
+                host_names = [h for h in host_names if search in h]
+            hosts = self.hosts()
+            hosts = {k:v for k,v in hosts.items() if k in host_names}
+            host_names = list(hosts.keys())
 
-        with st.expander('Hosts', expanded=False):
-            for host_name, host in hosts.items():
-                cols = st.columns([1,4,2])
-                cols[0].write('#### '+host_name)
-                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
-                remove_host  = cols[2].button(f'Remove {host_name}')
-                if remove_host:
-                    st.write(self.rm_host(host_name))
-                
-        host_names = st.multiselect('Host', host_names, host_names)
+            with st.expander('Hosts', expanded=False):
+                for host_name, host in hosts.items():
+                    cols = st.columns([1,4])
+                    cols[0].write('#### '+host_name)
+                    cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+
+                    
+            host_names = st.multiselect('Host', host_names, host_names)
         cols = st.columns([4,2,1,1])
 
 
