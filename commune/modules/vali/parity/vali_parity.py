@@ -1,10 +1,11 @@
 import commune as c
 
 class ValiParity(c.Module):
-    def __init__(self, config = None, **kwargs):
-        self.set_config(config, kwargs=kwargs)
+    def __init__(self, run=True):
         self.subspace = c.module('subspace')()
         self.subnet = self.subspace.subnet()
+        if run:
+            c.thread(self.run)
         self.seconds_per_epoch = self.subnet['tempo'] * 8
 
     def votes(self, max_trust = 25) -> int:
@@ -15,10 +16,15 @@ class ValiParity(c.Module):
         return {'uids': uids, 'weights': weights}
     
 
-    def run(self, config = None, **kwargs):
+    def run(self):
         while True:
-            votes = self.votes()
-            self.subspace.vote(**votes, key=self.key)
+            try:
+                votes = self.votes()
+                response = self.subspace.vote(**votes, key=self.key)
+            except Exception as e:
+                e = c.detailed_error(e)
+                c.print(e)
+
             self.sleep(self.seconds_per_epoch)
 
     
