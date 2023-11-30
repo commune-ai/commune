@@ -23,7 +23,7 @@ class ValiParity(c.Module):
             c.print(r)
             self.sleep(self.seconds_per_epoch)
 
-    def vote(self, uid, weight):
+    def vote(self):
         try:
             votes = self.votes()
             response = self.subspace.vote(**votes, key=self.key)
