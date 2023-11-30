@@ -544,7 +544,7 @@ class ModelTransformer(Model):
             server_name = server_name + '_' + quantize
     
         if tag != None:
-            server_name += '::' + tag
+            server_name += '::' + str(tag)
 
         return c.serve(module='model.hf', server_name=server_name, model=model )
 
