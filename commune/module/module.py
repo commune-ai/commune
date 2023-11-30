@@ -3151,7 +3151,7 @@ class c:
                  subnet:str = 'commune',
                  refresh:bool =False,
                  address = None,
-                 wait_for_server:bool = False,
+                 wait_for_server:bool = True,
                  network = 'local',
                  **kwargs ):
         subspace = c.module('subspace')()
@@ -3178,7 +3178,8 @@ class c:
                 name = serve_info['name']
                 address = serve_info['address']
 
-        return subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake)
+        response =  subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake, module_key=name)
+        return response
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -5310,8 +5311,7 @@ class c:
                 mode:str='thread',
                 max_workers : int = None,
                 ):
-
-
+        
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
         args = c.copy(args)
