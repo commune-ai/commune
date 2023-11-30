@@ -1415,6 +1415,7 @@ class Subspace(c.Module):
 
         if isinstance(modules, str):
             key2name = self.key2name(netuid=netuid)
+            stake_to = self.get_staketo(key=key, netuid=netuid, names=False) # name to amount
             name2key = {key2name[k]:k for k in stake_to.keys()}
             modules = [name2key[m] for m in name2key.keys() if modules in m or modules==None]
 
@@ -2686,7 +2687,7 @@ class Subspace(c.Module):
         names = list({k: names[k] for k in sorted(names)}.values())
         return names
 
-    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = True, timeout=10,**kwargs) -> Dict[str, str]:
+    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = True, timeout=10, local=False, **kwargs) -> Dict[str, str]:
         namespace = {}
         if update == False:
             namespace =  c.get_namespace(search=search,network='subspace')
@@ -2698,6 +2699,11 @@ class Subspace(c.Module):
             c.put_namespace('subspace', namespace)
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
+
+        
+        if local:
+            ip = c.ip()
+            namespace = {k:v for k,v in namespace.items() if ip in str(v)}
 
         return namespace
 
