@@ -33,4 +33,23 @@ class ValiParity(c.Module):
             c.print(e)
         return response
 
+    @classmethod
+    def regfleet(cls, n=100, tag='commie'):
+        subspace = c.module('subspace')()
+
+
+        ip = c.ip()
+        for i in range(n):
+
+            name = cls.resolve_server_name(tag=tag+str(i))
+            key = c.get_key(name)
+            address = ip + ':' + str(30333 + i)
+            
+            try:
+                response = subspace.register(name=name, address=address, key=key)
+                return response
+            except Exception as e:
+                c.print(e)
+                self.sleep(10)
+
     
