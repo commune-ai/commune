@@ -24,32 +24,42 @@ class ValiParity(c.Module):
             c.print(r)
             self.sleep(self.seconds_per_epoch)
 
-    def vote(self):
+    def vote(self, key=None):
+        key = self.resolve_key(key)
         try:
             votes = self.votes()
-            response = self.subspace.vote(**votes, key=self.key)
+            response = self.subspace.vote(**votes, key=key)
         except Exception as e:
             e = c.detailed_error(e)
             c.print(e)
         return response
 
     @classmethod
-    def regfleet(cls, n=100, tag='commie'):
+    def regloop(cls, n=100, tag='commie', remote: str = False):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn('regloop', kwargs=kwargs)
+
+
         subspace = c.module('subspace')()
 
+        while True:
+            namespace = subspace.namespace(update=True)
+            ip = c.ip()
+            for i in range(n):
 
-        ip = c.ip()
-        for i in range(n):
-
-            name = cls.resolve_server_name(tag=tag+str(i))
-            key = c.get_key(name)
-            address = ip + ':' + str(30333 + i)
-            
-            try:
-                response = subspace.register(name=name, address=address, key=key)
-                return response
-            except Exception as e:
-                c.print(e)
-                self.sleep(10)
+                name = cls.resolve_server_name(tag=tag+str(i))
+                key = c.get_key(name)
+                address = ip + ':' + str(30333 + i)
+                
+                try:
+                    response = subspace.register(name=name, address=address, key=key)
+                    if response['success']:
+                        cls().vote()
+                
+                except Exception as e:
+                    c.print(e)
+                    self.sleep(10)
 
     
