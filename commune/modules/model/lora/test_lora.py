@@ -1,21 +1,37 @@
 from commune.modules.model.lora.lora import LoraModel
+import time
 
-# adaptor = LoraModel('TheBloke/Llama-2-7b-chat-fp16')
+######## Example with 'togethercomputer/LLaMA-2-7B-32K' model and 'UNIST-Eunchan/NLP-Paper-to-QA-Generation' dataset ########
+stime = time.time()
 adaptor = LoraModel('togethercomputer/LLaMA-2-7B-32K')
+print(f"Base model loading time: {time.time()-stime}")
+def prep_data(example):
+    example['prediction'] = example['question'] + ' ->: ' + example['answer']
+    return example
 
-# adaptor.train('Abirate/english_quotes', './bloke-llama2-7b-abirate-eng-quote-lora-1')
-# adaptor.train('UNIST-Eunchan/NLP-Paper-to-QA-Generation', './together-llama2-7b-paper2qa-lora-1')
-# adaptor.train('Abirate/english_quotes', './together-llama2-7b-eng-quotes-lora-1')
+# adaptor.train('UNIST-Eunchan/NLP-Paper-to-QA-Generation', './together-llama2-7b-paper2qa-lora-1', prep_data)
+
+stime = time.time()
+adaptor.load_adaptor('')
+print(f'LoRA adaptor switching time: {time.time()-stime}')
+adaptor.generate('How does their model learn using mostly raw data? ->: ')
+
+stime = time.time()
+adaptor.load_adaptor('./together-llama2-7b-paper2qa-lora-1')
+print(f'LoRA adaptor initial loading time: {time.time()-stime}')
+adaptor.generate('How does their model learn using mostly raw data? ->: ')
+
+######## Example with 'togethercomputer/LLaMA-2-7B-32K' model and 'Abirate/english_quotes' dataset ########
+# stime = time.time()
+# adaptor = LoraModel('togethercomputer/LLaMA-2-7B-32K')
+# print(f"Base model loading time: {time.time()-stime}")
+# def prep_data(example):
+#     example['prediction'] = example['quote'] + ' ->: ' + str(example['tags'])
+#     return example
 #
-# # adaptor.load('')
-# # adaptor.generate('How do I use the OpenAI API?')
-# adaptor.load('./bloke-llama2-7b-paper2qa-lora-1')
+# # adaptor.train('Abirate/english_quotes', './together-llama2-7b-eng-quotes-lora-1', prep_data)
+#
+# stime = time.time()
+# adaptor.load_adaptor('./together-llama2-7b-eng-quotes-lora-1')
+# print(f'LoRA switching time: {time.time()-stime}')
 # adaptor.generate('Be yourself; everyone else is already taken. ->: ')
-# print('######################################')
-adaptor.load('./together-llama2-7b-paper2qa-lora-1')
-adaptor.generate('What is this paper about? ->: ')
-# adaptor.load('./together-llama2-7b-eng-quotes-lora-1')
-# adaptor.generate('Be yourself; everyone else is already taken. ->: ')
-# print('######################################')
-# adaptor.load('')
-# adaptor.generate('How do I use the OpenAI API?')
