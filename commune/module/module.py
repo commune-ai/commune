@@ -4912,7 +4912,7 @@ class c:
                 path=None) -> bytes:
 
         key = c.get_key(key)
-        if c.exists(data) and include_files == False:
+        if c.exists(data) and include_files:
             c.print(f'Decrypting from {data} as it exists', color='cyan')
             path = data
             data =  c.get_text(path)
@@ -4923,7 +4923,10 @@ class c:
             return response
         if path != None:
             c.put_text(path, c.python2str(data))
-            data = data['data']
+            if isinstance(data, str):
+                data = c.str2dict(data)['data']
+                
+            
         return data
     
     @classmethod
