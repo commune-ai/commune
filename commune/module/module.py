@@ -36,7 +36,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace'] # whitelist of helper functions to load
     whitelist = [] # whitelist of functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -3195,6 +3195,7 @@ class c:
         line_no = tb[-1].lineno
         line_text = tb[-1].line
         response = {
+            'success': False,
             'error': str(e),
             'file_name': file_name,
             'line_no': line_no,
@@ -3221,7 +3222,7 @@ class c:
             c.print(f'Restarting {n}', color='cyan')
             c.cmd(f"pm2 restart {n}", verbose=False)
             cls.pm2_rm_logs(n)  
-        return rm_list
+        return {'success':True, 'message':f'Restarted {name}'}
        
     @classmethod
     def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
@@ -3248,14 +3249,16 @@ class c:
         """
         Helper function to restart the server
         """
-        c.restart_server(self.server_name)
+        return c.restart(self.server_name)
+
+    update_self = restart_self
 
 
     def kill_self(self):
         """
         Helper function to kill the server
         """
-        c.kill(self.server_name)
+        return c.kill(self.server_name)
 
     refresh = reset = restart
     @classmethod
@@ -4905,17 +4908,22 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 prefix = encrypted_prefix,
+                include_files:bool = True,
                 path=None) -> bytes:
 
         key = c.get_key(key)
-        if c.exists(data):
+        if c.exists(data) and include_files == False:
             c.print(f'Decrypting from {data} as it exists', color='cyan')
             path = data
             data =  c.get_text(path)
-
-        data = key.decrypt(data)
+        try:
+            data = key.decrypt(data)
+        except Exception as e:
+            response = c.detailed_error(e)
+            return response
         if path != None:
             c.put_text(path, c.python2str(data))
+            data = data['data']
         return data
     
     @classmethod
