@@ -667,6 +667,7 @@ class Keypair(c.Module):
         Keypair
         """
 
+
         if type(seed_hex) is str:
             seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
 
