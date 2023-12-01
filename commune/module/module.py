@@ -2661,6 +2661,7 @@ class c:
              ) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
+
         info  = dict(
             address = self.address.replace(c.default_ip, c.ip(update=False)),
             functions =  fns, # get the functions of the module
@@ -2940,74 +2941,47 @@ class c:
                tag:str=None, 
                tag_seperator: str = '::',
                verbose : bool = True, 
-               device:str = None,
                update: bool = False,
-               **extra_kwargs):
+               **extra_launch_kwargs):
         '''
         Launch a module as pm2 or ray 
         '''
         if update:
             cls.update()
         kwargs = kwargs if kwargs else {}
-        kwargs.update(extra_kwargs)
         args = args if args else []
         if module == None:
             module = cls 
         elif isinstance(module, str):
-
-            module = cls.get_module(module) 
-            
+            module = c.module(module) 
         if name == None:
             if hasattr(module, 'module_path'):
                 name = module.module_path()
             else:
-                name = module.__name__.lower()
-                
+                name = module.__name__.lower() 
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
                 
-                
-        if verbose:
-            c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
+        c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
 
-        if mode == 'local':
-            return getattr(module, fn)(*args, **kwargs)
 
-        elif mode == 'pm2':
-            
-            launch_kwargs = dict(
-                    module=module, 
-                    fn = fn,
-                    name=name, 
-                    tag=tag, 
-                    args = args,
-                    kwargs = kwargs,
-                    refresh=refresh,
-                    device= device,
-                    **extra_kwargs
-            )
-            
-
-            assert fn != None, 'fn must be specified for pm2 launch'
-            stdout = getattr(cls, f'{mode}_launch')(**launch_kwargs)
-            
-            
-        elif mode == 'ray':
-            launch_kwargs = dict(
-                    module=module, 
-                    name=name, 
-                    tag=tag, 
-                    args = args,
-                    kwargs = kwargs,
-                    refresh=refresh,
-                    **extra_kwargs
-            )
+        launch_kwargs = dict(
+                module=module, 
+                fn = fn,
+                name=name, 
+                tag=tag, 
+                args = args,
+                kwargs = kwargs,
+                refresh=refresh,
+                **extra_launch_kwargs
+        )
         
-            getattr(cls, f'{mode}_launch')(**launch_kwargs)
-        else: 
-            raise Exception(f'launch mode {mode} not supported')
 
-        return name
+        assert fn != None, 'fn must be specified for pm2 launch'
+    
+    
+        return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
+   
 
     
     @classmethod
@@ -3090,7 +3064,7 @@ class c:
                    kwargs: dict = None,
                    device:str=None, 
                    interpreter:str='python3', 
-                   no_autorestart: bool = False,
+                   auto: bool = True,
                    verbose: bool = False , 
                    force:bool = True,
                    meta_fn: str = 'module_fn',
@@ -3118,7 +3092,8 @@ class c:
         name = c.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
         # build command to run pm2
         command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
-        if no_autorestart:
+
+        if not auto:
             command = command + ' ' + '--no-autorestart'
         if force:
             command += ' -f '
@@ -3140,7 +3115,7 @@ class c:
             
         stdout = c.cmd(command, env=env, verbose=verbose)
         
-        return stdout
+        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
 
     @classmethod
     def register(cls,  
@@ -6149,14 +6124,11 @@ class c:
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
-                    locals = None,
                     name : str =None,
                     tag: str = None,
                     refresh : bool =True,
-                    tag_seperator : str = '::',):
+                    tag_seperator : str = '::', **extra_launch_kwargs):
 
-        if locals != None:
-            kwargs = c.locals2kwargs(locals)
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -6165,22 +6137,24 @@ class c:
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         
-        
-
+    
         if name == None:
             module_path = cls.resolve_module(module).module_path()
             name = f"{module_path}{tag_seperator}{fn}"
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
+
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
 
         if 'remote' in kwargs:
             kwargs['remote'] = False
             
-        cls.launch(fn=fn, 
+        response = cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
                     refresh=refresh,
-                    name=name)
+                    name=name, **extra_launch_kwargs)
+        
+        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
 
     rfn = remote_fn
     @classmethod
