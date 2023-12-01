@@ -3984,6 +3984,10 @@ class Subspace(c.Module):
     @classmethod
     def local_node_infos(cls, chain=chain):
         return [cls.get(p) for p in cls.ls(f'local_nodes/{chain}')]
+    
+    @classmethod
+    def local_node_urls(cls, chain=chain):
+        return ['ws://'+info['ip']+':' + str(info['ws_port']) for info in cls.local_node_infos(chain=chain)]
 
 
     @classmethod
