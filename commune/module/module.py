@@ -1377,7 +1377,6 @@ class c:
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
-        c.print(path)
         object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
@@ -1398,7 +1397,6 @@ class c:
             path = 'module'
         path = cls.simple2path(path)
         path = cls.path2objectpath(path, search=None)
-        c.print(f'Importing {path}', color='green')
         return c.import_object(path)
 
 
@@ -5023,6 +5021,8 @@ class c:
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
+            if hasattr(self, 'key'):
+                key = self.key
             key = self.resolve_keypath(key)
         key = self.get_key(key)
         return key  
