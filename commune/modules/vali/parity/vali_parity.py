@@ -82,14 +82,14 @@ class ValiParity(c.Module):
                     c.print(e)
 
     @classmethod
-    def voteloop(cls, remote: str = True, min_staleness=200):
+    def voteloop(cls, remote: str = True, min_staleness=200, search='vali', namespace=None):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
             return cls.remote_fn('voteloop', kwargs=kwargs)
 
         self = cls(run=False)
-        stats = c.stats(search=self.module_path(), df=False)
+        stats = c.stats(search=search, df=False)
         for module in stats:
             c.print('voting for', module['name'])
             if module['last_update'] > min_staleness:

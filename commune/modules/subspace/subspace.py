@@ -343,6 +343,10 @@ class Subspace(c.Module):
             result = self.self_vote(**kwargs)
             results += [result]
         return results
+    
+    def vote_parity_loop(self, netuid: int = None, network: str = None, n=20, timeout=20, normalize=False, key=None) -> int:
+        kwargs = {'key': key, 'netuid': netuid, 'network': network, 'parity': True, 'n': n, 'normalize': normalize}
+        return self.self_vote(**kwargs)
         
 
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
