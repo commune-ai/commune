@@ -1,5 +1,3 @@
-
-
 import inspect
 import numpy as np
 import os
@@ -19,7 +17,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # AGI BEGINS 
 class c:
-    descrition = """This is a module"""
+    description = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
     git_url = 'https://github.com/commune-ai/commune.git'
@@ -2983,9 +2981,17 @@ class c:
 
     
     @classmethod
-    def pm2_kill_all(cls, verbose:bool = True):
-        for module in cls.pm2_list():
-            cls.pm2_kill(module, verbose=verbose)
+    def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
+        futures = []
+        for name in cls.pm2_list(search=search):
+            c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
+            f = c.submit(c.pm2_kill, kwargs=dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            futures.append(f)
+        return c.wait(futures)
+    
+    @classmethod
+    def pm2_kill_all(cls, verbose:bool = True, timeout=10):
+        return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
                 
     @classmethod
     def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
@@ -3171,21 +3177,21 @@ class c:
         pm2_list = cls.pm2_list()
         if name in pm2_list:
             rm_list = [name]
-        else:
-            if prefix_match:
-                rm_list = [ p for p in pm2_list if p.startswith(name)]
-            else:
-                raise Exception(f'pm2 process {name} not found')
+
+        if prefix_match:
+            rm_list = [ p for p in pm2_list if p.startswith(name)]
+
         if len(rm_list) == 0:
-            if verbose:
-                c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
-            return []
+            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            return {'success':False, 'message':f'No pm2 processes found for {name}'}
         for n in rm_list:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
+            # remove the logs from the pm2 logs directory
             cls.pm2_rm_logs(n)
-        return rm_list
+
+        return {'success':True, 'killed':rm_list, 'message':f'Killed {name}'}
     
     @staticmethod
     def detailed_error(e) -> dict:
@@ -6834,6 +6840,10 @@ class c:
         args = inspect.getfullargspec(fn).args
         return args
     
+    @classmethod
+    def has_function_arg(cls, fn, arg:str):
+        args = cls.get_function_args(fn)
+        return arg in args
 
     
     fn_args = get_fn_args =  get_function_args
@@ -8504,7 +8514,7 @@ class c:
     
 
     @classmethod
-    def lag(cls, *args, **kwargs):
+    def lag( *args, **kwargs):
         return c.module('subspace')().lag(*args, **kwargs)
 
 Module = c
