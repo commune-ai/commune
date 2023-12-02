@@ -652,7 +652,10 @@ class Remote(c.Module):
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
         namespace = c.namespace(search=search, network='remote')
-        n = cols[1].number_input('Number of servers', 1, len(namespace), 10)
+        if len(namespace) == 0:
+            st.error(f'No peers found with search: {search}')
+            return
+        n = cols[1].slider('Number of servers', 1, len(namespace), len(namespace))
         module_names = list(namespace.keys())[:n]
         module_names = st.multiselect('Modules', module_names, module_names)
         namespace = {k:v for k,v in namespace.items() if k in module_names}
@@ -667,8 +670,8 @@ class Remote(c.Module):
         module_name = cols[0].selectbox('Module', module_names, index=0)
         module_address = namespace[module_name]
         module = c.connect(module_address)
-
         cache = cols[2].checkbox('Cache', True)
+
         cache_path = f'module_info_cache/{module_address}'
         t1 = c.time()
         if cache:
