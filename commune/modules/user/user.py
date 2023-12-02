@@ -51,7 +51,7 @@ class User(c.Module):
         assert len(cls.users()) == 0, 'users not refreshed'
         return {'success': True, 'msg': 'refreshed users'}
     @classmethod
-    def user_exists(cls, address):
+    def user_exists(cls, address:str):
         return address in cls.get('users', {})
 
     @classmethod
@@ -79,3 +79,4 @@ class User(c.Module):
         cls.put('users', users)
         assert not cls.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users'}
+    

@@ -4,9 +4,8 @@ import commune as c
 from typing import Dict, List, Optional, Union
 
 
+
 class OsModule(c.Module):
-
-
     @staticmethod
     def check_pid(pid):        
         """ Check For the existence of a unix pid. """
@@ -124,7 +123,6 @@ class OsModule(c.Module):
         memory_stats = psutil.virtual_memory()
 
         # Total memory in the system
-        c.print(memory_stats)
         response = {
             'total': memory_stats.total,
             'available': memory_stats.available,
@@ -143,37 +141,51 @@ class OsModule(c.Module):
   
         return response
 
-
-    def virtual_memory_available(self):
+    @classmethod
+    def virtual_memory_available(cls):
         import psutil
         return psutil.virtual_memory().available
     
-    def virtual_memory_total(self):
+    @classmethod
+    def virtual_memory_total(cls):
         import psutil
         return psutil.virtual_memory().total
     
-    def virtual_memory_percent(self):
+    @classmethod
+    def virtual_memory_percent(cls):
         import psutil
         return psutil.virtual_memory().percent
     
-
-    def cpu_type(self):
+    @classmethod
+    def cpu_type(cls):
         import platform
         return platform.processor()
     
-    def cpu_info(self):
+    @classmethod
+    def cpu_info(cls):
+        
         return {
-            'cpu_count': self.cpu_count(),
-            'cpu_type': self.cpu_type(),
+            'cpu_count': cls.cpu_count(),
+            'cpu_type': cls.cpu_type(),
         }
     
 
+    def cpu_usage(self):
+        import psutil
+        # get the system performance data for the cpu
+        cpu_usage = psutil.cpu_percent()
+        c.print(c.fn_schema(psutil.cpu_percent))
+        return cpu_usage
     
-    def gpu_memory(self):
+
+    
+    @classmethod
+    def gpu_memory(cls):
         import torch
         return torch.cuda.memory_allocated()
     
-    def num_gpus(self):
+    @classmethod
+    def num_gpus(cls):
         import torch
         return torch.cuda.device_count()
     
@@ -267,7 +279,8 @@ class OsModule(c.Module):
         return x
         
 
-    def disk_info(self, path:str = '/', fmt:str='gb'):
+    @classmethod
+    def disk_info(cls, path:str = '/', fmt:str='gb'):
         path = c.resolve_path(path)
         import shutil
         response = shutil.disk_usage(path)
@@ -277,7 +290,7 @@ class OsModule(c.Module):
             'free': response.free,
         }
         for key, value in response.items():
-            response[key] = self.format_data_size(value, fmt=fmt)
+            response[key] = cls.format_data_size(value, fmt=fmt)
         return response
 
 
@@ -328,7 +341,7 @@ class OsModule(c.Module):
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info(cls, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -340,9 +353,24 @@ class OsModule(c.Module):
                 'total': mem_info[1], 
                 'ratio': mem_info[0]/mem_info[1],
             }
+
+        for gpu_id, gpu_info in gpu_info.items():
+            for key, value in gpu_info.items():
+                if key in ['ratio', 'total']:
+                    continue
+                gpu_info[key] = cls.format_data_size(value, fmt=fmt)
         return gpu_info
 
     gpu_map =gpu_info
+
+    @classmethod
+    def hardware(cls, fmt:str='gb'):
+        return {
+            'cpu': cls.cpu_info(),
+            'memory': cls.memory_info(fmt=fmt),
+            'disk': cls.disk_info(fmt=fmt),
+            'gpu': cls.gpu_info(fmt=fmt),
+        }
 
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
@@ -372,4 +400,32 @@ class OsModule(c.Module):
                 device_info = cls.gpu_info(gpu_id)
                 c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
-    
+        
+    @classmethod
+    def get_folder_size(cls, folder_path:str='/'):
+        folder_path = c.resolve_path(folder_path)
+        """Calculate the total size of all files in the folder."""
+        total_size = 0
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                file_path = os.path.join(root, file)
+                if not os.path.islink(file_path):
+                    total_size += os.path.getsize(file_path)
+        return total_size
+
+    @classmethod
+    def find_largest_folder(cls, directory: str = '~/'):
+        directory = c.resolve_path(directory)
+        """Find the largest folder in the given directory."""
+        largest_size = 0
+        largest_folder = ""
+
+        for folder_name in os.listdir(directory):
+            folder_path = os.path.join(directory, folder_name)
+            if os.path.isdir(folder_path):
+                folder_size = cls.get_folder_size(folder_path)
+                if folder_size > largest_size:
+                    largest_size = folder_size
+                    largest_folder = folder_path
+
+        return largest_folder, largest_size

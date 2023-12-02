@@ -16,6 +16,7 @@ class SubspaceDashboard(c.Module):
 
         
         # convert into metrics
+
         
     def transfer_dashboard(self):
         with st.expander('Transfer', expanded=False):
@@ -54,6 +55,12 @@ class SubspaceDashboard(c.Module):
                 st.write(response)
 
 
+    def network_dashboard(self):
+        modules = self.modules
+        modules = self.key_info['stake_to']
+        # st.write(modules)
+
+
     def stake_dashboard(self):
         
         with st.expander('Stake', expanded=False):
@@ -85,6 +92,9 @@ class SubspaceDashboard(c.Module):
             else:
                 default_amount = 0.0
             amounts = cols[1].number_input('Stake Amount', value=default_amount,  max_value=1000000000000.0, min_value=0.0 ) # format with the value of the balance            
+            
+            st.write(f'You have {len(modules)} ready to STAKE for a total of {amounts * len(modules)} ')
+            
             stake_button = st.button('STAKE')
 
             if stake_button:
@@ -250,39 +260,57 @@ class SubspaceDashboard(c.Module):
                 else:
                     st.error(response['message'])
 
+    
+    def key_info_dashboard(self, expander = True):
+        if expander:
+            with st.expander('Key Info', expanded=False):
+                return self.key_info_dashboard(expander=False)
+
+        # pie map of stake
+        st.write('# Wallet')
+        st.write('ss58_address')
+
+        st.code( self.key.ss58_address)
+        cols = st.columns([2,2])
+        cols[0].metric('Balance', int(self.key_info['balance']))
+        cols[1].metric('Stake', int(self.key_info['stake']))
+            
+        
+
+        values = list(self.key_info['stake_to'].values())
+        labels = list(self.key_info['stake_to'].keys())
+
+        sorted_labels_and_values = sorted(zip(labels, values), key=lambda x: x[1], reverse=True)
+        labels = [l for l,v in sorted_labels_and_values]
+        values = [v for l,v in sorted_labels_and_values]
+
+
+        modules = self.modules
+        my_modules = [m for m in modules if m['name'] in labels]
+        daily_reward = sum([m['emission'] for m in my_modules]) * 108
+        st.write('### Daily Reward', daily_reward)        
+
+        st.write('## My Staked Modules')
+        for m in my_modules:
+            m.pop('stake_from')
+        df = pd.DataFrame(my_modules)
+        st.write(df)
+
     @classmethod
     def dashboard(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
        
-        # pie map of stake
-        st.write('# Wallet')
 
-        with st.expander('Key Info', expanded=False):
-            st.write('ss58_address')
-            cols = st.columns([2,2,2])
-            cols[0].code( self.key.ss58_address)
-            cols[1].metric('Balance', int(self.key_info['balance']))
-            cols[2].metric('Stake', int(self.key_info['stake']))
-            
-    
-            values = list(self.key_info['stake_to'].values())
-            labels = list(self.key_info['stake_to'].keys())
-
-            fig = c.module('plotly').treemap(values=values, labels=labels, title=None)
-            # increase the width of the plot
-            fig.update_layout(width=900, height=750)
-            st.plotly_chart(fig)
 
         # bar chat of staked modules
-
-
+        self.network_dashboard()
+        self.key_info_dashboard() 
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
         self.register_dashboard()
-
-
-
+        # if tokenomics:
+        #     c.module('subspace.tokenomics').dashboard()
 
 
 

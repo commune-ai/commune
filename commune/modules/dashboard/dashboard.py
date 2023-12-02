@@ -70,24 +70,6 @@ class Dashboard(c.Module):
             del df[k]
         return df
 
-    # for k in ['emission', 'stake']:
-    #     df[k] = df[k].apply(lambda x: c.round_decimals(self.subspace.format_amount(x, fmt='j'), 2))
-
-    # df.sort_values('incentive', inplace=True, ascending=False)
-    # df = df[:max_rows]
-    # st.write(df)
-    # st.dataframe(df, width=1000)
-    # # BAR OF INCENTIVES
-    # options = ['emission', 'incentive', 'dividends']
-    # selected_keys = st.multiselect('Select Columns', options, options, key='stats')
-
-    # for i, k in enumerate(selected_keys):
-    #     cols = st.columns(2)
-
-    #     fig = px.line(df, y=k, x= 'name', title=f'{k.upper()} Per Module')
-    #     cols[0].plotly_chart(fig)
-    #     fig = px.histogram(df, y=k, title=f'{k.upper()} Distribution')
-    #     cols[1].plotly_chart(fig)
 
 
     @classmethod
@@ -112,11 +94,7 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
 
-
-
-
-        
-        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND']) 
+        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'TOKENOMICS', 'REMOTE', 'CHAT'])
         chat = False
         with tabs[0]: 
             self.modules_dashboard()  
@@ -124,17 +102,30 @@ class Dashboard(c.Module):
             self.subspace_dashboard()
         with tabs[2]:
             self.playground_dashboard()
+        with tabs[3]:
+            self.tokenomics_dashboard()
+        with tabs[4]:
+            self.remote_dashboard()
+        
         if chat:
             self.chat_dashboard()
 
-    def playground_dashboard(self):
+    def playground_dashboard(self, exception_handle=True):
+        
 
         server2index = {s:i for i,s in enumerate(self.servers)}
         default_servers = [self.servers[0]]
         cols = st.columns([1,1])
         self.server_name = cols[0].selectbox('Select Server',self.servers, 0, key=f'serve.module.playground')
         self.server = c.connect(self.server_name, network=self.network)
-        self.server_info = self.server.info(schema=True, timeout=2)
+        
+        
+        try:
+            self.server_info = self.server.info(schema=True, timeout=2)
+        except Exception as e:
+            st.error(e)
+            return
+
         self.server_schema = self.server_info['schema']
         self.server_functions = list(self.server_schema.keys())
         self.server_address = self.server_info['address']
@@ -164,6 +155,8 @@ class Dashboard(c.Module):
     def remote_dashboard(self):
         st.write('# Remote')
 
+        # return c.module('remote').dashboard()
+
 
 
 
@@ -175,7 +168,6 @@ class Dashboard(c.Module):
 
 
         fn = self.fn
-
         server_name = self.server_name
         server  = self.server
         server_info = self.server_info
@@ -326,6 +318,9 @@ class Dashboard(c.Module):
 
     def subspace_dashboard(self):
         return c.module('subspace.dashboard').dashboard(key=self.key)
+    
+    def tokenomics_dashboard(self):
+        return c.module('subspace.tokenomics').dashboard(key=self.key)
     
     @classmethod
     def dash(cls, *args, **kwargs):
