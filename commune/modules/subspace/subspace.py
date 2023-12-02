@@ -3069,7 +3069,6 @@ class Subspace(c.Module):
 
         df['ip'] = df['address'].apply(lambda x: x.split(':')[0])
         df['module'] = df['name'].apply(lambda x: x.split('::')[0])
-        df['stake']
 
         cols = ['name', 'emission', 'incentive', 'dividends', 'stake', 'delegation_fee', 'trust',  'ip', 'last_update', 'module']
         with st.expander('columns', expanded=False):

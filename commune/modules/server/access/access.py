@@ -65,8 +65,6 @@ class Access(c.Module):
         stake = self.stakes.get(address, 0)
         fn = input.get('fn')
 
-    
-
         if c.is_admin(address) or self.module.key.ss58_address == address:
             rate_limit = 10e42
 
