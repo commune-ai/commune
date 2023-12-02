@@ -10,8 +10,9 @@ class Apify(c.Module):
 
         self.client = ApifyClient(os.getenv("apify_token"))
 
-    def scrape(self, twitterFilter):
+    def scrape(self, filter, type = "twitter"):
         twitter_actor_id = os.getenv("twitter_actor_id")
+        reddit_actor_id = os.getenv("reddit_actor_id")
         twitter_run_input = {
             "filter:blue_verified": False,
             "filter:has_engagement": False,
@@ -32,11 +33,35 @@ class Apify(c.Module):
             "language": "any",
             "user_info": "user info and replying info",
             "max_attempts": 5,
-            "actor_id": twitter_actor_id
         }
-        twitter_run_input.update(twitterFilter)
-
-        run = self.client.actor(twitter_run_input["actor_id"]).call(run_input=twitter_run_input)
+        reddit_run_input = {
+            "debugMode": False,
+            "maxComments": 10,
+            "maxCommunitiesCount": 2,
+            "maxItems": 10,
+            "maxPostCount": 10,
+            "maxUserCount": 2,
+            "proxy": {
+                "useApifyProxy": True
+            },
+            "scrollTimeout": 40,
+            "searchComments": True,
+            "searchCommunities": True,
+            "searchPosts": True,
+            "searchUsers": True,
+            "searches": [
+                "bitcoin"
+            ],
+            "skipComments": False
+        }
+        if type == "twitter":
+            twitter_run_input.update(filter)
+            actor_id = twitter_actor_id
+            run = self.client.actor(actor_id).call(run_input=twitter_run_input)
+        elif type == "reddit":
+            reddit_run_input.update(filter)
+            actor_id = reddit_actor_id
+            run = self.client.actor(actor_id).call(run_input=reddit_run_input)
 
         for item in self.client.dataset(run["defaultDatasetId"]).iterate_items():
             print(item)

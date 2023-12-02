@@ -311,6 +311,7 @@ __pypackages__/
 # Scraping
 images
 logs
+websites.json
 
 # Environments
 .env
@@ -321,5 +322,6 @@ ENV/
 env.bak/
 venv.bak/
 
-
+# Vector Store
+embeddings.db
 
