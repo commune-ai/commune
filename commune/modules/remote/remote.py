@@ -635,14 +635,14 @@ class Remote(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        tabs = st.tabs(['Servers', 'Modules'])
+        tabs = st.tabs(['Servers', 'Peers'])
 
 
         with tabs[0]:
             st.markdown('## Servers')
             self.ssh_dashboard()
         with tabs[1]:
-            st.markdown('## Servers')
+            st.markdown('## Peers')
             self.peers_dashboard()
 
 
@@ -653,7 +653,7 @@ class Remote(c.Module):
         search = cols[0].text_input('Search', 'module')
         namespace = c.namespace(search=search, network='remote')
         n = cols[1].number_input('Number of servers', 1, len(namespace), 10)
-        module_names = list(namespace.keys())
+        module_names = list(namespace.keys())[:n]
         module_names = st.multiselect('Modules', module_names, module_names)
         namespace = {k:v for k,v in namespace.items() if k in module_names}
         module_addresses = list(namespace.values())
@@ -668,7 +668,7 @@ class Remote(c.Module):
         module_address = namespace[module_name]
         module = c.connect(module_address)
 
-        cache = cols[2].checkbox('Cache')
+        cache = cols[2].checkbox('Cache', True)
         cache_path = f'module_info_cache/{module_address}'
         t1 = c.time()
         if cache:
@@ -677,29 +677,43 @@ class Remote(c.Module):
             module_info = {}
 
         if len(module_info) == 0:
+            st.write('Getting module info')
             module_info = module.info()
             self.put_json(cache_path, module_info)
 
         fns = list(module_info['schema'].keys())
         fn_name = st.selectbox('Function', fns, index=0)
 
-        module_fn = getattr(module, fn_name)
+        fn = getattr(module, fn_name)
         
 
         kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
 
-
+        timeout = cols[1].number_input('Timeout', 1, 100, 10, key='timeout_fn')
         run = st.button(f'Run {fn_name}')
         if run:
             future2module = {}
             for module_address in module_addresses:
+                st.write('Running', module_address)
+                kwargs['fn'] = fn_name
                 future = c.submit(c.call, args=[module_address], kwargs=kwargs, return_future=True)
                 future2module[future] = module_address
-            futures = list(future2module.values())
-            import concurrent
-            kwargs['return_future'] = True
-            result = module_fn(**kwargs)
-            st.write(result)
+            
+            futures = list(future2module.keys())
+            modules = list(future2module.values())
+            for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                st.write('Result', result)
+                assert 'idx' in result, f'idx not in result {result}'
+                assert 'result' in result, f'result not in result {result}'
+
+                module_name = modules[result['idx']]
+                result = result['result']
+
+                st.markdown(f'### {module_name}')
+                if c.is_error(result):
+                    st.error(result)
+                else:
+                    st.write(result)
         
         t2 = c.time()
         st.write(f'Info took {t2-t1} seconds')

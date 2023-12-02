@@ -9,10 +9,8 @@ from commune.modules.model.beautifulsoap.random_website.random_website import ge
     get_domain, check_webapp, get_text_content, generate_random_website_url, is_valid_website
 from commune.modules.model.openai.openai import OpenAILLM
 from commune.modules.model.beautifulsoap.google_search.google_search import google_search, google_search_with_api
-from googlesearch import search
 from urllib.parse import urlencode, urlunparse
 from urllib.request import urlopen, Request
-from yahoo import search as yahoo_search
 
 class BeautifulSoapModule(c.Module):
 
@@ -181,6 +179,8 @@ class BeautifulSoapModule(c.Module):
             print(f"Failed to retrieve the page. Status code: {response.status_code}")
 
     def google_search(self, keyword):
+        from googlesearch import search
+
         result = []
         for url in search(keyword, num_results=20):
             response = requests.get(url)
@@ -197,6 +197,8 @@ class BeautifulSoapModule(c.Module):
         return result
 
     def yahoo_search(self, keyword):
+        from yahoo import search as yahoo_search
+
         urls = []
         for url in yahoo_search(keyword):
             urls.append(url)
@@ -271,3 +273,12 @@ class BeautifulSoapModule(c.Module):
             # Write the data back to the JSON file
             with open('websites.json', 'w') as file:
                 json.dump(data, file)
+
+    @classmethod
+    def install(cls): 
+        requirements_path = cls.dirpath() + '/requirements.txt'
+        assert os.path.exists(requirements_path), f"Requirements file not found at {requirements_path}"
+        return c.cmd(f'pip install -r {requirements_path}')
+
+
+

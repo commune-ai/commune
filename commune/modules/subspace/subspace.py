@@ -3054,7 +3054,61 @@ class Subspace(c.Module):
 
     @classmethod
     def dashboard(cls):
-        c.module('subspace.dashboard').dashboard()
+        import plotly.express as px
+
+
+        self = cls()
+
+        modules = self.modules(fmt='j')
+        
+        num_searches = self.get('dashboard/search', [])
+        search = st.text_input('search', '') 
+
+        modules = [m for m in modules if search in m['name'] or search in m['key'] or search in m['address']]
+        df = c.df(modules)
+
+        df['ip'] = df['address'].apply(lambda x: x.split(':')[0])
+        df['module'] = df['name'].apply(lambda x: x.split('::')[0])
+        df['stake']
+
+        cols = ['name', 'emission', 'incentive', 'dividends', 'stake', 'delegation_fee', 'trust',  'ip', 'last_update', 'module']
+        with st.expander('columns', expanded=False):
+            selected_cols = st.multiselect('Select columns', cols, default=cols)
+            df = df[selected_cols]
+        df = df.sort_values('emission', ascending=False)
+        df = df[cols]
+
+        st.write(df)
+
+
+        with st.expander('histogram', expanded=False):
+            col = st.selectbox('Select column', cols)
+            fig = px.histogram(df, x=col)
+            st.plotly_chart(fig)
+
+        with st.expander('scatter', expanded=False):
+            x = st.selectbox('Select x', cols)
+            y = st.selectbox('Select y', cols)
+            fig = px.scatter(df, x=x, y=y)
+            st.plotly_chart(fig)
+
+        with st.expander('pie', expanded=False):
+            treemap = st.checkbox('treemap', False)
+            if treemap:
+                value = st.selectbox('Select column', cols, key='treemap')
+                name = st.selectbox('Select name', ['module', 'ip'], key='pie_name')
+
+                fig = px.treemap(df, path=[name], values=value)
+                st.plotly_chart(fig)
+            else:
+                    
+                col = st.selectbox('Select column', cols, key='pie')
+
+                name = st.selectbox('Select name', ['module', 'ip'], key='pie_name')
+                fig = px.pie(df, values=col, names=name)
+                st.plotly_chart(fig)
+
+        
         
 
 
@@ -3101,6 +3155,24 @@ class Subspace(c.Module):
     def has_tx_history(self, key:str):
         key_ss58 = self.resolve_key_ss58(key)
         c.exists(f'tx_history/{key_ss58}')
+
+        
+
+    def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending',  **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{key_ss58}/pending'
+        return pending_path
+
+    def tx_history(self, key:str=None, mode='pending', **kwargs):
+        pending_path = self.resolve_pending_dirpath(key=key, mode=mode, **kwargs)
+        return self.ls(pending_path)
+    
+    def pending_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='pending', **kwargs)
+
+    def complete_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='complete', **kwargs)
 
     def compose_call(self,
                      fn:str, 
