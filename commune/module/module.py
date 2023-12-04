@@ -4803,6 +4803,14 @@ class c:
         s = c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
 
 
+    def add_root_keys(self, n=1, tag=None, **kwargs):
+        keys = []
+        for i in range(n):
+            key_path = 'module' + '::'+ (tag if tag != None else '') + str(i)
+            c.add_key(key_path, **kwargs)
+            keys.append(key_path)
+        return {'success': True, 'keys': keys, 'msg': 'Added keys'}
+
 
 
 
