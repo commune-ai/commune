@@ -4800,7 +4800,7 @@ class c:
     def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
         destinations = c.root_addys()[:n]
         c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
-        s = c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
+        return c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
 
 
     def add_root_keys(self, n=1, tag=None, **kwargs):
