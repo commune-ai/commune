@@ -17,8 +17,10 @@ class Web(c.Module):
     
     get_html = html
 
-    def get_text(self, url:str):
-        return [p for p in self.get_components(url, 'p')['p']]
+    def get_text(self, url:str, min_chars=100, **kwargs):
+        text_list = [p.split('">')[-1].split('<')[0] for p in self.get_components(url, 'p')['p']]
+        return [text for text in text_list if len(text) > min_chars]
+    
     
 
     def get_components(self, url, *tags):
