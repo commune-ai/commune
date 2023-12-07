@@ -430,10 +430,7 @@ class Remote(c.Module):
         return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
     
 
-    def loop(self, timeout=10, interval=30):
-        while True:
-            infos = self.infos(timeout=timeout, update=True)
-            c.sleep(interval)
+ 
 
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
@@ -847,8 +844,6 @@ class Remote(c.Module):
                 gpus[host] = json.loads(gpu)
                 
         return gpus
-        
-       
 
     dash = dashboard
 
@@ -858,6 +853,72 @@ class Remote(c.Module):
             futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
         results = c.wait(futures, timeout=timeout)
         return results
+    
+    def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
+        if remote:
+            
+            return self.remote_fn('loop',kwargs = locals())
+        futures = []
+        future2path = {}
+        while True:
+            namespace = c.namespace('module', network='remote')
+
+            for name, address in namespace.items():
+                path = 'peers/' + address.split(':')[0]
+                existing_peer_info = self.get_json(path, {})
+                peer_update_ts = existing_peer_info.get('timetamp', 0)
+                peer_staleness = c.time() - peer_update_ts
+                if peer_staleness < max_staleness:
+                    c.print(f'updating {name} {address} was refreshed {peer_staleness} > {max_staleness}', color='cyan')
+                    continue
+
+                future = c.submit(c.call, 
+                                    args = (address, 'info'),
+                                    kwargs = dict(schema=True, namespace=True, hardware=True),
+                                    timeout=timeout, return_future=True
+                                    )
+                # id of fuutre is the same as the id of the future in the remote process
+                
+                
+                futures += [future]
+                
+
+                if batch_size != None and len(futures) >= batch_size:
+                    for future in c.as_completed(futures, timeout=timeout):
+                        result = future.result()
+                        if not c.is_error(result):
+                           path = 'peers/' + result['address']
+                           c.print(f'Saving {path}', color='yellow')
+                           result['timestamp'] = c.time()
+                           self.put(path, result)
+                        
+
+                        break 
+                futures = [future for future in futures if not future.done()]
+
+    def peer2info(self):
+        info_paths = self.ls('peers')
+        peer_infos = []
+        for path in info_paths:
+            peer_infos += [self.get(path, {})]
+        return peer_infos
+
+    def peer2hardware(self):
+        info_paths = self.ls('peers')
+        peer_infos = []
+        for path in info_paths:
+            peer_infos += [self.get(path, {})]
+        return peer_infos
+    
+    def peer2namespace(self):
+        info_paths = self.ls('peers')
+        peer_infos = []
+        for path in info_paths:
+            c.print(path)
+            peer_infos += [self.get(path, {}).keys()]
+        return peer_infos
+
+        
 
     # @classmethod
     # def refresh_servers(cls):
