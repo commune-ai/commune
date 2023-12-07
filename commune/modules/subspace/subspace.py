@@ -36,9 +36,12 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace:latest'
+    image = 'vivonasg/subspace.libra:latest'
     mode = 'docker'
-    
+    telemetry_backend_image = 'parity/substrate-telemetry-backend'
+    telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
+    node_key_prefix = 'subspace.node'
+
     def __init__( 
         self, 
         network: str = network,
@@ -60,8 +63,8 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 40,
-                parallel_calls:bool=5,
+                max_trials:int = 2,
+                parallel_calls:bool=1,
                 **kwargs):
 
         '''
@@ -343,6 +346,10 @@ class Subspace(c.Module):
             result = self.self_vote(**kwargs)
             results += [result]
         return results
+    
+    def vote_parity_loop(self, netuid: int = None, network: str = None, n=20, timeout=20, normalize=False, key=None) -> int:
+        kwargs = {'key': key, 'netuid': netuid, 'network': network, 'parity': True, 'n': n, 'normalize': normalize}
+        return self.self_vote(**kwargs)
         
 
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
@@ -3395,9 +3402,12 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls):
-        c.build_image('subspace')
-        return {'success': True, 'msg': 'Built subspace image'}
+    def build_image(cls, tag='subspace.libra', push=True):
+        response = c.build_image('subspace', tag=tag)
+        return response
+
+
+
     @classmethod
     def prune_node_keys(cls, max_valis:int=6, chain=chain):
 
@@ -3412,11 +3422,11 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=16, refresh:bool=False , mode=mode):
+    def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=2, refresh:bool=True , mode=mode, insert_key=True):
         for i in range(valis):
-            cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode, insert_key=insert_key)
         for i in range(nonvalis):
-            cls.add_node_key(node=f'nonvali_{i}' , chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'nonvali_{i}' , chain=chain, refresh=refresh, mode=mode, insert_key=insert_key)
 
         return {'success': True, 'msg': f'Added {valis} valis and {nonvalis} nonvalis to {chain}'}
 
@@ -3428,7 +3438,6 @@ class Subspace(c.Module):
             results += [results]
         return results
 
-    node_key_prefix = 'subspace.node'
     
     @classmethod
     def rm_node_key(cls,node, chain=chain):
@@ -3443,7 +3452,6 @@ class Subspace(c.Module):
         
     @classmethod
     def resolve_node_path(cls, node:str='alice', chain=chain, tag_seperator='_'):
-        node = str(node)
         return f'{cls.node_key_prefix}.{chain}.{node}'
 
     @classmethod
@@ -3455,7 +3463,7 @@ class Subspace(c.Module):
     
     @classmethod
     def node_key_paths(cls, node=None, chain=chain):
-        key = f'{cls.node_key_prefix}.{chain}.{node}'
+        key = f'{cls.node_key_prefix}.{chain}.{node}.'
         return c.keys(key)
     
 
@@ -3473,7 +3481,6 @@ class Subspace(c.Module):
             key_type = k.split('.')[-1]
             if name not in node_keys:
                 node_keys[name] = {}
-            c.print(k)
             node_keys[name][key_type] = key_module.get_key(k).ss58_address
 
         # sort by node number
@@ -3504,9 +3511,9 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def node_key_mems(cls,node = None, chain=chain):
+    def node_key_mems(cls,node = 'vali_1', chain=chain):
         vali_node_keys = {}
-        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}.{node}'):
+        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}.{node}.'):
             name = key_name.split('.')[-2]
             role = key_name.split('.')[-1]
             key = c.get_key(key_name)
@@ -3516,6 +3523,9 @@ class Subspace(c.Module):
 
         if node in vali_node_keys:
             return vali_node_keys[node]
+
+        # if node in vali_node_keys:
+        #     return vali_node_keys[node]
         return vali_node_keys
     @classmethod
     def send_node_keys(cls, node:str, chain:str=chain, module:str=None):
@@ -3527,6 +3537,10 @@ class Subspace(c.Module):
     @classmethod
     def node_infos(cls, chain=chain):
         return cls.getc(f'chain_info.{chain}.nodes', {})
+
+    @classmethod
+    def public_node_infos(cls, chain=chain):
+        return cls.getc(f'chain_info.{chain}.public_nodes', {})
 
     @classmethod
     def vali_infos(cls, chain=chain):
@@ -3543,14 +3557,12 @@ class Subspace(c.Module):
         return [k for k,v in cls.node_infos(chain=chain).items() if v['validator']]
 
     @classmethod
-    def nonvali_nodes(cls, chain=chain):
-        return [k for k,v in cls.node_infos(chain=chain).items() if not v['validator']]
-
-    public_nodes = nonvali_nodes
+    def public_nodes(cls, chain=chain):
+        return [k for k,v in cls.public_node_infos(chain=chain).items()]
 
 
     @classmethod
-    def rm_nonvali_nodes(cls, chain=chain):
+    def rm_public_nodes(cls, chain=chain):
         config = cls.config()
         
         nodes = {}
@@ -3575,17 +3587,16 @@ class Subspace(c.Module):
     @classmethod
     def node_key_exists(cls, node='alice', chain=chain):
         path = cls.resolve_node_path(node=node, chain=chain)
-        c.print(path)
         return len(c.keys(path+'.')) > 0
 
     @classmethod
     def add_node_key(cls,
                      node:str,
-                     mode = mode,
+                     mode = 'docker',
                      chain = chain,
                      key_mems:dict = {'aura': None, 'gran': None}, # pass the keys mems
                      refresh: bool = False,
-                     insert_key:bool = False,
+                     insert_key:bool = True,
                      ):
         '''
         adds a node key
@@ -3600,8 +3611,13 @@ class Subspace(c.Module):
                 cls.rm_node_key(node=node, chain=chain)
             else:
                 c.print(f'node key {node} for chain {chain} already exists')
-                return {'success':False, 'msg':f'node key {node} for chain {chain} already exists'}
+
         chain_path = cls.chain_release_path(mode=mode)
+
+        if key_mems == None:
+            key_mems = {}
+
+
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
@@ -3610,11 +3626,13 @@ class Subspace(c.Module):
                 schema = 'Sr25519'
 
             # we need to resolve the key path based on the key type
+
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
 
-            if key_mems != None:
+            if len(key_mems) == 2 :
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
                 c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
+            
 
             # we need to resolve the key based on the key path
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
@@ -3634,7 +3652,7 @@ class Subspace(c.Module):
                     c.cmd(cmd, verbose=True, cwd=cls.chain_path)
                 else:
                     raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
-
+                
         return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
 
 
@@ -3698,6 +3716,16 @@ class Subspace(c.Module):
         if not c.exists(path):
             c.mkdir(path)
         return path
+
+
+    def node2keystore(self, node='alice', chain=chain):
+        node2keystore = {}
+        for node in self.nodes():
+            node2keystore[node] = [p.split('/')[-1] for p in c.ls(self.keystore_path(node=node, chain=chain))]
+        return node2keystore
+
+
+
 
     @classmethod
     def keystore_keys(cls, node='vali_0', chain=chain):
@@ -3861,7 +3889,7 @@ class Subspace(c.Module):
             return {n.split('.')[-1]: n for n in nodes}
     @classmethod
     def nonvalis(cls, chain=chain):
-        chain_info = cls.chain_info(chain=chain)
+        chain_info = cls.chain_info(cxhain=chain)
         return [node_info['node'] for node_info in chain_info['nodes'].values() if node_info['validator'] == False]
 
     @classmethod
@@ -3907,11 +3935,11 @@ class Subspace(c.Module):
         return c.cmd(f'docker pull {cls.image}')
     
     @classmethod
-    def push_image(cls, image='vivonasg/subspace'):
-        c.build_image('subspace')
-        c.cmd(f'docker tag subspace {image}', verbose=True)
-        c.cmd(f'docker push {image}', verbose=True)
-        return {'success':True, 'msg': f'pushed image {image}'}
+    def push_image(cls, image='subspace.libra', public_image=image ):
+        # c.build_image(image)
+        c.cmd(f'docker tag {image} {public_image}', verbose=True)
+        c.cmd(f'docker push {public_image}', verbose=True)
+        return {'success':True, 'msg': f'pushed {image} to {public_image}'}
 
 
     @classmethod
@@ -4034,7 +4062,7 @@ class Subspace(c.Module):
             c.print('started node', node_name, '--> ', response['logs'])
             served_nodes += [node_name]
             
-            cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
+            cls.putc(f'chain_info.{chain}.public_nodes.{node_name}', node_info)
 
             
 
@@ -4075,16 +4103,16 @@ class Subspace(c.Module):
 
     @classmethod
     def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
-        node2url = cls.node2url(network=chain)
+        publicnode2url = cls.publicnode2url(network=chain)
         if url != None:
-            if url in node2url: 
-                url = node2url[url] 
+            if url in publicnode2url: 
+                url = publicnode2url[url] 
         else:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 if local_node_info == None:
-                    url = c.choice(list(node2url.values()))
+                    url = c.choice(list(publicnode2url.values()))
                 else:
                     port = local_node_info['ws_port']
                     url = f'ws://0.0.0.0:{port}'
@@ -4127,13 +4155,13 @@ class Subspace(c.Module):
                  ws_port:int=None,
                  telemetry_url:str = False,
                  purge_chain:bool = True,
-                 refresh:bool = False,
+                 refresh:bool = True,
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
                  mode :str = mode,
                  rpc_cors = 'all',
-                 pruning:str = 20000,
+                 pruning:str = 500,
                  sync:str = 'warp',
                  validator:bool = False,
                  local:bool = False,
@@ -4141,9 +4169,12 @@ class Subspace(c.Module):
                  daemon : bool = True,
                  key_mems:dict = None, # pass the keys mems {aura: '...', gran: '...'}
                  module : str = None , # remote module to call
-                 remote = False
+                 remote = False,
+                 debug:bool = False
                  ):
-                
+
+        if debug :
+            daemon = False 
         if remote and module == None:
             module = cls.peer_with_least_nodes(chain=chain)
 
@@ -4179,7 +4210,7 @@ class Subspace(c.Module):
         # add the node key if it does not exist
         if key_mems != None:
             c.print(f'adding node key for {key_mems}')
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True, insert_key=True)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=False, insert_key=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -4203,14 +4234,14 @@ class Subspace(c.Module):
         if validator :
             cmd_kwargs += ' --validator'
             cmd_kwargs += f" --pruning={pruning}"
-            cmd_kwargs += f" --sync {sync}"
+            cmd_kwargs += f' --port {port} --rpc-port {rpc_port}'
+
         else:
-            cmd_kwargs += ' --ws-external --rpc-external'
+            cmd_kwargs += ' --rpc-external'
             cmd_kwargs += f" --pruning={pruning}"
             cmd_kwargs += f" --sync {sync}"
             cmd_kwargs += f' --rpc-cors={rpc_cors}'
-
-        cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
+            cmd_kwargs += f' --port {port} --rpc-port {rpc_port}'
         if boot_nodes == None:
             boot_nodes = cls.boot_nodes(chain=chain)
         # add the node to the boot nodes
@@ -4247,24 +4278,26 @@ class Subspace(c.Module):
             container_spec_path = chain_spec_path.replace(cls.chain_path, '/subspace')
             cmd = cmd.replace(chain_spec_path, container_spec_path)
 
+
+
             key_path = cls.keystore_path(node=node, chain=chain)
             container_base_path = base_path.replace(cls.tmp_dir(), '')
             cmd = cmd.replace(base_path, container_base_path)
 
             volumes = f'-v {os.path.dirname(chain_spec_path)}:{os.path.dirname(container_spec_path)}'\
                          + f' -v {base_path}:{container_base_path}'
-
             daemon_str = '-d' if daemon else ''
             # cmd = 'cat /subspace/specs/main.json'
             c.print(cmd, color='yellow')
             cmd = 'docker run ' + daemon_str  + f' --net host --name {name} {volumes} {cls.image}  bash -c "{cmd}"'
             node_info['cmd'] = cmd
-            output = c.cmd(cmd, verbose=False)
+
+            output = c.cmd(cmd, verbose=debug)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
                 container_id = output.split(logs_sig)[-1].split('"')[0]
                 c.module('docker').rm(container_id)
-                output = c.cmd(cmd, verbose=False)
+                output = c.cmd(cmd, verbose=debug)
         else: 
             raise Exception(f'unknown mode {mode}')
         response = {
@@ -4313,14 +4346,14 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 42,
+                    valis:int = 4,
                     nonvalis:int = 1,
-                    verbose:bool = False,
+                    verbose:bool= False,
                     purge_chain:bool = True,
-                    refresh: bool = False,
-                    remote:bool = True,
-                    build_spec :bool = False,
-                    push:bool = True,
+                    refresh: bool = True,
+                    remote:bool = False,
+                    build_spec :bool = True,
+                    push:bool = False,
                     trials:int = 10
                     ):
 
@@ -4349,16 +4382,16 @@ class Subspace(c.Module):
         if build_spec:
             c.print(f'building spec for chain {chain}')
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
-            if push:
+            if push and remote:
                 cls.push(rpull=remote)
         
     
         remote_address_cnt = 1
         avoid_ports = []
 
-        peer2nodes = cls.peer2nodes(chain=chain, update=True)
-        node2peer = cls.node2peer(peer2nodes=peer2nodes)
-
+        if remote:
+            peer2nodes = cls.peer2nodes(chain=chain, update=True)
+            node2peer = cls.node2peer(peer2nodes=peer2nodes)
 
         # START THE VALIDATOR NODES
         for i, node in enumerate(vali_nodes):
@@ -4366,9 +4399,10 @@ class Subspace(c.Module):
             c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
             name = f'{cls.node_prefix()}.{chain}.{node}'
 
-            if name in node2peer:
-                c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
-                continue
+            if remote:
+                if name in node2peer:
+                    c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
+                    continue
 
 
             # BUILD THE KWARGS TO CREATE A NODE
@@ -4390,7 +4424,6 @@ class Subspace(c.Module):
                         remote_address = c.choice(list(peer2nodes.keys()))
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
-                        node_kwargs['boot_nodes'] = chain_info['boot_nodes']
 
                     else:
                         port_keys = ['port', 'rpc_port', 'ws_port']
@@ -4398,8 +4431,12 @@ class Subspace(c.Module):
                         for k, port in zip(port_keys, node_ports):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
-
+                    
+                    node_kwargs['boot_nodes'] = chain_info['boot_nodes']
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+
+                    assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
+                    
                     response = cls.start_node(**node_kwargs, refresh=refresh)
                     c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
@@ -4414,6 +4451,7 @@ class Subspace(c.Module):
                         peer2nodes[remote_address].append(node)
                     break
                 except Exception as e:
+                    raise e
                     c.print(c.detailed_error(e))
                     c.print(f'failed to start node {node} for chain {chain}, trying again -> {t}/{trials} trials')
 
@@ -4431,21 +4469,21 @@ class Subspace(c.Module):
         return {'success':True, 'msg': f'Started chain {chain}', 'valis':valis, 'nonvalis':nonvalis}
    
     @classmethod
-    def node2url(cls, network:str = network) -> str:
+    def publicnode2url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        nodes =  cls.getc(f'chain_info.{network}.nodes', {})
+        nodes =  cls.getc(f'chain_info.{network}.public_nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
         
         assert len(nodes) > 0, f'No url found for {network}'
 
-        node2url = {}
+        publicnode2url = {}
         for k_n, v_n in nodes.items():
-            node2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
-        return node2url
+            publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
+        return publicnode2url
 
     @classmethod
     def urls(cls, network: str = network) -> str:
-        return list(cls.node2url(network=network).values())
+        return list(cls.publicnode2url(network=network).values())
 
     def random_urls(self, network: str = network, n=4) -> str:
         urls = self.urls(network=network)
@@ -4454,7 +4492,7 @@ class Subspace(c.Module):
 
     @classmethod
     def test_node_urls(cls, network: str = network) -> str:
-        nodes = cls.nonvali_nodes()
+        nodes = cls.public_nodes()
         config = cls.config()
         
         for node in nodes:
@@ -4551,8 +4589,6 @@ class Subspace(c.Module):
         c.print(stats)
         assert isinstance(stats, list) 
 
-    telemetry_backend_image = 'parity/substrate-telemetry-backend'
-    telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
     @classmethod
     def install_telemetry(cls):
         c.cmd(f'docker build -t {cls.telemetry_image} .', sudo=False, bash=True)
@@ -4822,10 +4858,10 @@ class Subspace(c.Module):
 
     @classmethod
     def test_endpoints(cls, timeout:int=30):
-        node2url = cls.node2url()
+        publicnode2url = cls.publicnode2url()
         futures = []
         node2future = {}
-        for node, url in node2url.items():
+        for node, url in publicnode2url.items():
             future = c.submit(cls.test_endpoint, kwargs=dict(url=url), return_future=True, timeout=timeout)
             c.print(future)
             node2future[node] = future
@@ -4906,3 +4942,5 @@ class Subspace(c.Module):
 
 Subspace.run(__name__)
 
+# docker run subspace.libra:latest /subspace/target/release/node-subspace --base-path /tmp/alice --chain dev --alice --port 30333 --rpc-port 9945 --node-key 0000000000000000000000000000000000000000000000000000000000000001 --telemetry-url "wss://telemetry.polkadot.io/submit/ 0" --validator
+# docker run subspace.libra:latest /subspace/target/release/node-subspace --base-path /tmp/bob --chain dev --bob --port 30334 --rpc-port 9946 --telemetry-url "wss://telemetry.polkadot.io/submit/ 0" --validator --bootnodes /ip4/165.22.186.112/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
