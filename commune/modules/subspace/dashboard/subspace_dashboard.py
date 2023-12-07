@@ -58,7 +58,7 @@ class SubspaceDashboard(c.Module):
     def network_dashboard(self):
         modules = self.modules
         modules = self.key_info['stake_to']
-        st.write(modules)
+        # st.write(modules)
 
 
     def stake_dashboard(self):

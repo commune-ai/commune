@@ -155,7 +155,7 @@ class Dashboard(c.Module):
     def remote_dashboard(self):
         st.write('# Remote')
 
-        return c.module('remote').dashboard()
+        # return c.module('remote').dashboard()
 
 
 

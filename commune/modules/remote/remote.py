@@ -413,17 +413,28 @@ class Remote(c.Module):
     def addresses(self, search=None, network='remote'):
         return c.addresses(search=search, network=network)
     
+    @classmethod
+    def peer2address(self, network='remote'):
+        return c.namespace(search='module', network=network)
+    
     
     
     def keys(self):
         return [info.get('ss58_address', None)for info in self.infos()]
     
     @classmethod
-    def infos(self, search=None,  network='remote', update=False):
+    def infos(self, search='module',  network='remote', update=False):
         return c.infos(search=search, network=network, update=update)
     def peer2info(self, network='remote', update=False):
         infos = self.call('info', search='module')
         return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
+    
+
+    def loop(self, timeout=10, interval=30):
+        while True:
+            infos = self.infos(timeout=timeout, update=True)
+            c.sleep(interval)
+
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)
@@ -439,11 +450,15 @@ class Remote(c.Module):
 
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module', module=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module', modules=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
         futures = {}
         kwargs['network'] =  network
             
         namespace = c.namespace(search=search, network=network)
+
+        if modules != None:
+            assert isinstance(modules, list), f'modules must be a list, got {type(modules)}'
+            namespace = {k:v for k,v in namespace.items() if k in modules}
         if n == None:
             n = len(namespace)
             
@@ -471,19 +486,25 @@ class Remote(c.Module):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
     @classmethod
-    def hardware(cls, timeout=20, update= False, cache_path:str = 'hardware.json'):
+    def hardware(cls, timeout=20, update= True, cache_path:str = 'hardware.json', trials=2):
+
 
         if not update:
-            peer2hardware =  c.get_json(cache_path, {})
+            peer2hardware = c.get_json(cache_path, {})
             if len(peer2hardware) > 0:
                 return peer2hardware
-    
+        peer2hardware = {p:None for p in peers}
 
-        peer2hardware =  cls.call('hardware', timeout=timeout)
-        peer2hardware = {}
-        for server, info in peer2hardware.items():
-            if isinstance(info, dict) and 'memory' in info:
-                peer2hardware[server] = info
+        peers = cls.peers()
+        for i in range(trials):
+            call_modules = [p for p in peers if peer2hardware[p] == None]
+            response =  cls.call('hardware', timeout=timeout, modules=call_modules)
+            for peer, hardware in response.items():
+                if isinstance(hardware, dict) and 'memory' in hardware:
+                    c.print(f'{peer} {hardware}')
+                    peer2hardware[peer] = hardware
+
+
         c.put_json(cache_path, peer2hardware)
         return peer2hardware
     
@@ -614,14 +635,14 @@ class Remote(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        tabs = st.tabs(['Servers', 'Modules'])
+        tabs = st.tabs(['Servers', 'Peers'])
 
 
         with tabs[0]:
             st.markdown('## Servers')
             self.ssh_dashboard()
         with tabs[1]:
-            st.markdown('## Servers')
+            st.markdown('## Peers')
             self.peers_dashboard()
 
 
@@ -631,8 +652,11 @@ class Remote(c.Module):
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
         namespace = c.namespace(search=search, network='remote')
-        n = cols[1].number_input('Number of servers', 1, len(namespace), 10)
-        module_names = list(namespace.keys())
+        if len(namespace) == 0:
+            st.error(f'No peers found with search: {search}')
+            return
+        n = cols[1].slider('Number of servers', 1, len(namespace), len(namespace))
+        module_names = list(namespace.keys())[:n]
         module_names = st.multiselect('Modules', module_names, module_names)
         namespace = {k:v for k,v in namespace.items() if k in module_names}
         module_addresses = list(namespace.values())
@@ -646,8 +670,8 @@ class Remote(c.Module):
         module_name = cols[0].selectbox('Module', module_names, index=0)
         module_address = namespace[module_name]
         module = c.connect(module_address)
+        cache = cols[2].checkbox('Cache', True)
 
-        cache = cols[2].checkbox('Cache')
         cache_path = f'module_info_cache/{module_address}'
         t1 = c.time()
         if cache:
@@ -656,29 +680,43 @@ class Remote(c.Module):
             module_info = {}
 
         if len(module_info) == 0:
+            st.write('Getting module info')
             module_info = module.info()
             self.put_json(cache_path, module_info)
 
         fns = list(module_info['schema'].keys())
         fn_name = st.selectbox('Function', fns, index=0)
 
-        module_fn = getattr(module, fn_name)
+        fn = getattr(module, fn_name)
         
 
         kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
 
-
+        timeout = cols[1].number_input('Timeout', 1, 100, 10, key='timeout_fn')
         run = st.button(f'Run {fn_name}')
         if run:
             future2module = {}
             for module_address in module_addresses:
+                st.write('Running', module_address)
+                kwargs['fn'] = fn_name
                 future = c.submit(c.call, args=[module_address], kwargs=kwargs, return_future=True)
                 future2module[future] = module_address
-            futures = list(future2module.values())
-            import concurrent
-            kwargs['return_future'] = True
-            result = module_fn(**kwargs)
-            st.write(result)
+            
+            futures = list(future2module.keys())
+            modules = list(future2module.values())
+            for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                st.write('Result', result)
+                assert 'idx' in result, f'idx not in result {result}'
+                assert 'result' in result, f'result not in result {result}'
+
+                module_name = modules[result['idx']]
+                result = result['result']
+
+                st.markdown(f'### {module_name}')
+                if c.is_error(result):
+                    st.error(result)
+                else:
+                    st.write(result)
         
         t2 = c.time()
         st.write(f'Info took {t2-t1} seconds')
@@ -693,26 +731,24 @@ class Remote(c.Module):
         cols = st.columns(2)
         host_names = list(host_map.keys())
 
-            
-        search = st.text_input('Search')
+        with st.sidebar:  
+            search = st.text_input('Search')
 
 
-        if len(search) > 0:
-            host_names = [h for h in host_names if search in h]
-        hosts = self.hosts()
-        hosts = {k:v for k,v in hosts.items() if k in host_names}
-        host_names = list(hosts.keys())
+            if len(search) > 0:
+                host_names = [h for h in host_names if search in h]
+            hosts = self.hosts()
+            hosts = {k:v for k,v in hosts.items() if k in host_names}
+            host_names = list(hosts.keys())
 
-        with st.expander('Hosts', expanded=False):
-            for host_name, host in hosts.items():
-                cols = st.columns([1,4,2])
-                cols[0].write('#### '+host_name)
-                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
-                remove_host  = cols[2].button(f'Remove {host_name}')
-                if remove_host:
-                    st.write(self.rm_host(host_name))
-                
-        host_names = st.multiselect('Host', host_names, host_names)
+            with st.expander('Hosts', expanded=False):
+                for host_name, host in hosts.items():
+                    cols = st.columns([1,4])
+                    cols[0].write('#### '+host_name)
+                    cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+
+                    
+            host_names = st.multiselect('Host', host_names, host_names)
         cols = st.columns([4,2,1,1])
 
 
@@ -815,6 +851,13 @@ class Remote(c.Module):
        
 
     dash = dashboard
+
+    def check_peers(self, timeout=10):
+        futures = []
+        for m,a in c.namespace(network='remote').items():
+            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
+        results = c.wait(futures, timeout=timeout)
+        return results
 
     # @classmethod
     # def refresh_servers(cls):

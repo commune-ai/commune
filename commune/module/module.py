@@ -1,5 +1,3 @@
-
-
 import inspect
 import numpy as np
 import os
@@ -19,7 +17,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # AGI BEGINS 
 class c:
-    descrition = """This is a module"""
+    description = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
     git_url = 'https://github.com/commune-ai/commune.git'
@@ -36,7 +34,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace'] # whitelist of helper functions to load
     whitelist = [] # whitelist of functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -1377,7 +1375,6 @@ class c:
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
         if path.endswith('module/module.py'):
             return 'commune.Module'
-            
         object_name = cls.find_python_class(path, search=search)
         if len(object_name) == 0:
             return None
@@ -1512,13 +1509,12 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith(dir_name.lower()):
+                elif file_name.lower().endswith(dir_name.lower()):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                if file_name.lower().endswith('module'):
+                elif file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                    
                 elif 'module' in file_name.lower():
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
@@ -2661,6 +2657,7 @@ class c:
              ) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
+
         info  = dict(
             address = self.address.replace(c.default_ip, c.ip(update=False)),
             functions =  fns, # get the functions of the module
@@ -2858,9 +2855,19 @@ class c:
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        if n != None: 
+        if len(servers) == 0:
+            servers = c.pm2ls(search)
+
+
+        if n == None:
+            n = len(servers)
+
+        if n > 0 and n < 1:
+            servers = servers[:int(len(servers)*n)]
+        elif n > 1:
             servers = servers[:n]
-            
+        
+        assert len(servers) > 0, f'No servers found with search {search}'
         if parallel:
             futures = []
             for s in servers:
@@ -2930,80 +2937,61 @@ class c:
                tag:str=None, 
                tag_seperator: str = '::',
                verbose : bool = True, 
-               device:str = None,
                update: bool = False,
-               **extra_kwargs):
+               **extra_launch_kwargs):
         '''
         Launch a module as pm2 or ray 
         '''
         if update:
             cls.update()
         kwargs = kwargs if kwargs else {}
-        kwargs.update(extra_kwargs)
         args = args if args else []
         if module == None:
             module = cls 
         elif isinstance(module, str):
-
-            module = cls.get_module(module) 
-            
+            module = c.module(module) 
         if name == None:
             if hasattr(module, 'module_path'):
                 name = module.module_path()
             else:
-                name = module.__name__.lower()
-                
+                name = module.__name__.lower() 
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
                 
-                
-        if verbose:
-            c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
+        c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
 
-        if mode == 'local':
-            return getattr(module, fn)(*args, **kwargs)
 
-        elif mode == 'pm2':
-            
-            launch_kwargs = dict(
-                    module=module, 
-                    fn = fn,
-                    name=name, 
-                    tag=tag, 
-                    args = args,
-                    kwargs = kwargs,
-                    refresh=refresh,
-                    device= device,
-                    **extra_kwargs
-            )
-            
-
-            assert fn != None, 'fn must be specified for pm2 launch'
-            stdout = getattr(cls, f'{mode}_launch')(**launch_kwargs)
-            
-            
-        elif mode == 'ray':
-            launch_kwargs = dict(
-                    module=module, 
-                    name=name, 
-                    tag=tag, 
-                    args = args,
-                    kwargs = kwargs,
-                    refresh=refresh,
-                    **extra_kwargs
-            )
+        launch_kwargs = dict(
+                module=module, 
+                fn = fn,
+                name=name, 
+                tag=tag, 
+                args = args,
+                kwargs = kwargs,
+                refresh=refresh,
+                **extra_launch_kwargs
+        )
         
-            getattr(cls, f'{mode}_launch')(**launch_kwargs)
-        else: 
-            raise Exception(f'launch mode {mode} not supported')
 
-        return name
+        assert fn != None, 'fn must be specified for pm2 launch'
+    
+    
+        return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
+   
 
     
     @classmethod
-    def pm2_kill_all(cls, verbose:bool = True):
-        for module in cls.pm2_list():
-            cls.pm2_kill(module, verbose=verbose)
+    def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
+        futures = []
+        for name in cls.pm2_list(search=search):
+            c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
+            f = c.submit(c.pm2_kill, kwargs=dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            futures.append(f)
+        return c.wait(futures)
+    
+    @classmethod
+    def pm2_kill_all(cls, verbose:bool = True, timeout=10):
+        return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
                 
     @classmethod
     def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
@@ -3080,7 +3068,7 @@ class c:
                    kwargs: dict = None,
                    device:str=None, 
                    interpreter:str='python3', 
-                   no_autorestart: bool = False,
+                   auto: bool = True,
                    verbose: bool = False , 
                    force:bool = True,
                    meta_fn: str = 'module_fn',
@@ -3108,7 +3096,8 @@ class c:
         name = c.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
         # build command to run pm2
         command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
-        if no_autorestart:
+
+        if not auto:
             command = command + ' ' + '--no-autorestart'
         if force:
             command += ' -f '
@@ -3130,7 +3119,7 @@ class c:
             
         stdout = c.cmd(command, env=env, verbose=verbose)
         
-        return stdout
+        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
 
     @classmethod
     def register(cls,  
@@ -3141,11 +3130,12 @@ class c:
                  subnet:str = 'commune',
                  refresh:bool =False,
                  address = None,
-                 wait_for_server:bool = False,
+                 wait_for_server:bool = True,
                  network = 'local',
+                 module_key = None,
                  **kwargs ):
         subspace = c.module('subspace')()
-
+        
         # resolve module name and tag if they are in the server_name
         if address == None:
             if isinstance(module, str) and  '::' in module:
@@ -3167,8 +3157,10 @@ class c:
                                     **kwargs)
                 name = serve_info['name']
                 address = serve_info['address']
+                module_key = c.get_key(name).ss58_address
 
-        return subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake)
+        response =  subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake, module_key=module_key)
+        return response
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -3185,21 +3177,21 @@ class c:
         pm2_list = cls.pm2_list()
         if name in pm2_list:
             rm_list = [name]
-        else:
-            if prefix_match:
-                rm_list = [ p for p in pm2_list if p.startswith(name)]
-            else:
-                raise Exception(f'pm2 process {name} not found')
+
+        if prefix_match:
+            rm_list = [ p for p in pm2_list if p.startswith(name)]
+
         if len(rm_list) == 0:
-            if verbose:
-                c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
-            return []
+            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            return {'success':False, 'message':f'No pm2 processes found for {name}'}
         for n in rm_list:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
+            # remove the logs from the pm2 logs directory
             cls.pm2_rm_logs(n)
-        return rm_list
+
+        return {'success':True, 'killed':rm_list, 'message':f'Killed {name}'}
     
     @staticmethod
     def detailed_error(e) -> dict:
@@ -3209,6 +3201,7 @@ class c:
         line_no = tb[-1].lineno
         line_text = tb[-1].line
         response = {
+            'success': False,
             'error': str(e),
             'file_name': file_name,
             'line_no': line_no,
@@ -3235,7 +3228,7 @@ class c:
             c.print(f'Restarting {n}', color='cyan')
             c.cmd(f"pm2 restart {n}", verbose=False)
             cls.pm2_rm_logs(n)  
-        return rm_list
+        return {'success':True, 'message':f'Restarted {name}'}
        
     @classmethod
     def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
@@ -3262,14 +3255,16 @@ class c:
         """
         Helper function to restart the server
         """
-        c.restart_server(self.server_name)
+        return c.restart(self.server_name)
+
+    update_self = restart_self
 
 
     def kill_self(self):
         """
         Helper function to kill the server
         """
-        c.kill(self.server_name)
+        return c.kill(self.server_name)
 
     refresh = reset = restart
     @classmethod
@@ -4084,7 +4079,7 @@ class c:
         for gpu_id in cls.gpus():
             gpu_id = int(gpu_id)
             mem_info = torch.cuda.mem_get_info(gpu_id)
-            gpu_info[int(gpu_id)] = {
+            gpu_info[gpu_id] = {
                 'name': torch.cuda.get_device_name(gpu_id),
                 'free': mem_info[0],
                 'used': (mem_info[1]- mem_info[0]),
@@ -4099,9 +4094,6 @@ class c:
             return gpu_info[device]
 
         return gpu_info
-
-
-    
 
     gpu_map =gpu_info
     @classmethod
@@ -4808,8 +4800,16 @@ class c:
     def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
         destinations = c.root_addys()[:n]
         c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
-        s = c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
+        return c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
 
+
+    def add_root_keys(self, n=1, tag=None, **kwargs):
+        keys = []
+        for i in range(n):
+            key_path = 'module' + '::'+ (tag if tag != None else '') + str(i)
+            c.add_key(key_path, **kwargs)
+            keys.append(key_path)
+        return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
 
 
@@ -4922,17 +4922,25 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 prefix = encrypted_prefix,
+                include_files:bool = True,
                 path=None) -> bytes:
 
         key = c.get_key(key)
-        if c.exists(data):
+        if c.exists(data) and include_files:
             c.print(f'Decrypting from {data} as it exists', color='cyan')
             path = data
             data =  c.get_text(path)
-
-        data = key.decrypt(data)
+        try:
+            data = key.decrypt(data)
+        except Exception as e:
+            response = c.detailed_error(e)
+            return response
         if path != None:
             c.put_text(path, c.python2str(data))
+            if isinstance(data, str):
+                data = c.str2dict(data)['data']
+                
+            
         return data
     
     @classmethod
@@ -5038,6 +5046,8 @@ class c:
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
+            if hasattr(self, 'key'):
+                key = self.key
             key = self.resolve_keypath(key)
         key = self.get_key(key)
         return key  
@@ -5303,8 +5313,7 @@ class c:
                 mode:str='thread',
                 max_workers : int = None,
                 ):
-
-
+        
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
         args = c.copy(args)
@@ -5605,9 +5614,9 @@ class c:
         c.ip(update=True)
         
         namespace = c.namespace(network=network, update=True)
-        servers = c.servers(network=network, update=True)
-        c.infos(network=network,update=True)
-        return {'success': True, 'servers': servers}
+
+
+        return {'success': True, 'servers': namespace}
     
 
     def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
@@ -6140,14 +6149,11 @@ class c:
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
-                    locals = None,
                     name : str =None,
                     tag: str = None,
                     refresh : bool =True,
-                    tag_seperator : str = '::',):
+                    tag_seperator : str = '::', **extra_launch_kwargs):
 
-        if locals != None:
-            kwargs = c.locals2kwargs(locals)
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -6156,22 +6162,24 @@ class c:
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         
-        
-
+    
         if name == None:
             module_path = cls.resolve_module(module).module_path()
             name = f"{module_path}{tag_seperator}{fn}"
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
+
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
 
         if 'remote' in kwargs:
             kwargs['remote'] = False
             
-        cls.launch(fn=fn, 
+        response = cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
                     refresh=refresh,
-                    name=name)
+                    name=name, **extra_launch_kwargs)
+        
+        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
 
     rfn = remote_fn
     @classmethod
@@ -6305,7 +6313,7 @@ class c:
 
                 except Exception as e:
                     unfinished_futures = [future for future in futures if future in future2idx]
-                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures')
+                    c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
 
                 return results
             
@@ -6840,6 +6848,10 @@ class c:
         args = inspect.getfullargspec(fn).args
         return args
     
+    @classmethod
+    def has_function_arg(cls, fn, arg:str):
+        args = cls.get_function_args(fn)
+        return arg in args
 
     
     fn_args = get_fn_args =  get_function_args
@@ -7334,6 +7346,12 @@ class c:
     @classmethod
     def vote(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)
+    @classmethod
+    def self_vote(cls, *args, **kwargs):
+        return c.module('subspace')().self_vote(*args, **kwargs)
+    @classmethod
+    def self_vote_pool(cls, *args, **kwargs):
+        return c.module('subspace')().self_vote_pool(*args, **kwargs)
     
     @classmethod
     def stake(cls, *args, **kwargs):
@@ -7667,6 +7685,40 @@ class c:
     def check_servers(cls, *args, **kwargs):
         return c.module('subspace')().check_servers(*args, **kwargs)
 
+    @classmethod
+    def scan(cls, 
+                 search=None, 
+                 max_futures:int=100, 
+                 network='local', 
+                 update=False, 
+                 schema=True, 
+                 namespace=True, 
+                 hardware=True, 
+                 **kwargs):
+
+        infos = {} 
+        namespace = c.namespace(search=search, network=network, update=update)
+        futures = []
+        name2future = {}
+        for name, address in namespace.items():
+            future = [c.submit(c.call, kwargs={'fn': 'info', 'hardware': hardware, 'schema': schema }, module='subspace')]
+            name2future[name] = future
+            futures = list(name2future.values())
+            if len(name2future) >= max_futures:
+                for f in c.as_completed(futures):
+                    name2future.pop(f)
+                    result = f.result()
+                    c.print(result)
+                    if 'error' not in result:
+                        infos[name] = result
+        
+
+
+
+
+
+
+
     def my_stats(self, *args, **kwargs):
         return c.module('subspace')().my_stats(*args, **kwargs)
 
@@ -7951,9 +8003,6 @@ class c:
         return c.module('user').user(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
-        return c.module('user').is_user(address)
-    @classmethod
-    def is_user(self, address):
         return c.module('user').is_user(address)
     @classmethod
     def get_user(cls, address):
@@ -8473,7 +8522,7 @@ class c:
     
 
     @classmethod
-    def lag(cls, *args, **kwargs):
+    def lag( *args, **kwargs):
         return c.module('subspace')().lag(*args, **kwargs)
 
 Module = c

@@ -12,22 +12,9 @@
 # workers to exit when their work queues are empty and then waits until the
 # threads finish.
 
-
-import os
-import sys
 import time
-import queue
-import random
-import weakref
-import itertools
-import threading
-
-from loguru import logger
-from typing import Callable
-import concurrent
 from concurrent.futures._base import Future
 import commune as c
-import gc
 
 
 
@@ -40,6 +27,7 @@ class Task(c.Module):
                 timeout:int=10, 
                 priority:int=1, 
                 path=None,
+                save:bool = False,
                 **extra_kwargs):
         
         self.path = path
@@ -55,17 +43,15 @@ class Task(c.Module):
         self.path = path # the path to store the state of the task
         self.status = 'pending' # pending, running, done
         self.data = None # the result of the task
-
         self.fn_name = fn.__name__ # the name of the function
-
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.extra_kwargs = extra_kwargs
         self.__dict__.update(extra_kwargs)
+        # save the task state
+        self.save = save
+        if self.save:
+            self.save_state()
 
-        # store the state of the task if a path is given
-        if path != None:
-            self.path = f'{self.path}/{self.fn_name}_utc_{self.start_time}'
-            self.save()
 
     @property
     def lifetime(self) -> float:
@@ -86,11 +72,17 @@ class Task(c.Module):
         }
     
     @property
-    def save(self, path= None):
-        path = path if path else self.path
-        self.put(path, self.state)
-        return {'path': path, 'state': self.state}
-
+    def save_state(self):
+        self.paths = {f'{status}/{self.fn_name}_utc_{self.start_time}' for status in ['pending', 'complete']}
+        if self.status == 'pending':
+            return self.put(self.path[self.status], self.state)
+        elif self.status == 'complete':
+            if c.exists(self.paths['pending']):
+                c.rm(self.paths['pending'])
+            return self.put(self.paths[self.status], self.state)
+        else:
+            raise ValueError(f"Task status must be pending or complete, not {self.status}")
+        
 
     def run(self):
         """Run the given work item"""
@@ -108,13 +100,14 @@ class Task(c.Module):
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             self.status = 'failed'
             data = c.detailed_error(e)
+            c.print(data)
         
         self.future.set_result(data)
         # store the result of the task
         self.data = data       
 
-        if self.path != None:
-            self.save()
+        if self.save:
+            self.save_state()
 
     def result(self) -> object:
         return self.future.result()

@@ -163,10 +163,19 @@ class OsModule(c.Module):
     
     @classmethod
     def cpu_info(cls):
+        
         return {
             'cpu_count': cls.cpu_count(),
             'cpu_type': cls.cpu_type(),
         }
+    
+
+    def cpu_usage(self):
+        import psutil
+        # get the system performance data for the cpu
+        cpu_usage = psutil.cpu_percent()
+        c.print(c.fn_schema(psutil.cpu_percent))
+        return cpu_usage
     
 
     
