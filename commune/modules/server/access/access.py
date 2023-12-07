@@ -26,6 +26,7 @@ class Access(c.Module):
         self.stakes = {}
         self.state_path = state_path
         self.role2rate = role2rate
+        module.client_access = False
         c.thread(self.sync_loop_thread)
         
     def sync_loop_thread(self):
@@ -66,6 +67,7 @@ class Access(c.Module):
 
         if c.is_admin(address) or self.module.key.ss58_address == address:
             rate_limit = 10e42
+
         elif c.is_user(address):
             rate_limit = self.role2rate.get('user', 1)
         else:
