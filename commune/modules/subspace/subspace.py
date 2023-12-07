@@ -3606,11 +3606,12 @@ class Subspace(c.Module):
         node = str(node)
 
         c.print(f'adding node key {node} for chain {chain}')
-        if  cls.node_key_exists(node=node, chain=chain):
+        if  cls.node_key_exists(node=node, chain=chain) and key_mems!= None:
             if refresh:
                 cls.rm_node_key(node=node, chain=chain)
             else:
                 c.print(f'node key {node} for chain {chain} already exists')
+                return {'success':False, 'message':f'node key {node} for chain {chain} already exists'}
 
         chain_path = cls.chain_release_path(mode=mode)
 
@@ -4170,14 +4171,13 @@ class Subspace(c.Module):
                  key_mems:dict = None, # pass the keys mems {aura: '...', gran: '...'}
                  module : str = None , # remote module to call
                  remote = False,
-                 debug:bool = False
+                 debug:bool = False,
                  ):
 
         if debug :
             daemon = False 
         if remote and module == None:
             module = cls.peer_with_least_nodes(chain=chain)
-
 
         if module != None:
             remote_kwargs = c.locals2kwargs(locals())
@@ -4186,7 +4186,7 @@ class Subspace(c.Module):
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
             kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=8, network='remote')[0]
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=15, network='remote')[0]
             return response
 
 
@@ -4246,7 +4246,7 @@ class Subspace(c.Module):
             boot_nodes = cls.boot_nodes(chain=chain)
         # add the node to the boot nodes
         if len(boot_nodes) > 0:
-            node_info['boot_nodes'] = ' '.join(c.shuffle(boot_nodes)[:10])  # choose a random boot node (at we chose one)
+            node_info['boot_nodes'] = ' '.join(c.shuffle(boot_nodes)[:5])  # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
         if node_key != None:
@@ -4342,17 +4342,22 @@ class Subspace(c.Module):
         peer2nodes = cls.peer2nodes() if peer2nodes == None else peer2nodes
         peer2n_nodes = {k:len(v) for k,v in peer2nodes.items()}
         return c.choice([k for k,v in peer2n_nodes.items() if v == min(peer2n_nodes.values())])
+
+    def kill_peer_nodes(self, chain:str=chain):
+        peer2nodes = self.peer2nodes(chain=chain)
+        responses = []
+        return responses
     
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 4,
+                    valis:int = 42,
                     nonvalis:int = 1,
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = True,
-                    remote:bool = False,
-                    build_spec :bool = True,
+                    remote:bool = True,
+                    build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10
                     ):
@@ -4382,7 +4387,8 @@ class Subspace(c.Module):
         if build_spec:
             c.print(f'building spec for chain {chain}')
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
-            if push and remote:
+            if remote or push:
+                # we need to push this to 
                 cls.push(rpull=remote)
         
     
@@ -4421,7 +4427,10 @@ class Subspace(c.Module):
             for t in range(trials):
                 try:
                     if remote:  
-                        remote_address = c.choice(list(peer2nodes.keys()))
+                        peer2num_nodes = {k:len(v) for k,v in peer2nodes.items()}
+                        # get the least loaded peer
+                        c.print(f'peer2num_nodes {peer2num_nodes}')
+                        remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
 
@@ -4432,11 +4441,10 @@ class Subspace(c.Module):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
                     
-                    node_kwargs['boot_nodes'] = chain_info['boot_nodes']
+                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:6]
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
-                    
                     response = cls.start_node(**node_kwargs, refresh=refresh)
                     c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
@@ -4451,7 +4459,6 @@ class Subspace(c.Module):
                         peer2nodes[remote_address].append(node)
                     break
                 except Exception as e:
-                    raise e
                     c.print(c.detailed_error(e))
                     c.print(f'failed to start node {node} for chain {chain}, trying again -> {t}/{trials} trials')
 
