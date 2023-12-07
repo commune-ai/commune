@@ -25,6 +25,7 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
+    whitelist = ['modules']
     fmt = 'j'
     whitelist = []
     chain_name = 'subspace'
@@ -45,6 +46,7 @@ class Subspace(c.Module):
         **kwargs,
     ):
         config = self.set_config(kwargs=locals())
+        self.url = config.url
 
     def set_network(self, 
                 network:str = network,
@@ -95,10 +97,13 @@ class Subspace(c.Module):
         trials = 0
         while trials < max_trials :
             trials += 1
-            url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
+            if url == None:
+                url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
+            
+            self.url = url
+            url = url.replace(c.ip(), '0.0.0.0')
             c.print(f'Connecting to {url}...')
-            ip = c.ip()
-            url = url.replace(ip, '0.0.0.0')
+            
 
             kwargs.update(url=url, 
                         websocket=websocket, 
@@ -114,18 +119,14 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
-                c.print(e, url)
                 self.config.local = False
                 url = None
-                if trials == max_trials:
-                    c.print(f'Could not connect to {url}')
-                    raise e 
-                
-        self.url = url
-        self.network = network
-        response = {'success': True, 'message': f'Connected to {url}', 'network': network, 'url': url}
+        if trials == max_trials:
+            c.print(f'Could not connect to {url}')
+            return {'success': False, 'message': f'Could not connect to {url}'}
 
-        return response
+        return {'success': True, 'message': f'Connected to {url}', 'network': network, 'url': url}
+
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}, url={self.url}>'
     def __str__(self) -> str:
@@ -3155,16 +3156,25 @@ class Subspace(c.Module):
         return {'success': True, 'msg': f'Tested key usage for {key_path}'}
         
 
-    def has_tx_history(self, key:str):
+    def resolve_tx_history_path(self, key:str=None, mode:str='pending', **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
-        c.exists(f'tx_history/{key_ss58}')
+        assert mode in ['pending', 'complete']
+        pending_path = f'tx_history/{key_ss58}/{mode}'
+        return pending_path
+
+    def has_tx_history(self, key:str, mode='pending', **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        return self.exists(f'tx_history/{key_ss58}')
+
+    def clean_tx_history(self):
+        return self.ls(f'tx_history')
 
         
 
     def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending',  **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
         assert mode in ['pending', 'complete']
-        pending_path = f'history/{key_ss58}/pending'
+        pending_path = f'tx_history/{key_ss58}/pending'
         return pending_path
 
     def tx_history(self, key:str=None, mode='pending', **kwargs):
@@ -4063,7 +4073,6 @@ class Subspace(c.Module):
     @classmethod
     def local_node_urls(cls, chain=chain):
         return ['ws://'+info['ip']+':' + str(info['ws_port']) for info in cls.local_node_infos(chain=chain)]
-
 
     @classmethod
     def kill_local_node(cls, node, chain=chain):
