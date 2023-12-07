@@ -3539,6 +3539,10 @@ class Subspace(c.Module):
         return cls.getc(f'chain_info.{chain}.nodes', {})
 
     @classmethod
+    def public_node_infos(cls, chain=chain):
+        return cls.getc(f'chain_info.{chain}.public_nodes', {})
+
+    @classmethod
     def vali_infos(cls, chain=chain):
         return {k:v for k,v in cls.node_infos(chain=chain).items() if v['validator']}
 
@@ -3553,14 +3557,12 @@ class Subspace(c.Module):
         return [k for k,v in cls.node_infos(chain=chain).items() if v['validator']]
 
     @classmethod
-    def nonvali_nodes(cls, chain=chain):
-        return [k for k,v in cls.node_infos(chain=chain).items() if not v['validator']]
-
-    public_nodes = nonvali_nodes
+    def public_nodes(cls, chain=chain):
+        return [k for k,v in cls.public_node_infos(chain=chain).items()]
 
 
     @classmethod
-    def rm_nonvali_nodes(cls, chain=chain):
+    def rm_public_nodes(cls, chain=chain):
         config = cls.config()
         
         nodes = {}
@@ -4101,16 +4103,16 @@ class Subspace(c.Module):
 
     @classmethod
     def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
-        node2url = cls.node2url(network=chain)
+        publicnode2url = cls.publicnode2url(network=chain)
         if url != None:
-            if url in node2url: 
-                url = node2url[url] 
+            if url in publicnode2url: 
+                url = publicnode2url[url] 
         else:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 if local_node_info == None:
-                    url = c.choice(list(node2url.values()))
+                    url = c.choice(list(publicnode2url.values()))
                 else:
                     port = local_node_info['ws_port']
                     url = f'ws://0.0.0.0:{port}'
@@ -4467,21 +4469,21 @@ class Subspace(c.Module):
         return {'success':True, 'msg': f'Started chain {chain}', 'valis':valis, 'nonvalis':nonvalis}
    
     @classmethod
-    def node2url(cls, network:str = network) -> str:
+    def publicnode2url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        nodes =  cls.getc(f'chain_info.{network}.nodes', {})
+        nodes =  cls.getc(f'chain_info.{network}.public_nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
         
         assert len(nodes) > 0, f'No url found for {network}'
 
-        node2url = {}
+        publicnode2url = {}
         for k_n, v_n in nodes.items():
-            node2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
-        return node2url
+            publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
+        return publicnode2url
 
     @classmethod
     def urls(cls, network: str = network) -> str:
-        return list(cls.node2url(network=network).values())
+        return list(cls.publicnode2url(network=network).values())
 
     def random_urls(self, network: str = network, n=4) -> str:
         urls = self.urls(network=network)
@@ -4490,7 +4492,7 @@ class Subspace(c.Module):
 
     @classmethod
     def test_node_urls(cls, network: str = network) -> str:
-        nodes = cls.nonvali_nodes()
+        nodes = cls.public_nodes()
         config = cls.config()
         
         for node in nodes:
@@ -4856,10 +4858,10 @@ class Subspace(c.Module):
 
     @classmethod
     def test_endpoints(cls, timeout:int=30):
-        node2url = cls.node2url()
+        publicnode2url = cls.publicnode2url()
         futures = []
         node2future = {}
-        for node, url in node2url.items():
+        for node, url in publicnode2url.items():
             future = c.submit(cls.test_endpoint, kwargs=dict(url=url), return_future=True, timeout=timeout)
             c.print(future)
             node2future[node] = future
