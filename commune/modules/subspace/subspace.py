@@ -36,9 +36,12 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'subspace:latest'
+    image = 'vivonasg/subspace.libra:latest'
     mode = 'docker'
-    
+    telemetry_backend_image = 'parity/substrate-telemetry-backend'
+    telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
+    node_key_prefix = 'subspace.node'
+
     def __init__( 
         self, 
         network: str = network,
@@ -3399,9 +3402,12 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls):
-        c.build_image('subspace')
-        return {'success': True, 'msg': 'Built subspace image'}
+    def build_image(cls, tag='subspace.libra', push=True):
+        response = c.build_image('subspace', tag=tag)
+        return response
+
+
+
     @classmethod
     def prune_node_keys(cls, max_valis:int=6, chain=chain):
 
@@ -3432,7 +3438,6 @@ class Subspace(c.Module):
             results += [results]
         return results
 
-    node_key_prefix = 'subspace.node'
     
     @classmethod
     def rm_node_key(cls,node, chain=chain):
@@ -3447,7 +3452,6 @@ class Subspace(c.Module):
         
     @classmethod
     def resolve_node_path(cls, node:str='alice', chain=chain, tag_seperator='_'):
-        node = str(node)
         return f'{cls.node_key_prefix}.{chain}.{node}'
 
     @classmethod
@@ -3507,9 +3511,9 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def node_key_mems(cls,node = None, chain=chain):
+    def node_key_mems(cls,node = 'vali_1', chain=chain):
         vali_node_keys = {}
-        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}.{node}'):
+        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}.{node}.'):
             name = key_name.split('.')[-2]
             role = key_name.split('.')[-1]
             key = c.get_key(key_name)
@@ -3519,6 +3523,9 @@ class Subspace(c.Module):
 
         if node in vali_node_keys:
             return vali_node_keys[node]
+
+        # if node in vali_node_keys:
+        #     return vali_node_keys[node]
         return vali_node_keys
     @classmethod
     def send_node_keys(cls, node:str, chain:str=chain, module:str=None):
@@ -3578,7 +3585,6 @@ class Subspace(c.Module):
     @classmethod
     def node_key_exists(cls, node='alice', chain=chain):
         path = cls.resolve_node_path(node=node, chain=chain)
-        c.print(path)
         return len(c.keys(path+'.')) > 0
 
     @classmethod
@@ -3605,6 +3611,11 @@ class Subspace(c.Module):
                 c.print(f'node key {node} for chain {chain} already exists')
 
         chain_path = cls.chain_release_path(mode=mode)
+
+        if key_mems == None:
+            key_mems = {}
+
+
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
@@ -3613,12 +3624,13 @@ class Subspace(c.Module):
                 schema = 'Sr25519'
 
             # we need to resolve the key path based on the key type
+
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
-            if key_mems == None:
-                key_mems = {}
-            if len(key_mems) > 0 :
+
+            if len(key_mems) == 2 :
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
                 c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
+            
 
             # we need to resolve the key based on the key path
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
@@ -3921,11 +3933,11 @@ class Subspace(c.Module):
         return c.cmd(f'docker pull {cls.image}')
     
     @classmethod
-    def push_image(cls, image='subspace:latest'):
-        c.build_image('subspace')
-        c.cmd(f'docker tag subspace {image}', verbose=True)
-        c.cmd(f'docker push {image}', verbose=True)
-        return {'success':True, 'msg': f'pushed image {image}'}
+    def push_image(cls, image='subspace.libra', public_image=image ):
+        # c.build_image(image)
+        c.cmd(f'docker tag {image} {public_image}', verbose=True)
+        c.cmd(f'docker push {public_image}', verbose=True)
+        return {'success':True, 'msg': f'pushed {image} to {public_image}'}
 
 
     @classmethod
@@ -4048,7 +4060,7 @@ class Subspace(c.Module):
             c.print('started node', node_name, '--> ', response['logs'])
             served_nodes += [node_name]
             
-            cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
+            cls.putc(f'chain_info.{chain}.public_nodes.{node_name}', node_info)
 
             
 
@@ -4368,9 +4380,8 @@ class Subspace(c.Module):
         if build_spec:
             c.print(f'building spec for chain {chain}')
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
-            if push:
-                if remote:
-                    cls.push(rpull=remote)
+            if push and remote:
+                cls.push(rpull=remote)
         
     
         remote_address_cnt = 1
@@ -4420,7 +4431,9 @@ class Subspace(c.Module):
                             node_kwargs[k] = port
                     
                     node_kwargs['boot_nodes'] = chain_info['boot_nodes']
-                    # node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+                    node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+
+                    assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
                     
                     response = cls.start_node(**node_kwargs, refresh=refresh)
                     c.print(response)
@@ -4574,8 +4587,6 @@ class Subspace(c.Module):
         c.print(stats)
         assert isinstance(stats, list) 
 
-    telemetry_backend_image = 'parity/substrate-telemetry-backend'
-    telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
     @classmethod
     def install_telemetry(cls):
         c.cmd(f'docker build -t {cls.telemetry_image} .', sudo=False, bash=True)
@@ -4929,3 +4940,5 @@ class Subspace(c.Module):
 
 Subspace.run(__name__)
 
+# docker run subspace.libra:latest /subspace/target/release/node-subspace --base-path /tmp/alice --chain dev --alice --port 30333 --rpc-port 9945 --node-key 0000000000000000000000000000000000000000000000000000000000000001 --telemetry-url "wss://telemetry.polkadot.io/submit/ 0" --validator
+# docker run subspace.libra:latest /subspace/target/release/node-subspace --base-path /tmp/bob --chain dev --bob --port 30334 --rpc-port 9946 --telemetry-url "wss://telemetry.polkadot.io/submit/ 0" --validator --bootnodes /ip4/165.22.186.112/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp
