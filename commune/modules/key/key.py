@@ -320,10 +320,10 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def get_keys(cls, prefix=None):
+    def get_keys(cls, search=None):
         keys = {}
         for key in cls.keys():
-            if str(key).startswith(str(prefix)) or prefix == None:
+            if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
                     keys.pop(key)
