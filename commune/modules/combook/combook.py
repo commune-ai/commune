@@ -17,5 +17,5 @@ class Combook(c.Module):
             'password': password
         }
 
-        self.put(path, chat_info, password=)
+        self.put(path, chat_info, password=password)
 
