@@ -1123,6 +1123,7 @@ class Keypair(c.Module):
         c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
+        
 
     def test_encryption(self):
         for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
