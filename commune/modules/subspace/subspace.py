@@ -3413,8 +3413,8 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls, tag='subspace.libra', push=True):
-        response = c.build_image('subspace', tag=tag)
+    def build_image(cls, tag='subspace.libra', push=True, no_cache=True):
+        response = c.build_image('subspace', tag=tag, no_cache=no_cache)
         return response
 
 
