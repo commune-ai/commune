@@ -862,14 +862,16 @@ class Remote(c.Module):
         future2path = {}
         while True:
             namespace = c.namespace('module', network='remote')
-
+            peer2lag = self.peer2lag()
+            c.print(peer2lag)
             for name, address in namespace.items():
+                c.sleep(0.1)
                 path = 'peers/' + address.split(':')[0]
-                existing_peer_info = self.get_json(path, {})
-                peer_update_ts = existing_peer_info.get('timetamp', 0)
-                peer_staleness = c.time() - peer_update_ts
+                existing_peer_info = self.get(path, {})
+                peer_update_ts = existing_peer_info.get('timestamp', 0)
+                peer_staleness = int(c.time() - peer_update_ts)
                 if peer_staleness < max_staleness:
-                    c.print(f'updating {name} {address} was refreshed {peer_staleness} > {max_staleness}', color='cyan')
+                    c.print(f'updating {name} {address} was refreshed {peer_staleness} > {max_staleness} {c.emoji("check")}', color='cyan')
                     continue
 
                 future = c.submit(c.call, 
@@ -887,7 +889,7 @@ class Remote(c.Module):
                     for future in c.as_completed(futures, timeout=timeout):
                         result = future.result()
                         if not c.is_error(result):
-                           path = 'peers/' + result['address']
+                           path = 'peers/' + address.split(':')[0]
                            c.print(f'Saving {path}', color='yellow')
                            result['timestamp'] = c.time()
                            self.put(path, result)
@@ -899,6 +901,8 @@ class Remote(c.Module):
 
     def peerpath2name(self, path:str):
         return path.split('/')[-1].replace('.json', '')
+    
+
     def peer2info(self):
         peer_infos = {}
         for path in self.ls('peers'):
@@ -906,9 +910,15 @@ class Remote(c.Module):
             peer_infos[peer_name] = self.get(path, {})
         return peer_infos
     
+
+    def peer2lag(self, max_staleness=1000):
+        peer2timestamp = self.peer2timestamp()
+        time = c.time()
+        return {k:time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
+
     def peer2timestamp(self):
         peer2info = self.peer2info()
-        return {k:v['timestamp'] for k,v in peer2info.items()}
+        return {k:v.get('timestamp', 0) for k,v in peer2info.items()}
 
     def peer2hardware(self):
         info_paths = self.ls('peers')
