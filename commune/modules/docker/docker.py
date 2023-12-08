@@ -242,12 +242,12 @@ class Docker(c.Module):
         return df   
 
     @classmethod
-    def ps(cls, path = None, df:bool = False):
+    def ps(cls, search = None, df:bool = False):
 
         psdf = cls.psdf()
         paths =  psdf['names'].tolist()
-        if path != None:
-            paths = [p for p in paths if p != None and path in p]
+        if search != None:
+            paths = [p for p in paths if p != None and search in p]
         if df:
             return psdf
         return paths
@@ -384,6 +384,10 @@ class Docker(c.Module):
     def logs(cls, name, sudo=False, follow=False, verbose=False, tail:int=100):
         cmd = f'docker  logs {name} {"-f" if follow else ""} --tail {tail}'
         return c.cmd(cmd, verbose=verbose)
+
+    def log_map(self, search=None):
+        nodes = self.ps(search=search)
+        return {name: self.logs(name) for name in nodes}
 
     @classmethod
     def tag(cls, image:str, tag:str):
