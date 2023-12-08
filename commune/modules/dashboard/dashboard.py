@@ -94,7 +94,7 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
 
-        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'TOKENOMICS', 'REMOTE', 'CHAT'])
+        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'REMOTE', 'CHAT'])
         chat = False
         with tabs[0]: 
             self.modules_dashboard()  
@@ -103,8 +103,6 @@ class Dashboard(c.Module):
         with tabs[2]:
             self.playground_dashboard()
         with tabs[3]:
-            self.tokenomics_dashboard()
-        with tabs[4]:
             self.remote_dashboard()
         
         if chat:
