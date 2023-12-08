@@ -896,12 +896,19 @@ class Remote(c.Module):
                         break 
                 futures = [future for future in futures if not future.done()]
 
+
+    def peerpath2name(self, path:str):
+        return path.split('/')[-1].replace('.json', '')
     def peer2info(self):
-        info_paths = self.ls('peers')
-        peer_infos = []
-        for path in info_paths:
-            peer_infos += [self.get(path, {})]
+        peer_infos = {}
+        for path in self.ls('peers'):
+            peer_name = self.peerpath2name(path)
+            peer_infos[peer_name] = self.get(path, {})
         return peer_infos
+    
+    def peer2timestamp(self):
+        peer2info = self.peer2info()
+        return {k:v['timestamp'] for k,v in peer2info.items()}
 
     def peer2hardware(self):
         info_paths = self.ls('peers')

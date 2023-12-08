@@ -658,6 +658,7 @@ class Subspace(c.Module):
         c.print(module_info,  module)
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
+        
         c.print(module_info)
 
         if name == None:

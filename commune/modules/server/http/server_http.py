@@ -223,3 +223,8 @@ class ServerHTTP(c.Module):
     def __del__(self):
         c.deregister_server(self.name)
 
+
+
+    def test(self):
+        c.serve('storage')
+
