@@ -195,11 +195,14 @@ class Remote(c.Module):
     def n(cls, search=None):
         return len(cls.hosts(search=search))
     
+
+
     def num_servers(self):
         return len(self.servers())
     
     def num_peers(self):
         return len(self.peers())
+    n_peers = num_peers
     
     @classmethod
     def n_servers(self):
@@ -296,8 +299,6 @@ class Remote(c.Module):
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
         ip2host = cls.ip2host()
-
-
     
         server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
         for i, server_address in enumerate(server_addresses_responses):
@@ -856,7 +857,6 @@ class Remote(c.Module):
     
     def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
         if remote:
-            
             return self.remote_fn('loop',kwargs = locals())
         futures = []
         future2path = {}
