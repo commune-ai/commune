@@ -37,13 +37,16 @@ class Docker(c.Module):
         return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
     
     @classmethod
-    def build(cls, path , tag = None , sudo=False, verbose=True, env={}):
+    def build(cls, path , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
 
         path = cls.resolve_docker_path(path)
         if tag is None:
             tag = path.split('/')[-2]
 
-        return c.cmd(f'docker build -t {tag} .', sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
+        cmd = f'docker build -t {tag} .'
+        if no_cache:
+            cmd += ' --no-cache'
+        return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
     @classmethod
     def kill(cls, name, sudo=False, verbose=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)

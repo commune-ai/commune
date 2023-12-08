@@ -65,7 +65,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 2,
+                max_trials:int = 10,
                 parallel_calls:bool=1,
                 **kwargs):
 
@@ -122,7 +122,7 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
-                self.config.local = False
+                c.print(e, url)
                 url = None
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
@@ -3413,8 +3413,8 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls, tag='subspace.libra', push=True):
-        response = c.build_image('subspace', tag=tag)
+    def build_image(cls, tag='subspace.libra', push=True, no_cache=True):
+        response = c.build_image('subspace', tag=tag, no_cache=no_cache)
         return response
 
 
@@ -4098,7 +4098,7 @@ class Subspace(c.Module):
     
     @classmethod
     def local_node_urls(cls, chain=chain):
-        return ['ws://'+info['ip']+':' + str(info['ws_port']) for info in cls.local_node_infos(chain=chain)]
+        return ['ws://'+info['ip']+':' + str(info['rpc_port']) for info in cls.local_node_infos(chain=chain)]
 
     @classmethod
     def kill_local_node(cls, node, chain=chain):
@@ -4114,20 +4114,17 @@ class Subspace(c.Module):
 
     @classmethod
     def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
-        publicnode2url = cls.publicnode2url(network=chain)
-        if url != None:
-            if url in publicnode2url: 
-                url = publicnode2url[url] 
-        else:
+        if url == None:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 if local_node_info == None:
                     url = c.choice(list(publicnode2url.values()))
                 else:
-                    port = local_node_info['ws_port']
+                    port = local_node_info['rpc_port']
                     url = f'ws://0.0.0.0:{port}'
             else:
+                publicnode2url = cls.publicnode2url(network=chain)
                 url = c.choice(cls.urls(network=chain))
 
         if not url.startswith('ws://'):
@@ -4490,9 +4487,7 @@ class Subspace(c.Module):
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
         nodes =  cls.getc(f'chain_info.{network}.public_nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
-        
         assert len(nodes) > 0, f'No url found for {network}'
-
         publicnode2url = {}
         for k_n, v_n in nodes.items():
             publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
