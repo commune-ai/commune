@@ -10,17 +10,16 @@ class Router(c.Module):
         self.executor = c.module('executor.thread')(max_workers=max_workers)
 
 
-    def call(self, server, *args, network:str='local', **kwargs):
+    def call(self, server, *args, fn=None,  fn_splitter='/', return_future=False, **kwargs):
+        args = args or []
+        kwargs = kwargs or {}
         if fn_splitter in server:
-            server, fn = module.split(fn_splitter)
+            fn = server.split(fn_splitter)[1]
+            server = fn_splitter.join(server.split(fn_splitter)[:1])
         else:
-            fn = default_fn
-        
-        output  = c.call(server, fn, *args, **kwargs)
-        self.executor.submit(c.call, server, fn, args=args, kwargs=kwargs)
-
-
-        return output
+            fn = fn or self.default_fn
+        result = self.executor.submit(c.call, args=[server],  kwargs={'fn':fn,  **kwargs}, return_future=return_future)
+        return result
 
 
     def servers(self, network:str='local'):

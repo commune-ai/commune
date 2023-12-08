@@ -34,7 +34,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
     whitelist = [] # whitelist of functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -222,8 +222,7 @@ class c:
                 c.print(f'Error: {e}', color='red')
         return fn_code_map
     
-            
-
+    
     @classmethod
     def fn_code(cls,fn:str, detail:bool=False, ) -> str:
         '''
@@ -247,7 +246,7 @@ class c:
             }
                 
         return fn_code
-
+    fncode = fn_code
     @classmethod
     def sandbox(cls):
         
@@ -1140,6 +1139,25 @@ class c:
                 if not ignore_error: 
                     assert not hasattr(self, k)
                 setattr(self, k)
+
+    def kill_port_range(self, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        assert isinstance(port_range[0], int), 'port_range must be a list of ints'
+        assert isinstance(port_range[1], int), 'port_range must be a list of ints'
+        assert port_range[0] < port_range[1], 'port_range must be a list of ints'
+        futures = []
+        for port in range(*port_range):
+            c.print(f'Killing port {port}', color='red')
+            self.kill_port(port) 
+
+
+    def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        used_ports = {}
+        for port in range(*port_range):
+            used_ports[port] = self.port_used(port)
+        return used_ports
+
 
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
@@ -2426,7 +2444,8 @@ class c:
     @property
     def whitelist(self):
         if hasattr(self, '_whitelist'):
-            return self._whitelist
+            return list(set(self._whitelist + c.helper_whitelist))
+        
         whitelist = c.helper_whitelist
         is_module = c.is_root_module(self)
         # we want to expose the helper functions
@@ -2655,8 +2674,8 @@ class c:
              peers: bool = False, 
              hardware : bool = False,
              ) -> Dict[str, Any]:
-        fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
-        attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
+        fns = [fn for fn in self.fns()]
+        attributes =[ attr for attr in self.attributes()]
 
         info  = dict(
             address = self.address.replace(c.default_ip, c.ip(update=False)),
@@ -2678,6 +2697,9 @@ class c:
 
         if hardware:
             info['hardware'] = self.hardware()
+
+        if namespace:
+            info['namespace'] = self.namespace(network='local')
 
         return info
     help = info
@@ -4893,11 +4915,15 @@ class c:
     def encrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix) -> bytes:
+                prefix = encrypted_prefix,
+                password= None 
+                ) -> bytes:
         
         """
         encrypt data with key
         """
+        if password == None:
+            key = c.module('key').from_password(password)
 
         key = c.get_key(key)
         path = None
@@ -5844,11 +5870,34 @@ class c:
     def new_modules(self, *modules, **kwargs):
         for module in modules:
             self.new_module(module=module, **kwargs)
+
+    @classmethod
+    def find_lines(self, text:str, search:str) -> List[str]:
+        """
+        Finds the lines in text with search
+        """
+        found_lines = []
+        for line in text.split('/n'):
+            if search in line:
+                found_lines += [line]
+        
+        return found_lines
+
+    
+            
+
+    # @classmethod
+    # def code2module(cls, code:str='print x'):
+    #      new_module = 
+
+
     @classmethod
     def new_module( cls,
                    module : str = None,
                    repo : str = None,
                    base : str = 'base',
+                   code : str = None,
+                   include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
         """ Makes directories for path.
@@ -5860,18 +5909,19 @@ class c:
         module = module.replace('.','/')
         if c.has_module(module) and overwrite==False:
             return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
+        
+        # add it to the root
         module_path = os.path.join(c.modules_path, module)
         
         if overwrite and c.module_exists(module_path): 
             c.rm(module_path)
+
         
         if repo != None:
             # Clone the repository
             c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
             c.cmd(f'rm -rf {module_path}/.git')
-
-
 
         # Create the module name if it doesn't exist, infer it from the repo name 
         if module == None:
@@ -5885,26 +5935,31 @@ class c:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
         
 
-        base_module = c.module(base)
-        base_code = base_module.code()
-        base_config = base_module.config()
+        if code == None:
+            base_module = c.module(base)
+            code = base_module.code()
+
+            
         module = module.replace('/','_') # replace / with _ for the class name
         
         # define the module code and config paths
-        module_config_path = f'{module_path}/{module}.yaml'
+        
         module_code_path =f'{module_path}/{module}.py'
         module_code_lines = []
         class_name = module[0].upper() + module[1:] # capitalize first letter
         class_name = ''.join([m.capitalize() for m in module.split('_')])
         
-        for code_ln in base_code.split('\n'):
+        # rename the class to the correct name 
+        for code_ln in code.split('\n'):
             if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) or all([ k in code_ln for k in ['class','commune.Module', ')', '(']]):
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)
-        module_code = '\n'.join(module_code_lines)
-        c.put_text(module_code_path, module_code)
-        c.save_yaml(module_config_path, base_config)
+            
+        c.put_text(module_code_path, code)
+        if include_config:
+            module_config_path = module_code_path.replace('.py', '.yaml')
+            c.save_yaml(module_config_path, {'class_name': class_name})
         
         c.update()
 
@@ -6155,6 +6210,9 @@ class c:
                     tag_seperator : str = '::', **extra_launch_kwargs):
 
         
+        kwargs = c.locals2kwargs(kwargs)
+        if 'remote' in kwargs:
+            kwargs['remote'] = False
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
             fn = fn.split('.')[-1]
@@ -6439,7 +6497,7 @@ class c:
         shutil.move(path1, path2)
         assert os.path.exists(path2), path2
         assert not os.path.exists(path1), path1
-        return path2
+        return {'success': True, 'msg': f'Moved {path1} to {path2}'}
 
 
     @classmethod
@@ -6464,7 +6522,7 @@ class c:
             shutil.copy(path1, path2)
         else:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
-        return path2
+        return {'success': True, 'msg': f'Copied {path1} to {path2}'}
     
     
     @classmethod
@@ -7766,7 +7824,6 @@ class c:
 
         return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
-    chat = talk
 
     def x(self, y=1):
         c.print('fam', y)
@@ -7831,6 +7888,16 @@ class c:
     def install_python(cls, sudo=True) :
         c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
 
+    # def remote_wrapper(cls, fn):
+
+    #     def wrapper(**kwargs):
+    #         remote = kwargs.pop('remote', False)
+    #         if remote:
+    #             return cls.remote_fn(fn, **kwargs)
+
+
+       
+
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
@@ -7876,18 +7943,14 @@ class c:
     def name2compose(self, **kwargs):
         return c.module('docker').name2compose(**kwargs)
 
-
-
     @classmethod
     def generator(cls):
         for i in range(10):
             yield i
 
-
     @classmethod
     def run_generator(cls):
-        """
-        
+        """  
         """
         for i in cls.generator():
             c.print(i)
@@ -7899,8 +7962,6 @@ class c:
         import inspect
         return inspect.isgeneratorfunction(obj)
     
-
-
     @classmethod
     def module2docpath(cls):
         tree = c.tree()
@@ -8524,6 +8585,41 @@ class c:
     @classmethod
     def lag( *args, **kwargs):
         return c.module('subspace')().lag(*args, **kwargs)
+    
+
+    @classmethod
+    def loops(cls, **kwargs):
+        return c.pm2ls('loop', **kwargs)
+
+    @classmethod
+    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        if remote:
+            return cls.remote_fn('loop', kwargs=locals())
+                
+        while True:
+            c.print('looping')
+            c.sleep(interval)
+
+    def loop_fleet(self, n=2, **kwargs):
+        responses = []
+        for i in range(n):
+            kwargs['remote'] = False
+            responses += [self.remote_fn('loop', kwargs=kwargs, tag=i)]
+        return responses
+    
+    @classmethod
+    def remote_fn_fleet(cls, fn:str, n=2, **kwargs):
+        responses = []
+        for i in range(n):
+            responses += [cls.remote_fn(fn, kwargs=kwargs, tag=i)]
+        return responses
+    
+
+    def generate(self, *args, **kwargs):
+        return 'hey'
+
+        
+        
 
 Module = c
 Module.run(__name__)
