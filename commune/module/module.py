@@ -4900,6 +4900,22 @@ class c:
         return cls.hash_module(data, mode=mode, **kwargs)
     
     default_password = 'bitconnect'
+
+    @classmethod
+    def readme_paths(cls):
+        readme_paths =  [f for f in c.ls(cls.dirpath()) if f.endswith('md')]
+        return readme_paths
+
+    @classmethod
+    def has_readme(cls):
+        return len(cls.readme_paths()) > 0
+    
+    @classmethod
+    def readme(cls):
+        readme_paths = cls.readme_paths()
+        assert len(readme_paths) > 0
+        return c.get_text(readme_paths[0])
+
     @classmethod
     def resolve_password(cls, password: str) -> str:
         if password == None:
