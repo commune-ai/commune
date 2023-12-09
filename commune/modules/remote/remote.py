@@ -430,8 +430,6 @@ class Remote(c.Module):
         return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
     
 
- 
-
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)
