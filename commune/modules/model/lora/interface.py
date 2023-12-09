@@ -114,7 +114,6 @@ with gr.Blocks(
     # Local variables
     adaptor = LoraModel()
     adaptor.base_model_name = ''#training_base_model_names[0]
-    base_model_change_flag = True
     text_file_list = []
     base_lora_path = '/home/v/adaptors'
     lora_output_path = ''
@@ -571,9 +570,8 @@ with gr.Blocks(
     ######### ACTIONS #########
     def load_base_model(base_model_name):
         torch.cuda.empty_cache()
-        global base_model_change_flag
         text_file_list = []
-        if base_model_change_flag:
+        if base_model_name!=adaptor.base_model_name:
             # Init the adaptor
             adaptor.base_model_ = None
             adaptor.tokenizer = None
@@ -599,13 +597,13 @@ with gr.Blocks(
             try:
                 adaptor.init_tokenizer(base_model_name)
                 adaptor.init_base_model(base_model_name, adaptor.quant_config)
-                base_model_change_flag = False
+                adaptor.base_model_name = base_model_name
             except ValueError as e:
                 raise gr.Error(e)
 
-            return gr.update(interactive=False)
+            return gr.update(interactive=False), gr.update(interactive=True)
         else:
-            return gr.update(interactive=True)
+            return gr.update(interactive=True), gr.update(interactive=True)
 
 
     def load_dataset():
@@ -641,11 +639,9 @@ with gr.Blocks(
             remove_unused_columns=False
         )
 
-    def base_model_change(base_model_name):
-        global base_model_change_flag
-        base_model_change_flag = True
-        adaptor.base_model_name = base_model_name
-        return gr.update(interactive=True), gr.update(interactive=True)
+    # def base_model_change(base_model_name):
+    #     # adaptor.base_model_name = base_model_name
+    #     return gr.update(interactive=True), gr.update(interactive=True)
 
     def train_lora():
 
@@ -748,8 +744,8 @@ with gr.Blocks(
     def enable_train_btn():
         return gr.update(interactive=True)
 
-    base_model_name_dropdown.select(base_model_change, inputs=[base_model_name_dropdown], outputs=[load_base_model_btn, train_btn])
-    load_base_model_btn.click(load_base_model, inputs=[base_model_name_dropdown], outputs=[load_base_model_btn])
+    # base_model_name_dropdown.select(base_model_change, inputs=[base_model_name_dropdown], outputs=[load_base_model_btn, train_btn])
+    load_base_model_btn.click(load_base_model, inputs=[base_model_name_dropdown], outputs=[load_base_model_btn, base_model_name_dropdown])
     train_btn.click(train_lora, inputs=[], outputs=[train_btn])
     refresh_lora_list_btn.click(reload_lora_list, inputs=[], outputs=[local_lora_dropdown, load_lora_btn])
     load_lora_btn.click(load_adaptor, inputs=[local_lora_dropdown, lora_4bit_quant_checkbox], outputs=[load_lora_btn, generate_text_btn, local_lora_dropdown])
