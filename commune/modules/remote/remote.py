@@ -195,11 +195,14 @@ class Remote(c.Module):
     def n(cls, search=None):
         return len(cls.hosts(search=search))
     
+
+
     def num_servers(self):
         return len(self.servers())
     
     def num_peers(self):
         return len(self.peers())
+    n_peers = num_peers
     
     @classmethod
     def n_servers(self):
@@ -282,6 +285,10 @@ class Remote(c.Module):
     def add_server(self, address):
         return c.add_server(address, network='remote')
     
+    def host2rootkey(self, **kwargs):
+        host2rootkey =  self.cmd(f'c root_key_address', **kwargs)
+        return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
+
     @classmethod
     def add_peers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
         """
@@ -296,8 +303,6 @@ class Remote(c.Module):
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
         ip2host = cls.ip2host()
-
-
     
         server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
         for i, server_address in enumerate(server_addresses_responses):
@@ -309,11 +314,19 @@ class Remote(c.Module):
                     c.print(f'{server_name} already in namespace')
                     continue
                 else:
-                    ip = c.address2ip(server_address)
-                    if ip in ip2host:
-                        host = ip2host[ip]
-                    server_name = 'module' + '_' +  str(host)
+                    server_name = 'module' + '_' +  str(server_address)
                     namespace[server_name] = server_address
+        futures = []
+        for server_name, server_address in namespace.items():
+            future = c.submit(c.call, args=(server_address, 'info'), return_future=True, timeout=timeout)
+            futures.append(future)
+        results = c.wait(futures, timeout=timeout)
+        infos = []
+        for result in results:
+            if not c.is_error(result):
+                infos.append(result)
+        
+        namespace = {f"module_{info['ss58_address']}": info['address'] for info in infos if 'ss58_address' in info}
 
         c.put_namespace(network=network, namespace=namespace)
 
@@ -631,7 +644,8 @@ class Remote(c.Module):
         self.st.load_style()
 
         tabs = st.tabs(['Servers', 'Peers'])
-
+        
+    
 
         with tabs[0]:
             st.markdown('## Servers')
@@ -678,15 +692,11 @@ class Remote(c.Module):
             st.write('Getting module info')
             module_info = module.info()
             self.put_json(cache_path, module_info)
-
         fns = list(module_info['schema'].keys())
         fn_name = st.selectbox('Function', fns, index=0)
-
         fn = getattr(module, fn_name)
-        
-
-        kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
-
+        with st.expander(fn_name, expanded=False):
+            kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
         timeout = cols[1].number_input('Timeout', 1, 100, 10, key='timeout_fn')
         run = st.button(f'Run {fn_name}')
         if run:
@@ -718,6 +728,14 @@ class Remote(c.Module):
 
 
 
+    def host2ssh(self):
+        hosts = self.hosts()
+        host2ssh = {}
+        for host_name, host in hosts.items():
+            host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'
+
+        return host2ssh
+
 
 
     def ssh_dashboard(self):
@@ -726,6 +744,12 @@ class Remote(c.Module):
         cols = st.columns(2)
         host_names = list(host_map.keys())
 
+        with st.expander('Hosts', expanded=False):
+            for host_name, host in host_map.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+host_name)
+                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+            st.write(host_map)
         with st.sidebar:  
             search = st.text_input('Search')
 
@@ -765,9 +789,12 @@ class Remote(c.Module):
         futures = list(host2future.values())
         hosts = list(host2future.keys())
         host2error = {}
+        count = 0
+        cols = st.columns(4)
         try:
             for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
                 host = hosts[result['idx']]
+
                 if host == None:
                     continue
                 host2future.pop(host)
@@ -776,6 +803,7 @@ class Remote(c.Module):
                 if c.is_error(result):
                     host2error[host] = result
                 else:
+                    count += 1
                     st.markdown(host + ' ' + c.emoji('check_mark'))
                     st.markdown(f"""```bash\n{result}```""")
 
@@ -854,7 +882,6 @@ class Remote(c.Module):
     
     def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
         if remote:
-            
             return self.remote_fn('loop',kwargs = locals())
         futures = []
         future2path = {}
