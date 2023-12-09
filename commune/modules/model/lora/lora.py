@@ -229,7 +229,7 @@ class LoraModel(Model):
             )
             s = gen_output.sequences[0]
             self.gen_output = self.tokenizer.decode(s)
-            print(self.gen_output)
+            return self.gen_output
 
     def tokenize(self, text: str = 'What\'s up?'):
         return self.tokenizer(text, return_tensors='pt')
