@@ -2,6 +2,7 @@ import commune as c
 
 class Server(c.Module):
 
+
     @classmethod
     def test(cls) -> dict:
         servers = c.servers()
@@ -18,5 +19,8 @@ class Server(c.Module):
         assert module_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
     
-
+    @classmethod
+    def dashboard(cls):
+        return c.module('server.dashboard').dashboard()
     
+Server.run(__name__)

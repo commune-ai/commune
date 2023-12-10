@@ -19,9 +19,7 @@ class OpenRouterModule(c.Module):
                 ):
         self.url = url
         self.set_api_key(api_key)
-        self.set_models(model)
-
-    
+        self.set_model(model)
 
         self.model = model
         self.role = role
@@ -29,20 +27,16 @@ class OpenRouterModule(c.Module):
         self.x_title = x_title
         self.max_history = max_history
 
-    def set_models(self, model:str):
-        if model == None:
-            model = c.choice(self.models())
-            self.models = self.self.models()
-        elif 'all' in model:
-            self.models = self.models()
-        elif isinstance(model, str):
-            self.models = self.models(search=model)
-        elif isinstance(model, list):
-            for m in model:
-                assert isinstance(m, str), "Model must be a string"
-                self.models = self.models(search=m)
+    def set_model(self, model:str):
+        self.model_pool = self.models()
 
-        assert isinstance(self.models, list), "Model must be a list"
+        if isinstance(model, str) and \
+                        model not in self.model_pool:
+            self.model_pool = [ m for m in self.model_pool if model in m['id']]
+            
+        assert len(self.model_pool) > 0, f'No models found with {model}'
+        if model == None:
+            model = c.choice(self.model_pool)
 
         return {"status": "success", "model": model, "models": self.models}
         
@@ -69,7 +63,7 @@ class OpenRouterModule(c.Module):
             
                 
 
-        model = model or c.choice(self.models)['id']
+        model = model or c.choice(self.model_pool)['id']
         history = history or []
 
         c.print(f"Generating response with {model}...", color='yellow')
@@ -137,8 +131,10 @@ class OpenRouterModule(c.Module):
     def test(self, text = 'Hello', model=None):
         t1 = c.time()
         if model == None:
-            model = c.choice(self.models)['id']
+            model = c.choice(self.model_pool)['id']
         response = self.prompt(text, model=model, text_only=True)
+        if isinstance(response, dict) and 'error' in response:
+            return response
         tokens_per_second = self.num_tokens(response) / (c.time() - t1)
         latency = c.time() - t1
         assert isinstance(response, str)
