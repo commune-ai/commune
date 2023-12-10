@@ -645,16 +645,16 @@ class Remote(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        tabs = st.tabs(['Servers', 'Peers'])
+        tabs = st.tabs(['Servers'])
         
     
 
         with tabs[0]:
             st.markdown('## Servers')
             self.ssh_dashboard()
-        with tabs[1]:
-            st.markdown('## Peers')
-            self.peers_dashboard()
+        # with tabs[1]:
+        #     st.markdown('## Peers')
+        #     self.peers_dashboard()
 
 
     def peers_dashboard(self):
@@ -662,6 +662,21 @@ class Remote(c.Module):
 
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
+
+        peer2info = self.peer2info()
+        with st.expander('Peers', expanded=False):
+            for peer, info in peer2info.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+peer)
+
+                timestamp = info.get('timestamp', None)
+                lag = c.time() - timestamp if timestamp != None else None
+                if lag != None:
+                    lag = round(lag, 2)
+                    st.write(f'{lag} seconds ago')
+                cols[1].write(info['hardware'])
+                cols[1].write(info.get('namespace', {}))
+
         namespace = c.namespace(search=search, network='remote')
         if len(namespace) == 0:
             st.error(f'No peers found with search: {search}')
@@ -745,15 +760,16 @@ class Remote(c.Module):
         host_map = self.hosts()
         cols = st.columns(2)
         host_names = list(host_map.keys())
+        with st.sidebar:
+            search = st.text_input('Search')
+            host_names = st.multiselect('Host', host_names, host_names)
 
         with st.expander('Hosts', expanded=False):
+            
             for host_name, host in host_map.items():
                 cols = st.columns([1,4])
                 cols[0].write('#### '+host_name)
                 cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
-            st.write(host_map)
-        with st.sidebar:  
-            search = st.text_input('Search')
 
 
             if len(search) > 0:
@@ -762,16 +778,18 @@ class Remote(c.Module):
             hosts = {k:v for k,v in hosts.items() if k in host_names}
             host_names = list(hosts.keys())
 
-            with st.expander('Hosts', expanded=False):
-                for host_name, host in hosts.items():
-                    cols = st.columns([1,4])
-                    cols[0].write('#### '+host_name)
-                    cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+            for host_name, host in hosts.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+host_name)
+                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
 
                     
-            host_names = st.multiselect('Host', host_names, host_names)
+        # progress bar
+        
+        
+        
+        
         cols = st.columns([4,2,1,1])
-
 
         cmd = cols[0].text_input('Command', 'ls')
 

@@ -4903,6 +4903,7 @@ class c:
 
     @classmethod
     def readme_paths(cls):
+
         readme_paths =  [f for f in c.ls(cls.dirpath()) if f.endswith('md')]
         return readme_paths
 
@@ -4911,9 +4912,10 @@ class c:
         return len(cls.readme_paths()) > 0
     
     @classmethod
-    def readme(cls):
+    def readme(cls) -> str:
         readme_paths = cls.readme_paths()
-        assert len(readme_paths) > 0
+        if len(readme_paths) == 0:
+            return ''
         return c.get_text(readme_paths[0])
 
     @classmethod
@@ -8634,8 +8636,55 @@ class c:
     def generate(self, *args, **kwargs):
         return 'hey'
 
-        
-        
+
+    def select_key(self):
+        import streamlit as st
+        keys = c.keys()
+        key2index = {k:i for i,k in enumerate(keys)}
+        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        key_address = self.key.ss58_address
+        st.write('address')
+        st.code(key_address)
+        return self.key
+
+    def sidebar(self, sidebar:bool = True):
+        import streamlit as st
+        if sidebar:
+            with st.sidebar:
+                return self.sidebar(sidebar=False)
+        st.title(f'COMMUNE')
+        self.select_key()
+        self.select_network()
+
+    def select_network(self, network=None):
+        import streamlit as st
+        import pandas as pd
+        if network == None:
+            network = self.network
+        if not c.server_exists('module'):
+                c.serve(wait_for_server=True)
+
+        self.networks = c.networks()
+        network2index = {n:i for i,n in enumerate(self.networks)}
+        index = network2index['local']
+        self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
+        namespace = c.namespace(network=self.network)
+        with st.expander('Namespace', expanded=True):
+            search = st.text_input('Search Namespace', '', key='search.namespace')
+            df = pd.DataFrame(namespace.items(), columns=['key', 'value'])
+            if search != '':
+                df = df[df['key'].str.contains(search)]
+            st.write(f'**{len(df)}** servers with **{search}** in it')
+
+            df.set_index('key', inplace=True)
+            st.dataframe(df, width=1000)
+        sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
+        self.servers = c.servers(network=self.network)
+        if sync:
+            c.sync()
+
+
+ 
 
 Module = c
 Module.run(__name__)
