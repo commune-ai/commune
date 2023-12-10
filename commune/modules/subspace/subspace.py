@@ -2811,6 +2811,10 @@ class Subspace(c.Module):
         if nonzero:
             incentive = {uid:i for uid, i in enumerate(incentive) if i > 0}
         return incentive
+    
+    def proposals(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False,  **kwargs):
+        proposals = [v for v in self.query('Proposals', params=netuid, network=network, block=block, update=update, **kwargs)]
+        return proposals
         
     def trust(self, netuid = netuid, network=None, nonzero=False, update=False, **kwargs):
         trust = [v for v in self.query('Trust', params=netuid, network=network, update=update, **kwargs)]
@@ -3945,6 +3949,19 @@ class Subspace(c.Module):
     @classmethod
     def pull_image(cls):
         return c.cmd(f'docker pull {cls.image}')
+    
+    @classmethod
+    def chain_spec_hash(cls):
+        return c.hash(c.get_json(cls.chain_spec_path()))
+    
+    @classmethod
+    def image_id(cls):
+        return c.module('docker').image2id(':'.join(cls.image.split(':')[:-1]))
+    
+    @classmethod
+    def id(self):
+        return c.hash(self.image_id() +  self.chain_spec_hash())
+
     
     @classmethod
     def push_image(cls, image='subspace.libra', public_image=image ):

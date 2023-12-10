@@ -86,3 +86,4 @@ class Git(c.Module):
         if libpath == None:
             libpath = c.libpath
         return libpath
+    

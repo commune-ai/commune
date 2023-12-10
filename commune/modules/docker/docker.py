@@ -122,21 +122,33 @@ class Docker(c.Module):
     #     self.build(path=self.libpath, sudo=sudo)
 
     @classmethod
-    def images(cls, df=True):
+    def images(cls, to_records=True):
         text = c.cmd('docker images', verbose=False)
-        if df:
-            df = []
-            cols = []
-            for i, l in enumerate(text.split('\n')):
-                if len(l) > 0:
-                    if i == 0:
-                        cols = [_.strip().replace(' ', '_') for _ in l.split('  ') if len(_) > 0]
-                    else:
-                        df.append([_.strip() for _ in l.split('  ') if len(_) > 0])
-            df = pd.DataFrame(df, columns=cols)    
-            return df
+        df = []
+        cols = []
+        for i, l in enumerate(text.split('\n')):
+            if len(l) > 0:
+                if i == 0:
+                    cols = [_.strip().replace(' ', '_') for _ in l.split('  ') if len(_) > 0]
+                else:
+                    df.append([_.strip() for _ in l.split('  ') if len(_) > 0])
+        df = pd.DataFrame(df, columns=cols) 
+        return df
+
+    @classmethod
+    def image2id(cls, image=None):
+        image2id = {}
+        df = cls.images()
+        for  i in range(len(df)):
+            image2id[df['REPOSITORY'][i]] = df['IMAGE_ID'][i]
+        if image != None:
+            id = image2id[image]
+        return id
+            
+
         
-        return [l.split(' ')[0] for l in text.split('\n') if len(l) > 0][1:]
+    
+
 
 
     @classmethod
@@ -403,4 +415,3 @@ class Docker(c.Module):
     @classmethod
     def logout(self, image:str):
         c.cmd(f'docker logout {image}', verbose=True)
-

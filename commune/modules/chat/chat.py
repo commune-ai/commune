@@ -41,7 +41,7 @@ class Chat(c.Module):
         except Exception as e:
             st.error(e)
             return
-        info_path = f'{server_name}/info'
+        info_path = f'servers/{server_name}/info'
         server_info = c.get(info_path, {})
 
         if not c.exists(info_path):
@@ -111,6 +111,7 @@ class Chat(c.Module):
                     self.put(user_history_path, history)
 
             # Add user message to chat history
+        
         
 
 

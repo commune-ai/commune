@@ -162,7 +162,7 @@ class ServerHTTP(c.Module):
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:
-            # if we are not
+            # if we are not using sse, then we can do this with json
             if c.is_generator(result):
                 result = list(result)
             result = self.serializer.serialize({'data': result})
