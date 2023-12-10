@@ -285,12 +285,15 @@ class Storage(c.Module):
         item_key = c.choice(items) if item_key == None else item_key
         item_data = self.get_item(item_key)
         metadata = self.get_metadata(item_key)
+
+        # check staleness
         metadata['last_checked'] = metadata.get('last_checked', 0)
         time_since_checked = c.timestamp() - metadata['last_checked']
         if time_since_checked < self.min_check_interval:
             msg = {'success': False, 'msg': f'Not enough time since last check {time_since_checked}/{self.min_check_interval}'}
             c.print(msg, color='red')
             return msg
+        
         shards = self.get_shards(item_key, metadata=metadata)
 
         if len(shards) > 0:
