@@ -597,7 +597,6 @@ with gr.Blocks(
             try:
                 adaptor.init_tokenizer(base_model_name)
                 adaptor.init_base_model(base_model_name, adaptor.quant_config)
-                adaptor.base_model_name = base_model_name
             except ValueError as e:
                 raise gr.Error(e)
 
