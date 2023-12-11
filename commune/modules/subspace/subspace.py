@@ -3967,8 +3967,9 @@ class Subspace(c.Module):
 
     
     @classmethod
-    def push_image(cls, image='subspace.libra', public_image=image ):
-        # c.build_image(image)
+    def push_image(cls, image='subspace.libra', public_image=image, build:bool = True ):
+        if build:
+            c.print(cls.build_image())
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
@@ -4199,7 +4200,12 @@ class Subspace(c.Module):
                  module : str = None , # remote module to call
                  remote = False,
                  debug:bool = False,
+                 remote_id:str = None,
                  ):
+
+        if remote_id != None:
+            self_id = cls.id()
+            assert remote_id == self_id, f'remote_id ({remote_id}) != self_id ({self_id})'
 
         if debug :
             daemon = False 
@@ -4378,7 +4384,7 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 42,
+                    valis:int = 4,
                     nonvalis:int = 1,
                     verbose:bool= False,
                     purge_chain:bool = True,
