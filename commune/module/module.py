@@ -222,7 +222,6 @@ class c:
                 c.print(f'Error: {e}', color='red')
         return fn_code_map
     
-    
     @classmethod
     def fn_code(cls,fn:str, detail:bool=False, ) -> str:
         '''
@@ -246,6 +245,7 @@ class c:
             }
                 
         return fn_code
+    
     fncode = fn_code
     @classmethod
     def sandbox(cls):
