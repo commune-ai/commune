@@ -56,11 +56,10 @@ class Subspace(c.Module):
                 url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
-                type_registry:dict=custom_rpc_type_registry, 
-                type_registry_preset=None, 
+                type_registry:dict=None, 
+                type_registry_preset='substrate-node-template',
                 cache_region=None, 
                 runtime_config=None, 
-                use_remote_preset=False,
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
@@ -1187,6 +1186,7 @@ class Subspace(c.Module):
     def resolve_key_ss58(self, key:str, network='main', netuid:int=0):
         if key == None:
             key = c.get_key(key)
+
         if isinstance(key, str):
             if c.is_valid_ss58_address(key):
                 return key
@@ -1205,6 +1205,7 @@ class Subspace(c.Module):
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_address
+        c.print(key, 'key')
         assert c.is_valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
@@ -3195,6 +3196,12 @@ class Subspace(c.Module):
     def complete_txs(self, key:str=None, **kwargs):
         return self.tx_history(key=key, mode='complete', **kwargs)
 
+    def get_nonce (self, key:str=None, network=None, **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        self.resolve_network(network)   
+
+        return self.substrate.get_account_nonce(key_ss58)
+
     def compose_call(self,
                      fn:str, 
                     params:dict = None, 
@@ -3249,7 +3256,8 @@ class Subspace(c.Module):
                         'call': call,
                     }
                 )
-            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key)
+            # get nonce 
+            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=None)
 
             response = substrate.submit_extrinsic(extrinsic=extrinsic,
                                                   wait_for_inclusion=wait_for_inclusion, 
@@ -3963,9 +3971,14 @@ class Subspace(c.Module):
     
     @classmethod
     def id(self):
-        return c.hash(self.image_id() +  self.chain_spec_hash())
-
+        return c.hash(self.hash_map())
     
+    @classmethod
+    def hash_map(self):
+        return {
+            'image_id': self.image_id(),
+            'chain_spec_hash': self.chain_spec_hash()
+        }
     @classmethod
     def push_image(cls, image='subspace.libra', public_image=image ):
         # c.build_image(image)
