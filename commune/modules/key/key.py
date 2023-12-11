@@ -169,7 +169,8 @@ class Keypair(c.Module):
             return json.loads(cls.get(path))
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        kwargs['mnemonic'] = mnemonic
+        if mnemonic == None:
+            kwargs['mnemonic'] = mnemonic
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
@@ -496,9 +497,6 @@ class Keypair(c.Module):
         yo rody, this is a class method you can gen keys whenever fam
         '''
         mnemonic = kwargs.pop('m', mnemonic)
-
-        if password == None:
-            return cls.from_password(password)
 
         if mnemonic == None:
             mnemonic = cls.generate_mnemonic()

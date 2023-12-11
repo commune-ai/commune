@@ -3653,11 +3653,14 @@ class Subspace(c.Module):
             # we need to resolve the key based on the key path
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
 
+            c.print(key)
+
             # do we want
             if insert_key:
                 # we need to resolve the base path based on the node and chain
                 base_path = cls.resolve_base_path(node=node, chain=chain)
                 cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+                c.print(cmd)
                 # c.print(cmd)
                 if mode == 'docker':
                     container_base_path = base_path.replace(cls.chain_path, '/subspace')
@@ -4380,8 +4383,8 @@ class Subspace(c.Module):
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = True,
-                    remote:bool = True,
-                    build_spec :bool = False,
+                    remote:bool = False,
+                    build_spec :bool = True,
                     push:bool = False,
                     trials:int = 10
                     ):
@@ -4507,7 +4510,7 @@ class Subspace(c.Module):
         assert len(nodes) > 0, f'No url found for {network}'
         publicnode2url = {}
         for k_n, v_n in nodes.items():
-            publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
+            publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['rpc_port'])
         return publicnode2url
 
     @classmethod
