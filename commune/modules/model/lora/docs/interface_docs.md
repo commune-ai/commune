@@ -5,6 +5,7 @@
 Select a base model on huggingface. \
 ***Load Model*** button will download and load the base model.\
 Can switch between QLoRA and LoRA in the ***Fine-Tuning Type*** dropdown. QLoRA will load the base model in a quantized type.
+Need to specify the ***Adaptor Output Path*** or it will be stored with a tag of ***"lora"*** 
 
 ![Alt text](../imgs/1_base_model.png?raw=True "Interface")
 
