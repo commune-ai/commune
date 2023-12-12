@@ -32,7 +32,6 @@ class Access(c.Module):
     def sync_loop_thread(self):
         while True:
             self.sync()
-            c.sleep(self.config.sync_interval//2 + (c.random_int(20)-10))
 
     def sync(self):
 

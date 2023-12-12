@@ -26,25 +26,11 @@ class Vali(c.Module):
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             # launch a thread to run the vali
             c.thread(self.run)
-            c.thread(self.vote_loop)
     
     @property
     def sync_staleness(self):
         return int(c.time() - self.last_sync_time) 
 
-    def vote_loop(self):
-        while True:
-            if self.vote_staleness > self.config.vote_interval:
-                try:
-                    c.print('Voting...', color='cyan')
-                    self.vote()
-                except Exception as e:
-                    c.print(f'Error voting {e}', color='red')
-                    c.print(traceback.format_exc(), color='red')
-                    c.sleep(1)
-                    continue
-
-            c.sleep(self.config.vote_interval//2)
 
 
     @property               
@@ -354,16 +340,20 @@ class Vali(c.Module):
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
             futures.append(future)
 
+            if self.vote_staleness > self.config.vote_interval:
+                    future = self.executor.submit(fn=self.vote, kwargs={}, return_future=True)
+                    futures.append(future)
+                    future = self.executor.submit(fn=self.sync, kwargs={}, return_future=True)
+                    futures.append(future)
+
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):
                     result = future.result()
+                    c.print(result)
                     futures.remove(future)
                     break
             
-            # complete the futures as they come in
-            if self.sync_staleness > self.config.sync_interval:
-                self.sync()
-
+      
             if self.count % 10 == 0 and self.count > 0:
                 stats =  {
                 'total_modules': self.count,
