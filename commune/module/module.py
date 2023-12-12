@@ -2595,6 +2595,9 @@ class c:
         return functions
 
     fns = functions
+
+    def hasfn(self, fn:str):
+        return hasattr(self, fn) and callable(getattr(self, fn))
     
     @classmethod
     def get_function_signature_map(cls, obj=None, include_parents:bool = False):
