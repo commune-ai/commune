@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra:latest'
+    image = 'vivonasg/subspace.libra-2023-12-12'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -3466,7 +3466,7 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls, tag='subspace.libra', push=True, no_cache=True):
+    def build_image(cls, tag='subspace.libra', push=True, no_cache=False):
         response = c.build_image('subspace', tag=tag, no_cache=no_cache)
         return response
 
@@ -4021,9 +4021,11 @@ class Subspace(c.Module):
             'chain_spec_hash': self.chain_spec_hash()
         }
 
+    @classmethod
     def push_image(cls, image='subspace.libra', public_image=image, build:bool = True ):
         if build:
             c.print(cls.build_image())
+        public_image = f'{public_image}-{c.datetime().split("_")[0]}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
