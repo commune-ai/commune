@@ -160,11 +160,8 @@ class c:
     def minimal_config(cls) -> Dict:
         '''
         The miminal config a module can be
-        
         '''
-        minimal_config = {
-            'module': cls.__name__
-        }
+        minimal_config = {'module': cls.__name__}
         return minimal_config
 
 
@@ -2538,7 +2535,6 @@ class c:
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
-            c.print(f'Serving [bold]{server_name}[/bold]', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
@@ -3207,7 +3203,6 @@ class c:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
 
         if len(rm_list) == 0:
-            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
             return {'success':False, 'message':f'No pm2 processes found for {name}'}
         for n in rm_list:
             if verbose:
@@ -5399,7 +5394,7 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=False, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=True, **kwargs):
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
@@ -5417,7 +5412,7 @@ class c:
                 if c.is_registered(server_name):
                     c.print(f'Server {server_name} already exists, skipping', color='yellow')
                     continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout, return_future=True)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
@@ -6920,12 +6915,13 @@ class c:
         return method_type_map
 
 
-
     @classmethod
     def get_function_args(cls, fn):
         fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
+
+    
     
     @classmethod
     def has_function_arg(cls, fn, arg:str):
@@ -7453,7 +7449,7 @@ class c:
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)
-
+    unstake_all = multiunstake
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    
@@ -8604,9 +8600,8 @@ class c:
     
 
     @classmethod
-    def lag( *args, **kwargs):
-        return c.module('subspace')().lag(*args, **kwargs)
-    
+    def lag(cls,  *args, **kwargs):
+        return c.module('subspace').lag(*args, **kwargs)
 
     @classmethod
     def loops(cls, **kwargs):

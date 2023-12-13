@@ -314,19 +314,28 @@ class Remote(c.Module):
                     c.print(f'{server_name} already in namespace')
                     continue
                 else:
-                    server_name = 'module' + '_' +  str(server_address)
+                    ip = ':'.join(server_address.split(':')[:-1])
+                    if ip in ip2host:
+                        tag = ip2host[ip]
+                    else:
+                        tag = str(server_address)[:4]
+
+                    server_name = 'module' + '_' +  tag
                     namespace[server_name] = server_address
-        futures = []
+
+        name2future = {}
         for server_name, server_address in namespace.items():
-            future = c.submit(c.call, args=(server_address, 'info'), return_future=True, timeout=timeout)
-            futures.append(future)
+            name2future[server_name] = c.submit(c.call, args=(server_address, 'info'), return_future=True, timeout=timeout)
+
+        futures = list(name2future.values())
+        names = list(name2future.keys())
         results = c.wait(futures, timeout=timeout)
         infos = []
-        for result in results:
+        namespace = {}
+        for name,result in zip(names,results):
             if not c.is_error(result):
                 infos.append(result)
-        
-        namespace = {f"module_{info['ss58_address']}": info['address'] for info in infos if 'ss58_address' in info}
+                namespace[name] = result['address']
 
         c.put_namespace(network=network, namespace=namespace)
 
@@ -957,7 +966,8 @@ class Remote(c.Module):
     def peer2lag(self, max_staleness=1000):
         peer2timestamp = self.peer2timestamp()
         time = c.time()
-        return {k:time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
+        ip2host = self.ip2host()
+        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
 
     def peer2timestamp(self):
         peer2info = self.peer2info()
@@ -967,7 +977,7 @@ class Remote(c.Module):
         info_paths = self.ls('peers')
         peer_infos = []
         for path in info_paths:
-            peer_infos += [self.get(path, {})]
+            peer_infos += [self.get(path, {}).get('hardware', {})]
         return peer_infos
     
     def peer2namespace(self):
