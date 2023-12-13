@@ -2535,7 +2535,6 @@ class c:
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
-            c.print(f'Serving [bold]{server_name}[/bold]', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
@@ -3204,7 +3203,6 @@ class c:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
 
         if len(rm_list) == 0:
-            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
             return {'success':False, 'message':f'No pm2 processes found for {name}'}
         for n in rm_list:
             if verbose:
@@ -6917,12 +6915,13 @@ class c:
         return method_type_map
 
 
-
     @classmethod
     def get_function_args(cls, fn):
         fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
+
+    
     
     @classmethod
     def has_function_arg(cls, fn, arg:str):

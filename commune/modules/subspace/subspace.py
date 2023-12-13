@@ -1653,7 +1653,7 @@ class Subspace(c.Module):
 
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network, parallel=True)
-        self.namespace(update=True)
+        self.get_namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
     def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
@@ -2192,7 +2192,7 @@ class Subspace(c.Module):
         return {v:k for k,v in self.name2key(search=search, netuid=netuid, network=network).items()}
         
     def is_unique_name(self, name: str, netuid=None):
-        return bool(name not in self.namespace(netuid=netuid))
+        return bool(name not in self.get_namespace(netuid=netuid))
 
     @classmethod
     def node_paths(cls, name=None, chain=chain, mode=mode) -> Dict[str, str]:
@@ -2370,7 +2370,7 @@ class Subspace(c.Module):
     
     
     def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
-        return bool(module in self.namespace(netuid=netuid, **kwargs))
+        return bool(module in self.get_namespace(netuid=netuid, **kwargs))
 
     def default_module_info(self, **kwargs):
     
@@ -2733,10 +2733,8 @@ class Subspace(c.Module):
         names = list({k: names[k] for k in sorted(names)}.values())
         return names
 
-    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = True, timeout=10, local=False, **kwargs) -> Dict[str, str]:
-        namespace = {}
-        if update == False:
-            namespace =  c.get_namespace(search=search,network='subspace')
+    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
+        namespace = {}  
 
         if len(namespace) == 0:
             futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, update=update, **kwargs), return_future=True)for k in ['names', 'addresses']]

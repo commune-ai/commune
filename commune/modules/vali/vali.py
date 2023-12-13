@@ -30,7 +30,7 @@ class Vali(c.Module):
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
-        self.namespace = c.namespace(search=self.config.search, update=update)
+        self.namespace = c.namespace(search=self.config.search, network=self.config.network, update=update)
         self.n  = len(self.namespace)    
         self.addresses = [self.namespace.values()]     
         self.names = list(self.namespace.keys())
@@ -314,14 +314,17 @@ class Vali(c.Module):
             futures.append(future)
 
             if self.vote_staleness > self.config.vote_interval:
-                if self.config.network in ['main', 'testnet']:
+                if 'subspace' in self.config.network:
                     futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
                     futures += [self.executor.submit(fn=self.sync, kwargs={}, return_future=True)]
                     
 
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):
-                    result = future.result()
+                    try:
+                        result = future.result()
+                    except Exception as e:
+                        c.print(f'Error: {e}', color='red')
                     # c.print(result)
                     futures.remove(future)
                     break
