@@ -363,6 +363,7 @@ class Subspace(c.Module):
         key: 'c.key' = None,
         network = None,
         update=False,
+        n = 10,
     ) -> bool:
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
@@ -396,6 +397,8 @@ class Subspace(c.Module):
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
             return False
+
+        max_allowed_weights = min(max_allowed_weights, n)
         
         if len(uids) > max_allowed_weights:
             c.print(f'Only {max_allowed_weights} uids are allowed to be voted on.')
@@ -761,7 +764,7 @@ class Subspace(c.Module):
                 
         params['netuid'] = netuid
 
-        response = self.compose_call(fn='update_network',params=params, key=key)
+        response = self.compose_call(fn='update_subnet',params=params, key=key)
 
         return response
 
