@@ -24,8 +24,8 @@ class Vali(c.Module):
             # launch a thread to run the vali
             c.thread(self.run)
 
-    def init_vali(self,**kwargs):
-        return self.__init__(**kwargs)
+    def init_vali(self,*args, **kwargs):
+        return self.__init__(*args, **kwargs)
 
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
@@ -67,6 +67,7 @@ class Vali(c.Module):
             module_address = module
             module_name = self.address2name.get(module_address, module_address)
         
+        emoji = c.emoji('hi')
         c.print(f'Evaluating  {module_name}:{module_address} -->', color='cyan')
 
         if module_address == my_info['address']:
@@ -313,14 +314,15 @@ class Vali(c.Module):
             futures.append(future)
 
             if self.vote_staleness > self.config.vote_interval:
-                    if self.config.network in ['main', 'testnet']:
-                        futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
-                        futures += [self.executor.submit(fn=self.sync, kwargs={}, return_future=True)]
-                        
+                if self.config.network in ['main', 'testnet']:
+                    futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
+                    futures += [self.executor.submit(fn=self.sync, kwargs={}, return_future=True)]
+                    
 
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):
                     result = future.result()
+                    # c.print(result)
                     futures.remove(future)
                     break
             
