@@ -477,6 +477,7 @@ class Subspace(c.Module):
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         existential_balance = 0.1,
+        nonce=None,
         fmt = 'nano',
 
 
@@ -524,7 +525,7 @@ class Subspace(c.Module):
                     'module_key': module_key,
                 } 
         # create extrinsic call
-        response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization)
+        response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
         c.print(response)
         if response['success']:
             response['msg'] = f'Registered {name} with {stake} stake'
@@ -711,57 +712,30 @@ class Subspace(c.Module):
     #################
     #### Serving ####
     #################
-    def update_network(
+    def update_subnet(
         self,
         netuid: int = None,
-        immunity_period: int = None,
-        min_allowed_weights: int = None,
-        max_allowed_weights: int = None,
-        max_allowed_uids: int = None,
-        min_stake : int = None,
-        tempo: int = None,
-        name:str = None,
-        founder: str = None,
         key: str = None,
         network = network,
+        **params,
+
     ) -> bool:
             
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        subnet_state = self.subnet( netuid=netuid )
+        subnet_params = self.subnet_params( netuid=netuid )
         # infer the key if you have it
         if key == None:
             key2address = self.address2key()
-            if subnet_state['founder'] not in key2address:
+            if subnet_params['founder'] not in key2address:
                 return {'success': False, 'message': f"Subnet {netuid} not found in local namespace, please deploy it "}
-            key = c.get_key(key2address.get(subnet_state['founder']))
+            key = c.get_key(key2address.get(subnet_params['founder']))
             c.print(f'Using key: {key}')
 
-        # convert to nanos
-        if min_stake != None:
-            min_stake = self.to_nanos(min_stake)
-        
-        params = {
-            'immunity_period': immunity_period,
-            'min_allowed_weights': min_allowed_weights,
-            'max_allowed_uids': max_allowed_uids,
-            'max_allowed_weights': max_allowed_weights,
-            'tempo': tempo,
-            'founder': founder,
-            'min_stake': min_stake,
-            'name': name,
-        }
-
         # remove the params that are the same as the module info
-        old_params = {}
-        for k, v in params.items():
-            old_params[k] = subnet_state[k]
-            if v == None:
-                params[k] = old_params[k]
-                
-        params['netuid'] = netuid
-
-        response = self.compose_call(fn='update_network',params=params, key=key)
+        params = {**subnet_params, **params}
+        params.pop('founder')
+        response = self.compose_call(fn='update_subnet',params={'params':params, 'netuid': netuid}, key=key)
 
         return response
 
@@ -1727,6 +1701,7 @@ class Subspace(c.Module):
                     block : Optional[int] = None,
                     update = False,
                     trials = 3,
+                    parallel = False,
                     fmt:str='j') -> list:
 
 
@@ -1739,22 +1714,28 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         kwargs = dict( netuid = netuid , block=block, update=update)
+
+        async def query(**kwargs):
+            return self.query(**kwargs)
         name2job = {
-                'stake': [self.query, {'name': 'TotalStake'}],
-                'emission': [self.query,  {'name':'SubnetEmission'}], 
-                'n': [self.query,  {'name': 'N'}],
-                'tempo': [self.query, dict(name='Tempo')],
-                'immunity_period': [self.query, dict(name='ImmunityPeriod')],
-                'min_allowed_weights': [self.query, dict(name='MinAllowedWeights')],
-                'max_allowed_weights': [self.query, dict(name='MaxAllowedWeights')],
-                'max_allowed_uids': [self.query, dict(name='MaxAllowedUids')],
-                'min_stake': [self.query, dict(name='MinStake')],
-                'founder': [self.query, dict(name='Founder')], 
-                'founder_share': [self.query, dict(name='FounderShare')],
-                'incentive_ratio': [self.query, dict(name='IncentiveRatio')],
-                'trust_ratio': [self.query, dict(name='TrustRatio')],
-                'min_burn': [self.query, dict(name='MinBurn')],
-                'burn_rate': [self.query, dict(name='BurnRate')],
+                'stake': [query, {'name': 'TotalStake'}],
+                'emission': [query,  {'name':'SubnetEmission'}], 
+                'n': [query,  {'name': 'N'}],
+                'tempo': [query, dict(name='Tempo')],
+                'immunity_period': [query, dict(name='ImmunityPeriod')],
+                'min_allowed_weights': [query, dict(name='MinAllowedWeights')],
+                'max_allowed_weights': [query, dict(name='MaxAllowedWeights')],
+                'max_allowed_uids': [query, dict(name='MaxAllowedUids')],
+                'min_stake': [query, dict(name='MinStake')],
+                'founder': [query, dict(name='Founder')], 
+                'founder_share': [query, dict(name='FounderShare')],
+                'incentive_ratio': [query, dict(name='IncentiveRatio')],
+                'trust_ratio': [query, dict(name='TrustRatio')],
+                'min_burn': [query, dict(name='MinBurn')],
+                'burn_rate': [query, dict(name='BurnRate')],
+                'vote_threshold': [query, dict(name='SubnetVoteThreshold')],
+                'vote_mode': [query, dict(name='VoteModeSubnet')],
+                'self_vote': [query, dict(name='SelfVote')]
             }
         name2result = {}
 
@@ -1762,13 +1743,23 @@ class Subspace(c.Module):
             for k,v in name2job.items():
                 c.print(f"Getting {k} for netuid {netuid}", color='yellow')
                 remote_kwargs = dict(**v[1], **kwargs)
-                fn = v[0]
-                name2result[k] = fn(**remote_kwargs)
+                if parallel:
+                    name2result[k] = v[0](**remote_kwargs)
+                else:
+                    name2result[k] = v[0](**remote_kwargs)
 
+            if parallel or True:
+                futures = [v for k,v in name2result.items()]
+                results = c.gather(futures)
+                name2result = {k:v for k,v in zip(name2result.keys(), results)}
+        
             for name, result in name2result.items():
                 if not c.is_error(result):
                     name2result[name] = result
                     name2job.pop(name)
+
+            c.print(name2job.keys(), color='red')
+            c.print(name2result, color='green')
 
         subnet = {k:name2result[k] for k in name2result}
 
@@ -3254,6 +3245,7 @@ class Subspace(c.Module):
                     verbose: bool = True,
                     save_history : bool = True,
                     sudo:bool  = False,
+                    nonce: int = None,
                     remote_module: str = None,
                      **kwargs):
 
@@ -3298,7 +3290,7 @@ class Subspace(c.Module):
                     }
                 )
             # get nonce 
-            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=None)
+            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce)
 
             response = substrate.submit_extrinsic(extrinsic=extrinsic,
                                                   wait_for_inclusion=wait_for_inclusion, 
