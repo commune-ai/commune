@@ -6,9 +6,8 @@ Vali = c.module('vali')
 class ValiTextMMLU(Vali):
     def __init__(self,**kwargs):
         config = self.set_config(kwargs=kwargs)
-        self.dataset = c.module('data.hf')(path=self.config.dataset)
-
-        self.init_vali(config)
+        self.dataset = c.module('data.hf')(path=config.dataset)
+        self.init_vali(**config)
 
     def create_prompt(self, sample: dict) -> str:
         # format the prompt

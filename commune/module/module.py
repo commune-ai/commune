@@ -160,11 +160,8 @@ class c:
     def minimal_config(cls) -> Dict:
         '''
         The miminal config a module can be
-        
         '''
-        minimal_config = {
-            'module': cls.__name__
-        }
+        minimal_config = {'module': cls.__name__}
         return minimal_config
 
 
@@ -7453,7 +7450,7 @@ class c:
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)
-
+    unstake_all = multiunstake
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    

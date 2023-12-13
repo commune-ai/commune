@@ -1395,13 +1395,17 @@ class Subspace(c.Module):
                         key: str = None, 
                         netuid:int = 0,
                         network: str = None) -> Optional['Balance']:
+        
         network = self.resolve_network( network )
         key = self.resolve_key( key )
 
         if modules == None :
             stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
-            is_nanos = True
             module_keys = [k for k in stake_to.keys()]
+            # RESOLVE AMOUNTS
+            if amounts == None:
+                amounts = [stake_to[m] for m in module_keys]
+
         else:
             is_nanos = False
             stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
@@ -3253,6 +3257,10 @@ class Subspace(c.Module):
         Composes a call to a Substrate chain.
 
         """
+        if remote_module != None:
+            kwargs = c.locals2kwargs(locals())
+            return c.connect(remote_module).compose_call(**kwargs)
+
         params = {} if params == None else params
         key = self.resolve_key(key)
         if verbose:
