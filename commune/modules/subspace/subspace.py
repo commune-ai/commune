@@ -4062,8 +4062,6 @@ class Subspace(c.Module):
         c.rcmd('c s pull', verbose=True, timeout=timeout)
         c.rcmd('c s pull_image', verbose=True, timeout=timeout)
 
-
-
     @classmethod
     def status(cls):
         return c.status(cwd=cls.libpath)
