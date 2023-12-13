@@ -5399,7 +5399,7 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=False, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=True, **kwargs):
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
@@ -5417,7 +5417,7 @@ class c:
                 if c.is_registered(server_name):
                     c.print(f'Server {server_name} already exists, skipping', color='yellow')
                     continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout, return_future=True)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
