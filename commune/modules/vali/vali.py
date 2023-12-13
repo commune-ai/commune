@@ -8,9 +8,16 @@ class Vali(c.Module):
     
     last_sync_time = 0
 
-    def __init__(self,**kwargs):
+    def __init__(self,config=None,**kwargs):
+        self.init_vali(config=config, **kwargs)
 
-        config = self.set_config(kwargs=kwargs)
+
+    def init_vali(self,config=None, **kwargs):
+
+        config = self.set_config(config=config, kwargs=kwargs)
+        c.print(config)
+        self.config = c.dict2munch({**Vali.config(), **config})
+        c.print(f'Vali config: {self.config}', color='cyan')
         # merge the config with the default config
         self.count = 0
         # we want to make sure that the config is a munch
@@ -24,8 +31,6 @@ class Vali(c.Module):
             # launch a thread to run the vali
             c.thread(self.run)
 
-    def init_vali(self,**kwargs):
-        return self.__init__(**kwargs)
 
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
@@ -36,6 +41,7 @@ class Vali(c.Module):
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
 
+        self.last_sync_time = c.time()
         return {'namespace': self.namespace}
 
     def score_module(self, module):
@@ -132,7 +138,7 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
 
-    def votes(self, network='main', tag=None):
+    def votes(self, network='subspace', tag=None):
         tag = self.resolve_tag(tag)
         stats = self.module_infos(network=network, keys=['name','uid', 'w'], tag=tag)
 
@@ -165,6 +171,8 @@ class Vali(c.Module):
         return votes
 
     def vote(self):
+        if not hasattr(self, 'subspace'):
+            self.subspace = c.module('subspace')(network=self.config.network)
         c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
 
@@ -174,7 +182,7 @@ class Vali(c.Module):
             return result
 
         # calculate votes
-        votes = self.votes()
+        votes = self.votes(network=self.config.network)
 
         c.print(f'Voting on {len(votes["names"])} modules', color='cyan')
         self.subspace.vote(uids=votes['names'], # passing names as uids, to avoid slot conflicts
@@ -316,8 +324,6 @@ class Vali(c.Module):
             if self.vote_staleness > self.config.vote_interval:
                 if 'subspace' in self.config.network:
                     futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
-                    futures += [self.executor.submit(fn=self.sync, kwargs={}, return_future=True)]
-                    
 
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):

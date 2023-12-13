@@ -1845,6 +1845,20 @@ class c:
         return {'success':True, 'message':f'{path} removed'}
     
     @classmethod
+    def rm_all(cls):
+        tmp_dir = cls.tmp_dir()
+        if c.exists(tmp_dir):
+            cls.rm(tmp_dir)
+        assert not c.exists(tmp_dir), f'{tmp_dir} was not removed'
+        c.makedirs(tmp_dir)
+        assert c.is_dir_empty(tmp_dir), f'{tmp_dir} was not removed'
+        return {'success':True, 'message':f'{tmp_dir} removed'}
+
+    def is_dir_empty(self, path:str):
+        return len(self.ls(path)) == 0
+
+
+    @classmethod
     def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
         
         path = cls.resolve_path(path, extension=None, root=root)
@@ -2407,6 +2421,11 @@ class c:
     def update_namespace(cls, network:str='local',**kwargs):
         return c.module("namespace").update_namespace(network=network, **kwargs)
     
+    @classmethod
+    def update_subnet(cls, *args, **kwargs):
+        return c.module("subspace")().update_subnet(*args, **kwargs)
+    
+
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
         namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
@@ -8043,6 +8062,8 @@ class c:
         cnt = 0
         while name in cls.thread_map:
             cnt += 1
+            if tag == None:
+                tag = ''
             name = fn_name + tag_seperator + tag + str(cnt)
 
         cls.thread_map[name] = t

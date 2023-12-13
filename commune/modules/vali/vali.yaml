@@ -3,7 +3,7 @@
 key : null
 netuid: 0
 search: null
-network: local 
+network: subspace 
 max_history: 10
 alpha: 0.5
 timeout: 10
