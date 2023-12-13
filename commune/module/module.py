@@ -8646,6 +8646,10 @@ class c:
         return self.key
 
     @classmethod
+    def add_peers(cls, *args, **kwargs):
+        return c.module('remote').add_peers(*args,**kwargs)
+
+    @classmethod
     def sid(cls):
         return c.module('subspace')().id()
 
