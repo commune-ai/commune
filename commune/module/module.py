@@ -8645,6 +8645,10 @@ class c:
         st.code(key_address)
         return self.key
 
+    @classmethod
+    def sid(cls):
+        return c.module('subspace')().id()
+
     def sidebar(self, sidebar:bool = True):
         import streamlit as st
         if sidebar:
