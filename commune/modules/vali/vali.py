@@ -8,65 +8,35 @@ class Vali(c.Module):
     
     last_sync_time = 0
 
-    def __init__(self, config=None, **kwargs):
-        self.init_vali(config=config, **kwargs)
+    def __init__(self,**kwargs):
 
-    def init_vali(self, config=None, **kwargs):
-        config = self.set_config(config=config, kwargs=kwargs)
+        config = self.set_config(kwargs=kwargs)
         # merge the config with the default config
         self.count = 0
-
         # we want to make sure that the config is a munch
-        self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
+        self.sync_network()
+
         c.print(f'Vali config: {self.config}', color='cyan')
         if self.config.start:
-            self.sync()
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             # launch a thread to run the vali
             c.thread(self.run)
-    
-    @property
-    def sync_staleness(self):
-        return int(c.time() - self.last_sync_time) 
+
+    def init_vali(self,**kwargs):
+        return self.__init__(**kwargs)
 
 
-
-    @property               
-    def search(self):
-        if self.config.search == None:
-            self.config.search = self.tag
-        assert isinstance(self.config.search, str), f'Module search must be a string, got {type(self.config.search)}'
-        return self.config.search
-
-
-    def sync(self, network:str=None, netuid:int=None, update: bool = False):
+    def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
-        try:
-            if network == None:
-                network = self.config.network
-            if netuid == None:
-                netuid = self.config.netuid
-            self.subspace = c.module('subspace')(network=network, netuid=netuid)
-            
-            self.modules = self.subspace.modules(search=self.config.search, update=update, netuid=netuid)
-            self.n  = len(self.modules)                
-            self.subnet = self.subspace.subnet(netuid=netuid)
+        self.namespace = c.namespace(search=self.config.search, network=self.config.network, update=update)
+        self.n  = len(self.namespace)    
+        self.addresses = [self.namespace.values()]     
+        self.names = list(self.namespace.keys())
+        self.address2name = {v: k for k, v in self.namespace.items()}    
 
-            if self.config.vote_interval == None: 
-                self.config['vote_interval'] = self.subspace.seconds_per_epoch()
-
-            self.last_sync_time = c.time()
-            self.block = self.subspace.block
-
-            c.print('Syncing...', color='cyan')
-        except Exception as e:
-            c.print(f'Error syncing {e}', color='red')
-            c.print(traceback.format_exc(), color='red')
-            return {'success': False, 'message': f'Error syncing {e}'}
-
-        return {'modules': self.modules, 'subnet': self.subnet}
+        return {'namespace': self.namespace}
 
     def score_module(self, module):
         '''
@@ -81,82 +51,90 @@ class Vali(c.Module):
         return {'success': True, 'w': 1}
 
 
-    def eval_module(self, module:dict):
+    def eval_module(self, module:str):
         """
         The following evaluates a module server
         """
-        
         # load the module stats (if it exists)
-        module_stats = self.load_module_stats( module['name'], default=module)
 
-        # update the module state with the module stats
-        module_stats.update(module)
+        my_info = self.info()
         
-        seconds_since_called = c.time() - module_stats.get('timestamp', 0)
+        module_info = self.load_module_info( module, {})
+        if module in self.namespace:
+            module_name = module
+            module_address = self.namespace[module]
+        else:
+            module_address = module
+            module_name = self.address2name.get(module_address, module_address)
+        
+        emoji = c.emoji('hi')
+        c.print(f'Evaluating  {module_name}:{module_address} -->', color='cyan')
+
+        if module_address == my_info['address']:
+            return {'error': f'Cannot evaluate self {module_address}'}
+        # check the info of the module
+        module = c.connect(module_address, key=self.key, virtual=True)
+
+        if len(module_info) == 0:
+            try:
+                module_info = module.info(timeout=5)
+            except Exception as e:
+                return {'error': f'Could not connect to {module_address}'}
+
+        seconds_since_called = c.time() - module_info.get('timestamp', 0)
 
         # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
         if seconds_since_called < self.config.max_staleness:
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
-            return {'error': f'{module["name"]} is too new as we pinged it {seconds_since_called}(s) ago'}
+            r = {'error': f'{module_name} is too new as we pinged it {seconds_since_called}(s) ago'}
+            c.print(r)
+            return r
 
         start_timestamp = c.time()
         try:
             # this is where we connect to the client
-            module_client = c.connect(module['address'], key=self.key, virtual=True)
-            response = self.score_module(module_client)
-            color = 'green'
-            response['msg'] = f'{c.emoji("check")}{module["name"]} --> w:{response["w"]} {c.emoji("check")} '
-
+            response = self.score_module(module)
+            response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
         except Exception as e:
-            response = {'error': c.detailed_error(e),
-                        'w': 0, 
-                        'msg': f'{c.emoji("cross")} {module["name"]} --> {e} {c.emoji("cross")}'  
+            response = {'error': c.detailed_error(e), 'w': 0, 
+                        'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
-            color = 'red'
 
-        end_timestamp = c.time()
-        latency = end_timestamp - start_timestamp
-        
-        self.count += 1
-
+        end_timestamp = c.time()        
         w = response['w']
         response['timestamp'] = c.time()
         # we only want to save the module stats if the module was successful
-        module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-        module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_stats['timestamp'] = response['timestamp']
-        module_stats['start_timestamp'] = start_timestamp
-        module_stats['end_timestamp'] = end_timestamp
-        module_stats['latency'] = latency
+        module_info['count'] = module_info.get('count', 0) + 1 # update the count of times this module was hit
+        module_info['w'] = module_info.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
+        module_info['history'] = (module_info.get('history', []) + [{'response': response, 'w': w}])[:self.config.max_history]
+        module_info['timestamp'] = response['timestamp']
+        module_info['start_timestamp'] = start_timestamp
+        module_info['end_timestamp'] = end_timestamp
+        module_info['latency'] = end_timestamp - start_timestamp
+        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan')
+        self.save_module_info(module_name, module_info)
+        self.count += 1
 
-
-        self.save_module_stats(module['name'], module_stats)
-
-        return module_stats
-
-    @classmethod
-    def networks(cls):
-        return [f.split('/')[-1] for f in cls.ls('stats')]
+        return module_info
 
     @classmethod
-    def resolve_stats_path(cls, network:str, tag:str=None):
+    def resolve_module_info_path(cls, network:str, tag:str=None):
         if tag == None:
             tag = 'base'
-        return f'stats/{network}/{tag}'
+        return f'{tag}.{network}'
         
     def refresh_stats(self, network='main', tag=None):
         tag = self.tag if tag == None else tag
-        path = self.resolve_stats_path(network=network, tag=tag)
+        path = self.resolve_module_info_path(network=network, tag=tag)
         return self.rm(path)
     
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
 
-
-
     def votes(self, network='main', tag=None):
         tag = self.resolve_tag(tag)
-        stats = self.module_stats(network=network, keys=['name','uid', 'w'], tag=tag)
+        stats = self.module_infos(network=network, keys=['name','uid', 'w'], tag=tag)
 
         votes = {
             'names'     : [v['name'] for v in stats],            # get all names where w > 0
@@ -247,9 +225,9 @@ class Vali(c.Module):
                 c.mv(path, new_path)
 
     @classmethod
-    def saved_module_paths(cls, network:str='main', tag:str=None):
-        tag = 'base' if tag == None else tag
-        paths = cls.ls(f'stats/{network}/{tag}')
+    def saved_module_paths(cls, network:str='local', tag:str=None):
+        path = cls.resolve_module_info_path(network=network, tag=tag)
+        paths = cls.ls(path)
         return paths
 
     @classmethod
@@ -259,7 +237,7 @@ class Vali(c.Module):
         return modules
         
     @classmethod
-    def module_stats(cls,
+    def module_infos(cls,
                      tag=None,
                       network:str='main', 
                     batch_size:int=20 , 
@@ -268,7 +246,7 @@ class Vali(c.Module):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
         jobs = [c.async_get_json(p) for p in paths]
-        module_stats = []
+        module_infos = []
 
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
@@ -285,27 +263,27 @@ class Vali(c.Module):
                     continue
                 if keys  != None:
                     s = {k: s.get(k,None) for k in keys}
-                module_stats += [s]
+                module_infos += [s]
         
-        return module_stats
+        return module_infos
     
 
     def ls_stats(self):
         paths = self.ls(f'stats/{self.config.network}')
         return paths
 
-    def load_module_stats(self, k:str,default=None):
+    def load_module_info(self, k:str,default=None):
         default = default if default != None else {}
-        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+        path = self.resolve_module_info_path(network=self.config.network, tag=self.tag) + f'/{k}'
         return self.get_json(path, default=default)
 
 
     def get_history(self, k:str, default=None):
-        module_stats = self.load_module_stats(k, default=default)
-        return module_stats.get('history', [])
+        module_infos = self.load_module_info(k, default=default)
+        return module_infos.get('history', [])
     
-    def save_module_stats(self,k:str, v):
-        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+    def save_module_info(self,k:str, v):
+        path = self.resolve_module_info_path(network=self.config.network, tag=self.tag) + f'/{k}'
         self.put_json(path, v)
 
 
@@ -316,14 +294,6 @@ class Vali(c.Module):
 
     def run(self, vote=False):
 
-        self.sync()
-
-        # CHECK THE CHECK LOOP IS RUNNING
-        if self.config.check_loop:
-            self.ensure_check_loop()
-
-        if self.config.refresh_stats:
-            self.refresh_stats(network=self.config.network, tag=self.tag)
 
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
         c.new_event_loop()
@@ -331,25 +301,31 @@ class Vali(c.Module):
         futures = []
         while self.running:
 
-            modules = c.shuffle(c.copy(self.modules))
+            if self.last_sync_time + self.config.sync_interval < c.time():
+                c.print(f'Syncing network {self.config.network}', color='cyan') 
+                self.sync_network()
+
+            modules = c.shuffle(c.copy(self.names))
             time_between_interval = c.time()
             module = c.choice(modules)
 
-            c.sleep(self.config.sleep_time)
-
+            # c.sleep(self.config.sleep_time)
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
             futures.append(future)
 
             if self.vote_staleness > self.config.vote_interval:
-                    future = self.executor.submit(fn=self.vote, kwargs={}, return_future=True)
-                    futures.append(future)
-                    future = self.executor.submit(fn=self.sync, kwargs={}, return_future=True)
-                    futures.append(future)
+                if 'subspace' in self.config.network:
+                    futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
+                    futures += [self.executor.submit(fn=self.sync, kwargs={}, return_future=True)]
+                    
 
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):
-                    result = future.result()
-                    c.print(result)
+                    try:
+                        result = future.result()
+                    except Exception as e:
+                        c.print(f'Error: {e}', color='red')
+                    # c.print(result)
                     futures.remove(future)
                     break
             
@@ -479,12 +455,7 @@ class Vali(c.Module):
             if len(vali_stats) > 0:
                 vali_stats.sort_values(sortby, ascending=False, inplace=True)
             
-
-
-        
-        
         return vali_stats
-
 
     @classmethod
     def all_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=True, cache_path:str = 'vali_stats'):
@@ -511,7 +482,6 @@ class Vali(c.Module):
             return df
         return all_vote_stats
 
-
     @property
     def lifetime(self):
         return c.time() - self.start_time
@@ -526,5 +496,3 @@ class Vali(c.Module):
         kwargs['verbose'] = True
         self = cls(**kwargs )
         return self.run()
-
-

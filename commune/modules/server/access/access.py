@@ -76,16 +76,15 @@ class Access(c.Module):
             rate_limit = rate_limit + self.config.base_rate # add the base rate
             rate_limit = rate_limit * self.config.rate # multiply by the rate
 
+        # check if the user has exceeded the rate limit
         time_since_called = c.time() - user_info['last_time_called']
         seconds_in_period = self.timescale_map[self.config.timescale]
-
         if time_since_called > seconds_in_period:
-            # reset the requests
             user_info['requests'] = 0
+
         passed = bool(user_info['requests'] <= rate_limit)
+        
         # update the user info
-
-
         user_info['rate_limit'] = rate_limit
         user_info['stake'] = stake
         user_info['seconds_in_period'] = seconds_in_period
