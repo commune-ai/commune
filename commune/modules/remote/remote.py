@@ -121,16 +121,17 @@ class Remote(c.Module):
         if hosts == None:
             hosts = cls.hosts()
         if filetype == 'json':
-
             cls.put_json(path, hosts)
         elif filetype == 'yaml':
             cls.put_yaml(path, hosts)
 
-        return {'status': 'success', 
+        return {
+                'status': 'success', 
                 'msg': f'Hosts saved', 
                 'hosts': hosts, 
                 'path': cls.host_data_path, 
-                'filetype': filetype}
+                'filetype': filetype
+                }
     @classmethod
     def load_hosts(cls, path = None, filetype=filetype):
         if path == None:
@@ -148,6 +149,7 @@ class Remote(c.Module):
     
     @classmethod
     def rm_host(cls, name):
+        hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
             cls.save_hosts( hosts)
@@ -190,8 +192,6 @@ class Remote(c.Module):
     @classmethod
     def n(cls, search=None):
         return len(cls.hosts(search=search))
-    
-
 
     def num_servers(self):
         return len(self.servers())

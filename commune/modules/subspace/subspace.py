@@ -4010,11 +4010,13 @@ class Subspace(c.Module):
         return c.cmd(f'docker pull {cls.image}')
     
     @classmethod
-    def chain_spec_hash(cls):
-        return c.hash(c.get_json(cls.chain_spec_path()))
+    def chain_spec_hash(cls, chain='main'):
+        return c.hash( cls.chain_spec(chain=chain))
+    @classmethod
+    def chain_spec(cls, chain='main'):
+        return c.get_json(cls.chain_spec_path(chain=chain))
+    
 
-    
-    
     @classmethod
     def id(self):
         return c.hash(self.hash_map())
