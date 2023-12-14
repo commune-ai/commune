@@ -6,18 +6,19 @@ class WSClient(c.Module):
     
     
     def __init__(self,
-                 name , 
+                 address:str = '0.0.0.0:50087', 
                  start:bool = True, 
                  network: dict = None,
                  ):
-        if ':' in ip:
-            ip, port = ip.split(':')
-
+        if ':' in address:
+            ip, port = address.split(':')
+        self.ip = ip
+        self.port = port
         namespace = c.namespace(network=network)
-        self.address = namespace.get(name, None)
+        self.address = namespace.get(address, None)
         
 
-    def resolve_address(cls, address=None):
+    def resolve_address(self, address=None):
         if address == None:
             address = self.address
         if not 'ws://' in address:
@@ -26,16 +27,10 @@ class WSClient(c.Module):
         return address
 
     async def async_forward(self, data='hello', address = None):
-
         address = self.resolve_address(address=address)
-        
-
-        
-        
         async with websockets.connect(address) as websocket:
             await websocket.send(data)
             response = await websocket.recv()
-        
         return response
     
     def forward(self, data='hello', address = None):

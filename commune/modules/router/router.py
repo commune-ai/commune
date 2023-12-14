@@ -10,7 +10,7 @@ class Router(c.Module):
         self.executor = c.module('executor.thread')(max_workers=max_workers)
 
 
-    def call(self, server, *args, fn=None,  fn_splitter='/', return_future=False, **kwargs):
+    def call(self, server, *args,  fn_splitter='/', return_future=False, **kwargs):
         args = args or []
         kwargs = kwargs or {}
         if fn_splitter in server:

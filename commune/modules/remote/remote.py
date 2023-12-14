@@ -28,9 +28,6 @@ class Remote(c.Module):
         if cwd != None:
             command = f'cd {cwd} && {command}'
 
-        
-
-
         import paramiko
         hosts = cls.hosts()
         host_name = host
@@ -151,7 +148,6 @@ class Remote(c.Module):
     
     @classmethod
     def rm_host(cls, name):
-        hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
             cls.save_hosts( hosts)
@@ -766,13 +762,15 @@ class Remote(c.Module):
         import streamlit as st
         host_map = self.hosts()
         cols = st.columns(2)
+        search = st.text_input('Search')
+        host_map = {k:v for k,v in host_map.items() if search in k}
         host_names = list(host_map.keys())
-        with st.sidebar:
-            search = st.text_input('Search')
-            host_names = st.multiselect('Host', host_names, host_names)
+        host_names = st.multiselect('Host', host_names, host_names)
+
 
         with st.expander('Hosts', expanded=False):
             
+            st.write(host_map)
             for host_name, host in host_map.items():
                 cols = st.columns([1,4])
                 cols[0].write('#### '+host_name)
@@ -796,16 +794,17 @@ class Remote(c.Module):
         
         
         
-        cols = st.columns([4,2,1,1])
+        cols = st.columns([4,2,1])
 
         cmd = cols[0].text_input('Command', 'ls')
 
-        [cols[1].write('') for i in range(2)]
-        run_button = cols[1].button('Run')
-        timeout = cols[2].number_input('Timeout', 1, 100, 10)
+        [cols[1].write('') for i in range(1)]
+        timeout = cols[1].number_input('Timeout', 1, 100, 10)
         # add splace to cols[2] vertically
-        [cols[3].write('') for i in range(2)]
-        sudo = cols[3].checkbox('Sudo')
+        [cols[2].write('') for i in range(2)]
+        sudo = cols[2].checkbox('Sudo')
+        run_button = st.button('Run')
+
 
         host2future = {}
         if run_button:
