@@ -319,20 +319,6 @@ class Remote(c.Module):
                     server_name = 'module' + '_' +  tag
                     namespace[server_name] = server_address
 
-        name2future = {}
-        for server_name, server_address in namespace.items():
-            name2future[server_name] = c.submit(c.call, args=(server_address, 'info'), return_future=True, timeout=timeout)
-
-        futures = list(name2future.values())
-        names = list(name2future.keys())
-        results = c.wait(futures, timeout=timeout)
-        infos = []
-        namespace = {}
-        for name,result in zip(names,results):
-            if not c.is_error(result):
-                infos.append(result)
-                namespace[name] = result['address']
-
         c.put_namespace(network=network, namespace=namespace)
 
         return {'status': 'success', 'msg': f'Servers added', 'servers': namespace}
