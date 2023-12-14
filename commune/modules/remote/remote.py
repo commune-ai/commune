@@ -634,28 +634,29 @@ class Remote(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        tabs = st.tabs(['Servers'])
+        tabs = st.tabs(['Servers', 'Peers'])
         
     
 
         with tabs[0]:
             st.markdown('## Servers')
             self.ssh_dashboard()
-        # with tabs[1]:
-        #     st.markdown('## Peers')
-        #     self.peers_dashboard()
+        with tabs[1]:
+            st.markdown('## Peers')
+            self.peer_dashboard()
 
 
-    def peers_dashboard(self):
+    def peer_dashboard(self):
         import streamlit as st
 
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
-
+        ip2host = self.ip2host()
         peer2info = self.peer2info()
         with st.expander('Peers', expanded=False):
             for peer, info in peer2info.items():
                 cols = st.columns([1,4])
+                peer = ip2host.get(peer, peer)
                 cols[0].write('#### '+peer)
 
                 timestamp = info.get('timestamp', None)
@@ -663,7 +664,7 @@ class Remote(c.Module):
                 if lag != None:
                     lag = round(lag, 2)
                     st.write(f'{lag} seconds ago')
-                cols[1].write(info['hardware'])
+                cols[1].write(info.get('hardware', {}))
                 cols[1].write(info.get('namespace', {}))
 
         namespace = c.namespace(search=search, network='remote')
@@ -708,7 +709,6 @@ class Remote(c.Module):
         if run:
             future2module = {}
             for module_address in module_addresses:
-                st.write('Running', module_address)
                 kwargs['fn'] = fn_name
                 future = c.submit(c.call, args=[module_address], kwargs=kwargs, return_future=True)
                 future2module[future] = module_address
@@ -716,18 +716,19 @@ class Remote(c.Module):
             futures = list(future2module.keys())
             modules = list(future2module.values())
             for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
-                st.write('Result', result)
-                assert 'idx' in result, f'idx not in result {result}'
-                assert 'result' in result, f'result not in result {result}'
+                if not ('idx' in result and 'result' in result):
+                    continue
 
                 module_name = modules[result['idx']]
                 result = result['result']
+                
+                with st.expander(f'{module_name}', expanded=False):
 
-                st.markdown(f'### {module_name}')
-                if c.is_error(result):
-                    st.error(result)
-                else:
-                    st.write(result)
+                    st.markdown(f'### {module_name}')
+                    if c.is_error(result):
+                        st.error(result)
+                    else:
+                        st.write(result)
         
         t2 = c.time()
         st.write(f'Info took {t2-t1} seconds')
@@ -803,30 +804,32 @@ class Remote(c.Module):
         host2error = {}
         count = 0
         cols = st.columns(4)
-        try:
-            for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
-                host = hosts[result['idx']]
 
-                if host == None:
-                    continue
-                host2future.pop(host)
+        with st.expander('Results', expanded=False):
+            try:
+                for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                    host = hosts[result['idx']]
 
-                result = result['result']
-                if c.is_error(result):
-                    host2error[host] = result
-                else:
-                    count += 1
-                    st.markdown(host + ' ' + c.emoji('check_mark'))
-                    st.markdown(f"""```bash\n{result}```""")
+                    if host == None:
+                        continue
+                    host2future.pop(host)
 
-        except Exception as e:
-            pending_hosts = list(host2future.keys())
-            st.error(c.detailed_error(e))
-            st.error(f"Hosts {pending_hosts} timed out")
+                    result = result['result']
+                    if c.is_error(result):
+                        host2error[host] = result
+                    else:
+                        count += 1
+                        st.markdown(host + ' ' + c.emoji('check_mark'))
+                        st.markdown(f"""```bash\n{result}```""")
 
-        for host, result in host2error.items():
-            st.markdown(host + ' ' + c.emoji('cross'))
-            st.markdown(f"""```bash\n{result}```""")
+            except Exception as e:
+                pending_hosts = list(host2future.keys())
+                st.error(c.detailed_error(e))
+                st.error(f"Hosts {pending_hosts} timed out")
+
+            for host, result in host2error.items():
+                st.markdown(host + ' ' + c.emoji('cross'))
+                st.markdown(f"""```bash\n{result}```""")
 
 
 
