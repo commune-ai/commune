@@ -8,17 +8,27 @@ class Router(c.Module):
 
     def __init__(self, max_workers=10):
         self.executor = c.module('executor.thread')(max_workers=max_workers)
-
-
-    def call(self, server, *args,  fn_splitter='/', return_future=False, **kwargs):
+    @c.timeit
+    def call(self, 
+             server:str, 
+             fn : str = None,
+             args:list = None,
+             kwargs : dict = None, 
+             network:str='local',
+             fn_splitter='/', 
+             return_future=False
+             ):
         args = args or []
         kwargs = kwargs or {}
+
         if fn_splitter in server:
             fn = server.split(fn_splitter)[1]
             server = fn_splitter.join(server.split(fn_splitter)[:1])
         else:
             fn = fn or self.default_fn
-        result = self.executor.submit(c.call, args=[server],  kwargs={'fn':fn,  **kwargs}, return_future=return_future)
+        
+        
+        result = self.executor.submit(c.call,  kwargs={'module': server, 'fn':fn,  **kwargs}, return_future=return_future)
         return result
 
 

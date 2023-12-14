@@ -1,5 +1,7 @@
 
 import commune as c
+from typing import *
+import ray
 
 class Ray(c.Module):
     description = 'ray stuff'
