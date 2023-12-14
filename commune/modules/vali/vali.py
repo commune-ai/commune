@@ -154,20 +154,14 @@ class Vali(c.Module):
         c.copy(votes['uids']) # is line needed ?
         new_votes = {'names': [], 'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
         for i in range(len(votes['names'])):
-            if votes['uids'][i] < self.n :
-                new_votes['names'] += [votes['names'][i]]
-                new_votes['uids'] += [votes['uids'][i]]
-                new_votes['weights'] += [votes['weights'][i]]
-        
-        votes = new_votes
-        topk = self.subnet['max_allowed_weights']
-        topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
-        votes['weights'] = [votes['weights'][i] for i in topk_indices]
-        votes['names'] = [votes['names'][i] for i in topk_indices]
-        # normalize vote
-        votes['weights'] = torch.tensor(votes['weights'])
-        votes['weights'] = (votes['weights'] / votes['weights'].sum())
-        votes['weights'] = votes['weights'].tolist()
+            if votes['weights'][i] == 0:
+                continue
+            if votes['names'][i] in new_votes['names']:
+                continue
+            new_votes['names'] += [votes['names'][i]]
+            new_votes['uids'] += [votes['uids'][i]]
+            new_votes['weights'] += [votes['weights'][i]]
+            
         return votes
 
     def vote(self):
@@ -214,7 +208,7 @@ class Vali(c.Module):
 
     @classmethod
     def tags(cls, network='main', mode='stats'):
-        return list(cls.tag2path(network=network, mode=mode).keys())
+        return list([p.split('/')[-1].split('.')[0] for p in cls.ls()])
 
     @classmethod
     def paths(cls, network='main', mode='stats'):
@@ -330,7 +324,8 @@ class Vali(c.Module):
                     try:
                         result = future.result()
                     except Exception as e:
-                        c.print(f'Error: {e}', color='red')
+                        e = c.detailed_error(e)
+                        c.print(e, color='red')
                     # c.print(result)
                     futures.remove(future)
                     break
