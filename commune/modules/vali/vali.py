@@ -34,6 +34,7 @@ class Vali(c.Module):
 
         c.print(f'Vali config: {self.config}', color='cyan')
         if self.config.start:
+            c.sleep(10)
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             # launch a thread to run the vali
             c.thread(self.run)
@@ -85,17 +86,11 @@ class Vali(c.Module):
 
         if module_address == my_info['address']:
             return {'error': f'Cannot evaluate self {module_address}'}
-        # check the info of the module
-        module = c.connect(module_address, key=self.key, virtual=True)
 
-        if len(module_info) == 0:
-            try:
-                module_info = module.info(timeout=5)
-            except Exception as e:
-                return {'error': f'Could not connect to {module_address}'}
+        start_timestamp = c.time()
 
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
-
+        
         # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
         if seconds_since_called < self.config.max_staleness:
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
@@ -103,8 +98,12 @@ class Vali(c.Module):
             c.print(r)
             return r
 
-        start_timestamp = c.time()
         try:
+            # check the info of the module
+            module = c.connect(module_address, key=self.key, virtual=True)
+
+            if len(module_info) == 0:
+                module_info = module.info(timeout=5)
             # this is where we connect to the client
             response = self.score_module(module)
             response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
@@ -145,9 +144,19 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
 
-    def votes(self, network='subspace', tag=None):
-        tag = self.resolve_tag(tag)
-        module_infos = self.module_infos(network=network, keys=['name','uid', 'w'], tag=tag)
+    def vote(self):
+
+
+        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
+        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
+
+        if stake < self.config.min_stake:
+            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
+            return result
+        
+
+        tag = self.tag
+        module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
             'weights' : [],  # get all weights where w > 0
@@ -157,44 +166,13 @@ class Vali(c.Module):
 
         key2uid = self.subspace.key2uid()
         for info in module_infos:
-            if 'ss58_address' in info \
-                and info['ss58_address'] in key2uid \
-                and info['w'] > 0:
-
+            if 'ss58_address' in info and info['w'] > 0:
                 votes['keys'] += [info['ss58_address']]
                 votes['weights'] += [info['w']]
-                votesp['uids'] += [key2uid.get(info['ss58_address'], 0)]
+                votes['uids'] += [key2uid.get(info['ss58_address'], 0)]
 
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-        
-        
-        c.copy(votes['uids']) # is line needed ?
-        new_votes = {'names': [], 'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
-        for i in range(len(votes['names'])):
-            if votes['weights'][i] == 0:
-                continue
-            if votes['names'][i] in new_votes['names']:
-                continue
-            new_votes['names'] += [votes['names'][i]]
-            new_votes['uids'] += [votes['uids'][i]]
-            new_votes['weights'] += [votes['weights'][i]]
-            
-        return votes
 
-    def vote(self):
-
-        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
-        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
-
-        if stake < self.config.min_stake:
-            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
-            c.print(result, color='red')
-            return result
-
-        # calculate votes
-        votes = self.votes()
-
-        c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
         self.subspace.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
@@ -244,7 +222,7 @@ class Vali(c.Module):
                 c.mv(path, new_path)
 
     @classmethod
-    def saved_module_paths(cls, network:str='local', tag:str=None):
+    def saved_module_paths(cls, network:str='subspace ', tag:str=None):
         path = cls.resolve_storage_path(network=network, tag=tag)
         paths = cls.ls(path)
         return paths
@@ -258,12 +236,13 @@ class Vali(c.Module):
     @classmethod
     def module_infos(cls,
                      tag=None,
-                      network:str='main', 
+                      network:str='subspace', 
                     batch_size:int=20 , 
-                    max_staleness:int= 1000,
+                    max_staleness:int= 1000000,
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
+        c.print(f'Loading {len(paths)} module infos', color='cyan')
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
 
@@ -334,13 +313,8 @@ class Vali(c.Module):
             futures.append(future)
 
             if self.vote_staleness > self.config.vote_interval:
-                if len(vote_futures) > 0:
-                    for future in c.as_completed(vote_futures, timeout=self.config.timeout):
-                        result = future.result()
-                        vote_futures.remove(future)
-                else:
-                    if 'subspace' in self.config.network:
-                        vote_futures += [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
+                if not len(vote_futures) > 0 and 'subspace' in self.config.network:
+                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
 
             if len(futures) >= self.config.max_futures:
                 for future in c.as_completed(futures, timeout=self.config.timeout):

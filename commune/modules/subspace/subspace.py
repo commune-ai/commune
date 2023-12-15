@@ -369,6 +369,10 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
         
+        subnet = self.subnet( netuid = netuid )
+        min_allowed_weights = subnet['min_allowed_weights']
+        max_allowed_weights = subnet['max_allowed_weights']
+
         # checking if the "uids" are passed as names -> strings
         if uids != None and all(isinstance(item, str) for item in uids):
             names2uid = self.names2uids(names=uids)
@@ -379,52 +383,53 @@ class Subspace(c.Module):
                     c.print(f'Could not find {name} in network {netuid}')
                     return False
 
-        subnet = self.subnet( netuid = netuid )
-        min_allowed_weights = subnet['min_allowed_weights']
-        max_allowed_weights = subnet['max_allowed_weights']
 
- 
         if uids is None:
             uids = self.uids()
         if weights is None:
             weights = [1 for _ in uids]
 
-        weights = weights[:len(uids)]
-
-        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
-
-    
-        if len(uids) == 0:
-            c.print(f'No uids to vote on.')
-            return False
-
-        max_allowed_weights = min(max_allowed_weights, n)
-        
-        if len(uids) > max_allowed_weights:
-            c.print(f'Only {max_allowed_weights} uids are allowed to be voted on.')
-            uids = uids[:max_allowed_weights]
-            weights = weights[:max_allowed_weights]
-
+  
         if len(uids) < min_allowed_weights:
             while len(uids) < min_allowed_weights:
                 uid = c.choice(list(range(subnet['n'])))
                 if uid not in uids:
                     uids.append(uid)
-                    weights.append(0)
+                    weights.append(1)
 
-        weights = torch.tensor(weights)
-            
-        weights = weights / weights.sum()
-        weights = weights * U16_MAX
-        weights = weights.tolist()
+        uid2weight = {uid: weight for uid, weight in zip(uids, weights)}
 
-        if isinstance(weights, list):
-            weights = torch.tensor(weights)
+        uids = list(uid2weight.keys())
+        weights = weights[:len(uids)]
+
+        c.print(f'Voting for {len(uids)} uids in network {netuid} with {len(weights)} weights')
+
+        
+        if len(uids) == 0:
+            return {'success': False, 'message': f'No uids found in network {netuid}'}
+        
+        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
+
+        uids = uids[:max_allowed_weights]
+        weights = weights[:max_allowed_weights]
+
 
         # uids = [int(uid) for uid in uids]
         uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
+
+        # sort the uids and weights
+        uids = torch.tensor(uids)
+        weights = torch.tensor(weights)
+        indices = torch.argsort(weights, descending=True)
+        uids = uids[indices]
+        weights = weights[indices]
+
+        weights = weights / weights.sum()
+        weights = weights * U16_MAX
+        weights = list(map(int, weights.tolist()))
+        uids = list(map(int, uids.tolist()))
 
         params = {'uids': uids,
                   'weights': weights, 
@@ -4986,11 +4991,6 @@ class Subspace(c.Module):
         if len(c.ls(cls.libpath)) < 10:
             libpath = libpath
             c.cmd(f'git clone {cls.git_url()} {cls.chain_path()}')
-
-    
-
-    
-
     
     
     def my_balances(self, search=None, min_value=1000, fmt='j', **kwargs):
