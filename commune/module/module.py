@@ -8122,8 +8122,8 @@ class c:
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
-    def is_admin(cls, *args, **kwargs):
-        return c.module('user').is_admin(*args, **kwargs)
+    def is_admin(cls, address:str):
+        return c.module('user').is_admin(address=address)
     @classmethod
     def admins(cls):
         return c.module('user').admins()

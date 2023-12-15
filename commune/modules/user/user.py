@@ -60,7 +60,7 @@ class User(c.Module):
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
-    def is_admin(cls, address):
+    def is_admin(cls, address:str):
         return cls.get_role(address) == 'admin'
     @classmethod
     def admins(cls):

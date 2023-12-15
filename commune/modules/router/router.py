@@ -30,6 +30,8 @@ class Router(c.Module):
         
         result = self.executor.submit(c.call,  kwargs={'module': server, 'fn':fn,  **kwargs}, return_future=return_future)
         return result
+    
+    
 
 
     def servers(self, network:str='local'):
