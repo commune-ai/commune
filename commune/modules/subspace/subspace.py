@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra-2023-12-12'
+    image = 'vivonasg/subspace.libra-2023-12-16'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -2160,17 +2160,20 @@ class Subspace(c.Module):
     def netuids(self) -> Dict[int, str]:
         return sorted(list(self.subnet_namespace.values()))
 
-    @property
-    def subnet_namespace(self, network=network, update=False ) -> Dict[str, str]:
-        records = self.query_map('Name2Subnet', network=network, update=update)
+    def subnet_names(self, network=network ) -> Dict[str, str]:
+        records = self.query_map('SubnetNames')
+        return {k:v for k,v in records}
+
+    def subnet_namespace(self, network=network ) -> Dict[str, str]:
+        records = self.query_map('SubnetNames')
         return {k:v for k,v in records}
     
 
     
     @property
-    def subnet_reverse_namespace(self ) -> Dict[str, str]:
+    def subnet_reverse_namespace(self, network='main' ) -> Dict[str, str]:
         
-        return {v:k for k,v in self.subnet_namespace.items()}
+        return {v:k for k,v in self.subnet_namespace(network=network).items()}
     
     def netuid2subnet(self, netuid = None):
         subnet_reverse_namespace = self.subnet_reverse_namespace
@@ -4080,7 +4083,7 @@ class Subspace(c.Module):
     def push_image(cls, image='subspace.libra', public_image=image, build:bool = True ):
         if build:
             c.print(cls.build_image())
-        public_image = f'{public_image}-{c.datetime().split("_")[0]}'
+        public_image = f'{public_image.split("-")[0]}-{c.datetime().split("_")[0]}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
