@@ -1270,7 +1270,7 @@ class Keypair(c.Module):
 
         
     @staticmethod
-    def is_valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
+    def valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1282,7 +1282,7 @@ class Keypair(c.Module):
         """
 
         try:
-            return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
+            return ss58.valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
         except Exception as e:
             return False
 
@@ -1293,7 +1293,7 @@ class Keypair(c.Module):
 
 
     @classmethod
-    def is_valid_ss58_address(cls, address: str ) -> bool:
+    def valid_ss58_address(cls, address: str ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1358,7 +1358,7 @@ class Keypair(c.Module):
                 return cls.is_valid_ed25519_pubkey( address )
             else:
                 # Assume ss58 address
-                return cls.is_valid_ss58_address( address )
+                return cls.valid_ss58_address( address )
         elif isinstance( address, bytes ):
             # Check if ed25519
             return cls.is_valid_ed25519_pubkey( address )

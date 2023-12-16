@@ -7545,8 +7545,8 @@ class c:
         return self._key
 
     @staticmethod
-    def is_valid_ss58_address(address:str):
-        return c.module('key').is_valid_ss58_address(address)
+    def valid_ss58_address(address:str):
+        return c.module('key').valid_ss58_address(address)
 
     @key.setter
     def key(self, key):

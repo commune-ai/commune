@@ -12,7 +12,7 @@ class User(c.Module):
     ##################################
     @classmethod
     def add_user(cls, address, role='user', **kwargs):
-        if not c.is_valid_ss58_address(address):
+        if not c.valid_ss58_address(address):
             return {'success': False, 'msg': f'{address} is not a valid address'}
         users = cls.get('users', {})
         info = {'role': role, **kwargs}
