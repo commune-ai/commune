@@ -551,7 +551,8 @@ class Subspace(c.Module):
         amount: float , 
         key: str = None,
         network : str = None,
-        netuid : int = None,
+        nonce= None,
+        
     ) -> bool:
         
         key = self.resolve_key(key)
@@ -571,7 +572,8 @@ class Subspace(c.Module):
                 'dest': dest, 
                 'value': amount
             },
-            key=key
+            key=key,
+            nonce = nonce
         )
 
         if response['success']:
@@ -760,7 +762,9 @@ class Subspace(c.Module):
         netuid: int = None,
         key: str = None,
         network = network,
+        nonce = None,
         **params,
+
 
     ) -> bool:
             
@@ -778,7 +782,7 @@ class Subspace(c.Module):
         # remove the params that are the same as the module info
         params = {**subnet_params, **params}
         params.pop('founder')
-        response = self.compose_call(fn='update_subnet',params={'params':params, 'netuid': netuid}, key=key)
+        response = self.compose_call(fn='update_subnet',params={'params':params, 'netuid': netuid}, key=key, nonce=nonce)
 
         return response
 
@@ -2157,9 +2161,10 @@ class Subspace(c.Module):
         return sorted(list(self.subnet_namespace.values()))
 
     @property
-    def subnet_namespace(self, network=network ) -> Dict[str, str]:
-        records = self.query_map('Name2Subnet')
+    def subnet_namespace(self, network=network, update=False ) -> Dict[str, str]:
+        records = self.query_map('Name2Subnet', network=network, update=update)
         return {k:v for k,v in records}
+    
 
     
     @property
@@ -2779,15 +2784,13 @@ class Subspace(c.Module):
     def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
         namespace = {}  
 
-        if len(namespace) == 0:
-            futures = [c.submit(getattr(self, k), kwargs=dict(netuid=netuid, update=update, **kwargs), return_future=True)for k in ['names', 'addresses']]
-            names, addresses = c.wait(futures, timeout=timeout)
-            namespace = {n: a for n, a in zip(names, addresses)}
-            c.put_namespace('subspace', namespace)
+        names = self.names(netuid=netuid, update=update, **kwargs)
+        addresses = self.addresses(netuid=netuid, update=update, **kwargs)
+        namespace = {n: a for n, a in zip(names, addresses)}
+
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 
-        
         if local:
             ip = c.ip()
             namespace = {k:v for k,v in namespace.items() if ip in str(v)}
@@ -3314,10 +3317,14 @@ class Subspace(c.Module):
 
         start_time = c.datetime()
         ss58_address = key.ss58_address
-        pending_path = f'history/{ss58_address}/pending/{start_time}_{self.network}_{module}::{fn}.json'
+
+
+        pending_path = f'history/{ss58_address}/pending/{self.network}_{module}::{fn}::nonce_{nonce}.json'
         complete_path = f'history/{ss58_address}/complete/{start_time}_{self.network}_{module}::{fn}.json'
 
-
+        if self.exists(pending_path):
+            nonce = self.get_nonce(key=key, network=self.network) + 1
+            
         compose_kwargs = dict(
                 call_module=module,
                 call_function=fn,
