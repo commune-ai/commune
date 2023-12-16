@@ -601,7 +601,7 @@ class Remote(c.Module):
                 st.markdown('## Hosts')
                 cols = st.columns(2)
                 host = cols[0].text_input('Host',  '0.0.0.0')
-                port = cols[1].number_input('Port', 22, 10000, 22)
+                port = cols[1].number_input('Port', 22, 30000000000, 22)
                 user = st.text_input('User', 'root')
                 pwd = st.text_input('Password', type='password')
                 add_host = st.button('Add Host')
@@ -619,8 +619,8 @@ class Remote(c.Module):
 
 
 
-    def host2ssh(self):
-        hosts = self.hosts()
+    def host2ssh(self, **kwargs):
+        hosts = self.hosts(**kwargs)
         host2ssh = {}
         for host_name, host in hosts.items():
             host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'

@@ -596,6 +596,41 @@ class Subspace(c.Module):
 
     send = transfer
 
+    ##################
+    #### Transfer ####
+    ##################
+    def add_profit_shares(
+        self,
+        keys: List[str], 
+        shares: List[float] = None , 
+        key: str = None,
+        network : str = None,
+    ) -> bool:
+        
+        key = self.resolve_key(key)
+        network = self.resolve_network(network)
+        assert len(keys) > 0, f"Must provide at least one key"
+        assert all([c.valid_ss58_address(k) for k in keys]), f"All keys must be valid ss58 addresses"
+        if shares == None:
+            shares = [1 for _ in keys]
+        
+        assert len(keys) == len(shares), f"Length of keys {len(keys)} must be equal to length of shares {len(shares)}"
+
+        response = self.compose_call(
+            module='SubspaceModule',
+            fn='add_profit_shares',
+            params={
+                'keys': keys, 
+                'shares': shares
+            },
+            key=key
+        )
+
+        return response
+
+
+
+
     def get_existential_deposit(
         self,
         block: Optional[int] = None,
@@ -841,7 +876,7 @@ class Subspace(c.Module):
             name2key = self.name2key(netuid=netuid)
         if module_key in name2key:
             module_key = name2key[module_key]
-        assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
+        assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         return module_key
 
     def transfer_stake(
@@ -1009,7 +1044,7 @@ class Subspace(c.Module):
                 module_key = module
         
         # we expected to switch the module to the module key
-        assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
+        assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         assert module_key in staketo, f"Module {module_key} not found in SubNetwork {netuid}"
         stake = staketo[module_key]
         amount = amount if amount != None else stake
@@ -1171,7 +1206,7 @@ class Subspace(c.Module):
             key = c.get_key(key)
 
         if isinstance(key, str):
-            if c.is_valid_ss58_address(key):
+            if c.valid_ss58_address(key):
                 return key
             else:
                 if c.key_exists( key ):
@@ -1189,7 +1224,7 @@ class Subspace(c.Module):
         elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_address
         c.print(key, 'key')
-        assert c.is_valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
+        assert c.valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
 
@@ -1370,7 +1405,7 @@ class Subspace(c.Module):
             amounts = [amounts] * len(destinations)
 
         assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
-        assert all([c.is_valid_ss58_address(d) for d in destinations]), f"Invalid destination address {destinations}"
+        assert all([c.valid_ss58_address(d) for d in destinations]), f"Invalid destination address {destinations}"
 
 
 
@@ -1419,7 +1454,7 @@ class Subspace(c.Module):
             stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
             module_keys = []
             for i, module in enumerate(modules):
-                if c.is_valid_ss58_address(module):
+                if c.valid_ss58_address(module):
                     module_keys += [module]
                 else:
                     name2key = self.name2key(netuid=netuid)
@@ -1802,7 +1837,7 @@ class Subspace(c.Module):
         name2key = self.name2key(netuid=netuid)
         if key in name2key:
             key = name2key[key]
-        if not c.is_valid_ss58_address(key):
+        if not c.valid_ss58_address(key):
             return False
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
@@ -3263,12 +3298,13 @@ class Subspace(c.Module):
         Composes a call to a Substrate chain.
 
         """
+        key = self.resolve_key(key)
+
         if remote_module != None:
             kwargs = c.locals2kwargs(locals())
             return c.connect(remote_module).compose_call(**kwargs)
 
         params = {} if params == None else params
-        key = self.resolve_key(key)
         if verbose:
             c.print('params', params, color=color)
             kwargs = c.locals2kwargs(locals())

@@ -106,7 +106,7 @@ def unbiased_topk( values, k, dim=0, sorted = True, largest = True):
 
 
 
-def is_valid_ss58_address( address: str ) -> bool:
+def valid_ss58_address( address: str ) -> bool:
     """
     Checks if the given address is a valid ss58 address.
 

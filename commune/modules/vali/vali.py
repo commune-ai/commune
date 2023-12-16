@@ -95,7 +95,6 @@ class Vali(c.Module):
         if seconds_since_called < self.config.max_staleness:
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
             r = {'error': f'{module_name} is too new as we pinged it {seconds_since_called}(s) ago'}
-            c.print(r)
             return r
 
         try:
@@ -144,7 +143,7 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
 
-    def vote(self):
+    def vote(self, tag=None):
 
 
         c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
@@ -155,7 +154,7 @@ class Vali(c.Module):
             return result
         
 
-        tag = self.tag
+        tag = tag or self.tag
         module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
