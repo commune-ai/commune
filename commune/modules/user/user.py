@@ -10,12 +10,14 @@ class User(c.Module):
     ##################################
     # USER LAND
     ##################################
+    def name2key(self, name:str):
+        
     @classmethod
-    def add_user(cls, address, role='user', **kwargs):
+    def add_user(cls, address, role='user', name=None, **kwargs):
         if not c.valid_ss58_address(address):
             return {'success': False, 'msg': f'{address} is not a valid address'}
         users = cls.get('users', {})
-        info = {'role': role, **kwargs}
+        info = {'role': role, 'name': name, **kwargs}
         users[address] = info
         cls.put('users', users)
         return {'success': True, 'user': address,'info':info}
@@ -74,7 +76,6 @@ class User(c.Module):
     @classmethod
     def num_roles(cls, role:str):
         return len([k for k,v in cls.users().items() if v['role'] == role])
-    @classmethod
     def rm_user(cls, address):
         users = cls.get('users', {})
         users.pop(address)

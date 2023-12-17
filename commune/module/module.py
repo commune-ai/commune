@@ -380,9 +380,6 @@ class c:
     
         return data
     
-    
-
-        
     @classmethod
     def get(cls,
             k:str, 
@@ -2425,6 +2422,11 @@ class c:
     def update_subnet(cls, *args, **kwargs):
         return c.module("subspace")().update_subnet(*args, **kwargs)
     
+    @classmethod
+    def subnet_params(cls, *args, **kwargs):
+        return c.module("subspace")().subnet_params(*args, **kwargs)
+    
+    
 
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
@@ -3170,8 +3172,7 @@ class c:
                  subnet:str = 'commune',
                  refresh:bool =False,
                  address = None,
-                 wait_for_server:bool = True,
-                 network = 'local',
+                 wait_for_server:bool = False,
                  module_key = None,
                  **kwargs ):
         subspace = c.module('subspace')()
@@ -7538,18 +7539,21 @@ class c:
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
     
+
+
+    @staticmethod
+    def valid_ss58_address(address:str):
+        return c.module('key').valid_ss58_address(address)
+    is_valid_ss58_address = valid_ss58_address
+
     @property
     def key(self):
         if not hasattr(self, '_key'):
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
-
-    @staticmethod
-    def valid_ss58_address(address:str):
-        return c.module('key').valid_ss58_address(address)
-
+    
     @key.setter
-    def key(self, key):
+    def key(self, key: 'Key'):
         self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
 
