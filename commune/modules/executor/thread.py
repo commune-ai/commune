@@ -58,19 +58,24 @@ class ThreadPoolExecutor(c.Module):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args:dict=None, kwargs:dict=None, timeout=200, return_future:bool=True, path:str=None) -> Future:
+    def submit(self, 
+               fn: Callable,
+                args:dict=None, 
+                kwargs:dict=None, 
+                timeout=200, 
+                return_future:bool=True, 
+                path:str=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
-
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
-
             priority = kwargs.get("priority", 1)
             if "priority" in kwargs:
                 del kwargs["priority"]
+
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)

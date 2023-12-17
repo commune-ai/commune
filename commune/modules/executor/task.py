@@ -76,14 +76,13 @@ class Task(c.Module):
         self.paths = {f'{status}/{self.fn_name}_utc_{self.start_time}' for status in ['pending', 'complete']}
         if self.status == 'pending':
             return self.put(self.path[self.status], self.state)
-        elif self.status == 'complete':
+        elif self.status in ['complete', 'failed']:
             if c.exists(self.paths['pending']):
                 c.rm(self.paths['pending'])
             return self.put(self.paths[self.status], self.state)
         else:
             raise ValueError(f"Task status must be pending or complete, not {self.status}")
-        
-
+    
     def run(self):
         """Run the given work item"""
         # Checks if future is canceled or if work item is stale
@@ -92,18 +91,17 @@ class Task(c.Module):
         ):
             self.future.set_exception(TimeoutError('Task timed out'))
 
-        self.status = 'running'
         try:
             data = self.fn(*self.args, **self.kwargs)
-            self.status = 'done'
+            self.status = 'complete'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
-            self.status = 'failed'
             data = c.detailed_error(e)
-            c.print(data)
-        
+            self.status = 'failed'
+
         self.future.set_result(data)
         # store the result of the task
+        
         self.data = data       
 
         if self.save:
