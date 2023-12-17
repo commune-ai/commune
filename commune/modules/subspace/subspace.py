@@ -1605,8 +1605,10 @@ class Subspace(c.Module):
 
             # get the latest block
             block = self.block
-            netuids = self.netuids() if netuids == None else netuids
-            state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids], 
+            netuids = self.netuids(network=network, block=block, update=True)
+            c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
+            subnets = [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
+            state_dict = {'subnets': subnets, 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block, update=True) for netuid in netuids],
                         'balances': self.balances(network=network, block=block, update=True),
@@ -1746,9 +1748,6 @@ class Subspace(c.Module):
         total_stake = sum([sum([v[1] for v in stake_to]) for k,stake_to in state['stake_to'][0].items()])
         return self.format_amount(total_balance + total_stake, fmt=fmt)
     
-
-
-
     mcap = market_cap = total_supply
             
         
@@ -1761,6 +1760,7 @@ class Subspace(c.Module):
                     parallel = True,
                     fmt:str='j') -> list:
 
+        netuid = self.resolve_netuid(netuid)
 
         path = f'cache/network.subnet_params.{netuid}.json'
         if not update:
@@ -1769,7 +1769,6 @@ class Subspace(c.Module):
                 return value
         
         network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
         kwargs = dict( netuid = netuid , block=block, update=update)
 
         if parallel:
@@ -2157,16 +2156,17 @@ class Subspace(c.Module):
         subnets = [s['name'] for s in self.subnet_states(**kwargs)]
         return subnets
     
-    def netuids(self, network=None) -> Dict[int, str]:
-        return sorted(list(self.subnet_namespace(network=network).values()))
+    def netuids(self, network=None, update=False, block=None) -> Dict[int, str]:
+        return sorted(list(self.subnet_namespace(network=network, update=update, block=block).values()))
 
-    def subnet_names(self, network=network ) -> Dict[str, str]:
-        records = self.query_map('SubnetNames')
+    def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
+        records = self.query_map('SubnetNames', update=update, network=network, block=block, **kwargs)
         return {k:v for k,v in records}
 
-    def subnet_namespace(self, network=network ) -> Dict[str, str]:
-        records = self.query_map('SubnetNames')
-        return {k:v for k,v in records}
+    def subnet_namespace(self, network=network, **kwargs ) -> Dict[str, str]:
+        records = self.query_map('SubnetNames', **kwargs)
+        return {v:k for k,v in records}
+
     
 
     
@@ -2197,7 +2197,7 @@ class Subspace(c.Module):
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
-            netuid = int(self.subnet_namespace(network=network).get(netuid, 0))
+            netuid = int(self.subnet_namespace(network=network).get(netuid))
         elif isinstance(netuid, int):
             if netuid == 0: 
                 return netuid
