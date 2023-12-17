@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra-2023-12-16'
+    image = 'vivonasg/subspace.libra-2023-12-17'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -106,7 +106,6 @@ class Subspace(c.Module):
             url = url.replace(c.ip(), '0.0.0.0')
             c.print(f'Connecting to {url}...')
             
-
             kwargs.update(url=url, 
                         websocket=websocket, 
                         ss58_format=ss58_format, 
