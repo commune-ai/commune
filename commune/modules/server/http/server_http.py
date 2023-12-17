@@ -15,7 +15,7 @@ class ServerHTTP(c.Module):
         name: str = None,
         network:str = 'local',
         port: Optional[int] = None,
-        sse: bool = False,
+        sse: bool = True,
         chunk_size: int = 42_000,
         max_request_staleness: int = 60, 
         max_workers: int = None,
@@ -162,7 +162,7 @@ class ServerHTTP(c.Module):
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:
-            # if we are not
+            # if we are not using sse, then we can do this with json
             if c.is_generator(result):
                 result = list(result)
             result = self.serializer.serialize({'data': result})
@@ -222,4 +222,9 @@ class ServerHTTP(c.Module):
 
     def __del__(self):
         c.deregister_server(self.name)
+
+
+
+    def test(self):
+        c.serve('storage')
 

@@ -12,6 +12,8 @@ class User(c.Module):
     ##################################
     @classmethod
     def add_user(cls, address, role='user', **kwargs):
+        if not c.valid_ss58_address(address):
+            return {'success': False, 'msg': f'{address} is not a valid address'}
         users = cls.get('users', {})
         info = {'role': role, **kwargs}
         users[address] = info
@@ -58,7 +60,7 @@ class User(c.Module):
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
-    def is_admin(cls, address):
+    def is_admin(cls, address:str):
         return cls.get_role(address) == 'admin'
     @classmethod
     def admins(cls):
@@ -80,3 +82,33 @@ class User(c.Module):
         assert not cls.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users'}
     
+
+    @classmethod
+    def dashboard(cls):
+        st.write('### Users')
+        users = cls.users()
+
+        with st.expander('Add Users', True):
+            cols = st.columns([2,1,1])
+            add_user_address = cols[0].text_input('Add User Address')
+            role = cols[1].selectbox('Role', ['user', 'admin'])
+            [cols[2].write('\n') for i in range(2)]
+            add_user = cols[2].button(f'Add {role}')
+            if add_user:
+                response = getattr(cls, f'add_{role}')(add_user_address)
+                st.write(response)
+
+        with st.expander('Remove Users', True):
+            cols = st.columns([2,1])
+            user_keys = list(users.keys())
+            rm_user_address = cols[0].selectbox('Remove User Address', user_keys, 0 , key='addres')
+            [cols[1].write('\n') for i in range(2)]
+            add_user = cols[1].button(f'Remove {role}')
+            if add_user:
+                response = getattr(cls, f'add_{role}')(add_user_address)
+                st.write(response)
+
+
+
+User.run(__name__)
+

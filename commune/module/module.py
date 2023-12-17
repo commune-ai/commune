@@ -34,7 +34,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
     whitelist = [] # whitelist of functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -160,11 +160,8 @@ class c:
     def minimal_config(cls) -> Dict:
         '''
         The miminal config a module can be
-        
         '''
-        minimal_config = {
-            'module': cls.__name__
-        }
+        minimal_config = {'module': cls.__name__}
         return minimal_config
 
 
@@ -222,8 +219,6 @@ class c:
                 c.print(f'Error: {e}', color='red')
         return fn_code_map
     
-            
-
     @classmethod
     def fn_code(cls,fn:str, detail:bool=False, ) -> str:
         '''
@@ -247,7 +242,8 @@ class c:
             }
                 
         return fn_code
-
+    
+    fncode = fn_code
     @classmethod
     def sandbox(cls):
         
@@ -1141,6 +1137,25 @@ class c:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
+    def kill_port_range(self, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        assert isinstance(port_range[0], int), 'port_range must be a list of ints'
+        assert isinstance(port_range[1], int), 'port_range must be a list of ints'
+        assert port_range[0] < port_range[1], 'port_range must be a list of ints'
+        futures = []
+        for port in range(*port_range):
+            c.print(f'Killing port {port}', color='red')
+            self.kill_port(port) 
+
+
+    def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        used_ports = {}
+        for port in range(*port_range):
+            used_ports[port] = self.port_used(port)
+        return used_ports
+
+
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
         
@@ -1830,6 +1845,20 @@ class c:
         return {'success':True, 'message':f'{path} removed'}
     
     @classmethod
+    def rm_all(cls):
+        tmp_dir = cls.tmp_dir()
+        if c.exists(tmp_dir):
+            cls.rm(tmp_dir)
+        assert not c.exists(tmp_dir), f'{tmp_dir} was not removed'
+        c.makedirs(tmp_dir)
+        assert c.is_dir_empty(tmp_dir), f'{tmp_dir} was not removed'
+        return {'success':True, 'message':f'{tmp_dir} removed'}
+
+    def is_dir_empty(self, path:str):
+        return len(self.ls(path)) == 0
+
+
+    @classmethod
     def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
         
         path = cls.resolve_path(path, extension=None, root=root)
@@ -2393,6 +2422,11 @@ class c:
         return c.module("namespace").update_namespace(network=network, **kwargs)
     
     @classmethod
+    def update_subnet(cls, *args, **kwargs):
+        return c.module("subspace")().update_subnet(*args, **kwargs)
+    
+
+    @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
         namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
         return namespace
@@ -2426,7 +2460,8 @@ class c:
     @property
     def whitelist(self):
         if hasattr(self, '_whitelist'):
-            return self._whitelist
+            return list(set(self._whitelist + c.helper_whitelist))
+        
         whitelist = c.helper_whitelist
         is_module = c.is_root_module(self)
         # we want to expose the helper functions
@@ -2519,7 +2554,6 @@ class c:
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
-            c.print(f'Serving [bold]{server_name}[/bold]', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
@@ -2576,6 +2610,9 @@ class c:
         return functions
 
     fns = functions
+
+    def hasfn(self, fn:str):
+        return hasattr(self, fn) and callable(getattr(self, fn))
     
     @classmethod
     def get_function_signature_map(cls, obj=None, include_parents:bool = False):
@@ -2655,8 +2692,8 @@ class c:
              peers: bool = False, 
              hardware : bool = False,
              ) -> Dict[str, Any]:
-        fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
-        attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
+        fns = [fn for fn in self.fns()]
+        attributes =[ attr for attr in self.attributes()]
 
         info  = dict(
             address = self.address.replace(c.default_ip, c.ip(update=False)),
@@ -2678,6 +2715,9 @@ class c:
 
         if hardware:
             info['hardware'] = self.hardware()
+
+        if namespace:
+            info['namespace'] = self.namespace(network='local')
 
         return info
     help = info
@@ -3182,7 +3222,6 @@ class c:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
 
         if len(rm_list) == 0:
-            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
             return {'success':False, 'message':f'No pm2 processes found for {name}'}
         for n in rm_list:
             if verbose:
@@ -4878,6 +4917,24 @@ class c:
         return cls.hash_module(data, mode=mode, **kwargs)
     
     default_password = 'bitconnect'
+
+    @classmethod
+    def readme_paths(cls):
+
+        readme_paths =  [f for f in c.ls(cls.dirpath()) if f.endswith('md')]
+        return readme_paths
+
+    @classmethod
+    def has_readme(cls):
+        return len(cls.readme_paths()) > 0
+    
+    @classmethod
+    def readme(cls) -> str:
+        readme_paths = cls.readme_paths()
+        if len(readme_paths) == 0:
+            return ''
+        return c.get_text(readme_paths[0])
+
     @classmethod
     def resolve_password(cls, password: str) -> str:
         if password == None:
@@ -4893,11 +4950,15 @@ class c:
     def encrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix) -> bytes:
+                prefix = encrypted_prefix,
+                password= None 
+                ) -> bytes:
         
         """
         encrypt data with key
         """
+        if password == None:
+            key = c.module('key').from_password(password)
 
         key = c.get_key(key)
         path = None
@@ -5352,7 +5413,7 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=False, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=True, **kwargs):
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
@@ -5370,7 +5431,7 @@ class c:
                 if c.is_registered(server_name):
                     c.print(f'Server {server_name} already exists, skipping', color='yellow')
                     continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout, return_future=True)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
@@ -5844,11 +5905,34 @@ class c:
     def new_modules(self, *modules, **kwargs):
         for module in modules:
             self.new_module(module=module, **kwargs)
+
+    @classmethod
+    def find_lines(self, text:str, search:str) -> List[str]:
+        """
+        Finds the lines in text with search
+        """
+        found_lines = []
+        for line in text.split('/n'):
+            if search in line:
+                found_lines += [line]
+        
+        return found_lines
+
+    
+            
+
+    # @classmethod
+    # def code2module(cls, code:str='print x'):
+    #      new_module = 
+
+
     @classmethod
     def new_module( cls,
                    module : str = None,
                    repo : str = None,
                    base : str = 'base',
+                   code : str = None,
+                   include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
         """ Makes directories for path.
@@ -5860,18 +5944,19 @@ class c:
         module = module.replace('.','/')
         if c.has_module(module) and overwrite==False:
             return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
+        
+        # add it to the root
         module_path = os.path.join(c.modules_path, module)
         
         if overwrite and c.module_exists(module_path): 
             c.rm(module_path)
+
         
         if repo != None:
             # Clone the repository
             c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
             c.cmd(f'rm -rf {module_path}/.git')
-
-
 
         # Create the module name if it doesn't exist, infer it from the repo name 
         if module == None:
@@ -5885,26 +5970,31 @@ class c:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
         
 
-        base_module = c.module(base)
-        base_code = base_module.code()
-        base_config = base_module.config()
+        if code == None:
+            base_module = c.module(base)
+            code = base_module.code()
+
+            
         module = module.replace('/','_') # replace / with _ for the class name
         
         # define the module code and config paths
-        module_config_path = f'{module_path}/{module}.yaml'
+        
         module_code_path =f'{module_path}/{module}.py'
         module_code_lines = []
         class_name = module[0].upper() + module[1:] # capitalize first letter
         class_name = ''.join([m.capitalize() for m in module.split('_')])
         
-        for code_ln in base_code.split('\n'):
+        # rename the class to the correct name 
+        for code_ln in code.split('\n'):
             if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) or all([ k in code_ln for k in ['class','commune.Module', ')', '(']]):
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)
-        module_code = '\n'.join(module_code_lines)
-        c.put_text(module_code_path, module_code)
-        c.save_yaml(module_config_path, base_config)
+            
+        c.put_text(module_code_path, code)
+        if include_config:
+            module_config_path = module_code_path.replace('.py', '.yaml')
+            c.save_yaml(module_config_path, {'class_name': class_name})
         
         c.update()
 
@@ -6155,6 +6245,9 @@ class c:
                     tag_seperator : str = '::', **extra_launch_kwargs):
 
         
+        kwargs = c.locals2kwargs(kwargs)
+        if 'remote' in kwargs:
+            kwargs['remote'] = False
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
             fn = fn.split('.')[-1]
@@ -6439,7 +6532,7 @@ class c:
         shutil.move(path1, path2)
         assert os.path.exists(path2), path2
         assert not os.path.exists(path1), path1
-        return path2
+        return {'success': True, 'msg': f'Moved {path1} to {path2}'}
 
 
     @classmethod
@@ -6464,7 +6557,7 @@ class c:
             shutil.copy(path1, path2)
         else:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
-        return path2
+        return {'success': True, 'msg': f'Copied {path1} to {path2}'}
     
     
     @classmethod
@@ -6841,12 +6934,13 @@ class c:
         return method_type_map
 
 
-
     @classmethod
     def get_function_args(cls, fn):
         fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
+
+    
     
     @classmethod
     def has_function_arg(cls, fn, arg:str):
@@ -7374,7 +7468,7 @@ class c:
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)
-
+    unstake_all = multiunstake
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    
@@ -7451,8 +7545,8 @@ class c:
         return self._key
 
     @staticmethod
-    def is_valid_ss58_address(address:str):
-        return c.module('key').is_valid_ss58_address(address)
+    def valid_ss58_address(address:str):
+        return c.module('key').valid_ss58_address(address)
 
     @key.setter
     def key(self, key):
@@ -7766,7 +7860,6 @@ class c:
 
         return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
-    chat = talk
 
     def x(self, y=1):
         c.print('fam', y)
@@ -7831,6 +7924,16 @@ class c:
     def install_python(cls, sudo=True) :
         c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
 
+    # def remote_wrapper(cls, fn):
+
+    #     def wrapper(**kwargs):
+    #         remote = kwargs.pop('remote', False)
+    #         if remote:
+    #             return cls.remote_fn(fn, **kwargs)
+
+
+       
+
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
@@ -7876,18 +7979,14 @@ class c:
     def name2compose(self, **kwargs):
         return c.module('docker').name2compose(**kwargs)
 
-
-
     @classmethod
     def generator(cls):
         for i in range(10):
             yield i
 
-
     @classmethod
     def run_generator(cls):
-        """
-        
+        """  
         """
         for i in cls.generator():
             c.print(i)
@@ -7899,8 +7998,6 @@ class c:
         import inspect
         return inspect.isgeneratorfunction(obj)
     
-
-
     @classmethod
     def module2docpath(cls):
         tree = c.tree()
@@ -7965,6 +8062,8 @@ class c:
         cnt = 0
         while name in cls.thread_map:
             cnt += 1
+            if tag == None:
+                tag = ''
             name = fn_name + tag_seperator + tag + str(cnt)
 
         cls.thread_map[name] = t
@@ -8023,8 +8122,8 @@ class c:
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
-    def is_admin(cls, *args, **kwargs):
-        return c.module('user').is_admin(*args, **kwargs)
+    def is_admin(cls, address:str):
+        return c.module('user').is_admin(address=address)
     @classmethod
     def admins(cls):
         return c.module('user').admins()
@@ -8522,8 +8621,97 @@ class c:
     
 
     @classmethod
-    def lag( *args, **kwargs):
-        return c.module('subspace')().lag(*args, **kwargs)
+    def lag(cls,  *args, **kwargs):
+        return c.module('subspace').lag(*args, **kwargs)
+
+    @classmethod
+    def loops(cls, **kwargs):
+        return c.pm2ls('loop', **kwargs)
+
+    @classmethod
+    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        if remote:
+            return cls.remote_fn('loop', kwargs=locals())
+                
+        while True:
+            c.print('looping')
+            c.sleep(interval)
+
+    def loop_fleet(self, n=2, **kwargs):
+        responses = []
+        for i in range(n):
+            kwargs['remote'] = False
+            responses += [self.remote_fn('loop', kwargs=kwargs, tag=i)]
+        return responses
+    
+    @classmethod
+    def remote_fn_fleet(cls, fn:str, n=2, **kwargs):
+        responses = []
+        for i in range(n):
+            responses += [cls.remote_fn(fn, kwargs=kwargs, tag=i)]
+        return responses
+    
+
+    def generate(self, *args, **kwargs):
+        return 'hey'
+
+
+    def select_key(self):
+        import streamlit as st
+        keys = c.keys()
+        key2index = {k:i for i,k in enumerate(keys)}
+        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        key_address = self.key.ss58_address
+        st.write('address')
+        st.code(key_address)
+        return self.key
+
+    @classmethod
+    def add_peers(cls, *args, **kwargs):
+        return c.module('remote').add_peers(*args,**kwargs)
+
+    @classmethod
+    def sid(cls):
+        return c.module('subspace')().id()
+
+    def sidebar(self, sidebar:bool = True):
+        import streamlit as st
+        if sidebar:
+            with st.sidebar:
+                return self.sidebar(sidebar=False)
+        st.title(f'COMMUNE')
+        self.select_key()
+        self.select_network()
+
+    def select_network(self, network=None):
+        import streamlit as st
+        import pandas as pd
+        if network == None:
+            network = self.network
+        if not c.server_exists('module'):
+                c.serve(wait_for_server=True)
+
+        self.networks = c.networks()
+        network2index = {n:i for i,n in enumerate(self.networks)}
+        index = network2index['local']
+        self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
+        namespace = c.namespace(network=self.network)
+        with st.expander('Namespace', expanded=True):
+            search = st.text_input('Search Namespace', '', key='search.namespace')
+            df = pd.DataFrame(namespace.items(), columns=['key', 'value'])
+            if search != '':
+                df = df[df['key'].str.contains(search)]
+            st.write(f'**{len(df)}** servers with **{search}** in it')
+
+            df.set_index('key', inplace=True)
+            st.dataframe(df, width=1000)
+        sync = st.button(f'Sync {self.network} Network'.upper(), key='sync.network')
+        self.servers = c.servers(network=self.network)
+        if sync:
+            c.sync()
+
+
+ 
 
 Module = c
 Module.run(__name__)

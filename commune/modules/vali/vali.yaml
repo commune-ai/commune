@@ -1,9 +1,8 @@
-
-
+vote_timeout: 50
 key : null
 netuid: 0
 search: null
-network: main 
+network: subspace 
 max_history: 10
 alpha: 0.5
 timeout: 10
@@ -14,7 +13,7 @@ verbose: True
 batch_size: 4
 refresh_stats: False
 vote_interval: 100
-sync_interval: 1000
+sync_interval: 100
 sleep_time: 0.05
 vote: True
 min_stake: 1
