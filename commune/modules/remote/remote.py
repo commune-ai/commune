@@ -429,10 +429,7 @@ class Remote(c.Module):
     @classmethod
     def infos(self, search='module',  network='remote', update=False):
         return c.infos(search=search, network=network, update=update)
-    def peer2info(self, network='remote', update=False):
-        infos = self.call('info', search='module')
-        return {info['name']:info for info in infos if 'name' in info and 'error' not in info}
-    
+
 
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
@@ -619,8 +616,8 @@ class Remote(c.Module):
 
 
 
-    def host2ssh(self, **kwargs):
-        hosts = self.hosts(**kwargs)
+    def host2ssh(self, *args,  **kwargs):
+        hosts = self.hosts(*args, **kwargs)
         host2ssh = {}
         for host_name, host in hosts.items():
             host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'
@@ -741,7 +738,9 @@ class Remote(c.Module):
         peer_infos = {}
         for path in self.ls('peers'):
             peer_name = self.peerpath2name(path)
-            peer_infos[peer_name] = self.get(path, {})
+            info = self.get(path, {})   
+            peer_infos[peer_name] = info
+            peer_infos[peer_name] = info
         return peer_infos
     
 

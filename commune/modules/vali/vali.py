@@ -304,27 +304,35 @@ class Vali(c.Module):
                 self.sync_network()
 
             modules = c.shuffle(c.copy(self.names))
+            c.print(len(modules))
             time_between_interval = c.time()
             module = c.choice(modules)
 
             # c.sleep(self.config.sleep_time)
+            # rocket ship emoji
+            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan')
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
             futures.append(future)
 
             if self.vote_staleness > self.config.vote_interval:
                 if not len(vote_futures) > 0 and 'subspace' in self.config.network:
-                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True)]
+                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True, timeout=self.config.vote_timeout)]
 
             if len(futures) >= self.config.max_futures:
-                for future in c.as_completed(futures, timeout=self.config.timeout):
-                    try:
-                        result = future.result()
-                    except Exception as e:
-                        e = c.detailed_error(e)
-                        c.print(e, color='red')
-                    # c.print(result)
-                    futures.remove(future)
-                    break
+                try:
+                    for future in c.as_completed(futures, timeout=self.config.timeout):
+
+                        try:
+                            result = future.result()
+                        except Exception as e:
+                            result = {'error': c.detailed_error(e)}
+
+                        futures.remove(future)
+                        self.errors += 1
+                        break
+                except TimeoutError as e:
+                    e = c.print('TimeoutError', color='red')
+
             
       
             if self.count % 10 == 0 and self.count > 0:
