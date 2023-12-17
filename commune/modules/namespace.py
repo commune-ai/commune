@@ -62,8 +62,10 @@ class Namespace(c.Module):
 
         if network == 'subspace':
             if ':' in network:
-                network, subnet = search.split(':')
-            return c.module(network)().namespace(update=update, netuid=subnet)
+                network, netuid = search.split(':')
+            else: 
+                netuid = None
+            return c.module(network)().namespace(update=update, netuid=netuid)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))

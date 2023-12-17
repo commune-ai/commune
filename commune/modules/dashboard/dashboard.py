@@ -35,7 +35,7 @@ class Dashboard(c.Module):
         self.networks = c.networks()
         network2index = {n:i for i,n in enumerate(self.networks)}
         index = network2index['local']
-        self.network = st.selectbox('Select a Network', self.networks, index=index, key='network.sidebar')
+        self.network = st.selectbox('Select a Network', self.networks, index=index, key='select_network.sidebar')
         namespace = c.namespace(network=self.network)
         with st.expander('Namespace', expanded=True):
             search = st.text_input('Search Namespace', '', key='search.namespace')
@@ -74,7 +74,7 @@ class Dashboard(c.Module):
     def select_key(self):
         keys = c.keys()
         key2index = {k:i for i,k in enumerate(keys)}
-        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        self.key = st.selectbox('Select Key', keys, key2index['module'], key='select_key.sidebar')
         key_address = self.key.ss58_address
         st.write('address')
         st.code(key_address)
@@ -88,7 +88,7 @@ class Dashboard(c.Module):
         tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'REMOTE', 'CHAT'])
         chat = False
         with tabs[0]: 
-            self.modules_dashboard()  
+            self.serve_dashboard()  
         with tabs[1]:
             self.subspace_dashboard()
         with tabs[2]:
@@ -104,6 +104,8 @@ class Dashboard(c.Module):
 
         # return c.module('remote').dashboard()
 
+    def serve_dashboard(self):
+        return c.module('server').dashboard()
 
         
 

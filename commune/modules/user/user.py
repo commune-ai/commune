@@ -10,8 +10,7 @@ class User(c.Module):
     ##################################
     # USER LAND
     ##################################
-    def name2key(self, name:str):
-        
+ 
     @classmethod
     def add_user(cls, address, role='user', name=None, **kwargs):
         if not c.valid_ss58_address(address):
