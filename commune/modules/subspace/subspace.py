@@ -4079,9 +4079,9 @@ class Subspace(c.Module):
         }
 
     @classmethod
-    def push_image(cls, image='subspace.libra', public_image=image, build:bool = True ):
+    def push_image(cls, image='subspace.libra', public_image=image, build:bool = True, no_cache=False ):
         if build:
-            c.print(cls.build_image())
+            c.print(cls.build_image(no_cache=no_cache))
         public_image = f'{public_image.split("-")[0]}-{c.datetime().split("_")[0]}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
@@ -4353,7 +4353,7 @@ class Subspace(c.Module):
 
         # add the node key if it does not exist
         if key_mems != None:
-            c.print(f'adding node key for {key_mems}')
+            c.print(f'adding node key for {key_mems}', color='yellow')
             cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=False, insert_key=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
@@ -4432,7 +4432,6 @@ class Subspace(c.Module):
                          + f' -v {base_path}:{container_base_path}'
             daemon_str = '-d' if daemon else ''
             # cmd = 'cat /subspace/specs/main.json'
-            c.print(cmd, color='yellow')
             cmd = 'docker run ' + daemon_str  + f' --net host --name {name} {volumes} {cls.image}  bash -c "{cmd}"'
             node_info['cmd'] = cmd
 
@@ -4503,7 +4502,8 @@ class Subspace(c.Module):
                     remote:bool = False,
                     build_spec :bool = True,
                     push:bool = False,
-                    trials:int = 10
+                    trials:int = 10,
+                    wait_for_nodeid = True,
                     ):
 
         # KILL THE CHAIN
