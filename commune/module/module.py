@@ -7462,7 +7462,12 @@ class c:
 
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
-        return seperator.join(c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[:n])
+        random_words = c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
+        random_words = random_words.split(' ')[:n]
+        if n == 1:
+            return random_words[0]
+        else:
+            return seperator.join(random_words.split(' ')[:n])
     @classmethod
     def random_words(cls, n=2, **kwargs):
         return c.module('key').generate_mnemonic(n=n, **kwargs)
@@ -8423,7 +8428,7 @@ class c:
         cls.remote_fn('loop', kwargs=kwargs,name=name)
         return {'success': True, 'msg': 'looping on remote', 'name': name}
         
-    
+
     def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
         if _self != None:
@@ -8443,9 +8448,11 @@ class c:
         if state == None:
             state = get_state()
         self.state =  state
+
+
+
         self.netuid = 0
         self.subnets = self.state['subnets']
-
         self.modules = self.state['modules'][self.netuid]
         self.name2key = {k['name']: k['key'] for k in self.modules}
         self.key2name = {k['key']: k['name'] for k in self.modules}
@@ -8479,10 +8486,6 @@ class c:
         self.subnet_info = self.state['subnets'][0]
         balances = self.state['balances']
         self.total_balance = sum(balances.values())/1e9
-        for k in ['stake', 'emission', 'min_stake']:
-            self.subnet_info[k] = self.subnet_info[k]/1e9
-    
-    
 
       
     @classmethod
@@ -8664,10 +8667,11 @@ class c:
         import streamlit as st
         keys = c.keys()
         key2index = {k:i for i,k in enumerate(keys)}
-        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
-        key_address = self.key.ss58_address
-        st.write('address')
-        st.code(key_address)
+        with st.form('key.form'):
+            self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+            key_address = self.key.ss58_address
+            st.write('address')
+            st.code(key_address)
         return self.key
 
     @classmethod

@@ -10,13 +10,42 @@ class SubspaceDashboard(c.Module):
     
     def __init__(self, state=None, key=None): 
 
+        t1 = c.time()
+        t2 = c.time()
+        time = t2 - t1
+        st.write(f'Loaded State in {time} seconds')
+        self.select_key()
         self.load_state()
+        self.select_netuid()
+
+
         if key != None:
             self.key = key
 
         
         # convert into metrics
 
+    def select_key(self):
+        import streamlit as st
+        keys = c.keys()
+
+        key2index = {k:i for i,k in enumerate(keys)}
+        cols = st.columns([2,2])
+        self.key = cols[0].selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        key_address = self.key.ss58_address
+        cols[1].write('\n')
+        cols[1].code(key_address)
+        return self.key
+    def select_netuid(self):
+        import streamlit as st
+        keys = c.keys()
+        subnets = self.subnets
+        name2subnet = {s['name']:s for s in subnets}
+        name2idx = {s['name']:i for i,s in enumerate(subnets)}
+        subnet_names = list(name2subnet.keys())
+        subnet = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
+        self.netuid = name2idx[subnet]
+        return self.key
         
     def transfer_dashboard(self):
         with st.expander('Transfer', expanded=False):
@@ -64,34 +93,12 @@ class SubspaceDashboard(c.Module):
     def stake_dashboard(self):
         
         with st.expander('Stake', expanded=False):
-
             cols = st.columns(2)
-            entire_balance = cols[0].checkbox('Entire Balance', key='entire_balance')
-            my_staked_button = cols[1].checkbox('My Staked Modules Only', key='my_staked')
-            cols = st.columns(3)
-            search = cols[0].text_input('Search', '', key='subsapce.search.stake')
-
-    
             staked_modules = self.module_names
             default_staked_modules = []
-            if my_staked_button:
-                staked_modules = list(self.key_info['stake_to'].keys())
-                default_staked_modules = staked_modules
-            if search != '':
-                default_staked_modules = [m for m in staked_modules if search in m]
+            modules = st.multiselect('Modules', staked_modules, default_staked_modules)
 
-            n = cols[2].number_input('Number of Modules', 1, len(staked_modules), 1, 1, key=f'n.stake')
-            modules = st.multiselect('Modules', staked_modules, default_staked_modules[:n])
-            # resolve amoujnts
-            if entire_balance:
-                try:
-                    default_amount = c.balance(self.key.ss58_address)  / len(modules)
-                except Exception as e:
-                    st.error('No Internet Connection to Substrate')
-                    default_amount = 0.0
-            else:
-                default_amount = 0.0
-            amounts = cols[1].number_input('Stake Amount', value=default_amount,  max_value=1000000000000.0, min_value=0.0 ) # format with the value of the balance            
+            amounts = st.number_input('Stake Amount', value=0.0,  max_value=1000000000000.0, min_value=0.0 ) # format with the value of the balance            
             
             st.write(f'You have {len(modules)} ready to STAKE for a total of {amounts * len(modules)} ')
             
@@ -111,13 +118,16 @@ class SubspaceDashboard(c.Module):
     def unstake_dashboard(self):
         with st.expander('Unstake', expanded=False):
             modules = list(self.key_info['stake_to'].keys())
-            cols = st.columns(3)
+            cols = st.columns(4)
 
             amounts = cols[0].number_input('Unstake Amount',0)
             default_modules = [k for k,v in self.key_info['stake_to'].items() if v > amounts]
             default_values = [v for k,v in self.key_info['stake_to'].items() if v > amounts]
             search = cols[1].text_input('Search', '', key='search.unstake')
-            n = cols[2].number_input('Number of Modules', 1, 10000000, 1, 1, key=f'n.unstake')
+            n = len(default_modules)
+            st.write(f'You have {n} modules staked')
+
+            n = cols[3].number_input('Number of Modules', 1, n, 10, 1, key=f'n.unstake')
             if search != '':
                 modules = [m for m in modules if search in m]
                 default_modules = [m for m in default_modules if search in m]
@@ -135,6 +145,9 @@ class SubspaceDashboard(c.Module):
                 }
                 response = c.multiunstake(**kwargs)
                 st.write(response)
+
+
+
 
 
     def archive_dashboard(self):
@@ -222,7 +235,7 @@ class SubspaceDashboard(c.Module):
 
         with st.form(key='register'):
             module  = cols[0].selectbox('Select A Module', modules, 0)
-            tag = cols[1].text_input('tag', c.random_word(n=2), key=f'tag.register')
+            tag = cols[1].text_input('tag', c.random_word(n=1), key=f'tag.register')
             stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}.register')
             n = st.number_input('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}.register')
             # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
@@ -304,7 +317,7 @@ class SubspaceDashboard(c.Module):
 
         # bar chat of staked modules
         self.network_dashboard()
-        self.key_info_dashboard() 
+        # self.key_info_dashboard() 
         self.stake_dashboard()
         self.unstake_dashboard()
         self.transfer_dashboard()
