@@ -780,6 +780,9 @@ class Subspace(c.Module):
 
         # remove the params that are the same as the module info
         params = {**subnet_params, **params}
+        for k in ['name', 'vote_mode']:
+            params[k] = params[k].encode('utf-8')
+
         params.pop('founder')
         response = self.compose_call(fn='update_subnet',params={'params':params, 'netuid': netuid}, key=key, nonce=nonce)
 
@@ -1751,7 +1754,7 @@ class Subspace(c.Module):
                     block : Optional[int] = None,
                     update = False,
                     trials = 3,
-                    parallel = False,
+                    parallel = True,
                     fmt:str='j') -> list:
 
 
@@ -1765,12 +1768,12 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         kwargs = dict( netuid = netuid , block=block, update=update)
 
-        async def query(**kwargs):
-            return self.query(**kwargs)
+        if parallel:
+            async def query(**kwargs):
+                return self.query(**kwargs)
+        else: 
+            query = self.query
         name2job = {
-                'stake': [query, {'name': 'TotalStake'}],
-                'emission': [query,  {'name':'SubnetEmission'}], 
-                'n': [query,  {'name': 'N'}],
                 'tempo': [query, dict(name='Tempo')],
                 'immunity_period': [query, dict(name='ImmunityPeriod')],
                 'min_allowed_weights': [query, dict(name='MinAllowedWeights')],
@@ -1781,11 +1784,10 @@ class Subspace(c.Module):
                 'founder_share': [query, dict(name='FounderShare')],
                 'incentive_ratio': [query, dict(name='IncentiveRatio')],
                 'trust_ratio': [query, dict(name='TrustRatio')],
-                'min_burn': [query, dict(name='MinBurn')],
-                'burn_rate': [query, dict(name='BurnRate')],
                 'vote_threshold': [query, dict(name='SubnetVoteThreshold')],
                 'vote_mode': [query, dict(name='VoteModeSubnet')],
-                'self_vote': [query, dict(name='SelfVote')]
+                'self_vote': [query, dict(name='SelfVote')],
+                'name': [query, dict(name='SubnetNames')]
             }
         name2result = {}
 
@@ -1798,7 +1800,7 @@ class Subspace(c.Module):
                 else:
                     name2result[k] = v[0](**remote_kwargs)
 
-            if parallel or True:
+            if parallel:
                 futures = [v for k,v in name2result.items()]
                 results = c.gather(futures)
                 name2result = {k:v for k,v in zip(name2result.keys(), results)}
@@ -1813,12 +1815,7 @@ class Subspace(c.Module):
 
         subnet = {k:name2result[k] for k in name2result}
 
-        subnet['name'] =  self.netuid2subnet(netuid)
-        subnet['netuid'] = netuid
-        total_stake = self.total_stake(block=block, fmt='nano')
-        subnet['ratio'] =   min(float(subnet['stake'] / total_stake), 1.00)
-
-        for k in ['stake', 'emission', 'min_stake']:
+        for k in ['min_stake']:
             subnet[k] = self.format_amount(subnet[k], fmt=fmt)
         self.put(path, subnet)
         return subnet
@@ -2156,8 +2153,8 @@ class Subspace(c.Module):
         subnets = [s['name'] for s in self.subnet_states(**kwargs)]
         return subnets
     
-    def netuids(self) -> Dict[int, str]:
-        return sorted(list(self.subnet_namespace.values()))
+    def netuids(self, network=None) -> Dict[int, str]:
+        return sorted(list(self.subnet_namespace(network=network).values()))
 
     def subnet_names(self, network=network ) -> Dict[str, str]:
         records = self.query_map('SubnetNames')
@@ -2186,7 +2183,7 @@ class Subspace(c.Module):
         return subnet2netuid
         
 
-    def resolve_netuid(self, netuid: int = None) -> int:
+    def resolve_netuid(self, netuid: int = None, network=network) -> int:
         '''
         Resolves a netuid to a subnet name.
         '''
@@ -2196,7 +2193,7 @@ class Subspace(c.Module):
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
-            netuid = int(self.subnet_namespace.get(netuid, 0))
+            netuid = int(self.subnet_namespace(network=network).get(netuid, 0))
         elif isinstance(netuid, int):
             if netuid == 0: 
                 return netuid
