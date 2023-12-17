@@ -25,7 +25,6 @@ from scalecodec.type_registry import load_type_registry_preset
 from scalecodec.utils.ss58 import ss58_encode
 from enum import Enum
 
-
 custom_rpc_type_registry = {
     "types": {
         "SubnetInfo": {
@@ -41,6 +40,26 @@ custom_rpc_type_registry = {
                 ["tempo", "Compact<u16>"],
             ]
         },
+
+        "SubnetParams": {
+            "type": "struct",
+            "type_mapping": [
+                ["tempo", "u16"], #  how many blocks to wait before rewarding models
+                ["immunity_period", "u16"], #  immunity period
+                ["max_allowed_uids", "u16"], #  max number of uids allowed to be registered in this subnet
+                ["min_allowed_weights", "u16"], #  min number of weights allowed to be registered in this subnet
+                ["max_allowed_weights", "u16"], #  max number of weights allowed to be registered in this subnet
+                ["min_stake", "u64"], #  min stake required
+                ["vote_threshold", "u16"], #  out of 100
+                ["vote_mode", "Vec<u8>"],
+                ["trust_ratio", "u16"],
+                ["self_vote", "bool"],
+                ["founder_share", "u16"], #  out of 100
+                ["incentive_ratio", "u16"], #  out of 100
+                ["name", "Vec<u8>"], #  name of the subnet
+            ]
+        },
+
         "ModuleInfo": {
             "type": "struct",
             "type_mapping": [
@@ -60,6 +79,23 @@ custom_rpc_type_registry = {
             ],
         },
 
+
+        "GlobalParams": {
+            "type": "struct",
+            "type_mapping": [
+                ["max_name_length", "u16"],
+                ["max_allowed_subnets", "u16"],
+                ["max_allowed_modules", "u16"],
+                ["max_registrations_per_block", "u16"],
+                ["unit_emission", "u64"],
+                ["tx_rate_limit", "u64"],
+                ["vote_threshold", "u16"],
+                ["vote_mode", "Vec<u8>"],
+                ["max_proposals", "u64"],
+                ["burn_rate", "u16"],
+                ["min_burn", "u64"]
+            ]
+        },
     }   
 }
 
@@ -190,6 +226,81 @@ class ModuleInfo:
         module.emission = module.emission / NANOPERTOKEN   
         return module
         
+@dataclass
+class SubnetParams:
+    r"""
+    Dataclass for subnet info.
+    """
+    netuid: int
+    immunity_period: int
+    min_allowed_weights: int
+    max_weight_limit: float
+    subnetwork_n: int
+    max_n: int
+    blocks_since_epoch: int
+    tempo: int
+    # netuid -> topk percentile prunning score requirement (u16:MAX normalized.)
+    emission_value: float
+
+    @classmethod
+    def from_vec_u8(cls, vec_u8: List[int]) -> Optional['SubnetInfo']:
+        r""" Returns a SubnetInfo object from a vec_u8.
+        """
+        if len(vec_u8) == 0:
+            return None
+
+        decoded = from_scale_encoding(vec_u8, ChainDataType.SubnetInfo)
+
+        if decoded is None:
+            return None
+        
+        return SubnetInfo.fix_decoded_values(decoded)
+    
+    @classmethod
+    def list_from_vec_u8(cls, vec_u8: List[int]) -> List['SubnetInfo']:
+        r""" Returns a list of SubnetInfo objects from a vec_u8.
+        """
+        decoded = from_scale_encoding(vec_u8, ChainDataType.SubnetInfo, is_vec=True, is_option=True)
+
+        if decoded is None:
+            return []
+        
+        decoded = [SubnetInfo.fix_decoded_values(d) for d in decoded]
+
+        return decoded
+
+    @classmethod
+    def fix_decoded_values(cls, decoded: Dict) -> 'SubnetInfo':
+        r""" Returns a SubnetInfo object from a decoded SubnetInfo dictionary.
+        """
+        return SubnetInfo(
+            netuid = decoded['netuid'],
+            immunity_period = decoded['immunity_period'],
+            min_allowed_weights = decoded['min_allowed_weights'],
+            max_weight_limit = decoded['max_weights_limit'],
+            subnetwork_n = decoded['subnetwork_n'],
+            max_n = decoded['max_allowed_uids'],
+            blocks_since_epoch = decoded['blocks_since_last_step'],
+            tempo = decoded['tempo'],
+            emission_value= decoded['emission_values'],
+        )
+    
+    def to_parameter_dict( self ) -> 'torch.nn.ParameterDict':
+        r""" Returns a torch tensor of the subnet info.
+        """
+        return torch.nn.ParameterDict( 
+            self.__dict__
+        )
+    
+    @classmethod
+    def from_parameter_dict( cls, parameter_dict: 'torch.nn.ParameterDict' ) -> 'SubnetInfo':
+        r""" Returns a SubnetInfo object from a torch parameter_dict.
+        """
+        return cls( **dict(parameter_dict) )
+
+
+
+
 @dataclass
 class SubnetInfo:
     r"""
