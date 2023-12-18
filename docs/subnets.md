@@ -151,9 +151,9 @@ c unvote_proposal id=10
 ```
 
 
+## Emission Calculations
 
-
-
+The calculations are based on the stake that is on your subnet. The more stake on your subnet, the better.
 
 
 

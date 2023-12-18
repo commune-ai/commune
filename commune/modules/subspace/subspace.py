@@ -1452,7 +1452,7 @@ class Subspace(c.Module):
         network = self.resolve_network( network )
         key = self.resolve_key( key )
 
-        if modules == None :
+        if modules == None or modules == 'all':
             stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
             module_keys = [k for k in stake_to.keys()]
             # RESOLVE AMOUNTS
@@ -1460,14 +1460,14 @@ class Subspace(c.Module):
                 amounts = [stake_to[m] for m in module_keys]
 
         else:
-            is_nanos = False
             stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
+            name2key = self.name2key(netuid=netuid, update=True)
+
             module_keys = []
             for i, module in enumerate(modules):
                 if c.valid_ss58_address(module):
                     module_keys += [module]
                 else:
-                    name2key = self.name2key(netuid=netuid)
                     assert module in name2key, f"Invalid module {module} not found in SubNetwork {netuid}"
                     module_keys += [name2key[module]]
                 
@@ -1610,7 +1610,7 @@ class Subspace(c.Module):
             subnets = [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
             state_dict = {'subnets': subnets, 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
-                        'stake_to': [self.stake_to(network=network, block=block, update=True) for netuid in netuids],
+                        'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
                         'balances': self.balances(network=network, block=block, update=True),
                         'block': block,
                         'network': network,
@@ -2225,13 +2225,13 @@ class Subspace(c.Module):
 
     
         
-    def name2key(self, search:str=None, network=network, netuid: int = None ) -> Dict[str, str]:
+    def name2key(self, search:str=None, network=network, netuid: int = None, update=False ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
 
         
         self.resolve_network(network)
-        names = self.names(netuid=netuid)
-        keys = self.keys(netuid=netuid)
+        names = self.names(netuid=netuid, update=update)
+        keys = self.keys(netuid=netuid, update=update)
         name2key =  { n: k for n, k in zip(names, keys)}
         if search != None:
             name2key = {k:v for k,v in name2key.items() if search in k}
@@ -2239,8 +2239,8 @@ class Subspace(c.Module):
                 return list(name2key.keys())[0]
         return name2key
 
-    def key2name(self,search=None, netuid: int = None, network=network) -> Dict[str, str]:
-        return {v:k for k,v in self.name2key(search=search, netuid=netuid, network=network).items()}
+    def key2name(self,search=None, netuid: int = None, network=network, update=False) -> Dict[str, str]:
+        return {v:k for k,v in self.name2key(search=search, netuid=netuid, network=network, update=update).items()}
         
     def is_unique_name(self, name: str, netuid=None):
         return bool(name not in self.get_namespace(netuid=netuid))
