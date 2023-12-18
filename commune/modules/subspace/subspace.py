@@ -4354,7 +4354,7 @@ class Subspace(c.Module):
         # add the node key if it does not exist
         if key_mems != None:
             c.print(f'adding node key for {key_mems}', color='yellow')
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=False, insert_key=True)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True, insert_key=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -4503,7 +4503,7 @@ class Subspace(c.Module):
                     build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10,
-                    max_boot_nodes: bool = 4,
+                    max_boot_nodes: bool = 50,
                     wait_for_nodeid = True,
                     ):
 
@@ -4512,6 +4512,8 @@ class Subspace(c.Module):
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
             chain_info = {'nodes':{}, 'boot_nodes':[]}
+            if remote:
+                c.rcmd('c d kill_many vali')
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
@@ -4591,7 +4593,6 @@ class Subspace(c.Module):
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
                     response = cls.start_node(**node_kwargs, refresh=refresh)
-                    c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
