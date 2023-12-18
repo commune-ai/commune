@@ -3727,20 +3727,14 @@ class Subspace(c.Module):
                 cls.rm_node_key(node=node, chain=chain)
             else:
                 c.print(f'node key {node} for chain {chain} already exists')
-                return {'success':False, 'message':f'node key {node} for chain {chain} already exists'}
+                return {'success':True, 'message':f'node key {node} for chain {chain} already exists', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
 
         chain_path = cls.chain_release_path(mode=mode)
 
         if key_mems == None:
             key_mems = {}
 
-        if insert_key:
-            node2keystore_path = cls.keystore_path(node=node, chain=chain)
-            # c.print(f'inserting key into {node2keystore_path}')
-            # if len(c.ls(node2keystore_path)) > 0 :
-            #     c.rm(node2keystore_path)
-            # assert len(c.ls(node2keystore_path)) == 0, f'node2keystore_path {node2keystore_path} not empty'
-
+  
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
@@ -3755,15 +3749,24 @@ class Subspace(c.Module):
             if len(key_mems) == 2 :
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
                 c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
-            
+                key = c.get_key(key_path,crypto_type=schema, refresh=False)
 
-            # we need to resolve the key based on the key path
-            key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
+            else:
+                # we need to resolve the key based on the key path
+                key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
+            
 
             c.print(key)
 
             # do we want
             if insert_key:
+
+                node2keystore_path = cls.keystore_path(node=node, chain=chain)
+                c.print(f'inserting key into {node2keystore_path}')
+                if len(c.ls(node2keystore_path)) == 2 :
+                    c.rm(node2keystore_path)
+                    assert len(c.ls(node2keystore_path)) == 0, f'node2keystore_path {node2keystore_path} not empty'
+
                 # we need to resolve the base path based on the node and chain
                 base_path = cls.resolve_base_path(node=node, chain=chain)
                 c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
