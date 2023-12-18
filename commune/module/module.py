@@ -4840,7 +4840,7 @@ class c:
     def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
         destinations = c.root_addys()[:n]
         c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
-        return c.multitransfer(destinations=destinations, amounts=amount, n=n, key=key)
+        return c.transfer_many(destinations=destinations, amounts=amount, n=n, key=key)
 
 
     def add_root_keys(self, n=1, tag=None, **kwargs):
@@ -7454,11 +7454,11 @@ class c:
     
 
     @classmethod
-    def multistake(cls, *args, **kwargs):
-        return c.module('subspace')().multistake(*args, **kwargs)
+    def stake_many(cls, *args, **kwargs):
+        return c.module('subspace')().stake_many(*args, **kwargs)
     @classmethod
-    def multitransfer(cls, *args, **kwargs):
-        return c.module('subspace')().multitransfer(*args, **kwargs)
+    def transfer_many(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_many(*args, **kwargs)
 
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
@@ -7472,9 +7472,9 @@ class c:
     def random_words(cls, n=2, **kwargs):
         return c.module('key').generate_mnemonic(n=n, **kwargs)
     @classmethod
-    def multiunstake(cls, *args, **kwargs):
-        return c.module('subspace')().multiunstake(*args, **kwargs)
-    unstake_all = multiunstake
+    def unstake_many(cls, *args, **kwargs):
+        return c.module('subspace')().unstake_many(*args, **kwargs)
+    unstake_all = unstake_many
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    

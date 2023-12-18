@@ -4,18 +4,18 @@
 
 In this tutorial, you will learn how to deploy a validator on the network and perform various tasks related to staking, registration, and validation.
 
-
-
 ### Step 1: Registering a Validator
 
 To register a validator with a specific tag, use the following CLI command:
 
 ```bash
-c vali register tag=whadup
+c vali register tag=whadup subnet=commune
+or 
+c register vali::whadup subnet=commune
 ```
 
 ```python 
-c.module('vali').register(tag='whadup')
+c.module('vali').register(tag='whadup', subnet=commune)
 ```
 
 This creates a key with "vali::whadup". 
@@ -28,14 +28,14 @@ You can also serve it and register it with the following commands:
 ```
 
 
-### Step 2A: Staking Your Validator
+### Step 2: Staking Your Validator
 
 Ensure that you have staked your validator by following these steps:
 
 1. Stake your validator with another key using the CLI command:
 
    ```bash
-   c stake vali::whadup {amount}
+   c stake module=vali::whadup amount=20
    ```
 
    The default amount to be staked is your entire balance. If you don't have a balance, you'll need to unstake.
@@ -43,49 +43,6 @@ Ensure that you have staked your validator by following these steps:
 2. If needed, you can unstake by using the following command:
 
    ```bash
-   c unstake {amount}
+   c unstake module=vali amount=10
    ```
-
-
-### Step 2B: Staking to Multiple Validators
-
-You can stake to multiple validators by using the following command:
-
-
-Stake 100 form your balance to vali::whadup and vali::whadup2
-
-```bash
-c stake_many amount=100 modules=["vali::whadup","vali::whadup2"]
-```
-
-
-### Step 2C: Stake Spread
-
-You can stake to multiple validators by using the following command:
-
-
-Stake 100 form your balance to vali::whadup and vali::whadup2
-
-```bash
-c stake_spread whadup amount=100
-```
-
-
-
-## Getting Your Validator's Status
-
-To get your validator's status, use the following command:
-
-```bash
-c vstats
-```
-
-```python
-c.vstats()
-```
-
-![Alt text](image.png)
-output
-
-
 
