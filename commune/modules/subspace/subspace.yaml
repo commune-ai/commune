@@ -6,6 +6,23 @@ chain_info:
     - /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
     - /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
     - /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+    - /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWK9rBzsAbUSNGEnVvCZH2vtvwjNxNf2RHUqH8f8Ls8Fyx
+    - /ip4/165.22.186.112/tcp/50065/p2p/12D3KooWEfJXv4fqMXeeoD8DSRkjyysEpGhx7kneR5W6Z9SmHMYq
+    - /ip4/165.22.186.112/tcp/50068/p2p/12D3KooWEETPL2ZrmWKRugyQvtwz5c6rqCEwLyeWxJrKBaHHkrv6
+    - /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+    - /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+    - /ip4/165.22.186.112/tcp/50077/p2p/12D3KooWR4SWRXPWxKTiq1BkAHTwbsm4pEMLAPLXRT8QeP8nH8CM
+    - /ip4/165.22.186.112/tcp/50080/p2p/12D3KooWAma6uT9X7aALYmv2uRnncziCYCjrRZ9bRpGnW6x6G6dM
+    - /ip4/165.22.186.112/tcp/50083/p2p/12D3KooWAvRBSQny8YYpuoDGCMSNCcRv6SkYFmrLCrYVfAbvo1Ag
+    - /ip4/165.22.186.112/tcp/50086/p2p/12D3KooWJ3E8FmqquJ4jfgYBAMsgo3QRW6MEFgHEruwhwGFsV2sV
+    - /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
+    - /ip4/165.22.186.112/tcp/50092/p2p/12D3KooWSE73cSJ6fgURTbJxo3uEoQ1CKKwsedFbJY87ytLyevrt
+    - /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+    - /ip4/165.22.186.112/tcp/50098/p2p/12D3KooWM93YbpVbadtdwZpoChducd8PZDMy65fz9Tgarkp2dSLM
+    - /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+    - /ip4/165.22.186.112/tcp/50104/p2p/12D3KooWGwGTru3rLcxv7jRSxAgSW2bSyRvekBdgDMefoDyRfgDL
+    - /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+    - /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
     nodes:
       vali_0:
         boot_nodes: []
@@ -33,9 +50,9 @@ chain_info:
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
         rpc_port: 50051
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
         sync: warp
         telemetry_url: false
         validator: true
@@ -67,24 +84,431 @@ chain_info:
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
         rpc_port: 50054
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
         sync: warp
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 50055
-      vali_2:
-        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+      vali_10:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
           /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_10 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_10:/nodes/main/vali_10 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_10
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50080
+          --rpc-port 50081 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: salon embrace palm worth warm able axis clap chest useless enough
+            absorb
+          gran: weird early imitate unique demise skate canal elbow document gasp
+            another rebel
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_10
+        node_key: null
+        port: 50080
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50081
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50082
+      vali_11:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_11 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_11:/nodes/main/vali_11 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_11
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50083
+          --rpc-port 50084 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: good myself ivory cost token proof off also retreat neutral useless
+            mechanic
+          gran: disease digital strong useless fence ethics reflect vapor plug wide
+            original craft
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_11
+        node_key: null
+        port: 50083
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50084
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50085
+      vali_12:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_12 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_12:/nodes/main/vali_12 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_12
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50086
+          --rpc-port 50087 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: behave network yellow diet code keep vault minimum alley mansion prison
+            doll
+          gran: team blossom virus ride that they garage intact glue cram sweet breeze
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_12
+        node_key: null
+        port: 50086
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50087
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50088
+      vali_13:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_13 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_13:/nodes/main/vali_13 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_13
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50089
+          --rpc-port 50090 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: access conduct item that comic build tree cupboard security between
+            orange father
+          gran: artwork lift swift reduce culture found judge winner offer fish pony
+            flee
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_13
+        node_key: null
+        port: 50089
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50090
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50091
+      vali_14:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_14 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_14:/nodes/main/vali_14 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_14
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50092
+          --rpc-port 50093 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: beef cabin ice shaft snap outdoor diet wheel opera arrest client wide
+          gran: clump merit gather company lumber trash canvas antique alpha square
+            cactus police
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_14
+        node_key: null
+        port: 50092
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50093
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50094
+      vali_15:
+        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_15 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_15:/nodes/main/vali_15 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_15
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50095
+          --rpc-port 50096 --bootnodes /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: race jazz drop scatter era faith casual two illness country capable
+            neglect
+          gran: lift outer laundry drip slush current clown member december license
+            team claw
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_15
+        node_key: null
+        port: 50095
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50096
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50097
+      vali_16:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_16 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_16:/nodes/main/vali_16 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_16
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50098
+          --rpc-port 50099 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: velvet emotion inner large grass deal cheap riot silver message excess
+            history
+          gran: globe enable chunk sister voyage shiver spin settle net lake hard
+            void
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_16
+        node_key: null
+        port: 50098
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50099
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50100
+      vali_17:
+        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_17 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_17:/nodes/main/vali_17 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_17
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50101
+          --rpc-port 50102 --bootnodes /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: account cabin major field legend melt cancel electric park stand until
+            novel
+          gran: shallow term brass wear hollow enjoy ice hint bleak dove decline inch
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_17
+        node_key: null
+        port: 50101
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50102
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50103
+      vali_18:
+        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_18 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_18:/nodes/main/vali_18 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_18
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50104
+          --rpc-port 50105 --bootnodes /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: road purity endorse damage always check salute calm carbon student
+            teach table
+          gran: radio comfort drive save noble major donor action weasel eyebrow soldier
+            pluck
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_18
+        node_key: null
+        port: 50104
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50105
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50106
+      vali_19:
+        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_19 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_19:/nodes/main/vali_19 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_19
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50107
+          --rpc-port 50108 --bootnodes /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: setup humble casino gain balance soap replace recycle diet claw stomach
+            debris
+          gran: potato issue aware diary victory rule glow trumpet access major horror
+            phone
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_19
+        node_key: null
+        port: 50107
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50108
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50109
+      vali_2:
+        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.vali_2 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/vali_2:/nodes/main/vali_2 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_2
           --chain /subspace/specs/main.json --validator --pruning=500 --port 50056
-          --rpc-port 50057 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
+          --rpc-port 50057 --bootnodes /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
         daemon: true
         debug: false
         ip: 165.22.186.112
@@ -104,14 +528,55 @@ chain_info:
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
         rpc_port: 50057
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
         sync: warp
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 50058
+      vali_20:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_20 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_20:/nodes/main/vali_20 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_20
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50110
+          --rpc-port 50111 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: blush imitate bonus unhappy face snake way all fantasy neck purchase
+            mercy
+          gran: donate leaf stable prepare course gain truth length beach deputy coffee
+            rice
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_20
+        node_key: null
+        port: 50110
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50111
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50112
       vali_3:
         boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
           /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
@@ -143,29 +608,274 @@ chain_info:
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
         rpc_port: 50060
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
         sync: warp
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 50061
-    public_nodes:
-      nonvali_1:
-        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+      vali_4:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
           /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
           /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_4 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_4:/nodes/main/vali_4 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_4
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50062
+          --rpc-port 50063 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: tone rug boy adjust solid drip boost hurry rotate mixed ride enact
+          gran: gospel cement funny february scan grain divide three orchard all symptom
+            muffin
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_4
+        node_key: null
+        port: 50062
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50063
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50064
+      vali_5:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
           /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_5 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_5:/nodes/main/vali_5 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_5
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50065
+          --rpc-port 50066 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: price uncle illness thought explain night toss sell obey sunny slab
+            hamster
+          gran: plunge accuse father coral wall poverty fault under west answer exist
+            equal
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_5
+        node_key: null
+        port: 50065
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50066
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50067
+      vali_6:
+        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_6 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_6:/nodes/main/vali_6 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_6
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50068
+          --rpc-port 50069 --bootnodes /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: door earn wild egg bleak enroll pitch present earth arena garage absurd
+          gran: run surge biology together portion lock pulse arrange pluck wrong
+            excite receive
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_6
+        node_key: null
+        port: 50068
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50069
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50070
+      vali_7:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_7 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_7:/nodes/main/vali_7 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_7
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50071
+          --rpc-port 50072 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: excess volcano pyramid crazy castle tooth trust joke satisfy suit
+            swarm faith
+          gran: cliff pipe forum orbit alarm gate genre wash cable lunch museum glide
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_7
+        node_key: null
+        port: 50071
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50072
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50073
+      vali_8:
+        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_8 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_8:/nodes/main/vali_8 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_8
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50074
+          --rpc-port 50075 --bootnodes /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: casino mercy stem thing scale patch evidence under assault also movie
+            ginger
+          gran: afraid nature enjoy enter humor mother behave begin tattoo address
+            rule practice
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_8
+        node_key: null
+        port: 50074
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50075
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50076
+      vali_9:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.vali_9 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/vali_9:/nodes/main/vali_9 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/vali_9
+          --chain /subspace/specs/main.json --validator --pruning=500 --port 50077
+          --rpc-port 50078 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems:
+          aura: brand claw dumb melt scissors large abandon broccoli rain install
+            income borrow
+          gran: relax lawn salon pepper sad vault future cool uphold dizzy develop
+            make
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: vali_9
+        node_key: null
+        port: 50077
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50078
+        sid: c144b949ae2ac690d0a0709e9792daf36bef62b22149409d44e5d139fd77e337
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50079
+    public_nodes:
+      nonvali_1:
+        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50077/p2p/12D3KooWR4SWRXPWxKTiq1BkAHTwbsm4pEMLAPLXRT8QeP8nH8CM
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.nonvali_1 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/nonvali_1:/nodes/main/nonvali_1 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_1
           --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
-          --rpc-cors=all --port 50058 --rpc-port 50063 --bootnodes /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
-          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+          --rpc-cors=all --port 50052 --rpc-port 50055 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50077/p2p/12D3KooWR4SWRXPWxKTiq1BkAHTwbsm4pEMLAPLXRT8QeP8nH8CM
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY"
         daemon: true
         debug: false
         ip: 165.22.186.112
@@ -176,33 +886,35 @@ chain_info:
         module: null
         node: nonvali_1
         node_key: null
-        port: 50058
+        port: 50052
         pruning: 500
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
-        rpc_port: 50063
+        rpc_port: 50055
+        sid: null
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50066
+        ws_port: 50058
       nonvali_2:
-        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        boot_nodes: /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50080/p2p/12D3KooWAma6uT9X7aALYmv2uRnncziCYCjrRZ9bRpGnW6x6G6dM
+          /ip4/165.22.186.112/tcp/50065/p2p/12D3KooWEfJXv4fqMXeeoD8DSRkjyysEpGhx7kneR5W6Z9SmHMYq
           /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWK9rBzsAbUSNGEnVvCZH2vtvwjNxNf2RHUqH8f8Ls8Fyx
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.nonvali_2 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/nonvali_2:/nodes/main/nonvali_2 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_2
           --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
-          --rpc-cors=all --port 50052 --rpc-port 50055 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          --rpc-cors=all --port 50061 --rpc-port 50064 --bootnodes /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50080/p2p/12D3KooWAma6uT9X7aALYmv2uRnncziCYCjrRZ9bRpGnW6x6G6dM
+          /ip4/165.22.186.112/tcp/50065/p2p/12D3KooWEfJXv4fqMXeeoD8DSRkjyysEpGhx7kneR5W6Z9SmHMYq
           /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
+          /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWK9rBzsAbUSNGEnVvCZH2vtvwjNxNf2RHUqH8f8Ls8Fyx"
         daemon: true
         debug: false
         ip: 165.22.186.112
@@ -213,33 +925,35 @@ chain_info:
         module: null
         node: nonvali_2
         node_key: null
-        port: 50052
+        port: 50061
         pruning: 500
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
-        rpc_port: 50055
+        rpc_port: 50064
+        sid: null
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50069
+        ws_port: 50067
       nonvali_3:
-        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
-          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        boot_nodes: /ip4/165.22.186.112/tcp/50068/p2p/12D3KooWEETPL2ZrmWKRugyQvtwz5c6rqCEwLyeWxJrKBaHHkrv6
+          /ip4/165.22.186.112/tcp/50083/p2p/12D3KooWAvRBSQny8YYpuoDGCMSNCcRv6SkYFmrLCrYVfAbvo1Ag
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.nonvali_3 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/nonvali_3:/nodes/main/nonvali_3 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_3
           --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
-          --rpc-cors=all --port 50061 --rpc-port 50062 --bootnodes /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
-          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt"
+          --rpc-cors=all --port 50070 --rpc-port 50073 --bootnodes /ip4/165.22.186.112/tcp/50068/p2p/12D3KooWEETPL2ZrmWKRugyQvtwz5c6rqCEwLyeWxJrKBaHHkrv6
+          /ip4/165.22.186.112/tcp/50083/p2p/12D3KooWAvRBSQny8YYpuoDGCMSNCcRv6SkYFmrLCrYVfAbvo1Ag
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN"
         daemon: true
         debug: false
         ip: 165.22.186.112
@@ -250,33 +964,35 @@ chain_info:
         module: null
         node: nonvali_3
         node_key: null
-        port: 50061
+        port: 50070
         pruning: 500
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
-        rpc_port: 50062
+        rpc_port: 50073
+        sid: null
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50072
+        ws_port: 50076
       nonvali_4:
-        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+        boot_nodes: /ip4/165.22.186.112/tcp/50068/p2p/12D3KooWEETPL2ZrmWKRugyQvtwz5c6rqCEwLyeWxJrKBaHHkrv6
+          /ip4/165.22.186.112/tcp/50080/p2p/12D3KooWAma6uT9X7aALYmv2uRnncziCYCjrRZ9bRpGnW6x6G6dM
+          /ip4/165.22.186.112/tcp/50092/p2p/12D3KooWSE73cSJ6fgURTbJxo3uEoQ1CKKwsedFbJY87ytLyevrt
+          /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
+          /ip4/165.22.186.112/tcp/50104/p2p/12D3KooWGwGTru3rLcxv7jRSxAgSW2bSyRvekBdgDMefoDyRfgDL
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.nonvali_4 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/nonvali_4:/nodes/main/nonvali_4 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_4
           --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
-          --rpc-cors=all --port 50064 --rpc-port 50065 --bootnodes /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
-          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
-          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam"
+          --rpc-cors=all --port 50079 --rpc-port 50082 --bootnodes /ip4/165.22.186.112/tcp/50068/p2p/12D3KooWEETPL2ZrmWKRugyQvtwz5c6rqCEwLyeWxJrKBaHHkrv6
+          /ip4/165.22.186.112/tcp/50080/p2p/12D3KooWAma6uT9X7aALYmv2uRnncziCYCjrRZ9bRpGnW6x6G6dM
+          /ip4/165.22.186.112/tcp/50092/p2p/12D3KooWSE73cSJ6fgURTbJxo3uEoQ1CKKwsedFbJY87ytLyevrt
+          /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
+          /ip4/165.22.186.112/tcp/50104/p2p/12D3KooWGwGTru3rLcxv7jRSxAgSW2bSyRvekBdgDMefoDyRfgDL"
         daemon: true
         debug: false
         ip: 165.22.186.112
@@ -287,32 +1003,34 @@ chain_info:
         module: null
         node: nonvali_4
         node_key: null
-        port: 50064
+        port: 50079
         pruning: 500
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
-        rpc_port: 50065
+        rpc_port: 50082
+        sid: null
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50073
+        ws_port: 50085
       nonvali_5:
-        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+        boot_nodes: /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
           /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
           /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
         chain: main
         cmd: docker run -d --net host --name subspace.node.main.nonvali_5 -v /root/commune/subspace/specs:/subspace/specs
           -v /root/.commune/subspace/nodes/main/nonvali_5:/nodes/main/nonvali_5 vivonasg/subspace.libra-2023-12-17  bash
           -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_5
           --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
-          --rpc-cors=all --port 50067 --rpc-port 50068 --bootnodes /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
-          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          --rpc-cors=all --port 50088 --rpc-port 50091 --bootnodes /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
           /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
           /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk"
         daemon: true
         debug: false
@@ -324,26 +1042,182 @@ chain_info:
         module: null
         node: nonvali_5
         node_key: null
-        port: 50067
+        port: 50088
         pruning: 500
         purge_chain: true
         refresh: true
         remote: false
-        remote_id: null
         rpc_cors: all
-        rpc_port: 50068
+        rpc_port: 50091
+        sid: null
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50074
+        ws_port: 50094
+      nonvali_6:
+        boot_nodes: /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.nonvali_6 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/nonvali_6:/nodes/main/nonvali_6 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_6
+          --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
+          --rpc-cors=all --port 50097 --rpc-port 50100 --bootnodes /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWNqVCfAJvX8iqR82XL7QDCXk7Wj4mvMH25omPpcFYXZrt
+          /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWMes1Vp1K9PdvwVtqcWW62RoJoXnLJtRDxBVa82eruWij
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: nonvali_6
+        node_key: null
+        port: 50097
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50100
+        sid: null
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50103
+      nonvali_7:
+        boot_nodes: /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50077/p2p/12D3KooWR4SWRXPWxKTiq1BkAHTwbsm4pEMLAPLXRT8QeP8nH8CM
+          /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.nonvali_7 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/nonvali_7:/nodes/main/nonvali_7 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_7
+          --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
+          --rpc-cors=all --port 50106 --rpc-port 50109 --bootnodes /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50077/p2p/12D3KooWR4SWRXPWxKTiq1BkAHTwbsm4pEMLAPLXRT8QeP8nH8CM
+          /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50110/p2p/12D3KooWFcsbzLnsXcvET9E4i2kPdzjxUDJZ94Gs5VKzeLBa6grY
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: nonvali_7
+        node_key: null
+        port: 50106
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50109
+        sid: null
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50112
+      nonvali_8:
+        boot_nodes: /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWK9rBzsAbUSNGEnVvCZH2vtvwjNxNf2RHUqH8f8Ls8Fyx
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.nonvali_8 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/nonvali_8:/nodes/main/nonvali_8 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_8
+          --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
+          --rpc-cors=all --port 50113 --rpc-port 50114 --bootnodes /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWEMPwLfoC2bKkfoTuSfHz4KEkwbWqMzfdm45C1Y1acZam
+          /ip4/165.22.186.112/tcp/50071/p2p/12D3KooWANkYK19HLSk5aPdbsTCxk9bUwD1APqUvEun16yzTqbc4
+          /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWFbgWhs97HZY3CcKmcwKMudYSbapyhB8Ev9wyGNosXBWk
+          /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWK9rBzsAbUSNGEnVvCZH2vtvwjNxNf2RHUqH8f8Ls8Fyx"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: nonvali_8
+        node_key: null
+        port: 50113
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50114
+        sid: null
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50115
+      nonvali_9:
+        boot_nodes: /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
+          /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz
+        chain: main
+        cmd: docker run -d --net host --name subspace.node.main.nonvali_9 -v /root/commune/subspace/specs:/subspace/specs
+          -v /root/.commune/subspace/nodes/main/nonvali_9:/nodes/main/nonvali_9 vivonasg/subspace.libra-2023-12-17  bash
+          -c "/subspace/target/release/node-subspace  --base-path /nodes/main/nonvali_9
+          --chain /subspace/specs/main.json --rpc-external --pruning=500 --sync warp
+          --rpc-cors=all --port 50116 --rpc-port 50117 --bootnodes /ip4/165.22.186.112/tcp/50074/p2p/12D3KooWMMtd1tVvPpV2XRJaXdktRkLYrWndwqXbSKS2sV4DHnDN
+          /ip4/165.22.186.112/tcp/50095/p2p/12D3KooWG3A5xSzYYfGzRMzZ6dWfekC5hK86Ykha337MesT7HQGk
+          /ip4/165.22.186.112/tcp/50089/p2p/12D3KooWNmbWC3WQGkmUBaAXRQPdcqRuYYbFwAsM9burG1RLCTrN
+          /ip4/165.22.186.112/tcp/50107/p2p/12D3KooWPdbdUY1DwDaYMXaN4JYQUZy75uH5R8WCaM9zuVVgyCCR
+          /ip4/165.22.186.112/tcp/50101/p2p/12D3KooWHyL1cwPhQg4kwj3ePABVcQW2df35edhR7Rebf5puApgz"
+        daemon: true
+        debug: false
+        ip: 165.22.186.112
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        module: null
+        node: nonvali_9
+        node_key: null
+        port: 50116
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50117
+        sid: null
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50118
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 frontend:
   telemetry:
     feed: ws://165.22.186.112:50129/feed
     frontend: http://165.22.186.112:50213
     shard: ws://165.22.186.112:50244/submit 0
-local: false
+local: true
 loop: false
 mode: local
 netuid: 0

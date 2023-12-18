@@ -4316,8 +4316,7 @@ class Subspace(c.Module):
                  ):
 
         if sid != None:
-            self_sid = c.sid()
-            assert sid == self_sid, f'remote_id ({sid}) != self_id ({sid})'
+            assert sid == c.sid(), f'remote_id ({sid}) != self_id ({sid})'
 
         if debug :
             daemon = False 
@@ -4504,6 +4503,7 @@ class Subspace(c.Module):
                     build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10,
+                    max_boot_nodes: bool = 4,
                     wait_for_nodeid = True,
                     ):
 
@@ -4578,7 +4578,6 @@ class Subspace(c.Module):
                         remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
-                        node_kwargs['sid'] = c.sid()
 
                     else:
                         port_keys = ['port', 'rpc_port', 'ws_port']
@@ -4586,8 +4585,8 @@ class Subspace(c.Module):
                         for k, port in zip(port_keys, node_ports):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
-                    
-                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:6]
+                    node_kwargs['sid'] = c.sid()
+                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:max_boot_nodes]
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
