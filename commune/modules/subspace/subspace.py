@@ -3722,19 +3722,19 @@ class Subspace(c.Module):
         node = str(node)
 
         c.print(f'adding node key {node} for chain {chain}')
-        if  cls.node_key_exists(node=node, chain=chain) and key_mems!= None:
+        if  cls.node_key_exists(node=node, chain=chain) and key_mems != None:
             if refresh:
                 cls.rm_node_key(node=node, chain=chain)
             else:
                 c.print(f'node key {node} for chain {chain} already exists')
-                return {'success':False, 'message':f'node key {node} for chain {chain} already exists'}
+                return {'success':True, 'message':f'node key {node} for chain {chain} already exists', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
 
         chain_path = cls.chain_release_path(mode=mode)
 
         if key_mems == None:
             key_mems = {}
 
-
+  
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
@@ -3749,17 +3749,27 @@ class Subspace(c.Module):
             if len(key_mems) == 2 :
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
                 c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
-            
+                key = c.get_key(key_path,crypto_type=schema, refresh=False)
 
-            # we need to resolve the key based on the key path
-            key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
+            else:
+                # we need to resolve the key based on the key path
+                key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
+            
 
             c.print(key)
 
             # do we want
             if insert_key:
+
+                node2keystore_path = cls.keystore_path(node=node, chain=chain)
+                c.print(f'inserting key into {node2keystore_path}')
+                if len(c.ls(node2keystore_path)) == 2 :
+                    c.rm(node2keystore_path)
+                    assert len(c.ls(node2keystore_path)) == 0, f'node2keystore_path {node2keystore_path} not empty'
+
                 # we need to resolve the base path based on the node and chain
                 base_path = cls.resolve_base_path(node=node, chain=chain)
+                c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
                 cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
                 c.print(cmd)
                 # c.print(cmd)
@@ -3838,11 +3848,17 @@ class Subspace(c.Module):
         return path
 
 
-    def node2keystore(self, node='alice', chain=chain):
+    def node2keystore(self, chain=chain):
         node2keystore = {}
         for node in self.nodes():
             node2keystore[node] = [p.split('/')[-1] for p in c.ls(self.keystore_path(node=node, chain=chain))]
         return node2keystore
+
+    def node2keystore_path(self, chain=chain):
+        node2keystore_path = {}
+        for node in self.nodes():
+            node2keystore_path[node] = self.keystore_path(node=node, chain=chain)
+        return node2keystore_path
 
 
 
@@ -3890,6 +3906,7 @@ class Subspace(c.Module):
         
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
+        c.print(vali_node_keys)
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
@@ -4066,6 +4083,10 @@ class Subspace(c.Module):
     @classmethod
     def chain_spec(cls, chain='main'):
         return c.get_json(cls.chain_spec_path(chain=chain))
+    
+    @classmethod
+    def chain_spec_authorities(cls, chain='main'):
+        return cls.chain_spec(chain=chain)['genesis']['runtime']['aura']['authorities']
     
 
     @classmethod
@@ -4312,12 +4333,11 @@ class Subspace(c.Module):
                  module : str = None , # remote module to call
                  remote = False,
                  debug:bool = False,
-                 remote_id:str = None,
+                 sid:str = None,
                  ):
 
-        if remote_id != None:
-            self_id = cls.id()
-            assert remote_id == self_id, f'remote_id ({remote_id}) != self_id ({self_id})'
+        if sid != None:
+            assert sid == c.sid(), f'remote_id ({sid}) != self_id ({sid})'
 
         if debug :
             daemon = False 
@@ -4331,7 +4351,7 @@ class Subspace(c.Module):
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
             kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=15, network='remote')[0]
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=20, network='remote')[0]
             return response
 
 
@@ -4495,15 +4515,16 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 42,
-                    nonvalis:int = 42,
+                    valis:int = 21,
+                    nonvalis:int = 8,
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = True,
                     remote:bool = False,
-                    build_spec :bool = True,
+                    build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10,
+                    max_boot_nodes: bool = 50,
                     wait_for_nodeid = True,
                     ):
 
@@ -4512,6 +4533,8 @@ class Subspace(c.Module):
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
             chain_info = {'nodes':{}, 'boot_nodes':[]}
+            if remote:
+                c.rcmd('c d kill_many vali')
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
@@ -4585,13 +4608,12 @@ class Subspace(c.Module):
                         for k, port in zip(port_keys, node_ports):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
-                    
-                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:6]
+                    node_kwargs['sid'] = c.sid()
+                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:max_boot_nodes]
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
                     response = cls.start_node(**node_kwargs, refresh=refresh)
-                    c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
