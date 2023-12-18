@@ -3414,7 +3414,7 @@ class Subspace(c.Module):
             raise Exception(f'Invalid conversion from {from_version} to {to_version}')
     @classmethod
     def snapshot(cls, network=network) -> dict:
-        path = f'{self.snapshot_path}/{network}.json'
+        path = f'{self.snapshot_path}/main.json'
         return c.get_json(path)
 
 
@@ -3867,7 +3867,7 @@ class Subspace(c.Module):
                    valis: int = 12,
                    ):
 
-        chain_spec_path = cls.chain_spec_path(chain)
+        chain_spec_path = cls.chain_spec_path(chain=chain)
         chain_release_path = cls.chain_release_path(mode=mode)
 
         cmd = f'{chain_release_path} build-spec --chain {chain}'
@@ -3875,21 +3875,14 @@ class Subspace(c.Module):
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
        
-        
         # chain_spec_path_dir = os.path.dirname(chain_spec_path)
-        if mode == 'docker':
-            container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
-            container_snap_path = cls.snapshot_path.replace(cls.chain_path, '/subspace')
-            volumes = f'-v {cls.spec_path}:{container_spec_path}'\
-                         + f' -v {cls.snapshot_path}:{container_snap_path}'
-            cmd = f'bash -c "docker run {volumes} {cls.image} {cmd} > {chain_spec_path}"'
-            value = c.cmd(cmd, verbose=True)
-        elif mode == 'local':
-            cmd = f'bash -c "{cmd} > {chain_spec_path}"'
-            c.print(cmd)
-            c.cmd(cmd, cwd=cls.chain_path, verbose=True)  
-            
-              
+        container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
+        container_snap_path = cls.snapshot_path.replace(cls.chain_path, '/subspace')
+        volumes = f'-v {cls.spec_path}:{container_spec_path}'\
+                        + f' -v {cls.snapshot_path}:{container_snap_path}'
+        cmd = f'bash -c "docker run {volumes} {cls.image} {cmd} > {chain_spec_path}"'
+        value = c.cmd(cmd, verbose=True)
+        
         if vali_node_keys == None:
             vali_node_keys = cls.vali_node_keys(chain=chain)
         assert len(vali_node_keys) >= valis, f'vali_nodes ({len(vali_node_keys)}) must be at least {valis}'
@@ -4324,6 +4317,7 @@ class Subspace(c.Module):
                  remote = False,
                  debug:bool = False,
                  sid:str = None,
+                 timeout:int = 30,
                  ):
 
         if sid != None:
@@ -4337,11 +4331,12 @@ class Subspace(c.Module):
         if module != None:
             remote_kwargs = c.locals2kwargs(locals())
             remote_kwargs['module'] = None
+            remote_kwargs.pop('timeout', None)
             remote_kwargs.pop('remote', None)
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
             kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=20, network='remote')[0]
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=timeout, network='remote')[0]
             return response
 
 
@@ -4514,6 +4509,7 @@ class Subspace(c.Module):
                     build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10,
+                    timeout:int = 30,
                     max_boot_nodes: bool = 50,
                     wait_for_nodeid = True,
                     ):
@@ -4603,7 +4599,7 @@ class Subspace(c.Module):
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
-                    response = cls.start_node(**node_kwargs, refresh=refresh)
+                    response = cls.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
