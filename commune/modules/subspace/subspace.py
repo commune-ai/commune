@@ -3538,11 +3538,11 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=2, refresh:bool=True , mode=mode, insert_key=True):
+    def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=0, refresh:bool=True , mode=mode):
         for i in range(valis):
-            cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode, insert_key=insert_key)
+            cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode)
         for i in range(nonvalis):
-            cls.add_node_key(node=f'nonvali_{i}' , chain=chain, refresh=refresh, mode=mode, insert_key=insert_key)
+            cls.add_node_key(node=f'nonvali_{i}' , chain=chain, refresh=refresh, mode=mode)
 
         return {'success': True, 'msg': f'Added {valis} valis and {nonvalis} nonvalis to {chain}'}
 
@@ -3563,6 +3563,10 @@ class Subspace(c.Module):
         for key in cls.node_key_paths(node=node, chain=chain):
             c.print(f'removing node key {key}')
             c.rm_key(key)
+        keystore_path = cls.keystore_path(node=node, chain=chain)
+        if c.exists(keystore_path):
+            c.rm(keystore_path)
+            
         return {'success':True, 'message':'removed all node keys', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
     
         
@@ -3710,19 +3714,20 @@ class Subspace(c.Module):
                      node:str,
                      mode = 'docker',
                      chain = chain,
-                     key_mems:dict = {'aura': None, 'gran': None}, # pass the keys mems
+                     key_mems:dict = None, # pass the keys mems
                      refresh: bool = False,
-                     insert_key:bool = True,
                      ):
         '''
         adds a node key
         '''
+        if key_mems == None:
+            key_mems = cls.node_key_mems(node=node, chain=chain)
         cmds = []
 
         node = str(node)
 
         c.print(f'adding node key {node} for chain {chain}')
-        if  cls.node_key_exists(node=node, chain=chain) and key_mems != None:
+        if  cls.node_key_exists(node=node, chain=chain):
             if refresh:
                 cls.rm_node_key(node=node, chain=chain)
             else:
@@ -3731,10 +3736,11 @@ class Subspace(c.Module):
 
         chain_path = cls.chain_release_path(mode=mode)
 
-        if key_mems == None:
-            key_mems = {}
-
-  
+        # we need to resolve the node2keystore path based on the node and chain
+        node2keystore_path = cls.keystore_path(node=node, chain=chain)
+        if len(c.ls(node2keystore_path)) > 0:
+            c.rm(node2keystore_path)
+            
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
@@ -3746,43 +3752,27 @@ class Subspace(c.Module):
 
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
 
-            if len(key_mems) == 2 :
+            if key_mems != None and len(key_mems) == 2 :
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
-                c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
-                key = c.get_key(key_path,crypto_type=schema, refresh=False)
+                key_info = c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True, crypto_type=schema)
+                key = c.get_key(key_path, refresh=False)
+                assert key_info['mnemonic'] == key_mems[key_type], f'key mnemonic {key.mnemonic} does not match {key_mems[key_type]}'
 
             else:
                 # we need to resolve the key based on the key path
                 key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
             
 
-            c.print(key)
-
-            # do we want
-            if insert_key:
-
-                node2keystore_path = cls.keystore_path(node=node, chain=chain)
-                c.print(f'inserting key into {node2keystore_path}')
-                if len(c.ls(node2keystore_path)) == 2 :
-                    c.rm(node2keystore_path)
-                    assert len(c.ls(node2keystore_path)) == 0, f'node2keystore_path {node2keystore_path} not empty'
-
-                # we need to resolve the base path based on the node and chain
-                base_path = cls.resolve_base_path(node=node, chain=chain)
-                c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
-                cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
-                c.print(cmd)
-                # c.print(cmd)
-                if mode == 'docker':
-                    container_base_path = base_path.replace(cls.chain_path, '/subspace')
-                    volumes = f'-v {container_base_path}:{base_path}'
-                    cmd = f'docker run {volumes} {cls.image} {cmd}'
-                    c.print(c.cmd(cmd, verbose=True))
-                elif mode == 'local':
-                    c.cmd(cmd, verbose=True, cwd=cls.chain_path)
-                else:
-                    raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
-                
+            # we need to resolve the base path based on the node and chain
+            base_path = cls.resolve_base_path(node=node, chain=chain)
+            c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
+            cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+            container_base_path = base_path.replace(cls.chain_path, '/subspace')
+            volumes = f'-v {container_base_path}:{base_path}'
+            cmd = f'docker run {volumes} {cls.image} {cmd}'
+            c.print(c.cmd(cmd, verbose=True))
+            c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
+        assert len(c.ls(node2keystore_path)) == 2, f'node2keystore_path {node2keystore_path} must have 2 keys'
         return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
 
 
@@ -4375,7 +4365,7 @@ class Subspace(c.Module):
         # add the node key if it does not exist
         if key_mems != None:
             c.print(f'adding node key for {key_mems}', color='yellow')
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=False, insert_key=True)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -4416,8 +4406,6 @@ class Subspace(c.Module):
     
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
-            
- 
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
@@ -4464,6 +4452,8 @@ class Subspace(c.Module):
                 output = c.cmd(cmd, verbose=debug)
         else: 
             raise Exception(f'unknown mode {mode}')
+
+
         response = {
             'success':True,
             'msg': f'Started node {node} for chain {chain} with name {name}',
