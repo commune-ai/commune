@@ -3722,7 +3722,7 @@ class Subspace(c.Module):
         node = str(node)
 
         c.print(f'adding node key {node} for chain {chain}')
-        if  cls.node_key_exists(node=node, chain=chain) and key_mems!= None:
+        if  cls.node_key_exists(node=node, chain=chain) and key_mems != None:
             if refresh:
                 cls.rm_node_key(node=node, chain=chain)
             else:
@@ -3734,6 +3734,12 @@ class Subspace(c.Module):
         if key_mems == None:
             key_mems = {}
 
+        if insert_key:
+            node2keystore_path = cls.keystore_path(node=node, chain=chain)
+            # c.print(f'inserting key into {node2keystore_path}')
+            # if len(c.ls(node2keystore_path)) > 0 :
+            #     c.rm(node2keystore_path)
+            # assert len(c.ls(node2keystore_path)) == 0, f'node2keystore_path {node2keystore_path} not empty'
 
         for key_type in ['gran', 'aura']:
             # we need to resolve the schema based on the key type
@@ -3760,6 +3766,7 @@ class Subspace(c.Module):
             if insert_key:
                 # we need to resolve the base path based on the node and chain
                 base_path = cls.resolve_base_path(node=node, chain=chain)
+                c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
                 cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
                 c.print(cmd)
                 # c.print(cmd)
@@ -3838,11 +3845,17 @@ class Subspace(c.Module):
         return path
 
 
-    def node2keystore(self, node='alice', chain=chain):
+    def node2keystore(self, chain=chain):
         node2keystore = {}
         for node in self.nodes():
             node2keystore[node] = [p.split('/')[-1] for p in c.ls(self.keystore_path(node=node, chain=chain))]
         return node2keystore
+
+    def node2keystore_path(self, chain=chain):
+        node2keystore_path = {}
+        for node in self.nodes():
+            node2keystore_path[node] = self.keystore_path(node=node, chain=chain)
+        return node2keystore_path
 
 
 
@@ -3890,6 +3903,7 @@ class Subspace(c.Module):
         
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
+        c.print(vali_node_keys)
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
@@ -4066,6 +4080,10 @@ class Subspace(c.Module):
     @classmethod
     def chain_spec(cls, chain='main'):
         return c.get_json(cls.chain_spec_path(chain=chain))
+    
+    @classmethod
+    def chain_spec_authorities(cls, chain='main'):
+        return cls.chain_spec(chain=chain)['genesis']['runtime']['aura']['authorities']
     
 
     @classmethod
@@ -4330,7 +4348,7 @@ class Subspace(c.Module):
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
             kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=15, network='remote')[0]
+            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=20, network='remote')[0]
             return response
 
 
@@ -4354,7 +4372,7 @@ class Subspace(c.Module):
         # add the node key if it does not exist
         if key_mems != None:
             c.print(f'adding node key for {key_mems}', color='yellow')
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True, insert_key=True)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=False, insert_key=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
