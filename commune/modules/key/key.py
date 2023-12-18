@@ -169,11 +169,12 @@ class Keypair(c.Module):
             return json.loads(cls.get(path))
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        if mnemonic == None:
+        if mnemonic != None:
             kwargs['mnemonic'] = mnemonic
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
+        c.print(key_json, mnemonic)
         cls.put(path, key_json)
         return  json.loads(key_json)
     
@@ -515,9 +516,11 @@ class Keypair(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-        
+
         if json:
             return key.to_json()
+
+    
         
         return key
     
