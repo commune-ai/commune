@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra-2023-12-17'
+    image = 'vivonasg/subspace.libra-2023-12-18'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -4084,7 +4084,7 @@ class Subspace(c.Module):
         }
 
     @classmethod
-    def push_image(cls, image='subspace.libra', public_image=image, build:bool = True, no_cache=False ):
+    def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=False ):
         if build:
             c.print(cls.build_image(no_cache=no_cache))
         public_image = f'{public_image.split("-")[0]}-{c.datetime().split("_")[0]}'
@@ -4524,7 +4524,6 @@ class Subspace(c.Module):
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
-            
         ## VALIDATOR NODES
         vali_node_keys  = cls.vali_node_keys(chain=chain)
         num_vali_keys = len(vali_node_keys)
