@@ -82,20 +82,37 @@ class User(c.Module):
         assert not cls.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users'}
     
-
+    
+    def df(self):
+        df = []
+        for k,v in self.users().items():
+            v['address'] = k
+            v['name'] = v.get('name', None)
+            v['role'] = v.get('role', 'user')
+            df.append(v)
+        import pandas as pd
+        df = pd.DataFrame(df)
+        return df 
+        
     @classmethod
     def dashboard(cls):
         st.write('### Users')
-        users = cls.users()
+        self = cls()
+        users = self.users()
+
+
+        with st.expander('Users', True):
+            st.write(self.df())
 
         with st.expander('Add Users', True):
+            
             cols = st.columns([2,1,1])
             add_user_address = cols[0].text_input('Add User Address')
             role = cols[1].selectbox('Role', ['user', 'admin'])
             [cols[2].write('\n') for i in range(2)]
             add_user = cols[2].button(f'Add {role}')
             if add_user:
-                response = getattr(cls, f'add_{role}')(add_user_address)
+                response = getattr(self, f'add_{role}')(add_user_address)
                 st.write(response)
 
         with st.expander('Remove Users', True):
