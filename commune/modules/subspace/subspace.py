@@ -1009,8 +1009,8 @@ class Subspace(c.Module):
 
     def unstake(
             self,
-            amount: float =None, # defaults to all of the amount
             module : str = None, # defaults to most staked module
+            amount: float =None, # defaults to all of the amount
             key : 'c.Key' = None,  # defaults to first key
             netuid : Union[str, int] = 0, # defaults to module.netuid
             network: str= None,
@@ -1035,19 +1035,19 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         old_balance = self.get_balance( key.ss58_address , fmt='j')       
         # get most stake from the module
-        staketo = self.get_staketo(netuid=netuid, names = False)
+        stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano')
 
         module_key = None
         if module == None:
             # find the largest staked module
             max_stake = 0
-            for k,v in staketo.items():
+            for k,v in stake_to.items():
                 if v > max_stake:
                     max_stake = v
                     module_key = k            
         else:
             key2name = self.key2name(netuid=netuid)
-            name2key = {key2name[k]:k for k,v in staketo.items()}
+            name2key = {key2name[k]:k for k,v in stake_to.items()}
             if module in name2key:
                 module_key = name2key[module]
             else:
@@ -1055,8 +1055,8 @@ class Subspace(c.Module):
         
         # we expected to switch the module to the module key
         assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
-        assert module_key in staketo, f"Module {module_key} not found in SubNetwork {netuid}"
-        stake = staketo[module_key]
+        assert module_key in stake_to, f"Module {module_key} not found in SubNetwork {netuid}"
+        stake = stake_to[module_key]
         amount = amount if amount != None else stake
         # convert to nanos
         params={
@@ -1333,7 +1333,7 @@ class Subspace(c.Module):
         return state_from
     get_stake_from = get_stakefrom
 
-    def multistake( self, 
+    def stake_many( self, 
                         modules:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
@@ -1439,10 +1439,10 @@ class Subspace(c.Module):
 
         return response
 
-    multitransfer = transfer_multiple
+    transfer_many = transfer_multiple
 
 
-    def multiunstake( self, 
+    def unstake_many( self, 
                         modules:Union[List[str], str] = None,
                         amounts:Union[List[str], float, int] = None,
                         key: str = None, 
@@ -4717,7 +4717,7 @@ class Subspace(c.Module):
 
         s = c.module('subspace')()
 
-        s.multistake(key=key, modules=module_keys, amounts=stake_per_module)
+        s.stake_many(key=key, modules=module_keys, amounts=stake_per_module)
 
         
 

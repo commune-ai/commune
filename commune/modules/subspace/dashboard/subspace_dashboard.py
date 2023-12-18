@@ -85,7 +85,7 @@ class SubspaceDashboard(c.Module):
                     'key': self.key,
                 }
                 st.write(kwargs)
-                response = c.multitransfer(**kwargs)
+                response = c.transfer_many(**kwargs)
 
             else:
 
@@ -121,7 +121,7 @@ class SubspaceDashboard(c.Module):
                 'netuid': self.netuid,
             }
 
-            response = c.multistake(**kwargs)
+            response = c.stake_many(**kwargs)
             st.write(response)
 
     def staking_dashboard(self):
@@ -191,7 +191,7 @@ class SubspaceDashboard(c.Module):
                     'key': self.key,
                     'netuid': self.netuid,
                 }
-                response = c.multiunstake(**kwargs)
+                response = c.unstake_many(**kwargs)
                 st.write(response)
 
 
