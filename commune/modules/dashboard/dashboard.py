@@ -104,7 +104,7 @@ class Dashboard(c.Module):
 
         # return c.module('remote').dashboard()
 
-    def serve_dashboard(self):
+    def serve_dashboard(self, state=None):
         return c.module('server').dashboard()
 
         

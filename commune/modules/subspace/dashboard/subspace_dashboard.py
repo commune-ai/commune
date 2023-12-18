@@ -172,12 +172,13 @@ class SubspaceDashboard(c.Module):
             df[i]['unstake'] = df[i]['stake'] * (unstake_percentage / 100)
             df[i]['stake'] = df[i]['stake'] - df[i]['unstake']
         df = pd.DataFrame(df)
-        df.sort_values('stake', inplace=True, ascending=False)
-        # get a bar chart of the stake
-        fig = px.bar(df, x='module', y='stake', title='Unstake vs Stake')
-        fig.add_bar(x=df['module'], y=df['unstake'], name='Unstake')
-
-        st.plotly_chart(fig)
+        if len(df) > 0:
+            df.sort_values('stake', inplace=True, ascending=False)
+            # get a bar chart of the stake
+            fig = px.bar(df, x='module', y='stake', title='Unstake vs Stake')
+            fig.add_bar(x=df['module'], y=df['unstake'], name='Unstake')
+            st.plotly_chart(fig)
+            
         with st.form('unstake'):
             total_stake_amount = unstake_percentage * len(modules)
         
@@ -428,7 +429,7 @@ class SubspaceDashboard(c.Module):
         for i, m in enumerate(self.modules):
             self.modules[i]['stake'] = m['stake']/1e9
             self.modules[i]['emission'] = m['emission']/1e9
-
+        st.write(self.state['stake_to'][self.netuid].get(self.key.ss58_address))
         self.key_info = {
             'ss58_address': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
