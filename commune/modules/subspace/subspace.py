@@ -4312,12 +4312,12 @@ class Subspace(c.Module):
                  module : str = None , # remote module to call
                  remote = False,
                  debug:bool = False,
-                 remote_id:str = None,
+                 sid:str = None,
                  ):
 
-        if remote_id != None:
-            self_id = cls.id()
-            assert remote_id == self_id, f'remote_id ({remote_id}) != self_id ({self_id})'
+        if sid != None:
+            self_sid = c.sid()
+            assert sid == self_sid, f'remote_id ({sid}) != self_id ({sid})'
 
         if debug :
             daemon = False 
@@ -4495,13 +4495,13 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 42,
-                    nonvalis:int = 42,
+                    valis:int = 21,
+                    nonvalis:int = 8,
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = True,
                     remote:bool = False,
-                    build_spec :bool = True,
+                    build_spec :bool = False,
                     push:bool = False,
                     trials:int = 10,
                     wait_for_nodeid = True,
@@ -4578,6 +4578,7 @@ class Subspace(c.Module):
                         remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
+                        node_kwargs['sid'] = c.sid()
 
                     else:
                         port_keys = ['port', 'rpc_port', 'ws_port']
