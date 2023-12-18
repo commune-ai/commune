@@ -14,7 +14,7 @@ class Access(c.Module):
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
                 rate: int =  1,  # 1 call per timescale
-                base_rate: int =  100,# base level of calls per timescale (free calls) per account
+                base_rate: int =  0,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate,
                 role2rate: dict =  {'user': 10, 'public': 1}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
@@ -27,6 +27,7 @@ class Access(c.Module):
         self.state_path = state_path
         self.role2rate = role2rate
         module.client_access = False
+        self.user_module = c.module('user')()
         c.thread(self.sync_loop_thread)
         
     def sync_loop_thread(self):
@@ -64,10 +65,10 @@ class Access(c.Module):
         stake = self.stakes.get(address, 0)
         fn = input.get('fn')
 
-        if c.is_admin(address) or self.module.key.ss58_address == address:
+        if self.user_module.is_admin(address) or self.module.key.ss58_address == address:
             rate_limit = 10e42
 
-        elif c.is_user(address):
+        elif self.user_module.is_user(address):
             rate_limit = self.role2rate.get('user', 1)
         else:
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"

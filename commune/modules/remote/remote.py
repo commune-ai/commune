@@ -792,10 +792,8 @@ class Remote(c.Module):
     
 
         with tabs[0]:
-            st.markdown('## Servers')
             self.ssh_dashboard()
         with tabs[1]:
-            st.markdown('## Peers')
             self.peer_dashboard()
 
 
@@ -913,12 +911,12 @@ class Remote(c.Module):
         search = st.text_input('Search')
         host_map = {k:v for k,v in host_map.items() if search in k}
         host_names = list(host_map.keys())
-        host_names = st.multiselect('Host', host_names, host_names)
 
+        n = len(host_names)
 
-        with st.expander('Hosts', expanded=False):
-            
-            st.write(host_map)
+        with st.expander(f'Hosts (n={n})', expanded=False):
+            host_names = st.multiselect('Host', host_names, host_names)
+
             for host_name, host in host_map.items():
                 cols = st.columns([1,4])
                 cols[0].write('#### '+host_name)
