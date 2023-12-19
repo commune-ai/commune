@@ -384,7 +384,7 @@ class Subspace(c.Module):
 
 
         if uids is None:
-            uids = self.uids(netuid=mnetuid)
+            uids = self.uids(netuid=netuid)
         if weights is None:
             weights = [1 for _ in uids]
 
@@ -2849,7 +2849,7 @@ class Subspace(c.Module):
         names = list({k: names[k] for k in sorted(names)}.values())
         return names
 
-    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
+    def namespace(self, search=None, netuid: int = netuid, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
         namespace = {}  
 
         names = self.names(netuid=netuid, update=update, **kwargs)

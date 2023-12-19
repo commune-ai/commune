@@ -94,12 +94,7 @@ class ValiParity(c.Module):
             c.print('voting for', module['name'])
             if module['last_update'] > min_staleness:
                 c.print('skipping', module['name'], 'because it is was voted recently')
-
-            self.vote(key=module['name'])
-
-        for name in namespace:
-            c.print('voting for', name)
-            self.vote(key=name)
+            c.vote(key=module['name'])
 
         
                     
