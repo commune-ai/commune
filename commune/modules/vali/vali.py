@@ -43,7 +43,7 @@ class Vali(c.Module):
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
-        self.namespace = c.namespace(search=self.config.search, network=self.config.network, update=update)
+        self.namespace = c.namespace(search=self.config.search, network=self.config.network, netuid=self.config.netuid, update=update)
         self.n  = len(self.namespace)    
         self.addresses = [self.namespace.values()]     
         self.names = list(self.namespace.keys())
