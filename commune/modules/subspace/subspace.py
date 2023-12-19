@@ -4501,12 +4501,12 @@ class Subspace(c.Module):
     def start_chain(cls, 
                     chain:str=chain, 
                     valis:int = 21,
-                    nonvalis:int = 8,
+                    nonvalis:int = 4,
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = True,
                     remote:bool = True,
-                    build_spec :bool = False,
+                    build_spec :bool = True,
                     push:bool = False,
                     trials:int = 20,
                     timeout:int = 30,
@@ -4555,42 +4555,41 @@ class Subspace(c.Module):
             node2peer = cls.node2peer(peer2nodes=peer2nodes)
         finished_nodes = []
         # START THE VALIDATOR NODES
-        while len(finished_nodes) < valis:
-            finished_nodes =  list(set(finished_nodes))
-            c.print(f'finished_nodes {len(finished_nodes)}/{valis}')
+        finished_nodes =  list(set(finished_nodes))
+        c.print(f'finished_nodes {len(finished_nodes)}/{valis}')
 
-            for i, node in enumerate(vali_nodes):
+        for i, node in enumerate(vali_nodes):
 
-                if node in finished_nodes:
-                    c.print(f'node {node} already started, skipping', color='yellow')
+            if node in finished_nodes:
+                c.print(f'node {node} already started, skipping', color='yellow')
+                finished_nodes += [node]
+
+                continue
+            
+            c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
+            name = f'{cls.node_prefix()}.{chain}.{node}'
+
+            if remote:
+                if name in node2peer:
                     finished_nodes += [node]
-
+                    c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
                     continue
-                
-                c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
-                name = f'{cls.node_prefix()}.{chain}.{node}'
 
-                if remote:
-                    if name in node2peer:
-                        finished_nodes += [node]
-                        c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
-                        continue
+            # BUILD THE KWARGS TO CREATE A NODE
+            
+            node_kwargs = {
+                            'chain':chain, 
+                            'node':node, 
+                            'verbose':verbose,
+                            'purge_chain': purge_chain,
+                            'validator':  True,
+                            
 
+                            }
 
-                # BUILD THE KWARGS TO CREATE A NODE
-                
-                node_kwargs = {
-                                'chain':chain, 
-                                'node':node, 
-                                'verbose':verbose,
-                                'purge_chain': purge_chain,
-                                'validator':  True,
-                                
-
-                                }
-
-                futures = []
-                success = False
+            futures = []
+            success = False
+            for i in range(trials):
                 try:
                     if remote:  
                         peer2num_nodes = {k:len(v) for k,v in peer2nodes.items()}
@@ -4645,16 +4644,12 @@ class Subspace(c.Module):
                             chain_info['nodes'][node] = node_info
                             finished_nodes += [node]
                             cls.putc(f'chain_info.{chain}', chain_info)
-
+                    break
                 except Exception as e:
                     c.print(c.detailed_error(e))
+                    c.print(f'trials {i}/{trials} failed for node {node} on chain {chain}')
 
 
-
-                if len(finished_nodes) >= valis:
-                    break
-
-                    
 
         if nonvalis > 0:
             # START THE NON VALIDATOR NODES
