@@ -4335,8 +4335,8 @@ class Subspace(c.Module):
             remote_kwargs.pop('remote', None)
             module = c.namespace(network='remote').get(module, module) # default to remote namespace
             c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
-            kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs}
-            response =  c.call(module,  fn='submit', kwargs=kwargs, timeout=timeout, network='remote')[0]
+            kwargs = {'fn': 'subspace.start_node', 'kwargs': remote_kwargs, 'timeout': timeout}
+            response =  c.call(module,  fn='submit', kwargs=kwargs, network='remote')[0]
             return response
 
 
@@ -4506,10 +4506,10 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     refresh: bool = True,
                     remote:bool = True,
-                    build_spec :bool = True,
+                    build_spec :bool = False,
                     push:bool = False,
-                    trials:int = 10,
-                    timeout:int = 30,
+                    trials:int = 20,
+                    timeout:int = 10,
                     max_boot_nodes: bool = 50,
                     wait_for_nodeid = True,
                     ):
@@ -4586,6 +4586,7 @@ class Subspace(c.Module):
                         remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
+                        module = c.connect(remote_address)
 
                     else:
                         port_keys = ['port', 'rpc_port', 'ws_port']
@@ -4593,13 +4594,15 @@ class Subspace(c.Module):
                         for k, port in zip(port_keys, node_ports):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
+                        module = cls
                     node_kwargs['sid'] = c.sid()
                     node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:max_boot_nodes]
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
+                    c.print(f"node_kwargs {node_kwargs['key_mems']}")
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
-                    response = cls.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
-                    c.print(response)
+
+                    response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
