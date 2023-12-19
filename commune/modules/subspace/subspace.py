@@ -1787,7 +1787,7 @@ class Subspace(c.Module):
                 'founder_share': [query, dict(name='FounderShare')],
                 'incentive_ratio': [query, dict(name='IncentiveRatio')],
                 'trust_ratio': [query, dict(name='TrustRatio')],
-                'vote_threshold': [query, dict(name='SubnetVoteThreshold')],
+                'vote_threshold': [query, dict(name='VoteThresholdSubnet')],
                 'vote_mode': [query, dict(name='VoteModeSubnet')],
                 'self_vote': [query, dict(name='SelfVote')],
                 'name': [query, dict(name='SubnetNames')]
