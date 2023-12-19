@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra-2023-12-18'
+    image = 'vivonasg/subspace.libra-2023-12-19'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -374,7 +374,7 @@ class Subspace(c.Module):
 
         # checking if the "uids" are passed as names -> strings
         if uids != None and all(isinstance(item, str) for item in uids):
-            names2uid = self.names2uids(names=uids)
+            names2uid = self.names2uids(names=uids, netuid=netuid)
             for i, name in enumerate(uids):
                 if name in names2uid:
                     uids[i] = names2uid[name]
@@ -384,7 +384,7 @@ class Subspace(c.Module):
 
 
         if uids is None:
-            uids = self.uids()
+            uids = self.uids(netuid=mnetuid)
         if weights is None:
             weights = [1 for _ in uids]
 
@@ -728,7 +728,6 @@ class Subspace(c.Module):
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
         }
 
-        c.print()
         # remove the params that are the same as the module info
         for k in ['name', 'address']:
             if params[k] == module_info[k]:
@@ -791,6 +790,72 @@ class Subspace(c.Module):
 
 
         return response
+
+
+    #################
+    #### Serving ####
+    #################
+    def propose_subnet_update(
+        self,
+        netuid: int = None,
+        key: str = None,
+        network = 'main',
+        nonce = None,
+        **params,
+
+
+    ) -> bool:
+
+        self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        c.print(f'Adding proposal to subnet {netuid}')
+        subnet_params = self.subnet_params( netuid=netuid , update=True)
+        # remove the params that are the same as the module info
+        params = {**subnet_params, **params}
+        for k in ['name', 'vote_mode']:
+            params[k] = params[k].encode('utf-8')
+        params['netuid'] = netuid
+
+        response = self.compose_call(fn='add_subnet_proposal',
+                                     params=params, 
+                                     key=key, 
+                                     nonce=nonce)
+
+
+        return response
+
+
+
+
+
+    #################
+    #### Serving ####
+    #################
+    def vote_proposal(
+        self,
+        proposal_id: int = None,
+        key: str = None,
+        network = 'main',
+        nonce = None,
+        **params,
+
+    ) -> bool:
+
+        self.resolve_network(network)
+        # remove the params that are the same as the module info
+        params = {
+            'proposal_id': proposal_id,
+            'netuid': netuid,
+        }
+
+        response = self.compose_call(fn='add_subnet_proposal',
+                                     params=params, 
+                                     key=key, 
+                                     nonce=nonce)
+
+
+        return response
+
 
 
 
@@ -1114,8 +1179,8 @@ class Subspace(c.Module):
         if params != None and not isinstance(params, list):
             params = [params]
         
-
-        path = f'cache/network.{name}.json'
+        params_str = '-'.join([str(p) for p in params])
+        path = f'cache/network.{name}_params_{params_str}.json'
         if not update:
             value = self.get(path, None)
             if value != None:
@@ -1813,8 +1878,6 @@ class Subspace(c.Module):
                     name2result[name] = result
                     name2job.pop(name)
 
-            c.print(name2job.keys(), color='red')
-            c.print(name2result, color='green')
 
         subnet = {k:name2result[k] for k in name2result}
 
@@ -2531,6 +2594,8 @@ class Subspace(c.Module):
                         kwargs['block'] = block
 
                     state[key] = func(**kwargs)
+
+            c.print(state)
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -2771,7 +2836,7 @@ class Subspace(c.Module):
 
     def uid2name(self, netuid: int = None, update=False,  **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
-        names = {v[0]: v[1] for v in self.query_map('Names', params=[netuid], update=update,**kwargs)}
+        names = {v[0]: v[1] for v in self.query_map('Name', params=[netuid], update=update,**kwargs)}
         names = {k: names[k] for k in sorted(names)}
         return names
     
@@ -2897,7 +2962,7 @@ class Subspace(c.Module):
         return incentive
     
     def proposals(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False,  **kwargs):
-        proposals = [v for v in self.query('Proposals', params=netuid, network=network, block=block, update=update, **kwargs)]
+        proposals = [v for v in self.query_map('Proposals', network=network, block=block, update=update, **kwargs)]
         return proposals
         
     def trust(self, netuid = netuid, network=None, nonzero=False, update=False, **kwargs):
@@ -3312,7 +3377,6 @@ class Subspace(c.Module):
 
         params = {} if params == None else params
         if verbose:
-            c.print('params', params, color=color)
             kwargs = c.locals2kwargs(locals())
             kwargs['verbose'] = False
             c.status(f":satellite: Calling [bold]{fn}[/bold] on [bold yellow]{self.network}[/bold yellow]")
@@ -3469,7 +3533,7 @@ class Subspace(c.Module):
 
         # c.print(len(self.modules()))
         c.print(len(self.query_map('Keys', netuid)), 'keys')
-        c.print(len(self.query_map('Names', netuid)), 'names')
+        c.print(len(self.query_map('Name', netuid)), 'names')
         c.print(len(self.query_map('Address', netuid)), 'address')
         c.print(len(self.incentive()), 'incentive')
         c.print(len(self.uids()), 'uids')
@@ -4087,7 +4151,7 @@ class Subspace(c.Module):
     def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=False ):
         if build:
             c.print(cls.build_image(no_cache=no_cache))
-        public_image = f'{public_image.split("-")[0]}-{c.datetime().split("_")[0]}'
+        public_image = f'{public_image.split("-")[0]}-{c.datetime().replace(":", "-")}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
@@ -4512,8 +4576,9 @@ class Subspace(c.Module):
                     timeout:int = 30,
                     wait_for_nodeid = True,
                     max_boot_nodes:int = 1,
-                    batch_size = 10,
-                    parallel = True
+                    batch_size:int = 10,
+                    paralle:bool = True,
+                    min_boot_nodes_before_parallel = 2,
                     ):
 
         # KILL THE CHAIN
@@ -4617,7 +4682,7 @@ class Subspace(c.Module):
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
                     
-                    if parallel and len(node_kwargs['boot_nodes']) > 1:
+                    if parallel and len(node_kwargs['boot_nodes']) > min_boot_nodes_before_parallel:
                         futures+= [c.submit(module.start_node, kwargs=dict(**node_kwargs, refresh=refresh, timeout=timeout), timeout=timeout, return_future=True)]
                         if len(futures) >= batch_size:
                             responses = c.wait(futures, timeout=timeout)
@@ -4627,12 +4692,11 @@ class Subspace(c.Module):
                     else:
                         responses = [module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)]
 
+
                     for response in responses:
                         if 'node_info' in  response \
                                     and 'boot_node' in response['node_info']:
-
-                            del response['node_info']['key_mems']
-
+                            response['node_info'].pop('key_mems', None)
                             node = response['node_info']['node']
 
                             if remote:

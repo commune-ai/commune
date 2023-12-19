@@ -659,6 +659,10 @@ class c:
         return c.module('subspace').start_local_node(*args, **kwargs)
 
     @classmethod
+    def add_public_nodes(cls, *args, **kwargs):
+        return c.module('subspace').add_public_nodes(*args, **kwargs)
+
+    @classmethod
     def start_chain(cls, *args, **kwargs):
         return c.module('subspace').start_chain(*args, **kwargs)
     
