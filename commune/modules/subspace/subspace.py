@@ -4660,7 +4660,10 @@ class Subspace(c.Module):
                         peer2num_nodes = {k:len(v) for k,v in peer2nodes.items()}
                         # get the least loaded peer
                         c.print(f'peer2num_nodes {peer2num_nodes}')
-                        remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
+                        if i <= 2:
+                            remote_address = cls.peer_with_least_nodes(peer2nodes=peer2nodes)
+                        else:
+                            remote_address = c.choice(list(peer2nodes.keys()))
                         remote_address_cnt += 1
                         node_kwargs['module'] = remote_address
                         module = c.connect(remote_address)
@@ -4681,33 +4684,25 @@ class Subspace(c.Module):
                     c.print(f"node_kwargs {node_kwargs['key_mems']}")
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
+
+                    response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
+                    c.print(response)
+                    assert 'node_info' in response and ('boot_node' in response or 'boot_node' in response['node_info'])
                     
-                    if parallel and len(node_kwargs['boot_nodes']) > min_boot_nodes_before_parallel:
-                        futures+= [c.submit(module.start_node, kwargs=dict(**node_kwargs, refresh=refresh, timeout=timeout), timeout=timeout, return_future=True)]
-                        if len(futures) >= batch_size:
-                            responses = c.wait(futures, timeout=timeout)
-                            futures = []
-                        else:
-                            responses = []
-                    else:
-                        responses = [module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)]
+                    response['node_info'].pop('key_mems', None)
+                    node = response['node_info']['node']
 
+                    if remote:
+                        peer2nodes[remote_address].append(node)
 
-                    for response in responses:
-                        if 'node_info' in  response \
-                                    and 'boot_node' in response['node_info']:
-                            response['node_info'].pop('key_mems', None)
-                            node = response['node_info']['node']
+                    node_info = response['node_info']
+                    boot_node = response['boot_node']
+                    chain_info['boot_nodes'].append(boot_node)
+                    chain_info['nodes'][node] = node_info
+                    finished_nodes += [node]
 
-                            if remote:
-                                peer2nodes[remote_address].append(node)
-
-                            node_info = response['node_info']
-                            boot_node = response['boot_node']
-                            chain_info['boot_nodes'].append(boot_node)
-                            chain_info['nodes'][node] = node_info
-                            finished_nodes += [node]
-                            cls.putc(f'chain_info.{chain}', chain_info)
+        
+                    cls.putc(f'chain_info.{chain}', chain_info)
                     break
                 except Exception as e:
                     c.print(c.detailed_error(e))
