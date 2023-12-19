@@ -4556,10 +4556,15 @@ class Subspace(c.Module):
         finished_nodes = []
         # START THE VALIDATOR NODES
         while len(finished_nodes) < valis:
+            finished_nodes =  list(set(finished_nodes))
+            c.print(f'finished_nodes {len(finished_nodes)}/{valis}')
+
             for i, node in enumerate(vali_nodes):
 
                 if node in finished_nodes:
                     c.print(f'node {node} already started, skipping', color='yellow')
+                    finished_nodes += [node]
+
                     continue
                 
                 c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
@@ -4567,6 +4572,7 @@ class Subspace(c.Module):
 
                 if remote:
                     if name in node2peer:
+                        finished_nodes += [node]
                         c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
                         continue
 
@@ -4616,6 +4622,7 @@ class Subspace(c.Module):
                         futures+= [c.submit(module.start_node, kwargs=dict(**node_kwargs, refresh=refresh, timeout=timeout), timeout=timeout, return_future=True)]
                         if len(futures) >= batch_size:
                             responses = c.wait(futures, timeout=timeout)
+                            futures = []
                         else:
                             responses = []
                     else:
@@ -4623,8 +4630,7 @@ class Subspace(c.Module):
 
                     for response in responses:
                         if 'node_info' in  response \
-                                and 'node' in response['node_info'] \
-                                    and 'node' in response['node_info']:
+                                    and 'boot_node' in response['node_info']:
 
                             del response['node_info']['key_mems']
 
@@ -4644,7 +4650,6 @@ class Subspace(c.Module):
                     c.print(c.detailed_error(e))
 
 
-                c.print(f'finished_nodes {len(finished_nodes)}/{valis}')
 
                 if len(finished_nodes) >= valis:
                     break

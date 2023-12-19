@@ -1,0 +1,1576 @@
+nohup: ignoring input
+KILLING THE CHAIN (main)
+root10 {'status': 'killed', 'name': 'vali'}
+root8 {'status': 'killed', 'name': 'vali'}
+root9 {'status': 'killed', 'name': 'vali'}
+root3 {'status': 'killed', 'name': 'vali'}
+root6 {'status': 'killed', 'name': 'vali'}
+root7 {'status': 'killed', 'name': 'vali'}
+root2 {'status': 'killed', 'name': 'vali'}
+root5 subspace.node.main.vali_12
+root5 subspace.node.main.vali_12
+root5 killed subspace.node.main.vali_12
+root5 {'status': 'killed', 'name': 'vali'}
+root18 {'status': 'killed', 'name': 'vali'}
+root4 {'status': 'killed', 'name': 'vali'}
+root19 {'status': 'killed', 'name': 'vali'}
+root13 {'status': 'killed', 'name': 'vali'}
+root17 {'status': 'killed', 'name': 'vali'}
+root11 subspace.node.main.vali_18
+root11 subspace.node.main.vali_18
+root11 killed subspace.node.main.vali_18
+root11 {'status': 'killed', 'name': 'vali'}
+root15 subspace.node.main.vali_16
+root15 subspace.node.main.vali_16
+root15 killed subspace.node.main.vali_16
+root15 {'status': 'killed', 'name': 'vali'}
+root12 subspace.node.main.vali_2
+root12 subspace.node.main.vali_2
+root12 killed subspace.node.main.vali_2
+root12 subspace.node.main.vali_13
+root12 subspace.node.main.vali_13
+root12 killed subspace.node.main.vali_13
+root12 {'status': 'killed', 'name': 'vali'}
+Error: 1 (of 18) futures unfinished, 1 unfinished futures with timeout 5 seconds
+Exception (client): Error reading SSH protocol banner[Errno 104] Connection reset by peer
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.10/dist-packages/paramiko/transport.py", line 2292, in _check_banner
+    buf = self.packetizer.readline(timeout)
+  File "/usr/local/lib/python3.10/dist-packages/paramiko/packet.py", line 374, in readline
+    buf += self._read_timeout(timeout)
+  File "/usr/local/lib/python3.10/dist-packages/paramiko/packet.py", line 601, in _read_timeout
+    x = self.__socket.recv(128)
+ConnectionResetError: [Errno 104] Connection reset by peer
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.10/dist-packages/paramiko/transport.py", line 2113, in run
+    self._check_banner()
+  File "/usr/local/lib/python3.10/dist-packages/paramiko/transport.py", line 2296, in _check_banner
+    raise SSHException(
+paramiko.ssh_exception.SSHException: Error reading SSH protocol banner[Errno 104] Connection reset by peer
+
+42 vali keys found for chain main with 21 valis needed
+Calling module_root8 67.207.85.117:50190
+Calling module_root12 165.227.33.226:50057
+Calling module_root10 67.207.85.224:50170
+Calling module_root11 165.227.42.26:50141
+Calling module_root15 165.227.45.30:50094
+Calling module_root9 134.209.113.183:50120
+Calling module_root5 142.93.113.142:50208
+Calling module_root4 167.99.229.96:50189
+Calling module_root3 165.22.186.112:50165
+Calling module_root17 165.227.45.61:50057
+Calling module_root13 165.227.45.63:50122
+Calling module_root18 165.227.45.26:50050
+Calling module_None None
+Calling module_root6 134.122.30.80:50170
+Calling module_root2 142.93.240.200:50097
+Calling module_root7 68.183.30.114:50210
+Calling module_root19 165.227.37.247:50078
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+{
+    'success': False,
+    'error': '',
+    'file_name': '/usr/lib/python3.10/asyncio/tasks.py',
+    'line_no': 458,
+    'line_text': 'raise exceptions.TimeoutError() from exc'
+}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
+finished_nodes 0/21
+Starting node vali_16 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'velvet emotion inner large grass deal cheap riot silver 
+message excess history', 'gran': 'globe enable chunk sister voyage shiver spin 
+settle net lake hard void'}
+finished_nodes 0/21
+Starting node vali_17 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'account cabin major field legend melt cancel electric park
+stand until novel', 'gran': 'shallow term brass wear hollow enjoy ice hint bleak
+dove decline inch'}
+finished_nodes 0/21
+Starting node vali_18 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'road purity endorse damage always check salute calm carbon
+student teach table', 'gran': 'radio comfort drive save noble major donor action
+weasel eyebrow soldier pluck'}
+finished_nodes 0/21
+Starting node vali_19 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'setup humble casino gain balance soap replace recycle diet
+claw stomach debris', 'gran': 'potato issue aware diary victory rule glow 
+trumpet access major horror phone'}
+finished_nodes 0/21
+Starting node vali_20 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'blush imitate bonus unhappy face snake way all fantasy 
+neck purchase mercy', 'gran': 'donate leaf stable prepare course gain truth 
+length beach deputy coffee rice'}
+finished_nodes 0/21
+Starting node vali_0 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'lonely drop split brass fabric tank click wash doctor 
+teach fine abandon', 'gran': 'cargo talk pause wise sad educate civil bike 
+arrive almost anchor position'}
+finished_nodes 0/21
+Starting node vali_1 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'physical wet mansion bamboo scrap future vendor virtual 
+describe practice razor nominee', 'gran': 'trip tattoo like pond judge satoshi 
+hurry grief humor family pluck transfer'}
+finished_nodes 0/21
+Starting node vali_2 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'razor gather control gap vote inch alcohol cute midnight 
+gift slot hope', 'gran': 'usage toilet music huge belt rally body woman misery 
+tenant alarm alone'}
+finished_nodes 0/21
+Starting node vali_3 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tree tissue flee broccoli day resemble zone pair whale 
+trust movie silver', 'gran': 'snake sound uphold result kidney review sponsor 
+goddess eye spot wet vocal'}
+finished_nodes 0/21
+Starting node vali_4 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hand clinic ten similar twice shed tank ozone merry 
+festival clog oppose', 'gran': 'hood borrow gift save again total spice belt 
+trouble embark limb barrel'}
+finished_nodes 0/21
+Starting node vali_5 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'cloud resource island drill very treat tongue clock wheel 
+vault soft problem', 'gran': 'rate boy deny high bright little power egg 
+marriage globe ocean skin'}
+finished_nodes 0/21
+Starting node vali_6 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'ladder merge kitchen prevent include spot catalog arrange 
+tilt little tree enrich', 'gran': 'praise hurry soap theory frequent opinion 
+either yellow sugar sister early custom'}
+finished_nodes 0/21
+Starting node vali_7 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'tiny tissue blur veteran report habit health gas address 
+tilt snap auto', 'gran': 'faculty winter panther struggle country future cluster
+solution deny design negative bleak'}
+finished_nodes 0/21
+Starting node vali_8 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'scheme merit oxygen rely arm kit donate flat assist bounce
+split myself', 'gran': 'reunion wedding fiction cream minimum salute tenant 
+genre veteran mouse assume copy'}
+finished_nodes 0/21
+Starting node vali_9 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'stairs wave action wild endless view sight beauty shell 
+exhaust urban fragile', 'gran': 'foot another very magnet farm history push spot
+stool chef depart cross'}
+finished_nodes 0/21
+Starting node vali_10 for chain main
+node vali_10 already exists on peer 142.93.113.142:50208
+Starting node vali_11 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'hire early order evolve useful atom infant frozen derive 
+hidden guide must', 'gran': 'often near nest action foam trial session switch 
+winner mosquito devote good'}
+finished_nodes 0/21
+Starting node vali_12 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'behave network yellow diet code keep vault minimum alley 
+mansion prison doll', 'gran': 'team blossom virus ride that they garage intact 
+glue cram sweet breeze'}
+finished_nodes 0/21
+Starting node vali_13 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'access conduct item that comic build tree cupboard 
+security between orange father', 'gran': 'artwork lift swift reduce culture 
+found judge winner offer fish pony flee'}
+finished_nodes 0/21
+Starting node vali_14 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'enable hold donkey race together recycle vote noodle bless
+furnace input daring', 'gran': 'orange sting neutral two bar main height admit 
+airport describe escape find'}
+finished_nodes 0/21
+Starting node vali_15 for chain main
+peer2num_nodes {'67.207.85.117:50190': 0, '165.227.33.226:50057': 0, 
+'67.207.85.224:50170': 0, '165.227.42.26:50141': 0, '134.209.113.183:50120': 0, 
+'142.93.113.142:50208': 1, '167.99.229.96:50189': 0, '165.22.186.112:50165': 0, 
+'165.227.45.61:50057': 0, '165.227.45.63:50122': 0, '165.227.45.26:50050': 0, 
+'134.122.30.80:50170': 0, '142.93.240.200:50097': 0, '68.183.30.114:50210': 0, 
+'165.227.37.247:50078': 0}
+node_kwargs {'aura': 'race jazz drop scatter era faith casual two illness 
+country capable neglect', 'gran': 'lift outer laundry drip slush current clown 
+member december license team claw'}
