@@ -4509,9 +4509,11 @@ class Subspace(c.Module):
                     build_spec :bool = False,
                     push:bool = False,
                     trials:int = 20,
-                    timeout:int = 10,
-                    max_boot_nodes: bool = 50,
+                    timeout:int = 30,
                     wait_for_nodeid = True,
+                    max_boot_nodes:int = 1,
+                    batch_size = 10,
+                    parallel = True
                     ):
 
         # KILL THE CHAIN
@@ -4551,33 +4553,38 @@ class Subspace(c.Module):
         if remote:
             peer2nodes = cls.peer2nodes(chain=chain, update=True)
             node2peer = cls.node2peer(peer2nodes=peer2nodes)
-
+        finished_nodes = []
         # START THE VALIDATOR NODES
-        for i, node in enumerate(vali_nodes):
-            
-            c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
-            name = f'{cls.node_prefix()}.{chain}.{node}'
+        while len(finished_nodes) < valis:
+            for i, node in enumerate(vali_nodes):
 
-            if remote:
-                if name in node2peer:
-                    c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
+                if node in finished_nodes:
+                    c.print(f'node {node} already started, skipping', color='yellow')
                     continue
+                
+                c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
+                name = f'{cls.node_prefix()}.{chain}.{node}'
+
+                if remote:
+                    if name in node2peer:
+                        c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
+                        continue
 
 
-            # BUILD THE KWARGS TO CREATE A NODE
-            
-            node_kwargs = {
-                            'chain':chain, 
-                            'node':node, 
-                            'verbose':verbose,
-                            'purge_chain': purge_chain,
-                            'validator':  True,
+                # BUILD THE KWARGS TO CREATE A NODE
+                
+                node_kwargs = {
+                                'chain':chain, 
+                                'node':node, 
+                                'verbose':verbose,
+                                'purge_chain': purge_chain,
+                                'validator':  True,
+                                
 
-                            }
+                                }
 
-
-            success = False
-            for t in range(trials):
+                futures = []
+                success = False
                 try:
                     if remote:  
                         peer2num_nodes = {k:len(v) for k,v in peer2nodes.items()}
@@ -4595,35 +4602,54 @@ class Subspace(c.Module):
                             avoid_ports.append(port)
                             node_kwargs[k] = port
                         module = cls
+
+
                     node_kwargs['sid'] = c.sid()
-                    node_kwargs['boot_nodes'] = chain_info['boot_nodes'][:max_boot_nodes]
+                    node_kwargs['boot_nodes'] = chain_info['boot_nodes']
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
                     c.print(f"node_kwargs {node_kwargs['key_mems']}")
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
-                    response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
-                    assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
+                    
+                    if parallel and len(node_kwargs['boot_nodes']) > 1:
+                        futures+= [c.submit(module.start_node, kwargs=dict(**node_kwargs, refresh=refresh, timeout=timeout), timeout=timeout, return_future=True)]
+                        if len(futures) >= batch_size:
+                            responses = c.wait(futures, timeout=timeout)
+                        else:
+                            responses = []
+                    else:
+                        responses = [module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)]
 
-                    node_info = response['node_info']
-                    boot_node = response['boot_node']
-                    chain_info['boot_nodes'].append(boot_node)
-                    chain_info['nodes'][node] = node_info
-                    success = True 
+                    for response in responses:
+                        if 'node_info' in  response \
+                                and 'node' in response['node_info'] \
+                                    and 'node' in response['node_info']:
 
-                    if remote:
-                        peer2nodes[remote_address].append(node)
-                    break
+                            del response['node_info']['key_mems']
+
+                            node = response['node_info']['node']
+
+                            if remote:
+                                peer2nodes[remote_address].append(node)
+
+                            node_info = response['node_info']
+                            boot_node = response['boot_node']
+                            chain_info['boot_nodes'].append(boot_node)
+                            chain_info['nodes'][node] = node_info
+                            finished_nodes += [node]
+                            cls.putc(f'chain_info.{chain}', chain_info)
+
                 except Exception as e:
                     c.print(c.detailed_error(e))
-                    c.print(f'failed to start node {node} for chain {chain}, trying again -> {t}/{trials} trials')
 
-  
 
-            assert success, f'failed to start node {node} for chain {chain} after {trials} trials'
+                c.print(f'finished_nodes {len(finished_nodes)}/{valis}')
 
-                
-        cls.putc(f'chain_info.{chain}', chain_info)
+                if len(finished_nodes) >= valis:
+                    break
+
+                    
 
         if nonvalis > 0:
             # START THE NON VALIDATOR NODES
