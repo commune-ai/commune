@@ -4599,6 +4599,7 @@ class Subspace(c.Module):
 
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
                     response = cls.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
+                    c.print(response)
                     assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
                     node_info = response['node_info']
