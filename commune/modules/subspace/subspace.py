@@ -37,7 +37,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    image = 'vivonasg/subspace.libra-2023-12-19'
+    image = 'vivonasg/subspace.libra-2023-12-19_20-09-47'
     mode = 'docker'
     telemetry_backend_image = 'parity/substrate-telemetry-backend'
     telemetry_frontend_image = 'parity/substrate-telemetry-frontend'
@@ -3928,7 +3928,7 @@ class Subspace(c.Module):
                    vali_node_keys:dict = None,
                    return_spec:bool = False,
                    mode : str = mode,
-                   valis: int = 12,
+                   valis: int = 21,
                    ):
 
         chain_spec_path = cls.chain_spec_path(chain=chain)
