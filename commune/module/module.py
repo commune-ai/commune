@@ -7450,7 +7450,7 @@ class c:
     def vote_loop(self):
         return c.module('vali.parity').vote_loop()
     
-    vote_loop = voteloop
+    voteloop = vote_loop 
 
     
 
