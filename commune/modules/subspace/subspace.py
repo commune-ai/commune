@@ -382,9 +382,11 @@ class Subspace(c.Module):
                     c.print(f'Could not find {name} in network {netuid}')
                     return False
 
-
         if uids is None:
             uids = self.uids(netuid=netuid)
+            # shuffle the uids
+            uids = c.shuffle(uids)
+            
         if weights is None:
             weights = [1 for _ in uids]
 
@@ -408,6 +410,9 @@ class Subspace(c.Module):
             return {'success': False, 'message': f'No uids found in network {netuid}'}
         
         assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
+
+
+
 
         uids = uids[:max_allowed_weights]
         weights = weights[:max_allowed_weights]
@@ -1199,7 +1204,7 @@ class Subspace(c.Module):
                 block_hash =block_hash
             )
 
-        qmap = [[k.value,v.value] for k,v  in qmap]
+        qmap = [[k[1].value,v.value] for k,v  in qmap]
         self.put(path, qmap)
                 
         return qmap
@@ -1568,8 +1573,10 @@ class Subspace(c.Module):
     @property
     def block(self, network:str=None, trials=100) -> int:
         return self.get_block(network=network)
-   
 
+
+    
+   
     @classmethod
     def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
@@ -2280,18 +2287,13 @@ class Subspace(c.Module):
             return key2name[key]
         
     def name2uid(self,search:str=None, netuid: int = None, network: str = None) -> int:
-        modules = self.modules(netuid=netuid)
-        name2uid =  { m['name']: m['uid']for m in modules}
-        if search != None:
-            name2uid = {k:v for k,v in name2uid.items() if search in k}
-        return name2uid
+        uid2name = self.uid2name(netuid=netuid, network=network)
+        return {v:k for k,v in uid2name.items()}
 
     
         
     def name2key(self, search:str=None, network=network, netuid: int = None, update=False ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
-
-        
         self.resolve_network(network)
         names = self.names(netuid=netuid, update=update)
         keys = self.keys(netuid=netuid, update=update)
@@ -2299,8 +2301,12 @@ class Subspace(c.Module):
         if search != None:
             name2key = {k:v for k,v in name2key.items() if search in k}
             if len(name2key) == 1:
-                return list(name2key.keys())[0]
+                return list(name2key.values())[0]
         return name2key
+
+
+
+
 
     def key2name(self,search=None, netuid: int = None, network=network, update=False) -> Dict[str, str]:
         return {v:k for k,v in self.name2key(search=search, netuid=netuid, network=network, update=update).items()}
@@ -2684,23 +2690,23 @@ class Subspace(c.Module):
         modules = self.my_modules(*args, **kwargs)
         return [m['key'] for m in modules]
 
-    def my_keys(self, *args, mode='all' , **kwargs):
+    def my_key2uid(self, *args, mode='all' , **kwargs):
+        key2uid = self.key2uid(*args, **kwargs)
+        key2address = c.key2address()
+        key_addresses = list(key2address.values())
+        my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
+        return my_key2uid
 
-        modules = self.my_modules(*args,**kwargs)
-        address2module = {m['key']: m for m in modules}
-        address2balances = self.balances()
-        keys = []
-        address2key = c.address2key()
-        for address, key in address2key.items():
-            
-            if mode == 'live' and (address in address2module):
-                keys += [key]
-            elif mode == 'dead' and (address not in address2module and address in address2balances):
-                keys += [key]
-            elif mode == 'all' and (address in address2module or address in address2balances):
-                keys += [key]
-            
-        return keys
+    def name2uid(self, *args, **kwargs):
+        uid2name = self.query_map('Name', *args, **kwargs)
+        return {v:k for k,v in uid2name}
+    
+    def my_uids(self):
+        return list(self.my_key2uid().values())
+    
+    def my_names(self, *args, **kwargs):
+        my_modules = self.my_modules(*args, **kwargs)
+        return [m['name'] for m in my_modules]
 
     @classmethod
     def kill_chain(cls, chain=chain, mode=mode):
@@ -2924,13 +2930,19 @@ class Subspace(c.Module):
 
     reged = registered_keys
     
-    def weights(self, netuid = None, **kwargs) -> list:
+    def weights(self,  netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        subnet_weights =  self.query_map('Weights', netuid, **kwargs)
+        subnet_weights =  self.query('Weights', params=netuid, **kwargs)
         weights = {uid:list(map(list, w)) for uid, w in subnet_weights if w != None and uid != None}
         uids = self.uids(netuid=netuid, **kwargs)
         weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
         return {uid: w for uid, w in weights.items()}
+
+    def get_weights(self,uid, netuid = None,  **kwargs) -> list:
+        netuid = self.resolve_netuid(netuid)
+        return self.query('Weights', params=[netuid, uid], **kwargs)
+
+        
     
     def num_voters(self, netuid = None, **kwargs) -> list:
         weights = self.weights(netuid=netuid, **kwargs)
