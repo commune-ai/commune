@@ -7447,8 +7447,8 @@ class c:
         return c.module('subspace')().vote(*args, **kwargs)
 
     @classmethod
-    def vote_loop(self):
-        return c.module('vali.parity').vote_loop()
+    def vote_loop(cls, *args, **kwargs):
+        return c.module('vali.parity').vote_loop(*args, **kwargs)
     
     voteloop = vote_loop 
 
