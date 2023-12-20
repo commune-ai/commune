@@ -1,18 +1,17 @@
 import streamlit as st
-from components.metamask import metamask_connection
-from components.transaction import display_transaction_ui
-from utils import format_eth_address
+from components.metamask import metamask_connection, display_wallet_info
+from components.transaction import display_transaction_ui, display_trade_ui, display_history_ui
 
 def main():
-    st.title('Ethereum Transaction App with MetaMask')
-
-    # MetaMask Connection
+    st.title('Ethereum DApp with Uniswap Trading')
     if metamask_connection():
-        address = st.session_state.get('address')
-        st.write(f"Connected Ethereum Address: {format_eth_address(address)}")
+        display_wallet_info()
 
-        # Display Transaction UI
         display_transaction_ui()
+        display_trade_ui()
+        display_history_ui()
+    else:
+        st.info("Connect to MetaMask to use the application.")
 
-if __name__ == "main":
+if __name__ == "__main__":
     main()
