@@ -1377,6 +1377,8 @@ class Subspace(c.Module):
             key2name = self.key2name(netuid=netuid)
             stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
+
+    get_stake_to = get_staketo
     
     def get_value(self, key=None):
         balance = self.get_balance(key)
@@ -2959,7 +2961,7 @@ class Subspace(c.Module):
         emissions = [v for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         if nonzero:
             emissions = [e for e in emissions if e > 0]
-        return emissions
+        return sum(emissions)/1e9
         
     def nonzero_emission(self, netuid = netuid, network=None, **kwargs):
         emission = self.emission(netuid=netuid, network=network, **kwargs)
