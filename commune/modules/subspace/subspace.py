@@ -97,6 +97,7 @@ class Subspace(c.Module):
             network = self.config.network
 
         trials = 0
+        progress_bar = c.tqdm(total=max_trials)
         while trials < max_trials :
             trials += 1
             if url == None:
@@ -104,7 +105,6 @@ class Subspace(c.Module):
             
             self.url = url
             url = url.replace(c.ip(), '0.0.0.0')
-            c.print(f'Connecting to {url}...')
             
             kwargs.update(url=url, 
                         websocket=websocket, 
@@ -120,13 +120,17 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
-                c.print(e, url)
+                progress_bar.update(1)
+
+                # c.print(e, url)
                 url = None
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
             return {'success': False, 'message': f'Could not connect to {url}'}
-
-        return {'success': True, 'message': f'Connected to {url}', 'network': network, 'url': url}
+        # complete the progress bar
+        progress_bar.update(max_trials)
+        c.print(f'Connected to {url} {c.emoji("check_mark")}')
+        return {'success': True, 'mesxsage': f'Connected to {url}', 'network': network, 'url': url}
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}, url={self.url}>'
@@ -474,9 +478,9 @@ class Subspace(c.Module):
     def register(
         self,
         name: str , # defaults to module.tage
-        address : str = None,
+        address : str = 'NA',
         stake : float = 0,
-        subnet: str = None,
+        subnet: str = 'commune',
         key : str  = None,
         module_key : str = None,
         network: str = network,
@@ -498,8 +502,8 @@ class Subspace(c.Module):
 
         network =self.resolve_network(network)
 
-        if address == None:
-            address = c.namespace(network='local')[name]
+        if address:
+            address = c.namespace(network='local').get(name, name)
             address = address.replace(c.default_ip,c.ip())
         
         if module_key == None:
@@ -533,7 +537,7 @@ class Subspace(c.Module):
                 } 
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
-        c.print(response)
+
         if response['success']:
             response['msg'] = f'Registered {name} with {stake} stake'
 
@@ -1095,12 +1099,16 @@ class Subspace(c.Module):
             response: dict
         
         """
+        if isinstance(module, int):
+            amount = module
+            module = None
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
         old_balance = self.get_balance( key.ss58_address , fmt='j')       
         # get most stake from the module
         stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano')
+
 
         module_key = None
         if module == None:
@@ -1112,7 +1120,8 @@ class Subspace(c.Module):
                     module_key = k            
         else:
             key2name = self.key2name(netuid=netuid)
-            name2key = {key2name[k]:k for k,v in stake_to.items()}
+            name2key = {key2name[k]:k for k,v in key2name.items()}
+            c.print(name2key)
             if module in name2key:
                 module_key = name2key[module]
             else:
@@ -1372,6 +1381,7 @@ class Subspace(c.Module):
             key2name = self.key2name(netuid=netuid)
             stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
+    get_stake_to = get_staketo
     
     def get_value(self, key=None):
         balance = self.get_balance(key)
@@ -1896,8 +1906,6 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return Balance.from_nano( self.query( 'EmissionValues', block=block, params=[ netuid ] ) )
 
-
-
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
         name2key = self.name2key(netuid=netuid)
@@ -1911,6 +1919,22 @@ class Subspace(c.Module):
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query( 'Uids', block=block, params=[ netuid, key_ss58 ] )  
 
+
+    def register_subnets( self, *subnets, module='vali', **kwargs ) -> Optional['Balance']:
+        if len(subnets) == 1:
+            subnets = subnets[0]
+        subnets = list(subnets)
+        assert isinstance(subnets, list), f"Subnets must be a list. Got {subnets}"
+        
+        responses = []
+        for subnet in subnets:
+            tag = subnet
+            response = c.register(module=module, tag=tag, subnet=subnet , **kwargs)
+            c.print(response)
+            responses.append(response)
+
+        return responses
+        
 
     def total_emission( self, netuid: int = 0, block: Optional[int] = None, fmt:str = 'j', **kwargs ) -> Optional[float]:
         total_emission =  sum(self.emission(netuid=netuid, block=block, **kwargs))

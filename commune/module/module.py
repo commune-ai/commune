@@ -1623,6 +1623,11 @@ class c:
         
         return wrapper
     
+    # def local
+    @classmethod
+    def local_node_urls(cls):
+        return c.module('subpsace').local_node_urls()
+
     
     @classmethod
     def locals2kwargs(cls,
@@ -8285,6 +8290,11 @@ class c:
 
             
     }
+
+
+    @classmethod
+    def git_path(cls):
+        file_path = cls.dirpath()
     
     
     
@@ -8432,6 +8442,7 @@ class c:
         cls.remote_fn('loop', kwargs=kwargs,name=name)
         return {'success': True, 'msg': 'looping on remote', 'name': name}
         
+
 
     def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
