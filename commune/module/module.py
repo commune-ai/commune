@@ -3270,8 +3270,6 @@ class c:
                 raise Exception(f'pm2 process {name} not found')
 
         if len(rm_list) == 0:
-            if verbose:
-                c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
             return []
         for n in rm_list:
             c.print(f'Restarting {n}', color='cyan')

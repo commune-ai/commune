@@ -45,10 +45,9 @@ class Subspace(c.Module):
 
     def __init__( 
         self, 
-        network: str = network,
         **kwargs,
     ):
-        config = self.set_config(kwargs=locals())
+        config = self.set_config(kwargs=kwargs)
         self.url = config.url
 
     def set_network(self, 
@@ -97,7 +96,6 @@ class Subspace(c.Module):
             network = self.config.network
 
         trials = 0
-        progress_bar = c.tqdm(total=max_trials)
         while trials < max_trials :
             trials += 1
             if url == None:
@@ -120,16 +118,11 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
-                progress_bar.update(1)
-
-                # c.print(e, url)
                 url = None
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
             return {'success': False, 'message': f'Could not connect to {url}'}
         # complete the progress bar
-        progress_bar.update(max_trials)
-        c.print(f'Connected to {url} {c.emoji("check_mark")}')
         return {'success': True, 'mesxsage': f'Connected to {url}', 'network': network, 'url': url}
 
     def __repr__(self) -> str:
@@ -1213,7 +1206,7 @@ class Subspace(c.Module):
                 block_hash =block_hash
             )
 
-        qmap = [[k[1].value,v.value] for k,v  in qmap]
+        qmap = [[k.value,v.value] for k,v  in qmap]
         self.put(path, qmap)
                 
         return qmap
@@ -2983,7 +2976,7 @@ class Subspace(c.Module):
         emissions = [v for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         if nonzero:
             emissions = [e for e in emissions if e > 0]
-        return sum(emissions)/1e9
+        return emissions
         
     def nonzero_emission(self, netuid = netuid, network=None, **kwargs):
         emission = self.emission(netuid=netuid, network=network, **kwargs)
