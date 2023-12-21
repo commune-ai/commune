@@ -40,6 +40,15 @@ class Vali(c.Module):
             c.thread(self.run)
 
 
+    def subnet2modules(self, network:str='main'):
+        subnet2modules = {}
+        self.resolve_network(network)
+
+        for netuid in self.netuids():
+            subnet2modules[netuid] = self.modules(netuid=netuid)
+
+        return subnet2modules
+
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
