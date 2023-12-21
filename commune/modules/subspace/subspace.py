@@ -122,8 +122,11 @@ class Subspace(c.Module):
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
             return {'success': False, 'message': f'Could not connect to {url}'}
+
+        response = {'network': network, 'url': url, 'success': True}
+        c.print(response)
         # complete the progress bar
-        return {'success': True, 'mesxsage': f'Connected to {url}', 'network': network, 'url': url}
+        return response
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}, url={self.url}>'
@@ -1685,6 +1688,7 @@ class Subspace(c.Module):
                     verbose:bool=False, 
                     netuids: List[int] = None,
                     parallel:bool=True,
+                    save:bool = True,
                     **kwargs):
         
         # cache and update are mutually exclusive 
@@ -1709,12 +1713,14 @@ class Subspace(c.Module):
                         'network': network,
                         }
 
-            path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
-            c.print(f'Saving state_dict to {path}', verbose=verbose)
+            if save:
+
+                path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
+                c.print(f'Saving state_dict to {path}')
+                
+                self.put(path, state_dict) # put it in storage
+                self.state_dict_cache = state_dict # update it in memory
             
-            self.put(path, state_dict) # put it in storage
-            self.state_dict_cache = state_dict # update it in memory
-        
         
         state_dict = c.copy(self.state_dict_cache)
         
@@ -1800,9 +1806,9 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
 
         network = self.resolve_network(network)
-        self.state_dict(update=True, network=network, parallel=True)
+        response = self.state_dict(update=True, network=network, parallel=True)
         self.get_namespace(update=True)
-        return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
+        return {'success': True, 'block': response['block']}
 
     def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
         start_time = 0
@@ -1835,8 +1841,8 @@ class Subspace(c.Module):
     def total_balance(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
         return sum(list(self.balances(network=network, block=block, fmt=fmt).values()))
 
-    def total_supply(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
-        state = self.state_dict(network=network, block=block)
+    def total_supply(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
+        state = self.state_dict(network=network, block=block, update=update)
         total_balance = sum(list(state['balances'].values()))
         total_stake = sum([sum([v[1] for v in stake_to]) for k,stake_to in state['stake_to'][0].items()])
         return self.format_amount(total_balance + total_stake, fmt=fmt)
@@ -1850,6 +1856,7 @@ class Subspace(c.Module):
                     block : Optional[int] = None,
                     update = False,
                     trials = 3,
+                    timeout = 10,
                     parallel = True,
                     fmt:str='j') -> list:
 
@@ -1889,7 +1896,6 @@ class Subspace(c.Module):
 
         for i in range(1): 
             for k,v in name2job.items():
-                c.print(f"Getting {k} for netuid {netuid}", color='yellow')
                 remote_kwargs = dict(**v[1], **kwargs)
                 if parallel:
                     name2result[k] = v[0](**remote_kwargs)
@@ -1898,7 +1904,7 @@ class Subspace(c.Module):
 
             if parallel:
                 futures = [v for k,v in name2result.items()]
-                results = c.gather(futures)
+                results = c.gather(futures, timeout=timeout)
                 name2result = {k:v for k,v in zip(name2result.keys(), results)}
         
             for name, result in name2result.items():
@@ -2556,7 +2562,15 @@ class Subspace(c.Module):
         try:
             self = cls(network=network)
             results =  getattr(self, key)(netuid=netuid, block=block, update=True)
-            c.print(f"Got {key} for netuid {netuid} at block {block}")
+        except Exception as e:
+            c.print(f"Failed to get {key} for netuid {netuid} at block {block}")
+            c.print(e)
+            results = None
+        return results
+
+    async def async_get_chain_data(self, key:str, network:str='main', block:int=None, netuid:int=0):
+        try:
+            results =  getattr(self, key)(netuid=netuid, block=block, update=True)
         except Exception as e:
             c.print(f"Failed to get {key} for netuid {netuid} at block {block}")
             c.print(e)
@@ -2609,18 +2623,16 @@ class Subspace(c.Module):
                     futures = []
                     remaining_keys = [k for k in keys if k not in state]
                     for key in remaining_keys:
-                        future = executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) 
+                        future = self.async_get_chain_data(key=key, netuid=netuid, block=block, network=network)
                         futures.append(future)
-                    c.print(f"Waiting for {len(futures)} futures to complete")
                     # remove completed futures
-                    results = c.wait(futures, timeout=timeout)
+                    results = c.gather(futures, timeout=timeout)
                     for key, result in zip(remaining_keys, results):
                         if result == None:
                             continue
                         if c.is_error(result):
                             continue
                         state[key] = result
-                    c.print(f"Got {len(state)} of {len(keys)} keys", color='cyan')
             else: 
                 state = {}
 
@@ -2636,7 +2648,7 @@ class Subspace(c.Module):
 
                     state[key] = func(**kwargs)
 
-            c.print(state)
+
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -2669,7 +2681,7 @@ class Subspace(c.Module):
                     module['balance'] = state['balances'].get(key, 0)
                     
                 modules.append(module)
-
+            c.print(f'Saved state for netuid:{netuid} at block {block} at {cache_path}')
             self.put(cache_path, modules)
 
         if len(modules) > 0:
@@ -2852,9 +2864,9 @@ class Subspace(c.Module):
         
     
     @classmethod
-    def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
+    def chain_test(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
 
-        cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose) 
+        c.cmd('cargo test', cwd=cls.chain_path, verbose=verbose) 
         
 
     @classmethod
