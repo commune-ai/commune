@@ -82,7 +82,7 @@ class ValiParity(c.Module):
                     c.print(e)
 
     @classmethod
-    def voteloop(cls, remote: str = True, min_staleness=200, search='vali', namespace=None):
+    def vote_loop(cls, remote: str = True, min_staleness=200, search='vali', namespace=None):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
@@ -94,12 +94,8 @@ class ValiParity(c.Module):
             c.print('voting for', module['name'])
             if module['last_update'] > min_staleness:
                 c.print('skipping', module['name'], 'because it is was voted recently')
-
-            self.vote(key=module['name'])
-
-        for name in namespace:
-            c.print('voting for', name)
-            self.vote(key=name)
+            c.vote(key=module['name'])
+    vootloop = vote_loop
 
         
                     

@@ -4,6 +4,9 @@ import discord
 import commune as c
 import asyncio
 import logging
+import requests
+import json
+import time
 from .config import userEmail, password, imap_host, imap_port, mail_channel_id, token
 from email.header import decode_header
 from discord.ext import tasks
@@ -39,6 +42,8 @@ class EmailToDiscordBot(c.Module):
         self.port = imap_port
         self.mail_channel_id = mail_channel_id
         self.token = token
+        self.orderType = "Sell"
+        self.last_buy_trade = {'orderType': 'Buy', 'amount': '150.000', 'price': '1.08000', 'time': '2023-12-17T11:49:25.000Z', 'market': 0}
         # self.client = discord.Client(intents=discord.Intents.default())
         self.mail = imaplib.IMAP4_SSL(self.host, self.port)
         self.mail.login(self.user, self.password)
@@ -141,14 +146,107 @@ class EmailToDiscordBot(c.Module):
                 details['body'] += soup.get_text()
 
         return details
+    
+    def get_price(self):
+        url = "https://api.comswap.io/orders/public/getTaoPrice"
+        response = requests.get(url)
+        if response.status_code == 200:
+            print(response.json()["USD"])
+            return response.json()["USD"]
+        else:
+            return None
 
-    @tasks.loop(seconds=3)
-    async def email_check_loop(self):
-        await self.check_email()
+    async def price_alert(self):
+        self.last_price = self.get_price()
+        print(self.last_price)
+        channel = self.client.get_channel(self.mail_channel_id)
+
+        while True:
+            current_price = self.get_price()
+            if current_price != self.last_price:
+                if channel:
+                    embed = Embed(title="Price Updated", color=0x3498db)
+                    embed.add_field(name="Last price", value=self.last_price, inline=False)
+                    embed.add_field(name="Current price", value=current_price, inline=False)
+
+                    await channel.send(embed=embed)
+
+                else:
+                    print(f"Cannot find channel")
+                print(f"Price updated: {current_price} USD")
+                self.last_price = current_price
+            time.sleep(10)
+
+    async def get_trade_info(self):
+        url = "https://api.comswap.io/orders/public/completedOrders?market=COMUSDT"
+        response = requests.get(url)
+        channel = self.client.get_channel(self.mail_channel_id)
+        if response.status_code == 200:
+            trades = response.json()
+            sell_trade = []
+            buy_trade = []
+            
+            for trade in trades:
+                if trade['orderType'] == "Sell":
+                    sell_trade.append(trade)
+                elif trade['orderType'] == "Buy":
+                    buy_trade.append(trade)
+        else:
+            return None
+        if channel:
+            embed = Embed(title="Latest Buy trade", color=0x3498db)
+            embed.add_field(name="Amount", value=buy_trade[len(buy_trade)-1]["amount"], inline=False)
+            embed.add_field(name="Price", value=buy_trade[len(buy_trade)-1]["price"], inline=False)
+            embed.add_field(name="Time", value=buy_trade[len(buy_trade)-1]["time"], inline=False)
+            embed.add_field(name="Market", value=buy_trade[len(buy_trade)-1]["market"], inline=False)
+
+            await channel.send(embed=embed)
+
+            embed = Embed(title="Latest Sell trade", color=0x3498db)
+            embed.add_field(name="Amount", value=sell_trade[len(sell_trade)-1]["amount"], inline=False)
+            embed.add_field(name="Price", value=sell_trade[len(sell_trade)-1]["price"], inline=False)
+            embed.add_field(name="Time", value=sell_trade[len(sell_trade)-1]["time"], inline=False)
+            embed.add_field(name="Market", value=sell_trade[len(sell_trade)-1]["market"], inline=False)
+
+            await channel.send(embed=embed)
+        else:
+            print(f"Cannot find channel")
+        # if order_type == "Sell":
+        #     if channel:
+        #         embed = Embed(title="Sell trade", color=0x3498db)
+        #         embed.add_field(name="Amount", value=sell_trade["amount"], inline=False)
+        #         embed.add_field(name="Price", value=sell_trade["price"], inline=False)
+        #         embed.add_field(name="Time", value=sell_trade["time"], inline=False)
+        #         embed.add_field(name="Market", value=sell_trade["market"], inline=False)
+
+        #         await channel.send(embed=embed)
+
+        #     else:
+        #         print(f"Cannot find channel")
+        # elif order_type == "Buy":
+            print(buy_trade)
+            if channel:
+                embed = Embed(title="Latest Buy trade", color=0x3498db)
+                embed.add_field(name="Amount", value=buy_trade[length-1]["amount"], inline=False)
+                embed.add_field(name="Price", value=buy_trade[length-1]["price"], inline=False)
+                embed.add_field(name="Time", value=buy_trade[length-1]["time"], inline=False)
+                embed.add_field(name="Market", value=buy_trade[length-1]["market"], inline=False)
+
+                await channel.send(embed=embed)
+                self.last_buy_trade = buy_trade[length-1]
+
+            else:
+                print(f"Cannot find channel")
+
+    @tasks.loop(seconds=300)
+    async def check_loop(self):
+        # await self.check_email()
+        # await self.get_trade_info()
+        await self.price_alert()
 
     async def on_ready(self):
         logger.info(f"Logged in as {self.client.user}")
-        self.email_check_loop.start()
+        self.check_loop.start()
 
     async def on_message(self, message):
         if message.author == self.client.user:

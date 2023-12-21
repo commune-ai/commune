@@ -20,8 +20,9 @@ This module leverages the power of [Web3 Streamlit Components] to provide a seam
 
 ## Features
 
-- **Ethereum Connection**: Connect to the Ethereum blockchain using MetaMask.
-- **Transaction Display**: Display Ethereum transactions in a Streamlit application.
+- **Ethereum Connection**: Facilitates a secure connection to the Ethereum blockchain using the MetaMask wallet.
+- **Transaction Display**: Showcases Ethereum transactions within a Streamlit application, enabling real-time monitoring and interaction.
+- **Uniswap Integration**: Allows users to perform token swaps via Uniswap directly within the application (optional feature based on your implementation). (This is yet to be implemented)
 
 ## Installation
 

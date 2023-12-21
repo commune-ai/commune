@@ -56,16 +56,18 @@ class Namespace(c.Module):
         return address
 
     @classmethod
-    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False) -> dict:
+    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False, subnet=None, **kwargs) -> dict:
         if network == None: 
             network = cls.network
 
         if network == 'subspace':
-            if ':' in network:
-                network, netuid = search.split(':')
+            if '.' in network:
+                network, subnet = search.split('.')
             else: 
-                netuid = None
-            return c.module(network)().namespace(update=update, netuid=netuid)
+                if subnet == None:
+                    subnet = 0
+                    
+            return c.module(network)().namespace(update=update, netuid=subnet, **kwargs)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))
