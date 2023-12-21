@@ -176,6 +176,7 @@ class Keypair(c.Module):
         key_json = key.to_json()
         c.print(key_json, mnemonic)
         cls.put(path, key_json)
+
         return  json.loads(key_json)
     
 
@@ -341,13 +342,23 @@ class Keypair(c.Module):
         return key2address
     
     @classmethod
-    def address2key(cls, search:Optional[str]=None):
+    def address2key(cls, search:Optional[str]=None, update=False):
+        path = "address2key"
+
+        if not update:
+            address2key = cls.get(path, None)
+            if address2key != None:
+                return address2key
+
         address2key =  { v: k for k,v in cls.key2address().items()}
         if search in address2key:
             return address2key[search]
         else:
             if search != None:
                 address2key =  {k:v for k,v in address2key.items() if  search in v}
+        
+        cls.put(path, address2key)
+
         return address2key
     
     @classmethod

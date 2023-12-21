@@ -1105,7 +1105,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         old_balance = self.get_balance( key.ss58_address , fmt='j')       
         # get most stake from the module
-        stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano')
+        stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=key)
 
 
         module_key = None
@@ -1320,7 +1320,25 @@ class Subspace(c.Module):
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
         
+    def subnet2modules(self, network:str='main', **kwargs):
+        subnet2modules = {}
+        self.resolve_network(network)
 
+        for netuid in self.netuids():
+            c.print(f'Getting modules for SubNetwork {netuid}')
+            subnet2modules[netuid] = self.my_modules(netuid=netuid, **kwargs)
+
+        return subnet2modules
+    
+    def module2netuids(self, network:str='main', **kwargs):
+        subnet2modules = self.subnet2modules(network=network, **kwargs)
+        module2netuids = {}
+        for netuid, modules in subnet2modules.items():
+            for module in modules:
+                if module['name'] not in module2netuids:
+                    module2netuids[module['name']] = []
+                module2netuids[module['name']] += [netuid]
+        return module2netuids
     @classmethod
     def from_nano(cls,x):
         return x / (10**cls.token_decimals)
@@ -2685,7 +2703,9 @@ class Subspace(c.Module):
 
     def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=0, df:bool = True, **kwargs):
         my_modules = []
+        t1 = c.time()
         address2key = c.address2key()
+        c.print(f"Got address2key in {c.time() - t1} seconds")
         if modules == None:
             modules = self.modules(search=search, netuid=netuid, df=False, **kwargs)
         for module in modules:
