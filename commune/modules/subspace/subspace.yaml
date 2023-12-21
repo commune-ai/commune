@@ -1099,9 +1099,9 @@ chain_info:
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 frontend:
   telemetry:
-    feed: ws://165.22.186.112:50129/feed
-    frontend: http://165.22.186.112:50213
-    shard: ws://165.22.186.112:50244/submit 0
+    feed: ws://165.22.186.112:50186/feed
+    frontend: http://165.22.186.112:50194
+    shard: ws://165.22.186.112:50147/submit 0
 local: true
 loop: false
 mode: local

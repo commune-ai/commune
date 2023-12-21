@@ -862,6 +862,50 @@ class Subspace(c.Module):
         return response
 
 
+    def wasm_file_path(self):
+        wasm_file_path = self.libpath + '/target/release/wbuild/node-subspace-runtime/node_subspace_runtime.compact.compressed.wasm'
+        return wasm_file_path
+
+
+
+    #################
+    #### set_code ####
+    #################
+    def set_code(
+        self,
+        wasm_file_path = None,
+        key: str = None,
+        network = network,
+    ) -> bool:
+
+        if wasm_file_path == None:
+            wasm_file_path = self.wasm_file_path()
+
+        assert os.path.exists(wasm_file_path), f'Wasm file not found at {wasm_file_path}'
+
+        self.resolve_network(network)
+        key = self.resolve_key(key)
+
+        # Replace with the path to your compiled WASM file       
+        with open(wasm_file_path, 'rb') as file:
+            wasm_binary = file.read()
+            wasm_hex = wasm_binary.hex()
+
+        code = '0x' + wasm_hex
+
+        # Construct the extrinsic
+        response = self.compose_call(
+            module='System',
+            fn='setCode',
+            params={
+                'code': code
+            },
+            unchecked_weight=True
+        )
+
+        return response
+
+
 
 
 
@@ -3424,6 +3468,7 @@ class Subspace(c.Module):
                     sudo:bool  = False,
                     nonce: int = None,
                     remote_module: str = None,
+                    unchecked_weight: bool = False,
                      **kwargs):
 
         """
@@ -3465,7 +3510,9 @@ class Subspace(c.Module):
         self.put_json(pending_path, tx_state)
 
         with self.substrate as substrate:
+
             call = substrate.compose_call(**compose_kwargs)
+
             if sudo:
                 call = substrate.compose_call(
                     call_module='Sudo',
@@ -3473,6 +3520,16 @@ class Subspace(c.Module):
                     call_params={
                         'call': call,
                     }
+                )
+            if unchecked_weight:
+                # uncheck the weights for set_code
+                call = substrate.compose_call(
+                    call_module="Sudo",
+                    call_function="sudoUncheckedWeights",
+                    call_params={
+                        "call": call,
+                        'weight': 0
+                    },
                 )
             # get nonce 
             extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce)
@@ -3982,6 +4039,10 @@ class Subspace(c.Module):
     def keystore_keys(cls, node='vali_0', chain=chain):
         return [f.split('/')[-1] for f in c.ls(cls.keystore_path(node=node, chain=chain))]
 
+
+    def build_runtime(self):
+        return c.cmd('cargo build --release --package node-subspace', cwd=self.libpath, verbose=True)
+
     @classmethod
     def build_spec(cls,
                    chain = chain,
@@ -4212,7 +4273,7 @@ class Subspace(c.Module):
     def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=False ):
         if build:
             c.print(cls.build_image(no_cache=no_cache))
-        public_image = f'{public_image.split("-")[0]}-{c.datetime().replace(":", "-")}'
+        public_image = f'{public_image.split("-")[0]}-{":".join(c.datetime().split(":")[:2]).replace(":", "-")}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
