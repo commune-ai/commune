@@ -896,7 +896,7 @@ class Subspace(c.Module):
         # Construct the extrinsic
         response = self.compose_call(
             module='System',
-            fn='setCode',
+            fn='set_code',
             params={
                 'code': code
             },
@@ -4504,6 +4504,7 @@ class Subspace(c.Module):
                  debug:bool = False,
                  sid:str = None,
                  timeout:int = 30,
+                 amd64:bool = False,
                  ):
 
         if sid != None:
@@ -4588,6 +4589,9 @@ class Subspace(c.Module):
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
 
+        if amd64:
+            cmd_kwargs += '--platform linux/amd64'
+
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
 
@@ -4600,6 +4604,8 @@ class Subspace(c.Module):
                             verbose=verbose)
             
         elif mode == 'docker':
+            if amd64:
+                cmd += '--platform linux/amd64'
             cls.pull_image()
             docker = c.module('docker')
             if docker.exists(name):
@@ -4622,7 +4628,10 @@ class Subspace(c.Module):
                          + f' -v {base_path}:{container_base_path}'
             daemon_str = '-d' if daemon else ''
             # cmd = 'cat /subspace/specs/main.json'
-            cmd = 'docker run ' + daemon_str  + f' --net host --name {name} {volumes} {cls.image}  bash -c "{cmd}"'
+            platform = ""
+            if amd64:
+                platform = '--platform linux/amd64'
+            cmd = 'docker run ' + daemon_str  + f' --net host {platform} --name {name} {volumes}  {cls.image}  bash -c "{cmd}"'
             node_info['cmd'] = cmd
 
             output = c.cmd(cmd, verbose=debug)
