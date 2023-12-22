@@ -1102,7 +1102,7 @@ frontend:
     feed: ws://165.22.186.112:50094/feed
     frontend: http://165.22.186.112:50107
     shard: ws://165.22.186.112:50090/submit 0
-local: true
+local: false
 loop: false
 mode: local
 netuid: 0
