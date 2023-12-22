@@ -898,9 +898,11 @@ class Subspace(c.Module):
             module='System',
             fn='set_code',
             params={
-                'code': code
+                'code': code.encode('utf-8')
             },
-            unchecked_weight=True
+            unchecked_weight=True,
+            sudo = True,
+            key=key
         )
 
         return response
@@ -1257,6 +1259,13 @@ class Subspace(c.Module):
         self.put(path, qmap)
                 
         return qmap
+
+    def runtime_spec_version(self, network:str = 'main'):
+        # Get the runtime version
+        self.resolve_network(network=network)
+        c.print(self.substrate.runtime_config.__dict__)
+        runtime_version = self.query_constant(module_name='System', constant_name='SpVersionRuntimeVersion')
+        return runtime_version
         
     """ Gets a constant from subspace with module_name, constant_name, and block. """
     def query_constant( self, 
@@ -1678,51 +1687,26 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = 0,
-                 interval = {'sync': 1000, 'register': None, 'vali': None, 'update_modules': None},
-                 modules = ['model'], 
-                 sleep:float=1,
-                 remote:bool=True, **kwargs):
+                interval = 60,
+                modules = ['model'], 
+                sleep:float=10,
+                remote:bool=True, **kwargs):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
             return cls.remote_fn('loop', kwargs=kwargs)
-
-        if isinstance(interval, int):
-            interval = {'sync': interval, 'register': interval}
-        assert isinstance(interval, dict), f"Interval must be an int or dict. Got {interval}"
-        assert all([k in interval for k in ['sync', 'register']]), f"Interval must contain keys 'sync' and 'register'. Got {interval.keys()}"
-
-        time_since_last = {k:0 for k in interval}
-        
-        time_start = c.time()
+        subspace = cls(network=network)
+        last_update_time = 0
         while True:
+            lag = cls.lag()
+            c.print({'lag': lag, 'interval': interval, 'last_update_time': last_update_time, 'sleep': sleep, 'block': subspace.block, 'network': network})
+            if lag > interval:
+                c.print(f'Updating SubNetwork {netuid} at block {subspace.block}')
+                c.print(subspace.sync())
+                last_update_time = lag
             c.sleep(sleep)
-            current_time = c.time()
-            time_since_last = {k:int(current_time - time_start) for k in interval}
-            time_left = {k:int(interval[k] - time_since_last[k]) if interval[k] != None else None for k in interval }
-        
 
 
-            subspace = cls(network=network, netuid=netuid)
-
-            if  time_left['update_modules'] != None and time_left['update_modules'] > 0:
-                c.update(network='local')
-
-            if time_left['sync'] != None and time_left['sync']:
-                c.print(subspace.sync(), color='green')
-
-            if time_left['register'] != None and time_left['register']:
-                for m in modules:
-                    c.print(f"Registering servers with {m} in it on {network}", color='yellow')
-                    subspace.register_servers(m ,network=network, netuid=netuid)
-                time_since_last['register'] = current_time
-
-            if time_left['vali'] != None and time_left['vali']:
-                c.check_valis(network=network)
-                time_since_last['vali'] = current_time
-
-            c.print(f"Looping {time_since_last} / {interval}", color='yellow')
-    
     state_dict_cache = {}
     def state_dict(self,
                     network=network, 
@@ -1862,7 +1846,8 @@ class Subspace(c.Module):
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
                 c.print(c.infos(update=True, network='local'))
-                self.sync(network=network, remote=remote, local=local, save=save)
+                response = self.sync(network=network, remote=remote, local=local, save=save)
+                c.print(response)
                 start_time = current_time
             c.sleep(interval)
 
@@ -3525,10 +3510,10 @@ class Subspace(c.Module):
                 # uncheck the weights for set_code
                 call = substrate.compose_call(
                     call_module="Sudo",
-                    call_function="sudoUncheckedWeights",
+                    call_function="sudo_unchecked_weight",
                     call_params={
                         "call": call,
-                        'weight': 0
+                        'weight': (0,0)
                     },
                 )
             # get nonce 
@@ -3604,12 +3589,12 @@ class Subspace(c.Module):
     def build_snapshot(cls, 
               path : str  = None,
              network : str =network,
-             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'founder'],
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
             min_balance:int = 100000,
             verbose: bool = False,
-            sync: bool = True,
+            sync: bool = False,
             version: str = 2,
              **kwargs):
         if sync:
@@ -4316,6 +4301,7 @@ class Subspace(c.Module):
                      chain=chain, 
                      max_boot_nodes:int=24,
                      node_info = None,
+
                       **kwargs):
         if node_info == None:
             cls.pull_image()
@@ -4566,7 +4552,7 @@ class Subspace(c.Module):
         if telemetry_url != False:
             if telemetry_url == None:
                 telemetry_url = cls.telemetry_url(chain=chain)
-            cmd_kwargs += f' --telemetry-url {telemetry_url}'
+            cmd_kwargs += f' --telemetry-url "{telemetry_url}"'
 
         if validator :
             cmd_kwargs += ' --validator'
@@ -5019,9 +5005,9 @@ class Subspace(c.Module):
                         {cls.telemetry_backend_image} \
                         telemetry_shard -l 0.0.0.0:{ports['shard']} -c http://0.0.0.0:{ports['core']}/shard_submit"
 
-            cmd['frontend'] = f"docker run -d  \
+            cmd['frontend'] = f"docker run  \
                     --name {names['frontend']} \
-                    -p {ports['frontend']}:8000\
+                    -p 3000:8000\
                     -e SUBSTRATE_TELEMETRY_URL={telemetry_urls[name]['feed']} \
                     {cls.telemetry_frontend_image}"
 
