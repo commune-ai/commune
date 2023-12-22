@@ -1897,6 +1897,8 @@ class Subspace(c.Module):
             value = self.get(path, None)
             if value != None:
                 return value
+            
+        c.print(f'Getting subnet params for SubNetwork {netuid}')
         
         network = self.resolve_network(network)
         kwargs = dict( netuid = netuid , block=block, update=update)

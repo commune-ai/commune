@@ -4859,6 +4859,10 @@ class c:
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
 
+    def asubmit(self, fn:str, kwargs:dict):
+        async def _asubmit():
+            return fn(**kwargs)
+        return _asubmit()
 
 
     @classmethod
