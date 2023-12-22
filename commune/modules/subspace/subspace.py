@@ -118,6 +118,7 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
+                self.config.local = False
                 url = None
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
