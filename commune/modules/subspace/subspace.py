@@ -4255,10 +4255,10 @@ class Subspace(c.Module):
         }
 
     @classmethod
-    def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=False ):
+    def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=True ):
         if build:
             c.print(cls.build_image(no_cache=no_cache))
-        public_image = f'{public_image.split("-")[0]}-{":".join(c.datetime().split(":")[:2]).replace(":", "-")}'
+        public_image = f'{public_image.split("-")[0]}-{":".join(c.datetime().split("_")[0]).replace(":", "-")}'
         c.cmd(f'docker tag {image} {public_image}', verbose=True)
         c.cmd(f'docker push {public_image}', verbose=True)
         return {'success':True, 'msg': f'pushed {image} to {public_image}'}
