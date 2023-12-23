@@ -25,7 +25,7 @@ class Agent(c.Module):
     def set_model(self, model:str, network:str = 'local'):
         self.model_namespace = c.namespace(model, netowrk=network)
         assert len(self.model_namespace) > 0, f"no models found in {model}, please check the model path"
-        model = c.choice(list(model_namespace.values()))
+        model = c.choice(list(self.model_namespace.values()))
         self.network = network
         self.model = c.connect(model, network=network)
         return self.model

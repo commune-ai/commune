@@ -6,5 +6,6 @@ class Demo(c.Module):
 
     def call(self, x:int = 1, y:int = 2) -> int:
         c.print(self.a)
+        
         return x + y
     

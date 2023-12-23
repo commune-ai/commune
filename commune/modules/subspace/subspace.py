@@ -1100,7 +1100,7 @@ class Subspace(c.Module):
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
-        old_stake = self.get_stakefrom( module, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        old_stake = self.get_stakefrom( module, from_key=key.ss58_address , fmt='j', netuid=netuid, update=True)
         if amount is None:
             amount = old_balance
 
@@ -1116,8 +1116,8 @@ class Subspace(c.Module):
 
         response = self.compose_call('add_stake',params=params, key=key)
 
-        new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-        new_balance = self.get_balance(  key.ss58_address , fmt='j')
+        new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid, update=True)
+        new_balance = self.get_balance(  key.ss58_address , fmt='j', update=True)
         response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
 
         return response
@@ -1169,7 +1169,6 @@ class Subspace(c.Module):
         else:
             key2name = self.key2name(netuid=netuid)
             name2key = {key2name[k]:k for k,v in key2name.items()}
-            c.print(name2key)
             if module in name2key:
                 module_key = name2key[module]
             else:
@@ -1420,11 +1419,11 @@ class Subspace(c.Module):
 
         return x
     
-    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
+    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None , fmt='j', update=False ) -> Optional['Balance']:
         
         key_ss58 = self.resolve_key_ss58( key_ss58 )
         netuid = self.resolve_netuid( netuid )
-        stake = self.query( 'Stake',params=[netuid, key_ss58], block=block )
+        stake = self.query( 'Stake',params=[netuid, key_ss58], block=block , update=update)
         return self.format_amount(stake, fmt=fmt)
 
 
@@ -1469,17 +1468,26 @@ class Subspace(c.Module):
         key2module = self.key2module(netuid=netuid)
         return {key2module[k]['name'] : v for k,v in stake_from}
         
-    def get_stakefrom( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        state_from =  [(k, self.format_amount(v, fmt=fmt)) for k, v in self.query( 'StakeFrom', block=block, params=[netuid, key] )]
+        state_from =  [(k, self.format_amount(v, fmt=fmt)) for k, v in self.query( 'StakeFrom', block=block, params=[netuid, key], update=update )]
  
         if from_key is not None:
             from_key = self.resolve_key_ss58( from_key )
             state_from ={ k:v for k, v in state_from}.get(from_key, 0)
 
         return state_from
-    get_stake_from = get_stakefrom
+    
+    
+        
+    def get_total_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
+        stake_from = self.get_stake_from(key=key, from_key=from_key, block=block, netuid=netuid, fmt=fmt, update=update)
+        return sum([v for k,v in stake_from])
+    
+    
+    
+    get_stakefrom = get_stake_from 
 
     def stake_many( self, 
                         modules:List[str],
@@ -1733,7 +1741,12 @@ class Subspace(c.Module):
             block = self.block
             netuids = self.netuids(network=network, block=block, update=True)
             c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
-            subnets = [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
+
+            subnet_futures = [c.submit(self.subnet, kwargs=dict(netuid=netuid, network=network, block=block, update=True, fmt='nano'), timeout=4, return_future=True) for netuid in netuids]
+            subnets = c.wait(subnet_futures)
+
+            c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
+        
             state_dict = {'subnets': subnets, 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
@@ -2204,10 +2217,10 @@ class Subspace(c.Module):
                 account balance
         """
         key_ss58 = self.resolve_key_ss58( key )
-
+        result = 0 
         if not update:
             balances = self.balances(network=network, block=block, update=update, fmt=fmt)
-
+            result =  balances.get(key_ss58, result)
         else:
             self.resolve_network(network)
             try:
@@ -2224,10 +2237,9 @@ class Subspace(c.Module):
             except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
                 c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
 
-            return  self.format_amount(result['data']['free'].value , fmt=fmt)
-        return balances.get(key_ss58, 0)
+        return  self.format_amount(result['data']['free'].value , fmt=fmt)
+        
     balance =  get_balance
-
 
     def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False ) -> Dict[str, Balance]:
         path = f'cache/balances.{network}.block-{block}'
