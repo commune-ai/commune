@@ -4858,8 +4858,8 @@ class c:
             keys.append(key_path)
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
-
-    def asubmit(self, fn:str, kwargs:dict):
+    @classmethod
+    def asubmit(cls, fn:str, kwargs:dict):
         async def _asubmit():
             return fn(**kwargs)
         return _asubmit()
@@ -6455,7 +6455,7 @@ class c:
         if singleton:
             return results[0]
         return results
-
+    
     @classmethod
     def split_gather(cls,jobs:list, n=3,  **kwargs)-> list:
         if len(jobs) < n:

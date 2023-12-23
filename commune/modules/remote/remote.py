@@ -614,6 +614,13 @@ class Remote(c.Module):
                     self.rm_host(rm_host_name)
 
 
+    def enter(self, host='root10'):
+        host2ssh  = self.host2ssh()
+        c.print(host2ssh)
+        ssh = host2ssh[host]
+        c.cmd(ssh)
+
+
 
 
     def host2ssh(self, *args,  **kwargs):
