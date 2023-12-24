@@ -38,9 +38,10 @@ class ServerHTTP(c.Module):
         # executro 
         self.sse = sse
         if self.sse == False:
-            self.max_workers = max_workers
-            self.mode = mode
-            self.executor = c.executor(max_workers=max_workers, mode=mode)
+            if max_workers != None:
+                self.max_workers = max_workers
+                self.mode = mode
+                self.executor = c.executor(max_workers=max_workers, mode=mode)
         self.timeout = timeout
         self.public = public
 
@@ -51,7 +52,6 @@ class ServerHTTP(c.Module):
                 name = module.__class__.__name__
         
         self.module = module 
-        c.print(self.module, type(self.module), module.key)
         self.key = module.key      
         # register the server
         self.name = name
@@ -63,7 +63,6 @@ class ServerHTTP(c.Module):
             self.access_module = c.module(access_module)(module=module)
         else:
             self.access_module = module.access_module
-        c.print('fam')
 
         self.set_api(ip=self.ip, port=self.port)
 
@@ -197,7 +196,7 @@ class ServerHTTP(c.Module):
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
             c.register_server(name=self.name, address = self.address, network=self.network)
-            c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
+            c.print(f'\033🚀 Registered {self.name} --> {self.ip}:{self.port} 🚀\033')
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:
             c.print(e, color='red')

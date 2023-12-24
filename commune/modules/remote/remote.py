@@ -621,8 +621,6 @@ class Remote(c.Module):
         c.cmd(ssh)
 
 
-
-
     def host2ssh(self, *args,  **kwargs):
         hosts = self.hosts(*args, **kwargs)
         host2ssh = {}
