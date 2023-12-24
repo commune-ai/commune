@@ -4859,7 +4859,7 @@ class c:
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
     @classmethod
-    def asubmit(cls, fn:str, kwargs:dict):
+    def asubmit(cls, fn:str, kwargs:dict, timeout=None, **extra_kwargs):
         async def _asubmit():
             return fn(**kwargs)
         return _asubmit()
@@ -6376,10 +6376,23 @@ class c:
         return cls.choice(cls.tags())
 
     @classmethod
+    def obj2typestr(cls, obj):
+        return str(type(obj)).split("'")[1]
+
+
+    @classmethod
+    def is_coroutine(cls, future):
+        """
+        returns True if future is a coroutine
+        """
+        return cls.obj2typestr(future) == 'coroutine'
+ 
+
+    @classmethod
     def as_completed(cls , futures:list, timeout:int=10, **kwargs):
         return concurrent.futures.as_completed(futures, timeout=timeout)
-    @staticmethod
-    def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
+    @classmethod
+    def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         
         import concurrent.futures
 
@@ -6387,6 +6400,9 @@ class c:
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
             
+        if c.is_coroutine(futures[0]):
+            return c.gather(futures, timeout=timeout)
+        
         future2idx = {future:i for i,future in enumerate(futures)}
 
         results = []
@@ -6450,7 +6466,8 @@ class c:
         assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
         # determine if we are using asyncio or multiprocessing
 
-        results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
+        # wait until they finish, and if they dont, give them none
+        results = loop.run_until_complete(asyncio.gather(*jobs, return_exceptions=True))
 
         if singleton:
             return results[0]

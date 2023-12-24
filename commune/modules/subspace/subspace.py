@@ -94,6 +94,8 @@ class Subspace(c.Module):
         
         if network == None:
             network = self.config.network
+        if network == 'local':
+            self.config.local = True
 
         trials = 0
         while trials < max_trials :
@@ -160,6 +162,15 @@ class Subspace(c.Module):
     def top_modules(self,search=None, k='stake', n=10, modules=None, **kwargs):
         top_modules = self.rank_modules(search=search, k=k, n=n, modules=modules, reverse=True, **kwargs)
         return top_modules[:n]
+    def top_module_keys(self,search=None, k='dividends ', n=10, modules=None, **kwargs):
+        top_modules = self.rank_modules(search=search, k=k, n=n, modules=modules, reverse=True, **kwargs)
+        return [m['key'] for m in top_modules[:n]]
+    
+
+    def stake_top_modules(self,search=None, netuid=netuid, **kwargs):
+        top_module_keys = self.top_module_keys(k='dividends')
+        self.stake_many(modules=top_module_keys, netuid=netuid, **kwargs)
+       
 
     best = best_modules = top_modules
     
@@ -1485,33 +1496,36 @@ class Subspace(c.Module):
         stake_from = self.get_stake_from(key=key, from_key=from_key, block=block, netuid=netuid, fmt=fmt, update=update)
         return sum([v for k,v in stake_from])
     
-    
-    
+
     get_stakefrom = get_stake_from 
 
     def stake_many( self, 
                         modules:List[str],
-                        amounts:Union[List[str], float, int],
+                        amounts:Union[List[str], float, int] = None,
                         key: str = None, 
                         netuid:int = 0,
                         n:str = 100,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
-        balance = self.get_balance(key=key, fmt='j')
         name2key = self.name2key(netuid=netuid)
 
         if isinstance(modules, str):
             modules = [m for m in name2key.keys() if modules in m]
-
-        assert len(modules) > 0, f"No modules found with name {modules}"
         modules = modules[:n] # only stake to the first n modules
         # resolve module keys
         for i, module in enumerate(modules):
             if module in name2key:
                 modules[i] = name2key[module]
-
+        assert len(modules) > 0, f"No modules found with name {modules}"
         module_keys = modules
+
+
+        if amounts == None:
+            balance = self.get_balance(key=key, fmt='nanos')
+            amounts = [balance // len(modules)] * len(modules)
+            assert sum(amounts) <= balance, f'The total amount is {sum(amounts)} > {balance}'
+
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
 
@@ -1742,8 +1756,11 @@ class Subspace(c.Module):
             netuids = self.netuids(network=network, block=block, update=True)
             c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
 
-            subnet_futures = [c.submit(self.subnet, kwargs=dict(netuid=netuid, network=network, block=block, update=True, fmt='nano'), timeout=4, return_future=True) for netuid in netuids]
+            subnet_futures = [c.asubmit(self.subnet, kwargs=dict(netuid=netuid, network=network, block=block, update=True, fmt='nano'), timeout=4) for netuid in netuids]
             subnets = c.wait(subnet_futures)
+
+
+            c.print(subnets)
 
             c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
         
@@ -1876,10 +1893,10 @@ class Subspace(c.Module):
             subnet_states.append(subnet_state)
         return subnet_states
 
-    def total_stake(self, network=network, block: Optional[int] = None, netuid:int=None, fmt='j') -> 'Balance':
+    def total_stake(self, network=network, block: Optional[int] = None, netuid:int=None, fmt='j', update=False) -> 'Balance':
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        return self.format_amount(self.query( "TotalStake", params=[netuid], block=block, network=network ), fmt=fmt)
+        return self.format_amount(self.query( "TotalStake", params=[netuid], block=block, network=network , update=update), fmt=fmt)
 
     def total_balance(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
         return sum(list(self.balances(network=network, block=block, fmt=fmt).values()))
@@ -1904,8 +1921,8 @@ class Subspace(c.Module):
                     fmt:str='j') -> list:
 
         netuid = self.resolve_netuid(netuid)
-
         path = f'cache/network.subnet_params.{netuid}.json'
+
         if not update:
             value = self.get(path, None)
             if value != None:
@@ -1917,9 +1934,9 @@ class Subspace(c.Module):
         kwargs = dict( netuid = netuid , block=block, update=update)
 
         if parallel:
-            async def query(**kwargs):
+            async def query(**kwargs ):
                 return self.query(**kwargs)
-        else: 
+        else:
             query = self.query
         name2job = {
                 'tempo': [query, dict(name='Tempo')],
@@ -1940,16 +1957,16 @@ class Subspace(c.Module):
         name2result = {}
 
         for i in range(1): 
-            for k,v in name2job.items():
-                remote_kwargs = dict(**v[1], **kwargs)
+            for k,(fn, fn_kwargs) in name2job.items():
+                remote_kwargs = dict(**fn_kwargs, **kwargs)
                 if parallel:
-                    name2result[k] = v[0](**remote_kwargs)
+                    name2result[k] = query(**remote_kwargs)
                 else:
-                    name2result[k] = v[0](**remote_kwargs)
+                    name2result[k] = query(**remote_kwargs)
 
             if parallel:
                 futures = [v for k,v in name2result.items()]
-                results = c.gather(futures, timeout=timeout)
+                results = c.wait(futures, timeout=timeout)
                 name2result = {k:v for k,v in zip(name2result.keys(), results)}
         
             for name, result in name2result.items():

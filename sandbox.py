@@ -14,11 +14,26 @@
 from tqdm import tqdm
 from time import sleep
 import psutil
+import commune as c
+modules = {
+    'remote': c.connect('module'),
+    'local': c.module('module')()
+}
+info = {
+    'remote': 0,
+    'local': 0,
+}
+for module_key in modules.keys():
+    t0 = c.time()
+    r_remote = modules[module_key].info(schema=False)
+    t1 = c.time()
+    latency = t1 - t0
+    info[module_key] = latency
 
-with tqdm(total=100, desc='cpu%', position=1) as cpubar, tqdm(total=100, desc='ram%', position=0) as rambar:
-    while True:
-        rambar.n=psutil.virtual_memory().percent
-        cpubar.n=psutil.cpu_percent()
-        rambar.refresh()
-        cpubar.refresh()
-        sleep(0.5)
+c.print(info)
+# r_local = c.module('module').call(hardware=False)
+# c.print(r)
+
+
+
+# r_local 
