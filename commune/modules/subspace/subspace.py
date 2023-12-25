@@ -1942,7 +1942,6 @@ class Subspace(c.Module):
     WALLET VIBES
     
     """
-
     
     def wallet(self, **kwargs):
         return c.module('subspace.wallet')(**kwargs)
