@@ -1,4 +1,4 @@
-# MetaMask Module
+# Gemini Module
 
 This module provides an interface for connecting to Ethereum blockchain using MetaMask. It includes a Streamlit application for displaying Ethereum transactions.
 
