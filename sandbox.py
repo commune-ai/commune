@@ -15,24 +15,28 @@ from tqdm import tqdm
 from time import sleep
 import psutil
 import commune as c
-modules = {
-    'remote': c.connect('module'),
-    'local': c.module('module')()
-}
-info = {
-    'remote': 0,
-    'local': 0,
-}
-for module_key in modules.keys():
-    t0 = c.time()
-    r_remote = modules[module_key].info(schema=False)
-    t1 = c.time()
-    latency = t1 - t0
-    info[module_key] = latency
 
-c.print(info)
-# r_local = c.module('module').call(hardware=False)
-# c.print(r)
+module = c.get('module_tree')
+c.print(module.get('subspace.chain'))
+# import commune as c
+# modules = {
+#     'remote': c.connect('module'),
+#     'local': c.module('module')()
+# }
+# info = {
+#     'remote': 0,
+#     'local': 0,
+# }
+# for module_key in modules.keys():
+#     t0 = c.time()
+#     r_remote = modules[module_key].info(schema=False)
+#     t1 = c.time()
+#     latency = t1 - t0
+#     info[module_key] = latency
+
+# c.print(info)
+# # r_local = c.module('module').call(hardware=False)
+# # c.print(r)
 
 
 
