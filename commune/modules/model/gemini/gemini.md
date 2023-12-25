@@ -27,6 +27,7 @@ Google-generativeai: This Python library is for working with Google’s Gemini m
 ## Usage
 
 To run the module, use the following command:
+While running the module, upload jpg image files.
 
 ```
 c model.gemini gradio
