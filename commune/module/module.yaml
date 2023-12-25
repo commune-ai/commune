@@ -15,4 +15,5 @@ shortcuts:
   s: subspace
   store: storage
   tg: textgen
+  chain: subspace.chain
 tag: null

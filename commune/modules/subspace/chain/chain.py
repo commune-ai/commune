@@ -21,9 +21,9 @@ class Chain(c.Module):
     @classmethod
     def node_paths(cls, name=None, chain=chain, mode=mode) -> Dict[str, str]:
         if mode == 'docker':
-            paths = c.module('docker').ps(f'subspace.node.{chain}')
+            paths = c.module('docker').ps(f'{cls.node_key_prefix}.{chain}')
         elif mode == 'local':
-            paths = c.pm2ls('subspace.node')
+            paths = c.pm2ls('subspace')
         else:
             raise ValueError(f"Mode {mode} not recognized. Must be 'docker' or 'local'")
         return paths
@@ -216,7 +216,7 @@ class Chain(c.Module):
     @classmethod
     def prune_node_keys(cls, max_valis:int=6, chain=chain):
 
-        keys = c.keys(f'subspace.node.{chain}.vali')
+        keys = c.keys(f'{cls.node_key_prefix}.{chain}.vali')
         rm_keys = []
         for key in keys:
             if int(key.split('.')[-2].split('_')[-1]) > max_valis:
@@ -400,7 +400,7 @@ class Chain(c.Module):
     @classmethod
     def add_node_key(cls,
                      node:str,
-                     mode = 'docker',
+                     mode = mode,
                      chain = chain,
                      key_mems:dict = None, # pass the keys mems
                      refresh: bool = False,
@@ -461,10 +461,11 @@ class Chain(c.Module):
                 container_base_path = base_path.replace(cls.chain_path, '/subspace')
                 volumes = f'-v {container_base_path}:{base_path}'
                 cmd = f'docker run {volumes} {cls.image} {cmd}'
-                c.print(c.cmd(cmd, verbose=True))
+                c.print(c.cmd(cmd, verbose=True, cwd = cls.chain_path))
                 c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
             elif mode == 'local':
-                c.print(c.cmd(cmd, verbose=True))
+                c.print(cmd)
+                c.print(c.cmd(cmd, verbose=True, cwd = cls.chain_path))
                 c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
         assert len(c.ls(node2keystore_path)) == 2, f'node2keystore_path {node2keystore_path} must have 2 keys'
         return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
@@ -1083,7 +1084,7 @@ class Chain(c.Module):
 
         if mode == 'local':
             # 
-            cmd = c.pm2_start(path=cls.chain_release_path(mode=mode), 
+            output = c.pm2_start(path=cls.chain_release_path(mode=mode), 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
@@ -1181,13 +1182,13 @@ class Chain(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 21,
+                    valis:int = 4,
                     nonvalis:int = 4,
                     verbose:bool= False,
                     purge_chain:bool = True,
-                    refresh: bool = True,
-                    remote:bool = True,
-                    build_spec :bool = True,
+                    refresh: bool = False,
+                    remote:bool = False,
+                    build_spec :bool = False,
                     push:bool = False,
                     trials:int = 20,
                     timeout:int = 30,
@@ -1196,6 +1197,7 @@ class Chain(c.Module):
                     batch_size:int = 10,
                     paralle:bool = True,
                     min_boot_nodes_before_parallel = 2,
+                    mode = mode,
                     ):
 
         # KILL THE CHAIN
@@ -1300,7 +1302,7 @@ class Chain(c.Module):
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
 
-                    response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout)
+                    response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout, mode=mode)
                     c.print(response)
                     assert 'node_info' in response and ('boot_node' in response or 'boot_node' in response['node_info'])
                     
@@ -1401,7 +1403,7 @@ class Chain(c.Module):
     @classmethod
     def remote_nodes(cls, chain=chain):
         import commune as c
-        ps_map = c.module('remote').call('ps', f'subspace.node.{chain}')
+        ps_map = c.module('remote').call('ps', f'{cls.node_key_prefix}.{chain}')
         all_ps = []
         empty_peers = [p for p, peers in ps_map.items() if len(peers) == 0]
         for ps in ps_map.values():
@@ -1416,7 +1418,7 @@ class Chain(c.Module):
             peer2nodes = cls.get(path, {})
             if len(peer2nodes) > 0:
                 return peer2nodes
-        peer2nodes = c.module('remote').call('ps', f'subspace.node.{chain}')
+        peer2nodes = c.module('remote').call('ps', f'{cls.node_key_prefix}.{chain}')
         namespace = c.namespace(network='remote')
         peer2nodes = {namespace.get(k):v for k,v in peer2nodes.items() if isinstance(v, list)}
 
@@ -1481,7 +1483,7 @@ class Chain(c.Module):
     def unfound_nodes(self, chain=chain, peer2nodes=None):
         node2peer = self.node2peer(peer2nodes=peer2nodes)
         vali_infos = self.vali_infos(chain=chain)
-        vali_nodes = [f'subspace.node.{chain}.' + v for v in vali_infos.keys()]
+        vali_nodes = [f'{self.node_key_prefix}.{chain}.' + v for v in vali_infos.keys()]
 
         unfound_nodes = [n for n in vali_nodes if n not in node2peer]
         return unfound_nodes
