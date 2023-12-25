@@ -632,7 +632,6 @@ class c:
         # get the config
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
-        c.print(f'config: {config} {self.path()}', color='green')
 
         # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
@@ -1427,6 +1426,7 @@ class c:
             
         if path == None:
             path = 'module'
+        c.print(f'Importing {path}')
         path = cls.simple2path(path)
         path = cls.path2objectpath(path, search=None)
         module = c.import_object(path)

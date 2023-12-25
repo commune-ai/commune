@@ -1,6 +1,6 @@
 import commune as c
 
-    
+
     
 class Telemetry(c.Module):
     chain = 'main'
