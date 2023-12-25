@@ -1095,5 +1095,277 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 50056
-
-
+  test:
+    boot_nodes: &id001
+    - /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+    - /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+    - /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+    - /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+    nodes:
+      vali0:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: vali0
+        node_key: null
+        port: 50053
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50054
+        sid: 5d954bbf3dcf0ef5987701de7e4b19046de6ac8b69549345c43eb1548af98e39
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: true
+        verbose: false
+        ws_port: 50055
+      vali_0:
+        arm64: true
+        boot_nodes: *id001
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: vali_0
+        node_key: null
+        port: 50050
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50051
+        sid: 5d954bbf3dcf0ef5987701de7e4b19046de6ac8b69549345c43eb1548af98e39
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: true
+        verbose: false
+        ws_port: 50052
+      vali_1:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: vali_1
+        node_key: null
+        port: 50056
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50057
+        sid: 5d954bbf3dcf0ef5987701de7e4b19046de6ac8b69549345c43eb1548af98e39
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: true
+        verbose: false
+        ws_port: 50058
+      vali_2:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+          /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: vali_2
+        node_key: null
+        port: 50059
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50060
+        sid: 5d954bbf3dcf0ef5987701de7e4b19046de6ac8b69549345c43eb1548af98e39
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: true
+        verbose: false
+        ws_port: 50061
+    public_nodes:
+      nonvali_1:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+          /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: nonvali_1
+        node_key: null
+        port: 50052
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50055
+        sid: null
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: false
+        verbose: false
+        ws_port: 50058
+      nonvali_2:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+          /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+          /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: nonvali_2
+        node_key: null
+        port: 50059
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50060
+        sid: null
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: false
+        verbose: false
+        ws_port: 50061
+      nonvali_3:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+          /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: nonvali_3
+        node_key: null
+        port: 50062
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50063
+        sid: null
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: false
+        verbose: false
+        ws_port: 50064
+      nonvali_4:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+          /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: nonvali_4
+        node_key: null
+        port: 50065
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50066
+        sid: null
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: false
+        verbose: false
+        ws_port: 50067
+      nonvali_5:
+        arm64: true
+        boot_nodes: /ip4/66.185.212.215/tcp/50053/p2p/12D3KooWBYmwgmv9rcUVeekLRzR4aeFHRYZWZ1fLi3ULmcXrhLTS
+          /ip4/66.185.212.215/tcp/50059/p2p/12D3KooWNFXaPbckas9tvuPi5mJbpxnrZnZXnyg8w2rxGxxRcSU4
+          /ip4/66.185.212.215/tcp/50050/p2p/12D3KooWJC4Rt2yg3NKRPrhf4pXG6NK9Gd22BvgBm124sAAUraCs
+          /ip4/66.185.212.215/tcp/50056/p2p/12D3KooWKBQKzzFeHerZmimDaHKf4d2Rvas6hbKbM1DpFHssMCC7
+        chain: test
+        daemon: true
+        debug: false
+        ip: 66.185.212.215
+        key_mems: null
+        local: false
+        max_boot_nodes: 24
+        mode: local
+        module: null
+        node: nonvali_5
+        node_key: null
+        port: 50068
+        pruning: 500
+        purge_chain: true
+        refresh: true
+        remote: false
+        rpc_cors: all
+        rpc_port: 50069
+        sid: null
+        sync: warp
+        telemetry_url: false
+        timeout: 30
+        validator: false
+        verbose: false
+        ws_port: 50070

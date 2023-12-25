@@ -1426,7 +1426,6 @@ class c:
             
         if path == None:
             path = 'module'
-        c.print(f'Importing {path}')
         path = cls.simple2path(path)
         path = cls.path2objectpath(path, search=None)
         module = c.import_object(path)
@@ -3373,7 +3372,7 @@ class c:
                 module:str, 
                 tail: int =100, 
                 verbose: bool=True ,
-                mode: str ='cmd'):
+                mode: str ='cmd', **kwargs):
 
         if mode == 'local':
             text = ''
@@ -8736,7 +8735,7 @@ class c:
 
     @classmethod
     def sid(cls):
-        return c.module('subspace')().id()
+        return c.module('subspace.chain')().id()
 
     def sidebar(self, sidebar:bool = True):
         import streamlit as st
