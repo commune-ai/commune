@@ -1,11 +1,11 @@
 import commune as c
-import torch
 from typing import *
-
-Subspace = c.module('subspace')
-
+from .subspace import Subspace
 
 class Wallet(Subspace):
+
+    chain_path = f'{c.home}/.local/share/commune/chains'
+    snapshot_path = f'{chain_path}/snapshots'
     network = 'main'
     netuid = 0
     fmt = 'j'
@@ -13,7 +13,7 @@ class Wallet(Subspace):
     def __init__(self, **kwargs):
         config = Subspace.config()
         config = self.set_config(config=config, kwargs=kwargs)
-        c.print(config.network)
+        c.print(config)
     def register(
         self,
         name: str , # defaults to module.tage
@@ -907,14 +907,15 @@ class Wallet(Subspace):
 
     def vote(
         self,
-        uids: Union[torch.LongTensor, list] = None,
-        weights: Union[torch.FloatTensor, list] = None,
+        uids: Union['torch.LongTensor', list] = None,
+        weights: Union['torch.FloatTensor', list] = None,
         netuid: int = None,
         key: 'c.key' = None,
         network = None,
         update=False,
         n = 10,
     ) -> bool:
+        import torch
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
@@ -982,7 +983,7 @@ class Wallet(Subspace):
         weights = weights[indices]
 
         weights = weights / weights.sum()
-        weights = weights * U16_MAX
+        weights = weights * (2**16)
         weights = list(map(int, weights.tolist()))
         uids = list(map(int, uids.tolist()))
 
@@ -1509,3 +1510,39 @@ class Wallet(Subspace):
         key_ss58 = self.resolve_key_ss58(key)
         return self.exists(f'tx_history/{key_ss58}')
 
+
+    def resolve_key(self, key = None):
+        if key == None:
+            key = self.config.key
+        if key == None:
+            key = 'module'
+        if isinstance(key, str):
+            if c.key_exists( key ):
+                key = c.get_key( key )
+        assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
+        return key
+        
+    @classmethod
+    def test_endpoint(cls, url=None):
+        if url == None:
+            url = c.choice(cls.urls())
+        self = cls()
+        c.print('testing url -> ', url, color='yellow' )
+
+        try:
+            self.set_network(url=url, max_trials=1)
+            success = isinstance(self.block, int)
+        except Exception as e:
+            c.print(c.detailed_error(e))
+            success = False
+
+        c.print(f'success {url}-> ', success, color='yellow' )
+        
+        return success
+
+
+    def stake_spread_top_valis(self):
+        top_valis = self.top_valis()
+        name2key = self.name2key()
+        for vali in top_valis:
+            key = name2key[vali]

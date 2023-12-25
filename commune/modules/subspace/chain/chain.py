@@ -1,21 +1,19 @@
 import commune as c
-import torch
 from typing import *
-from ..subspace import Subspace
 
 # Subspace = c.module('subspace')
 
-class Chain(Subspace):
+class Chain(c.Module):
+ 
     chain = network = 'main'
     mode = 'docker'
-    image = 'subspace.libra'
     image = 'vivonasg/subspace.libra-2023-12-19_20-09-47'
     node_key_prefix = 'subspace.node'
-
-
-    def __init__(self, *modules: Subspace):
-        super().__init__()
-
+    chain_path = c.libpath + '/subspace'
+    spec_path = f"{chain_path}/specs"
+    
+    def __init__(self, **kwargs):
+        self.set_config(kwargs=kwargs)
 
     @classmethod
     def node_paths(cls, name=None, chain=chain, mode=mode) -> Dict[str, str]:
@@ -1474,4 +1472,73 @@ class Chain(Subspace):
 
         unfound_nodes = [n for n in vali_nodes if n not in node2peer]
         return unfound_nodes
+    
+    @classmethod
+    def snapshots(cls):
+        return list(cls.snapshot_map().keys())
+
+
+    @classmethod
+    def snapshot_map(cls):
+        return {l.split('/')[-1].split('.')[0]: l for l in c.ls(f'{cls.chain_path}/snapshots')}
+        
+    
+    @classmethod
+    def up(cls):
+        c.cmd('docker-compose up -d', cwd=cls.chain_path)
+
+    @classmethod
+    def enter(cls):
+        c.cmd('make enter', cwd=cls.chain_path)
+
+
+    @classmethod
+    def snapshot(cls, network=network) -> dict:
+        path = f'{cls.snapshot_path}/main.json'
+        return c.get_json(path)
+
+    @classmethod
+    def build_snapshot(cls, 
+              path : str  = None,
+             network : str =network,
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
+            module_params : List[str] = ['key', 'name', 'address'],
+            save: bool = True, 
+            min_balance:int = 100000,
+            verbose: bool = False,
+            sync: bool = False,
+            version: str = 2,
+             **kwargs):
+        if sync:
+            c.sync(network=network)
+
+        path = path if path != None else cls.latest_archive_path(network=network)
+        state = cls.get(path)
+        
+        snap = {
+                        'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
+                        'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
+                        'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
+                        'stake_to': [[[staking_key, stake_to] for staking_key,stake_to in state['stake_to'][i].items()] for i in range(len(state['subnets']))],
+                        'block': state['block'],
+                        'version': version,
+                        }
+                        
+        # add weights if not already in module params
+        if 'weights' not in module_params:
+            snap['modules'] = [[m + c.copy([[]]) for m in modules] for modules in snap['modules']]
+
+        # save snapshot into subspace/snapshots/{network}.json
+        if save:
+            c.mkdir(cls.snapshot_path)
+            snapshot_path = f'{cls.snapshot_path}/{network}.json'
+            c.print('Saving snapshot to', snapshot_path, verbose=verbose)
+            c.put_json(snapshot_path, snap)
+        # c.print(snap['modules'][0][0])
+
+        date = c.time2date(int(path.split('-')[-1].split('.')[0]))
+        
+        return {'success': True, 'msg': f'Saved snapshot to {snapshot_path} from {path}', 'date': date}    
+    
+    snap = build_snapshot
     
