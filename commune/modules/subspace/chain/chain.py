@@ -1,16 +1,19 @@
+import os
 import commune as c
 from typing import *
+
 
 # Subspace = c.module('subspace')
 
 class Chain(c.Module):
  
-    chain = network = 'main'
-    mode = 'docker'
+    chain = network = 'test'
+    mode = 'local'
     image = 'vivonasg/subspace.libra-2023-12-19_20-09-47'
     node_key_prefix = 'subspace.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
+    snapshot_path = f"{chain_path}/snapshots"
     
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
@@ -449,14 +452,20 @@ class Chain(c.Module):
             
 
             # we need to resolve the base path based on the node and chain
+        
             base_path = cls.resolve_base_path(node=node, chain=chain)
             c.print(f'inserting key {key.mnemonic} into {node2keystore_path}')
             cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
-            container_base_path = base_path.replace(cls.chain_path, '/subspace')
-            volumes = f'-v {container_base_path}:{base_path}'
-            cmd = f'docker run {volumes} {cls.image} {cmd}'
-            c.print(c.cmd(cmd, verbose=True))
-            c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
+
+            if mode == 'docker':
+                container_base_path = base_path.replace(cls.chain_path, '/subspace')
+                volumes = f'-v {container_base_path}:{base_path}'
+                cmd = f'docker run {volumes} {cls.image} {cmd}'
+                c.print(c.cmd(cmd, verbose=True))
+                c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
+            elif mode == 'local':
+                c.print(c.cmd(cmd, verbose=True))
+                c.print(len(c.ls(node2keystore_path)), 'keys in', node2keystore_path)
         assert len(c.ls(node2keystore_path)) == 2, f'node2keystore_path {node2keystore_path} must have 2 keys'
         return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
 
@@ -561,16 +570,25 @@ class Chain(c.Module):
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
        
-        # chain_spec_path_dir = os.path.dirname(chain_spec_path)
-        container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
-        container_snap_path = cls.snapshot_path.replace(cls.chain_path, '/subspace')
-        volumes = f'-v {cls.spec_path}:{container_spec_path}'\
+
+        if mode == 'docker':
+            # chain_spec_path_dir = os.path.dirname(chain_spec_path)
+            container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
+            container_snap_path = cls.snapshot_path.replace(cls.chain_path, '/subspace')
+            volumes = f'-v {cls.spec_path}:{container_spec_path}'\
                         + f' -v {cls.snapshot_path}:{container_snap_path}'
-        cmd = f'bash -c "docker run {volumes} {cls.image} {cmd} > {chain_spec_path}"'
-        value = c.cmd(cmd, verbose=True)
+            cmd = f'bash -c "docker run {volumes} {cls.image} {cmd} > {chain_spec_path}"'
+        
+        elif mode == 'local':
+            c.print(cmd)
+            cmd = f'bash -c "{cmd} > {chain_spec_path}"'
+
+        value = c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
         if vali_node_keys == None:
             vali_node_keys = cls.vali_node_keys(chain=chain)
+        if len(vali_node_keys) < valis:
+            cls.add_node_keys(chain=chain, valis=valis, nonvalis=0, refresh=False, mode=mode)
         assert len(vali_node_keys) >= valis, f'vali_nodes ({len(vali_node_keys)}) must be at least {valis}'
         
         vali_nodes = list(vali_node_keys.keys())[:valis]
@@ -747,14 +765,14 @@ class Chain(c.Module):
         return c.cmd(f'docker pull {cls.image}')
     
     @classmethod
-    def chain_spec_hash(cls, chain='main'):
+    def chain_spec_hash(cls, chain=chain):
         return c.hash( cls.chain_spec(chain=chain))
     @classmethod
-    def chain_spec(cls, chain='main'):
+    def chain_spec(cls, chain=chain):
         return c.get_json(cls.chain_spec_path(chain=chain))
     
     @classmethod
-    def chain_spec_authorities(cls, chain='main'):
+    def chain_spec_authorities(cls, chain=chain):
         return cls.chain_spec(chain=chain)['genesis']['runtime']['aura']['authorities']
     
 
@@ -975,7 +993,7 @@ class Chain(c.Module):
                  debug:bool = False,
                  sid:str = None,
                  timeout:int = 30,
-                 amd64:bool = False,
+                 arm64:bool = True,
                  ):
 
         if sid != None:
@@ -1060,11 +1078,8 @@ class Chain(c.Module):
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
 
-        if amd64:
-            cmd_kwargs += '--platform linux/amd64'
-
+   
         name = f'{cls.node_prefix()}.{chain}.{node}'
-
 
         if mode == 'local':
             # 
@@ -1075,12 +1090,11 @@ class Chain(c.Module):
                             verbose=verbose)
             
         elif mode == 'docker':
-            if amd64:
-                cmd += '--platform linux/amd64'
             cls.pull_image()
             docker = c.module('docker')
             if docker.exists(name):
                 docker.kill(name)
+    
             cmd = cmd + ' ' + cmd_kwargs
             container_chain_release_path = chain_release_path.replace(cls.chain_path, '/subspace')
             cmd = cmd.replace(chain_release_path, container_chain_release_path)
@@ -1100,8 +1114,9 @@ class Chain(c.Module):
             daemon_str = '-d' if daemon else ''
             # cmd = 'cat /subspace/specs/main.json'
             platform = ""
-            if amd64:
-                platform = '--platform linux/amd64'
+            if arm64:
+                cmd_kwargs += '--platform linux/arm64/v8'
+
             cmd = 'docker run ' + daemon_str  + f' --net host {platform} --name {name} {volumes}  {cls.image}  bash -c "{cmd}"'
             node_info['cmd'] = cmd
 
@@ -1188,8 +1203,6 @@ class Chain(c.Module):
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
             chain_info = {'nodes':{}, 'boot_nodes':[]}
-            if remote:
-                c.rcmd('c d kill_many vali')
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
@@ -1359,7 +1372,7 @@ class Chain(c.Module):
 
 
     @classmethod
-    def filter_endpoints(cls, timeout=10, chain='main'):
+    def filter_endpoints(cls, timeout=10, chain=chain):
         node2pass = cls.test_endpoints(timeout=timeout)
         chain_info = cls.chain_info(chain=chain)
         for node in list(chain_info['nodes'].keys()):
@@ -1386,7 +1399,7 @@ class Chain(c.Module):
 
 
     @classmethod
-    def remote_nodes(cls, chain='main'):
+    def remote_nodes(cls, chain=chain):
         import commune as c
         ps_map = c.module('remote').call('ps', f'subspace.node.{chain}')
         all_ps = []
@@ -1397,7 +1410,7 @@ class Chain(c.Module):
         return vali_ps
 
     @classmethod
-    def peer2nodes(cls, chain='main', update:bool = False):
+    def peer2nodes(cls, chain=chain, update:bool = False):
         path = f'chain_info.{chain}.peer2nodes'
         if not update:
             peer2nodes = cls.get(path, {})
@@ -1433,7 +1446,7 @@ class Chain(c.Module):
                 
 
     @classmethod
-    def node2peer(cls, chain='main', peer2nodes = None):
+    def node2peer(cls, chain=chain, peer2nodes = None):
         node2peer = {}
         if peer2nodes == None:
             peer2nodes = cls.peer2nodes(chain=chain)
@@ -1443,7 +1456,7 @@ class Chain(c.Module):
         return node2peer
 
     @classmethod
-    def vali2peer(cls, chain='main'):
+    def vali2peer(cls, chain=chain):
         node2peer = cls.node2peer(chain=chain)
         vali2peer = {k:v for k,v in node2peer.items() if '.vali' in k}
         return len(vali2peer)
@@ -1460,12 +1473,12 @@ class Chain(c.Module):
         ip2peer = {v:k for k,v in peer2ip.items()}
         return ip2peer
 
-    def empty_peers(self, chain='main'):
+    def empty_peers(self, chain=chain):
         peer2nodes = self.peer2nodes(chain=chain)
         empty_peers = [p for p, nodes in peer2nodes.items() if len(nodes) == 0]
         return empty_peers
 
-    def unfound_nodes(self, chain='main', peer2nodes=None):
+    def unfound_nodes(self, chain=chain, peer2nodes=None):
         node2peer = self.node2peer(peer2nodes=peer2nodes)
         vali_infos = self.vali_infos(chain=chain)
         vali_nodes = [f'subspace.node.{chain}.' + v for v in vali_infos.keys()]
@@ -1491,7 +1504,6 @@ class Chain(c.Module):
     def enter(cls):
         c.cmd('make enter', cwd=cls.chain_path)
 
-
     @classmethod
     def snapshot(cls, network=network) -> dict:
         path = f'{cls.snapshot_path}/main.json'
@@ -1500,7 +1512,8 @@ class Chain(c.Module):
     @classmethod
     def build_snapshot(cls, 
               path : str  = None,
-             network : str =network,
+             old_network : str = 'main' ,
+             network : str = 'test',
              subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
@@ -1512,8 +1525,13 @@ class Chain(c.Module):
         if sync:
             c.sync(network=network)
 
-        path = path if path != None else cls.latest_archive_path(network=network)
-        state = cls.get(path)
+        
+
+        subspace = c.module('subspace')()
+
+        path = path if path != None else subspace.latest_archive_path(network=old_network)
+        c.print(f'building snapshot from {path}', color='green')
+        state = subspace.get(path)
         
         snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
@@ -1542,3 +1560,27 @@ class Chain(c.Module):
     
     snap = build_snapshot
     
+
+    @classmethod
+    def rpull(cls, timeout=10):
+        # pull from the remote server
+        c.rcmd('c s pull', verbose=True, timeout=timeout)
+        c.rcmd('c s pull_image', verbose=True, timeout=timeout)
+
+    @classmethod
+    def pull(cls, rpull:bool = False):
+
+        if len(cls.ls(cls.libpath)) < 5:
+            c.rm(cls.libpath)
+        c.pull(cwd=cls.libpath)
+        if rpull:
+            cls.rpull()
+
+
+    @classmethod
+    def push(cls, rpull:bool=False, image:bool = False ):
+        c.push(cwd=cls.libpath)
+        if image:
+            cls.push_image()
+        if rpull:
+            cls.rpull()
