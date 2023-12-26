@@ -11,7 +11,7 @@ class Chain(c.Module):
     chain = network = 'main'
     mode = 'docker'
     image_tag = 'subspace.librevo'
-    image = f'subspace.librevo-2023-12-26'
+    image = f'vivonasg/subspace.librevo-2023-12-26'
     node_key_prefix = 'subspace.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
