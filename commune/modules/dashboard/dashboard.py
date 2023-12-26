@@ -194,6 +194,8 @@ class Dashboard(c.Module):
         with cols[0]:
             df = []
             module2amount = {m:amounts/len(modules) for m in modules}
+            amounts = list(module2amount.values())
+            total_stake = sum(amounts)
 
             if len(modules) == 0:
                 for k,v in self.key_info['stake_to'].items():
@@ -204,7 +206,7 @@ class Dashboard(c.Module):
             else:
                 for k,v in self.key_info['stake_to'].items():
                     if k in module2amount:
-                        df.append({'module': k, 'stake': v, 'added_stake':module2amount[k]})
+                        df.append({'module': k, 'stake': v , 'added_stake':module2amount[k]})
 
                 for k,v in module2amount.items():
                     df.append({'module': k, 'stake': 0, 'added_stake':v})
@@ -213,9 +215,10 @@ class Dashboard(c.Module):
 
             if len(df) > 0:
                 df.sort_values('stake', inplace=True, ascending=False)
-                title = f'Staking {amounts} to {len(modules)} modules'
+                title = f'Staking {total_stake:.2f} to {len(modules)} modules'
                 fig = px.bar(df, x='module', y='stake', title=title)
-                fig.add_bar(x=df['module'], y=df['added_stake'], name='Added Stake')
+    
+                fig.add_bar(x=df['module'], y=df['added_stake'], name='Added Stake', marker_color='green')
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.error('You are not staked to any modules')
@@ -228,6 +231,7 @@ class Dashboard(c.Module):
                 'modules': modules,
                 'key': self.key,
                 'netuid': self.netuid,
+                'network': self.network,
             }
 
             response = c.stake_many(**kwargs)
@@ -456,7 +460,7 @@ class Dashboard(c.Module):
         self.network = st.sidebar.selectbox('Select Network', self.networks, 0, key='network')
 
 
-        @st.cache_data(ttl=60*60*24, show_spinner=False)
+        @st.cache_data(show_spinner=False)
         def get_state(network):
             subspace = c.module('subspace')()
             state =  subspace.state_dict(update=update, network=network)
