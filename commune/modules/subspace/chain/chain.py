@@ -8,9 +8,10 @@ from typing import *
 class Chain(c.Module):
  
     
-    chain = network = 'test'
+    chain = network = 'main'
     mode = 'local'
-    image = 'vivonasg/subspace.libra-2023-12-19_20-09-47'
+    image_tag = 'subspace.librevo'
+    image = f'vivonasg/{image_tag}-2023-12-19_20-09-47'
     node_key_prefix = 'subspace.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
@@ -210,7 +211,7 @@ class Chain(c.Module):
             cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
-    def build_image(cls, tag='subspace.libra', push=True, no_cache=False):
+    def build_image(cls, tag=image_tag, push=True, no_cache=False):
         response = c.build_image('subspace', tag=tag, no_cache=no_cache)
         return response
 
@@ -767,7 +768,7 @@ class Chain(c.Module):
         }
 
     @classmethod
-    def push_image(cls, image='subspace.libra', public_image=image, build:bool = False, no_cache=True ):
+    def push_image(cls, image='subspace.librevo', public_image=image, build:bool = False, no_cache=True ):
         if build:
             c.print(cls.build_image(no_cache=no_cache))
         public_image = f'{public_image.split("-")[0]}-{":".join(c.datetime().split("_")[0]).replace(":", "-")}'
@@ -1496,7 +1497,7 @@ class Chain(c.Module):
     @classmethod
     def build_snapshot(cls, 
               path : str  = None,
-            snapshot_chain : str = 'test' ,
+            snapshot_chain : str = None ,
             chain : str = chain,
             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
@@ -1509,8 +1510,10 @@ class Chain(c.Module):
         if sync:
             c.sync(network=chain)
 
-        
+        if snapshot_chain == None:
+            snapshot_chain = chain
 
+    
         subspace = c.module('subspace')()
 
         path = path if path != None else subspace.latest_archive_path(network=snapshot_chain)
