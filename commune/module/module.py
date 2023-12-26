@@ -1301,7 +1301,8 @@ class c:
                     continue
             new_chunks.append(chunk)
         simple_path = '.'.join(new_chunks)
-        
+
+
         # remove the modules prefix
         if simple_path.startswith('modules.'):
             simple_path = simple_path.replace('modules.', '')
@@ -1311,6 +1312,7 @@ class c:
             
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
+        
         return simple_path
     
 
@@ -1426,15 +1428,16 @@ class c:
     def get_module(cls, path:str, cache=True) -> str:
        
         if cache:
-            if path in cls.module_cache:
-                return cls.module_cache[path]
+            if path in c.module_cache:
+                return c.module_cache[path]
             
         if path == None:
             path = 'module'
-        path = cls.simple2path(path)
-        path = cls.path2objectpath(path, search=None)
+        path = c.simple2path(path)
+        c.print(path)
+        path = c.path2objectpath(path, search=None)
         module = c.import_object(path)
-        cls.module_cache[path] = module
+        c.module_cache[path] = module
         return module
 
 
@@ -1445,25 +1448,26 @@ class c:
                     update:bool = False,
                     verbose:bool = False) -> List[str]:
                 
-
+        module_tree = None
         if not update:
-            module_tree = c.get('module_tree', None, cache=True)
-            if module_tree != None:
-                return module_tree
+            module_tree = c.get('module_tree', None, cache=False)
+        if module_tree == None:
 
-        assert mode in ['path', 'object']
-        module_tree = {}
-        if mode == 'path':
-            module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-        elif mode == 'object':
-            module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
-        module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
-        
-        # to use functions like c. we need to replace it with module lol
-        if cls.root_module_class in module_tree:
-            module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
-        
-        c.put('module_tree', module_tree)
+            assert mode in ['path', 'object']
+            module_tree = {}
+            if mode == 'path':
+                module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+            elif mode == 'object':
+                module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
+            module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+            
+            # to use functions like c. we need to replace it with module lol
+            if cls.root_module_class in module_tree:
+                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+            
+            c.put('module_tree', module_tree)
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
     
         return module_tree
     
@@ -3252,6 +3256,7 @@ class c:
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         pm2_list = cls.pm2_list()
+        rm_list = []
         if name in pm2_list:
             rm_list = [name]
 
