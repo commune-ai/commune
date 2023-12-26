@@ -12,7 +12,8 @@ css = r'''
 '''
 
 st.markdown(css, unsafe_allow_html=True)
-
+logo_path = __file__.replace('dashboard.py', 'commune_logo.png')
+st.markdown(f"![Alt Text]({logo_path})")
 class Dashboard(c.Module):
     
     def __init__(self, state=None, key=None): 

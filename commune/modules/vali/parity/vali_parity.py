@@ -82,7 +82,7 @@ class ValiParity(c.Module):
                     c.print(e)
 
     @classmethod
-    def vote_loop(cls, remote: str = True, min_staleness=200, search='vali', namespace=None):
+    def vote_loop(cls, remote: str = True, min_staleness=200, search='vali', namespace=None, network=None):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False

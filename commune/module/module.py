@@ -653,28 +653,28 @@ class c:
 
     @classmethod
     def start_node(cls, *args, **kwargs):
-        return c.module('subspace').start_node(*args, **kwargs)
+        return c.module('subspace.chain').start_node(*args, **kwargs)
 
 
     @classmethod
     def start_telemetry(cls, *args, **kwargs):
-        return c.module('subspace').start_telemetry(*args, **kwargs)
+        return c.module('subspace.chain').start_telemetry(*args, **kwargs)
 
     @classmethod
     def start_local_node(cls, *args, **kwargs):
-        return c.module('subspace').start_local_node(*args, **kwargs)
+        return c.module('subspace.chain').start_local_node(*args, **kwargs)
 
     @classmethod
-    def add_public_nodes(cls, *args, **kwargs):
-        return c.module('subspace').add_public_nodes(*args, **kwargs)
+    def start_public_nodes(cls, *args, **kwargs):
+        return c.module('subspace.chain').start_public_nodes(*args, **kwargs)
 
-    @classmethod
+    @classmethod  
     def start_chain(cls, *args, **kwargs):
-        return c.module('subspace').start_chain(*args, **kwargs)
+        return c.module('subspace.chain').start_chain(*args, **kwargs)
     
     @classmethod
     def kill_chain(cls, *args, **kwargs):
-        c.module('subspace').kill_chain(*args, **kwargs)
+        c.module('subspace.chain').kill_chain(*args, **kwargs)
         return {'success': True, 'msg': 'killed chain'}
     def seconds_per_epoch(self, *args, **kwargs):
         return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
@@ -7299,10 +7299,8 @@ class c:
         return c.module('subspace')().my_stakefrom(*args, **kwargs)
 
     @classmethod
-    def my_tokens(cls, *args, **kwargs):
-        return c.module('subspace')().my_tokens(*args, **kwargs)
-    
-    my_value = my_tokens
+    def my_value(cls, *args, **kwargs):
+        return c.module('subspace')().my_value(*args, **kwargs)
     
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -7803,7 +7801,7 @@ class c:
     mcap = market_cap
     @classmethod
     def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **wkwargs)
+        return c.module('subspace')().n(*args, **kwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
         t = c.timer()

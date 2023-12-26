@@ -683,7 +683,9 @@ class Remote(c.Module):
                 gpus[host] = json.loads(gpu)
                 
         return gpus
+    
 
+ 
     def check_peers(self, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():

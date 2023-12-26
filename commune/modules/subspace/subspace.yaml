@@ -9,7 +9,7 @@ local: false
 loop: false
 mode: local
 netuid: 0
-network: main
+network: test
 retry_params:
   backoff: 2
   delay: 2
