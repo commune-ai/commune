@@ -36,7 +36,6 @@ class Subspace(c.Module):
     ):
         config = self.set_config(kwargs=kwargs)
 
-        
     def set_network(self, 
                 network:str = network,
                 url : str = None,
@@ -244,7 +243,6 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
 
         with self.substrate as substrate:
-            c.print(f'Querying {name} with params {params} at block {block} on network {network}')
 
             response =  substrate.query(
                 module=module,
@@ -320,8 +318,18 @@ class Subspace(c.Module):
                 block_hash =block_hash
             )
 
-        qmap = [[k.value,v.value] for k,v  in qmap]
-        self.put(path, qmap)
+        new_qmap = {}
+        for k,v in qmap:
+            if hasattr(v, 'value'):
+                v = v.value
+            if hasattr(k, 'value'):
+                k = k.value
+            if type(k) in [list, tuple]:
+                k = list(k)
+                k = k[1].value
+            new_qmap[k] = v
+        
+        self.put(path, new_qmap)
                 
         return qmap
 
@@ -380,8 +388,8 @@ class Subspace(c.Module):
     
     """ Returns network Tempo hyper parameter """
     def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
-        stakes =  self.query_map('Stake', netuid , update=update, **kwargs)
-        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes}
+        stakes =  self.query_map('Stake', params=netuid , update=update, **kwargs)
+        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -834,8 +842,7 @@ class Subspace(c.Module):
 
         subnet = {k:name2result[k] for k in name2result}
 
-        for k in ['min_stake']:
-            c.print(subnet[k], 'SUBNET_K')
+        for k in ['min_stake', 'max_stake']:
             subnet[k] = self.format_amount(subnet[k], fmt=fmt)
         self.put(path, subnet)
 
@@ -1467,6 +1474,10 @@ class Subspace(c.Module):
     def pending_deregistrations(self, netuid = None, **kwargs):
         pending_deregistrations = self.query_map('PendingDeregisterUids', params=netuid, **kwargs)
         return pending_deregistrations
+    
+    def num_pending_deregistrations(self, netuid = None, **kwargs):
+        pending_deregistrations = self.pending_deregistrations(netuid=netuid, **kwargs)
+        return len(pending_deregistrations)
         
     def emission(self, netuid = netuid, network=network, nonzero=False, **kwargs):
         emissions = [v for v in self.query('Emission', params=netuid, network=network, **kwargs)]
@@ -2164,6 +2175,8 @@ class Subspace(c.Module):
         network : str = None,
     ) -> bool:
         
+
+        name2key = self.name2key()
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         assert len(keys) > 0, f"Must provide at least one key"
@@ -2303,6 +2316,8 @@ class Subspace(c.Module):
                 return {'success': False, 'message': f"Subnet {netuid} not found in local namespace, please deploy it "}
             key = c.get_key(key2address.get(subnet_params['founder']))
             c.print(f'Using key: {key}')
+
+    
 
         # remove the params that are the same as the module info
         params = {**subnet_params, **params}
