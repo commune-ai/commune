@@ -1409,12 +1409,15 @@ class c:
             return 'commune.Module'
         
         python_classes = cls.find_python_classes(path, search=search)
+
+        c.print(python_classes)
             
         if len(python_classes) == 0:
             return None
         object_name = python_classes[-1]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
+        c.print(path)
         return path
 
     @classmethod
@@ -1434,7 +1437,6 @@ class c:
         if path == None:
             path = 'module'
         path = c.simple2path(path)
-        c.print(path)
         path = c.path2objectpath(path, search=None)
         module = c.import_object(path)
         c.module_cache[path] = module
