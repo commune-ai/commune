@@ -9,7 +9,7 @@ class Chain(c.Module):
  
     
     chain = network = 'main'
-    mode = 'local'
+    mode = 'docker'
     image_tag = 'subspace.librevo'
     image = f'subspace.librevo-2023-12-26'
     node_key_prefix = 'subspace.node'
