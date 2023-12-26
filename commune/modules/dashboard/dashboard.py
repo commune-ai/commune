@@ -186,9 +186,9 @@ class Dashboard(c.Module):
 
 
         with cols[1]:
-            stake_button = st.button('REMOVE STAKE')
-            stake_ratio = st.slider('Unstake Ratio', 0.0, 1.0, 0.5, 0.01, key='unstake.ratio')
-            amounts = st.number_input('Stake Amount', 0.0, balance, balance*stake_ratio, 0.1)
+            stake_button = st.button('ADD STAKE')
+            stake_ratio = st.slider('Ratio of Balance', 0.0, 1.0, 0.5, 0.01, key='stake.ratio')
+            amounts = int(st.number_input('Stake Across Modules', 0.0, balance, balance*stake_ratio, 0.1))
             modules = st.multiselect('Modules', staked_modules, default_staked_modules)
 
         with cols[0]:
@@ -270,7 +270,7 @@ class Dashboard(c.Module):
         balance = self.key_info['balance']
 
         with cols[1]:
-            stake_button = st.button('ADD STAKE')
+            stake_button = st.button('REMOVE STAKE')
             stake = self.key_info['stake']
             modules = st.multiselect('Modules', staked_modules, default_staked_modules, key='modules.unstake')
             total_amount = sum([self.key_info['stake_to'][m] for m in modules])
@@ -297,7 +297,7 @@ class Dashboard(c.Module):
 
             if len(df) > 0:
                 df.sort_values('stake', inplace=True, ascending=False)
-                title = f'Removing {unstake_amount} Stake from {len(modules)} modules'
+                title = f'Removing {unstake_amount:.2f} Stake from {len(modules)} modules'
                 fig = px.bar(df, x='module', y='stake', title=title)
                 fig.add_bar(x=df['module'], y=df['unstake'], name='Remove Stake', marker_color='red')
                 st.plotly_chart(fig, use_container_width=True)
@@ -315,7 +315,7 @@ class Dashboard(c.Module):
                 'netuid': self.netuid,
             }
 
-            response = c.stake_many(**kwargs)
+            response = c.unstake_many(**kwargs)
             st.write(response)
 
 
@@ -453,7 +453,7 @@ class Dashboard(c.Module):
             return chains
         
         self.networks = get_networks()
-        self.network = st.selectbox('Select Network', self.networks, 0, key='network')
+        self.network = st.sidebar.selectbox('Select Network', self.networks, 0, key='network')
 
 
         @st.cache_data(ttl=60*60*24, show_spinner=False)
@@ -462,8 +462,10 @@ class Dashboard(c.Module):
             state =  subspace.state_dict(update=update, network=network)
             state['total_balance'] = sum(state['balances'].values())/1e9
             state['key2address'] = c.key2address()
+            state['lage'] = c.lag()
             return state
         
+
         self.state =  get_state(self.network)
         self.subnets = self.state['subnets']
         with st.sidebar:
