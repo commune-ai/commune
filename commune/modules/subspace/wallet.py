@@ -3,17 +3,19 @@ from typing import *
 from .subspace import Subspace
 
 class Wallet(Subspace):
-
+    subspace_config = Subspace.config()
     chain_path = f'{c.home}/.local/share/commune/chains'
     snapshot_path = f'{chain_path}/snapshots'
-    network = 'main'
+    network = subspace_config['network']
     netuid = 0
     fmt = 'j'
 
     def __init__(self, **kwargs):
-        config = Subspace.config()
+        config = self.subspace_config
         config = self.set_config(config=config, kwargs=kwargs)
         c.print(config)
+
+        
     def register(
         self,
         name: str , # defaults to module.tage
@@ -281,7 +283,7 @@ class Wallet(Subspace):
             
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        subnet_params = self.subnet_params( netuid=netuid , update=True)
+        subnet_params = self.subnet_params( netuid=netuid , update=True, network=network )
         # infer the key if you have it
         if key == None:
             key2address = self.address2key()
@@ -822,17 +824,6 @@ class Wallet(Subspace):
                     
 
 
-    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=0, df:bool = True, **kwargs):
-        my_modules = []
-        t1 = c.time()
-        address2key = c.address2key()
-        c.print(f"Got address2key in {c.time() - t1} seconds")
-        if modules == None:
-            modules = self.modules(search=search, netuid=netuid, df=False, **kwargs)
-        for module in modules:
-            if module['key'] in address2key:
-                my_modules += [module]
-        return my_modules
 
     def my_servers(self, search=None,  **kwargs):
         servers = [m['name'] for m in self.my_modules(**kwargs)]
@@ -935,7 +926,7 @@ class Wallet(Subspace):
                     return False
 
         if uids is None:
-            uids = self.uids(netuid=netuid)
+            uids = self.subspace.uids(netuid=netuid, network=network)
             # shuffle the uids
             uids = c.shuffle(uids)
             
@@ -1067,8 +1058,9 @@ class Wallet(Subspace):
                 block = self.block
                 df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
 
+            c.print(df_stats)
             if 'emission' in cols:
-                epochs_per_day = self.epochs_per_day(netuid=netuid)
+                epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
                 df_stats['emission'] = df_stats['emission'] * epochs_per_day
 
 
@@ -1290,11 +1282,10 @@ class Wallet(Subspace):
     my_stake_from = my_stakefrom
 
 
-    def my_total_supply(self, network = None,fmt=fmt, decimals=2):
+    def my_value(self, network = None,fmt=fmt, decimals=2):
         return self.my_total_stake(network=network) + self.my_total_balance(network=network)
-
-    my_tokens = my_supply = my_value = my_total_supply
-
+    
+    my_supply   = my_value
 
     def my_total_stake(self, network = None, netuid=None, fmt=fmt, decimals=2, update=False):
         return sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals, update=update).values())

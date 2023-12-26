@@ -7,6 +7,7 @@ from typing import *
 
 class Chain(c.Module):
  
+    
     chain = network = 'test'
     mode = 'local'
     image = 'vivonasg/subspace.libra-2023-12-19_20-09-47'
@@ -69,9 +70,8 @@ class Chain(c.Module):
                 c.print(v, color=color)
         else:
             return node2logs
-
+        
     n2l = node2logs
-
 
     @classmethod
     def node2cmd(cls, node=None, chain=chain, verbose:bool = True) -> Dict[str, str]:
@@ -190,7 +190,8 @@ class Chain(c.Module):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
 
     @classmethod
-    def build(cls, chain:str = chain, 
+    def build(cls, 
+             chain:str = chain, 
              build_runtime:bool=True,
              build_spec:bool=True, 
              build_snapshot:bool=False,  
@@ -213,18 +214,6 @@ class Chain(c.Module):
         response = c.build_image('subspace', tag=tag, no_cache=no_cache)
         return response
 
-    @classmethod
-    def prune_node_keys(cls, max_valis:int=6, chain=chain):
-
-        keys = c.keys(f'{cls.node_key_prefix}.{chain}.vali')
-        rm_keys = []
-        for key in keys:
-            if int(key.split('.')[-2].split('_')[-1]) > max_valis:
-                rm_keys += [key]
-        for key in rm_keys:
-            c.rm_key(key)
-        return rm_keys
-        
         
     @classmethod
     def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=0, refresh:bool=True , mode=mode):
@@ -641,31 +630,11 @@ class Chain(c.Module):
         return c.put_json(chain, spec)
 
     @classmethod
-    def chain_spec_path(cls, chain = None):
+    def chain_spec_path(cls, chain = chain):
         if chain == None:
-            chain = cls.network
+            chain = cls.chain
         return cls.spec_path + f'/{chain}.json'
-        
-    @classmethod
-    def new_chain_spec(self, 
-                       chain,
-                       base_chain:str = chain, 
-                       balances : 'List[str, int]' = None,
-                       aura_authorities: 'List[str, int]' = None,
-                       grandpa_authorities: 'List[str, int]' = None,
-                       ):
-        base_spec =  self.get_spec(base_chain)
-        new_chain_path = f'{self.spec_path}/{chain}.json'
-        
-        if balances != None:
-            base_spec['balances'] = balances
-        if aura_authorities != None:
-            base_spec['balances'] = aura_authorities
-        c.put_json( new_chain_path, base_spec)
-        
-        return base_spec
     
-    new_chain = new_chain_spec
 
     @classmethod
     def rm_chain(self, chain):
@@ -707,6 +676,15 @@ class Chain(c.Module):
         c.print(cmd, color='green')
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
+    def chain_infos(self):
+        return self.getc('chain_info', {})
+    
+    def chain_info(self, chain):
+        return self.getc(f'chain_info.{chain}', {})
+    
+    def chains(self):
+        return list(self.getc('chain_info', {}).keys())
+
     @classmethod
     def node2path(cls, chain=chain, mode = mode):
         prefix = f'{cls.node_prefix()}.{chain}'
@@ -838,19 +816,21 @@ class Chain(c.Module):
 
 
     @classmethod
-    def add_public_nodes(cls, node:str='nonvali', 
+    def start_public_nodes(cls, node:str='nonvali', 
                            n:int=10,
                             i=0,
                             mode=mode, 
                            chain=chain, 
                            max_boot_nodes=24, 
-                           refresh:bool = False,
+                           refresh:bool = True,
                            remote:bool = False,
                            **kwargs):
         avoid_ports = []
-        node_infos = cls.node_infos(chain= chain)
+        node_infos = cls.node_infos(chain=chain)
         served_nodes = []
         remote_addresses = []
+
+        
 
         if remote:
             remote_addresses = c.addresses(network='remote')
@@ -937,8 +917,8 @@ class Chain(c.Module):
                     port = local_node_info['rpc_port']
                     url = f'ws://0.0.0.0:{port}'
             else:
-                publicnode2url = cls.publicnode2url(network=chain)
-                url = c.choice(cls.urls(network=chain))
+                publicnode2url = cls.publicnode2url(chain=chain)
+                url = c.choice(cls.urls(chain=chain))
 
         if not url.startswith('ws://'):
             url = 'ws://' + url
@@ -970,7 +950,7 @@ class Chain(c.Module):
     @classmethod
     def start_node(cls,
                  node : str,
-                 chain:int = network,
+                 chain:int = chain,
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
@@ -1183,7 +1163,7 @@ class Chain(c.Module):
     def start_chain(cls, 
                     chain:str=chain, 
                     valis:int = 4,
-                    nonvalis:int = 4,
+                    nonvalis:int = 1,
                     verbose:bool= False,
                     purge_chain:bool = True,
                     refresh: bool = False,
@@ -1205,6 +1185,8 @@ class Chain(c.Module):
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
             chain_info = {'nodes':{}, 'boot_nodes':[]}
+            if mode == 'local':
+                cls.kill_chain(chain=chain)
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
@@ -1329,32 +1311,32 @@ class Chain(c.Module):
 
         if nonvalis > 0:
             # START THE NON VALIDATOR NODES
-            cls.add_public_nodes(n=nonvalis, chain=chain, refresh=True, remote=remote)
+            cls.start_public_nodes(n=nonvalis, chain=chain, refresh=True, remote=remote)
 
         return {'success':True, 'msg': f'Started chain {chain}', 'valis':valis, 'nonvalis':nonvalis}
    
     @classmethod
-    def publicnode2url(cls, network:str = network) -> str:
-        assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        nodes =  cls.getc(f'chain_info.{network}.public_nodes', {})
+    def publicnode2url(cls, chain:str = chain) -> str:
+        assert isinstance(chain, str), f'chain must be a string, not {type(chain)}'
+        nodes =  cls.getc(f'chain_info.{chain}.public_nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
-        assert len(nodes) > 0, f'No url found for {network}'
+        assert len(nodes) > 0, f'No url found for {chain}'
         publicnode2url = {}
         for k_n, v_n in nodes.items():
             publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['rpc_port'])
         return publicnode2url
 
     @classmethod
-    def urls(cls, network: str = network) -> str:
-        return list(cls.publicnode2url(network=network).values())
+    def urls(cls, chain: str = chain) -> str:
+        return list(cls.publicnode2url(chain=chain).values())
 
-    def random_urls(self, network: str = network, n=4) -> str:
-        urls = self.urls(network=network)
+    def random_urls(self, chain: str = chain, n=4) -> str:
+        urls = self.urls(chain=chain)
         return c.sample(urls, n=1)
 
 
     @classmethod
-    def test_node_urls(cls, network: str = network) -> str:
+    def test_node_urls(cls, chain: str = chain) -> str:
         nodes = cls.public_nodes()
         config = cls.config()
         
@@ -1368,7 +1350,7 @@ class Chain(c.Module):
             except Exception as e:
                 c.print(c.detailed_error(e))
                 c.print(f'node {node} is down')
-                del config['chain_info'][network]['nodes'][node]
+                del config['chain_info'][chain]['nodes'][node]
 
         cls.save_config(config)
 
@@ -1507,16 +1489,16 @@ class Chain(c.Module):
         c.cmd('make enter', cwd=cls.chain_path)
 
     @classmethod
-    def snapshot(cls, network=network) -> dict:
+    def snapshot(cls, chain=chain) -> dict:
         path = f'{cls.snapshot_path}/main.json'
         return c.get_json(path)
 
     @classmethod
     def build_snapshot(cls, 
               path : str  = None,
-             old_network : str = 'main' ,
-             network : str = 'test',
-             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
+            snapshot_chain : str = 'test' ,
+            chain : str = chain,
+            subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
             min_balance:int = 100000,
@@ -1525,24 +1507,24 @@ class Chain(c.Module):
             version: str = 2,
              **kwargs):
         if sync:
-            c.sync(network=network)
+            c.sync(network=chain)
 
         
 
         subspace = c.module('subspace')()
 
-        path = path if path != None else subspace.latest_archive_path(network=old_network)
+        path = path if path != None else subspace.latest_archive_path(network=snapshot_chain)
         c.print(f'building snapshot from {path}', color='green')
         state = subspace.get(path)
         
         snap = {
-                        'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
-                        'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
-                        'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
-                        'stake_to': [[[staking_key, stake_to] for staking_key,stake_to in state['stake_to'][i].items()] for i in range(len(state['subnets']))],
-                        'block': state['block'],
-                        'version': version,
-                        }
+                'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
+                'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
+                'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
+                'stake_to': [[[staking_key, stake_to] for staking_key,stake_to in state['stake_to'][i].items()] for i in range(len(state['subnets']))],
+                'block': state['block'],
+                'version': version,
+                }
                         
         # add weights if not already in module params
         if 'weights' not in module_params:
@@ -1551,7 +1533,7 @@ class Chain(c.Module):
         # save snapshot into subspace/snapshots/{network}.json
         if save:
             c.mkdir(cls.snapshot_path)
-            snapshot_path = f'{cls.snapshot_path}/{network}.json'
+            snapshot_path = f'{cls.snapshot_path}/{chain}.json'
             c.print('Saving snapshot to', snapshot_path, verbose=verbose)
             c.put_json(snapshot_path, snap)
         # c.print(snap['modules'][0][0])
@@ -1561,7 +1543,6 @@ class Chain(c.Module):
         return {'success': True, 'msg': f'Saved snapshot to {snapshot_path} from {path}', 'date': date}    
     
     snap = build_snapshot
-    
 
     @classmethod
     def rpull(cls, timeout=10):
@@ -1571,13 +1552,11 @@ class Chain(c.Module):
 
     @classmethod
     def pull(cls, rpull:bool = False):
-
         if len(cls.ls(cls.libpath)) < 5:
             c.rm(cls.libpath)
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
-
 
     @classmethod
     def push(cls, rpull:bool=False, image:bool = False ):

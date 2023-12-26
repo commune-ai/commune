@@ -22,7 +22,7 @@ class Voting(c.Module):
             
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        subnet_params = self.subnet_params( netuid=netuid , update=True)
+        subnet_params = self.subnet_params( netuid=netuid , update=True, network=network)
         # remove the params that are the same as the module info
         params = {**subnet_params, **params}
         for k in ['name', 'vote_mode']:
