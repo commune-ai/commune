@@ -654,7 +654,12 @@ class c:
     @classmethod
     def start_node(cls, *args, **kwargs):
         return c.module('subspace.chain').start_node(*args, **kwargs)
+    
+    @classmethod
+    def chains(cls, *args, **kwargs):
+        return c.module('subspace.chain')().chains(*args, **kwargs)
 
+    networks = chains
 
     @classmethod
     def start_telemetry(cls, *args, **kwargs):
