@@ -8,7 +8,6 @@ from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
 from commune.modules.subspace.balance import Balance
 from commune.modules.subspace.utils import (U16_MAX,  is_valid_address_or_public_key, )
-from commune.modules.subspace.chain_data import (ModuleInfo, custom_rpc_type_registry)
 import streamlit as st
 import json
 import os
@@ -1168,7 +1167,7 @@ class Subspace(c.Module):
         return self.block_time * self.subnet(netuid=netuid)['tempo']
 
     
-    def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> ModuleInfo:
+    def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> 'ModuleInfo':
         if key != None:
             module = self.key2module(key=key, netuid=netuid, **kwargs)
         if name != None:
@@ -1181,7 +1180,7 @@ class Subspace(c.Module):
         return {'name': None, 'key': None, 'uid': None, 'address': None, 'stake': 0, 'balance': 0, 'emission': 0, 'incentive': 0, 'dividends': 0, 'stake_to': {}, 'stake_from': {}, 'weight': []}
         
         
-    def name2module(self, name:str = None, netuid: int = None, **kwargs) -> ModuleInfo:
+    def name2module(self, name:str = None, netuid: int = None, **kwargs) -> 'ModuleInfo':
         modules = self.modules(netuid=netuid, **kwargs)
         name2module = { m['name']: m for m in modules }
         default = {}
@@ -1234,7 +1233,7 @@ class Subspace(c.Module):
                 timeout:int=200, 
                 include_balances = False, 
                 
-                ) -> Dict[str, ModuleInfo]:
+                ) -> Dict[str, 'ModuleInfo']:
         import inspect
         if netuid == None:
             netuid = 0
