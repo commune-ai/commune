@@ -1446,11 +1446,13 @@ class c:
     def module_tree(cls, search=None, 
                     mode='path', 
                     update:bool = False,
-                    verbose:bool = False) -> List[str]:
+                    path = 'local_module_tree',
+                    **kwargs) -> List[str]:
                 
+        
         module_tree = None
         if not update:
-            module_tree = c.get('module_tree', None, cache=False)
+            module_tree = c.get(path, None, cache=False)
         if module_tree == None:
 
             assert mode in ['path', 'object']
@@ -1465,7 +1467,7 @@ class c:
             if cls.root_module_class in module_tree:
                 module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
             
-            c.put('module_tree', module_tree)
+            c.put(path, module_tree)
         if search != None:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
     
@@ -1786,6 +1788,7 @@ class c:
                  meta = None,
                  root: bool = False,
                  verbose: bool = False,
+
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json

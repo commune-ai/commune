@@ -317,20 +317,17 @@ class Subspace(c.Module):
                 block_hash =block_hash
             )
 
-        new_qmap = {}
+        new_qmap = []
         for k,v in qmap:
             if hasattr(v, 'value'):
                 v = v.value
             if hasattr(k, 'value'):
                 k = k.value
-            if type(k) in [list, tuple]:
-                k = list(k)
-                k = k[1].value
-            new_qmap[k] = v
+            new_qmap.append([k,v])
         
         self.put(path, new_qmap)
                 
-        return qmap
+        return new_qmap
 
     def runtime_spec_version(self, network:str = 'main'):
         # Get the runtime version
@@ -600,7 +597,7 @@ class Subspace(c.Module):
     def state_dict(self,
                     network=network, 
                     key: Union[str, list]=None, 
-                    inlcude_weights:bool=True, 
+                    inlcude_weights:bool=False, 
                     update:bool=False, 
                     verbose:bool=False, 
                     netuids: List[int] = None,
@@ -1026,12 +1023,15 @@ class Subspace(c.Module):
     def netuids(self, network=None, update=False, block=None) -> Dict[int, str]:
         return sorted(list(self.subnet_namespace(network=network, update=update, block=block).values()))
 
-    def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
+    def netuid2subnet(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
         records = self.query_map('SubnetNames', update=update, network=network, block=block, **kwargs)
         return {k:v for k,v in records}
+    
+    def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
+        return [ v for k,v in self.netuid2subnet(network=network, update=update, block=block, **kwargs).items()]
 
     def subnet2netuid(self, network=network, **kwargs ) -> Dict[str, str]:
-        records = self.query_map('SubnetNames', **kwargs)
+        records = self.query_map('SubnetNames', network=network, **kwargs)
         return {v:k for k,v in records}
 
     subnet_namespace = subnet2netuid
