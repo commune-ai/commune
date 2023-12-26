@@ -11,7 +11,7 @@ class Chain(c.Module):
     chain = network = 'main'
     mode = 'local'
     image_tag = 'subspace.librevo'
-    image = f'vivonasg/{image_tag}-2023-12-19_20-09-47'
+    image = f'subspace.librevo-2023-12-26'
     node_key_prefix = 'subspace.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
