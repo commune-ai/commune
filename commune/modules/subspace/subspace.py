@@ -18,7 +18,7 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
-    whitelist = ['modules']
+    whitelist = ['query', 'query_map']
     fmt = 'j'
     git_url = 'https://github.com/commune-ai/subspace.git'
     default_config = c.get_config('subspace', to_munch=False)
@@ -90,6 +90,8 @@ class Subspace(c.Module):
             
             self.url = url
             url = url.replace(c.ip(), '0.0.0.0')
+
+            c.print(f'Connecting to {url}')
             
             kwargs.update(url=url, 
                         websocket=websocket, 
@@ -105,6 +107,8 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
+                c.print(f'Could not connect to {url}. Trying again in 10 seconds.')
+                c.print(e)
                 self.config.local = False
                 url = None
         if trials == max_trials:
@@ -1044,12 +1048,7 @@ class Subspace(c.Module):
         return {v:k for k,v in records}
 
     subnet_namespace = subnet2netuid
-    
-    def netuid2subnet(self, netuid = None, network=network):
-        subnet2netuid = {v:k for k,v in self.subnet2netuid(network=network).items()}
-        if netuid != None:
-            return subnet2netuid.get(netuid, None)
-        return subnet2netuid
+
     def subnet2netuid(self,subnet:str = None):
         subnet2netuid = self.subnet_namespace
         if subnet != None:
@@ -2242,7 +2241,7 @@ class Subspace(c.Module):
         netuid: int = None,
         network : str = network,
         nonce = None,
-        tip: int = None,
+        tip: int = 0,
 
 
     ) -> bool:
@@ -3387,7 +3386,7 @@ class Subspace(c.Module):
                      fn:str, 
                     params:dict = None, 
                     key:str = None,
-                    tip: int = None, # tip can
+                    tip: int = 0, # tip can
                     module:str = 'SubspaceModule', 
                     wait_for_inclusion: bool = True,
                     wait_for_finalization: bool = True,

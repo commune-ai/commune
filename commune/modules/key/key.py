@@ -252,7 +252,7 @@ class Keypair(c.Module):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
 
     @classmethod
-    def load_key(cls, path):
+    def load_key(cls, path=None):
         key_info = cls.get(path)
         key_info = c.jload(key_info)
         if key_info['path'] == None:

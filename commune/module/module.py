@@ -2469,6 +2469,11 @@ class c:
     def subnet_params(cls, *args, **kwargs):
         return c.module("subspace")().subnet_params(*args, **kwargs)
     
+    @classmethod
+    def subnet_names(cls, *args, **kwargs):
+        return c.module("subspace")().subnet_names(*args, **kwargs)
+    
+    
     
 
     @classmethod
