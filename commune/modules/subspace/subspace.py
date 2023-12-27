@@ -3573,6 +3573,14 @@ class Subspace(c.Module):
         for vali in top_valis:
             key = name2key[vali]
 
+    @classmethod
+    def pull(cls, rpull:bool = False):
+        if len(cls.ls(cls.libpath)) < 5:
+            c.rm(cls.libpath)
+        c.pull(cwd=cls.libpath)
+        if rpull:
+            cls.rpull()
+
 
 
 Subspace.run(__name__)
