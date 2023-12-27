@@ -214,10 +214,11 @@ class Subspace(c.Module):
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
         return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update, network=network)}
     
-    def stake_to(self, netuid = None, network=None, block=None, update=False):
+    
+    def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
-        return {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update)}
+        return {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update, trials=3)}
 
     def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False, netuid=None):
         
@@ -286,7 +287,7 @@ class Subspace(c.Module):
                   page_size=1000,
                   max_results=100000,
                   module='SubspaceModule',
-                  update: bool = True
+                  update: bool = True,
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
 
@@ -782,6 +783,13 @@ class Subspace(c.Module):
 
         netuid = self.resolve_netuid(netuid)
         path = f'cache/network.subnet_params.{netuid}.json'
+        while trials > 0:
+            trials -= 1
+            try:
+                return self.subnet_params(netuid=netuid, network=network, block=block, update=update, trials=trials, timeout=timeout, parallel=parallel, fmt=fmt)
+            except Exception as e:
+                c.print(f"Could not get subnet params for SubNetwork {netuid}. Trying {trials} more times.")
+                assert trials > 0, f"Could not get subnet params for SubNetwork {netuid}"
 
         if not update:
             value = self.get(path, None)
@@ -840,6 +848,7 @@ class Subspace(c.Module):
 
         for k in ['min_stake', 'max_stake']:
             subnet[k] = self.format_amount(subnet[k], fmt=fmt)
+        c.print(subnet)
         self.put(path, subnet)
 
         c.print(f'Got subnet params for SubNetwork {netuid}')
@@ -1234,7 +1243,7 @@ class Subspace(c.Module):
                     'incentive', 'dividends', 'regblock', 'last_update', 
                     'stake_from', 'delegation_fee', 'trust'],
                 update: bool = False,
-                include_weights = True,
+                include_weights = False,
                 df = False,
                 parallel:bool = False ,
                 timeout:int=200, 
