@@ -980,7 +980,7 @@ class Chain(c.Module):
                  debug:bool = False,
                  sid:str = None,
                  timeout:int = 30,
-                 arm64:bool = True,
+                 arm64:bool = False,
                  ):
 
         if sid != None:

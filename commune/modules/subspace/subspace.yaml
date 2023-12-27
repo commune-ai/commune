@@ -5,7 +5,8 @@ frontend:
     feed: ws://165.22.186.112:50094/feed
     frontend: http://165.22.186.112:50107
     shard: ws://165.22.186.112:50090/submit 0
-local: false
+key: null
+local: true
 loop: false
 mode: local
 netuid: 0
@@ -29,4 +30,3 @@ supported_schemas:
 - Ed25519
 token_decimals: 9
 url: null
-key: null
