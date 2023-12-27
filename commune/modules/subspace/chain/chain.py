@@ -12,7 +12,7 @@ class Chain(c.Module):
     mode = 'docker'
     image_tag = 'subspace.librevo'
     image = f'vivonasg/subspace.librevo-2023-12-26'
-    node_key_prefix = 'subspace.node'
+    node_key_prefix = 'subspace.chain.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     snapshot_path = f"{chain_path}/snapshots"
@@ -1384,14 +1384,14 @@ class Chain(c.Module):
 
 
     @classmethod
-    def remote_nodes(cls, chain=chain):
+    def remote_nodes(cls, chain=chain, timeout=5):
         import commune as c
-        ps_map = c.module('remote').call('ps', f'{cls.node_key_prefix}.{chain}')
+        ps_map = c.module('remote').call('ps', f'{cls.node_key_prefix}.{chain}', timeout=timeout)
         all_ps = []
-        empty_peers = [p for p, peers in ps_map.items() if len(peers) == 0]
         for ps in ps_map.values():
-            all_ps.extend(ps)
-        vali_ps = sorted([p for p in all_ps if 'vali' in p and 'subspace' in p])
+            if isinstance(ps, list):
+                all_ps.extend(ps)
+        vali_ps = sorted([p for p in all_ps if '.vali' in p and 'subspace' in p], key=lambda x: int(x.split('_')[-1]))
         return vali_ps
 
     @classmethod
