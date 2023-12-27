@@ -567,20 +567,26 @@ class c:
         '''
         Set the config as well as its local params
         '''
-        if not cls.has_config():
-            config =  cls.init_kwargs()
-        else:
-            if config == None:
-                config = cls.load_config()
-            elif isinstance(config, str):
+        has_config =  cls.has_config()
+
+        if has_config:
+            default_config = cls.load_config()
+        else: 
+            default_config = cls.init_kwargs()
+        if config == None:
+            config =  default_config
+
+        if config == None:
+            config = cls.load_config()
+
+        elif isinstance(config, str):
+            config = cls.load_config(path=config)
+            assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
+        elif isinstance(config, dict):
                 
-                config = cls.load_config(path=config)
-                assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
-            elif isinstance(config, dict):
-                default_config = cls.load_config()
-                config = {**default_config, **config}
-            else:
-                raise ValueError(f'config must be a dict, str or None, not {type(config)}')
+            config = {**default_config, **config}
+        else:
+            raise ValueError(f'config must be a dict, str or None, not {type(config)}')
             
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
@@ -647,28 +653,33 @@ class c:
 
     @classmethod
     def start_node(cls, *args, **kwargs):
-        return c.module('subspace').start_node(*args, **kwargs)
+        return c.module('subspace.chain').start_node(*args, **kwargs)
+    
+    @classmethod
+    def chains(cls, *args, **kwargs):
+        return c.module('subspace.chain')().chains(*args, **kwargs)
 
+    networks = chains
 
     @classmethod
     def start_telemetry(cls, *args, **kwargs):
-        return c.module('subspace').start_telemetry(*args, **kwargs)
+        return c.module('subspace.chain').start_telemetry(*args, **kwargs)
 
     @classmethod
     def start_local_node(cls, *args, **kwargs):
-        return c.module('subspace').start_local_node(*args, **kwargs)
+        return c.module('subspace.chain').start_local_node(*args, **kwargs)
 
     @classmethod
-    def add_public_nodes(cls, *args, **kwargs):
-        return c.module('subspace').add_public_nodes(*args, **kwargs)
+    def start_public_nodes(cls, *args, **kwargs):
+        return c.module('subspace.chain').start_public_nodes(*args, **kwargs)
 
-    @classmethod
+    @classmethod  
     def start_chain(cls, *args, **kwargs):
-        return c.module('subspace').start_chain(*args, **kwargs)
+        return c.module('subspace.chain').start_chain(*args, **kwargs)
     
     @classmethod
     def kill_chain(cls, *args, **kwargs):
-        c.module('subspace').kill_chain(*args, **kwargs)
+        c.module('subspace.chain').kill_chain(*args, **kwargs)
         return {'success': True, 'msg': 'killed chain'}
     def seconds_per_epoch(self, *args, **kwargs):
         return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
@@ -1290,7 +1301,8 @@ class c:
                     continue
             new_chunks.append(chunk)
         simple_path = '.'.join(new_chunks)
-        
+
+
         # remove the modules prefix
         if simple_path.startswith('modules.'):
             simple_path = simple_path.replace('modules.', '')
@@ -1300,6 +1312,7 @@ class c:
             
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
+        
         return simple_path
     
 
@@ -1359,16 +1372,17 @@ class c:
 
 
     @classmethod
-    def find_python_class(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
+    def find_python_classes(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
         
         # read the contents of the Python script file
         python_script = cls.readlines(path, end_line = start_lines, resolve=False)
         class_names  = []
         lines = python_script.split('\n')
+
+        # c.print(python_script)
         
         for line in lines:
-
             key_elements = ['class ', '(', '):']
             has_class_bool = all([key_element in line for key_element in key_elements])
 
@@ -1389,12 +1403,17 @@ class c:
 
     @classmethod
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
+
+
         if path.endswith('module/module.py'):
             return 'commune.Module'
-        object_name = cls.find_python_class(path, search=search)
-        if len(object_name) == 0:
+        
+        python_classes = cls.find_python_classes(path, search=search)
+
+            
+        if len(python_classes) == 0:
             return None
-        object_name = object_name[-1]
+        object_name = python_classes[-1]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         return path
@@ -1402,41 +1421,56 @@ class c:
     @classmethod
     def path2object(cls, path:str) -> str:
         path = cls.path2objectpath(path)
+        c.print(path)
         return c.import_object(path)
 
-
+    module_cache = {}
     @classmethod
-    def get_module(cls, path:str) -> str:
+    def get_module(cls, path:str, cache=True) -> str:
+       
+        if cache:
+            if path in c.module_cache:
+                return c.module_cache[path]
+            
         if path == None:
             path = 'module'
-        path = cls.simple2path(path)
-        path = cls.path2objectpath(path, search=None)
-        return c.import_object(path)
+        path = c.simple2path(path)
+        path = c.path2objectpath(path, search=None)
+        module = c.import_object(path)
+        c.module_cache[path] = module
+        return module
 
 
+    module_tree_cache = None
     @classmethod
     def module_tree(cls, search=None, 
                     mode='path', 
-                    cache:bool = True,
                     update:bool = False,
-                    verbose:bool = False) -> List[str]:
+                    path = 'local_module_tree',
+                    **kwargs) -> List[str]:
                 
-        if update and verbose:
-            c.print('Building module tree', verbose=verbose)
-        assert mode in ['path', 'object']
-        module_tree = {}
-        if mode == 'path':
-            module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-
-        elif mode == 'object':
-            module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
-        module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
         
-        # to use functions like c. we need to replace it with module lol
-        if cls.root_module_class in module_tree:
-            module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
-        if cache or update:
-            c.put('module_tree', module_tree)
+        module_tree = None
+        if not update:
+            module_tree = c.get(path, None, cache=False)
+        if module_tree == None:
+
+            assert mode in ['path', 'object']
+            module_tree = {}
+            if mode == 'path':
+                module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+            elif mode == 'object':
+                module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
+            module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+            
+            # to use functions like c. we need to replace it with module lol
+            if cls.root_module_class in module_tree:
+                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+            
+            c.put(path, module_tree)
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
+    
         return module_tree
     
     available_modules = tree = module_tree
@@ -1495,8 +1529,8 @@ class c:
         return  bool(package in sys.modules)
 
     @classmethod
-    def simple2path(cls, path) -> Dict[str, str]:
-        module_tree = c.module_tree()
+    def simple2path(cls, path, **kwargs) -> Dict[str, str]:
+        module_tree = c.module_tree(**kwargs)
         return module_tree[path]
 
 
@@ -1535,12 +1569,8 @@ class c:
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
                     modules.append(f)
-                else:
-                    # FIX ME
-                    f_classes = cls.find_python_class(f, search=['c.Module'])
-                    # f_classes = []
-                    if len(f_classes) > 0:
-                        modules.append(f)
+                elif len(cls.find_python_classes(f)) > 0 :
+                    modules.append(f)
 
             
         cls.module_python_paths = modules
@@ -1709,6 +1739,8 @@ class c:
 
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
+        c.print(f'Loading json from {path}', color='green', verbose=verbose)
+
         try:
             data = await async_get_json(path, default=default, **kwargs)
         except Exception as e:
@@ -1755,7 +1787,8 @@ class c:
                  data:Dict, 
                  meta = None,
                  root: bool = False,
-                 cache: bool = False,
+                 verbose: bool = False,
+
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
@@ -1763,6 +1796,7 @@ class c:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
         # cls.lock_file(path)
+        c.print(f'Putting json from {path}', color='green', verbose=verbose)
 
         await async_put_json(path=path, data=data, **kwargs)
         # cls.unlock_file(path)
@@ -3225,6 +3259,7 @@ class c:
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         pm2_list = cls.pm2_list()
+        rm_list = []
         if name in pm2_list:
             rm_list = [name]
 
@@ -3350,7 +3385,7 @@ class c:
                 module:str, 
                 tail: int =100, 
                 verbose: bool=True ,
-                mode: str ='cmd'):
+                mode: str ='cmd', **kwargs):
 
         if mode == 'local':
             text = ''
@@ -3800,23 +3835,13 @@ class c:
         else:
             return fn()
     module_fn = fn
-
-    module_cache = {}
     
     @classmethod
     def module(cls,module: Any = 'module' , **kwargs):
         '''
         Wraps a python class as a module
         '''
-        if module is None:
-            module = cls.module_path()
-        modules = c.modules()
-        assert module in modules, f'{module} does not exist'
-        if module in c.module_cache:
-            module_class = c.module_cache[module]
-        else:
-            module_class =  c.get_module(module,**kwargs)
-            c.module_cache[module] = module_class
+        module_class =  c.get_module(module,**kwargs)
         
         return module_class
         
@@ -7287,10 +7312,8 @@ class c:
         return c.module('subspace')().my_stakefrom(*args, **kwargs)
 
     @classmethod
-    def my_tokens(cls, *args, **kwargs):
-        return c.module('subspace')().my_tokens(*args, **kwargs)
-    
-    my_value = my_tokens
+    def my_value(cls, *args, **kwargs):
+        return c.module('subspace')().my_value(*args, **kwargs)
     
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -7791,7 +7814,7 @@ class c:
     mcap = market_cap
     @classmethod
     def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **wkwargs)
+        return c.module('subspace')().n(*args, **kwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
         t = c.timer()
@@ -8723,7 +8746,7 @@ class c:
 
     @classmethod
     def sid(cls):
-        return c.module('subspace')().id()
+        return c.module('subspace.chain')().id()
 
     def sidebar(self, sidebar:bool = True):
         import streamlit as st

@@ -231,13 +231,15 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, search=None, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
         if hosts == None:
             hosts = cls.hosts()
             if host != None:
                 hosts = {host:hosts[host]}
+        if search != None:
+            hosts = {k:v for k,v in hosts.items() if search in k}
         if isinstance(hosts, list):
             hosts = {h:hosts[h] for h in hosts}
         elif isinstance(hosts, str):
@@ -683,7 +685,9 @@ class Remote(c.Module):
                 gpus[host] = json.loads(gpu)
                 
         return gpus
+    
 
+ 
     def check_peers(self, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():

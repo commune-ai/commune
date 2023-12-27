@@ -149,11 +149,10 @@ class Docker(c.Module):
         for i, image_record in image_records.iterrows():
             image_dict = image_record.to_dict()
 
-            if '<none>' in image_dict['repository']:
-                
+            if search == None or str(search.lower()) in image_dict['repository']:
                 r = self.rm_image(image_dict['image_id'])
                 responses.append(r)
-
+                
         return {'success': True, 'responses': responses }
     
 
