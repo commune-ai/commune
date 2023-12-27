@@ -16,12 +16,9 @@ import time
 from concurrent.futures._base import Future
 import commune as c
 
-
-
-
 class Task(c.Module):
     def __init__(self, 
-                 fn:str,
+                fn:str,
                 args:list, 
                 kwargs:dict, 
                 timeout:int=10, 

@@ -569,21 +569,18 @@ class c:
         '''
         has_config =  cls.has_config()
 
+        # THIS LOADS A YAML IF IT EXIST, OR IT USES THE INIT KWARGS IF THERE IS NO YAML
         if has_config:
             default_config = cls.load_config()
         else: 
             default_config = cls.init_kwargs()
+
         if config == None:
             config =  default_config
-
-        if config == None:
-            config = cls.load_config()
-
         elif isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
-                
             config = {**default_config, **config}
         else:
             raise ValueError(f'config must be a dict, str or None, not {type(config)}')
@@ -592,10 +589,8 @@ class c:
         
         # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
         # for example  model.name=bert is the same as config[model][name]=bert
-
-        kwargs = kwargs if kwargs != None else cls.init_kwargs()
-
         # merge kwargs with itself (CAUTION THIS DOES NOT WORK IF KWARGS WAS MEANT TO BE A VARIABLE LOL)
+        kwargs = kwargs if kwargs != None else cls.init_kwargs()
         kwargs.update(kwargs.pop('kwargs', {}))
         for k,v in kwargs.items():
             cls.dict_put(config,k,v )
@@ -1515,6 +1510,7 @@ class c:
         models = c.servers(*args, **kwargs)
         models = [k for k in models if k.startswith('model')]
         return models
+    
     @classmethod
     def datasets(cls, **kwargs) -> List[str]:
         return c.servers('data',  **kwargs)
@@ -1639,19 +1635,26 @@ class c:
     
     
     @staticmethod
-    def remotewrap(fn):
+    def remotewrap(fn, remote_key:str = 'remote'):
         '''
-        WARNNG IN PROGRSS, USE WITH CAUTION
-        '''
-        
-        def wrapper(self, *args, **kwargs):
+        calls your function if you wrap it as such
+
+        @c.remotewrap
+        def fn():
+            pass
             
-            c.remote_fn(module=self, fn=fn.__name__, args=args, kwargs=kwargs)
-            result = fn(self, *args, **kwargs)
-            c.print(f'Finished {fn.__name__} in {c.time() - t:.2f} seconds')
-            # return result
+        # deploy it as a remote function
+        fn(remote=True)
+        '''
+    
+        def remotewrap(self, *args, **kwargs):
+            remote = kwargs.pop(remote_key, False)
+            if remote:
+                return c.remote_fn(module=self, fn=fn.__name__, args=args, kwargs=kwargs)
+            else:
+                return fn(self, *args, **kwargs)
         
-        return wrapper
+        return remotewrap
     
     # def local
     @classmethod
@@ -3040,11 +3043,16 @@ class c:
             module = cls 
         elif isinstance(module, str):
             module = c.module(module) 
+
+
+        # resolve the name
         if name == None:
             if hasattr(module, 'module_path'):
                 name = module.module_path()
             else:
                 name = module.__name__.lower() 
+            
+        # resolve the tag
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
                 
@@ -5708,15 +5716,25 @@ class c:
     @classmethod
     def update(cls, 
                module = None,
+               tree:bool = True,
+               namespace: bool = True,
+               subspace: bool = True,
                network: str = 'local',
                **kwargs
                ):
+
+
         if module != None:
             return c.module(module).update()
         # update local namespace
         c.ip(update=True)
-        
-        namespace = c.namespace(network=network, update=True)
+
+        if namespace:
+            namespace = c.namespace(network=network, update=True)
+        if subspace:
+            c.module('subspace').sync()
+        if tree:
+            c.tree(update=True)
 
 
         return {'success': True, 'servers': namespace}
@@ -5735,16 +5753,6 @@ class c:
     def sync(cls, *args, **kwargs):
             
         return c.module('subspace')().sync(*args, **kwargs)
-        
-
-    @classmethod
-    def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):
-        if mode == 'asyncio':
-            loop = asyncio.get_event_loop()
-            results = loop.run_until_complete(asyncio.gather(*jobs))
-            return results
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
         
 
     @classmethod
@@ -5770,7 +5778,7 @@ class c:
         return file_contents
 
     @classmethod
-    def put_text(cls, path:str, text:str, root=False, key=None) -> None:
+    def put_text(cls, path:str, text:str, root=False, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
         if key != None:
@@ -5780,11 +5788,9 @@ class c:
             file.write(text)
 
         # get size
-        text_size = len(text)*8
+        text_size = len(text)*bits_per_character
     
-
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
-            
             
     @classmethod
     def add_text(cls, path:str, text:str, root=False) -> None:
@@ -6038,7 +6044,7 @@ class c:
             module_config_path = module_code_path.replace('.py', '.yaml')
             c.save_yaml(module_config_path, {'class_name': class_name})
         
-        c.update()
+        c.module_tree(update=True)
 
         return {'success': True, 'msg': f' created a new repo called {module}'}
         
@@ -6284,7 +6290,9 @@ class c:
                     name : str =None,
                     tag: str = None,
                     refresh : bool =True,
-                    tag_seperator : str = '::', **extra_launch_kwargs):
+                    mode = 'pm2',
+                    tag_seperator : str = '::', **extra_launch_kwargs
+                    ):
 
         
         kwargs = c.locals2kwargs(kwargs)

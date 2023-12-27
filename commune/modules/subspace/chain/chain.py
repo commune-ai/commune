@@ -899,6 +899,8 @@ class Chain(c.Module):
     def local_node_urls(cls, chain=chain):
         return ['ws://'+info['ip']+':' + str(info['rpc_port']) for info in cls.local_node_infos(chain=chain)]
 
+    def local_node2url(self, chain=chain):
+        return {info['node']: 'ws://'+info['ip']+':' + str(info['rpc_port']) for info in self.local_node_infos(chain=chain) if isinstance(info, dict)}
     @classmethod
     def kill_local_node(cls, node, chain=chain):
         node_path = cls.resolve_node_path(node=node, chain=chain)
@@ -912,18 +914,16 @@ class Chain(c.Module):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
+    def resolve_node_url(cls, url = None, chain=chain):
+        local  = bool("local" in chain)
         if url == None:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
-                if local_node_info == None:
-                    url = c.choice(list(publicnode2url.values()))
-                else:
-                    port = local_node_info['rpc_port']
-                    url = f'ws://0.0.0.0:{port}'
+                assert isinstance(local_node_info, dict), f'local_node_info must be a dict'
+                port = local_node_info['rpc_port']
+                url = f'ws://0.0.0.0:{port}'
             else:
-                publicnode2url = cls.publicnode2url(chain=chain)
                 url = c.choice(cls.urls(chain=chain))
 
         if not url.startswith('ws://'):
@@ -1336,19 +1336,19 @@ class Chain(c.Module):
         return {'success':True, 'msg': f'Started chain {chain}', 'valis':valis, 'nonvalis':nonvalis}
    
     @classmethod
-    def publicnode2url(cls, chain:str = chain) -> str:
+    def public_node2url(cls, chain:str = chain) -> str:
         assert isinstance(chain, str), f'chain must be a string, not {type(chain)}'
         nodes =  cls.getc(f'chain_info.{chain}.public_nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
         assert len(nodes) > 0, f'No url found for {chain}'
-        publicnode2url = {}
+        public_node2url = {}
         for k_n, v_n in nodes.items():
-            publicnode2url[k_n] = v_n['ip'] + ':' + str(v_n['rpc_port'])
-        return publicnode2url
+            public_node2url[k_n] = v_n['ip'] + ':' + str(v_n['rpc_port'])
+        return public_node2url
 
     @classmethod
     def urls(cls, chain: str = chain) -> str:
-        return list(cls.publicnode2url(chain=chain).values())
+        return list(cls.public_node2url(chain=chain).values())
 
     def random_urls(self, chain: str = chain, n=4) -> str:
         urls = self.urls(chain=chain)
@@ -1385,13 +1385,18 @@ class Chain(c.Module):
                 del chain_info['nodes'][node]
         cls.putc(f'chain_info.{chain}', chain_info)
 
+    def node2url(self, chain=chain):
+        if "local" in chain:
+            return self.local_node2url()
+        else:
+            return self.public_node2url(chain=chain)
 
     @classmethod
     def test_endpoints(cls, timeout:int=30):
-        publicnode2url = cls.publicnode2url()
+        public_node2url = cls.public_node2url()
         futures = []
         node2future = {}
-        for node, url in publicnode2url.items():
+        for node, url in public_node2url.items():
             future = c.submit(cls.test_endpoint, kwargs=dict(url=url), return_future=True, timeout=timeout)
             c.print(future)
             node2future[node] = future
