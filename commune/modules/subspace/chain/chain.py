@@ -16,6 +16,7 @@ class Chain(c.Module):
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     snapshot_path = f"{chain_path}/snapshots"
+    evm_chain_id = 69420
     
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
@@ -713,8 +714,8 @@ class Chain(c.Module):
 
 
     @classmethod
-    def node_prefix(cls, chain=chain):
-        return f'{cls.module_path()}.node'
+    def node_prefix(cls):
+        return cls.node_key_prefix
     
 
 
@@ -825,6 +826,7 @@ class Chain(c.Module):
                            max_boot_nodes=24, 
                            refresh:bool = True,
                            remote:bool = False,
+                           trial = 3,
                            **kwargs):
         avoid_ports = []
         node_infos = cls.node_infos(chain=chain)
@@ -858,8 +860,11 @@ class Chain(c.Module):
 
             kwargs['validator'] = False
             kwargs['max_boot_nodes'] = max_boot_nodes
-
-            response = cls.start_node(node=node_name , chain=chain, mode=mode, **kwargs)
+            try:
+                response = cls.start_node(node=node_name , chain=chain, mode=mode, **kwargs)
+            except Exception as e:
+                c.print(e)
+                continue
             if 'node_info' not in response:
                 c.print(response, 'response')
                 raise ValueError('No node info in response')
