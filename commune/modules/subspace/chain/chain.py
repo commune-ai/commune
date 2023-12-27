@@ -12,7 +12,7 @@ class Chain(c.Module):
     mode = 'docker'
     image_tag = 'subspace.librevo'
     image = f'vivonasg/subspace.librevo-2023-12-26'
-    node_key_prefix = 'subspace.chain.node'
+    node_key_prefix = 'subspace.node'
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     snapshot_path = f"{chain_path}/snapshots"
@@ -251,7 +251,7 @@ class Chain(c.Module):
         
     @classmethod
     def resolve_node_path(cls, node:str='alice', chain=chain, tag_seperator='_'):
-        return f'{cls.node_key_prefix}.{chain}.{node}'
+        return f'{cls.node_prefix()}.{chain}.{node}'
 
     @classmethod
     def get_node_key(cls, node='alice', chain=chain, vali=True, crease_if_not_exists:bool=True):
@@ -1160,10 +1160,19 @@ class Chain(c.Module):
         responses = []
         return responses
     
+    def resume_chain(self, chain:str=chain, remote=True, mode=mode):
+        vali_nodes = self.unresolved_nodes(chain=chain)
+        return self.start_chain(chain=chain, 
+                         vali_nodes=vali_nodes,
+                         remote=remote,
+                          mode=mode, 
+                         refresh=False, 
+                         build_spec=False )
+    
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 4,
+                    valis:int = 21,
                     nonvalis:int = 1,
                     verbose:bool= False,
                     purge_chain:bool = True,
@@ -1178,6 +1187,7 @@ class Chain(c.Module):
                     batch_size:int = 10,
                     paralle:bool = True,
                     min_boot_nodes_before_parallel = 2,
+                    vali_nodes:list = None,
                     mode = mode,
                     ):
 
@@ -1191,25 +1201,26 @@ class Chain(c.Module):
         else:
             chain_info = cls.chain_info(chain=chain, default={'nodes':{}, 'boot_nodes':[]})
 
-        ## VALIDATOR NODES
-        vali_node_keys  = cls.vali_node_keys(chain=chain)
-        num_vali_keys = len(vali_node_keys)
-        c.print(f'{num_vali_keys} vali keys found for chain {chain} with {valis} valis needed')
-
-        if len(vali_node_keys) <= valis:
-            cls.add_node_keys(chain=chain, valis=valis, refresh=False)
+        if vali_nodes == None:
+            ## VALIDATOR NODES
             vali_node_keys  = cls.vali_node_keys(chain=chain)
+            num_vali_keys = len(vali_node_keys)
+            c.print(f'{num_vali_keys} vali keys found for chain {chain} with {valis} valis needed')
 
-        vali_nodes = list(vali_node_keys.keys())[:valis]
-        vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
+            if len(vali_node_keys) <= valis:
+                cls.add_node_keys(chain=chain, valis=valis, refresh=False)
+                vali_node_keys  = cls.vali_node_keys(chain=chain)
 
-        # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
-        if build_spec:
-            c.print(f'building spec for chain {chain}')
-            cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
-            if remote or push:
-                # we need to push this to 
-                cls.push(rpull=remote)
+            vali_nodes = list(vali_node_keys.keys())[:valis]
+            vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
+
+            # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
+            if build_spec:
+                c.print(f'building spec for chain {chain}')
+                cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
+                if remote or push:
+                    # we need to push this to 
+                    cls.push(rpull=remote)
         
     
         remote_address_cnt = 1
@@ -1218,6 +1229,8 @@ class Chain(c.Module):
         if remote:
             peer2nodes = cls.peer2nodes(chain=chain, update=True)
             node2peer = cls.node2peer(peer2nodes=peer2nodes)
+        
+        
         finished_nodes = []
         # START THE VALIDATOR NODES
         finished_nodes =  list(set(finished_nodes))
@@ -1237,6 +1250,7 @@ class Chain(c.Module):
             if remote:
                 if name in node2peer:
                     finished_nodes += [node]
+                    finished_nodes =  list(set(finished_nodes))
                     c.print(f'node {node} already exists on peer {node2peer[name]}', color='yellow')
                     continue
 
@@ -1299,7 +1313,7 @@ class Chain(c.Module):
                     boot_node = response['boot_node']
                     chain_info['boot_nodes'].append(boot_node)
                     chain_info['nodes'][node] = node_info
-                    finished_nodes += [node]
+                    finished_nodes += [name]
 
         
                     cls.putc(f'chain_info.{chain}', chain_info)
@@ -1383,10 +1397,20 @@ class Chain(c.Module):
 
 
 
+
+
+    def unresolved_nodes (self, chain=chain):
+        chain_info = self.chain_info(chain=chain)
+        remote_nodes = self.remote_nodes(chain=chain)
+        remote_node_suffixes = [n.split('.')[-1] for n in remote_nodes]
+        c.print(remote_node_suffixes)
+        return [node for node, node_info in chain_info['nodes'].items() if node not  in remote_node_suffixes]
+
+
     @classmethod
     def remote_nodes(cls, chain=chain, timeout=5):
         import commune as c
-        ps_map = c.module('remote').call('ps', f'{cls.node_key_prefix}.{chain}', timeout=timeout)
+        ps_map = c.module('remote').call('ps', f'{cls.node_prefix()}.{chain}', timeout=timeout)
         all_ps = []
         for ps in ps_map.values():
             if isinstance(ps, list):
@@ -1395,7 +1419,7 @@ class Chain(c.Module):
         return vali_ps
 
     @classmethod
-    def peer2nodes(cls, chain=chain, update:bool = False):
+    def peer2nodes(cls, chain=chain, update:bool = True):
         path = f'chain_info.{chain}.peer2nodes'
         if not update:
             peer2nodes = cls.get(path, {})

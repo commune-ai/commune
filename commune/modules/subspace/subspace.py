@@ -218,7 +218,7 @@ class Subspace(c.Module):
     def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
-        return {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update, trials=3)}
+        return {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update)}
 
     def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False, netuid=None):
         
