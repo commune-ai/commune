@@ -2241,6 +2241,7 @@ class Subspace(c.Module):
         delegation_fee: float = None,
         netuid: int = None,
         network : str = network,
+        nonce = None,
 
 
     ) -> bool:
@@ -2276,11 +2277,6 @@ class Subspace(c.Module):
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
         }
 
-        # remove the params that are the same as the module info
-        for k in ['name', 'address']:
-            if params[k] == module_info[k]:
-                params[k] = ''
-
         for k in ['delegation_fee']:
             if params[k] == None:
                 params[k] = module_info[k]
@@ -2294,7 +2290,7 @@ class Subspace(c.Module):
 
 
 
-        reponse  = self.compose_call('update_module',params=params, key=key)
+        reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce)
 
         return reponse
 
