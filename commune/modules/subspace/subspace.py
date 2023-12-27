@@ -2242,6 +2242,7 @@ class Subspace(c.Module):
         netuid: int = None,
         network : str = network,
         nonce = None,
+        tip: int = None,
 
 
     ) -> bool:
@@ -2290,7 +2291,7 @@ class Subspace(c.Module):
 
 
 
-        reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce)
+        reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
 
         return reponse
 
@@ -3386,6 +3387,7 @@ class Subspace(c.Module):
                      fn:str, 
                     params:dict = None, 
                     key:str = None,
+                    tip: int = None, # tip can
                     module:str = 'SubspaceModule', 
                     wait_for_inclusion: bool = True,
                     wait_for_finalization: bool = True,
@@ -3460,7 +3462,7 @@ class Subspace(c.Module):
                     },
                 )
             # get nonce 
-            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce)
+            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
 
             response = substrate.submit_extrinsic(extrinsic=extrinsic,
                                                   wait_for_inclusion=wait_for_inclusion, 
