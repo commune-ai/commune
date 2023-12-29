@@ -47,11 +47,10 @@ class DiffisionPipeline(c.Module):
                 output_type=output_type,
             ).images
 
-
-            return images
+            return {"images": images}
 
 
     def test(self, **kwargs):
-        return self.generate()
+        c.print(type(self.generate(n_steps=1)))
 
 
