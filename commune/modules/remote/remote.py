@@ -288,12 +288,12 @@ class Remote(c.Module):
         return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
 
     @classmethod
-    def add_peers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
+    def add_peers(cls, add_admins:bool=False, timeout=20, update=False, network='remote'):
         """
         Adds servers to the network by running `c add_peers` on each server.
         
         """
-        if refresh:
+        if update:
             c.rm_namespace(network=network)
         if add_admins:
             cls.add_admin(timeout=timeout)

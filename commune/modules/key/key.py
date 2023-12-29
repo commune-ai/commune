@@ -977,8 +977,8 @@ class Keypair(c.Module):
             if 'data' in data:
                 data = data.pop('data')
             
-            # if not isinstance(data, str):
-            #     data = c.python2str(data)
+            if not isinstance(data, str):
+                data = c.python2str(data)
             
                 
         if public_key == None:
@@ -992,7 +992,7 @@ class Keypair(c.Module):
         elif data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
-            data = bytes.fromhex(data)
+            data = data.encode()
             
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])

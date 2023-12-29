@@ -2745,7 +2745,7 @@ class c:
              peers: bool = False, 
              hardware : bool = False,
              ) -> Dict[str, Any]:
-        fns = [fn for fn in self.fns()]
+        fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
 
         info  = dict(
@@ -2764,7 +2764,7 @@ class c:
             info['ss58_address'] = auth['address']
         if schema:
             schema = self.schema(defaults=True)
-            info['schema'] = {fn: schema[fn] for fn in fns}
+            info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
 
         if hardware:
             info['hardware'] = self.hardware()
@@ -4956,6 +4956,12 @@ class c:
         idcard = c.str2bytes(idcard)
         return self.key.verify(idcard)
     
+    @classmethod
+    def hash_map(cls):
+        return {
+            'code': cls.chash(),
+            'commit': cls.chash(),
+        }
 
     @classmethod
     def hash(cls, 
