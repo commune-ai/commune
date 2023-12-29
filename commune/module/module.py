@@ -4160,7 +4160,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_info(cls, device:int = None, fmt='gb') -> Dict[int, Dict[str, float]]:
+    def gpu_info_map(cls, device:int = None, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -4182,7 +4182,6 @@ class c:
 
         return gpu_info
 
-    gpu_map =gpu_info
     @classmethod
     def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
@@ -4192,14 +4191,14 @@ class c:
     @classmethod
     def total_gpu_memory(cls) -> int:
         total_gpu_memory = 0
-        for gpu_id, gpu_info in cls.gpu_map().items():
+        for gpu_id, gpu_info in cls.gpu_info_map().items():
             total_gpu_memory += gpu_info['total']
         return total_gpu_memory
 
     @classmethod
     def used_gpu_memory(cls) -> int:
         used_gpu_memory = 0
-        for gpu_id, gpu_info in cls.gpu_map().items():
+        for gpu_id, gpu_info in cls.gpu_info_map().items():
             used_gpu_memory += gpu_info['used'] 
         return used_gpu_memory
     
@@ -4300,7 +4299,7 @@ class c:
         '''
         if device is None:
             device = 0
-        gpu_map = cls.gpu_map()
+        gpu_map = cls.gpu_info_map()
         if device in gpu_map:
             return gpu_map[device]
         else:
@@ -5917,7 +5916,7 @@ class c:
         
         buffer_memory = c.resolve_memory(buffer_memory)
         
-        gpu_info = cls.gpu_map()
+        gpu_info = cls.gpu_info_map()
         gpus = [int(gpu) for gpu in gpu_info.keys()] 
         
         if  reserved_gpus != False:
