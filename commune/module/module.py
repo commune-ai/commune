@@ -3467,9 +3467,11 @@ class c:
         return c.module('model.hf').learn(*args, **kwargs)
     
     @classmethod
-    def commit_hash(cls):
-        return c.module('git').commit_hash()
-        
+    def commit_hash(cls, libpath:str = None):
+        if libpath == None:
+            libpath = c.libpath
+        return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
+
     
     @classmethod
     def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:

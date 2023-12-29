@@ -944,24 +944,28 @@ class Remote(c.Module):
         # progress bar
         
         
-        
-        
-        cols = st.columns([4,2,1])
 
-        cmd = cols[0].text_input('Command', 'ls')
-
-        [cols[1].write('') for i in range(1)]
+        
+        cols = st.columns([4,4,2])
+        cwd = cols[0].text_input('cwd', '/')
         timeout = cols[1].number_input('Timeout', 1, 100, 10)
-        # add splace to cols[2] vertically
         [cols[2].write('') for i in range(2)]
         sudo = cols[2].checkbox('Sudo')
+        if cwd == '/':
+            cwd = None
+
+        # add splace to cols[2] vertically
+        
+        cmd = st.text_input('Command', 'ls')
+
+    
         run_button = st.button('Run')
 
 
         host2future = {}
         if run_button:
             for host in host_names:
-                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names), return_future=True, timeout=timeout)
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
 
         futures = list(host2future.values())
@@ -981,7 +985,8 @@ class Remote(c.Module):
 
                     result = result['result']
                     if c.is_error(result):
-                        host2error[host] = result
+                        st.markdown(host + ' ' + c.emoji('cross'))
+                        st.markdown(f"""```bash\n{result['error']}```""")
                     else:
                         count += 1
                         st.markdown(host + ' ' + c.emoji('check_mark'))

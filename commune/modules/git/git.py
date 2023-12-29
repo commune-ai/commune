@@ -75,7 +75,7 @@ class Git(c.Module):
     
     @classmethod
     def commit_hash(cls, libpath:str = None):
-        llibpath = cls.resolve_libpath(libpath)
+        libpath = cls.resolve_libpath(libpath)
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
     def reset_hard(self, libpath:str = None):
