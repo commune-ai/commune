@@ -1,5 +1,4 @@
 import commune as c
-from diffusers import DiffusionPipeline
 import torch
 
 class DiffisionPipeline(c.Module):
@@ -15,6 +14,9 @@ class DiffisionPipeline(c.Module):
         self.test()
 
     def set_model(self, model:str, device:str = None, variant: str = 'fp16'):
+
+        from diffusers import DiffusionPipeline
+
         c.ensure_lib("diffusers")
         device = device if device != None else f'cuda:{c.most_free_gpu()}' 
         # load both base & refiner
@@ -22,7 +24,6 @@ class DiffisionPipeline(c.Module):
                                                       torch_dtype=torch.float16, 
                                                       variant=variant, 
                                                       use_safetensors=True).to(device)
-
 
         self.device = device
         self.variant= variant 

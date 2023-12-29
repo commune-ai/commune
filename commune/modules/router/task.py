@@ -28,6 +28,7 @@ class RouterTask(c.Module):
                 save:bool = True,
                 fn_seperator:str = '/',
                 network : str = 'local',
+                namespace = None,
                 **extra_kwargs):
         if fn_seperator in str(module):
             module, fn = module.split(fn_seperator)
@@ -45,6 +46,7 @@ class RouterTask(c.Module):
         self.data = None # the result of the task
         self.save = save
         self.extra_kwargs = extra_kwargs
+        self.namespace = namespace
         self.__dict__.update(extra_kwargs)
         # save the task state
         self.status = 'pending' # pending, running, done
@@ -98,7 +100,7 @@ class RouterTask(c.Module):
             self.future.set_exception(TimeoutError('RouterTask timed out'))
         try:
             # connect to module
-            module = c.connect(self.module, network=self.network)
+            module = c.connect(self.module, network=self.network, namespace=self.namespace)
 
             # run the function
             data = getattr(module, self.fn)(*self.args, timeout=self.timeout, **self.kwargs)

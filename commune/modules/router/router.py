@@ -78,6 +78,7 @@ class Router(c.Module):
                 update=False, 
                 path:str=None, 
                 fn_seperator:str='/',
+                tag = None,
                 priority=1,
 
                 ) -> Future:
@@ -85,7 +86,9 @@ class Router(c.Module):
         args = args or []
         kwargs = kwargs or {}
 
-    
+        tag= tag or self.tag or "base"
+
+        path = f"{tag}/{module}_{fn}" 
 
         with self.shutdown_lock:
             if self.broken:
@@ -93,19 +96,26 @@ class Router(c.Module):
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
 
-            task = Task(module=module, fn=fn, args=args,
-                               kwargs=kwargs, timeout=timeout,
-                                 path=path, priority=priority, 
-                                 fn_seperator=fn_seperator, namespace=namespace, 
-                                 network=network, init_kwargs=init_kwargs, 
+            task = Task(module=module, 
+                                 fn=fn, 
+                                 args=args,
+                                 kwargs=kwargs, 
+                                 timeout=timeout,
+                                 path=path, 
+                                 priority=priority, 
+                                 fn_seperator=fn_seperator, 
+                                 namespace=namespace, 
+                                 network=network, 
+                                 init_kwargs=init_kwargs, 
                                  update=update)
+            
             # add the work item to the queue
             self.task_queue.put((task.priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
 
         if return_future:
-            return task
+            return task.future
         else:
             return task.result()
 
