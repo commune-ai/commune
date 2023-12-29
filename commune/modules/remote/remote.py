@@ -784,10 +784,11 @@ class Remote(c.Module):
         st.title('Remote Dashboard')
         self.sidebar()
 
+
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        dashboard = st.sidebar.selectbox("Select Dashbord",['SSH', 'MODULES'])
+        dashboard = st.sidebar.selectbox("Select Dashbord",['SSH', 'MODULES'], 1)
         
         if dashboard == "SSH":
             self.ssh_dashboard()
@@ -798,6 +799,8 @@ class Remote(c.Module):
         host2ip = self.host2ip()
         peer = host2ip.get(peer, peer)
         return self.get(f'peers/{peer}', {})
+    
+
 
     def peer_dashboard(self):
         import streamlit as st
@@ -806,6 +809,8 @@ class Remote(c.Module):
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
         peer2info = self.peer2info()
+
+        st.write(list(peer2info.values())[0])
 
         peer_info_df = []
         for peer, info in peer2info.items():
