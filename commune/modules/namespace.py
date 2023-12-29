@@ -60,9 +60,9 @@ class Namespace(c.Module):
         if network == None: 
             network = cls.network
 
-        if network == 'subspace':
+        if 'subspace' in network:
             if '.' in network:
-                network, subnet = search.split('.')
+                network, subnet = network.split('.')
             else: 
                 if subnet == None:
                     subnet = 0

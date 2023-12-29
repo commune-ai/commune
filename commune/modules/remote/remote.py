@@ -323,7 +323,7 @@ class Remote(c.Module):
 
         c.put_namespace(network=network, namespace=namespace)
 
-        return {'status': 'success', 'msg': f'Servers added', 'servers': namespace}
+        return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
 
     @classmethod
     def servers(self,search: str ='module', network='remote'):
@@ -375,39 +375,16 @@ class Remote(c.Module):
 
         if update:
             namespace = {}
-            host2namespace = cls.call('namespace', public=True, timeout=20)
 
-            for host, host_namespace in host2namespace.items():
-                if c.is_error(host_namespace):
+        peer2namespace = cls.peer2namespace()
+        for peer, peer_namespace in peer2namespace.items():
+
+            for name, address in peer_namespace.items():
+                if search != None and search not in name:
                     continue
-                for name, address in host_namespace.items():
-                    tag = ''
-                    while name + str(tag) in namespace:
-                        if tag == '':
-                            tag = 1
-                        else:
-                            tag += 1
-                    namespace[name + str(tag)] = address
-            c.put_namespace(namespace=namespace, network=network)
-        else:
-            namespace = c.get_namespace(search, network=network)
-        if search != None: 
-            namespace = {k:v for k,v in namespace.items() if search in k}
-
-        address2name = {v:k for k,v in namespace.items()}
-        ip2host = cls.ip2host()
-        local_ip = c.ip()
-        for address, name in address2name.items():
-            if 'module' in name:
-                if address in address2name:
+                if name in namespace:
                     continue
-                else:
-                    ip = c.address2ip(address)                        
-
-                    if ip in ip2host:
-                        host = ip2host[ip]
-                    server_name = 'module' + '_' +  str(host)
-                    namespace[server_name] = address
+                namespace[name + '_'+ {peer}] = address
         return namespace
 
     @classmethod
@@ -767,16 +744,30 @@ class Remote(c.Module):
         info_paths = self.ls('peers')
         peer_infos = []
         for path in info_paths:
-            peer_infos += [self.get(path, {}).get('hardware', {})]
+            c.print(path)
+            info = self.get(path, {})
+            # c.print(info)
+            peer_infos += [info.get('hardware', {})]
         return peer_infos
     
-    def peer2namespace(self):
-        info_paths = self.ls('peers')
-        peer_infos = []
+    # def path2ip(self, path):
+    #     return path.split('/')[-1].replace('.json', '')
+    # def path2peer(self, path):
+    #     return self.ip2host().get(self.path2ip(path), None)
+    
+    @classmethod
+    def peer2namespace(cls):
+        info_paths = cls.ls('peers')
+        peer2namespace = {}
         for path in info_paths:
-            c.print(path)
-            peer_infos += [self.get(path, {}).keys()]
-        return peer_infos
+            peer_address = path.split('/')[-1].replace('.json', '')
+             
+            peer_name = cls.ip2host().get(peer_address, peer_address)
+            peer_info = cls.get(path, {})
+            peer_namespace = peer_info.get('namespace', {})
+            peer_namespace = {k:v.replace('0.0.0.0', peer_address) for k,v in peer_namespace.items()}
+            peer2namespace[peer_name] =  peer_namespace
+        return peer2namespace
 
         
 
@@ -796,15 +787,17 @@ class Remote(c.Module):
         self.st = c.module('streamlit')()
         self.st.load_style()
 
-        tabs = st.tabs(['Servers', 'Peers'])
+        dashboard = st.sidebar.selectbox("Select Dashbord",['SSH', 'MODULES'])
         
-    
-
-        with tabs[0]:
+        if dashboard == "SSH":
             self.ssh_dashboard()
-        with tabs[1]:
+        if dashboard == "MODULES":
             self.peer_dashboard()
 
+    def peer_info(self, peer):
+        host2ip = self.host2ip()
+        peer = host2ip.get(peer, peer)
+        return self.get(f'peers/{peer}', {})
 
     def peer_dashboard(self):
         import streamlit as st
@@ -812,7 +805,6 @@ class Remote(c.Module):
 
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
-        ip2host = self.ip2host()
         peer2info = self.peer2info()
 
         peer_info_df = []
@@ -830,8 +822,8 @@ class Remote(c.Module):
             row['num_modules'] = len(info.get('namespace', {}))
         
         peer_info_df = pd.DataFrame(peer_info_df)
-        st.dataframe(peer_info_df)
         namespace = c.namespace(search=search, network='remote')
+        ip2host = self.ip2host()
 
         with st.expander('Peers', expanded=False):
             for peer, info in peer2info.items():

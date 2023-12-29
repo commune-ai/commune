@@ -388,7 +388,7 @@ class Subspace(c.Module):
     """ Returns network Tempo hyper parameter """
     def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
         stakes =  self.query_map('Stake', params=netuid , update=update, **kwargs)
-        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
+        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -601,7 +601,8 @@ class Subspace(c.Module):
             netuids = self.netuids(network=network, block=block, update=True)
             c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
 
-            subnets = [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
+            subnets = [c.asubmit(self.subnet, kwargs=dict(netuid=netuid, network=network, block=block, update=True, fmt='nano')) for netuid in netuids]
+            subnets = c.gather(subnets, timeout=10)
 
             c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
         
@@ -708,8 +709,9 @@ class Subspace(c.Module):
             return {}
         return cls.get(path, {})
     
-    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
-
+    @classmethod
+    def sync(cls, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
+        self = cls()
         network = self.resolve_network(network)
         response = self.state_dict(update=True, network=network, parallel=True)
         self.get_namespace(update=True)
@@ -1851,7 +1853,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'trust', 'regblock', 'last_update'],
+              cols : list = ['name', 'emission','incentive', 'dividends', 'stake', 'last_update', 'serving'],
               sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
@@ -1875,7 +1877,7 @@ class Subspace(c.Module):
             for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
                 m[k] = c.round(m[k], sig=4)
 
-            stats.append(c.copy(m))
+            stats.append(m)
 
         servers = c.servers(network='local')
         for i in range(len(stats)):
@@ -1909,9 +1911,7 @@ class Subspace(c.Module):
             return df_stats
 
 
-    def stats(self, **kwargs):
-        return c.module('subspace.wallet')().stats(**kwargs)
-    
+
 
     def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=0, df:bool = True, network=network, **kwargs):
         my_modules = []
@@ -3054,71 +3054,6 @@ class Subspace(c.Module):
         servers =  c.servers(network='local')
 
 
-
-
-    def stats(self, 
-              search = None,
-              netuid=0,  
-              network = network,
-              df:bool=True, 
-              update:bool = False , 
-              local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive','stake', 'trust', 'regblock', 'last_update'],
-              sort_cols = ['registered', 'emission', 'stake'],
-              fmt : str = 'j',
-              include_total : bool = True,
-              **kwargs
-              ):
-
-        ip = c.ip()
-        modules = self.modules(netuid=netuid, update=update, fmt=fmt, network=network, **kwargs)
-        stats = []
-
-        local_key_addresses = list(c.key2address().values())
-        for i, m in enumerate(modules):
-
-            if m['key'] not in local_key_addresses :
-                continue
-            # sum the stake_from
-            m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
-            m['registered'] = True
-
-            # we want to round these values to make them look nice
-            for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
-                m[k] = c.round(m[k], sig=4)
-
-            stats.append(c.copy(m))
-
-        servers = c.servers(network='local')
-        for i in range(len(stats)):
-            stats[i]['serving'] = bool(stats[i]['name'] in servers)
-
-        df_stats =  c.df(stats)
-
-        if len(stats) > 0:
-
-            df_stats = df_stats[cols]
-
-            if 'last_update' in cols:
-                block = self.block
-                df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
-
-            c.print(df_stats)
-            if 'emission' in cols:
-                epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
-                df_stats['emission'] = df_stats['emission'] * epochs_per_day
-
-
-            sort_cols = [c for c in sort_cols if c in df_stats.columns]  
-            df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
-
-            if search is not None:
-                df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
-
-        if not df:
-            return df_stats.to_dict('records')
-        else:
-            return df_stats
 
     def my_uids(self):
         return list(self.my_key2uid().values())

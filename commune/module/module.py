@@ -1144,8 +1144,10 @@ class c:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-    def kill_port_range(self, start_port = 8501, end_port = 8600, timeout=5):
+    def kill_port_range(self, start_port = 8501, end_port = 8620, timeout=5, n=0):
         port_range = [start_port, end_port]
+        if n > 0:
+            port_range = [start_port, start_port + n]
         assert isinstance(port_range[0], int), 'port_range must be a list of ints'
         assert isinstance(port_range[1], int), 'port_range must be a list of ints'
         assert port_range[0] < port_range[1], 'port_range must be a list of ints'
@@ -1602,9 +1604,7 @@ class c:
         else:
             return cls.st(*args, **kwargs)
     
-    @classmethod
-    def dashboard(cls):
-        return c.module('dashboard').dashboard()
+
     @classmethod
     def is_parent(cls, parent=None):
         parent = c if parent == None else parent
@@ -5000,8 +5000,7 @@ class c:
     def encrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix,
-                password= None 
+                password: str = None,
                 ) -> bytes:
         
         """
@@ -5020,7 +5019,7 @@ class c:
 
         c.print(f'Encrypting {data} with {key}', color='cyan')
 
-        encrypted_data = key.encrypt(data)
+        encrypted_data = key.encrypt(data, password=password)
 
         if path != None:
             c.put_text(path, encrypted_data)
@@ -5033,6 +5032,7 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 prefix = encrypted_prefix,
+                password : str = None,
                 include_files:bool = True,
                 path=None) -> bytes:
 
@@ -5042,7 +5042,7 @@ class c:
             path = data
             data =  c.get_text(path)
         try:
-            data = key.decrypt(data)
+            data = key.decrypt(data, password=password)
         except Exception as e:
             response = c.detailed_error(e)
             return response
@@ -5106,6 +5106,8 @@ class c:
                 raise e
         
         return result
+
+    
 
     @classmethod
     def call_pool(cls, 
@@ -5717,8 +5719,8 @@ class c:
     def update(cls, 
                module = None,
                tree:bool = True,
-               namespace: bool = True,
-               subspace: bool = True,
+               namespace: bool = False,
+               subspace: bool = False,
                network: str = 'local',
                **kwargs
                ):
@@ -5728,16 +5730,19 @@ class c:
             return c.module(module).update()
         # update local namespace
         c.ip(update=True)
-
+        responses = []
         if namespace:
-            namespace = c.namespace(network=network, update=True)
+            r = namespace = c.namespace(network=network, update=True)
+            responses.append(r)
         if subspace:
-            c.module('subspace').sync()
+            r = c.module('subspace').sync()
+            responses.append(r)
         if tree:
-            c.tree(update=True)
+            r = c.tree(update=True)
+            responses.append(r)
 
 
-        return {'success': True, 'servers': namespace}
+        return {'success': True, 'responses': responses}
     
 
     def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
@@ -7470,7 +7475,6 @@ class c:
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
         code = self.code()
         code_lines = code.split('\n')
-        c.tokenizer()
         if mode == 'lines':
             code_lines
         else:
@@ -8797,8 +8801,9 @@ class c:
         if sync:
             c.sync()
 
-
- 
+    @classmethod
+    def dashboard(cls):
+        st.write(cls.module_path().upper())
 
 Module = c
 Module.run(__name__)
