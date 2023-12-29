@@ -895,8 +895,12 @@ class Keypair(c.Module):
         }
 
         return json_data
+    
+    seperator = "<DATA::SIGNATURE>"
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], return_json:bool=False) -> bytes:
+    def sign(self, 
+             data: Union[ScaleBytes, bytes, str], 
+             return_json:bool=False) -> bytes:
         """
         Creates a signature for given data
 
@@ -942,8 +946,13 @@ class Keypair(c.Module):
             }
 
         return signature
-
-    def verify(self, data: Union[ScaleBytes, bytes, str, dict], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto_type = None) -> bool:
+    
+    def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
+               signature: Union[bytes, str] = None,
+               public_key:Optional[str]= None, 
+               crypto_type = None,
+               seperator = "<DATA::SIGNATURE>",
+               ) -> bool:
         
         """
         Verifies data with specified signature
@@ -959,6 +968,7 @@ class Keypair(c.Module):
         True if data is signed with this Keypair, otherwise False
         """
         data = c.copy(data)
+
         if isinstance(data, dict):
 
             crypto_type = int(data.pop('crypto_type'))
@@ -982,12 +992,14 @@ class Keypair(c.Module):
         elif data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
-            data = data.encode()
-
+            data = bytes.fromhex(data)
+            
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
+
+        c.print(signature)
 
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
@@ -1379,6 +1391,10 @@ class Keypair(c.Module):
         else:
             # Invalid address type
             return False
+        
+    def id_card(self, return_json=True,**kwargs):
+        return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
+
 
 
 

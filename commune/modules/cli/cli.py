@@ -14,6 +14,7 @@ class CLI(c.Module):
             module_overrides: dict = ['network', 'key'],
 
         ) :
+        self.protected_modules = ['module', 'key']
         c.new_event_loop(True)
         self.module = c.Module()
         args, kwargs = self.parse_args()
@@ -31,7 +32,7 @@ class CLI(c.Module):
             # is it a fucntion, assume it is for the module
 
             module_list = c.modules()
-            if args[0] in functions and args[0] not in module_overrides:
+            if args[0] in functions and args[0] not in module_overrides and args[0] not in self.protected_modules:
                 # is a function
                 module = c.Module
                 fn = args.pop(0)

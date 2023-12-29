@@ -16,16 +16,13 @@ class ServerDashboard(c.Module):
         module2index = {m:i for i,m in enumerate(modules)}
         module_name  = st.selectbox('Select a Module', modules, module2index['agent'], key=f'serve.module')
 
-
-
         module = c.module(module_name)
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-                    
 
         with st.expander('serve'):
             cols = st.columns([2,2,1])
             tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
-            tag = None if tag == '' else tag
+            tag = None if tagx == '' else tag
 
             n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
             

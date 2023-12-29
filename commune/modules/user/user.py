@@ -99,10 +99,11 @@ class User(c.Module):
         st.write('### Users')
         self = cls()
         users = self.users()
+        
 
-
-        with st.expander('Users', True):
+        with st.expander('Users', False):
             st.write(self.df())
+
 
         with st.expander('Add Users', True):
             
@@ -116,13 +117,13 @@ class User(c.Module):
                 st.write(response)
 
         with st.expander('Remove Users', True):
-            cols = st.columns([2,1])
+            cols = st.columns([3,1])
             user_keys = list(users.keys())
             rm_user_address = cols[0].selectbox('Remove User Address', user_keys, 0 , key='addres')
             [cols[1].write('\n') for i in range(2)]
-            add_user = cols[1].button(f'Remove {role}')
+            add_user = cols[1].button(f'Remove {rm_user_address[:4]}...')
             if add_user:
-                response = getattr(cls, f'add_{role}')(add_user_address)
+                response = getattr(cls, f'rm_user')(add_user_address)
                 st.write(response)
 
 

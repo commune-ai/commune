@@ -1,9 +1,3 @@
-import commune as c
-Thread = c.module('thread')
-import asyncio
-import gc
-
-
 
 import os
 import sys
@@ -21,11 +15,11 @@ from concurrent.futures._base import Future
 import commune as c
 import gc
 
-Task = c.module('router.task')
+Task = c.module('executor.task')
 
-NULL_ENTRY = (sys.maxsize, Task.null())
+NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
-class Router(c.Module):
+class ThreadPoolExecutor(c.Module):
     """Base threadpool executor with a priority queue"""
 
     # Used to assign unique thread names when thread_name_prefix is not supplied.
@@ -51,7 +45,7 @@ class Router(c.Module):
             raise ValueError("max_workers must be greater than 0")
             
         self.max_workers = max_workers
-        self.task_queue = queue.PriorityQueue(maxsize=maxsize)
+        self.work_queue = queue.PriorityQueue(maxsize=maxsize)
         self.idle_semaphore = threading.Semaphore(0)
         self.threads = []
         self.broken = False
@@ -61,53 +55,38 @@ class Router(c.Module):
 
     @property
     def is_empty(self):
-        return self.task_queue.empty()
-    
+        return self.work_queue.empty()
 
     
-    def call(self, 
-                module: str = 'module',
-                fn : str = 'info',
+    def submit(self, 
+               fn: Callable,
                 args:dict=None, 
                 kwargs:dict=None, 
                 timeout=200, 
-                return_future:bool=False,
-                namespace = None,
-                network:str='local',
-                init_kwargs = None,
-                update=False, 
-                path:str=None, 
-                fn_seperator:str='/',
-                priority=1,
-
-                ) -> Future:
-        
-        args = args or []
+                return_future:bool=True, 
+                path:str=None) -> Future:
+        args = args or ()
         kwargs = kwargs or {}
-
-    
-
         with self.shutdown_lock:
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
+            priority = kwargs.get("priority", 1)
+            if "priority" in kwargs:
+                del kwargs["priority"]
 
-            task = Task(module=module, fn=fn, args=args,
-                               kwargs=kwargs, timeout=timeout,
-                                 path=path, priority=priority, 
-                                 fn_seperator=fn_seperator, namespace=namespace, 
-                                 network=network, init_kwargs=init_kwargs, 
-                                 update=update)
+            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
             # add the work item to the queue
-            self.task_queue.put((task.priority, task), block=False)
+            self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
-
+            
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
         if return_future:
-            return task
-        else:
-            return task.result()
+            return task.future
+        else: 
+            return task.future.result()
 
 
     def adjust_thread_count(self):
@@ -117,7 +96,7 @@ class Router(c.Module):
 
         # When the executor gets lost, the weakref callback will wake up
         # the worker threads.
-        def weakref_cb(_, q=self.task_queue):
+        def weakref_cb(_, q=self.work_queue):
             q.put(NULL_ENTRY)
 
         num_threads = len(self.threads)
@@ -128,18 +107,18 @@ class Router(c.Module):
                 target=self.worker,
                 args=(
                     weakref.ref(self, weakref_cb),
-                    self.task_queue,
+                    self.work_queue,
                 ),
             )
             t.daemon = True
             t.start()
             self.threads.append(t)
-            self.threads_queues[t] = self.task_queue
+            self.threads_queues[t] = self.work_queue
 
     def shutdown(self, wait=True):
         with self.shutdown_lock:
             self.shutdown = True
-            self.task_queue.put(NULL_ENTRY)
+            self.work_queue.put(NULL_ENTRY)
         if wait:
             for t in self.threads:
                 try:
@@ -148,16 +127,16 @@ class Router(c.Module):
                     pass
 
     @staticmethod
-    def worker(executor_reference, task_queue):
+    def worker(executor_reference, work_queue):
         
         try:
             while True:
-                work_item = task_queue.get(block=True)
+                work_item = work_queue.get(block=True)
                 priority = work_item[0]
 
                 if priority == sys.maxsize:
                     # Wake up queue management thread.
-                    task_queue.put(NULL_ENTRY)
+                    work_queue.put(NULL_ENTRY)
                     break
 
                 item = work_item[1]
@@ -179,7 +158,7 @@ class Router(c.Module):
                     if executor is not None:
                         executor.shutdown = True
                     # Notice other workers
-                    task_queue.put(NULL_ENTRY)
+                    work_queue.put(NULL_ENTRY)
                     return
                 del executor
         except Exception as e:
@@ -191,7 +170,7 @@ class Router(c.Module):
 
     @property
     def num_tasks(self):
-        return self.task_queue.qsize()
+        return self.work_queue.qsize()
 
     @classmethod
     def as_completed(futures: list):
@@ -229,3 +208,5 @@ class Router(c.Module):
 
 
         return {'success': True, 'msg': 'thread pool test passed'}
+
+        
