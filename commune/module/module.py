@@ -4960,7 +4960,7 @@ class c:
     def hash_map(cls):
         return {
             'code': cls.chash(),
-            'commit': cls.chash(),
+            'commit': cls.commit_hash(),
         }
 
     @classmethod
