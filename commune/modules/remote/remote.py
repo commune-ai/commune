@@ -680,9 +680,11 @@ class Remote(c.Module):
         while True:
             namespace = c.namespace('module', network='remote')
             peer2lag = self.peer2lag()
-            c.print(peer2lag)
+            c.sleep(0.1)
+
+            c.print('peer2lag: ', peer2lag)
+
             for name, address in namespace.items():
-                c.sleep(0.1)
                 path = 'peers/' + address.split(':')[0]
                 existing_peer_info = self.get(path, {})
                 peer_update_ts = existing_peer_info.get('timestamp', 0)
@@ -705,12 +707,11 @@ class Remote(c.Module):
                 if batch_size != None and len(futures) >= batch_size:
                     for future in c.as_completed(futures, timeout=timeout):
                         result = future.result()
-                        if not c.is_error(result):
-                           path = 'peers/' + address.split(':')[0]
-                           c.print(f'Saving {path}', color='yellow')
-                           result['timestamp'] = c.time()
-                           self.put(path, result)
-                        
+                        if isinstance(result, dict) and not c.is_error(result) :
+                            path = 'peers/' + address.split(':')[0]
+                            c.print(f'Saving {path}', color='yellow')
+                            result['timestamp'] = c.time()
+                            self.put(path, result)
 
                         break 
                 futures = [future for future in futures if not future.done()]
