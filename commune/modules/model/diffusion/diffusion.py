@@ -7,23 +7,30 @@ class DiffisionPipeline(c.Module):
                     model: str =  'stabilityai/stable-diffusion-xl-base-1.0',
                     variant : str = 'fp16',
                     device: str=  None,
-                    test: bool = True,
+                    use_safetensors:bool = True,
                     **kwargs):
                     
-        self.set_model(model=model, device=device , variant=variant)
+        self.set_model(model=model, 
+                       device=device ,
+                       variant=variant, 
+                       use_safetensors=use_safetensors, **kwargs)
         self.test()
 
-    def set_model(self, model:str, device:str = None, variant: str = 'fp16'):
+    def set_model(self, model:str, device:str = None, variant: str = 'fp16', use_safetensors=True,**kwargs):
 
-        from diffusers import DiffusionPipeline
+        try:
+            from diffusers import DiffusionPipeline
+        except:
+            self.install()
+            from diffusers import DiffusionPipeline
 
-        c.ensure_lib("diffusers")
-        device = device if device != None else f'cuda:{c.most_free_gpu()}' 
+        device = device if device != None else f'cuda' 
         # load both base & refiner
         self.model = DiffusionPipeline.from_pretrained(model, 
                                                       torch_dtype=torch.float16, 
                                                       variant=variant, 
-                                                      use_safetensors=True).to(device)
+                                                      use_safetensors=use_safetensors, 
+                                                      **kwargs).to(device)
 
         self.device = device
         self.variant= variant 
@@ -48,6 +55,9 @@ class DiffisionPipeline(c.Module):
             ).images
 
             return {"images": images}
+
+    def install(self):
+        c.ensure_lib("diffusers")
 
 
     def test(self, **kwargs):

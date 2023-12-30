@@ -63,7 +63,29 @@ class Router(c.Module):
     def is_empty(self):
         return self.task_queue.empty()
     
+    def task_path(self, status='pending', tag=None):
+        tag= tag or self.tag or "base"
+        path = self.resolve_path(tag) + '/' + status
+        return path
 
+
+    def tasks(self, status='pending', tag=None):
+        return self.ls(self.task_path(status=status, tag=tag))
+    def completed(self,  tag=None):
+        return self.ls(self.task_path(status='complete', tag=tag))
+    
+    def failed(self,  tag=None):
+        return self.ls(self.task_path(status='failed', tag=tag))
+    
+    def refresh_tasks(self, tag=None):
+        tag= tag or self.tag or "base"
+        task_path = self.resolve_path(tag)
+        return c.rm(task_path)
+
+        
+    
+    def pending(self,  tag=None):
+        return self.ls(self.task_path(status='pending', tag=tag))
     
     def call(self, 
                 module: str = 'module',
@@ -78,17 +100,16 @@ class Router(c.Module):
                 update=False, 
                 path:str=None, 
                 fn_seperator:str='/',
-                tag = None,
                 priority=1,
+                tag = None
 
                 ) -> Future:
         
         args = args or []
         kwargs = kwargs or {}
 
-        tag= tag or self.tag or "base"
-
-        path = f"{tag}/{module}_{fn}" 
+        tag = tag or self.tag or "base"
+        path = self.resolve_path(tag) 
 
         with self.shutdown_lock:
             if self.broken:
@@ -216,26 +237,13 @@ class Router(c.Module):
             results += [future.result()]
         return results
 
-    
     @classmethod
-    def test(cls):
-        def fn(x):
-            result =  x*2
-            return result
-            
-        self = cls()
-        futures = []
-        for i in range(100):
-            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
-        for future in c.tqdm(futures):
-            future.result()
-        for i in range(100):
-            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
-
-        results = c.wait(futures)
-        
-        while self.num_tasks > 0:
-            c.print(self.num_tasks, 'tasks remaining', color='red')
-
-
+    def test(cls, tag=None):
+        test_module_name = 'test_module'
+        module = c.serve(server_name=test_module_name, wait_for_server=True)
+        output =  cls().call(module=test_module_name, fn='info', tag=tag)
+        c.print(output)
+        assert isinstance( output, dict) and 'name' in output 
+        assert output['name'] == test_module_name
+        c.kill(test_module_name)
         return {'success': True, 'msg': 'thread pool test passed'}
