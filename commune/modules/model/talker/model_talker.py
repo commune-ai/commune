@@ -228,4 +228,3 @@ class ModelTalker(c.Module):
         demo.queue(max_size=10)
         demo.launch(debug=True)
 
-    
