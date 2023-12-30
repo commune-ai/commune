@@ -2,30 +2,35 @@
 import commune as c
 import streamlit as st
 import pandas as pd
+import streamlit as st
 
 class ServerDashboard(c.Module):
     @classmethod
     def dashboard(cls):
         import pandas as pd
         self = cls()
-        self.sidebar()
         self.st = c.module('streamlit')
 
         modules = c.modules()
         self.st.line_seperator()
         module2index = {m:i for i,m in enumerate(modules)}
-        module_name  = st.selectbox('Select a Module', modules, module2index['agent'], key=f'serve.module')
+        with st.sidebar:
+            cols = st.columns([1,1])
+            module_name  = cols[0].selectbox('Select a Module', modules, module2index['agent'], key=f'serve.module')        
+
+        launcher_namespace = c.namespace(search='module::', namespace='remote')
+        launcher_addresses = list(launcher_namespace.values())
+        
 
         module = c.module(module_name)
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
 
         with st.expander('serve'):
             cols = st.columns([2,2,1])
-            tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module}')
-            tag = None if tagx == '' else tag
+            tag = st.text_input('tag', 'replica', key=f'serve.tag.{module}')
+            tag = None if tag == '' else tag
+            server_name = st.text_input('server_name', module_name + "::" + tag, key=f'serve_name.{module}')
 
-            n = cols[1].number_input('Number of Replicas', 1, 30, 1, 1, key=f'serve.n.{module}')
-            
             [cols[2].write('\n\n\n') for _ in range(2)]
             register = cols[2].checkbox('Register', key=f'serve.register.{module}')
             if register:
@@ -49,7 +54,7 @@ class ServerDashboard(c.Module):
                                 s_tag = f'{tag}.{i}'
                             else:
                                 s_tag = str(i)
-                            response = module.serve( kwargs = kwargs, tag=s_tag, network=self.network)
+                            response = module.serve( kwargs = kwargs, server_name=server_name, network=self.network)
                         except Exception as e:
                             e = c.detailed_error(e)
                             response = {'success': False, 'message': e}
@@ -59,14 +64,17 @@ class ServerDashboard(c.Module):
                         else:
                             st.error(response)
 
+  
+
         with st.expander('Code', expanded=False):
             code = module.code()
-            st.markdown(f"""
-                        ```python
-                        {code}
-                        ```
-                        """)
-            
+            code = self.code_editor(code)
+            save_code = st.button('Save Code')
+            if save_code:
+                filepath = module.filepath()
+
+                c.put_text(filepath, code)
+        
         with st.expander('readme', expanded=False):
             
             markdown = module.readme()
@@ -86,7 +94,7 @@ class ServerDashboard(c.Module):
             if rm_server:
                 c.rm_server(server)
 
-    
+
 
     def playground_dashboard(self):
         
@@ -129,6 +137,11 @@ class ServerDashboard(c.Module):
                     response = {'success': False, 'message': e}
                 st.write(response)
     
+    def code_editor(self, code):
+        from code_editor import code_editor
+
+        return code_editor(code)
+
        
 ServerDashboard.run(__name__)
 
