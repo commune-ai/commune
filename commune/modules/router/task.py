@@ -37,7 +37,7 @@ class RouterTask(c.Module):
         self.module = module
         self.fn = fn # the name of the function
         self.path = path
-        self.start_time = time.time() # the time the task was created
+        self.start_time = int(time.time()) # the time the task was created
         self.args = args if args != None else [] # the arguments of the task
         self.kwargs = kwargs if kwargs != None else {} # the arguments of the task
         self.timeout = timeout # the timeout of the task
@@ -46,7 +46,6 @@ class RouterTask(c.Module):
         self.data = None # the result of the task
         self.save = save
         self.extra_kwargs = extra_kwargs
-        self.namespace = namespace
         self.__dict__.update(extra_kwargs)
         # save the task state
         self.status = 'pending' # pending, running, done
@@ -75,8 +74,12 @@ class RouterTask(c.Module):
             **self.extra_kwargs
         }
     
+
     def save_state(self):
-        self.status2path = {status: f'<result>::module={self.module}_fn={self.fn}_timestamp={self.start_time}' for status in ['pending', 'complete']}
+        self.status2path = {status: f'{status}/module={self.module}_fn={self.fn}_ts={self.start_time}' for status in ['pending', 'complete', 'failed']}
+        for k,v in self.status2path.items():
+            if self.path != None:
+                self.status2path[k] = f"{self.path}/{v}"
         path = self.status2path[self.status]
         if self.status == 'pending':
             return self.put(path, self.state)
@@ -99,9 +102,10 @@ class RouterTask(c.Module):
         ):
             self.future.set_exception(TimeoutError('RouterTask timed out'))
         try:
-            # connect to module
-            module = c.connect(self.module, network=self.network, namespace=self.namespace)
 
+            # connect to module
+            module = c.connect(self.module, network=self.network)
+            
             # run the function
             data = getattr(module, self.fn)(*self.args, timeout=self.timeout, **self.kwargs)
 
@@ -112,14 +116,14 @@ class RouterTask(c.Module):
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             data = c.detailed_error(e)
             self.status = 'failed'
-
-        self.future.set_result(data)
-        # store the result of the task
-        
         self.data = data       
 
         if self.save:
             self.save_state()
+
+        self.future.set_result(data)
+        # store the result of the task
+        
 
     def result(self) -> object:
         return self.future.result()
