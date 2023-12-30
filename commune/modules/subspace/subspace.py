@@ -210,17 +210,19 @@ class Subspace(c.Module):
         wasm_file_path = self.libpath + '/target/release/wbuild/node-subspace-runtime/node_subspace_runtime.compact.compressed.wasm'
         return wasm_file_path
 
-    def stake_from(self, netuid = 0, block=None, update=False, network=network):
-        return {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', netuid, block=block, update=update, network=network)}
+    def stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
+        stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', netuid, block=block, update=update, network=network)}
+        return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
     
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
         return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update, network=network)}
     
     
-    def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3):
+    def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3, fmt='nano'):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
-        return {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update)}
+        stake_to =  {k: list(map(list,v)) for k,v in self.query_map('StakeTo', netuid, block=block, update=update)}
+        return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
     def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False, netuid=None):
         
@@ -717,38 +719,54 @@ class Subspace(c.Module):
         self.get_namespace(update=True)
         return {'success': True, 'block': response['block']}
 
-    def loop(self, interval=20, save_interval=100, network=None, remote:bool=True, local:bool=True, save:bool=True):
-        start_time = 0
-        save_interval = (save_interval // interval) * interval
-        assert save_interval % interval == 0, f"save_interval {save_interval} must be a multiple of interval {interval}"
 
-        last_block_update = 0
+
+    def light_sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
+        netuids = self.netuids(network=network, update=True)
+        stake_from_futures = []
+        namespace_futures = []
+        for netuid in netuids:
+            stake_from_futures += [c.asubmit(self.stake_from, kwargs=dict(netuid=netuid, network=network, update=True))]
+            namespace_futures += [c.asubmit(self.namespace, kwargs=dict(netuid=netuid, network=network, update=True))]
+
+        stake_from_list = c.gather(stake_from_futures, timeout=10)
+        namespace_list = c.gather(namespace_futures, timeout=10)
+        # c.print(namespace_list)
+        return {'success': True, 'block': self.block}
+
+
+    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 1000}, network=None, remote:bool=True):
+        last_block_update = {k:0 for k in intervals.keys()}
+        staleness = {k:0 for k in intervals.keys()}
+
         while True:
             block = self.block
-            blocks_until_update = block % interval
-            staleness = block - last_block_update
-            c.print(f'Block {block} ----> {blocks_until_update} blocks until update', color='yellow')
-            
-            if interval > 0:
+            staleness = {k:block - last_block_update[k] for k in intervals.keys()}
+
+            if staleness["light"] > interval["light"]:
+                values = c.wait([f1,f2], timeout=10)
+                staleness["light"] = 0
+                c.print("Synced StakeFrom and Namespace")
+            if staleness["full"] > intervals["full"]:
                 c.print('Block')
                 c.print(c.infos(update=True, network='local'))
-                save = block % save_interval == 0
+                save = staleness["save"] > intervals["save"]
+                if save:
+                    block = (block // intervals) * intervals
+                
                 request = {
                             'network': network, 
                            'remote': remote, 
-                           'local': local, 
                            'save': save, 
-                           'block': (block // interval) * interval 
+                           'block': (block // intervals) * intervals 
                            }
-                c.print(f'Syncing at block {block}')
-                c.print('REQUEST FORWARDING')
-                c.print(request)
-                response = self.sync(**request)
-                c.print('RESPONSE FORWARDING')
-                c.print(response)
-                last_block_update = block
+                c.print(f'Syncing {request}')
+                self.sync(**request)
+                if save:
+                    last_block_update["save"] = 0
+                last_block_update["full"] = 0
 
-            c.sleep(interval)
+            c.sleep(intervals)
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
@@ -3290,8 +3308,11 @@ class Subspace(c.Module):
             subnet2stake[subnet_name] = self.my_total_stake(network=network, netuid=subnet_name , update=update)
         return subnet2stake
 
-    def my_total_stake(self, netuid=None,  network = None,  fmt=fmt, decimals=2, update=False):
-        return sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals, update=update).values())
+    def my_total_stake(self,  network = None,  fmt=fmt, decimals=2, update=False):
+        my_total_stake = 0 
+        for netuid in self.netuids(network=network):
+            my_total_stake +=  sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals, update=update).values())
+        return my_total_stake
     def my_total_balance(self, network = None, fmt=fmt, decimals=2, update=False):
         return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
 
