@@ -52,7 +52,10 @@ class Vali(c.Module):
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
-        self.namespace = c.namespace(search=self.config.search, network=self.config.network, netuid=self.config.netuid, update=update)
+        self.namespace = c.namespace(search=self.config.search, 
+                                    network=self.config.network, 
+                                    netuid=self.config.netuid, 
+                                    update=update)
         self.n  = len(self.namespace)    
         self.addresses = [self.namespace.values()]     
         self.names = list(self.namespace.keys())
@@ -154,15 +157,6 @@ class Vali(c.Module):
 
     def vote(self, tag=None):
 
-
-        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
-        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
-
-        if stake < self.config.min_stake:
-            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
-            return result
-        
-
         tag = tag or self.tag
         module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
@@ -181,6 +175,9 @@ class Vali(c.Module):
 
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
+        if len(votes['uids']) == 0:
+            return {'success': False, 'message': 'No votes to cast'}
+        
         self.subspace.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
