@@ -372,11 +372,13 @@ class Remote(c.Module):
     
     @classmethod
     def namespace(cls, search=None, network='remote', update=False):
-
-        if update:
-            namespace = {}
-
+        namespace = {}
+        if not update:
+            namespace = c.get_namespace(network=network)
+            return namespace
+        
         peer2namespace = cls.peer2namespace()
+        c.print(peer2namespace)
         for peer, peer_namespace in peer2namespace.items():
 
             for name, address in peer_namespace.items():
@@ -385,6 +387,7 @@ class Remote(c.Module):
                 if name in namespace:
                     continue
                 namespace[name + '_'+ {peer}] = address
+        c.put_namespace(namespace=namespace, network=network)
         return namespace
 
     @classmethod
@@ -761,13 +764,8 @@ class Remote(c.Module):
         info_paths = cls.ls('peers')
         peer2namespace = {}
         for path in info_paths:
-            peer_address = path.split('/')[-1].replace('.json', '')
-             
-            peer_name = cls.ip2host().get(peer_address, peer_address)
-            peer_info = cls.get(path, {})
-            peer_namespace = peer_info.get('namespace', {})
-            peer_namespace = {k:v.replace('0.0.0.0', peer_address) for k,v in peer_namespace.items()}
-            peer2namespace[peer_name] =  peer_namespace
+            info = cls.get(path, {})
+            peer2namespace[path] = info.get('namespace', {})
         return peer2namespace
 
         

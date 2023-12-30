@@ -247,3 +247,16 @@ class Router(c.Module):
         assert output['name'] == test_module_name
         c.kill(test_module_name)
         return {'success': True, 'msg': 'thread pool test passed'}
+
+    @classmethod
+    def dashboard(cls):
+        import streamlit as st
+        st.write('ROUTER')
+        self = cls()
+        network = st.selectbox('network', ['local', 'remote'])
+        namespace = c.namespace(network=network)
+        st.write(namespace)
+
+
+    
+Router.run(__name__)

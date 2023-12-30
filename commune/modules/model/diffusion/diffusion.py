@@ -11,9 +11,10 @@ class DiffisionPipeline(c.Module):
                     **kwargs):
                     
         self.set_model(model=model, 
-                       device=device ,
+                       device=device,
                        variant=variant, 
-                       use_safetensors=use_safetensors, **kwargs)
+                       use_safetensors=use_safetensors, 
+                       **kwargs)
         self.test()
 
     def set_model(self, model:str, device:str = None, variant: str = 'fp16', use_safetensors=True,**kwargs):
