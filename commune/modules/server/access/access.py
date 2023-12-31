@@ -7,7 +7,7 @@ class Access(c.Module):
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
 
     def __init__(self, 
-                module : Union[c.Module, str], # the module or any python object
+                module : Union[c.Module, str] = None, # the module or any python object
                 chain: str =  'main', # mainnet
                 netuid: int = 0, # subnet id
                 sync_interval: int =  30, #  1000 seconds per sync with the network
@@ -16,15 +16,18 @@ class Access(c.Module):
                 max_rate: int =  1000.0, # 1 call per every N tokens staked per timescale
                 role2rate: dict =  {}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
-                user_module = "user",
                 refresh: bool = False,
                 **kwargs):
         
         config = self.set_config(kwargs=locals())
-        self.user_module = c.module(user_module)()
-        self.module = module
+        self.user_module = c.module("user")()
+    
+        if module == None:
+            module = c.module('module')()
         if isinstance(module, str):
-            self.module = c.module(module)()
+            module = c.module(module)()
+
+        self.module = module
         self.state_path = state_path
         if refresh:
             self.rm_state()
@@ -229,10 +232,11 @@ class Access(c.Module):
                 info['fn'] = fn
                 fn_info_df.append(info)
 
-            fn_info_df = c.df(fn_info_df)
-            fn_info_df.set_index('fn', inplace=True)
+            if len(fn_info_df) > 0:
+                fn_info_df = c.df(fn_info_df)
+                fn_info_df.set_index('fn', inplace=True)
 
-            st.dataframe(fn_info_df, use_container_width=True)
+                st.dataframe(fn_info_df, use_container_width=True)
         state['whitelist'] = whitelist_fns
         state['blacklist'] = blacklist_fns
 

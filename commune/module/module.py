@@ -4784,16 +4784,34 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args , n: int=1, return_future:bool=False, remote:bool = False,  **kwargs) -> None:
-        if n == 1:
-            futures = c.async_call(*args,**kwargs)
+    def call(cls, module : str, 
+                fn : str = 'info',
+                *args,
+                timeout : int = 10,
+                prefix_match:bool = False,
+                network:str = None,
+                key:str = None,
+                kwargs = None,
+                n = 1,
+                return_future:bool = False,
+                **extra_kwargs) -> None:
+        
+        client_kwargs = {'module':  module,
+                          'fn': fn, 
+                          'network': network,
+                          'prefix_match': prefix_match,
+                          'network': network,
+                            'key': key,
+                            'kwargs': kwargs,
+                            'timeout': timeout,
+                          **extra_kwargs}
+        if n > 1:
+            futures = [ c.async_call(*args,**client_kwargs) for i in range(n)]
         else:
-            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
+            futures = c.async_call(*args, **client_kwargs)
         if return_future:
             return futures
-        
-        results =  c.gather(futures)
-        return results
+        return c.gather(futures, timeout=timeout)
     
     @classmethod
     async def async_call(cls,
@@ -4804,7 +4822,6 @@ class c:
                 prefix_match:bool = False,
                 network:str = None,
                 key:str = None,
-                ignore_error = False,
                 kwargs = None,
                 **extra_kwargs
                 ) -> None:
@@ -4816,10 +4833,7 @@ class c:
             future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
             result = await asyncio.wait_for(future, timeout=timeout)
         except Exception as e:
-            if ignore_error:
-                result = c.detailed_error(e)
-            else:
-                raise e
+            result = c.detailed_error(e)
         
         return result
 
@@ -6226,7 +6240,9 @@ class c:
         # determine if we are using asyncio or multiprocessing
 
         # wait until they finish, and if they dont, give them none
-        results = loop.run_until_complete(asyncio.gather(*jobs, return_exceptions=True))
+        future = asyncio.gather(*jobs, return_exceptions=True)
+        future = asyncio.wait_for(future, timeout=timeout)
+        results = loop.run_until_complete(future)
 
         if singleton:
             return results[0]
@@ -8120,7 +8136,8 @@ class c:
     def type(cls,x ):
         return type(x).__name_
         
-
+    ## API MANAGEMENT ##
+    
     def set_api_key(self, api_key:str, cache:bool = True):
         import os
         api_key = os.getenv(str(api_key), None)
@@ -8134,8 +8151,6 @@ class c:
 
         assert isinstance(api_key, str)
 
-
-    ## API MANAGEMENT ##
 
     @classmethod
     def add_api_key(cls, api_key:str):
