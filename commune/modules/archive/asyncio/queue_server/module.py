@@ -5,7 +5,7 @@ from commune import Module
 from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
 import asyncio
-import nest_asyncio
+
 
 """
 
