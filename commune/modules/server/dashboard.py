@@ -168,7 +168,6 @@ class ServerDashboard(c.Module):
     
     def code_editor(self, code):
         from code_editor import code_editor
-
         return code_editor(code)
 
        

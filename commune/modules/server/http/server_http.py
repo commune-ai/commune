@@ -4,6 +4,7 @@ import commune as c
 import torch 
 import traceback
 import json
+from sse_starlette.sse import EventSourceResponse
 
 
 
@@ -24,13 +25,15 @@ class ServerHTTP(c.Module):
         timeout: int = 256,
         access_module: str = 'server.access',
         public: bool = False,
+        serializer: str = 'serializer',
         ) -> 'Server':
         
-        self.serializer = c.module('serializer')()
+        self.serializer = c.module(serializer)()
         self.ip = c.default_ip # default to '0.0.0.0'
         self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
+        self.set_access_module(access_module)
 
         self.network = network
         self.verbose = verbose
@@ -61,16 +64,14 @@ class ServerHTTP(c.Module):
         module.port = self.port
         module.address  = self.address
 
-        if not hasattr(module, 'access_module'):
-            self.access_module = c.module(access_module)(module=module)
-        else:
-            self.access_module = module.access_module
 
         self.set_api(ip=self.ip, port=self.port)
 
+    def set_access_module(self, access_module='server.access'):
+        self.access_module = access_module(module=self.module)  
+        return {'success': True, 'msg': f'set access module to {access_module}'}
 
-
-    def set_api(self, ip = None, port = None):
+    def set_api(self, ip:str = '0.0.0.0', port:int = 8888):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
         from fastapi import FastAPI
@@ -88,12 +89,21 @@ class ServerHTTP(c.Module):
 
         @self.app.post("/{fn}")
         async def forward_api(fn:str, input:dict):
+            """
+            fn (str): the function to call
+            input (dict): the input to the function
+                data: the data to pass to the function
+                    kwargs: the keyword arguments to pass to the function
+                    args: the positional arguments to pass to the function
+                    timestamp: the timestamp of the request
+                signature: the signature of the request
+
+            
+            """
             try:
 
                 input['fn'] = fn
-
                 input = self.process_input(input)
-
                 data = input['data']
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
@@ -175,7 +185,6 @@ class ServerHTTP(c.Module):
     def process_result(self,  result):
         if self.sse:
             # for sse we want to wrap the generator in an eventsource response
-            from sse_starlette.sse import EventSourceResponse
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:

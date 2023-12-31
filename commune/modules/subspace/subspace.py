@@ -721,16 +721,19 @@ class Subspace(c.Module):
 
 
 
-    def light_sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True, **kwargs):
-        netuids = self.netuids(network=network, update=True)
+    def light_sync(self, network=None, remote:bool=True, netuids=None, local:bool=True, save:bool=True, timeout=20, **kwargs):
+        netuids = self.netuids(network=network, update=True) if netuids == None else netuids
+        assert len(netuids) > 0, f"No netuids found for network {network}"
         stake_from_futures = []
         namespace_futures = []
+        weight_futures = []
         for netuid in netuids:
             stake_from_futures += [c.asubmit(self.stake_from, kwargs=dict(netuid=netuid, network=network, update=True))]
             namespace_futures += [c.asubmit(self.namespace, kwargs=dict(netuid=netuid, network=network, update=True))]
+            weight_futures += [c.asubmit(self.weights, kwargs=dict(netuid=netuid, network=network, update=True))]
 
-        stake_from_list = c.gather(stake_from_futures, timeout=10)
-        namespace_list = c.gather(namespace_futures, timeout=10)
+        c.gather(stake_from_futures + namespace_futures + weight_futures, timeout=timeout)
+
         # c.print(namespace_list)
         return {'success': True, 'block': self.block}
 
@@ -1469,10 +1472,10 @@ class Subspace(c.Module):
 
 
     
-    def weights(self,  netuid = None, nonzero:bool = False, network=network, **kwargs) -> list:
+    def weights(self,  netuid = None, nonzero:bool = False, network=network, update=False, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
         c.print(f'Getting weights for SubNetwork {netuid}')
-        subnet_weights =  self.query_map('Weights', params=netuid, network=network, **kwargs)
+        subnet_weights =  self.query_map('Weights', params=netuid, network=network, update=update, **kwargs)
         subnet_weights_sorted = sorted(subnet_weights, key=lambda x: x[0])
         subnet_weights = [list(map(list,v)) for k,v in subnet_weights_sorted]
         if nonzero:
