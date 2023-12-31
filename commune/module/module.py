@@ -13,8 +13,6 @@ import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
-import nest_asyncio
-nest_asyncio.apply()
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -37,8 +35,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
-    whitelist = [] # whitelist of functions to load
+    whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
@@ -2513,23 +2510,6 @@ class c:
         return name
     resolve_name = resolve_server_name
     
-    @property
-    def whitelist(self):
-        if hasattr(self, '_whitelist'):
-            return list(set(self._whitelist + c.helper_whitelist))
-        
-        whitelist = c.helper_whitelist
-        is_module = c.is_root_module(self)
-        # we want to expose the helper functions
-        if not is_module:
-            whitelist += self.functions() + self.attributes()
-        return whitelist
-    
-    @whitelist.setter
-    def whitelist(self, whitelist:List[str]):
-        self._whitelist = whitelist + self.helper_functions
-        return whitelist
-    bl = blacklist = []
     
     @classmethod
     def save_serve_kwargs(cls,server_name:str,  kwargs:dict, network:str = 'local'):
@@ -2745,9 +2725,10 @@ class c:
     def info(self , 
              schema: bool = True,
              namespace:bool = False,
-             peers: bool = False, 
+             commit_hash:bool = False,
              hardware : bool = False,
              ) -> Dict[str, Any]:
+        
         fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
 
@@ -2774,8 +2755,10 @@ class c:
 
         if namespace:
             info['namespace'] = self.namespace(network='local')
-
+        if commit_hash:
+            info['commit_hash'] = c.commit_hash()
         return info
+        
     help = info
     @classmethod
     def schema(cls,search: str = None,
@@ -4653,6 +4636,23 @@ class c:
             key = module(key, **kwargs)
 
         return key
+
+    @classmethod
+    def id(self):
+        return self.key.ss58_address
+    
+    @property
+    def ss58_address(self):
+        if not hasattr(self, '_ss58_address'):
+            self._ss58_address = self.key.ss58_address
+        return self._ss58_address
+    
+    @ss58_address.setter
+    def ss58_address(self, value):
+        self._ss58_address = value
+        return self._ss58_address
+    
+    
     
     
     def idcard(self) -> str:
