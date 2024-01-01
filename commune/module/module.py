@@ -13,6 +13,8 @@ import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
+from commune.utils.dict import async_get_json
+
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -1730,7 +1732,7 @@ class c:
         
     @classmethod
     def get_json(cls, *args, **kwargs):
-        loop = cls.get_event_loop()
+        loop = c.get_event_loop()
         return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
     @classmethod
     async def async_get_json(cls,
@@ -1740,7 +1742,6 @@ class c:
                              verbose: bool = False,
                              **kwargs):
 
-        from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
@@ -1781,7 +1782,7 @@ class c:
     
     @classmethod
     def put_json(cls,*args,**kwargs) -> str:
-        loop = cls.get_event_loop()
+        loop = c.get_event_loop()
         return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
     
     @classmethod
@@ -2122,12 +2123,14 @@ class c:
     
    
     nest_asyncio_enabled : bool = False
+    
     @classmethod
     def nest_asyncio(cls):
-        assert not cls.nest_asyncio_enabled, 'Nest Asyncio already enabled'
-        import nest_asyncio
-        nest_asyncio.apply()
-        nest_asyncio_enabled = True
+        if not cls.nest_asyncio_enabled:
+            import nest_asyncio
+            nest_asyncio.apply()
+       
+        cls.nest_asyncio_enabled = True
         
 
     
@@ -2252,14 +2255,12 @@ class c:
         return False
     is_root = is_module_root = is_root_module
     @classmethod
-    def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
+    def new_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
-        if nest_asyncio:
-            cls.nest_asyncio()
-
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
+        if nest_asyncio:
+            cls.nest_asyncio()
 
         return loop
   
@@ -2279,14 +2280,12 @@ class c:
         return self.loop
 
     @classmethod
-    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
-        import asyncio
-        if nest_asyncio:
-            cls.nest_asyncio()
+    def get_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
+        loop = None
         try:
             loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = cls.new_event_loop()
+        except RuntimeError as e:
+            loop = c.new_event_loop(nest_asyncio=nest_asyncio)
 
         return loop
 
@@ -3630,14 +3629,6 @@ class c:
                         c.print(error_fn_list, 'DEBUG')        
         return a
    
-    @classmethod
-    def nest_asyncio(cls):
-        import nest_asyncio
-        try:
-            nest_asyncio.apply()
-        except RuntimeError as e:
-            pass
-        
         
     # JUPYTER NOTEBOOKS
     @classmethod

@@ -4,7 +4,6 @@ import commune as c
 import torch 
 import traceback
 import json
-from sse_starlette.sse import EventSourceResponse
 
 
 
@@ -27,7 +26,7 @@ class ServerHTTP(c.Module):
         public: bool = False,
         serializer: str = 'serializer',
         ) -> 'Server':
-        
+
         self.serializer = c.module(serializer)()
         self.ip = c.default_ip # default to '0.0.0.0'
         self.port = int(port) if port != None else c.free_port()
@@ -85,7 +84,7 @@ class ServerHTTP(c.Module):
 
 
         @self.app.post("/{fn}")
-        async def forward_api(fn:str, input:dict):
+        def forward_api(fn:str, input:dict):
             """
             fn (str): the function to call
             input (dict): the input to the function
@@ -98,28 +97,27 @@ class ServerHTTP(c.Module):
 
             
             """
-            try:
 
-                input['fn'] = fn
-                input = self.process_input(input)
-                data = input['data']
-                args = data.get('args',[])
-                kwargs = data.get('kwargs', {})
-                
-                input_kwargs = dict(fn=fn, 
-                                    args=args, 
-                                    kwargs=kwargs)
-                fn_name = f"{self.name}::{fn}"
-                c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+            c.new_event_loop(nest_asyncio=False)
 
-                result = self.forward(**input_kwargs)
-                # if the result is a future, we need to wait for it to finish
-                if isinstance(result, dict) and 'error' in result:
-                    success = False 
-                success = True
-            except Exception as e:
-                success = False
-                result = c.detailed_error(e)
+            input['fn'] = fn
+            input = self.process_input(input)
+            data = input['data']
+            args = data.get('args',[])
+            kwargs = data.get('kwargs', {})
+            
+            input_kwargs = dict(fn=fn, 
+                                args=args, 
+                                kwargs=kwargs)
+            fn_name = f"{self.name}::{fn}"
+            c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+
+            result = self.forward(**input_kwargs)
+            # if the result is a future, we need to wait for it to finish
+            if isinstance(result, dict) and 'error' in result:
+                success = False 
+            success = True
+
 
             if success:
                 c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
@@ -184,6 +182,8 @@ class ServerHTTP(c.Module):
 
     def process_result(self,  result):
         if self.sse:
+            from sse_starlette.sse import EventSourceResponse
+
             # for sse we want to wrap the generator in an eventsource response
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
