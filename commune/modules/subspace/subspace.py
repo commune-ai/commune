@@ -211,8 +211,29 @@ class Subspace(c.Module):
         return wasm_file_path
 
     def stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
-        stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', netuid, block=block, update=update, network=network)}
+        stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', params=netuid, block=block, update=update, network=network)}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
+    
+    def my_stake_from(self, netuid = 0, block=None, update=True, network=network, fmt='j'):
+        stake_from_tuples = self.stake_from(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
+        address2key = c.address2key()
+        stake_from_total = {}
+        for module_key,staker_tuples in stake_from_tuples.items():
+            for staker_key, stake in staker_tuples:
+                if module_key in address2key:
+                    stake_from_total[staker_key] = stake_from_total.get(staker_key, 0) + stake
+        return stake_from_total   
+
+    def my_stake_to(self, netuid = 0, block=None, update=True, network=network, fmt='j'):
+        stake_to_tuples = self.stake_to(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
+        address2key = c.address2key()
+        stake_to_total = {}
+        for staker_key, module_tuples in stake_to_tuples.items():
+            for module_key, stake in module_tuples:
+                if module_key in address2key:
+                    stake_to_total[staker_key] = stake_to_total.get(staker_key, 0) + stake
+        return stake_to_total         
+    
     
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
         return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update, network=network)}
@@ -324,12 +345,13 @@ class Subspace(c.Module):
 
         new_qmap = []
         for k,v in qmap:
+            if isinstance(k, tuple):
+                k = [_k.value for _k in k]
             if hasattr(v, 'value'):
                 v = v.value
             if hasattr(k, 'value'):
                 k = k.value
             new_qmap.append([k,v])
-        
         self.put(path, new_qmap)
                 
         return new_qmap
@@ -746,13 +768,12 @@ class Subspace(c.Module):
             block = self.block
             staleness = {k:block - last_block_update[k] for k in intervals.keys()}
 
-            if staleness["light"] > interval["light"]:
-                values = c.wait([f1,f2], timeout=10)
+            if staleness["light"] > intervals["light"]:
+                c.print("Synced StakeFrom and Namespace")
+                response = self.light_sync(network=network, remote=remote, block=block)
                 staleness["light"] = 0
                 c.print("Synced StakeFrom and Namespace")
             if staleness["full"] > intervals["full"]:
-                c.print('Block')
-                c.print(c.infos(update=True, network='local'))
                 save = staleness["save"] > intervals["save"]
                 if save:
                     block = (block // intervals) * intervals
@@ -761,13 +782,13 @@ class Subspace(c.Module):
                             'network': network, 
                            'remote': remote, 
                            'save': save, 
-                           'block': (block // intervals) * intervals 
+                           'block': block
                            }
-                c.print(f'Syncing {request}')
-                self.sync(**request)
+                response = self.sync(**request)
                 if save:
                     last_block_update["save"] = 0
                 last_block_update["full"] = 0
+            c.print(response)
 
             c.sleep(intervals)
 
@@ -3263,24 +3284,24 @@ class Subspace(c.Module):
     my_stake_to = my_staketo
 
 
-    def my_stakefrom(self, 
-                    search:str=None, 
-                    netuid:int = None, 
-                    network:str = None, 
-                    fmt:str=fmt,  
-                    decimals:int=2):
-        staketo = self.stake_from(netuid=netuid, network=network)
-        mystakefrom = {}
-        key2address = c.key2address()
-        for key, address in key2address.items():
-            if address in mystakefrom:
-                mystakefrom[key] = self.format_amount(mystakefrom[address])
+    # def my_stakefrom(self, 
+    #                 search:str=None, 
+    #                 netuid:int = None, 
+    #                 network:str = None, 
+    #                 fmt:str=fmt,  
+    #                 decimals:int=2):
+    #     staketo = self.stake_from(netuid=netuid, network=network)
+    #     mystakefrom = {}
+    #     key2address = c.key2address()
+    #     for key, address in key2address.items():
+    #         if address in mystakefrom:
+    #             mystakefrom[key] = self.format_amount(mystakefrom[address])
     
-        if search != None:
-            mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
-        return mystakefrom
+    #     if search != None:
+    #         mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
+    #     return mystakefrom
 
-    my_stake_from = my_stakefrom
+    # my_stake_from = my_stakefrom
 
 
     def my_value(self, network = None,fmt=fmt, decimals=2):
@@ -3573,6 +3594,9 @@ class Subspace(c.Module):
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
+
+
+    
 
 
 

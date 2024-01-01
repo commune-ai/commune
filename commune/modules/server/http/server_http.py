@@ -33,7 +33,6 @@ class ServerHTTP(c.Module):
         self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
-        self.set_access_module(access_module)
 
         self.network = network
         self.verbose = verbose
@@ -63,13 +62,11 @@ class ServerHTTP(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+        self.access_module = c.module(access_module)(module=self.module)  
 
 
         self.set_api(ip=self.ip, port=self.port)
 
-    def set_access_module(self, access_module='server.access'):
-        self.access_module = access_module(module=self.module)  
-        return {'success': True, 'msg': f'set access module to {access_module}'}
 
     def set_api(self, ip:str = '0.0.0.0', port:int = 8888):
         ip = self.ip if ip == None else ip
@@ -98,6 +95,7 @@ class ServerHTTP(c.Module):
                     timestamp: the timestamp of the request
                 signature: the signature of the request
 
+
             
             """
             try:
@@ -108,7 +106,9 @@ class ServerHTTP(c.Module):
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
                 
-                input_kwargs = dict(fn=fn, args=args, kwargs=kwargs)
+                input_kwargs = dict(fn=fn, 
+                                    args=args, 
+                                    kwargs=kwargs)
                 fn_name = f"{self.name}::{fn}"
                 c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
 

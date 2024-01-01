@@ -253,8 +253,8 @@ class Router(c.Module):
         import streamlit as st
         st.write('ROUTER')
         self = cls()
-        self.network = st.selectbox('network', ['local', 'remote'])
-        self.namespace = c.namespace(network=self.network)
+        network = st.selectbox('network', ['local', 'remote'])
+        self.namespace = c.namespace(network=network)
         self.playground_dashboard()
 
     def playground_dashboard(self):
@@ -263,18 +263,11 @@ class Router(c.Module):
         servers = list(namespace.keys())
         network = st.selectbox('network', ['local', 'remote'], 0, key='playground.net')
         server2index = {s:i for i,s in enumerate(servers)}
-        default_servers = [servers[0]]
         cols = st.columns([1,1])
         server_name = cols[0].selectbox('Select Server',servers, 0, key=f'serve.module.playground')
         server = c.connect(server_name, network=network)
-        
-        
-        try:
-            server_info = server.info(schema=True, timeout=2)
-        except Exception as e:
-            st.error(e)
-            return
-
+        server_info = server.info(schema=True, timeout=4)
+        st.write(server_info)
         server_schema = server_info['schema']
         server_functions = list(server_schema.keys())
         server_address = server_info['address']
@@ -307,6 +300,6 @@ class Router(c.Module):
             emoji = '✅' if success else '❌'
             latency = str(latency).split('.')[0] + '.'+str(latency).split('.')[1][:2]
             st.write(f'Reponse Status ({latency}s) : {emoji}')
-            st.write(response)
+            st.code(response)
     
 Router.run(__name__)
