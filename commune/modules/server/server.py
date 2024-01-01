@@ -21,7 +21,6 @@ class Server(c.Module):
         assert module_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
 
-
     @classmethod
     def dashboard(cls):
         import pandas as pd
@@ -62,57 +61,59 @@ class Server(c.Module):
 
         options = ['serve', 'code', 'search', 'playground']
         # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
-        tabs = st.tabs(self.options)
-        for option in self.options:
-            with tabs[options.index(option)]:
-                getattr(self, f'{option}_dashboard')()
+        page = st.selectbox('Page',options, 0)
+        getattr(self, f'{page}_dashboard')()
 
         module_name = self.module.path()
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
 
 
-    def serve_dashboard(self):
-        with st.expander('SERVE'):
-            module  = st.selectbox('Select a Module', modules, module2index['agent'], key=f'serve.module.serve')  
-            module = c.module(module)  
-            module_name = module.path()
-            tag = st.text_input('tag', 'replica', key=f'serve.tag.{module_name}')
-            tag = None if tag == '' else tag
-            server_name = st.text_input('server_name', module_name + "::" + tag, key=f'serve_name.{module_name}')
-            st.write(f'### {module_name.upper()} kwargs')
-            n = 1
-            with st.form(key=f'serve.{module_name}'):
-                kwargs = self.function2streamlit(module=module_name, fn='__init__' )
+    def serve_dashboard(self, expand=True):
+        if expand:
+            with st.expander('SERVE', expanded=True):
+                return self.serve_dashboard(expand=False)
 
-                serve = st.form_submit_button('SERVE')
+        
+        module = self.module
+        module_name = module.path()
+        tag = st.text_input('tag', 'replica', key=f'serve.tag.{module_name}')
+        tag = None if tag == '' else tag
+        server_name = st.text_input('server_name', module_name + "::" + tag, key=f'serve_name.{module_name}')
+        st.write(f'### {module_name.upper()} kwargs')
+        n = 1
+        with st.form(key=f'serve.{module_name}'):
+            kwargs = self.function2streamlit(module=module_name, fn='__init__' )
+
+            serve = st.form_submit_button('SERVE')
 
 
-                if serve:
+            if serve:
 
-                    if 'None' == tag:
-                        tag = None
-                    if 'tag' in kwargs:
-                        kwargs['tag'] = tag
-                    for i in range(n):
-                        try:
-                            if tag != None:
-                                s_tag = f'{tag}.{i}'
-                            else:
-                                s_tag = str(i)
-                            response = self.module.serve( kwargs = kwargs, server_name=server_name, network=self.network)
-                        except Exception as e:
-                            e = c.detailed_error(e)
-                            response = {'success': False, 'message': e}
-            
-                        if response['success']:
-                            st.write(response)
+                if 'None' == tag:
+                    tag = None
+                if 'tag' in kwargs:
+                    kwargs['tag'] = tag
+                for i in range(n):
+                    try:
+                        if tag != None:
+                            s_tag = f'{tag}.{i}'
                         else:
-                            st.error(response)
+                            s_tag = str(i)
+                        response = self.module.serve( kwargs = kwargs, server_name=server_name, network=self.network)
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
+        
+                    if response['success']:
+                        st.write(response)
+                    else:
+                        st.error(response)
 
   
 
     def code_dashboard(self):
-        with st.expander('CODE', expanded=False):
+        
+        with st.expander('CODE', expanded=True):
             code = self.module.code()
             code = self.code_editor(code)
             save_code = st.button('Save Code')
@@ -258,6 +259,8 @@ class Server(c.Module):
         kwargs = cls.process_kwargs(kwargs, fn_schema)       
         
         return kwargs
+
+
 
 
 Server.run(__name__)
