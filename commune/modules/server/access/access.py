@@ -71,7 +71,7 @@ class Access(c.Module):
     def save_state(self):
         self.put(self.state_path, self.state)
         return {'success': True, 'msg': f'saved {self.state_path}'}
-    def sync(self):
+    def sync(self, update=False):
 
         state = self.get(self.state_path, {}) 
         if len(state) == 0 or self.refresh:
@@ -87,8 +87,8 @@ class Access(c.Module):
         
         if time_since_sync > self.config.sync_interval:
             self.subspace = c.module('subspace')(network=self.config.chain)
-            self.stakes = self.subspace.stakes(fmt='j', netuid=self.config.netuid)
-            state['stake_from'] = self.subspace.stake_from(fmt='j', netuid=self.config.netuid).get(self.module.key.ss58_address, {})
+            self.stakes = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=False)
+            state['stake_from'] = self.subspace.my_stake_from(netuid=self.config.netuid, update=False)
             state['sync_time'] = c.time()
 
         until_sync = self.config.sync_interval - time_since_sync
@@ -119,24 +119,30 @@ class Access(c.Module):
         rate_limit = role2rate.get(role, 0)
 
         stake = self.stakes.get(address, 0)
-        stake_from = self.state['stake_from'].get(address, None)
+        stake_from = self.state['stake_from'].get(address, 0)
 
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
         whitelist = self.state.get('whitelist', [])
         blacklist = self.state.get('blacklist', [])
 
-        assert fn in whitelist or fn in c.whitelist, f"Function {fn} not in whitelist"
+        assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist"
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
         
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
-        fn2stake = self.state['fn_info'].get(address, {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
+        fn2info = self.state['fn_info'].get(fn,{'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
+        stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
 
-        stake_from = self.state.get('stake_from', {})
-        stake = stake_from.get(address, stake)
-        stake2rate = fn2stake.get(fn, self.config.stake2rate)
+        total_stake_score = stake + stake_from
 
-        rate_limit = (stake / stake2rate) # convert the stake to a rate
+        rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
+
+        # STEP 3: CHECK THE MAX RATE
+        max_rate = fn2info.get('max_rate', self.config.max_rate)
+        rate_limit = min(rate_limit, max_rate) # cap the rate limit at the max rate
+       
+       
+       
         # NOW LETS CHECK THE RATE LIMIT
         user_info = {'timestamp':0 , 'requests': 0 }
         user_info = self.state.get('user_info', {}).get(address, user_info)

@@ -23,14 +23,15 @@ class Vali(c.Module):
         # we want to make sure that the config is a munch
         self.start_time = c.time()
         self.errors = 0
+        
         self.sync_network()
 
         if 'subspace' in self.config.network:
             if '.' in self.config.network:
-                chain = self.config.network.split('.')[-1]
+                chain, netuid = self.config.network.split('.')
             else: 
                 chain = 'main'
-            self.subspace = c.module('subspace')(network=chain)
+            self.subspace = c.module('subspace')(network=chain, netuid=self.config.netuid)
 
         c.print(f'Vali config: {self.config}', color='cyan')
         if self.config.start:
@@ -71,9 +72,6 @@ class Vali(c.Module):
             kwargs : the key word arguments
         
         '''
-        info = module.info()
-        assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
-        assert 'address' in info, f'Response must have an error key, got {info}'
         return {'success': True, 'w': 1}
 
 
@@ -83,8 +81,9 @@ class Vali(c.Module):
         """
         # load the module stats (if it exists)
 
-        my_info = self.info()
-        
+        if not hasattr(self, 'my_info'):
+            self.my_info = self.info()
+        my_info = self.my_info
         module_info = self.load_module_info( module, {})
         if module in self.namespace:
             module_name = module
@@ -299,7 +298,7 @@ class Vali(c.Module):
 
 
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
-        c.new_event_loop()
+        c.new_event_loop(nest_asyncio=True)
         self.running = True
         futures = []
         vote_futures = []

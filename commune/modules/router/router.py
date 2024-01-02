@@ -253,21 +253,21 @@ class Router(c.Module):
         import streamlit as st
         st.write('ROUTER')
         self = cls()
-        network = st.selectbox('network', ['local', 'remote'])
-        self.namespace = c.namespace(network=network)
-        self.playground_dashboard()
+        self.network = st.selectbox('network', ['local', 'remote', 'subspace', 'bittensor'])
+        self.namespace = c.namespace(network=self.network)
+        self.playground_dashboard(network=self.network)
 
-    def playground_dashboard(self):
+    def playground_dashboard(self, network=None):
+        c.nest_asyncio()
         import streamlit as st
         namespace = self.namespace
         servers = list(namespace.keys())
-        network = st.selectbox('network', ['local', 'remote'], 0, key='playground.net')
-        server2index = {s:i for i,s in enumerate(servers)}
+        if network == None:
+            network = st.selectbox('network', ['local', 'remote'], 0, key='playground.net')
         cols = st.columns([1,1])
         server_name = cols[0].selectbox('Select Server',servers, 0, key=f'serve.module.playground')
         server = c.connect(server_name, network=network)
-        server_info = server.info(schema=True, timeout=4)
-        st.write(server_info)
+        server_info = server.info()
         server_schema = server_info['schema']
         server_functions = list(server_schema.keys())
         server_address = server_info['address']
