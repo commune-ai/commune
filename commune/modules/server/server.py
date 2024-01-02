@@ -68,13 +68,16 @@ class Server(c.Module):
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
 
 
-    def serve_dashboard(self, expand=True):
+    def serve_dashboard(self, expand=True, module=None):
         if expand:
             with st.expander('SERVE', expanded=True):
                 return self.serve_dashboard(expand=False)
 
+        if module == None:
+            modules = c.modules()
+            module = st.selectbox('Select a Module', modules, 0)
+            module = c.module(module)
         
-        module = self.module
         module_name = module.path()
         tag = st.text_input('tag', 'replica', key=f'serve.tag.{module_name}')
         tag = None if tag == '' else tag

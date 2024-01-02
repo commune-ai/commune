@@ -900,7 +900,10 @@ class Keypair(c.Module):
 
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
-             return_json:bool=False) -> bytes:
+             return_json:bool=False,
+             seperator:str = "<DATA::SIGNATURE>",
+             return_str = False,
+             ) -> bytes:
         """
         Creates a signature for given data
 
@@ -945,6 +948,9 @@ class Keypair(c.Module):
                 'address': self.ss58_address,
             }
 
+        if return_str:
+            
+            return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
     
     def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
@@ -967,6 +973,11 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        if isinstance(data, str) and seperator in data:
+            data, signature = data.split(seperator)
+            c.print(data, 'DALA', signature)
+            signature = bytes.fromhex(signature)
+
         data = c.copy(data)
 
         if isinstance(data, dict):
@@ -1394,6 +1405,17 @@ class Keypair(c.Module):
         
     def id_card(self, return_json=True,**kwargs):
         return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
+    
+
+    def test_str_signing(self):
+        sig = self.sign('test', return_str=True)
+        # c.print(''+sig)
+        assert not self.verify('1'+sig)
+        assert self.verify(sig)
+
+    def ticket(self, **kwargs):
+        return self.sign(str(c.timestamp()), return_str=True, **kwargs)
+
 
 
 

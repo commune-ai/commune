@@ -112,8 +112,13 @@ class ServerHTTP(c.Module):
             fn_name = f"{self.name}::{fn}"
             c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
 
-            result = self.forward(**input_kwargs)
-            # if the result is a future, we need to wait for it to finish
+
+            try:
+                result = self.forward(**input_kwargs)
+                # if the result is a future, we need to wait for it to finish
+            except Exception as e:
+                result = c.detailed_error(e)
+                
             if isinstance(result, dict) and 'error' in result:
                 success = False 
             success = True
@@ -124,7 +129,6 @@ class ServerHTTP(c.Module):
             else:
                 c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
             result = self.process_result(result)
-            c.print(result)
             return result
         
         self.serve()

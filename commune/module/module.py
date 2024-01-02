@@ -37,7 +37,8 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    whitelist = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
+    helper_functions = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
+    whitelist = []
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
@@ -1190,21 +1191,6 @@ class c:
             return c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
 
     @classmethod
-    def restart_servers(cls, module:str=None, mode:str = 'server'):
-        '''
-        Kill the server by the name
-        '''
-
-        fn = getattr(cls, f'{mode}_restart')
-        for module in c.servers(module,network='local'):
-            try:
-                c.print(f'Restarting {module}', color='red')
-                fn(module)
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-                continue
-
-    @classmethod
     def pm2_restart_all(cls):
         '''
         Kill the server by the name
@@ -2049,6 +2035,9 @@ class c:
                     sleep_interval:int = 1,
                     **kwargs):
 
+
+    
+
         """
         Root module
         """
@@ -2126,11 +2115,11 @@ class c:
     
     @classmethod
     def nest_asyncio(cls):
-        if not cls.nest_asyncio_enabled:
+        if not c.nest_asyncio_enabled:
             import nest_asyncio
             nest_asyncio.apply()
        
-        cls.nest_asyncio_enabled = True
+        c.nest_asyncio_enabled = True
         
 
     
@@ -2255,12 +2244,13 @@ class c:
         return False
     is_root = is_module_root = is_root_module
     @classmethod
-    def new_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
+    def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         if nest_asyncio:
             cls.nest_asyncio()
+            
+        asyncio.set_event_loop(loop)
 
         return loop
   
@@ -2595,6 +2585,7 @@ class c:
             address = c.ip() + ':' + str(remote_kwargs['port'])
             return {'success':True, 'name': server_name, 'address':address}
         
+        
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
 
@@ -2620,7 +2611,19 @@ class c:
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
-        
+
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        if hasattr(self, 'whitelist') :
+            whitelist = self.whitelist
+        if len(whitelist) == 0 and module != 'module':
+            whitelist = self.functions(include_parents=False)
+            
+
+        whitelist = list(set(whitelist + c.helper_functions))
+        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
+
+        setattr(self, 'whitelist', whitelist)
+        setattr(self, 'blacklist', blacklist)
 
         c.module(f'server.{server_mode}')(module=self, 
                                           name=server_name, 
@@ -2629,7 +2632,8 @@ class c:
                                           max_workers=max_workers, 
                                           mode=mode, 
                                           public=public)
-        
+
+    
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
         return response
@@ -2764,6 +2768,7 @@ class c:
                     code : bool = False,
                     docs: bool = True,
                     include_parents:bool = False,
+                    cache = False,
                      defaults:bool = True) -> 'Schema':
 
         kwargs = c.locals2kwargs(locals())
@@ -2799,7 +2804,7 @@ class c:
                                 code : bool = False,
                                 docs: bool = True,
                                 include_parents:bool = False,
-                                defaults:bool = True,):
+                                defaults:bool = True, cache=False) -> 'Schema':
         
         module = module if module else cls
         
@@ -3166,7 +3171,7 @@ class c:
         # avoid these references fucking shit up
         args = args if args else []
         kwargs = kwargs if kwargs else {}
-            
+
         # convert args and kwargs to json strings
         kwargs =  {
             'module': module,
@@ -3177,6 +3182,13 @@ class c:
         }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         name = c.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
+        
+        
+        if refresh:
+            cls.pm2_kill(name)
+            
+        
+        
         # build command to run pm2
         command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
 
@@ -4787,9 +4799,7 @@ class c:
                 return_future:bool = False,
                 **extra_kwargs) -> None:
         
-        client_kwargs = {'module':  module,
-                          'fn': fn, 
-                          'network': network,
+        client_kwargs = { 'network': network,
                           'prefix_match': prefix_match,
                           'network': network,
                             'key': key,
@@ -4797,9 +4807,9 @@ class c:
                             'timeout': timeout,
                           **extra_kwargs}
         if n > 1:
-            futures = [ c.async_call(*args,**client_kwargs) for i in range(n)]
+            futures = [ c.async_call(module, fn, *args,**client_kwargs) for i in range(n)]
         else:
-            futures = c.async_call(*args, **client_kwargs)
+            futures = c.async_call(module, fn , *args, **client_kwargs)
         if return_future:
             return futures
         return c.gather(futures, timeout=timeout)
@@ -7252,6 +7262,14 @@ class c:
     def stake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
     
+    @classmethod
+    def my_stake_from(cls, *args, **kwargs):
+        return c.module('subspace')().my_stake_from(*args, **kwargs)
+    
+    @classmethod
+    def my_stake_to(self, *args, **kwargs):
+        return c.module('subspace')().my_stake_to(*args, **kwargs)
+    
 
     @classmethod
     def stake_many(cls, *args, **kwargs):
@@ -8526,6 +8544,14 @@ class c:
     @classmethod
     def dashboard(cls):
         st.write(cls.module_path().upper())
+
+    @classmethod
+    def ticket(self, key=None):
+        key = c.get_key(key)
+        return key.ticket()
+
+
+
 
 Module = c
 Module.run(__name__)

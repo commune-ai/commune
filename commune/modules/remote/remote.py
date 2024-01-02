@@ -973,32 +973,29 @@ class Remote(c.Module):
         count = 0
         cols = st.columns(4)
 
-        with st.expander('Results', expanded=False):
-            try:
-                for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
-                    host = hosts[result['idx']]
+        try:
+            for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                host = hosts[result['idx']]
 
-                    if host == None:
-                        continue
-                    host2future.pop(host)
+                if host == None:
+                    continue
+                host2future.pop(host)
+                result = result['result']
+                is_error = c.is_error(result)
+                emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
+                msg = f"""```bash\n{result['error']}```""" if is_error else f"""```bash\n{result}```"""
 
-                    result = result['result']
-                    if c.is_error(result):
-                        st.markdown(host + ' ' + c.emoji('cross'))
-                        st.markdown(f"""```bash\n{result['error']}```""")
-                    else:
-                        count += 1
-                        st.markdown(host + ' ' + c.emoji('check_mark'))
-                        st.markdown(f"""```bash\n{result}```""")
+                with st.expander(f'{host} -> {emoji}', expanded=False):
+                    st.markdown(msg)
 
-            except Exception as e:
-                pending_hosts = list(host2future.keys())
-                st.error(c.detailed_error(e))
-                st.error(f"Hosts {pending_hosts} timed out")
+        except Exception as e:
+            pending_hosts = list(host2future.keys())
+            st.error(c.detailed_error(e))
+            st.error(f"Hosts {pending_hosts} timed out")
 
-            for host, result in host2error.items():
-                st.markdown(host + ' ' + c.emoji('cross'))
-                st.markdown(f"""```bash\n{result}```""")
+        for host, result in host2error.items():
+            st.markdown(host + ' ' + c.emoji('cross'))
+            st.markdown(f"""```bash\n{result}```""")
     dash = dashboard
 
 

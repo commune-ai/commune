@@ -155,7 +155,7 @@ class Serializer(c.Module):
         return data
 
     def serialize_bytes(self, data: dict) -> bytes:
-        data =  data
+        return self.bytes2str(data)
         
     def deserialize_bytes(self, data: bytes) -> 'DataBlock':
         if isinstance(data, str):

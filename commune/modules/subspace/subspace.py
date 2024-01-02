@@ -214,7 +214,7 @@ class Subspace(c.Module):
         stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', params=netuid, block=block, update=update, network=network)}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
     
-    def my_stake_from(self, netuid = 0, block=None, update=True, network=network, fmt='j'):
+    def my_stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
         stake_from_tuples = self.stake_from(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
         address2key = c.address2key()
         stake_from_total = {}
@@ -625,17 +625,19 @@ class Subspace(c.Module):
             netuids = self.netuids(network=network, block=block, update=True)
             c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
 
-            subnets = [c.asubmit(self.subnet, kwargs=dict(netuid=netuid, network=network, block=block, update=True, fmt='nano')) for netuid in netuids]
-            subnets = c.gather(subnets, timeout=10)
 
             c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
         
-            state_dict = {'subnets': subnets, 
+
+
+            state_dict = {
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
                         'balances': self.balances(network=network, block=block, update=True),
                         'block': block,
                         'network': network,
+                        'subnets': [self.subnet_params(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
+
                         }
 
             if save:
@@ -646,7 +648,6 @@ class Subspace(c.Module):
                 self.put(path, state_dict) # put it in storage
                 self.state_dict_cache = state_dict # update it in memory
             
-        
         state_dict = c.copy(self.state_dict_cache)
         
         # if key is a string
@@ -738,7 +739,6 @@ class Subspace(c.Module):
         self = cls()
         network = self.resolve_network(network)
         response = self.state_dict(update=True, network=network, parallel=True)
-        self.get_namespace(update=True)
         return {'success': True, 'block': response['block']}
 
 
@@ -761,22 +761,20 @@ class Subspace(c.Module):
 
 
     def loop(self, intervals = {'light': 5, 'full': 100, 'save': 1000}, network=None, remote:bool=True):
+        if remote:
+            return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
         staleness = {k:0 for k in intervals.keys()}
+        c.new_event_loop(nest_asyncio=True)
 
         while True:
             block = self.block
             staleness = {k:block - last_block_update[k] for k in intervals.keys()}
 
-            if staleness["light"] > intervals["light"]:
-                c.print("Synced StakeFrom and Namespace")
-                response = self.light_sync(network=network, remote=remote, block=block)
-                staleness["light"] = 0
-                c.print("Synced StakeFrom and Namespace")
             if staleness["full"] > intervals["full"]:
                 save = staleness["save"] > intervals["save"]
                 if save:
-                    block = (block // intervals) * intervals
+                    block = (block // intervals['full']) * intervals['full']
                 
                 request = {
                             'network': network, 
@@ -788,9 +786,13 @@ class Subspace(c.Module):
                 if save:
                     last_block_update["save"] = 0
                 last_block_update["full"] = 0
+            
+            if staleness["light"] > intervals["light"]:
+                c.print("Synced StakeFrom and Namespace")
+                response = self.light_sync(network=network, remote=remote, block=block)
+                staleness["light"] = 0
+                c.print("Synced StakeFrom and Namespace")
             c.print(response)
-
-            c.sleep(intervals)
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
@@ -901,6 +903,12 @@ class Subspace(c.Module):
         return subnet
     
     subnet = subnet_params
+
+    @classmethod
+    def get_subnet_params(cls, netuid=netuid, network = network, block : Optional[int] = None, update = False, trials = 3, timeout = 10, parallel = True, fmt:str='j') -> list:
+        self = cls()
+        c.new_event_loop()
+        return self.subnet_params(netuid=netuid, network=network, block=block, update=update, trials=trials, timeout=timeout, parallel=parallel, fmt=fmt)
             
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
@@ -1495,7 +1503,6 @@ class Subspace(c.Module):
     
     def weights(self,  netuid = None, nonzero:bool = False, network=network, update=False, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        c.print(f'Getting weights for SubNetwork {netuid}')
         subnet_weights =  self.query_map('Weights', params=netuid, network=network, update=update, **kwargs)
         subnet_weights_sorted = sorted(subnet_weights, key=lambda x: x[0])
         subnet_weights = [list(map(list,v)) for k,v in subnet_weights_sorted]
@@ -1935,7 +1942,6 @@ class Subspace(c.Module):
                 block = self.block
                 df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
 
-            c.print(df_stats)
             if 'emission' in cols:
                 epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
                 df_stats['emission'] = df_stats['emission'] * epochs_per_day
@@ -2922,8 +2928,8 @@ class Subspace(c.Module):
         modules = self.my_modules(*args, **kwargs)
         return [m['key'] for m in modules]
 
-    def my_key2uid(self, *args, mode='all' , **kwargs):
-        key2uid = self.key2uid(*args, **kwargs)
+    def my_key2uid(self, *args, network=None, netuid=0, **kwargs):
+        key2uid = self.key2uid(*args, network=network, netuid=netuid, **kwargs)
         key2address = c.key2address()
         key_addresses = list(key2address.values())
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
@@ -3097,8 +3103,10 @@ class Subspace(c.Module):
 
 
 
-    def my_uids(self):
-        return list(self.my_key2uid().values())
+    def my_uids(self, *args, **kwargs):
+        return list(self.my_key2uid(*args, **kwargs).values())
+    
+    
     
     def my_names(self, *args, **kwargs):
         my_modules = self.my_modules(*args, **kwargs)

@@ -66,8 +66,8 @@ class Namespace(c.Module):
             else: 
                 if subnet == None:
                     subnet = 0
-                    
-            return c.module(network)().namespace(update=update, netuid=subnet, **kwargs)
+            kwargs['netuid'] = subnet
+            return c.module(network)().namespace(update=update, **kwargs)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))

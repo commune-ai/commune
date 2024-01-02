@@ -515,12 +515,11 @@ class Dashboard(c.Module):
         self.state =  get_state(self.network)
 
 
-
-
     def select_subnet(self):
         self.subnets = self.state['subnets']
         keys = c.keys()
         subnets = self.subnets
+
         name2subnet = {s['name']:s for s in subnets}
         name2idx = {s['name']:i for i,s in enumerate(subnets)}
         subnet_names = list(name2subnet.keys())
