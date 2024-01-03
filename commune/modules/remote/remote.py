@@ -288,7 +288,7 @@ class Remote(c.Module):
         return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
 
     @classmethod
-    def add_peers(cls, add_admins:bool=True, timeout=20, update=True, network='remote'):
+    def add_peers(cls, add_admins:bool=False, timeout=20, update=True, network='remote'):
         """
         Adds servers to the network by running `c add_peers` on each server.
         
@@ -301,9 +301,8 @@ class Remote(c.Module):
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
         ip2host = cls.ip2host()
-    
-        server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
-        for i, server_address in enumerate(server_addresses_responses):
+        host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
+        for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
             if isinstance(server_address, str):
                 server_address = server_address.split('\n')[-1]
 
@@ -313,12 +312,9 @@ class Remote(c.Module):
                     continue
                 else:
                     ip = ':'.join(server_address.split(':')[:-1])
-                    if ip in ip2host:
-                        tag = ip2host[ip]
-                    else:
-                        tag = str(server_address)[:4]
 
-                    server_name = 'module' + '_' +  tag
+
+                    server_name = 'module' + '_' +  host
                     namespace[server_name] = server_address
 
         c.put_namespace(network=network, namespace=namespace)
