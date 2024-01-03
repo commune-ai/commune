@@ -16,8 +16,46 @@ class Corcel(c.Module):
             api_key = c.choice(self.api_keys())
         config = self.set_config(kwargs=locals())
         self.api_key = config.api_key
+        c.print(config)
         self.conn = http.client.HTTPSConnection(self.config.host)
     
+
+    def image(self,
+              content= "Give me an image of a cute, phantom, cockapoo. Very cute, not too fluffy",
+              miners_to_query:int = 1,
+              top_k_miners_to_query:int = 40,
+              ensure_responses:bool = True,
+              miner_uids = [],
+              messages = [],
+              model = "cortext-image",
+              style = "vivid",
+              size = "1024x1024",
+              quality = "hd",): 
+
+        request = {
+        "miners_to_query": miners_to_query,
+        "top_k_miners_to_query": top_k_miners_to_query,
+        "ensure_responses": ensure_responses,
+        "miner_uids": miner_uids,
+        "messages": content,
+        "model": model,
+        "style": style,
+        "size": size,
+        "quality": quality
+        }
+
+        payload = json.dumps(request)
+
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': self.api_key
+        }
+
+        self.conn.request("POST", "/cortext/image", payload, headers)
+
+        res = self.conn.getresponse()
+        return res.read().decode("utf-8")
+
     
     def generate(self, 
                 content:str,
@@ -52,7 +90,7 @@ class Corcel(c.Module):
 
         if history is not None:
             assert isinstance(history, list)
-            payload["messages"] =  history + payload["messages"]
+            payload["messages"] =  [history + payload["messages"]]
 
         c.print(payload)
         # make API call to BitAPAI
@@ -60,25 +98,18 @@ class Corcel(c.Module):
 
         headers = {
             'Content-Type': 'application/json',
-            'X-API-KEY': api_key
+            'Authorization': api_key
         }        
         self.conn.request("POST", "/cortext/text", payload, headers)
-
 
         # fetch responses
         res = self.conn.getresponse()
         data = res.read().decode("utf-8")
-        c.print(data, 'bro')
 
         data = json.loads(data)
 
         # find non-empty responses in data['choices']
-        for i in range(len(data['choices'])):
-            if len(data['choices'][i]['message']) > 0 and \
-               data['choices'][i]['message']['content'] != '':
-                return data['choices'][i]['message']['content']
-
-        return None
+        return data[0]['choices'][0]['delta']['content']
     
 
     def imagine( self, 
