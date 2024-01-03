@@ -262,7 +262,8 @@ class OsModule(c.Module):
 
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
-        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        assert type(x) in [int, float, str], f'x must be int or float, not {type(x)}'
+        x = float(x)
         fmt2scale = {
             'b': 1,
             'kb': 1000,
