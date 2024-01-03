@@ -674,47 +674,37 @@ class Remote(c.Module):
     def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
         if remote:
             return self.remote_fn('loop',kwargs = locals())
-        futures = []
-        future2path = {}
         while True:
-            namespace = c.namespace('module', network='remote')
-            peer2lag = self.peer2lag()
-            c.sleep(0.1)
+            self.sync()
+            c.sleep(10)
+    def sync(self, timeout=40,  max_staleness=360):
+        futures = []
+        namespace = c.namespace('module', network='remote')
+        c.print('peer2lag: ', namespace)
+        paths = []
+        for name, address in namespace.items():
+            path = 'peers/' + name
+            existing_peer_info = self.get(path, {})
+            peer_update_ts = existing_peer_info.get('timestamp', 0)
+            future = c.submit(c.call, 
+                                args = [address, 'info'],
+                                kwargs = dict(schema=True, namespace=True, hardware=True),
+                                timeout=timeout, return_future=True
+                                )
+            paths += [path]
+            futures += [future]
 
-            c.print('peer2lag: ', peer2lag)
-
-            for name, address in namespace.items():
-                path = 'peers/' + address.split(':')[0]
-                existing_peer_info = self.get(path, {})
-                peer_update_ts = existing_peer_info.get('timestamp', 0)
-                peer_staleness = int(c.time() - peer_update_ts)
-                if peer_staleness < max_staleness:
-                    c.print(f'updating {name} {address} was refreshed {peer_staleness} > {max_staleness} {c.emoji("check")}', color='cyan')
-                    continue
-
-                future = c.submit(c.call, 
-                                    args = (address, 'info'),
-                                    kwargs = dict(schema=True, namespace=True, hardware=True),
-                                    timeout=timeout, return_future=True
-                                    )
-                # id of fuutre is the same as the id of the future in the remote process
-                
-                
-                futures += [future]
-                
-
-                if batch_size != None and len(futures) >= batch_size:
-                    for future in c.as_completed(futures, timeout=timeout):
-                        result = future.result()
-                        if isinstance(result, dict) and not c.is_error(result) :
-                            path = 'peers/' + address.split(':')[0]
-                            c.print(f'Saving {path}', color='yellow')
-                            result['timestamp'] = c.time()
-                            self.put(path, result)
-
-                        break 
-                futures = [future for future in futures if not future.done()]
-
+        results = c.wait(futures, timeout=timeout, generator=False)
+        for i, result in enumerate(results):
+            path = paths[i]
+            if c.is_error(result):
+                c.print(f'Error {result}')
+                continue
+            else:
+                c.print(f'Success {path}')
+                self.put(path, result)
+            self.put(path, result)
+        return {'status': 'success', 'msg': f'Peers synced'}
 
     def peerpath2name(self, path:str):
         return path.split('/')[-1].replace('.json', '')
