@@ -3375,35 +3375,37 @@ class Subspace(c.Module):
         subnet = self.subnet()
         namespace = c.namespace(search=search, network=network, update=True)
 
+        response_batch = {}
         for module, stats in module2stats.items():
             if not c.server_exists(module):
-                c.serve(module)
+                response_batch[module] = c.serve(module)
+                c.print(response_batch[module])
 
-        c.print('checking', list(namespace.keys()))
-        for name, address in namespace.items():
-            if name not in module2stats :
-                # get the stats for this module
-                self.register(name=name, address=address, key=key)
-                continue
+        # c.print('checking', list(namespace.keys()))
+        # for name, address in namespace.items():
+        #     if name not in module2stats :
+        #         # get the stats for this module
+        #         self.register(name=name, address=address, key=key)
+        #         continue
             
-            m_stats = module2stats.get(name)
-            if 'vali' in module: # if its a vali
-                if stats['last_update'] > subnet['tempo']:
-                    c.print(f"Vali {module} has not voted in {stats['last_update']} blocks. Restarting...")
-                    c.restart(module)
+        #     m_stats = module2stats.get(name)
+        #     if 'vali' in module: # if its a vali
+        #         if stats['last_update'] > subnet['tempo']:
+        #             c.print(f"Vali {module} has not voted in {stats['last_update']} blocks. Restarting...")
+        #             c.serve(module)
                     
-            else:
-                if m_stats['serving']:
-                    if address != m_stats['address']:
-                        c.update_module(module=m_stats['name'], address=address, name=name)
-                else:
+        #     else:
+        #         if m_stats['serving']:
+        #             if address != m_stats['address']:
+        #                 c.update_module(module=m_stats['name'], address=address, name=name)
+        #         else:
                     
-                    if ':' in m_stats['address']:
-                        port = int(m_stats['address'].split(':')[-1])
-                    else:
-                        port = None
+        #             if ':' in m_stats['address']:
+        #                 port = int(m_stats['address'].split(':')[-1])
+        #             else:
+        #                 port = None
                         
-                    c.serve(name, port=port, wait_for_server=wait_for_server)
+        #             c.serve(name, port=port, wait_for_server=wait_for_server)
 
 
 
