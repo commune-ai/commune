@@ -760,7 +760,7 @@ class Subspace(c.Module):
         return {'success': True, 'block': self.block}
 
 
-    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 1000}, network=None, remote:bool=True):
+    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 1000, 'check_servers': 300}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
@@ -770,6 +770,10 @@ class Subspace(c.Module):
         while True:
             block = self.block
             staleness = {k:block - last_block_update[k] for k in intervals.keys()}
+            
+            if staleness["check_servers"] > intervals["check_servers"]:
+                c.print(self.check_servers())
+
 
             if staleness["full"] > intervals["full"]:
                 save = staleness["save"] > intervals["save"]
@@ -792,6 +796,7 @@ class Subspace(c.Module):
                 response = self.light_sync(network=network, remote=remote, block=block)
                 staleness["light"] = 0
                 c.print("Synced StakeFrom and Namespace")
+
             c.print(response)
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
@@ -1903,7 +1908,7 @@ class Subspace(c.Module):
               update:bool = False , 
               local: bool = True,
               cols : list = ['name', 'emission','incentive', 'dividends', 'stake', 'last_update', 'serving'],
-              sort_cols = ['registered', 'emission', 'stake'],
+              sort_cols = ['name', 'serving',  'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
               **kwargs
@@ -1939,8 +1944,7 @@ class Subspace(c.Module):
             df_stats = df_stats[cols]
 
             if 'last_update' in cols:
-                block = self.block
-                df_stats['last_update'] = df_stats['last_update'].apply(lambda x: block - x)
+                df_stats['last_update'] = df_stats['last_update'].apply(lambda x: x)
 
             if 'emission' in cols:
                 epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
@@ -3046,14 +3050,11 @@ class Subspace(c.Module):
         assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
 
 
-
-
         uids = uids[:max_allowed_weights]
         weights = weights[:max_allowed_weights]
 
-
         # uids = [int(uid) for uid in uids]
-        uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
+        uid2weight = {uid: weight for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
 
@@ -3063,8 +3064,10 @@ class Subspace(c.Module):
         indices = torch.argsort(weights, descending=True)
         uids = uids[indices]
         weights = weights[indices]
-
-        weights = weights / weights.sum()
+        c.print(weights)
+        weight_sum = weights.sum()
+        assert weight_sum > 0, f"Weight sum must be greater than 0. Got {weight_sum}"
+        weights = weights / (weight_sum)
         U16_MAX = 2**16 - 1
         weights = weights * (U16_MAX)
         weights = list(map(lambda x : int(min(x, U16_MAX)), weights.tolist()))
@@ -3368,8 +3371,8 @@ class Subspace(c.Module):
     def check_valis(self):
         return self.check_servers(search='vali', netuid=None, wait_for_server=False, update=False)
     
-    def check_servers(self, search=None, wait_for_server=False, update:bool=False, key=None, network='local'):
-        cols = ['name', 'registered', 'serving', 'address', 'last_update']
+    def check_servers(self, search=None, wait_for_server=False, update:bool=False, key=None, min_stake:int =1000,  network='local'):
+        cols = ['name', 'registered', 'serving', 'address', 'last_update', 'stake']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
         subnet = self.subnet()
@@ -3377,9 +3380,10 @@ class Subspace(c.Module):
 
         response_batch = {}
         for module, stats in module2stats.items():
-            if not c.server_exists(module):
-                response_batch[module] = c.serve(module)
-                c.print(response_batch[module])
+            if stats['stake'] > min_stake:
+                if not c.server_exists(module):
+                    response_batch[module] = c.serve(module)
+                    c.print(response_batch[module])
 
         # c.print('checking', list(namespace.keys()))
         # for name, address in namespace.items():

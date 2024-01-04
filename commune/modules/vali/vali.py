@@ -13,11 +13,10 @@ class Vali(c.Module):
 
 
     def init_vali(self,config=None, **kwargs):
-
+        # initialize the validator
         config = self.set_config(config=config, kwargs=kwargs)
-        c.print(config)
+
         self.config = c.dict2munch({**Vali.config(), **config})
-        c.print(f'Vali config: {self.config}', color='cyan')
         # merge the config with the default config
         self.count = 0
         # we want to make sure that the config is a munch
@@ -61,7 +60,6 @@ class Vali(c.Module):
         self.addresses = [self.namespace.values()]     
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
-
         self.last_sync_time = c.time()
         return {'namespace': self.namespace}
 
@@ -122,6 +120,8 @@ class Vali(c.Module):
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
 
+            c.print(response, color='red', verbose=self.config.verbose)
+
         end_timestamp = c.time()        
         w = response['w']
         response['timestamp'] = c.time()
@@ -157,6 +157,8 @@ class Vali(c.Module):
     def vote(self, tag=None):
 
         tag = tag or self.tag
+
+        # get the list of modules that was validated
         module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
@@ -168,17 +170,15 @@ class Vali(c.Module):
         key2uid = self.subspace.key2uid()
         for info in module_infos:
             if 'ss58_address' in info and info['w'] > 0:
-                votes['keys'] += [info['ss58_address']]
-                votes['weights'] += [info['w']]
-                votes['uids'] += [key2uid.get(info['ss58_address'], 0)]
+                if info['ss58_address'] in key2uid:
+                    votes['keys'] += [info['ss58_address']]
+                    votes['weights'] += [info['w']]
+                    votes['uids'] += [key2uid[info['ss58_address']]]
 
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
         if len(votes['uids']) == 0:
             return {'success': False, 'message': 'No votes to cast'}
-        
-
-
         r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
@@ -240,13 +240,16 @@ class Vali(c.Module):
         paths = cls.saved_module_paths(network=network, tag=tag)
         modules = [p.split('/')[-1].replace('.json', '') for p in paths]
         return modules
+
+    def num_module_infos(self, tag=None):
+        return len(self.saved_module_names(**self.config))
         
     @classmethod
     def module_infos(cls,
                      tag=None,
                       network:str='subspace', 
                     batch_size:int=20 , 
-                    max_staleness:int= 1000000,
+                    max_staleness:int= 1000,
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
@@ -313,7 +316,6 @@ class Vali(c.Module):
                 self.sync_network()
 
             modules = c.shuffle(c.copy(self.names))
-            c.print(len(modules))
             time_between_interval = c.time()
             module = c.choice(modules)
 
@@ -325,7 +327,7 @@ class Vali(c.Module):
 
             if self.vote_staleness > self.config.vote_interval:
                 if not len(vote_futures) > 0 and 'subspace' in self.config.network:
-                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True, timeout=self.config.vote_timeout)]
+                   self.vote()
 
             if len(futures) >= self.config.max_futures:
                 try:
