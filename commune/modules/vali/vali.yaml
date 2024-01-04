@@ -7,9 +7,9 @@ max_history: 10
 alpha: 0.5
 timeout: 10
 tag: null
-num_workers: 10
+num_workers: 1
 start: True
-verbose: False
+verbose: True
 batch_size: 4
 refresh_stats: False
 vote_interval: 100
