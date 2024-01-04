@@ -134,7 +134,7 @@ class Vali(c.Module):
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
         emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
-        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.save_module_info(module_name, module_info)
         self.count += 1
 
@@ -177,7 +177,9 @@ class Vali(c.Module):
         if len(votes['uids']) == 0:
             return {'success': False, 'message': 'No votes to cast'}
         
-        self.subspace.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+
+
+        r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
                         network='main', 
@@ -185,7 +187,9 @@ class Vali(c.Module):
 
         self.save_votes(votes)
 
-        return {'success': True, 'message': 'Voted', 'votes': votes }
+
+
+        return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
 
     @property
     def last_vote_time(self):
@@ -315,7 +319,7 @@ class Vali(c.Module):
 
             # c.sleep(self.config.sleep_time)
             # rocket ship emoji
-            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan')
+            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan', verbose=self.config.verbose)
             future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
             futures.append(future)
 
@@ -336,7 +340,7 @@ class Vali(c.Module):
                         self.errors += 1
                         break
                 except TimeoutError as e:
-                    e = c.print('TimeoutError', color='red')
+                    e = c.print('TimeoutError', color='red', verbose=self.config.verbose)
 
             
       

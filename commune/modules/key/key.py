@@ -1190,7 +1190,6 @@ class Keypair(c.Module):
     def __str__(self):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
-    mems_path = c.repo_path + '/data/keymems.json'
 
     def save(self, path=None):
         if path == None:
@@ -1204,6 +1203,9 @@ class Keypair(c.Module):
         c.cp(self.path, new_path)
         return {'copied':new_path}
     
+    
+    mems_path = c.repo_path + '/data/keymems.json'
+
     @classmethod
     def savemems(cls, path=mems_path):
         c.print(f'saving mems to {path}')
@@ -1215,6 +1217,7 @@ class Keypair(c.Module):
     def loadmems(cls, path=mems_path, **kwargs):
         mems = c.load_json(path)
         for k,mem in mems.items():
+            c.print(k,mems)
             cls.add_key(k, mem, **kwargs)
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
