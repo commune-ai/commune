@@ -6,6 +6,7 @@ import commune as c
 import gradio as gr
 from io import BytesIO
 import base64
+import os
 
 MODELS = ["VGG-Face", "Facenet", "Facenet512", "OpenFace", "DeepFace", "DeepID", "Dlib",
           "ArcFace", "SFace"]
@@ -30,7 +31,8 @@ GENDERS = {"Woman": "👩‍🦰", "Man": "👨‍🦳"}
 class DeepFaceModel(c.Module):
 
     whitelist = ['verify', 'analyze', 'find',
-                 'represent', 'stream', 'extract_faces', 'gradio']
+                 'represent', 'stream', 'extract_faces', 'gradio',
+                 'save_face', 'verify_face']
 
     def __init__(self, api_key: str = None, cache_key: bool = True):
         config = self.set_config(kwargs=locals())
@@ -410,6 +412,174 @@ class DeepFaceModel(c.Module):
             grayscale,
         )
 
+    def save_face(self, 
+                  img_src_dir='images', 
+                  model_filename='one_person_face_model.h5', 
+                  train_epochs=5, 
+                  train_batch_size=32,
+                  base_model_name='Facenet', 
+                  train_optimizer='adam', 
+                  train_loss='binary_crossentropy', 
+                  train_metrics='accuracy',
+                  ):
+        """
+        This function fine-tunes the model using individual face images. You can upload one or multiple face images of the same person for fine-tuning. This process amplifies the data, especially when you have a small amount of it.
+
+        Parameters:
+                img_src_dir (string): image src path.  Source dir can have many images.
+
+                model_filename (string): model filename that will be stored.
+
+                base_model_name (string): VGG-Face, Facenet, Facenet512, OpenFace, DeepFace, DeepID, Dlib,
+                ArcFace, SFace
+
+                train_optimizer (string): sgd, rmsprop, adam, adadelta, adagrad, adamax, nadam, ftrl
+
+                train_loss (string): should be binary_corssentropy for binary classification
+
+                train_metrics (string): would be splited by comma. e.x. you can put 'accuracy,binary_accuracy'
+                
+                train_epochs (number): number of training epochs
+
+                train_batch_size (number): size of batch per training
+
+        Returns:
+                model filename that have been fine-tuned on given face images.
+        """
+        from deepface import DeepFace
+
+        # load pretrained model from Deepface
+        base_model = DeepFace.build_model(base_model_name)
+
+        from tensorflow.keras.models import Model
+
+        # Remove the top layer and use the output as feature extractor
+        feature_extractor = Model(inputs=base_model.inputs, outputs=base_model.layers[-1].output)
+
+        from tensorflow.keras.layers import Dense, Dropout, Flatten
+        from tensorflow.keras.models import Sequential
+
+        # Add custom layers
+        model = Sequential([
+            feature_extractor,
+            Flatten(),
+            Dense(256, activation='relu'),
+            Dropout(0.5),
+            Dense(256, activation='relu'),
+            Dropout(0.5),
+            Dense(1, activation='sigmoid')  # Assuming binary classification (person/not person)
+        ])
+
+        from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+        def get_preprocessed_images(folder_path, 
+                                    image_size=(160, 160), 
+                                    label=1, 
+                                    augment=True, 
+                                    batch_size=32):
+            images = []
+            labels = []
+
+            for img_name in os.listdir(folder_path):
+                img_path = os.path.join(folder_path, img_name)
+                img = cv2.imread(img_path)
+                
+                if img is not None:
+                    img = cv2.resize(img, image_size)
+                    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                    img = img / 255.0
+                    images.append(img)
+                    labels.append(label)
+
+            X = np.array(images)
+            y = np.array(labels)
+
+
+            if augment:
+                # Define data augmentation
+                datagen = ImageDataGenerator(
+                    rotation_range=20,
+                    width_shift_range=0.2,
+                    height_shift_range=0.2,
+                    shear_range=0.2,
+                    zoom_range=0.2,
+                    horizontal_flip=True,
+                    fill_mode='nearest'
+                )
+                
+                # Apply data augmentation (Note: This augments data in real-time, not in memory)
+                return datagen.flow(X, y, batch_size=batch_size)
+            else:
+                return X, y
+
+        # Usage
+        folder_path = img_src_dir
+        datagenerator = get_preprocessed_images(folder_path)
+
+        # Freeze the layers of feature_extractor
+        for layer in feature_extractor.layers:
+            layer.trainable = False
+
+        # Compile the model
+        model.compile(optimizer=train_optimizer, loss='binary_crossentropy', metrics=train_metrics.split(','))
+
+        # Train the model
+        model.fit(datagenerator, epochs=train_epochstrain_batch_size, batch_size=train_batch_size)
+
+        model.save(model_filename)
+        return "Successfully saved!"
+
+    def verify_face(self, 
+                    face_image_path='image.jpeg', 
+                    model_filename='one_person_face_model.h5', 
+                    threshold=0.85):
+        
+        """
+        This function verifies an individual's face using the fine-tuned model. You can specify the image path and select the model file saved in the 'save_face' function.
+
+        Parameters:
+                face_image_path (string): face image path.  
+
+                model_filename (string): model filename that which is stored.
+
+                threshold(number): threshold
+
+        Returns:
+                result of verification
+        """
+        from tensorflow.keras.models import load_model
+
+        # load saved model
+        model = load_model(model_filename)
+        # get shape of input image
+        input_shape = model.layers[0].input_shape if hasattr(model.layers[0], 'input_shape') else None
+
+        # resize the image as input_shape
+        def preprocess_image(img_path, image_size=(input_shape[1], input_shape[2])):
+
+            img = cv2.imread(img_path)
+
+            if img is not None:
+                img = cv2.resize(img, image_size)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                img = img / 255.0
+                return img
+
+        # feed the image to the model to get reseult
+        def verify_face(image_path, model):
+            # Preprocess the image
+            img= preprocess_image(image_path)  # This should match the preprocessing used during training
+
+            # Predict
+            prediction = model.predict(np.array([img]))
+            print(prediction)
+            return prediction[0][0]  # Threshold can be adjusted
+
+        # Test with a new image
+        result = verify_face(face_image_path, model)
+        print("Is this the target person?", result)
+        return result, result >= threshold
+
     def gradio(self):
         with gr.Blocks() as demo:
             with gr.Tab("Verify"):
@@ -449,4 +619,23 @@ class DeepFaceModel(c.Module):
                 analyze_button.click(fn=self.analyze, inputs=[img_path,
                                                               detector_backend, output_type
                                                               ], outputs=[json, img_result])
+            with gr.Tab("one_person_face_model"):                
+                with gr.Row():
+                    with gr.Column():
+                        img_src_dir = gr.File(label="Person Face Dir", file_count='directory')
+                        model_filename = gr.Textbox(label="Model Filename", value='one_person_face_model.h5')
+                        train_epochs = gr.Slider(minimum=1, maximum=1000, value=5, label="Train Epochs", interactive=True)
+                        train_batch_size = gr.Slider(minimum=1, maximum=1000, value=32, label="Train Batch Size", interactive=True)
+                        save_button = gr.Button('Save') 
+                        json = gr.Json()
+                        save_button.click(fn=self.save_face, inputs=[img_src_dir, 
+                                                                    model_filename, train_epochs, train_batch_size], outputs=json)
+                    with gr.Column():
+                        face_image_path = gr.Image(label="Person", type="filepath")
+                        model_filename = gr.Textbox(label="Model Filename", value='one_person_face_model.h5')
+                        threshold = gr.Slider(minimum=0.1, maximum=1.0, value=0.85, label="Threshold", interactive=True)
+                        verify_button = gr.Button('Verify') 
+                        json = gr.Json()
+                        verify_button.click(fn=self.verify_face, inputs=[face_image_path
+                                                                        model_filename, model_name, detector_backend, distance_metric ], outputs=json)
         demo.launch(quiet=True, share=True)
