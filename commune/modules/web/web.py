@@ -88,15 +88,17 @@ class Web(c.Module):
 
     def url2text(self, url, max_words=50):
         url_text = self.request(url)
+        c.print(url_text)
         content = self.soup(url_text)
-        response = {'title': content.contents[0],
-                        'url': url, 
-                        'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != '']),
-                        }
+        response = {
+                    'title': content.contents[0],
+                    'url': url, 
+                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
+                    }
     
         for i in range(10):
             response['text'] = response['text'].replace('\n\n', '')
-        c.print(f'response: {url}', color='yellow')
+
         text_words = response['text'].split(' ')
         num_words = len(text_words)
         if num_words > max_words:

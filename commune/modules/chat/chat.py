@@ -25,54 +25,55 @@ class Chat(c.Module):
         fn = fn or self.fn
         salt = salt or self.salt
         key = key or self.key
+        cols = st.columns(2)
         if module == None:
-            module = st.selectbox('Select a Module', c.modules(), 0, key=f'{salt}.module')
+            module = cols[0].selectbox('Select a Module', c.modules(), 0, key=f'{salt}.module')
         if fn == None:
-            fn = st.selectbox('Select a Function', c.module(module).fns(), 0, key=f'{salt}.fn')
+            fn = cols[1].selectbox('Select a Function', c.module(module).fns(), 0, key=f'{salt}.fn')
         return module, fn, salt, key
 
     @classmethod
-    def dashboard(cls, module:c.Module = None, key=None):
+    def dashboard(cls, server:c.Module = None, key=None, network='local', salt=None, fn=None, kwargs=None, prefix_match=True):
+        c.new_event_loop()
+
         self = cls()
         import streamlit as st
         import random
         import time
 
+
+
         fn = 'generate'
         default_text = 'hey'
-        with st.sidebar:
-            search = st.text_input('search', '', key='search')
+        if network == None:
             network = st.selectbox('Network', ['local', 'remote', 'subspace'], 0, key='network')
+        with st.sidebar:
             if key == None:
                 key = st.selectbox('Select a Key', c.keys(), 0, key='key')
                 self.key = c.get_key(key)
-            if search == '':
-                search=None
-            namespace = c.namespace(network=network)
-            servers = list(namespace.keys())
-            server_name = st.selectbox('Select a Server', servers, 0, key='server_name')
+        key = self.key
+        key_address = key.ss58_address
+        namespace = c.namespace(network=network)
+        servers = list(namespace.keys())
+        cols = st.columns(2)
+        server_name = cols[0].selectbox('Select a Server', servers, 0, key='server_name')
 
-            update = st.button('Update Server Info')
         server_address = namespace[server_name]
         try:
-            server = c.connect(server_name)
+            server = c.connect(server_address)
         except Exception as e:
             st.error(e)
             return
         info_path = f'servers/{server_name}/info'
         server_info = c.get(info_path, {})
-        if not c.exists(info_path) or len(server_info) == 0 or update:
-
+        if not c.exists(info_path) or len(server_info) == 0:
             server_info = server.info()
             c.put(info_path, server_info)
-
 
         if fn not in server_info['schema']:
             st.error(f'{fn} not in {server_name}')
             return
-        
-
-        fn = st.selectbox('Select a Function', list(server_info['schema'].keys()), 0, key='fn')
+        fn = cols[1].selectbox('Select a Function', list(server_info['schema'].keys()), 0, key='fn')
 
         default_kwargs = server_info['schema'][fn]['default']
 
@@ -88,16 +89,35 @@ class Chat(c.Module):
                 if chat_button:
                     response = self.put(chat_path, kwargs)
                 kwargs = self.get(chat_path, default=kwargs)
+        key = c.get_key(key)
+        user_history_path = None
+        with st.sidebar:
+            
+            convo_name = st.text_input('New Convo', 'default', key='convo_name')
+            
+            cols = st.columns(2)
+            new_convo = cols[1].button(f"New Convo")
+            rm_convo = cols[0].button(f"Remove Convo")
+            user_history_path = f'user_history/{key_address}/{convo_name}'
 
-        clear_history = st.button("NOTHING HAPPENED ;)")
+            if new_convo:
+                self.put(user_history_path, [])
+            
+            if rm_convo:
+                self.rm(user_history_path)
+            user_convos = [f.split('/')[-1].split('.')[0] for f in self.ls(f'user_history/{key_address}')]
 
-        key = self.key
-        key_address = key.ss58_address
-        user_history_path = f'users/{key_address}/user_history'
-        # Initialize chat history
-        if clear_history:
-            self.put(user_history_path, [])
-        history = self.get(user_history_path, [])
+            select_convo = st.selectbox('Select a Convo', user_convos, 0, key='select_convo')
+
+            user_history_path = f'user_history/{key_address}/{select_convo}'
+            st.write(f'**address** {convo_name}')
+            user_history_path = f'user_history/{key_address}/{convo_name}'
+            # Initialize chat history
+
+            history = self.get(user_history_path, [])
+
+            with st.expander('Chat History', expanded=False):
+                st.write(history)
         if not self.check_history(history):
             st.error(f'history is not valid: {history}, resetting')
             history = []
@@ -106,7 +126,7 @@ class Chat(c.Module):
         for message in history:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
-
+        
         # Accept user input
         if prompt := st.chat_input(default_text):
             history.append({"role": "user", "content": prompt})
@@ -121,7 +141,6 @@ class Chat(c.Module):
                 #     kwargs['history'] = history
                 prompt = c.dict2str({'prompt': prompt, 'history': history, 'instruction': "respond as the assistant"})
                 
-                st.write(prompt)
                 response = getattr(server, fn)(prompt, **kwargs)
                 if isinstance(response, dict):
                     for k in ['response', 'text', 'content', 'message']:
@@ -129,15 +148,17 @@ class Chat(c.Module):
                             response = response[k]
                             break
 
-                st.write(response)
-                            
+   
                 if isinstance(response, str):
                     history.append({"role": "assistant", "content": response})
+                    # Display assistant message in chat message container
                     self.put(user_history_path, history)
+            if isinstance(response, str):
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+
 
             # Add user message to chat history
         
-        
-
 
 Chat.run(__name__)

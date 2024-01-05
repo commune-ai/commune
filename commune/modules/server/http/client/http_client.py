@@ -38,6 +38,7 @@ class Client(c.Module):
         self.my_ip = c.ip()
         self.network = c.resolve_network(network)
         self.start_timestamp = c.timestamp()
+        
 
     
     def age(self):

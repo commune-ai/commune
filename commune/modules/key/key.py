@@ -1416,7 +1416,7 @@ class Keypair(c.Module):
     def ticket(self, **kwargs):
         return self.sign(str(c.timestamp()), return_str=True, **kwargs)
 
-
-
-
+    def verify_ticket(self, ticket, **kwargs):
+        data = ticket.split(self.seperator)[0]
+        return self.verify(ticket, **kwargs)
 

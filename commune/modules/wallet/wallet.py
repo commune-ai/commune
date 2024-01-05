@@ -5,13 +5,7 @@ from streamlit.components.v1 import components
 import plotly.express as px
 import streamlit as st
 
-css = r'''
-    <style>
-        [data-testid="stForm"] {border: 0px}
-    </style>
-'''
 
-st.markdown(css, unsafe_allow_html=True)
 logo_path = __file__.replace('dashboard.py', 'commune_logo.png')
 
 class Dashboard(c.Module):
@@ -19,13 +13,6 @@ class Dashboard(c.Module):
         self.subnet = None
         self.st = c.module('streamlit')()
         self.st.load_style()
-        with st.sidebar:
-            st.title(f'COMMUNE')
-        with st.sidebar:
-            cols = st.columns([2,2])
-            self.select_key()
-
-
 
         self.logo_url = "https://github.com/commune-ai/commune/blob/librevo/commune/modules/dashboard/commune_logo.gif?raw=true"
         # st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
