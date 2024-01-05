@@ -210,7 +210,7 @@ class Subspace(c.Module):
         wasm_file_path = self.libpath + '/target/release/wbuild/node-subspace-runtime/node_subspace_runtime.compact.compressed.wasm'
         return wasm_file_path
 
-    def stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
+    def stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='nano'):
         stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', params=netuid, block=block, update=update, network=network)}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
     
@@ -1910,8 +1910,10 @@ class Subspace(c.Module):
               ):
 
         ip = c.ip()
-        modules = self.modules(netuid=netuid, update=update, fmt=fmt, network=network, **kwargs)
+        modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt, **kwargs)
         stats = []
+
+        c.print(modules, "seconds")
 
         local_key_addresses = list(c.key2address().values())
         for i, m in enumerate(modules):
@@ -1923,7 +1925,7 @@ class Subspace(c.Module):
             m['registered'] = True
 
             # we want to round these values to make them look nice
-            for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
+            for k in ['emission', 'dividends', 'incentive', 'stake_from']:
                 m[k] = c.round(m[k], sig=4)
 
             stats.append(m)

@@ -49,7 +49,6 @@ class Server(c.Module):
                 rm_server = st.button('Remove Server')
                 if rm_server:
                     c.rm_server(server)
-        self.module  = st.selectbox('Select a Module', modules, module2index['agent'], key=f'serve.module')    
         self.module = c.module(self.module)    
 
 
@@ -71,7 +70,7 @@ class Server(c.Module):
     def serve_dashboard(self, expand=True, module=None):
         if expand:
             with st.expander('SERVE', expanded=True):
-                return self.serve_dashboard(expand=False)
+                return self.serve_dashboard(expand=False, module=module)
 
         if module == None:
             modules = c.modules()

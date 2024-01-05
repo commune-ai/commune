@@ -57,6 +57,7 @@ class Corcel(c.Module):
         return res.read().decode("utf-8")
 
     
+    
     def generate(self, 
                 content:str,
                 history:list=None,

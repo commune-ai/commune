@@ -2247,10 +2247,10 @@ class c:
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
         loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         if nest_asyncio:
             cls.nest_asyncio()
             
-        asyncio.set_event_loop(loop)
 
         return loop
   
@@ -8549,6 +8549,9 @@ class c:
     def ticket(self, key=None):
         key = c.get_key(key)
         return key.ticket()
+    @classmethod
+    def load_style(cls):
+        return c.module('streamlit').load_style()
 
 
 
