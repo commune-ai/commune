@@ -16,10 +16,10 @@ class VirtualClient:
     
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout:int=10, **kwargs):
         future =  asyncio.wait_for(self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs), timeout=timeout)
-        loop = asyncio.get_event_loop()
         if return_future:
             return future
         else:
+            loop = asyncio.get_event_loop()
             return loop.run_until_complete(future)
             
     def __str__(self):

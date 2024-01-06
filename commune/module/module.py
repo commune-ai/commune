@@ -14,6 +14,8 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 from commune.utils.dict import async_get_json
+import nest_asyncio
+nest_asyncio.apply()
 
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -21,8 +23,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # AGI BEGINS 
 class c:
     description = """This is a module"""
-    base_module = 'module'
-    encrypted_prefix = 'ENCRYPTED'
+    base_module = 'module' # the base module
+    encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
     git_url = 'https://github.com/commune-ai/commune.git'
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
@@ -324,35 +326,52 @@ class c:
     
     default_config = load_config
 
+    encrypted_prefix = 'ENCRYPTED'
     @classmethod
-    def encrypt_path(cls, path:str, key=None, prefix='ENCRYPTED') -> str:
-        '''
-        Encrypts the path
-        '''
+    def encrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
+        key = c.get_key(key)
         path = cls.resolve_path(path)
-        text = c.get_text(path)
-        encrypted_text = prefix + c.encrypt(text, key=key)
-        c.put_text(path, encrypted_text)
-
-        return {'success': True, 'msg': f'encrypted {path}'}
+        r = key.encrypt_file(path, password=password, **kwargs)
+        return r
         
-
     @classmethod
-    def decrypt_path(cls, path:str, key=None, prefix='ENCRYPTED') -> str:
+    def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
+        key = c.get_key(key)
+        path = cls.resolve_path(path)
+        r = key.decrypt_file(path, password=password, **kwargs)
+        c.print(r, 'bro')
+        return r
+
+
+    def test_file(self):
+        k = 'test_a'
+        v = 1
+        self.put(k,v)
+        self.encrypt_path(k)
+        c.print(self.get_text(k))
+        self.decrypt_path(k)
+        new_v = self.get(k)
+        assert new_v == v, f'new_v {new_v} != v {v}'
+    @classmethod
+    def decrypt_path(cls, path:str, key=None, password=None, prefix=encrypted_prefix) -> str:
         '''
         Encrypts the path
         '''
         path = cls.resolve_path(path)
         text = c.get_text(path)
+        c.print(f'text: {text}')
         assert text.startswith(prefix), f'path {path} is not encrypted'
         text = text[len(prefix):]
-        encrypted_text = c.decreypt(text, key=key)
-        c.put_text(path, encrypted_text)
+        c.print(text)
+        encrypted_text = c.decrypt(text, key=key, password=password)
+        c.print(f'encrypted_text: {encrypted_text}')
+        c.print(f'encrypted_text: {encrypted_text}')
+        # c.put_text(path, encrypted_text)
 
         return {'success': True, 'msg': f'encrypted {path}'}
         
 
-    def is_encrypted_path(self, path:str, prefix='ENCRYPTED') -> bool:
+    def is_encrypted_path(self, path:str, prefix=encrypted_prefix) -> bool:
         '''
         Encrypts the path
         '''
@@ -1394,7 +1413,7 @@ class c:
             return 'commune.Module'
         
         python_classes = cls.find_python_classes(path, search=search)
-
+        
             
         if len(python_classes) == 0:
             return None
@@ -1420,7 +1439,12 @@ class c:
         if path == None:
             path = 'module'
         path = c.simple2path(path)
-        path = c.path2objectpath(path, search=None)
+        try:
+            path = c.path2objectpath(path, search=None)
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            c.update()
+            path = c.path2objectpath(path, search=None)
         module = c.import_object(path)
         c.module_cache[path] = module
         return module
@@ -1433,7 +1457,6 @@ class c:
                     update:bool = False,
                     path = 'local_module_tree',
                     **kwargs) -> List[str]:
-                
         
         module_tree = None
         if not update:
@@ -2250,8 +2273,6 @@ class c:
         asyncio.set_event_loop(loop)
         if nest_asyncio:
             cls.nest_asyncio()
-            
-
         return loop
   
 
@@ -2270,8 +2291,8 @@ class c:
         return self.loop
 
     @classmethod
-    def get_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
-        loop = None
+    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
+
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError as e:
@@ -2482,7 +2503,9 @@ class c:
     
     @classmethod
     def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
-        
+        """
+        Resolves the server name
+        """
 
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
@@ -2495,28 +2518,14 @@ class c:
                 tag = None
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
+
+        # ensure that the name is a string
         assert isinstance(name, str), f'Invalid name {name}'
+
         return name
     resolve_name = resolve_server_name
     
     
-    @classmethod
-    def save_serve_kwargs(cls,server_name:str,  kwargs:dict, network:str = 'local'):
-        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
-        serve_kwargs[server_name] = kwargs
-        c.put(f'serve_kwargs/{network}', serve_kwargs)
-        return serve_kwargs
-    
-    @classmethod
-    def load_serve_kwargs(cls, server_name:str, network:str = 'local'):
-        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
-        return serve_kwargs.get(server_name, {})
-
-    @classmethod
-    def has_serve_kwargs(cls, server_name:str, network='local'):
-        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
-        return server_name in serve_kwargs
-
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -2537,31 +2546,22 @@ class c:
               verbose:bool = False,
               **extra_kwargs
               ):
-
         
-        # RESOLVE THE KWARGS
-        kwargs = kwargs or {}
-        if 'kwargs' in kwargs:
-            kwargs = kwargs['kwargs']
-        kwargs = {**kwargs, **extra_kwargs} # ADD THE EXTRA KWARGS
-        extra_kwargs = {} # EMPTY THE EXTRA KWARGS
+        kwargs = {} if kwargs == None else kwargs
+        extra_kwargs = {} if extra_kwargs == None else extra_kwargs
+        kwargs.update(extra_kwargs)
 
         if module == None:
             module = cls.module_path()
-
         # module::tag
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
-        if 'tag' in kwargs:
-            tag = kwargs['tag']
-    
+        # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-
-
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
-        
+
 
         if port == None:
             address = c.get_address(server_name, network=network)
@@ -2578,7 +2578,6 @@ class c:
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            c.save_serve_kwargs(server_name, remote_kwargs) # SAVE THE RESULTS
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
@@ -2589,11 +2588,18 @@ class c:
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
 
-  
+
+        if module_class.is_arg_key_valid('tag'):
+            kwargs['tag'] = tag
+        if module_class.is_arg_key_valid('server_name'):
+            kwargs['server_name'] = server_name
+
         # this automatically adds 
         self = module_class(**kwargs)
-        self.tag = tag
         self.server_name = server_name
+        self.tag = server_name.split(tag_seperator)[-1]
+
+
         self.key = server_name
 
         address = c.get_address(server_name, network=network)
@@ -2605,9 +2611,9 @@ class c:
             
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow') 
-                c.deregister_server(server_name, network=network)
-                if c.pm2_exists(server_name): 
-                    c.kill(server_name)
+                # c.deregister_server(server_name, network=network)
+                # if c.pm2_exists(server_name): 
+                #     c.kill(server_name)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
@@ -2618,12 +2624,14 @@ class c:
         if len(whitelist) == 0 and module != 'module':
             whitelist = self.functions(include_parents=False)
             
-
         whitelist = list(set(whitelist + c.helper_functions))
         blacklist = self.blacklist if hasattr(self, 'blacklist') else []
 
         setattr(self, 'whitelist', whitelist)
         setattr(self, 'blacklist', blacklist)
+
+
+        c.print(server_name, 'NAME')
 
         c.module(f'server.{server_mode}')(module=self, 
                                           name=server_name, 
@@ -3027,6 +3035,7 @@ class c:
         '''
         if update:
             cls.update()
+
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         if module == None:
@@ -3041,11 +3050,11 @@ class c:
                 name = module.module_path()
             else:
                 name = module.__name__.lower() 
-            
-        # resolve the tag
-        if tag != None:
-            name = f'{name}{tag_seperator}{tag}'
                 
+            # resolve the tag
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+ 
         c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
 
 
@@ -3181,9 +3190,10 @@ class c:
             
         }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
-        name = c.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
-        
-        
+
+        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
+
+
         if refresh:
             cls.pm2_kill(name)
             
@@ -4085,16 +4095,6 @@ class c:
             return list(unique_devices)[0]
         return next(model.parameters()).device
     
-    
-    @classmethod
-    def update_loop(cls, period=2, ):
-        while True:
-            c.print('Updating...', color='yellow')
-            modules = c.servers()
-            c.print(f'Modules (n): {modules}', color='cyan')
-            c.print(modules, color='purple')
-            c.update()
-            c.sleep(period)
             
     @classmethod
     def model_shortcuts(cls, **kwargs):
@@ -4750,10 +4750,10 @@ class c:
     def decrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
-                prefix = encrypted_prefix,
                 password : str = None,
                 include_files:bool = True,
                 path=None) -> bytes:
+
 
         key = c.get_key(key)
         if c.exists(data) and include_files:
@@ -4761,8 +4761,11 @@ class c:
             path = data
             data =  c.get_text(path)
         try:
+            c.print(key, password)
             data = key.decrypt(data, password=password)
+            c.print(data, 'hey')
         except Exception as e:
+            c.print(e)
             response = c.detailed_error(e)
             return response
         if path != None:
@@ -4806,6 +4809,8 @@ class c:
                             'kwargs': kwargs,
                             'timeout': timeout,
                           **extra_kwargs}
+        if '/' in module:
+            args = [fn, *args]
         if n > 1:
             futures = [ c.async_call(module, fn, *args,**client_kwargs) for i in range(n)]
         else:
@@ -5450,28 +5455,26 @@ class c:
     def update(cls, 
                module = None,
                tree:bool = True,
-               namespace: bool = False,
+               namespace: bool = True,
                subspace: bool = False,
                network: str = 'local',
                **kwargs
                ):
-
+        responses = []
+        if tree:
+            r = c.tree(update=True)
+            responses.append(r)
 
         if module != None:
             return c.module(module).update()
         # update local namespace
         c.ip(update=True)
-        responses = []
         if namespace:
             r = namespace = c.namespace(network=network, update=True)
             responses.append(r)
         if subspace:
             r = c.module('subspace').sync()
             responses.append(r)
-        if tree:
-            r = c.tree(update=True)
-            responses.append(r)
-
 
         return {'success': True, 'responses': responses}
     
@@ -6046,17 +6049,21 @@ class c:
             module_path = cls.resolve_module(module).module_path()
             name = f"{module_path}{tag_seperator}{fn}"
 
-        if tag != None:
-            name = f'{name}{tag_seperator}{tag}'
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
 
         if 'remote' in kwargs:
             kwargs['remote'] = False
+
+
+        
             
         response = cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
                     refresh=refresh,
-                    name=name, **extra_launch_kwargs)
+                    name=name, 
+                    **extra_launch_kwargs)
         
         return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
 
@@ -6167,9 +6174,7 @@ class c:
         return concurrent.futures.as_completed(futures, timeout=timeout)
     @classmethod
     def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
-        
         import concurrent.futures
-
         futures = [futures] if not isinstance(futures, list) else futures
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
@@ -6241,8 +6246,18 @@ class c:
         # determine if we are using asyncio or multiprocessing
 
         # wait until they finish, and if they dont, give them none
-        future = asyncio.gather(*jobs, return_exceptions=True)
-        future = asyncio.wait_for(future, timeout=timeout)
+
+        # return the futures that done timeout or not
+        async def wait_for(future, timeout):
+            try:
+                result = await asyncio.wait_for(future, timeout=timeout)
+            except asyncio.TimeoutError:
+                result = {'error': f'TimeoutError: {timeout} seconds'}
+
+            return result
+        
+        jobs = [wait_for(job, timeout=timeout) for job in jobs]
+        future = asyncio.gather(*jobs)
         results = loop.run_until_complete(future)
 
         if singleton:
@@ -6951,6 +6966,18 @@ class c:
         
         import inspect
         return dict(inspect.signature(fn)._parameters)
+    
+    @classmethod
+    def is_arg_key_valid(cls, key='config', fn='__init__'):
+        fn_signature = cls.get_function_signature(fn)
+        if key in fn_signature: 
+            return True
+        else:
+            for param_info in fn_signature.values():
+                if param_info.kind._name_ == 'VAR_KEYWORD':
+                    return True
+        
+        return False
 
     @staticmethod
     def get_function_input_variables(fn)-> dict:
@@ -8240,17 +8267,9 @@ class c:
             elapsed = current_time - start_time
             if elapsed > interval:
                 c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                c.print(c.infos(update=True, network='local'))
                 # subspace.sync(network=network, remote=remote, local=local, save=save)
                 start_time = current_time
             c.sleep(interval)
-    @classmethod
-    def update_loop(cls, remote=True, update_loop=True, name='loop'):
-        kwargs = c.locals2kwargs(locals())
-        cls.remote_fn('loop', kwargs=kwargs,name=name)
-        return {'success': True, 'msg': 'looping on remote', 'name': name}
-        
-
 
     def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
@@ -8458,14 +8477,6 @@ class c:
     def loops(cls, **kwargs):
         return c.pm2ls('loop', **kwargs)
 
-    @classmethod
-    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
-        if remote:
-            return cls.remote_fn('loop', kwargs=locals())
-                
-        while True:
-            c.print('looping')
-            c.sleep(interval)
 
     def loop_fleet(self, n=2, **kwargs):
         responses = []
@@ -8552,6 +8563,33 @@ class c:
     @classmethod
     def load_style(cls):
         return c.module('streamlit').load_style()
+
+    @classmethod
+    def active_thread_count(cls): 
+        import threading
+        return threading.active_count()
+    
+
+    
+    def test_encryption_file(self, n=10, filepath='tests/dummy', value='test'):
+        if n > 1:
+            return [self.test_encryption_file(filepath=filepath, value=value, n=1) for i in range(n)]
+        c.put(filepath, value)
+        
+        auth = self.encrypt_file(filepath)
+        decode = self.decrypt_file(filepath)
+        decoded = c.get(filepath)
+        c.print(decoded, 'decoded')
+        assert decoded == value, f'encryption failed, {decoded} != {value}'
+        c.rm(filepath)
+        assert not c.exists(filepath), f'file {filepath} not deleted'
+        return {'encrypted':auth, 'decrypted': decode, 'path':filepath }
+    
+
+    @classmethod
+    def init_args(cls):
+        return list(cls.init_kwargs().keys())
+
 
 
 

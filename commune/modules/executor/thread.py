@@ -128,7 +128,6 @@ class ThreadPoolExecutor(c.Module):
 
     @staticmethod
     def worker(executor_reference, work_queue):
-        
         try:
             while True:
                 work_item = work_queue.get(block=True)
@@ -142,7 +141,10 @@ class ThreadPoolExecutor(c.Module):
                 item = work_item[1]
 
                 if item is not None:
-                    item.run()
+                    try:
+                        item.run()
+                    except Exception as e:
+                        c.new_event_loop(nest_asyncio=True)
                     # Delete references to object. See issue16284
                     del item
                     continue

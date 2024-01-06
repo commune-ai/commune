@@ -1,8 +1,78 @@
 import commune as c
 import streamlit as st
 import pandas as pd
+from typing import *
 
 class Server(c.Module):
+    server_mode = 'http'
+    @classmethod
+    def serve(cls, 
+              module:Any = None ,
+              tag:str=None,
+              network = 'local',
+              port :int = None, # name of the server if None, it will be the module name
+              server_name:str=None, # name of the server if None, it will be the module name
+              kwargs:dict = None,  # kwargs for the module
+              refresh:bool = True, # refreshes the server's key
+              wait_for_server:bool = False , # waits for the server to start before returning
+              remote:bool = True, # runs the server remotely (pm2, ray)
+              server_mode:str = server_mode,
+              tag_seperator:str='::',
+              update:bool = False,
+              max_workers:int = None,
+              mode:str = "thread",
+              public: bool = False,
+              verbose:bool = False,
+              ):
+
+        module_path = module
+        module_class = c.module(module)
+        # this automatically adds 
+        module = module_class(**kwargs)
+        module.tag = tag
+        module.server_name = server_name
+        module.key = server_name
+
+        address = c.get_address(server_name, network=network)
+
+
+        if address != None and ':' in address:
+            port = address.split(':')[-1]   
+
+        if c.server_exists(server_name, network=network): 
+            if refresh:
+                c.print(f'Stopping existing server {server_name}', color='yellow') 
+            else:  
+                return {'success':True, 'message':f'Server {server_name} already exists'}
+
+
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        if hasattr(module, 'whitelist') :
+            whitelist = module.whitelist
+        if len(whitelist) == 0 and module != 'module':
+            # do not include parent  functions in the whitelist when making this public as this can be a security risk
+            whitelist = module.functions(include_parents=False)
+
+        whitelist = list(set(whitelist + c.helper_functions))
+        blacklist = module.blacklist if hasattr(module, 'blacklist') else []
+        setattr(module, 'whitelist', whitelist)
+        setattr(module, 'blacklist', blacklist)
+
+        c.module(f'server.{server_mode}')(module=module, 
+                                          name=server_name, 
+                                          port=port, 
+                                          network=network, 
+                                          max_workers=max_workers, 
+                                          mode=mode, 
+                                          public=public)
+
+
+
+        return {'success':True, 
+                'address':  f'{c.default_ip}:{port}' ,
+                  'name':server_name, 
+                  'module':module_path}
+
 
 
     @classmethod

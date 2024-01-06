@@ -1061,18 +1061,20 @@ class Keypair(c.Module):
             self._aes_key = c.module('key.aes')(c.bytes2str(password))
         return self._aes_key
 
-    
-    
     def encrypt(self, data: Union[str, bytes], password: str = None, **kwargs) -> bytes:
-        if password != None:
-            aes_key = Keypair.from_password(password).aes_key
-        else:
-            aes_key = self.aes_key
-        
+        aes_key = self.resolve_aes_key(password)
         return aes_key.encrypt(data, **kwargs)
 
-    def decrypt(self, data: Union[str, bytes]) -> bytes:
-        return self.aes_key.decrypt(data)
+    def resolve_aes_key(self, password = None):
+        if password != None:
+            aes_key = Keypair.from_password(password).aes_key
+        else: 
+            aes_key = self.aes_key
+        c.print(aes_key.__dict__)
+        return aes_key
+    def decrypt(self, data: Union[str, bytes], password=None) -> bytes:
+        aes_key = self.resolve_aes_key(password)
+        return aes_key.decrypt(data)
 
 
 
@@ -1138,7 +1140,8 @@ class Keypair(c.Module):
     @classmethod
     def test(cls):
         self = cls.create_from_uri('//Alice')
-        test_fns = [fn for fn in dir(self) if fn.startswith('test_')]
+        module_fns = c.fns()
+        test_fns = [fn for fn in dir(self) if fn.startswith('test_') and fn not in module_fns ]
         num_tests = len(test_fns)
         for i, fn in enumerate(test_fns):
             try:
@@ -1159,13 +1162,56 @@ class Keypair(c.Module):
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
         
+    encrypted_prefix = ''
 
-    def test_encryption(self):
-        for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
-            auth = self.encrypt(o)
-            c.print(auth)
-            assert self.decrypt(auth) == o, f'Encryption failed, {self.decrypt(auth)} != {o}'
-            c.print(f'Passed encryption test for {o}', color='green')
+
+    def encrypt_file(self, path, password=None, prefix=encrypted_prefix):
+        if password == None:
+            password = self.private_key
+        text = c.get_text(path)
+        enc_text =  self.encrypt(text, password=password)
+        enc_text = f'{prefix}{enc_text}'
+        c.put_text(path, enc_text)
+        return {'encrypted':enc_text, 'path':path }
+
+
+
+
+    def decrypt_file(self, path, password=None, prefix=encrypted_prefix):
+        if password == None:
+            password = self.private_key
+        enc_text = c.get_text(path)
+
+        assert enc_text.startswith(prefix), f'file {path} is not encrypted'
+        enc_text = enc_text[len(prefix):]
+        c.print(enc_text, 'ence')
+        dec_text =  self.decrypt(enc_text, password=password)
+        if not isinstance(dec_text, str):
+            dec_text = json.dumps(dec_text)
+        c.put_text(path, dec_text)
+        
+        return {'encrypted':enc_text, 'decrypted': dec_text, 'path':path }
+
+
+    
+    def test_encryption_file(self, n=10, filepath='tests/dummy', value='test'):
+        if n > 1:
+            return [self.test_encryption_file(filepath=filepath, value=value, n=1) for i in range(n)]
+        c.put(filepath, value)
+        
+        auth = self.encrypt_file(filepath)
+        decode = self.decrypt_file(filepath)
+        decoded = c.get(filepath)
+        c.print(decoded, 'decoded')
+        assert decoded == value, f'encryption failed, {decoded} != {value}'
+        c.rm(filepath)
+        assert not c.exists(filepath), f'file {filepath} not deleted'
+        return {'encrypted':auth, 'decrypted': decode, 'path':filepath }
+
+
+
+
+
 
     def test_key_management(self):
         if self.key_exists('test'):
@@ -1190,7 +1236,6 @@ class Keypair(c.Module):
     def __str__(self):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
-    mems_path = c.repo_path + '/data/keymems.json'
 
     def save(self, path=None):
         if path == None:
@@ -1204,6 +1249,9 @@ class Keypair(c.Module):
         c.cp(self.path, new_path)
         return {'copied':new_path}
     
+    
+    mems_path = c.repo_path + '/data/keymems.json'
+
     @classmethod
     def savemems(cls, path=mems_path):
         c.print(f'saving mems to {path}')
@@ -1215,6 +1263,7 @@ class Keypair(c.Module):
     def loadmems(cls, path=mems_path, **kwargs):
         mems = c.load_json(path)
         for k,mem in mems.items():
+            c.print(k,mems)
             cls.add_key(k, mem, **kwargs)
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
@@ -1419,4 +1468,7 @@ class Keypair(c.Module):
     def verify_ticket(self, ticket, **kwargs):
         data = ticket.split(self.seperator)[0]
         return self.verify(ticket, **kwargs)
+    
+
+    
 
