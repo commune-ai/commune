@@ -2596,6 +2596,8 @@ class c:
 
         # this automatically adds 
         self = module_class(**kwargs)
+
+        
         self.server_name = server_name
         self.tag = server_name.split(tag_seperator)[-1]
 
