@@ -14,9 +14,6 @@ class Server(c.Module):
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False , # waits for the server to start before returning
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              server_mode:str = server_mode,
               tag_seperator:str='::',
               update:bool = False,
               max_workers:int = None,
@@ -333,6 +330,22 @@ class Server(c.Module):
         return kwargs
 
 
+    @classmethod
+    def save_serve_kwargs(cls,server_name:str,  kwargs:dict, network:str = 'local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
+        serve_kwargs[server_name] = kwargs
+        c.put(f'serve_kwargs/{network}', serve_kwargs)
+        return serve_kwargs
+    
+    @classmethod
+    def load_serve_kwargs(cls, server_name:str, network:str = 'local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
+        return serve_kwargs.get(server_name, {})
+
+    @classmethod
+    def has_serve_kwargs(cls, server_name:str, network='local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
+        return server_name in serve_kwargs
 
 
 Server.run(__name__)
