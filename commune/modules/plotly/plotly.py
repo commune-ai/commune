@@ -36,7 +36,14 @@ class Plotly(c.Module):
         # increase the font size
         fig.data[0].textfont = {'size': font_size}
         return fig
+    
 
+    def plot(self, chart="scatter") -> int:
+        import plotly.express as px
+        df = px.data.iris()
+        plot = getattr(px, chart)
+        fig = plot(df, x="sepal_width", y="sepal_length")
+        fig.show()
         # Show the
     @classmethod
     def pie( cls,

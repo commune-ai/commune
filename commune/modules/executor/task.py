@@ -91,8 +91,11 @@ class Task(c.Module):
             data = self.fn(*self.args, **self.kwargs)
             self.status = 'complete'
         except Exception as e:
+
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             data = c.detailed_error(e)
+            if 'event loop' in data['error']: 
+                c.new_event_loop(nest_asyncio=True)
             self.status = 'failed'
 
         self.future.set_result(data)

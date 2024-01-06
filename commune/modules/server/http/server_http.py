@@ -25,6 +25,7 @@ class ServerHTTP(c.Module):
         access_module: str = 'server.access',
         public: bool = False,
         serializer: str = 'serializer',
+        new_event_loop:bool = True
         ) -> 'Server':
 
         self.serializer = c.module(serializer)()
@@ -32,12 +33,10 @@ class ServerHTTP(c.Module):
         self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
-
         self.network = network
         self.verbose = verbose
-
-        # executro 
         self.sse = sse
+
         if self.sse == False:
             if max_workers != None:
                 self.max_workers = max_workers
@@ -47,17 +46,21 @@ class ServerHTTP(c.Module):
         self.chunk_size = chunk_size
         self.timeout = timeout
         self.public = public
-
-        if name == None:
-            if hasattr(module, 'server_name'):
-                name = module.server_name
-            else:
-                name = module.__class__.__name__
-        
         self.module = module 
+        if new_event_loop:
+            c.new_event_loop()
+
+        # name 
+        if name == None:
+            if hasattr(self.module, 'server_name'):
+                name = self.module.server_name
+            else:
+                name = self.module.__class__.__name__
+        self.name = name
+
+
         self.key = module.key      
         # register the server
-        self.name = name
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
@@ -81,7 +84,8 @@ class ServerHTTP(c.Module):
                 allow_methods=["*"],
                 allow_headers=["*"],
             )
-
+        
+        
 
         @self.app.post("/{fn}")
         def forward_api(fn:str, input:dict):
@@ -97,9 +101,6 @@ class ServerHTTP(c.Module):
 
             
             """
-
-            c.new_event_loop(nest_asyncio=False)
-
             input['fn'] = fn
             input = self.process_input(input)
             data = input['data']

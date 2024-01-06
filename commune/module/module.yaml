@@ -16,5 +16,4 @@ shortcuts:
   store: storage
   tg: textgen
   chain: subspace.chain
-  wallet: subspace.wallet
 tag: null

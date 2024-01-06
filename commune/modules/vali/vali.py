@@ -13,11 +13,10 @@ class Vali(c.Module):
 
 
     def init_vali(self,config=None, **kwargs):
-
+        # initialize the validator
         config = self.set_config(config=config, kwargs=kwargs)
-        c.print(config)
+
         self.config = c.dict2munch({**Vali.config(), **config})
-        c.print(f'Vali config: {self.config}', color='cyan')
         # merge the config with the default config
         self.count = 0
         # we want to make sure that the config is a munch
@@ -35,11 +34,38 @@ class Vali(c.Module):
 
         c.print(f'Vali config: {self.config}', color='cyan')
         if self.config.start:
-            c.sleep(10)
-            self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
-            # launch a thread to run the vali
-            c.thread(self.run)
+            self.start_workers(num_workers=self.config.num_workers)
+        
+    
 
+    worker_fn = 'worker'
+
+    def workers(self):
+        return [f for f in c.pm2ls() if self.worker_name_prefix in f]
+
+    @property
+    def worker_name_prefix(self):
+        return f'{self.server_name}/{self.worker_fn}'
+
+    def start_workers(self, num_workers:int=1):
+        responses = []
+
+        config= self.config
+        config.start = False
+        config = c.dict2munch(config)
+        config.num_workers = 0
+
+        for i in range(num_workers):
+            name = f'{self.worker_name_prefix}_{i}'
+            c.print('CALLING')
+            r = self.remote_fn(fn=self.worker_fn, 
+                              name = name,
+                               kwargs={'config': config})
+            c.print(f'Started worker {i} {r}', color='cyan')
+            responses.append(r)
+
+        return responses
+        
 
     def subnet2modules(self, network:str='main'):
         subnet2modules = {}
@@ -61,7 +87,6 @@ class Vali(c.Module):
         self.addresses = [self.namespace.values()]     
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
-
         self.last_sync_time = c.time()
         return {'namespace': self.namespace}
 
@@ -75,7 +100,7 @@ class Vali(c.Module):
         return {'success': True, 'w': 1}
 
 
-    def eval_module(self, module:str):
+    async def async_eval_module(self, module:str):
         """
         The following evaluates a module server
         """
@@ -93,7 +118,8 @@ class Vali(c.Module):
             module_name = self.address2name.get(module_address, module_address)
         
         # emoji = c.emoji('hi')
-        # c.print(f'Evaluating  {module_name}:{module_address} -->', color='cyan')
+        computer_emoji = f"\U0001F4BB"
+        c.print(f'Evaluating {module_name}', color='cyan')
 
         if module_address == my_info['address']:
             return {'error': f'Cannot evaluate self {module_address}'}
@@ -110,7 +136,7 @@ class Vali(c.Module):
 
         try:
             # check the info of the module
-            module = c.connect(module_address, key=self.key, virtual=True)
+            module = c.connect(module_address, key=self.key)
 
             if len(module_info) == 0:
                 module_info = module.info(timeout=5)
@@ -118,9 +144,10 @@ class Vali(c.Module):
             response = self.score_module(module)
             response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
         except Exception as e:
-            response = {'error': c.detailed_error(e), 'w': 0, 
+            response = {'error': c.detailed_error(e), 'w': 0.001, 
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
+            c.print(response, color='red', verbose=self.config.verbose)
 
         end_timestamp = c.time()        
         w = response['w']
@@ -134,7 +161,7 @@ class Vali(c.Module):
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
         emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
-        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.save_module_info(module_name, module_info)
         self.count += 1
 
@@ -157,6 +184,8 @@ class Vali(c.Module):
     def vote(self, tag=None):
 
         tag = tag or self.tag
+
+        # get the list of modules that was validated
         module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
@@ -168,16 +197,16 @@ class Vali(c.Module):
         key2uid = self.subspace.key2uid()
         for info in module_infos:
             if 'ss58_address' in info and info['w'] > 0:
-                votes['keys'] += [info['ss58_address']]
-                votes['weights'] += [info['w']]
-                votes['uids'] += [key2uid.get(info['ss58_address'], 0)]
+                if info['ss58_address'] in key2uid:
+                    votes['keys'] += [info['ss58_address']]
+                    votes['weights'] += [info['w']]
+                    votes['uids'] += [key2uid[info['ss58_address']]]
 
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
         if len(votes['uids']) == 0:
             return {'success': False, 'message': 'No votes to cast'}
-        
-        self.subspace.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+        r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
                         network='main', 
@@ -185,7 +214,9 @@ class Vali(c.Module):
 
         self.save_votes(votes)
 
-        return {'success': True, 'message': 'Voted', 'votes': votes }
+
+
+        return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
 
     @property
     def last_vote_time(self):
@@ -236,13 +267,16 @@ class Vali(c.Module):
         paths = cls.saved_module_paths(network=network, tag=tag)
         modules = [p.split('/')[-1].replace('.json', '') for p in paths]
         return modules
+
+    def num_module_infos(self, tag=None):
+        return len(self.saved_module_names(**self.config))
         
     @classmethod
     def module_infos(cls,
                      tag=None,
                       network:str='subspace', 
-                    batch_size:int=20 , 
-                    max_staleness:int= 1000000,
+                    batch_size:int=5 , 
+                    max_staleness:int= 1000,
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
@@ -293,12 +327,12 @@ class Vali(c.Module):
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
 
-
-    def run(self, vote=False):
-
-
-        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+    @classmethod
+    def worker(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
         c.new_event_loop(nest_asyncio=True)
+        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+
         self.running = True
         futures = []
         vote_futures = []
@@ -309,35 +343,23 @@ class Vali(c.Module):
                 self.sync_network()
 
             modules = c.shuffle(c.copy(self.names))
-            c.print(len(modules))
             time_between_interval = c.time()
             module = c.choice(modules)
 
             # c.sleep(self.config.sleep_time)
             # rocket ship emoji
-            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan')
-            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            future = self.async_eval_module(module=module)
             futures.append(future)
 
-            if self.vote_staleness > self.config.vote_interval:
+            if self.vote_staleness > self.config.vote_interval and self.count > 100:
                 if not len(vote_futures) > 0 and 'subspace' in self.config.network:
-                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True, timeout=self.config.vote_timeout)]
+                   self.vote()
 
             if len(futures) >= self.config.max_futures:
-                try:
-                    for future in c.as_completed(futures, timeout=self.config.timeout):
 
-                        try:
-                            result = future.result()
-                        except Exception as e:
-                            result = {'error': c.detailed_error(e)}
 
-                        futures.remove(future)
-                        self.errors += 1
-                        break
-                except TimeoutError as e:
-                    e = c.print('TimeoutError', color='red')
-
+                result = c.gather(futures)
+                futures = []
             
       
             if self.count % 10 == 0 and self.count > 0:
@@ -506,3 +528,10 @@ class Vali(c.Module):
         kwargs['verbose'] = True
         self = cls(**kwargs )
         return self.run()
+
+    @classmethod
+    def dashboard(cls):
+        import streamlit as st
+        st.sidebar.title('Vali Dashboard')
+
+Vali.run(__name__)

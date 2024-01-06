@@ -438,7 +438,7 @@ class Remote(c.Module):
             
         for name, address in c.shuffle(list(namespace.items()))[:n]:
             c.print(f'Calling {name} {address}')
-            futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True, timeout=timeout)
+            futures[name] = c.async_call(address, fn, *args)
         
         if return_future:
             if len(futures) == 1:
@@ -446,8 +446,28 @@ class Remote(c.Module):
             return futures
         else:
 
-            results = c.wait(list(futures.values()), timeout=timeout)
-            results = dict(zip(futures.keys(), results))
+    
+            
+            num_futures = len(futures)
+            results = {}
+            import tqdm 
+
+
+            progress_bar = tqdm.tqdm(total=num_futures)
+            error_progress = tqdm.tqdm(total=num_futures)
+
+            results = c.gather(list(futures.values()), timeout=timeout)
+
+            for i, result in enumerate(results):
+                if c.is_error(result):
+                    # c.print(f'Error {result}')
+                    error_progress.update(1)
+                    continue
+
+                else:
+                    # c.print(f'Success {result}')
+                    results[i] = result
+                    progress_bar.update(1)
             # if len(results) == 1:
             #     return list(results.values())[0]
         
