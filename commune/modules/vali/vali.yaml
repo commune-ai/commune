@@ -1,28 +1,42 @@
-vote_timeout: 50
-key : null
-search: null
-netuid : 0
+
+# network
 network: subspace 
-max_history: 10
-alpha: 0.5
-timeout: 10
-tag: null
-num_workers: 1
-start: True
-verbose: True
-batch_size: 4
-refresh_stats: False
-vote_interval: 100
+netuid : 0
 sync_interval: 100
-sleep_time: 0.05
-vote: True
-min_stake: 1
-connect_score: 0.1 
+search: null
+batch_size: 20
 max_staleness: 10
 virtual_module: False
 check_loop: True
 run_mode : thread
-max_futures: 20
+verbose: True
+
+# voting
+vote: True
+min_stake: 1
+vote_interval: 200
+vote_timeout: 50
+min_count_before_vote: 100
+
+# stats
+max_history: 10
+refresh_stats: False
+
+# score
+connect_score: 0.1 
+latency_score_weight: 0.2
+alpha: 0.5
+
+
+
+# workers
+timeout: 10
+sleep_time: 0.05
+num_workers: 1
+refresh : True
+start: True
+is_main_worker: True
+
 
 
 
