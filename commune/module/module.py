@@ -7299,60 +7299,66 @@ class c:
         for i in range(n):
             cls.add_line(idx=idx)
 
+    @classmethod
+    def add_lines2(cls, idx=0, n=1 ):
+        """
+        jhey
+        """
+        for i in range(n):
+            cls.add_line(idx=idx)
 
-    def rm_docs(self, fn:str='rm_docs'):
+    @classmethod
+    def rm_docs(cls, fn:str='add_lines2'):
         """
         sup
         """
         import streamlit as st
-        doc_info = self.fn_docs(fn, include_quotes=True, return_dict=True)
-        doc_text = doc_info['text']
+        doc_info = cls.fn_docs(fn, include_quotes=True, return_dict=True)
         doc_idx_bounds = doc_info['idx_bounds']
 
-        fn_info = self.fn_info(fn)
-
-        start_line = fn_info["start_line"]
+        fn_info = cls.fn_info(fn)
 
         fn_code = fn_info['code']
-        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0]]
-        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]+1:]
+        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0] - 2]
+        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]:]
         new_fn_code = '\n'.join(before_comment_code + after_comment_code)
         return c.add_fn_code(fn=fn, code=new_fn_code)
     
     def rm_fn(self, fn:str='rm_fn'):
         return self.add_fn_code(fn, code='')
     
-    def add_fn_code(self, fn:str='test_fn', code:str = None):
-        fn_info = self.fn_info(fn)
+    @classmethod
+    def add_fn_code(cls, fn:str='test_fn', code:str = None):
+        fn_info = cls.fn_info(fn)
         start_line = fn_info["start_line"]
         end_line = fn_info["end_line"]
         fn_code = fn_info['code']
-        module_code = self.code()
+        module_code = cls.code()
         lines = module_code.split('\n')
         if code == None:
             code = ''
         new_lines = lines[:start_line] + [code] + lines[end_line:]
         new_code = '\n'.join(new_lines)
-        c.put_text(self.filepath(), new_code)
+        return c.put_text(cls.filepath(), new_code)
         # return new_code
 
     def test_fn2(self):
         # het 
         print("fam")
 
-    
-    def fn_docs(self, fn:str='fn_docs', include_quotes=False, return_dict=False):
+    @classmethod 
+    def fn_docs(cls, fn:str='fn_docs', include_quotes=False, return_dict=False):
         '''
         This is a document
         '''
     
-        fn_info = self.fn_info(fn)
+        fn_info = cls.fn_info(fn)
         start_line = fn_info["start_code_line"]
         '''
         sup
         '''
         end_line = fn_info["end_line"]
-        code = self.code()
+        code = cls.code()
         lines = code.split('\n')
         comment_idx_bounds = []
 
@@ -7387,10 +7393,15 @@ class c:
     @classmethod
     def add_docs(cls, fn='add_docs', comment="This is a document"):
         '''
+        sup fam
+        '''
+        '''
         This is a document
         '''
+        c.print(fn)
+        cls.rm_docs(fn)
         fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"] - 1
+        start_line = fn_info["start_code_line"] + 1
         c.print(start_line)
         tab_space = "        "
         cls.add_line(idx=start_line, text=tab_space+"'''")
