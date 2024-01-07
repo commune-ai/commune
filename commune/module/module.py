@@ -7317,10 +7317,12 @@ class c:
         before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0]]
         after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]+1:]
         new_fn_code = '\n'.join(before_comment_code + after_comment_code)
-
-        return new_fn_code
+        return c.add_fn_code(fn=fn, code=new_fn_code)
     
-    def add_fn_code(self, fn:str='add_fn_code', code:str = None):
+    def rm_fn(self, fn:str='rm_fn'):
+        return self.add_fn_code(fn, code='')
+    
+    def add_fn_code(self, fn:str='test_fn', code:str = None):
         fn_info = self.fn_info(fn)
         start_line = fn_info["start_line"]
         end_line = fn_info["end_line"]
@@ -7332,10 +7334,9 @@ class c:
         new_lines = lines[:start_line] + [code] + lines[end_line:]
         new_code = '\n'.join(new_lines)
         c.put_text(self.filepath(), new_code)
-        return new_code
+        # return new_code
 
-
-    def test_fn(self):
+    def test_fn2(self):
         # het 
         print("fam")
 
@@ -8815,6 +8816,8 @@ class c:
     def soup(cls, *args, **kwargs):
         from bs4 import BeautifulSoup
         return BeautifulSoup(*args, **kwargs)
+    
+
     
 
 
