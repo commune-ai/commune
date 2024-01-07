@@ -113,7 +113,7 @@ class OpenAILLM(c.Module):
         
 
     
-    def forward(self,
+    def generate(self,
                 prompt:str = 'sup?',
                 model:str = 'gpt-3.5-turbo',
                 presence_penalty:float = 0.0, 
@@ -190,7 +190,7 @@ class OpenAILLM(c.Module):
 
         return  stats
     
-
+    
     @classmethod
     def tokens_per_period(cls, timescale='m'):
         stats = cls.stats()
@@ -221,7 +221,7 @@ class OpenAILLM(c.Module):
 
         return {'msg': f"Saved stats for {tag}", 'success': True}
 
-    generate = call = forward
+    forward = call = generate
 
     @classmethod
     def chat(cls, *args, **kwargs):

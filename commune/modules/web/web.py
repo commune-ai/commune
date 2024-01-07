@@ -15,18 +15,34 @@ class Web(c.Module):
                 else:
                     return {'status_code': response.status, 'text': await response.text()}
 
+    def url2text(self, url, max_words=50):
+        url_text = self.request(url)
+        content = self.soup(url_text)
+        response = {
+                    'title': content.contents[0],
+                    'url': url, 
+                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
+                    }
+        text_words = response['text'].split(' ')
+        num_words = len(text_words)
+        if num_words > max_words:
+            response['text'] = ' '.join(text_words[:max_words])
+        return response
+
     @classmethod
-    def request(cls, url, method='GET', headers={'User-Agent': 'Mozilla/5.0'}, mode="request", **kwargs):
+    def request(cls, url = "https://google.com", method='GET', headers={'User-Agent': 'Mozilla/5.0'}, mode="request", **kwargs):
         if mode == "request":
             response = requests.request(method, url, headers=headers, **kwargs)
+            
             if response.status_code == 200:
-                return response.text
+                text =  response.text
+                return text
+
             else:
                 return {'status_code': response.status_code, 'text': response.text}
         elif mode == "asyncio":
             loop = asyncio.get_event_loop()
             response = loop.run_until_complete(cls.async_request(url, method, headers, **kwargs))
-            c.print(f'response: {response}', color='yellow')  # Consider removing the color argument, as print does not support it by default
             return response
         else:
             raise ValueError(f"Invalid mode: {mode}")
@@ -41,7 +57,6 @@ class Web(c.Module):
     def get_text(self, url:str, min_chars=100, **kwargs):
         text_list = [p.split('">')[-1].split('<')[0] for p in self.get_components(url, 'p')['p']]
         return [text for text in text_list if len(text) > min_chars]
-    
     
 
     def get_components(self, url, *tags):
@@ -76,7 +91,6 @@ class Web(c.Module):
     def google_search(self, keyword='isreal-hamas', n=10, max_words=1000):
         from googlesearch import search
         urls = search(keyword, num_results=n)
-        c.print(f'urls: {urls}', color='yellow')
         futures = []
         for url in urls:
             futures.append(c.submit(self.url2text, args=[url], return_future=True))
@@ -88,7 +102,6 @@ class Web(c.Module):
 
     def url2text(self, url, max_words=50):
         url_text = self.request(url)
-        c.print(url_text)
         content = self.soup(url_text)
         response = {
                     'title': content.contents[0],
@@ -152,18 +165,33 @@ class Web(c.Module):
     def find(self,url=None, tag='p', **kwargs):
         return self.soup(url=url).find(tag, **kwargs)
 
-    
 
-    def sand(self, url='https://www.fool.ca/recent-headlines/',   **kwargs):
-        from bs4 import BeautifulSoup as soup
+    def sand(self, url='https://www.fool.ca/recent-headlines/', **kwargs):
+        
 
         webpage = self.webpage(url)
-        page_soup = c.soup(webpage, "html.parser", **kwargs)
+        page_soup = self.soup(webpage, "html.parser", **kwargs)
         title = page_soup.find("title")
         containers = page_soup.findAll("p","promo")
         for container in containers:
             print(container)
 
-
-
     
+    @classmethod
+    def install(cls):
+        c.cmd("pip3 install beautifulsoup4")
+
+    @classmethod
+    def dashboard(cls, url='https://google.com', ):
+        from urllib.request import Request, urlopen
+
+        import streamlit as st
+        st.title("Web")
+
+        self = cls()
+        # show html of webpage
+        webpage_html = self.html(url)
+        
+    
+    
+Web.run(__name__)

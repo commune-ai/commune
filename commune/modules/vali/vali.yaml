@@ -10,8 +10,9 @@ virtual_module: False
 check_loop: True
 run_mode : thread
 verbose: True
+run_loop: True
 
-# voting
+# voting 
 vote: True
 min_stake: 1
 vote_interval: 200
@@ -36,6 +37,8 @@ num_workers: 1
 refresh : True
 start: True
 is_main_worker: True
+max_vote_delay_before_worker_restart: 20
+max_restart_lag: 20
 
 
 

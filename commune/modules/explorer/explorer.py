@@ -12,47 +12,109 @@ class Explorer(c.Module):
     def __init__(self, *args, **kwargs):
         self.subspace = c.module('subspace')(*args, **kwargs)
 
+
+
+    def select_network(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
+        
+        if _self != None:
+            self = _self
+
+        self.key = c.get_key()
+        @st.cache_data(ttl=60*60*24, show_spinner=False)
+        def get_networks():
+            chains = c.chains()
+            return chains
+        self.networks = get_networks()
+        self.network = st.selectbox('Select Network', self.networks, 0, key='network')
+
+        @st.cache_data(show_spinner=False)
+        def get_state(network):
+            subspace = c.module('subspace')()
+            state =  subspace.state_dict(update=update, network=network)
+            state['total_balance'] = sum(state['balances'].values())/1e9
+            state['key2address'] = c.key2address()
+            state['lag'] = c.lag()
+            state['block_time'] = 8
+            state['blocks_per_day'] = 60 * 60 * 24 / state['block_time']
+            return state
+        
+
+        state = state =  get_state(self.network)
+        subnets = state['subnets']
+        name2subnet = {s['name']:s for s in subnets}
+        name2netuid = {s['name']:i for i,s in enumerate(subnets)}
+        subnet_names = list(name2subnet.keys())
+        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
+        self.netuid = name2netuid[subnet_name]
+        modules = state['modules']
+
+        for subnet in subnets:
+            s_name = subnet['name']
+            s_netuid = name2netuid[s_name]
+            s_modules = modules[s_netuid]
+            subnet = subnets[s_netuid]
+            subnet['n'] = len(s_modules)
+            subnet['max_stake'] /= 1e9
+            total_stake = sum([sum([v/1e9 for k,v in m['stake_from']]) for m in s_modules])
+            subnet['total_stake'] = total_stake
+            subnet['emission_per_epoch'] = sum([m['emission']/1e9  for m in s_modules])
+            subnet['emission_per_block'] = subnet['emission_per_epoch'] / subnet['tempo']
+            subnet['emission_per_day'] = subnet['emission_per_block'] * state['blocks_per_day']
+            
+            subnet['n'] = len(state['modules'][self.netuid])
+ 
+        self.subnet = subnet
+        self.subnets = subnets
+        self.modules = modules
+
+
+    def modules_dashboard(self):
+        modules = self.modules[self.netuid]
+        for m in modules:
+            m.pop('stake_from', None)
+        df = pd.DataFrame(self.modules[self.netuid])
+        search = st.text_input('Search Namespace', '', key='search.namespace.subnet')
+        if search != '':
+            df = df[df['name'].str.contains(search)]
+        n = st.slider('n', 1, len(df), 100, 1, key='n.modules')
+        st.write(df[:n])
+
+
+    def subnet_dashboard(self):
+
+        subnet_df = pd.DataFrame(self.subnets)
+        df_cols = list(subnet_df.columns)
+        default_cols = ['name', 'total_stake',  'n', 'emission_per_epoch', 'founder', 'founder_share', 'tempo']
+        selected_cols = st.multiselect('Select Columns', df_cols, default_cols)
+
+        cols = st.columns(2) 
+
+        sort_cols = cols[0].multiselect('Sort Columns', df_cols, ['total_stake'])
+        ascending = cols[1].checkbox('Ascending', False)
+        # sort_cols = cols[0].multiselect('Sort Columns', df_cols, ['total_stake'])
+        # ascending = cols[1].checkbox('Ascending', False)
+        search = st.text_input('Search', '', key='search.subnet')
+        if search != '':
+            subnet_df = subnet_df[subnet_df['name'].str.contains(search)]
+        subnet_df.sort_values(sort_cols, inplace=True, ascending=ascending)
+        st.write(subnet_df[selected_cols])
+
+
+
     @classmethod
     def dashboard(cls):
         self = cls()
         # st.write(self.subnets)
-        subnet_df = pd.DataFrame(self.subnets)
-        modules = self.modules
-        self.subnet_names = [s['name'] for s in self.subnets]
-        self.netuid2subnet = {i:s for i,s in enumerate(self.subnet_names)}
-        self.subnet2netuid = {s:i for i,s in enumerate(self.subnet_names)}
-        subnet = st.selectbox('Select Subnet', self.subnet_names, self.netuid, key='subnet.sleect')
-        netuid = self.subnet2netuid[subnet]
 
-        modules = self.state['modules'][netuid]
-        for i in range(len(modules)):
-            for k in [ 'key', 'address', 'stake_from']:
-                modules[i].pop(k, None)
-            for k in ['emission', 'stake']:
-                modules[i][k] = modules[i][k]/1e9
-        df = pd.DataFrame(modules)
+        self.select_network()
 
-        with st.expander('Modules', expanded=True):
-            search = st.text_input('Search Namespace', '', key='search.namespace.subnet')
-            if search != '':
-                df = df[df['name'].str.contains(search)]
-            n = st.slider('n', 1, len(df), 100, 1, key='n.modules')
-            st.write(df[:n])
-
+        tab_names =  ['Subnet', 'Modules']
+        tabs = st.tabs(tab_names)
+        for i, tab in enumerate(tabs) :
+            tab_name = tab_names[i].lower()
+            with tab:
+                getattr(self, f'{tab_name}_dashboard')()
         
-        self.subnet_info = {}
-        self.subnet_info['params'] = self.state['subnets'][self.netuid]
-        num_rows = 4
-        num_cols = len(subnet_df.columns) // num_rows 
-        
-        with st.expander('Subnet Params', expanded=False):
-            self.subnet_info['n'] = len(modules)
-            self.subnet_info['total_stake'] = sum([m['stake'] for m in modules])
-            subnet_params = self.subnet_info['params']
-            cols = st.columns(num_cols)
-            for i, (k,v) in enumerate(subnet_params.items()):
-                with cols[i % num_cols]:
-                    st.write(k)
-                    st.code(v)
+ 
 
 Explorer.run(__name__)

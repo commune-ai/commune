@@ -16,4 +16,5 @@ shortcuts:
   store: storage
   tg: textgen
   chain: subspace.chain
+  sel: selenium
 tag: null

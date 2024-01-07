@@ -25,11 +25,9 @@ class Vali(c.Module):
         # we want to make sure that the config is a munch
         self.start_time = c.time()
         
-
         self.sync_network()
-
-
-        c.thread(self.run_loop)
+        if self.config.run_loop:
+            c.thread(self.run_loop)
 
     def run_info(self):
         info ={
@@ -45,16 +43,27 @@ class Vali(c.Module):
         }
         return info
     def run_loop(self):
+        
 
         if self.config.start:
             c.print(f'Vali config: {self.config}', color='cyan')
             self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
             steps = 0
             c.print(f'Vali loop started', color='cyan')
+            restart_time = c.time()
+
             while True:
                 steps += 1
                 c.print(f'Vali loop step {steps}', color='cyan')
                 run_info = self.run_info()
+                retart_lag = c.time() - restart_time
+                # sometimes the worker thread stalls, and you can just restart it
+                if run_info['vote_staleness'] > self.config.vote_interval + self.config.max_vote_delay_before_worker_restart and retart_lag > self.config.max_restart_lag:
+                    c.print(f'Vote staleness {run_info["vote_staleness"]} > {self.config.vote_interval} + {self.config.max_vote_delay_before_worker_restart}, restarting workers', color='red')
+                    c.print(self.start_workers(num_workers=self.config.num_workers, refresh=True))
+                    restart_time = c.time()
+                
+                run_info['restart_time']= restart_time
                 run_info.pop('config', None)
                 c.print(run_info)
                 c.sleep(1)
@@ -119,7 +128,10 @@ class Vali(c.Module):
             # if we have enough futures, we want to gather them
             if self.vote_staleness > self.config.vote_interval:
                 if not len(vote_futures) > 0 and 'subspace' in self.config.network:
-                   self.vote()
+                    try:
+                        self.vote()
+                    except Exception as e:
+                        c.print(f'Vote failed {e}', color='red')
 
             # if we have enough futures, we want to gather them
             if len(futures) >= self.config.batch_size:
@@ -182,9 +194,14 @@ class Vali(c.Module):
             kwargs : the key word arguments
         
         '''
+        info = module.info()
+        assert 'name' in info, f'Info must have a name key, got {info.keys()}'
+        assert 'address' in info, f'Info must have a address key, got {info.keys()}'
         return {'success': True, 'w': 1}
 
 
+    def eval_module(self, module:str):
+        return c.gather([self.async_eval_module(module=module)])
     async def async_eval_module(self, module:str):
         """
         The following evaluates a module server
@@ -204,7 +221,7 @@ class Vali(c.Module):
         
         # emoji = c.emoji('hi')
         computer_emoji = f"\U0001F4BB"
-        c.print(f'Evaluating {module_name}', color='cyan')
+        c.print(f'Evaluating {computer_emoji} {module_name}', color='cyan')
 
         if module_address == my_info['address']:
             return {'error': f'Cannot evaluate self {module_address}'}
@@ -253,7 +270,7 @@ class Vali(c.Module):
         return module_info
 
     @classmethod
-    def resolve_storage_path(cls, network:str, tag:str=None):
+    def resolve_storage_path(cls, network:str = 'subspace', tag:str=None):
         if tag == None:
             tag = 'base'
         return f'{tag}.{network}'
@@ -297,16 +314,19 @@ class Vali(c.Module):
 
         votes = self.calculate_votes(tag=tag)
 
+        if tag != None:
+            key = self.resolve_server_name(tag=tag)
+            key = c.get_key(key)
+        else:
+            key = self.key
 
-        r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+        r = c.set_weights(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
                         network='main', 
                         netuid=self.config.netuid)
 
         self.save_votes(votes)
-
-
 
         return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
 
@@ -368,7 +388,7 @@ class Vali(c.Module):
                      tag=None,
                       network:str='subspace', 
                     batch_size:int=5 , 
-                    max_staleness:int= 1000,
+                    max_staleness:int= 5000,
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
@@ -572,11 +592,32 @@ class Vali(c.Module):
         kwargs['vote'] = False
         kwargs['verbose'] = True
         self = cls(**kwargs )
-        return self.run()
+        return self.rufn()
 
     @classmethod
     def dashboard(cls):
         import streamlit as st
-        st.sidebar.title('Vali Dashboard')
+        # disable the run_loop to avoid the background  thread from running
+        self = cls(run_loop=False)
+        module_path = cls.path()
+        
+        st.title(module_path)
+
+        namespace = c.namespace(search=module_path)
+        network = 'main'
+
+        subspace = c.module('subspace')(network=network)
+
+        @st.cache_data
+        def get_state_dict(network='main'):
+            subspace = c.module('subspace')(network=network)
+            state_dict = subspace.state_dict()
+            return state_dict
+
+        network = st.text_input('Network', network)
+
+        state = get_state_dict(network=network)
+        subnet2netuid = {s['name']: i for i,s in enumerate(state['subnets'])}
+        
 
 Vali.run(__name__)

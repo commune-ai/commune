@@ -89,9 +89,10 @@ class Server(c.Module):
         return {'success': True, 'msg': 'server test passed'}
 
     @classmethod
-    def dashboard(cls):
+    def dashboard(cls, network = None, key= None):
         import pandas as pd
         self = cls()
+        c.load_style()
         self.st = c.module('streamlit')
 
         modules = c.modules()
@@ -100,8 +101,7 @@ class Server(c.Module):
         module2index = {m:i for i,m in enumerate(modules)}
 
         with st.sidebar:
-            cols = st.columns([1,1])
-            self.network = cols[0].selectbox('Select Network', ['local', 'remote', 'subspace'], 0, key=f'network')
+            self.network = st.selectbox('Select Network', ['local', 'remote', 'subspace'], 0, key=f'network')
             update= st.button('Update')
 
 
@@ -116,7 +116,14 @@ class Server(c.Module):
                 rm_server = st.button('Remove Server')
                 if rm_server:
                     c.rm_server(server)
-        self.module = c.module(self.module)    
+
+        module = st.selectbox('Select a Module', modules, 0, key='select')
+        try:
+            self.module = c.module(module)   
+        except Exception as e:
+            st.error(f'error loading ({module})')
+            st.error(e)
+            return 
 
 
         self.namespace = c.namespace(network=self.network, update=update)
@@ -125,16 +132,28 @@ class Server(c.Module):
         launcher_namespace = c.namespace(search='module::', namespace='remote')
         launcher_addresses = list(launcher_namespace.values())
 
-        options = ['serve', 'code', 'search', 'playground']
+        pages = ['serve', 'code', 'search', 'playground']
         # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
-        page = st.selectbox('Page',options, 0)
-        getattr(self, f'{page}_dashboard')()
+
+        tabs = st.tabs(pages)
+
+        with tabs[0]:
+            self.serve_dashboard(module=self.module)
+        with tabs[1]:
+            self.code_dashboard()
+        with tabs[2]:
+            self.search_dashboard()
+        # with tabs[3]:
+        #     self.playground_dashboard()
+        # for i, page in enumerate(pages):
+        #     with tabs[i]:
+        #         getattr(self, f'{page}_dashboard')()
 
         module_name = self.module.path()
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
 
 
-    def serve_dashboard(self, expand=True, module=None):
+    def serve_dashboard(self, expand=False, module=None):
         if expand:
             with st.expander('SERVE', expanded=True):
                 return self.serve_dashboard(expand=False, module=module)
@@ -142,43 +161,47 @@ class Server(c.Module):
         if module == None:
             modules = c.modules()
             module = st.selectbox('Select a Module', modules, 0)
-            module = c.module(module)
+            try:
+                module = c.module(module)
+            except Exception as e:
+                st.error(e)
         
         module_name = module.path()
-        tag = st.text_input('tag', 'replica', key=f'serve.tag.{module_name}')
-        tag = None if tag == '' else tag
-        server_name = st.text_input('server_name', module_name + "::" + tag, key=f'serve_name.{module_name}')
-        st.write(f'### {module_name.upper()} kwargs')
+
+        st.write(f'### SERVE {module_name.upper()}')
         n = 1
-        with st.form(key=f'serve.{module_name}'):
-            kwargs = self.function2streamlit(module=module_name, fn='__init__' )
+        emoji = '\N{Construction Sign}'
+        cols = st.columns([1,1])
+        tag = cols[0].text_input('tag', 'replica', key=f'serve.tag.{module_name}')
+        tag = None if tag == '' else tag  
+        with st.expander(f'{emoji}kwargs {emoji}', expanded=True):
+            with st.form(key=f'serve.{module_name}'):
 
-            serve = st.form_submit_button('SERVE')
+                kwargs = self.function2streamlit(module=module_name, fn='__init__' )
+                serve = st.form_submit_button('SERVE')
+                if serve:
 
-
-            if serve:
-
-                if 'None' == tag:
-                    tag = None
-                if 'tag' in kwargs:
-                    kwargs['tag'] = tag
-                for i in range(n):
-                    try:
-                        if tag != None:
-                            s_tag = f'{tag}.{i}'
+                    if 'None' == tag:
+                        tag = None
+                    if 'tag' in kwargs:
+                        kwargs['tag'] = tag
+                    for i in range(n):
+                        try:
+                            if tag != None:
+                                s_tag = f'{tag}.{i}'
+                            else:
+                                s_tag = str(i)
+                            response = self.module.serve( kwargs = kwargs, network=self.network)
+                        except Exception as e:
+                            e = c.detailed_error(e)
+                            response = {'success': False, 'message': e}
+            
+                        if response['success']:
+                            st.write(response)
                         else:
-                            s_tag = str(i)
-                        response = self.module.serve( kwargs = kwargs, server_name=server_name, network=self.network)
-                    except Exception as e:
-                        e = c.detailed_error(e)
-                        response = {'success': False, 'message': e}
-        
-                    if response['success']:
-                        st.write(response)
-                    else:
-                        st.error(response)
+                            st.error(response)
 
-  
+    
 
     def code_dashboard(self):
         
@@ -200,6 +223,7 @@ class Server(c.Module):
         cols = st.columns([2,2])
 
     def search_dashboard(self):
+        c.print('fam')
         search = st.text_input('Search', '', key=f'search')
         namespace = {k:v for k,v in self.namespace.items() if search in k}
         df = pd.DataFrame(namespace.values(), index=namespace.keys(), columns=['address'])
@@ -294,6 +318,7 @@ class Server(c.Module):
             fn_schema['default'].pop('kwargs', None)
             
         fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        
         if cols == None:
             cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
         if len(cols) == 0:
