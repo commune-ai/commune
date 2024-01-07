@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 from streamlit.components.v1 import components
 import plotly.express as px
-import streamlit as st
 
 css = r'''
     <style>
@@ -49,22 +48,12 @@ class Dashboard(c.Module):
 
 
     def select_key(self):
-        import streamlit as st
         keys = c.keys()
-
         key2index = {k:i for i,k in enumerate(keys)}
         self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
-        # st.write(self.state['stake_to'][self.netuid].get(self.key.ss58_address))
-        # st.write(self.state['stake_to'][self.netuid])
-
         self.key_info = {
             'ss58_address': self.key.ss58_address,
         }
-
-        
-
-        # st.metric('Total Balance', self.total_balance)
-
         return self.key
 
         
@@ -458,15 +447,12 @@ class Dashboard(c.Module):
         
         if _self != None:
             self = _self
-        
-        import streamlit as st
-        
+
         self.key = c.get_key()
         @st.cache_data(ttl=60*60*24, show_spinner=False)
         def get_networks():
             chains = c.chains()
             return chains
-        
         self.networks = get_networks()
         self.network = st.selectbox('Select Network', self.networks, 0, key='network')
 

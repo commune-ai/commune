@@ -166,5 +166,8 @@ class Client(c.Module):
 
     def virtual(self):
         return c.virtual_client(module = self)
+    
+    def __repr__(self) -> str:
+        return super().__repr__()
 
 

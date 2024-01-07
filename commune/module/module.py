@@ -965,7 +965,7 @@ class c:
         return os.makedirs(*args, **kwargs)
 
     @classmethod
-    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
+    def resolve_path(cls, path:str = None, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
         '''
         Resolves path for saving items that relate to the module
         
@@ -973,7 +973,7 @@ class c:
         
         '''
         if path == None:
-            path = cls.tmp_dir()
+            return cls.tmp_dir()
         
         if path.startswith('/'):
             path = path
@@ -1241,8 +1241,6 @@ class c:
 
         return {'namespace': c.namespace(network=network)}
 
-        
-        
             
     @classmethod
     def restart_peers(cls, timeout=20):
@@ -1886,7 +1884,16 @@ class c:
         #     cls.rm(path)
 
     @classmethod
+    def rm_all(cls):
+        for path in cls.ls():
+            cls.rm(path)
+        return {'success':True, 'message':f'{cls.tmp_dir()} removed'}
+        
+
+    @classmethod
     def rm(cls, path, extension=None, root=False, mode = 'json'):
+        
+        assert isinstance(path, str), f'path must be a string, got {type(path)}'
         path = cls.resolve_path(path=path, extension=extension, root=root)
 
         if not os.path.exists(path) and os.path.exists(path+'.json'):
@@ -1939,6 +1946,9 @@ class c:
     def ls_json(cls, path:str = '', recursive:bool = True):
         return [os.path.basename(p).replace('.json', '')for p in cls.ls(path, recursive=recursive)]
     
+    # @classmethod
+    # def rm_storage(cls):
+        
 
     @classmethod
     def ls(cls, path:str = '', 
@@ -7428,6 +7438,10 @@ class c:
         return c.module('subspace')().vote(*args, **kwargs)
 
     @classmethod
+    def set_weights(cls, *args, **kwargs):
+        return c.module('subspace')().vote(*args, **kwargs)
+
+    @classmethod
     def vote_loop(cls, *args, **kwargs):
         return c.module('vali.parity').vote_loop(*args, **kwargs)
     
@@ -8748,6 +8762,11 @@ class c:
         return list(cls.init_kwargs().keys())
 
 
+    @classmethod
+    def soup(cls, *args, **kwargs):
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(*args, **kwargs)
+    
 
 
 

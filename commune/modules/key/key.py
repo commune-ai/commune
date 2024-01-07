@@ -1231,6 +1231,7 @@ class Keypair(c.Module):
 
     @classmethod
     def getmem(cls, key):
+    
         return cls.get_key(key).mnemonic
     mem = getmem
     def __str__(self):
@@ -1271,7 +1272,11 @@ class Keypair(c.Module):
     def mems(cls, search=None):
         mems = {}
         for key in cls.keys():
-            mems[key] = cls.getmem(key)
+            try:
+                mems[key] = cls.getmem(key)
+            except Exception as e:
+                c.print(f'failed to get mem for {key} due to {e}', color='red')
+            
 
         if search:
             mems = {k:v for k,v in mems.items() if search in k or search in v}
