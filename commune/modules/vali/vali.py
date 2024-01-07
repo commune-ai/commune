@@ -3,12 +3,15 @@ import traceback
 import commune as c
 import concurrent
 
-
 class Vali(c.Module):
     
+    worker_fn = 'worker'
     last_sync_time = 0
+    errors = 0
+    count = 0
+    n = 1
 
-    def __init__(self,config=None,**kwargs):
+    def __init__(self,config:dict=None,**kwargs):
         self.init_vali(config=config, **kwargs)
 
 
@@ -16,29 +19,45 @@ class Vali(c.Module):
         # initialize the validator
         config = self.set_config(config=config, kwargs=kwargs)
 
+        # merge the config
         self.config = c.dict2munch({**Vali.config(), **config})
-        # merge the config with the default config
-        self.count = 0
+
         # we want to make sure that the config is a munch
         self.start_time = c.time()
-        self.errors = 0
         
+
         self.sync_network()
 
-        if 'subspace' in self.config.network:
-            if '.' in self.config.network:
-                chain, netuid = self.config.network.split('.')
-            else: 
-                chain = 'main'
-            self.subspace = c.module('subspace')(network=chain, netuid=self.config.netuid)
 
-        c.print(f'Vali config: {self.config}', color='cyan')
-        if self.config.start:
-            self.start_workers(num_workers=self.config.num_workers)
+        c.thread(self.run_loop)
+
+    def run_info(self):
+        info ={
+            'count': self.count,
+            'lifetime': self.lifetime,
+            'vote_staleness': self.vote_staleness,
+            'errors': self.errors,
+            'vote_interval': self.config.vote_interval,
+            'epochs': self.epochs,
+            'config': self.config,
+            'workers': self.workers()
         
-    
+        }
+        return info
+    def run_loop(self):
 
-    worker_fn = 'worker'
+        if self.config.start:
+            c.print(f'Vali config: {self.config}', color='cyan')
+            self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
+            steps = 0
+            c.print(f'Vali loop started', color='cyan')
+            while True:
+                steps += 1
+                c.print(f'Vali loop step {steps}', color='cyan')
+                run_info = self.run_info()
+                run_info.pop('config', None)
+                c.print(run_info)
+                c.sleep(1)
 
     def workers(self):
         return [f for f in c.pm2ls() if self.worker_name_prefix in f]
@@ -47,25 +66,84 @@ class Vali(c.Module):
     def worker_name_prefix(self):
         return f'{self.server_name}/{self.worker_fn}'
 
-    def start_workers(self, num_workers:int=1):
+    def start_workers(self, num_workers:int=1, refresh=True):
         responses = []
 
-        config= self.config
+        config= c.copy(self.config)
         config.start = False
-        config = c.dict2munch(config)
         config.num_workers = 0
+        config.is_main_worker = False
+        config = c.munch2dict(config)
+
+        # we don't want the workers to start more workers
 
         for i in range(num_workers):
             name = f'{self.worker_name_prefix}_{i}'
-            c.print('CALLING')
+            if not refresh and c.pm2_exists(name):
+                c.print(f'Worker {name} already exists, skipping', color='yellow')
+                continue
+    
             r = self.remote_fn(fn=self.worker_fn, 
-                              name = name,
-                               kwargs={'config': config})
+                            name = name,
+                            refresh=refresh,
+                            kwargs={'config': config})
             c.print(f'Started worker {i} {r}', color='cyan')
             responses.append(r)
 
         return responses
         
+    @classmethod
+    def worker(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
+        c.new_event_loop(nest_asyncio=True)
+        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+
+        self.running = True
+        futures = []
+        vote_futures = []
+        while self.running:
+
+            if self.last_sync_time + self.config.sync_interval < c.time():
+                c.print(f'Syncing network {self.config.network}', color='cyan') 
+                self.sync_network()
+
+            modules = c.shuffle(c.copy(self.names))
+            time_between_interval = c.time()
+            module = c.choice(modules)
+
+            # c.sleep(self.config.sleep_time)
+            # rocket ship emoji
+            future = self.async_eval_module(module=module)
+            futures.append(future)
+
+            # if we have enough futures, we want to gather them
+            if self.vote_staleness > self.config.vote_interval:
+                if not len(vote_futures) > 0 and 'subspace' in self.config.network:
+                   self.vote()
+
+            # if we have enough futures, we want to gather them
+            if len(futures) >= self.config.batch_size:
+                try:
+                    results = c.gather(futures)
+                except Exception as e:
+                    c.print(f'Gather timed out', color='red')
+                    futures = []
+                    continue
+            
+      
+            if self.count % 10 == 0 and self.count > 0:
+                stats =  {
+                'total_modules': self.count,
+                'lifetime': int(self.lifetime),
+                'modules_per_second': int(self.modules_per_second()), 
+                'vote_staleness': self.vote_staleness,
+                'errors': self.errors,
+                'vote_interval': self.config.vote_interval,
+                'epochs': self.epochs,
+                    }
+                c.print(f'STATS  --> {stats}\n', color='white')
+
+
 
     def subnet2modules(self, network:str='main'):
         subnet2modules = {}
@@ -78,7 +156,14 @@ class Vali(c.Module):
 
 
     def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
-        
+
+        if 'subspace' in self.config.network:
+            if '.' in self.config.network:
+                chain, netuid = self.config.network.split('.')
+            else: 
+                chain = 'main'
+            self.subspace = c.module('subspace')(network=chain, netuid=self.config.netuid)
+
         self.namespace = c.namespace(search=self.config.search, 
                                     network=self.config.network, 
                                     netuid=self.config.netuid, 
@@ -148,7 +233,6 @@ class Vali(c.Module):
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
             c.print(response, color='red', verbose=self.config.verbose)
-
         end_timestamp = c.time()        
         w = response['w']
         response['timestamp'] = c.time()
@@ -160,10 +244,11 @@ class Vali(c.Module):
         module_info['start_timestamp'] = start_timestamp
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
-        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
-        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.save_module_info(module_name, module_info)
         self.count += 1
+
+        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
 
         return module_info
 
@@ -180,9 +265,8 @@ class Vali(c.Module):
     
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
-
-    def vote(self, tag=None):
-
+    
+    def calculate_votes(self, tag=None):
         tag = tag or self.tag
 
         # get the list of modules that was validated
@@ -206,6 +290,14 @@ class Vali(c.Module):
 
         if len(votes['uids']) == 0:
             return {'success': False, 'message': 'No votes to cast'}
+        
+        return votes
+
+    def vote(self, tag=None):
+
+        votes = self.calculate_votes(tag=tag)
+
+
         r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                         weights=votes['weights'], 
                         key=self.key, 
@@ -327,53 +419,6 @@ class Vali(c.Module):
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
 
-    @classmethod
-    def worker(cls, *args, **kwargs):
-        self = cls(*args, **kwargs)
-        c.new_event_loop(nest_asyncio=True)
-        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
-
-        self.running = True
-        futures = []
-        vote_futures = []
-        while self.running:
-
-            if self.last_sync_time + self.config.sync_interval < c.time():
-                c.print(f'Syncing network {self.config.network}', color='cyan') 
-                self.sync_network()
-
-            modules = c.shuffle(c.copy(self.names))
-            time_between_interval = c.time()
-            module = c.choice(modules)
-
-            # c.sleep(self.config.sleep_time)
-            # rocket ship emoji
-            future = self.async_eval_module(module=module)
-            futures.append(future)
-
-            if self.vote_staleness > self.config.vote_interval and self.count > 100:
-                if not len(vote_futures) > 0 and 'subspace' in self.config.network:
-                   self.vote()
-
-            if len(futures) >= self.config.max_futures:
-
-
-                result = c.gather(futures)
-                futures = []
-            
-      
-            if self.count % 10 == 0 and self.count > 0:
-                stats =  {
-                'total_modules': self.count,
-                'lifetime': int(self.lifetime),
-                'modules_per_second': int(self.modules_per_second()), 
-                'vote_staleness': self.vote_staleness,
-                'errors': self.errors,
-                'vote_interval': self.config.vote_interval,
-                'epochs': self.epochs,
-                    }
-                c.print(f'STATS  --> {stats}\n', color='white')
-
 
     @property
     def epochs(self):
@@ -399,7 +444,7 @@ class Vali(c.Module):
                 c.print(f'{v["name"]} is stale {v["staleness"]}s, restrting', color='red')
                 c.serve(v['name'])
             if v['serving'] == False:
-                c.print(f'{v["name"]} is not serving, restrting', color='red')
+                c.print(f'{v["name"]} is not serving, restarting', color='red')
                 address = c.get_address(v['name'])
                 port = None
                 if address != None:

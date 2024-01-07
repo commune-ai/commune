@@ -1,6 +1,5 @@
 import commune as c
-
-class Demo(c.Module):
+#hey /n/n
     def __init__(self, a=1):
         self.a = a
 

@@ -14,8 +14,6 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 from commune.utils.dict import async_get_json
-import nest_asyncio
-nest_asyncio.apply()
 
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -1284,6 +1282,8 @@ class c:
 
         # does the config exist
 
+        file_name = path.split('.')[-1].replace('.py', '')
+
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
 
         if cls.path_config_exists(path):
@@ -1294,8 +1294,10 @@ class c:
         
         simple_path = simple_path.replace('/', '.')[1:]
 
+
         # compress nae
         chunks = simple_path.split('.')
+
         new_chunks = []
         for i, chunk in enumerate(chunks):
             if len(new_chunks)>0:
@@ -1303,7 +1305,7 @@ class c:
                     continue
                 elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
                     continue
-            new_chunks.append(chunk)
+            new_chunks += [chunk]
         simple_path = '.'.join(new_chunks)
 
 
@@ -1580,6 +1582,9 @@ class c:
                     modules.append(f)
                 elif len(cls.find_python_classes(f)) > 0 :
                     modules.append(f)
+                elif all([p for p in file_name.replace(".py", "").split("_")]):
+                    modules.append(f)
+
 
             
         cls.module_python_paths = modules
@@ -1953,6 +1958,8 @@ class c:
             return []
         if return_full_path:
             ls_files = [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
+
+        ls_files = sorted(ls_files)
         return ls_files
     
     @classmethod
@@ -2448,7 +2455,9 @@ class c:
                   search:str = None,
                   network:str='local',
                   update: bool = False, **kwargs):
-        return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
+        namespace =  c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
+        namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
+        return namespace
     get_namespace = namespace
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
@@ -2741,6 +2750,9 @@ class c:
              commit_hash:bool = False,
              hardware : bool = False,
              ) -> Dict[str, Any]:
+        '''
+        hey, whadup hey how is it going
+        '''
         
         fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
@@ -3121,8 +3133,8 @@ class c:
     
     
     @classmethod
-    def pm2_exists(cls, name:str):
-        return name in cls.pm2_list()
+    def pm2_exists(cls, name:str) -> bool:
+        return bool(name in cls.pm2_list())
     
     @staticmethod
     def pm2_start(path:str , 
@@ -5694,6 +5706,12 @@ class c:
     def new_modules(self, *modules, **kwargs):
         for module in modules:
             self.new_module(module=module, **kwargs)
+    @classmethod
+    def find_code_lines(cls,  search:str = None , module=None) -> List[str]:
+        module_code = c.module(module).code()
+        return c.find_lines(search=search, text=module_code)
+
+
 
     @classmethod
     def find_lines(self, text:str, search:str) -> List[str]:
@@ -5701,7 +5719,8 @@ class c:
         Finds the lines in text with search
         """
         found_lines = []
-        for line in text.split('/n'):
+        lines = text.split('\n')
+        for line in lines:
             if search in line:
                 found_lines += [line]
         
@@ -6032,9 +6051,9 @@ class c:
                     tag: str = None,
                     refresh : bool =True,
                     mode = 'pm2',
-                    tag_seperator : str = '::', **extra_launch_kwargs
+                    tag_seperator : str = '::',
+                    **extra_launch_kwargs
                     ):
-
         
         kwargs = c.locals2kwargs(kwargs)
         if 'remote' in kwargs:
@@ -6981,6 +7000,16 @@ class c:
         
         return False
 
+    @classmethod
+    def has_var_keyword(cls, fn='__init__', fn_signature=None):
+        if fn_signature == None:
+            fn_signature = cls.get_function_signature(fn)
+        for param_info in fn_signature.values():
+            if param_info.kind._name_ == 'VAR_KEYWORD':
+                return True
+        
+        return False
+
     @staticmethod
     def get_function_input_variables(fn)-> dict:
         return list(c.get_function_signature(fn).keys())
@@ -7126,10 +7155,13 @@ class c:
         return os.path.getsize(filepath)
     
     @classmethod
-    def code(cls, module = None, *args, **kwargs):
+    def code(cls, module = None, search=None, *args, **kwargs):
         module = cls.resolve_module(module)
         path = module.pypath()
         text =  c.get_text( module.pypath(), *args, **kwargs)
+        if search != None:
+            find_lines = c.find_lines(text=text, search=search)
+            return find_lines
         return text
         
 
@@ -7189,6 +7221,13 @@ class c:
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
 
+        # start code line
+        for i, line in enumerate(lines): 
+            if ')' and ':' in line:
+                start_code_line = i
+                break 
+
+        
         return {
             'start_line': start_line,
             'end_line': end_line,
@@ -7196,12 +7235,128 @@ class c:
             'code': code.split('\n'),
             'n_lines': len(lines),
             'hash': c.hash(code),
-            'path': filepath
+            'path': filepath,
+            'start_code_line': start_code_line + start_line 
+            
         }
 
 
 
         return r
+
+    @classmethod
+    def set_line(cls, idx:int, text:str):
+        code = cls.code()
+        lines = code.split('\n')
+        if '\n' in text:
+            front_lines = lines[:idx]
+            back_lines = lines[idx:]
+            new_lines = text.split('\n')
+            c.print(new_lines)
+            lines = front_lines + new_lines + back_lines
+        else:
+            lines[idx-1] = text
+        new_code = '\n'.join(lines)
+        cls.put_text(cls.filepath(), new_code)
+        return {'success': True, 'msg': f'Set line {idx} to {text}'}
+
+    @classmethod
+    def add_line(cls, idx=0, text:str = ''  ):
+
+        code = cls.code()
+        lines = code.split('\n')
+        new_lines = text.split('\n') if '\n' in text else [text]
+        lines = lines[:idx] + new_lines + lines[idx:]
+        new_code = '\n'.join(lines)
+        cls.put_text(cls.filepath(), new_code)
+        return {'success': True, 'msg': f'Added line {idx} to {text}'}
+    
+    @classmethod
+    def add_lines(cls, idx=0, n=1 ):
+        for i in range(n):
+            cls.add_line(idx=idx)
+    
+    def get_comments(self, fn:str='get_comments', include_quotes=False):
+
+        '''
+        This is a document
+        '''
+    
+        fn_info = self.fn_info(fn)
+        start_line = fn_info["start_code_line"]
+        '''
+        sup
+        '''
+        end_line = fn_info["end_line"]
+        code = self.code()
+        lines = code.split('\n')
+        comment_idx_bounds = []
+
+        for i, line in enumerate(lines[start_line:end_line]):
+
+            comment_bounds = ['"""', "'''"]
+
+            for comment_bound in comment_bounds:
+
+                if  comment_bound in line:
+                    comment_idx_bounds.append(i+1)
+                
+                    if len(comment_idx_bounds) == 1:
+                        comment_idx_bounds.append(i+1+1)
+                        break
+            if len(comment_idx_bounds) == 2:
+                break
+
+        if len(comment_idx_bounds) == 0:
+            return None
+        start_line_shift = -1 if include_quotes else 0
+        end_line_shift = 1 if include_quotes else 0
+        comment_text = '\n'.join(lines[start_line+comment_idx_bounds[0] + start_line_shift:start_line+comment_idx_bounds[1]+ end_line_shift])
+
+        return comment_text
+        
+
+
+
+    @classmethod
+    def add_comment(cls, fn='add_comment', comment="This is a document"):
+        '''
+        This is a document
+        '''
+        fn_info = cls.fn_info(fn)
+        start_line = fn_info["start_code_line"] - 1
+        c.print(start_line)
+        tab_space = "        "
+        '''
+        This is a document
+        '''
+        cls.add_line(idx=start_line, text=tab_space+"'''")
+        '''
+        This is a document
+        '''
+        for i, line in enumerate(comment.split('\n')):
+            cls.add_line(idx=start_line+i+1, text=tab_space + line)
+
+        cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
+        
+        
+
+
+    @classmethod
+    def get_line(cls, idx):
+
+
+        code = cls.code()
+        lines = code.split('\n')
+        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
+        line =  lines[max(idx-1, 0)]
+        c.print(len(line))
+        return line
+
+    @classmethod
+    def is_empty_line(cls, idx):
+        line = cls.get_line(idx)
+        return len(line.strip()) == 0
 
 
     @classmethod
