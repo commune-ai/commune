@@ -7218,16 +7218,30 @@ class c:
         return found_lines
     
     @classmethod
-    def fn_info(cls, fn:str='info') -> dict:
+    def fn_info(cls, fn:str='test_fn') -> dict:
         r = {}
         code = cls.fn_code(fn)
         lines = code.split('\n')
-        start_line_text = lines[0]
+        mode = 'self'
+        if '@classmethod' in lines[0]:
+            mode = 'class'
+        elif '@staticmethod' in lines[0]:
+            mode = 'static'
+    
+        start_line_text = None
+        lines_before_fn_def = 0
         for l in lines:
+            
             if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
                 start_line_text = l
-        start_line = cls.find_code_line(start_line_text)
-        end_line = start_line + len(lines) - 1 # find the endline
+                break
+            else:
+                lines_before_fn_def += 1
+            
+        assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
+        module_code = cls.code()
+        start_line = cls.find_code_line(start_line_text, code=module_code) - lines_before_fn_def - 1
+        end_line = start_line + len(lines)   # find the endline
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
 
@@ -7242,16 +7256,15 @@ class c:
             'start_line': start_line,
             'end_line': end_line,
             'has_docs': has_docs,
-            'code': code.split('\n'),
+            'code': code,
             'n_lines': len(lines),
             'hash': c.hash(code),
             'path': filepath,
-            'start_code_line': start_code_line + start_line 
+            'start_code_line': start_code_line + start_line ,
+            'mode': mode
             
         }
-
-
-
+    
         return r
 
     @classmethod
@@ -7285,9 +7298,49 @@ class c:
     def add_lines(cls, idx=0, n=1 ):
         for i in range(n):
             cls.add_line(idx=idx)
-    
-    def get_comments(self, fn:str='get_comments', include_quotes=False):
 
+
+    def rm_docs(self, fn:str='rm_docs'):
+        """
+        sup
+        """
+        import streamlit as st
+        doc_info = self.fn_docs(fn, include_quotes=True, return_dict=True)
+        doc_text = doc_info['text']
+        doc_idx_bounds = doc_info['idx_bounds']
+
+        fn_info = self.fn_info(fn)
+
+        start_line = fn_info["start_line"]
+
+        fn_code = fn_info['code']
+        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0]]
+        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]+1:]
+        new_fn_code = '\n'.join(before_comment_code + after_comment_code)
+
+        return new_fn_code
+    
+    def add_fn_code(self, fn:str='add_fn_code', code:str = None):
+        fn_info = self.fn_info(fn)
+        start_line = fn_info["start_line"]
+        end_line = fn_info["end_line"]
+        fn_code = fn_info['code']
+        module_code = self.code()
+        lines = module_code.split('\n')
+        if code == None:
+            code = ''
+        new_lines = lines[:start_line] + [code] + lines[end_line:]
+        new_code = '\n'.join(new_lines)
+        c.put_text(self.filepath(), new_code)
+        return new_code
+
+
+    def test_fn(self):
+        # het 
+        print("fam")
+
+    
+    def fn_docs(self, fn:str='fn_docs', include_quotes=False, return_dict=False):
         '''
         This is a document
         '''
@@ -7305,31 +7358,33 @@ class c:
         for i, line in enumerate(lines[start_line:end_line]):
 
             comment_bounds = ['"""', "'''"]
-
             for comment_bound in comment_bounds:
-
                 if  comment_bound in line:
-                    comment_idx_bounds.append(i+1)
-                
-                    if len(comment_idx_bounds) == 1:
-                        comment_idx_bounds.append(i+1+1)
-                        break
+                    comment_idx_bounds.append(i)
             if len(comment_idx_bounds) == 2:
                 break
 
         if len(comment_idx_bounds) == 0:
             return None
+        
+
         start_line_shift = -1 if include_quotes else 0
         end_line_shift = 1 if include_quotes else 0
-        comment_text = '\n'.join(lines[start_line+comment_idx_bounds[0] + start_line_shift:start_line+comment_idx_bounds[1]+ end_line_shift])
+        idx_bounds = [start_line+comment_idx_bounds[0] + start_line_shift, start_line+comment_idx_bounds[1]+ end_line_shift + 1]
+        comment_text = '\n'.join(lines[idx_bounds[0]:idx_bounds[1]])
 
+        if return_dict:
+            return {
+            'idx_bounds': comment_idx_bounds,
+            'text': comment_text,
+            }
         return comment_text
         
 
 
 
     @classmethod
-    def add_comment(cls, fn='add_comment', comment="This is a document"):
+    def add_docs(cls, fn='add_docs', comment="This is a document"):
         '''
         This is a document
         '''
@@ -7337,13 +7392,7 @@ class c:
         start_line = fn_info["start_code_line"] - 1
         c.print(start_line)
         tab_space = "        "
-        '''
-        This is a document
-        '''
         cls.add_line(idx=start_line, text=tab_space+"'''")
-        '''
-        This is a document
-        '''
         for i, line in enumerate(comment.split('\n')):
             cls.add_line(idx=start_line+i+1, text=tab_space + line)
 
@@ -7359,7 +7408,7 @@ class c:
         code = cls.code()
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
-        line =  lines[max(idx-1, 0)]
+        line =  lines[max(idx, 0)]
         c.print(len(line))
         return line
 
