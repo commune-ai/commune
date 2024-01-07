@@ -36,10 +36,15 @@ class Explorer(c.Module):
             state['lag'] = c.lag()
             state['block_time'] = 8
             state['blocks_per_day'] = 60 * 60 * 24 / state['block_time']
+
+            for netuid,m in enumerate(state['modules']):
+                for i,m in enumerate(state['modules'][netuid]):
+                    state['modules'][netuid][i]['ip'] = m['address'].split(':')[0] if ':' in m['address'] else None
+
             return state
         
 
-        state = state =  get_state(self.network)
+        state  =  get_state(self.network)
         subnets = state['subnets']
         name2subnet = {s['name']:s for s in subnets}
         name2netuid = {s['name']:i for i,s in enumerate(subnets)}
@@ -63,6 +68,8 @@ class Explorer(c.Module):
             
             subnet['n'] = len(state['modules'][self.netuid])
  
+
+
         self.subnet = subnet
         self.subnets = subnets
         self.modules = modules
@@ -73,9 +80,18 @@ class Explorer(c.Module):
         for m in modules:
             m.pop('stake_from', None)
         df = pd.DataFrame(self.modules[self.netuid])
-        search = st.text_input('Search Namespace', '', key='search.namespace.subnet')
+        cols_options = list(df.columns)
+        default_cols = cols_options[:10]
+        selected_cols = st.multiselect('Select Columns', cols_options, default_cols, key='select.columns.modules')
+        search = st.text_input('Search', '', key='search.namespace.subnet')
         if search != '':
-            df = df[df['name'].str.contains(search)]
+            # search across ['name', 'address', 'key]
+            search_cols = ['name', 'address', 'key']
+            search_df = df[search_cols]
+            search_df = search_df[search_df['name'].str.contains(search) | search_df['address'].str.contains(search) | search_df['key'].str.contains(search)]
+            df = df[df.index.isin(search_df.index)]
+        df = df[selected_cols]
+       
         n = st.slider('n', 1, len(df), 100, 1, key='n.modules')
         st.write(df[:n])
 
@@ -84,25 +100,26 @@ class Explorer(c.Module):
 
         subnet_df = pd.DataFrame(self.subnets)
         df_cols = list(subnet_df.columns)
+
+
         default_cols = ['name', 'total_stake',  'n', 'emission_per_epoch', 'founder', 'founder_share', 'tempo']
         selected_cols = st.multiselect('Select Columns', df_cols, default_cols)
-
         cols = st.columns(2) 
 
-        sort_cols = cols[0].multiselect('Sort Columns', df_cols, ['total_stake'])
-        ascending = cols[1].checkbox('Ascending', False)
         # sort_cols = cols[0].multiselect('Sort Columns', df_cols, ['total_stake'])
         # ascending = cols[1].checkbox('Ascending', False)
         search = st.text_input('Search', '', key='search.subnet')
         if search != '':
             subnet_df = subnet_df[subnet_df['name'].str.contains(search)]
-        subnet_df.sort_values(sort_cols, inplace=True, ascending=ascending)
         st.write(subnet_df[selected_cols])
 
 
 
     @classmethod
     def dashboard(cls):
+        '''
+        hey
+        '''
         self = cls()
         # st.write(self.subnets)
 
