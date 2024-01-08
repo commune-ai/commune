@@ -319,7 +319,7 @@
         'ray_context',
         'add_remote',
         'net',
-        'classify_method',
+        'classify_fn',
         'hello',
         'logs',
         'put_text',
@@ -767,7 +767,7 @@
         'name',
         'get_module_dirpath',
         'make_pull',
-        'classify_methods',
+        'classify_fns',
         'property_fns',
         'put_cache',
         'generate_completions',
@@ -3620,7 +3620,7 @@ located\n        ',
             'docs': None,
             'type': 'cls'
         },
-        'classify_method': {
+        'classify_fn': {
             'input': {'fn': 'NA'},
             'default': {'fn': None},
             'output': {},
@@ -7416,7 +7416,7 @@ located\n        ',
             'docs': None,
             'type': 'cls'
         },
-        'classify_methods': {
+        'classify_fns': {
             'input': {'obj': 'NA'},
             'default': {'obj': None},
             'output': {},
