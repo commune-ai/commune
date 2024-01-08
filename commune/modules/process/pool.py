@@ -802,7 +802,7 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
             module = c.module(module)
             fn = fn.split('.')[-1]
             fn_obj = getattr(module, fn)
-            method_type = c.classify_method(fn_obj)
+            method_type = c.classify_fn(fn_obj)
             if method_type == 'self':
                 if init_kwargs is None:
                     init_kwargs = {}

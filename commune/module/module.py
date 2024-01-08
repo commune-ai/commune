@@ -713,7 +713,7 @@ class c:
     @classmethod
     def mv_key(cls, *args, **kwargs):
         return c.module('key').mv_key(*args, **kwargs)
-
+    
     @classmethod
     def mems(cls, *args, **kwargs):
         return c.module('key').mems(*args, **kwargs)
@@ -845,10 +845,24 @@ class c:
     @classmethod
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
-    
     @classmethod
-    def cmd(cls, *args, **kwargs):
-        return c.module('os').cmd(*args, **kwargs)
+    def cmd(cls, command:Union[str, list],
+                        verbose:bool = True, 
+                        env:Dict[str, str] = {}, 
+                        sudo:bool = False,
+                        password: bool = None,
+                        color: str = 'white',
+                        bash : bool = False,
+                        **kwargs):
+        return c.module('os').cmd( 
+                        command=command,
+                        verbose=verbose, 
+                        env= env,
+                        sudo=sudo,
+                        password=password,
+                        color=color,
+                        bash=bash,
+                        **kwargs)
     run_command = shell = cmd 
 
     @classmethod
@@ -1438,13 +1452,19 @@ class c:
             
         if path == None:
             path = 'module'
+
+        # convert the simple to path
         path = c.simple2path(path)
+
+        # convert the path to object path
         try:
             path = c.path2objectpath(path, search=None)
         except Exception as e:
             c.print(f'Error: {e}', color='red')
             c.update()
             path = c.path2objectpath(path, search=None)
+        
+        # import the object
         module = c.import_object(path)
         c.module_cache[path] = module
         return module
@@ -1452,11 +1472,11 @@ class c:
 
     module_tree_cache = None
     @classmethod
-    def module_tree(cls, search=None, 
-                    mode='path', 
-                    update:bool = False,
-                    path = 'local_module_tree',
-                    **kwargs) -> List[str]:
+    def tree(cls, search=None, 
+                mode='path', 
+                update:bool = False,
+                path = 'local_module_tree',
+                **kwargs) -> List[str]:
         
         module_tree = None
         if not update:
@@ -1481,7 +1501,78 @@ class c:
     
         return module_tree
     
-    available_modules = tree = module_tree
+
+
+    tree_folders_path = 'module_tree_folders'
+    @classmethod
+    def add_tree(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(path, [])
+        tree_folder += [tree_path]
+        assert os.path.isdir(tree_path)
+        assert isinstance(tree_folder, list)
+        c.put(path, tree_folder, **kwargs)
+        return {'module_tree_folders': tree_folder}
+    
+    
+    @classmethod
+    def rm_tree(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(tree_path, [])
+        tree_folder = [f for f in tree_folder if f != tree_path ]
+        c.put(path, tree_folder)
+        return {'module_tree_folders': tree_folder}
+
+    @classmethod
+    def simple2path(cls, path:str, **kwargs) -> str:
+        tree = c.tree(**kwargs)
+        return tree[path]
+    
+    @classmethod
+    def get_module_python_paths(cls) -> List[str]:
+        '''
+        Search for all of the modules with yaml files. Format of the file
+        '''
+        if hasattr(cls, 'module_python_paths'): 
+            return cls.module_python_paths
+        modules = []
+        failed_modules = []
+
+        # find all of the python files
+        for f in glob(c.root_path + '/**/*.py', recursive=True):
+            if os.path.isdir(f):
+                continue
+            file_path, file_ext =  os.path.splitext(f)
+   
+            if file_ext == '.py':
+                dir_path, file_name = os.path.split(file_path)
+                dir_name = os.path.basename(dir_path)
+                previous_dir_path = dir_path.split('/')[-2]
+                
+                if dir_name.lower() == file_name.lower():
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                elif file_name.lower().endswith(dir_name.lower()):
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                elif file_name.lower().endswith('module'):
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                elif 'module' in file_name.lower():
+                    modules.append(f)
+                elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
+                    modules.append(f)
+                elif len(cls.find_python_classes(f)) > 0 :
+                    modules.append(f)
+                elif all([p for p in file_name.replace(".py", "").split("_")]):
+                    modules.append(f)
+        # we ar caching t
+        cls.module_python_paths = modules
+        
+        return modules
+
+
+    available_modules  = module_tree = tree
     @classmethod
     def list_modules(cls, search=None):
         modules = list(cls.module_tree(search).keys())
@@ -1537,78 +1628,6 @@ class c:
     def is_imported(package:str) :
         return  bool(package in sys.modules)
 
-    @classmethod
-    def simple2path(cls, path, **kwargs) -> Dict[str, str]:
-        module_tree = c.module_tree(**kwargs)
-        return module_tree[path]
-
-
-    module_python_paths = None
-    @classmethod
-    def get_module_python_paths(cls) -> List[str]:
-        '''
-        Search for all of the modules with yaml files. Format of the file
-        '''
-        if isinstance(cls.module_python_paths, list): 
-            return cls.module_python_paths
-        modules = []
-        failed_modules = []
-
-        # find all of the python files
-        for f in glob(c.root_path + '/**/*.py', recursive=True):
-            if os.path.isdir(f):
-                continue
-            file_path, file_ext =  os.path.splitext(f)
-   
-            if file_ext == '.py':
-                dir_path, file_name = os.path.split(file_path)
-                dir_name = os.path.basename(dir_path)
-                previous_dir_path = dir_path.split('/')[-2]
-                
-                if dir_name.lower() == file_name.lower():
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif file_name.lower().endswith(dir_name.lower()):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif file_name.lower().endswith('module'):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif 'module' in file_name.lower():
-                    modules.append(f)
-                elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
-                    modules.append(f)
-                elif len(cls.find_python_classes(f)) > 0 :
-                    modules.append(f)
-                elif all([p for p in file_name.replace(".py", "").split("_")]):
-                    modules.append(f)
-
-
-            
-        cls.module_python_paths = modules
-        
-        return modules
-
-
-    tree_folders_path = 'module_tree_folders'
-    @classmethod
-    def add_tree(cls, tree_path:str, **kwargs):
-        path = cls.tree_folders_path
-        tree_folder = c.get(path, [])
-        tree_folder += [tree_path]
-        assert os.path.isdir(tree_path)
-        assert isinstance(tree_folder, list)
-        c.put(path, tree_folder, **kwargs)
-        return {'module_tree_folders': tree_folder}
-    
-    
-    @classmethod
-    def rm_tree(cls, tree_path:str, **kwargs):
-        path = cls.tree_folders_path
-        tree_folder = c.get(tree_path, [])
-        tree_folder = [f for f in tree_folder if f != tree_path ]
-        c.put(path, tree_folder)
-        return {'module_tree_folders': tree_folder}
 
     @classmethod
     def dash(cls, *args, **kwargs):
@@ -2683,7 +2702,7 @@ class c:
         return hasattr(self, fn) and callable(getattr(self, fn))
     
     @classmethod
-    def get_function_signature_map(cls, obj=None, include_parents:bool = False):
+    def fn_signature_map(cls, obj=None, include_parents:bool = False):
         function_signature_map = {}
         if isinstance(obj, str):
             obj = c.module(obj)
@@ -2701,10 +2720,9 @@ class c:
         
     
         return function_signature_map
-    @property
-    def function_signature_map(self, include_parents:bool = False):
-        return self.get_function_signature_map(obj=self, include_parents=include_parents)
     
+    function_signature_map = fn_signature_map
+
     @property
     def function_default_map(self, include_parents=False):
         return self.get_function_default_map(obj=self, include_parents=False)
@@ -2713,7 +2731,7 @@ class c:
     def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
         obj = obj if obj else cls
         default_value_map = {}
-        function_signature = cls.get_function_signature_map(obj=obj,include_parents=include_parents)
+        function_signature = cls.fn_signature_map(obj=obj,include_parents=include_parents)
         for fn_name, fn in function_signature.items():
             default_value_map[fn_name] = {}
             if fn_name in ['self', 'cls']:
@@ -2817,7 +2835,7 @@ class c:
     @classmethod
     def init_kwargs(cls):
         kwargs =  cls.fn_defaults('__init__')
-        kwargs.pop('self')
+        kwargs.pop('self', None)
         if 'config' in kwargs:
             if kwargs['config'] != None:
                 kwargs.update(kwargs.pop('config'))
@@ -3021,7 +3039,7 @@ class c:
     
     @classmethod
     def get_shortcut(cls, shortcut:str) -> dict:
-        self.shortcuts = cls.get_shortcuts()
+        cls.shortcuts = cls.get_shortcuts()
         kwargs =  cls.shortcuts.get(shortcut, None)
         return kwargs
     
@@ -3481,7 +3499,7 @@ class c:
                 return cls(*args.args, **args.kwargs)     
             else:
                 fn = getattr(cls, args.function)
-                fn_type = cls.classify_method(fn)
+                fn_type = cls.classify_fn(fn)
 
                 if fn_type == 'self':
                     self = cls(*args.args, **args.kwargs)
@@ -4896,26 +4914,7 @@ class c:
         responses = c.wait(futures, timeout=timeout)
         return responses
     
-    @classmethod
-    def resolve_fn(cls,fn, init_kwargs=None ):
-        if isinstance(fn, str):
-            if '.' in fn:
-                module = '.'.join(fn.split('.')[:-1])
-                module = c.module(module)
-            else:
-                module = c.module(fn)
-            fn = fn.split('.')[-1]
-            fn_obj = getattr(module, fn)
-            method_type = c.classify_method(fn_obj)
-            if method_type == 'self':
-                if init_kwargs is None:
-                    init_kwargs = {}
-                module = module(**init_kwargs)
-            fn = getattr(module, fn)
-        
-        assert callable(fn), f'{fn} is not callable'
-        return fn
-    
+
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -5198,9 +5197,9 @@ class c:
         else:
             module = c.module(module)
         if isinstance(fn, str):
-            method_type = c.classify_method(getattr(module, fn))
+            method_type = c.classify_fn(getattr(module, fn))
         elif callable(fn):
-            method_type = c.classify_method(fn)
+            method_type = c.classify_fn(fn)
         else:
             raise ValueError('fn must be a string or a callable')
         
@@ -5928,7 +5927,8 @@ class c:
     thread_map = {}
 
     @classmethod
-    def get_fn(cls, fn:str, seperator='.', ignore_module_pattern:bool = False):
+    def get_fn(cls, fn:str, 
+               seperator='.',ignore_module_pattern:bool = False):
         if isinstance(fn, str):
             if seperator in fn and (not ignore_module_pattern):
                 # module{sperator}fn
@@ -5940,16 +5940,18 @@ class c:
                 module = c.module(module)
             else:
                 module = cls
-            # get the module function
-            if hasattr(module, fn):
-                fn = getattr(module, fn)
-            else:
-                return None
+            fn = getattr(module, fn)
+        elif callable(fn):
+            pass
+        else:
+            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
         # assert callable(fn), 'Is not callable'
         return fn
     
 
-            
+
+    resolve_fn = get_fn
+       
             
     @classmethod
     def resolve_memory(cls, memory: Union[str, int, float]) -> str:
@@ -6410,6 +6412,10 @@ class c:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
         return {'success': True, 'msg': f'Copied {path1} to {path2}'}
     
+
+    # def cp_module(self, module:str, new_module:str = None, refresh:bool = False):
+    #     if refresh:c
+    #         self.rm_module(new_module)
     
     @classmethod
     def get_sample_schema(cls, x:dict) -> dict:
@@ -6768,13 +6774,13 @@ class c:
         return c.get_self_methods(self)
 
     @classmethod
-    def classify_methods(cls, obj= None):
+    def classify_fns(cls, obj= None):
         obj = obj or cls
         method_type_map = {}
         for attr_name in dir(obj):
             method_type = None
             try:
-                method_type = cls.classify_method(getattr(obj, attr_name))
+                method_type = cls.classify_fn(getattr(obj, attr_name))
             except Exception as e:
                 continue
         
@@ -6787,7 +6793,8 @@ class c:
 
     @classmethod
     def get_function_args(cls, fn):
-        fn = cls.get_fn(fn)
+        if not callable(fn):
+            fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
 
@@ -6802,7 +6809,7 @@ class c:
     fn_args = get_fn_args =  get_function_args
     
     @classmethod
-    def classify_method(cls, fn):
+    def classify_fn(cls, fn):
         fn = cls.get_fn(fn)
         args = cls.get_function_args(fn)
         if len(args) == 0:
@@ -6848,7 +6855,7 @@ class c:
 
     @staticmethod
     def get_parents(obj) -> List[str]:
-        cls = resolve_class(obj)
+        cls = c.resolve_class(obj)
         return list(cls.__mro__[1:-1])
 
     @staticmethod
@@ -6932,27 +6939,10 @@ class c:
             
         return functions
 
-
-
+    
+    
     @classmethod
-    def get_class_methods(cls: Union[str, type], obj = None)-> List[str]:
-        '''
-        Gets the class methods in a class
-        '''
-        if obj is None:
-            obj = cls
-            
-        functions =  c.get_functions(cls)
-        signature_map = {}
-        for f in functions:
-            if f.startswith('__'):
-                continue
-            signature_map[f] = cls.get_function_args(getattr(cls, f)) 
-
-        return [k for k, v in signature_map.items() if 'self' not in v]
-
-    @classmethod
-    def get_self_methods(cls: Union[str, type], obj=None):
+    def self_fns(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -6961,11 +6951,10 @@ class c:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
-    self_methods = self_fns = get_self_methods
-
+    self_methods = get_self_methods = self_fns 
 
     @classmethod
-    def get_class_methods(cls: Union[str, type], obj=None):
+    def class_fns(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -6974,10 +6963,10 @@ class c:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
     
-    class_methods = class_fns = get_class_methods
+    class_methods = get_class_methods =  class_fns 
 
     @classmethod
-    def get_static_methods(cls: Union[str, type], obj=None):
+    def static_fns(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -6985,22 +6974,22 @@ class c:
         functions =  c.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
-    
+    get_static_methods = static_fns
+
     static_meethods = static_fns = get_static_methods
     @classmethod
-    def get_function_signature(cls, fn) -> dict: 
+    def fn_signature(cls, fn) -> dict: 
         '''
         get the signature of a function
         '''
         if isinstance(fn, str):
             fn = getattr(cls, fn)
-        
-        import inspect
         return dict(inspect.signature(fn)._parameters)
     
+    get_function_signature = fn_signature
     @classmethod
     def is_arg_key_valid(cls, key='config', fn='__init__'):
-        fn_signature = cls.get_function_signature(fn)
+        fn_signature = cls.fn_signature(fn)
         if key in fn_signature: 
             return True
         else:
@@ -7013,7 +7002,7 @@ class c:
     @classmethod
     def has_var_keyword(cls, fn='__init__', fn_signature=None):
         if fn_signature == None:
-            fn_signature = cls.get_function_signature(fn)
+            fn_signature = cls.resolve_fn(fn)
         for param_info in fn_signature.values():
             if param_info.kind._name_ == 'VAR_KEYWORD':
                 return True
@@ -7022,7 +7011,7 @@ class c:
 
     @staticmethod
     def get_function_input_variables(fn)-> dict:
-        return list(c.get_function_signature(fn).keys())
+        return list(c.resolve_fn(fn).keys())
 
     @classmethod
     def fn_defaults(cls, fn):
@@ -7308,20 +7297,28 @@ class c:
             cls.add_line(idx=idx)
 
     @classmethod
-    def rm_docs(cls, fn:str='add_lines2'):
+    def rm_docs(cls, fn:str='rm_docs'):
         """
         sup
         """
-        import streamlit as st
+
         doc_info = cls.fn_docs(fn, include_quotes=True, return_dict=True)
+        
         doc_idx_bounds = doc_info['idx_bounds']
+
+        if doc_idx_bounds == None:
+            return None
 
         fn_info = cls.fn_info(fn)
 
         fn_code = fn_info['code']
+        
         before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0] - 2]
+       
         after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]:]
+        
         new_fn_code = '\n'.join(before_comment_code + after_comment_code)
+        
         return c.add_fn_code(fn=fn, code=new_fn_code)
     
     def rm_fn(self, fn:str='rm_fn'):
@@ -7338,19 +7335,24 @@ class c:
         if code == None:
             code = ''
         new_lines = lines[:start_line] + [code] + lines[end_line:]
+
+
         new_code = '\n'.join(new_lines)
         return c.put_text(cls.filepath(), new_code)
-        # return new_code
+
 
     def test_fn2(self):
-        # het 
+        """
+          het 
+        """
         print("fam")
 
     @classmethod 
-    def fn_docs(cls, fn:str='fn_docs', include_quotes=False, return_dict=False):
+    def fn_docs(cls, fn:str='test_fn2', include_quotes=False, return_dict=False):
         '''
         This is a document
         '''
+        
     
         fn_info = cls.fn_info(fn)
         start_line = fn_info["start_code_line"]
@@ -7372,7 +7374,10 @@ class c:
                 break
 
         if len(comment_idx_bounds) == 0:
-            return None
+            return {
+                'idx_bounds': None,
+                'text': None,
+            }
         
 
         start_line_shift = -1 if include_quotes else 0
@@ -7741,10 +7746,8 @@ class c:
         return c.module('subspace')().cj(*args, **kwargs)
     j = cj
     
-    @classmethod
-    def watchdog(cls, *args, **kwargs):
-        return c.module('subspace')().watchdog(*args, **kwargs)
-    watch = watchdog
+
+   
     @classmethod
     def n(self, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)

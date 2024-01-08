@@ -6,35 +6,12 @@ import json
 
 class Agent(c.Module):
     description = """
-    You have a set of tools, and you should call them if you need to 
-    if you call a tool, store the response in the answer field, and you will be fed 
-    the response in the next step. So dont worry if you dont know.
-
-    call_tools: {tool:str, kwargs:dict} -> answer
-
-    Notes:
-    ALWAYS FILL THE ANSWER AND RETURN THE JSON
-    YOU HAVE N TRIES, HAVE AN ANSWER BY N
-    JUST RESPOND IN THE ANSWER, CALL_TOOLS
-
+    Summarize the following content into a more concice representation.
+    Preferably I want it in a succint knowledge graph
+    (HEAD, RELATIONSHIP, TAIL)
     """
 
-    tools = [
-            'module.ls', 
-            'module.fns', 
-            'module.cmd' ,
-            'module.servers', 
-            'module.modules', 
-            'module.module', 
-            'module.ip', 
-            'key.keys', 
-            'module.block', 
-            'module.fn_code', 
-            'module.fn_info',
-            'web.google_search',
-            'module.namespace',
-            'module.hardware'
-            ]
+    tools = []
 
     def __init__(self,
                 name='agent',

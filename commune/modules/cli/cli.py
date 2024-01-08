@@ -67,7 +67,7 @@ class CLI(c.Module):
                 #     result = getattr(module(), fn.__name__)
                 
                 if callable(fn) :
-                    if c.classify_method(fn) == 'self':
+                    if c.classify_fn(fn) == 'self':
                         module_inst = module()
                         fn = getattr(module_inst, fn_name)
                 elif c.is_property(fn):
