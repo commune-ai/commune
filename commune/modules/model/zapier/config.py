@@ -10,4 +10,4 @@ password = 'phuwgsiwxajsbocz'
 #  
 from_mail = 'jackveustar1228@gmail.com'
 # Discord Bot Token
-token = 'MTE3NzYwNDI2NTM3MjU0OTEzMA.GSHst6.8BZT41kUZ4x_r7n_ZhrtB1l2HRwb8wk6TQPV9M'
+token = 'MTE3NzYwNDI2NTM3MjU0OTEzMA.Gz9tlo.ECyWDus8_UAkS69Bms8GQn9BKzJ-UAG16-Z4P4'
