@@ -52,6 +52,20 @@ If you run face recognition with DeepFace, you get access to a set of features:
 
     This function applies pre-processing stages of a face recognition pipeline including detection and alignment
 
+## Fine-tuning for one person face
+
+### Save one person face
+
+`c model.deepface save_face img_src_dir='images' model_filename='one_person.h5'`
+
+    This function fine-tunes the model using individual face images. You can upload one or multiple face images of the same person for fine-tuning. This process amplifies the data, especially when you have a small amount of it.
+
+### Verify one person face
+
+`c model.deepface verify face_image_path='image.jpeg' model_filename='one_person.h5'`
+
+    This function verifies an individual's face using the fine-tuned model. You can specify the image path and select the model file saved in the 'save_face' function.
+
 ***You can refer the source code to check parameters.***
 
 ## Gradio UI
