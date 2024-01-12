@@ -58,7 +58,8 @@ class Vali(c.Module):
                 run_info = self.run_info()
                 retart_lag = c.time() - restart_time
                 # sometimes the worker thread stalls, and you can just restart it
-                if run_info['vote_staleness'] > self.config.vote_interval and 'subspace' in self.config.network:
+                if run_info['vote_staleness'] > self.config.vote_interval and \
+                         'subspace' in self.config.network:
                     c.print(f'Vote staleness {run_info["vote_staleness"]} > {self.config.vote_interval} + {self.config.max_vote_delay_before_worker_restart}, restarting workers', color='red')
                     c.print(self.vote())
                     restart_time = c.time()
@@ -176,6 +177,7 @@ class Vali(c.Module):
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
         self.last_sync_time = c.time()
+        self.name2key = self.subspace.name2key(netuid=self.config.netuid)
         return {'namespace': self.namespace}
 
     def score_module(self, module):
@@ -254,6 +256,8 @@ class Vali(c.Module):
         module_info['start_timestamp'] = start_timestamp
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
+
+        module_info['ss58_address'] = self.name2key.get(module_name, None)
         emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
         c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.save_module_info(module_name, module_info)
@@ -300,19 +304,7 @@ class Vali(c.Module):
 
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
-        if len(votes['uids']) == 0:
-            return {'success': False, 'message': 'No votes to cast'}
-        r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
-                        weights=votes['weights'], 
-                        key=self.key, 
-                        network='main', 
-                        netuid=self.config.netuid)
-
-        self.save_votes(votes)
-
-
-
-        return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
+        return votes
 
     @property
     def last_vote_time(self):
@@ -357,6 +349,30 @@ class Vali(c.Module):
         path = cls.resolve_storage_path(network=network, tag=tag)
         paths = cls.ls(path)
         return paths
+
+
+    def vote(self, tag=None, votes=None):
+
+        votes = votes or self.calculate_votes(tag=tag) 
+        if tag != None:
+            key = self.resolve_server_name(tag=tag)
+            key = c.get_key(key)
+        else:
+            key = self.key
+
+        if len(votes['uids']) < 32:
+            return {'success': False, 'msg': 'The votes are too low'}
+        else:
+
+            r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+                            weights=votes['weights'], 
+                            key=self.key, 
+                            network='main', 
+                            netuid=self.config.netuid)
+
+            self.save_votes(votes)
+
+            return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
 
     @classmethod
     def saved_module_names(cls, network:str='main', tag:str=None):
