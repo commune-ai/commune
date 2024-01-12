@@ -21,6 +21,7 @@ check_loop: True
 run_mode : thread
 verbose: True
 run_loop: True
+run_loop_sleep: 8
 
 # voting 
 vote: True

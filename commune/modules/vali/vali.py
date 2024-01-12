@@ -24,7 +24,6 @@ class Vali(c.Module):
 
         # we want to make sure that the config is a munch
         self.start_time = c.time()
-        
         self.sync_network()
         if self.config.run_loop:
             c.thread(self.run_loop)
@@ -61,13 +60,17 @@ class Vali(c.Module):
                 if run_info['vote_staleness'] > self.config.vote_interval and \
                          'subspace' in self.config.network:
                     c.print(f'Vote staleness {run_info["vote_staleness"]} > {self.config.vote_interval} + {self.config.max_vote_delay_before_worker_restart}, restarting workers', color='red')
-                    c.print(self.vote())
+                    try:
+                        self.vote()
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        c.print(e)
                     restart_time = c.time()
                 
                 run_info['restart_time']= restart_time
                 run_info.pop('config', None)
                 c.print(run_info)
-                c.sleep(1)
+                c.sleep(self.config.run_loop_sleep)
 
     def workers(self):
         return [f for f in c.pm2ls() if self.worker_name_prefix in f]
