@@ -1,4 +1,5 @@
 import inspect
+import numpy as np
 import os
 import concurrent
 from copy import deepcopy
@@ -1759,6 +1760,7 @@ class c:
     def tilde_path(cls):
         return os.path.expanduser('~')
 
+        
     @classmethod
     def get_json(cls, *args, **kwargs):
         loop = c.get_event_loop()
@@ -8802,15 +8804,37 @@ class c:
         import threading
         return threading.active_count()
     
+
+    
+    def test_encryption_file(self, n=10, filepath='tests/dummy', value='test'):
+        if n > 1:
+            return [self.test_encryption_file(filepath=filepath, value=value, n=1) for i in range(n)]
+        c.put(filepath, value)
+        
+        auth = self.encrypt_file(filepath)
+        decode = self.decrypt_file(filepath)
+        decoded = c.get(filepath)
+        c.print(decoded, 'decoded')
+        assert decoded == value, f'encryption failed, {decoded} != {value}'
+        c.rm(filepath)
+        assert not c.exists(filepath), f'file {filepath} not deleted'
+        return {'encrypted':auth, 'decrypted': decode, 'path':filepath }
+    
+
     @classmethod
     def init_args(cls):
         return list(cls.init_kwargs().keys())
+
 
     @classmethod
     def soup(cls, *args, **kwargs):
         from bs4 import BeautifulSoup
         return BeautifulSoup(*args, **kwargs)
     
+
+    
+
+
 
 Module = c
 Module.run(__name__)
