@@ -4845,9 +4845,9 @@ class c:
         client_kwargs = { 'network': network,
                           'prefix_match': prefix_match,
                           'network': network,
-                            'key': key,
-                            'kwargs': kwargs,
-                            'timeout': timeout,
+                          'key': key,
+                          'kwargs': kwargs,
+                          'timeout': timeout,
                           **extra_kwargs}
         if '/' in module:
             args = [fn, *args]
