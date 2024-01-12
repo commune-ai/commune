@@ -12,4 +12,8 @@ Here is the detailed explanation of the `generate` function. Also I added docstr
 ### Usage Example:
 
 `c model.text2image generate Prompt="a cat sitting on the chair" SaveFileName="cat"`
+
 `c model.text2image gradio`
+
+You can find diffusion models in the huggingface hub.
+https://huggingface.co/models?other=diffusers:StableDiffusionPipeline&sort=trending
