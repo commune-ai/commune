@@ -1,7 +1,20 @@
 
 # network
 network: subspace 
+<<<<<<< HEAD
 netuid : 0
+=======
+max_history: 10
+alpha: 0.5
+timeout: 10
+tag: null
+num_workers: 1
+start: True
+verbose: True
+batch_size: 4
+refresh_stats: False
+vote_interval: 100
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
 sync_interval: 100
 search: null
 batch_size: 20

@@ -19,9 +19,15 @@ class Vali(c.Module):
         # initialize the validator
         config = self.set_config(config=config, kwargs=kwargs)
 
+<<<<<<< HEAD
         # merge the config
         self.config = c.dict2munch({**Vali.config(), **config})
 
+=======
+        self.config = c.dict2munch({**Vali.config(), **config})
+        # merge the config with the default config
+        self.count = 0
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
         # we want to make sure that the config is a munch
         self.start_time = c.time()
         
@@ -249,7 +255,13 @@ class Vali(c.Module):
             response = {'error': c.detailed_error(e), 'w': 0.001, 
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
+<<<<<<< HEAD
             c.print(response, color='red', verbose=self.config.verbose)
+=======
+
+            c.print(response, color='red', verbose=self.config.verbose)
+
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
         end_timestamp = c.time()        
         w = response['w']
         response['timestamp'] = c.time()
@@ -261,6 +273,11 @@ class Vali(c.Module):
         module_info['start_timestamp'] = start_timestamp
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
+<<<<<<< HEAD
+=======
+        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
         self.save_module_info(module_name, module_info)
         self.count += 1
 
@@ -307,6 +324,7 @@ class Vali(c.Module):
 
         if len(votes['uids']) == 0:
             return {'success': False, 'message': 'No votes to cast'}
+<<<<<<< HEAD
         
         return votes
 
@@ -321,6 +339,9 @@ class Vali(c.Module):
             key = self.key
 
         r = c.set_weights(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+=======
+        r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
                         weights=votes['weights'], 
                         key=self.key, 
                         network='main', 
@@ -328,6 +349,11 @@ class Vali(c.Module):
 
         self.save_votes(votes)
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
         return {'success': True, 'message': 'Voted', 'votes': votes , 'r': r}
 
     @property
@@ -387,8 +413,13 @@ class Vali(c.Module):
     def module_infos(cls,
                      tag=None,
                       network:str='subspace', 
+<<<<<<< HEAD
                     batch_size:int=5 , 
                     max_staleness:int= 5000,
+=======
+                    batch_size:int=20 , 
+                    max_staleness:int= 1000,
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
@@ -440,6 +471,67 @@ class Vali(c.Module):
         return int(c.time() - self.last_vote_time)
 
 
+<<<<<<< HEAD
+=======
+    def run(self, vote=False):
+
+
+        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+        c.new_event_loop(nest_asyncio=True)
+        self.running = True
+        futures = []
+        vote_futures = []
+        while self.running:
+
+            if self.last_sync_time + self.config.sync_interval < c.time():
+                c.print(f'Syncing network {self.config.network}', color='cyan') 
+                self.sync_network()
+
+            modules = c.shuffle(c.copy(self.names))
+            time_between_interval = c.time()
+            module = c.choice(modules)
+
+            # c.sleep(self.config.sleep_time)
+            # rocket ship emoji
+            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan', verbose=self.config.verbose)
+            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            futures.append(future)
+
+            if self.vote_staleness > self.config.vote_interval:
+                if not len(vote_futures) > 0 and 'subspace' in self.config.network:
+                   self.vote()
+
+            if len(futures) >= self.config.max_futures:
+                try:
+                    for future in c.as_completed(futures, timeout=self.config.timeout):
+
+                        try:
+                            result = future.result()
+                        except Exception as e:
+                            result = {'error': c.detailed_error(e)}
+
+                        futures.remove(future)
+                        self.errors += 1
+                        break
+                except TimeoutError as e:
+                    e = c.print('TimeoutError', color='red', verbose=self.config.verbose)
+
+            
+      
+            if self.count % 10 == 0 and self.count > 0:
+                stats =  {
+                'total_modules': self.count,
+                'lifetime': int(self.lifetime),
+                'modules_per_second': int(self.modules_per_second()), 
+                'vote_staleness': self.vote_staleness,
+                'errors': self.errors,
+                'vote_interval': self.config.vote_interval,
+                'epochs': self.epochs,
+                    }
+                c.print(f'STATS  --> {stats}\n', color='white')
+
+
+>>>>>>> e1415e2cd266a22bd9b127e875ad381b814fa9c3
     @property
     def epochs(self):
         return self.count // self.n
