@@ -104,14 +104,22 @@ class Access(c.Module):
         return response
 
     def verify(self, input:dict) -> dict:
+        """
+        input : dict 
+            address:
+
+        
+        """
+        address = input['address']
+        fn = input['fn']
+
         current_time = c.time()
 
         sync_staleness = current_time - self.last_time_synced
         if sync_staleness > self.config.sync_interval:
             self.sync()
 
-        address = input['address']
-        fn = input['fn']
+
         role2rate = self.state.get('role2rate', {})
         role = self.user_module.get_role(address)
         if role is None:
@@ -246,16 +254,11 @@ class Access(c.Module):
         state['whitelist'] = whitelist_fns
         state['blacklist'] = blacklist_fns
 
-
-
-
-        
         with st.expander('state', False):
             st.write(state)
         if st.button('save'):
             self.put(self.state_path, state)
 
-        
         # with st.expander("ADD BUTTON", True):
             
 
