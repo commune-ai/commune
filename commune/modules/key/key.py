@@ -1204,6 +1204,8 @@ class Keypair(c.Module):
         c.rm(filepath)
         assert not c.exists(filepath), f'file {filepath} not deleted'
         return {'encrypted':auth, 'decrypted': decode, 'path':filepath }
+    
+    
     @classmethod
     def test_encryption(cls,value = 10):
         key = cls.gen()

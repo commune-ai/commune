@@ -9,7 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset
 import os, sys
 import requests
-from commune.client.local import LocalModule
+from commune.modules.client.local import LocalModule
 from commune import Module
 
 import streamlit as st

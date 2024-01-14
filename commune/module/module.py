@@ -2419,7 +2419,7 @@ class c:
     
     @classmethod
     def virtual_client(cls, module): 
-        virtual_client =  c.import_object('commune.client.virtual.VirtualClient')
+        virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
         return virtual_client(module)
     
     # NAMESPACE::MODULE
@@ -8496,14 +8496,7 @@ class c:
         return module.add_api_keys(api_keys)
 
     @classmethod
-    def loop(cls, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
-        if remote:
-            kwargs = c.locals2kwargs(locals())
-            kwargs['remote'] = False
-            c.remote_fn('loop', kwargs=kwargs, name='loop')
-            return {'success': True, 'msg': 'looping on remote'}
-        start_time = 0
-        subspace = c.module('subspace')()
+    def loop(cls, interval=30, network=None, remote:bool=True, local:bool=True, save:bool=True):
         while True:
             current_time = c.timestamp()
             elapsed = current_time - start_time

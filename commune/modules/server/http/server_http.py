@@ -69,7 +69,6 @@ class ServerHTTP(c.Module):
         module.address  = self.address
         self.access_module = c.module(access_module)(module=self.module)  
         self.history_path = history_path or f'history/{self.name}'
-
         self.set_api(ip=self.ip, port=self.port)
 
 
