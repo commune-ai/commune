@@ -6,6 +6,7 @@ from commune import Module
 from commune.utils import *
 import shlex
 import subprocess
+import socket
 
 class SubprocessModule(Module):
     subprocess_map = {}
@@ -17,9 +18,6 @@ class SubprocessModule(Module):
         deserializer = self.__class__
         serialized_data = (self.config,)
         return deserializer, serialized_data
-
-    def submit(command):
-        return self.run_command(command)
     
     @property
     def subprocess_map(self):
@@ -48,17 +46,14 @@ class SubprocessModule(Module):
 
     def add_subprocess(self, command:str,key=None, cache=True, add_info={}):
 
-        process = subprocess.Popen(shlex.split(command))
+        process = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs)
         process_state_dict = process.__dict__
         # process_state_dict.pop('_waitpid_lock')
-
         subprocess_dict = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
         if cache == True:
             if key == None or key == 'pid':
                 key= str(process.pid)
-            subprocess_dict = dict_override(subprocess_dict, add_info)
             self.put_cache(key, subprocess_dict)
-
         return subprocess_dict
 
     submit = add = add_subprocess  

@@ -325,30 +325,33 @@ class c:
 
     encrypted_prefix = 'ENCRYPTED'
     @classmethod
-    def encrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
+    def encrypt_file(cls, path:str, password=None, key=None,) -> str:
         key = c.get_key(key)
-        path = cls.resolve_path(path)
-        r = key.encrypt_file(path, password=password, **kwargs)
-        return r
+        text = cls.get_text(path)
+        r = key.encrypt(text, password=password)
+        return cls.put_text(path, r)
         
     @classmethod
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
         key = c.get_key(key)
-        path = cls.resolve_path(path)
-        r = key.decrypt_file(path, password=password, **kwargs)
-        c.print(r, 'bro')
-        return r
+        text = cls.get_text(path)
+        r = key.decrypt(text, password=password, **kwargs)
+        return cls.put_text(path, r)
 
 
-    def test_file(self):
-        k = 'test_a'
-        v = 1
+
+    def test_file(self, k='test_a', v=1):
         self.put(k,v)
-        self.encrypt_path(k)
+        assert self.exists(k)
+        self.encrypt_file(k)
         c.print(self.get_text(k))
-        self.decrypt_path(k)
+        self.decrypt_file(k)
         new_v = self.get(k)
         assert new_v == v, f'new_v {new_v} != v {v}'
+        self.rm(k)
+        assert not self.exists(k)
+        assert not os.path.exists(self.resolve_path(k))
+        return {'success': True, 'msg': 'test_file passed'}
     @classmethod
     def decrypt_path(cls, path:str, key=None, password=None, prefix=encrypted_prefix) -> str:
         '''
@@ -4545,7 +4548,6 @@ class c:
         input_type = type(input)
         if input_type == str:
             return input
-        
         if input_type in [dict]:
             input = json.dumps(input)
         elif input_type in [bytes]:
@@ -5546,6 +5548,8 @@ class c:
     def put_text(cls, path:str, text:str, root=False, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
+        if not isinstance(text, str):
+            text = c.python2str(text)
         if key != None:
             text = c.get_key(key).encrypt(text)
         # Write the text to the file
@@ -8911,6 +8915,10 @@ class c:
             fig = plot_fn(df, **plot_kwargs, title=title)    
             st.plotly_chart(fig)
         # st.write(kwargs)
+            
+
+
+    
 
 
 Module = c
