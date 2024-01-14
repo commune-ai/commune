@@ -110,8 +110,6 @@ class OpenAILLM(c.Module):
 
     def call(self, text):
         return self.forward(text, role='user')
-        
-
     
     def generate(self,
                 prompt:str = 'sup?',
@@ -129,7 +127,6 @@ class OpenAILLM(c.Module):
         t = c.time()
         if not model in self.config.models:
             f"Model must be one of {self.config.models}"
-            
         
         openai.api_key = api_key or self.api_key
 
@@ -143,6 +140,7 @@ class OpenAILLM(c.Module):
                     )
         
         messages = [{"role": role, "content": prompt}]
+        
         if history:
             messages = history + messages
 

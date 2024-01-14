@@ -1181,14 +1181,13 @@ class Keypair(c.Module):
         if password == None:
             password = self.private_key
         enc_text = c.get_text(path)
-
         assert enc_text.startswith(prefix), f'file {path} is not encrypted'
-        enc_text = enc_text[len(prefix):]
+        text = enc_text[len(prefix):]
         c.print(enc_text, 'ence')
         dec_text =  self.decrypt(enc_text, password=password)
         if not isinstance(dec_text, str):
             dec_text = json.dumps(dec_text)
-        c.put_text(path, dec_text)
+        # c.put_text(path, dec_text)
         
         return {'encrypted':enc_text, 'decrypted': dec_text, 'path':path }
 

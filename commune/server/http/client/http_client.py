@@ -1,10 +1,7 @@
 
 
 from typing import Tuple, List, Union
-import sys
-import os
 import asyncio
-import requests
 from functools import partial
 import commune as c
 import aiohttp
@@ -29,6 +26,8 @@ class Client(c.Module):
             port: int = 50053 ,
             network: bool = None,
             key : str = None,
+            save_history: bool = True,
+            history_path : str = 'history',
             loop: 'asyncio.EventLoop' = None
         ):
         self.loop = c.get_event_loop() if loop == None else loop
@@ -38,6 +37,9 @@ class Client(c.Module):
         self.my_ip = c.ip()
         self.network = c.resolve_network(network)
         self.start_timestamp = c.timestamp()
+        self.save_history = save_history
+        self.history_path = history_path
+
         
 
     
@@ -68,7 +70,8 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'}):
+        headers : dict ={'Content-Type': 'application/json'}
+        ):
 
         self.resolve_client(ip=ip, port=port)
 
@@ -79,21 +82,18 @@ class Client(c.Module):
         url = f"http://{self.address}/{fn}/"
 
 
-        request_data =  { 
+
+        input =  { 
                         "args": args,
                         "kwargs": kwargs,
                         "ip": self.my_ip,
                         "timestamp": c.timestamp(),
                         }
-
         # serialize this into a json string
-        request_data = self.serializer.serialize( request_data)
-
-        # sign the request
-        request = self.key.sign(request_data, return_json=True)
+        request = self.serializer.serialize(input)
+        request = self.key.sign(request, return_json=True)
 
         result = '{}'
-
 
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
@@ -108,11 +108,7 @@ class Client(c.Module):
                             continue
                         if isinstance(event_data, str):
                             result += event_data
-
-                        
                     result = self.process_output(json.loads(result))
-                    
-
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
                     result = self.process_output(result)
@@ -123,9 +119,35 @@ class Client(c.Module):
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
-        
 
+            
+        if self.save_history:
+            input['result'] = result
+            input['server']  = self.address
+            input['fn'] = fn
+            path = self.history_path+'/' + self.key.ss58_address + '/' + str(input['timestamp'])
+            self.put(path, input)
         return result
+    
+    @classmethod
+    def history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.ls(history_path + '/' + key.ss58_address)
+    @classmethod
+    def all_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.glob(history_path)
+
+
+    @classmethod
+    def rm_key_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path + '/' + key.ss58_address)
+    
+    @classmethod
+    def rm_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path)
 
 
     def process_output(self, result):
@@ -169,5 +191,3 @@ class Client(c.Module):
     
     def __repr__(self) -> str:
         return super().__repr__()
-
-

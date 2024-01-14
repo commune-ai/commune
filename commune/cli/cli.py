@@ -11,10 +11,10 @@ class CLI(c.Module):
     def __init__(
             self,
             config: c.Config = None,
-            module_overrides: dict = ['network', 'key'],
+            module_overrides: dict = ['network', 'key', 'auth'],
 
         ) :
-        self.protected_modules = ['module', 'key']
+        self.protected_modules = module_overrides
         c.new_event_loop(True)
         self.module = c.Module()
         args, kwargs = self.parse_args()

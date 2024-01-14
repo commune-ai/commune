@@ -25,7 +25,9 @@ class ServerHTTP(c.Module):
         access_module: str = 'server.access',
         public: bool = False,
         serializer: str = 'serializer',
-        new_event_loop:bool = True
+        new_event_loop:bool = True,
+        save_history:bool= True,
+        history_path:str = None 
         ) -> 'Server':
 
         self.serializer = c.module(serializer)()
@@ -36,6 +38,7 @@ class ServerHTTP(c.Module):
         self.network = network
         self.verbose = verbose
         self.sse = sse
+        self.save_history = save_history
 
         if self.sse == False:
             if max_workers != None:
@@ -65,7 +68,7 @@ class ServerHTTP(c.Module):
         module.port = self.port
         module.address  = self.address
         self.access_module = c.module(access_module)(module=self.module)  
-
+        self.history_path = history_path or f'history/{self.name}'
 
         self.set_api(ip=self.ip, port=self.port)
 
@@ -96,13 +99,25 @@ class ServerHTTP(c.Module):
                     kwargs: the keyword arguments to pass to the function
                     args: the positional arguments to pass to the function
                     timestamp: the timestamp of the request
+                    address: the address of the caller
+
                 signature: the signature of the request
 
-
-            
             """
             input['fn'] = fn
-            input = self.process_input(input)
+            # you can verify the input with the server key class
+            if not self.public:
+                assert self.key.verify(input), f"Data not signed with correct key"
+            
+            
+            input['data'] = self.serializer.deserialize(input['data'])
+            # here we want to verify the data is signed with the correct key
+            request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
+            # verifty the request is not too old
+            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+            
+            self.access_module.verify(input)
+
             data = input['data']
             args = data.get('args',[])
             kwargs = data.get('kwargs', {})
@@ -130,11 +145,32 @@ class ServerHTTP(c.Module):
             else:
                 c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
             result = self.process_result(result)
+
+            
+            if self.save_history:
+                path = self.history_path+'/' + str(input['data']['timestamp']) + '_' +input['address'] 
+                input['result'] = result
+                self.put(path, input)
+            
+            
             return result
         
         self.serve()
-        
-        
+
+    @classmethod
+    def history(cls, server='module', history_path='history'):
+        dirpath  = f'{history_path}/{server}'
+        return cls.ls(dirpath)
+    
+    @classmethod
+    def all_history(cls,history_path='history'):
+        dirpath  = f'{history_path}'
+        return cls.glob(dirpath)
+    
+    @classmethod
+    def rm_history(cls, server='module', history_path='history'):
+        dirpath  = f'{history_path}/{server}'
+        return cls.rm(dirpath)
 
     def state_dict(self) -> Dict:
         return {
@@ -144,45 +180,7 @@ class ServerHTTP(c.Module):
         }
 
 
-    def test(self):
-        r"""Test the HTTP server.
-        """
-        # Test the server here if needed
-        c.print(self.state_dict(), color='green')
-        return self
-
     
-    def process_input(self,input: dict) -> bool:
-
-        """
-        INPUT
-        {
-            'data': {
-                'args': [],
-                'kwargs': {},
-                'timestamp': 0,
-            },
-        }
-        
-        
-        """
-        assert 'data' in input, f"Data not included"
-
-        # you can verify the input with the server key class
-        if not self.public:
-            assert 'signature' in input, f"Data not signed"
-            assert self.key.verify(input), f"Data not signed with correct key"
-            input['data'] = self.serializer.deserialize(input['data'])
-
-        if self.verbose:
-            # here we want to verify the data is signed with the correct key
-            request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
-            # verifty the request is not too old
-            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
-            self.access_module.verify(input)
-        
-
-        return input
 
 
     def process_result(self,  result):
@@ -257,5 +255,10 @@ class ServerHTTP(c.Module):
 
 
     def test(self):
-        c.serve('storage')
+        module_name = 'storage::test'
+        module = c.serve(module_name, wait_for_server=True)
+        module = c.connect(module_name)
+        module.put("hey",1)
+        c.kill(module_name)
+
 

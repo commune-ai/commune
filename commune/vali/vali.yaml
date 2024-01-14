@@ -14,7 +14,7 @@ refresh_stats: False
 vote_interval: 100
 sync_interval: 100
 search: null
-batch_size: 20
+batch_size: 32
 max_staleness: 10
 virtual_module: False
 check_loop: True
@@ -50,7 +50,7 @@ start: True
 is_main_worker: True
 max_vote_delay_before_worker_restart: 20
 max_restart_lag: 20
-
+min_num_weights: 32
 
 
 

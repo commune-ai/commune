@@ -429,3 +429,11 @@ class Storage(c.Module):
             self.put_item(k, {'dummy': i})
             assert self.item_exists(k), f'Failed to put {k}'
 
+
+
+    @classmethod
+    def dashboard(cls):
+        st.write('Storage')
+
+
+Storage.run(__name__)

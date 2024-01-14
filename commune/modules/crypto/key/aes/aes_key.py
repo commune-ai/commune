@@ -30,10 +30,10 @@ class AESKey(c.Module):
         enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
-        try:
-            decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-        except UnicodeDecodeError as e:
-            raise Exception('Bro, use another password, this one aint working')
+
+        decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+        
+
         return self.str2python(decrypted_data)
 
     def _pad(self, s):

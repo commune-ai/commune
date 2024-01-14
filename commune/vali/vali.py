@@ -43,7 +43,6 @@ class Vali(c.Module):
         return info
     def run_loop(self):
         
-
         if self.config.start:
             c.print(f'Vali config: {self.config}', color='cyan')
             self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
@@ -110,10 +109,11 @@ class Vali(c.Module):
         self = cls(*args, **kwargs)
         c.new_event_loop(nest_asyncio=True)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
-
+        
         self.running = True
         futures = []
         vote_futures = []
+        backoff_start = c.time()
         while self.running:
 
             if self.last_sync_time + self.config.sync_interval < c.time():
@@ -121,7 +121,6 @@ class Vali(c.Module):
                 self.sync_network()
 
             modules = c.shuffle(c.copy(self.names))
-            time_between_interval = c.time()
             module = c.choice(modules)
 
             # c.sleep(self.config.sleep_time)
@@ -190,9 +189,9 @@ class Vali(c.Module):
             kwargs : the key word arguments
         
         '''
-        info = module.info()
-        assert 'name' in info, f'Info must have a name key, got {info.keys()}'
-        assert 'address' in info, f'Info must have a address key, got {info.keys()}'
+        # info = module.info()
+        # assert 'name' in info, f'Info must have a name key, got {info.keys()}'
+        # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
         return {'success': True, 'w': 1}
 
 
@@ -285,11 +284,12 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
     
-    def calculate_votes(self, tag=None):
+    def calculate_votes(self, tag=None, network = None):
+        network = network or self.config.network
         tag = tag or self.tag
 
         # get the list of modules that was validated
-        module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
+        module_infos = self.module_infos(network=network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
             'weights' : [],  # get all weights where w > 0
@@ -398,6 +398,8 @@ class Vali(c.Module):
         c.print(f'Loading {len(paths)} module infos', color='cyan')
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
+
+        c.print(jobs)
 
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
@@ -659,6 +661,17 @@ class Vali(c.Module):
         module_path = cls.path()
         
         st.title(module_path)
+        vali_modules = c.my_modules(fmt='j', search='vali::')
+        vali_names =  [v['name'] for v in vali_modules]
+        vali_name = st.selectbox('select vali', vali_names)
+        
+        module = vali_name.split("::")[0] if '::' in vali_name else vali_name
+        tag = vali_name.split("::")[-1] if '::' in vali_name else None
+        module = c.module(module)
+        st.write(module)
+        df = c.df(vali_modules)
+        del df['stake_from']
+        st.write(df)
 
         namespace = c.namespace(search=module_path)
         network = 'main'

@@ -19,15 +19,13 @@ class Huggingface(c.Module):
         self.set_config(config)
         self.hf_api = HfApi(self.config.get('hub'))
  
- 
- 
     @classmethod
     def get_tokenizer(cls, model:str=None, *args, **kwargs):
         model = cls.resolve_model(model)
         return AutoTokenizer.from_pretrained(model, *args, **kwargs)
 
     def get_model(self, model_name_or_path:str=None, *args, **kwargs):
-        model = cls.resolve_model(model)
+        model = self.resolve_model(model)
         return AutoModel.from_pretrained(model_name_or_path, *args, **kwargs)
  
  

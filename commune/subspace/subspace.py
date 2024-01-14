@@ -6,8 +6,8 @@ from substrateinterface import SubstrateInterface
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
-from commune.modules.subspace.balance import Balance
-from commune.modules.subspace.utils import (U16_MAX,  is_valid_address_or_public_key, )
+from commune.subspace.balance import Balance
+from commune.subspace.utils import (U16_MAX,  is_valid_address_or_public_key, )
 import streamlit as st
 import json
 import os
@@ -478,29 +478,28 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_stake_to( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , names:bool = True, network=None, **kwargs) -> Optional['Balance']:
+    def get_stake_to( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , network=None, update=False, **kwargs) -> Optional['Balance']:
         network = self.resolve_network(network)
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block, **kwargs )}
+        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update)}
 
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
-            stake_to : int ={ k:v for k, v in stake_to}.get(module_key, 0)
+            stake_to ={ k:v for k, v in stake_to}.get(module_key, 0)
 
-        if names:
-            key2name = self.key2name(netuid=netuid)
-            stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
     
     get_staketo = get_stake_to
     
     def get_value(self, key):
+        key = self.resolve_key_ss58(key)
         value = self.get_balance(key)
-        for netuid in self.netuids():
-            stake_to = self.get_stake_to(key)
+        netuids = self.netuids()
+        for netuid in netuids:
+            stake_to = self.get_stake_to(key, netuid=netuid)
             value += sum(stake_to.values())
-        return value
+        return value    
 
     
 
@@ -787,6 +786,7 @@ class Subspace(c.Module):
         subnet_state['emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs)
         subnet_state['blocks_per_day'] = ( 24*60*60 / (self.block_time))
         subnet_state['daily_emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs) * subnet_state['blocks_per_day']
+        subnet_state['n'] = self.n(netuid=netuid)
 
         for k in ['min_stake', 'max_stake', 'emission', 'daily_emission']:
             subnet_state[k] = self.format_amount(subnet_state[k], fmt=fmt)
@@ -2116,6 +2116,16 @@ class Subspace(c.Module):
     def chains(self, *args, **kwargs):
         return self.chain(*args, **kwargs).chains()
 
+    """
+    #########################################
+                    CHAIN LAND
+    #########################################
+    
+    """
+    ##################
+    #### Register ####
+    ##################
+
     def register(
         self,
         name: str , # defaults to module.tage
@@ -2640,8 +2650,12 @@ class Subspace(c.Module):
         """
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
+        
+        
         key = c.get_key(key)
+        
         name2key = self.name2key(netuid=netuid, update=True)
+        
         if module == None:
             module_key = list(name2key.values())[0]
 
@@ -2651,7 +2665,6 @@ class Subspace(c.Module):
                 module_key = name2key[module]
             else:
                 module_key = module
-
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
@@ -3048,8 +3061,10 @@ class Subspace(c.Module):
 
   
         if len(uids) < min_allowed_weights:
+            n = self.n(netuid=netuid)
             while len(uids) < min_allowed_weights:
-                uid = c.choice(list(range(subnet['n'])))
+                
+                uid = c.choice(list(range(n)))
                 if uid not in uids:
                     uids.append(uid)
                     weights.append(1)
@@ -3206,11 +3221,7 @@ class Subspace(c.Module):
         key_addresses = list(my_balances.keys())[:n]
         address2key = c.address2key()
         return [address2key[k] for k in key_addresses]
-    
-    def my_total_balance(self, search=None, min_value=1000, **kwargs):
-        my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
-        return sum(my_balances.values())
-    
+
     
 
 
@@ -3252,7 +3263,7 @@ class Subspace(c.Module):
        
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
-        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block, update=update)
+        mystaketo = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block, update=update)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
@@ -3277,7 +3288,7 @@ class Subspace(c.Module):
 
 
 
-    def my_balance(self, search:str=None, netuid:int = 0, network:str = 'main', fmt=fmt,  decimals=2, block=None, min_value:int = 0):
+    def my_balance(self, search:str=None, update=False, network:str = 'main', fmt=fmt,  block=None, min_value:int = 0):
 
         balances = self.balances(network=network, fmt=fmt, block=block)
         my_balance = {}
@@ -3298,7 +3309,7 @@ class Subspace(c.Module):
         
     key2balance = myb = mybal = my_balance
 
-    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
+    def my_stake_to(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
         staketo = self.stake_to(netuid=netuid, network=network, block=block, update=update)
         mystaketo = {}
         key2address = c.key2address()
@@ -3310,7 +3321,7 @@ class Subspace(c.Module):
             mystaketo = {k:v for k,v in mystaketo.items() if search in k}
             
         return mystaketo
-    my_stake_to = my_staketo
+    my_staketo = my_stake_to
 
 
     # def my_stakefrom(self, 
@@ -3333,8 +3344,14 @@ class Subspace(c.Module):
     # my_stake_from = my_stakefrom
 
 
-    def my_value(self, network = None,fmt=fmt, decimals=2):
-        return self.my_total_stake(network=network) + self.my_total_balance(network=network)
+    def my_value(
+                 self, 
+                 network = None,
+                 fmt=fmt, 
+                 decimals=2, 
+                 update=False
+                 ):
+        return self.my_total_stake(network=network, update=update) + self.my_total_balance(network=network, update=update)
     
     my_supply   = my_value
 
@@ -3361,15 +3378,27 @@ class Subspace(c.Module):
             subnet2stake[subnet_name] = self.my_total_stake(network=network, netuid=subnet_name , update=update)
         return subnet2stake
 
-    def my_total_stake(self,  network = None,  fmt=fmt, decimals=2, update=False):
-        my_total_stake = 0 
-        for netuid in self.netuids(network=network):
-            my_total_stake +=  sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals, update=update).values())
-        return my_total_stake
-    def my_total_balance(self, network = None, fmt=fmt, decimals=2, update=False):
-        return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
+    def staker2netuid2stake(self,  update=False, network=None, fmt='j', local=False):
+        stake_to_tuples = self.query_map("StakeTo", update=update, network=network)
+        staker2netuid2stake = {}
+        for (netuid, staker), stake_tuples in stake_to_tuples:
+            staker2netuid2stake[staker] = staker2netuid2stake.get(staker, {})
+            staker2netuid2stake[staker][netuid] = staker2netuid2stake[staker].get(netuid, 0)
+            staker2netuid2stake[staker][netuid] = sum(list(map(lambda x: x[-1], stake_tuples )))
+
+        if local:
+            address2key = c.address2key()
+            
+            staker2netuid2stake = {address:staker2netuid2stake[address] for address in address2key.keys()}
+
+        
+        return staker2netuid2stake
+    
 
 
+    def my_total_balance(self, network = None, fmt=fmt, update=False):
+        return sum(self.my_balance(network=network, fmt=fmt, ).values())
+    
     def parity_votes(self, modules=None, netuid: int = 0, network: str = None, n=None) -> int:
         if modules == None:
             modules = self.modules(netuid=netuid, network=network)

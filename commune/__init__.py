@@ -4,7 +4,7 @@ from .module import Module
 # call it whatever you want, but it's the same thing
 Block = Lego = Module
 from .module.config import Config
-from .modules.cli import cli
+from .cli import cli
 # from .model import Model
 config = Config
 import warnings

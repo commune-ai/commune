@@ -23,7 +23,6 @@ class Auth(c.Module):
             c.put_yaml(config_path, self.config_template())
         self.config = c.get_yaml(config_path)
         return self.config
-    
     @staticmethod
     def hash_passwords(passwords):
         import streamlit_authenticator as stauth
@@ -51,14 +50,13 @@ class Auth(c.Module):
 
     def handle_authentication(self):
         name, authentication_status, username = self.authenticator.login('Login', 'main')
-        st.write(name, authentication_status, username)
         if authentication_status:
             self.authenticator.logout('Logout', 'main')
-            st.write(f'Logged In as {username}')
-        elif authentication_status == False:
+            # Handle authenticated user
+        elif authentication_status is False:
             # Handle incorrect username/password
             st.error('Incorrect username/password')
-        elif authentication_status == None:
+        elif authentication_status is None:
             st.info('Please log in')
             # Handle no input case
 
@@ -75,7 +73,6 @@ class Auth(c.Module):
         st.write("This is a module for authenticating users in Streamlit applications.")
         st.write("It is based on the streamlit-authenticator package.")
         self = cls()
-        
         self.handle_authentication()
         st.write(self.config)
         

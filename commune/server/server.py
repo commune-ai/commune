@@ -70,8 +70,6 @@ class Server(c.Module):
                   'name':server_name, 
                   'module':module_path}
 
-
-
     @classmethod
     def test(cls) -> dict:
         servers = c.servers()
@@ -88,70 +86,6 @@ class Server(c.Module):
         assert module_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
 
-    @classmethod
-    def dashboard(cls, network = None, key= None):
-        import pandas as pd
-        self = cls()
-        c.load_style()
-        self.st = c.module('streamlit')
-
-        modules = c.modules()
-        self.servers = c.servers()
-        self.st.line_seperator()
-        module2index = {m:i for i,m in enumerate(modules)}
-
-        with st.sidebar:
-            self.network = st.selectbox('Select Network', ['local', 'remote', 'subspace'], 0, key=f'network')
-            update= st.button('Update')
-
-
-            with st.expander('Add Server'):
-                address = st.text_input('Server Address', '')
-                add_server = st.button('Add Server')
-                if add_server:
-                    c.add_server(address)
-            
-            with st.expander('Remove Server'):
-                server = st.selectbox('Module Name', self.servers, 0)
-                rm_server = st.button('Remove Server')
-                if rm_server:
-                    c.rm_server(server)
-
-        module = st.selectbox('Select a Module', modules, 0, key='select')
-        try:
-            self.module = c.module(module)   
-        except Exception as e:
-            st.error(f'error loading ({module})')
-            st.error(e)
-            return 
-
-
-        self.namespace = c.namespace(network=self.network, update=update)
-        
-
-        launcher_namespace = c.namespace(search='module::', namespace='remote')
-        launcher_addresses = list(launcher_namespace.values())
-
-        pages = ['serve', 'code', 'search', 'playground']
-        # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
-
-        tabs = st.tabs(pages)
-
-        with tabs[0]:
-            self.serve_dashboard(module=self.module)
-        with tabs[1]:
-            self.code_dashboard()
-        with tabs[2]:
-            self.search_dashboard()
-        # with tabs[3]:
-        #     self.playground_dashboard()
-        # for i, page in enumerate(pages):
-        #     with tabs[i]:
-        #         getattr(self, f'{page}_dashboard')()
-
-        module_name = self.module.path()
-        # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-
 
     def serve_dashboard(self, expand=False, module=None):
         if expand:
@@ -159,6 +93,7 @@ class Server(c.Module):
                 return self.serve_dashboard(expand=False, module=module)
 
         if module == None:
+            st.write(c.modules)
             modules = c.modules()
             module = st.selectbox('Select a Module', modules, 0)
             try:
@@ -350,7 +285,10 @@ class Server(c.Module):
                 kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')
             else:
                 kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
-        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        
+        kwargs = cls.process_kwargs(kwargs, fn_schema)  
+        
+             
         
         return kwargs
 
@@ -368,9 +306,84 @@ class Server(c.Module):
         return serve_kwargs.get(server_name, {})
 
     @classmethod
+    def history(cls,server='module',  mode='http'):
+        return c.module(f'server.{mode}').history(server)
+
+    @classmethod
+    def all_history(cls,server='module',  mode='http'):
+        return c.module(f'server.{mode}').all_history()
+
+
+
+    @classmethod
     def has_serve_kwargs(cls, server_name:str, network='local'):
         serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return server_name in serve_kwargs
+
+    @classmethod
+    def dashboard(cls, network = None, key= None):
+        import pandas as pd
+        self = cls()
+        c.load_style()
+        self.st = c.module('streamlit')
+        st.write(c.modules)
+        modules = c.modules()
+        self.servers = c.servers()
+        self.st.line_seperator()
+        module2index = {m:i for i,m in enumerate(modules)}
+
+        with st.sidebar:
+            self.network = st.selectbox('Select Network', ['local', 'remote', 'subspace'], 0, key=f'network')
+            update= st.button('Update')
+
+
+            with st.expander('Add Server'):
+                address = st.text_input('Server Address', '')
+                add_server = st.button('Add Server')
+                if add_server:
+                    c.add_server(address)
+            
+            with st.expander('Remove Server'):
+                server = st.selectbox('Module Name', self.servers, 0)
+                rm_server = st.button('Remove Server')
+                if rm_server:
+                    c.rm_server(server)
+
+        module = st.selectbox('Select a Module', modules, 0, key='select')
+        try:
+            self.module = c.module(module)   
+        except Exception as e:
+            st.error(f'error loading ({module})')
+            st.error(e)
+            return 
+
+
+        self.namespace = c.namespace(network=self.network, update=update)
+        
+
+        launcher_namespace = c.namespace(search='module::', namespace='remote')
+        launcher_addresses = list(launcher_namespace.values())
+
+        pages = ['serve', 'code', 'search', 'playground']
+        # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
+
+        tabs = st.tabs(pages)
+
+        with tabs[0]:
+            self.serve_dashboard(module=self.module)
+        with tabs[1]:
+            self.code_dashboard()
+        with tabs[2]:
+            self.search_dashboard()
+        # with tabs[3]:
+        #     self.playground_dashboard()
+        # for i, page in enumerate(pages):
+        #     with tabs[i]:
+        #         getattr(self, f'{page}_dashboard')()
+
+        module_name = self.module.path()
+        # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+
 
 
 Server.run(__name__)

@@ -424,7 +424,14 @@ class Remote(c.Module):
 
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module', modules=None,  network:str='remote', n:int=None, return_future: bool = False, timeout=20, **kwargs):
+    def call(cls, fn:str='info' , *args, 
+             search:str='module', 
+             modules=None,  
+             network:str='remote',
+             avoid_hosts: str = 'root',
+               n:int=None, 
+               return_future: bool = False, 
+               timeout=20, **kwargs):
         futures = {}
         kwargs['network'] =  network
             

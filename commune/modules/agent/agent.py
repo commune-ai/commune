@@ -107,13 +107,13 @@ class Agent(c.Module):
                 'input': text,
                 'history': history,
                 'tools': tools,
-                'purpose': """ ANSWER THE FOLLOWING""",
                 'confidence': 0,
                 'call_tool': {'tool': None, 'kwargs': None},
                 'answer': None
             }
             output = self.model.generate(json.dumps(prompt), max_tokens=512)
-            c.print(output)
+            if 'data' in output:
+                output = output['data']
             output = json.loads(output)
             prompt.update(output)
             if 'call_tool' in output:
