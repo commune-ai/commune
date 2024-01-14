@@ -131,10 +131,10 @@ class Access(c.Module):
 
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
-        whitelist = self.state.get('whitelist', [])
-        blacklist = self.state.get('blacklist', [])
+        whitelist =  self.module.whitelist
+        blacklist =  self.module.blacklist
 
-        assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist"
+        assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist={whitelist}"
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
         
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT

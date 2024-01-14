@@ -124,6 +124,7 @@ class FineTuner(c.Module):
         if config.load:
             self.load_checkpoint()
 
+
     def set_dataset(self, config):
 
         if c.module_exists(config.dataset.get('module', None)):

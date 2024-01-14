@@ -98,16 +98,7 @@ class Trainer(c.Module):
             
         hyperopt_tag = self.get_hyperopt_tag(hyperparams)
 
-        metric_server.set_metric(hyperopt_tag, output['loss'])
-        
-    
-        model.save(keys=['config'], tag=self.tag)
-        
-        trial_info_dict =  {**output, **hyperparams}
-        
-        trial_info_path =f'experiment/{self.model}/{self.tag}/{hyperopt_tag}.json'
-        model.save(trial_info_path, keys=['config'])
-                
+
         if is_best:
             model.save(tag=self.tag)
             
