@@ -103,32 +103,31 @@ class ServerHTTP(c.Module):
                 signature: the signature of the request
 
             """
-            input['fn'] = fn
-            # you can verify the input with the server key class
-            if not self.public:
-                assert self.key.verify(input), f"Data not signed with correct key"
-            
-            
-            input['data'] = self.serializer.deserialize(input['data'])
-            # here we want to verify the data is signed with the correct key
-            request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
-            # verifty the request is not too old
-            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
-            
-            self.access_module.verify(input)
-
-            data = input['data']
-            args = data.get('args',[])
-            kwargs = data.get('kwargs', {})
-            
-            input_kwargs = dict(fn=fn, 
-                                args=args, 
-                                kwargs=kwargs)
-            fn_name = f"{self.name}::{fn}"
-            c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
-
-
             try:
+                input['fn'] = fn
+                # you can verify the input with the server key class
+                if not self.public:
+                    assert self.key.verify(input), f"Data not signed with correct key"
+                
+                
+                input['data'] = self.serializer.deserialize(input['data'])
+                # here we want to verify the data is signed with the correct key
+                request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
+                # verifty the request is not too old
+                assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+                
+                self.access_module.verify(input)
+
+                data = input['data']
+                args = data.get('args',[])
+                kwargs = data.get('kwargs', {})
+            
+                input_kwargs = dict(fn=fn, 
+                                    args=args, 
+                                    kwargs=kwargs)
+                fn_name = f"{self.name}::{fn}"
+                c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+
                 result = self.forward(**input_kwargs)
                 # if the result is a future, we need to wait for it to finish
             except Exception as e:

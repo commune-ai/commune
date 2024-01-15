@@ -28,7 +28,8 @@ class Client(c.Module):
             key : str = None,
             save_history: bool = True,
             history_path : str = 'history',
-            loop: 'asyncio.EventLoop' = None
+            loop: 'asyncio.EventLoop' = None, 
+            **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
         self.set_client(ip =ip,port = port)

@@ -431,7 +431,7 @@ class Remote(c.Module):
              avoid_hosts: str = 'root',
                n:int=None, 
                return_future: bool = False, 
-               timeout=20, **kwargs):
+               timeout=4, **kwargs):
         futures = {}
         kwargs['network'] =  network
             
