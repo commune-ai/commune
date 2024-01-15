@@ -35,9 +35,7 @@ class Vali(c.Module):
             'errors': self.errors,
             'vote_interval': self.config.vote_interval,
             'epochs': self.epochs,
-            'config': self.config,
             'workers': self.workers()
-        
         }
         return info
     def run_loop(self):
@@ -108,7 +106,7 @@ class Vali(c.Module):
         futures = []
         
         while self.running:
-
+            
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync_network()
@@ -117,18 +115,19 @@ class Vali(c.Module):
             module = c.choice(modules)
 
             # rocket ship emoji
-            future = self.async_eval_module(module=module)
-            futures.append(future)
 
             # if we have enough futures, we want to gather them
-            if len(futures) >= self.config.batch_size:
+            if len(futures) < self.config.batch_size:
+                future = self.async_eval_module(module=module)
+                futures.append(future)
+            else:
                 try:
                     results = c.gather(futures)
                 except Exception as e:
-                    c.print(f'Gather timed out', color='red')
-                    futures = []
-                    continue
-
+                    e = c.detailed_error(e)
+                    c.print(f'Gather error {e}', color='red')
+                futures = []
+                continue
 
             if self.count % 25 == 0 and self.count > 0:
                 stats =  {
@@ -148,12 +147,21 @@ class Vali(c.Module):
 
         if 'subspace' in self.config.network:
             if '.' in self.config.network:
-                chain, netuid = self.config.network.split('.')
-                self.config.network = chain
+                splits = self.config.network.split('.')
+                assert len(splits) == 2, f'Network must be in the form of {{network}}.{{subnet/netuid}}, got {self.config.network}'
+                network, netuid = splits
+                netuid = int(netuid)
+                assert isinstance(netuid, int), f'Netuid must be an int, got {netuid}'
+                self.config.network = network
                 self.config.netuid = netuid
             else: 
-                chain = 'main'
-            self.subspace = c.module('subspace')(network=chain, netuid=self.config.netuid)
+                self.config.chain = 'subspace'
+                network = 'main'
+            self.subspace = c.module('subspace')(network=network, netuid=self.config.netuid)
+            self.name2key = self.subspace.name2key(netuid=self.config.netuid)
+        else:
+    
+            self.name2key = {}
 
         self.namespace = c.namespace(search=self.config.search, 
                                     network=self.config.network, 
@@ -161,11 +169,17 @@ class Vali(c.Module):
                                     update=update)
         self.n  = len(self.namespace)    
         self.addresses = [self.namespace.values()]
-        self.names = [self.namespace.keys()]    
-        self.address2name = {v: k for k, v in self.name2address.items()}    
+        self.names = list(self.namespace.keys())
+        self.address2name = {v: k for k, v in self.namespace.items()}    
         self.last_sync_time = c.time()
-        self.name2key = self.subspace.name2key(netuid=self.config.netuid)
-        return {'namespace': self.namespace}
+        
+        return {
+                'namespace': self.config.network, 
+                'netuid': self.config.netuid, 
+                'n': self.n, 
+                'timestamp': self.last_sync_time
+                }
+        
 
     def score_module(self, module):
         '''
