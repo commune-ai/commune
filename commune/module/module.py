@@ -12,18 +12,14 @@ import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
-from commune.utils.dict import async_get_json
-
-
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # AGI BEGINS 
 class c:
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
-    git_url = 'https://github.com/commune-ai/commune.git'
-    homepath = os.path.expanduser('~')
+    git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
+    homepath = os.path.expanduser('~') # the home path
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
@@ -36,7 +32,15 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_functions = ['info', 'schema','server_name', 'is_admin', 'namespace', 'code', 'fns'] # whitelist of helper functions to load
+    helper_functions = ['info',
+                        'schema',
+                        'server_name',
+                        'is_admin',
+                        'namespace',
+                        'code',
+                        'whitelist', 
+                        'blacklist',
+                        'fns'] # whitelist of helper functions to load
     whitelist = []
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -1626,10 +1630,6 @@ class c:
     def datasets(cls, **kwargs) -> List[str]:
         return c.servers('data',  **kwargs)
     datas = datasets
-    
-    @staticmethod
-    def module_config_tree() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
     @staticmethod
     def is_imported(package:str) :
@@ -1738,11 +1738,6 @@ class c:
         return list(obj.__mro__[1:-1])
 
     @classmethod
-    def module_config_tree(cls):         
-        return {m: c.simple2config(m) for m in c.modules()}
-    
-   
-    @classmethod
     def tmp_dir(cls):
         return f'{c.cache_path()}/{cls.module_path()}'
     storage_dir = tmp_dir
@@ -1778,7 +1773,7 @@ class c:
                              root: bool = False,
                              verbose: bool = False,
                              **kwargs):
-
+        from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
@@ -1903,8 +1898,6 @@ class c:
         paths = c.ls(paths)
 
     
-
-
         # for path in paths:
         #     cls.rm(path)
 
@@ -1921,9 +1914,8 @@ class c:
         assert isinstance(path, str), f'path must be a string, got {type(path)}'
         path = cls.resolve_path(path=path, extension=extension, root=root)
 
-        if not os.path.exists(path) and os.path.exists(path+'.json'):
+        if not os.path.exists(path) and os.path.exists(path+'.'+mode):
             path += f'.{mode}'
-
         if not os.path.exists(path):
             return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
@@ -2015,10 +2007,6 @@ class c:
         return list(path_map.keys())
     
        
-    ftree = walk
-    @classmethod
-    def bt(cls, *args, **kwargs):
-        return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
         return cls.__name__
@@ -2042,7 +2030,6 @@ class c:
         kwargs = c.locals2kwargs(locals())
         return_future = kwargs.pop('return_future', False)
         future = cls.async_connect(**kwargs)
-
         if return_future:
             return future
         return c.gather(future)
@@ -2054,7 +2041,6 @@ class c:
                 namespace = None,
                 mode = server_mode,
                 virtual:bool = False, 
-                verbose: bool = True, 
                 prefix_match: bool = False,
                 key = None,
                 **kwargs ):
@@ -2066,28 +2052,30 @@ class c:
 
         network = c.resolve_network(network)
         key = cls.get_key(key)
-        if c.is_address(module):
+
+        # we dont want to load the namespace if we have the address
+        is_address = c.is_address(module)
+        c.print(is_address)
+        if is_address:
             address = module
         else:
+            # using the namespace to reaolve the address
             namespace = namespace if namespace != None else c.namespace(module, network=network)
             modules = list(namespace.keys())
+            # if we want to match the prefix, then we will match the prefix
             if prefix_match == True:
                 module = c.choice(modules)
-            else:
-                modules = [m for m in modules if m==module]
-                
-            assert len(modules) > 0, f'No modules with {module} found in namespace {namespace.keys()}'
-            address = namespace[module]
 
-        port = address.split(':')[-1]
-        ip = address.replace(f':{port}', '')
+            if module not in namespace:
+                raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
+            address = namespace.get(module, None)
+
+        ip = ':'.join(address.split(':')[:-1])
+        port = int(address.split(':')[-1])
 
         # CONNECT TO THE MODULE
         if 'None' in address:
             raise Exception(f'Invalid address {address}')
-
-        if ip == c.ip():
-            ip = '0.0.0.0'
 
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
 
@@ -2284,6 +2272,7 @@ class c:
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
         conds.append('.' in address and c.is_number(address.split('.')[0]))
+        c.print(conds, address)
         return all(conds)
     
     @classmethod
@@ -3453,8 +3442,9 @@ class c:
                 module:str, 
                 tail: int =100, 
                 verbose: bool=True ,
-                mode: str ='cmd', **kwargs):
-
+                mode: str ='cmd',
+                **kwargs):
+        
         if mode == 'local':
             text = ''
             for m in ['out','error']:
@@ -3463,6 +3453,7 @@ class c:
                 path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, tail=tail)
+                    c.print(text)
                 except Exception as e:
                     c.print(e)
                     continue
@@ -4876,6 +4867,7 @@ class c:
                 network:str = None,
                 key:str = None,
                 kwargs = None,
+                verbose = False,
                 **extra_kwargs
                 ) -> None:
 
@@ -5950,6 +5942,8 @@ class c:
             fn = getattr(module, fn)
         elif callable(fn):
             pass
+        elif isinstance(fn, property):
+            pass
         else:
             raise ValueError(f'fn must be a string or callable, got {type(fn)}')
         # assert callable(fn), 'Is not callable'
@@ -6105,7 +6099,7 @@ class c:
                     name=name, 
                     **extra_launch_kwargs)
         
-        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
+        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp(), 'response': response}
 
     rfn = remote_fn
     @classmethod

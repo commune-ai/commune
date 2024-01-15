@@ -34,18 +34,6 @@ class Access(c.Module):
         self.last_time_synced = c.time()
         self.sync()
         # c.thread(self.sync_loop_thread)
-    
-        
-    # def sync_loop_thread(self):
-    #     while True:
-    #         try:
-    #             self.sync()
-    #         except Exception as e:
-    #             c.print(e, color='red')
-    
-    #         c.sleep(self.config.sync_interval)
-
-
 
     def default_state(self):
         state = {
@@ -63,7 +51,6 @@ class Access(c.Module):
 
         return state
 
-    
     
     def rm_state(self):
         self.put(self.state_path, {})
@@ -111,6 +98,8 @@ class Access(c.Module):
         
         """
         address = input['address']
+        if c.is_admin(address):
+            return {'success': True, 'msg': f'admin {address}'}
         fn = input['fn']
 
         current_time = c.time()
@@ -118,7 +107,6 @@ class Access(c.Module):
         sync_staleness = current_time - self.last_time_synced
         if sync_staleness > self.config.sync_interval:
             self.sync()
-
 
         role2rate = self.state.get('role2rate', {})
         role = self.user_module.get_role(address)
@@ -176,9 +164,7 @@ class Access(c.Module):
 
         # store the user info into the state
         self.state['user_info'][address] = user_info
-        c.print(f'🚨 {address}::{fn} --> {user_info}... 🚨\033', color='yellow')
         self.put(self.state_path, self.state)
-
         assert  passed,  f"Rate limit too high (calls per second) {user_info}, increase your stake to {self.module.key.ss58_address}"
         # check the rate limit
         return user_info

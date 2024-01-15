@@ -77,10 +77,9 @@ class CLI(c.Module):
                 
             else:
                 fn = module
-                
-            
             if callable(fn):
                 result = fn(*args, **kwargs)
+            
                 
         else:
             raise Exception ('No module, function or server found for {args[0]}')

@@ -152,29 +152,7 @@ class Subspace(c.Module):
         return bottom_modules[:n]
     
     worst = worst_modules = bottom_modules
-
-
-    def key2tokens(self, network = None, fmt=fmt, decimals=2):
-        key2tokens = {}
-        key2balance = self.key2balance(network=network, fmt=fmt, decimals=decimals)
-        for key, balance in key2balance.items():
-            if key not in key2tokens:
-                key2tokens[key] = 0
-            key2tokens[key] += balance
-            
-        for netuid in self.netuids():
-            key2stake = self.key2stake(network=network, fmt=fmt, netuid=netuid, decimals=decimals)
-
-            for key, stake in key2stake.items():
-                if key not in key2tokens:
-                    key2tokens[key] = 0
-                key2tokens[key] += stake
-            
-        return key2tokens
-
-
-
-    key2value = key2tokens    
+  
     def names2uids(self, names: List[str] = None, **kwargs ) -> Union['torch.tensor', list]:
         # queries updated network state
         names = names or []
@@ -1104,18 +1082,13 @@ class Subspace(c.Module):
     def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
         return [ v for k,v in self.netuid2subnet(network=network, update=update, block=block, **kwargs).items()]
 
-    def subnet2netuid(self, network=network, **kwargs ) -> Dict[str, str]:
-        records = self.query_map('SubnetNames', network=network, **kwargs)
-        return {v:k for k,v in records}
-
-    subnet_namespace = subnet2netuid
-
-    def subnet2netuid(self,subnet:str = None):
-        subnet2netuid = self.subnet_namespace
+    def subnet2netuid(self, subnet=None, network=network, update=False,  **kwargs ) -> Dict[str, str]:
+        records = self.query_map('SubnetNames', network=network, update=False, **kwargs)
+        subnet2netuid =  {v:k for k,v in records}
         if subnet != None:
-            return subnet2netuid.get(subnet, None)
+            return subnet2netuid[subnet]
         return subnet2netuid
-        
+
 
     def resolve_netuid(self, netuid: int = None, network=network) -> int:
         '''
@@ -1522,31 +1495,9 @@ class Subspace(c.Module):
             subnet_weights = {k:v for k,v in subnet_weights if len(v) > 0}
         return subnet_weights
 
-    def save_weights(self,  netuid = None, nonzero:bool = False, network=network,**kwargs) -> list:
-        netuid = self.resolve_netuid(netuid)
-        subnet_weights =  self.query_map('Weights', params=netuid, network=network, update=True, **kwargs)
-        subnet_weights_sorted = sorted(subnet_weights, key=lambda x: x[0])
-        subnet_weights = [list(map(list,v)) for k,v in subnet_weights_sorted]
-        if nonzero:
-            subnet_weights = {k:v for k,v in subnet_weights if len(v) > 0}
-        return {'success': True, 'weights': subnet_weights}
-    
-    
-
-    def get_weights(self, uid, netuid = None,  **kwargs) -> list:
-        netuid = self.resolve_netuid(netuid)
-        if isinstance(uid, str):
-            uid = self.name2uid(name=uid, netuid=netuid)
-        return self.query('Weights', params=[netuid, uid], **kwargs)
-
-    def num_voters(self, netuid = None, **kwargs) -> list:
-        weights = self.weights(netuid=netuid, **kwargs)
-        return len({k:v for k,v in weights.items() if len(v) > 0})
-            
-    def regprefix(self, prefix, netuid = None, network=None, **kwargs):
-        network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
-        c.servers(network=network, prefix=prefix)
+    def save_weights(self, nonzero:bool = False, network=network,**kwargs) -> list:
+        self.query_map('Weights',network=network, update=True, **kwargs)
+        return {'success': True, 'msg': 'Saved weights'}
 
     def pending_deregistrations(self, netuid = None, **kwargs):
         pending_deregistrations = self.query_map('PendingDeregisterUids', params=netuid, **kwargs)
@@ -1561,11 +1512,7 @@ class Subspace(c.Module):
         if nonzero:
             emissions =[e for e in emissions if e > 0]
         return emissions
-        
-    def nonzero_emission(self, netuid = netuid, network=None, **kwargs):
-        emission = self.emission(netuid=netuid, network=network, **kwargs)
-        nonzero_emission =[e for e in emission if e > 0]
-        return len(nonzero_emission)
+    
 
     def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False, return_dict=False, **kwargs):
         incentive = [v for v in self.query('Incentive', params=netuid, network=network, block=block, update=update, **kwargs)]
@@ -1586,9 +1533,11 @@ class Subspace(c.Module):
         if nonzero:
             trust = [t for t in trust if t > 0]
         return trust
+    
     def last_update(self, netuid = netuid, block=None, network=network, update=False, **kwargs):
         return [v for v in self.query('LastUpdate', params=[netuid], network=network, block=block,  update=update, **kwargs)]
         
+
     def dividends(self, netuid = netuid, network=network, nonzero=False,  update=False, return_dict=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
         dividends =  [v for v in self.query('Dividends', params=netuid, network=network,  update=update,  **kwargs)]
@@ -2169,9 +2118,10 @@ class Subspace(c.Module):
         key = self.resolve_key(key)
 
         # Validate address.
-        netuid = self.get_netuid_for_subnet(subnet)
+        subnet2netuid = self.subnet2netuid()
+        # default to commune
+        netuid = subnet2netuid.get(subnet, 0)
         min_stake = self.min_stake(netuid=netuid, registration=True)
-
 
         # convert to nanos
         min_stake = min_stake + existential_balance
@@ -2192,10 +2142,6 @@ class Subspace(c.Module):
                 } 
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
-
-        if response['success']:
-            response['msg'] = f'Registered {name} with {stake} stake'
-
         return response
 
     reg = register
@@ -2290,15 +2236,11 @@ class Subspace(c.Module):
         return response
 
 
-
-
     def switch_module(self, module:str, new_module:str, n=10, timeout=20):
         stats = c.stats(module, df=False)
-
         namespace = c.namespace(new_module, public=True)
         servers = list(namespace.keys())[:n]
         stats = stats[:len(servers)]
-
 
         kwargs_list = []
 
@@ -2390,8 +2332,6 @@ class Subspace(c.Module):
         network = network,
         nonce = None,
         **params,
-
-
     ) -> bool:
             
         self.resolve_network(network)
@@ -2405,8 +2345,6 @@ class Subspace(c.Module):
             key = c.get_key(key2address.get(subnet_params['founder']))
             c.print(f'Using key: {key}')
 
-    
-
         # remove the params that are the same as the module info
         params = {**subnet_params, **params}
         for k in ['name', 'vote_mode']:
@@ -2417,7 +2355,6 @@ class Subspace(c.Module):
                                      params=params, 
                                      key=key, 
                                      nonce=nonce)
-
 
         return response
 
@@ -2432,8 +2369,6 @@ class Subspace(c.Module):
         network = 'main',
         nonce = None,
         **params,
-
-
     ) -> bool:
 
         self.resolve_network(network)
@@ -2974,55 +2909,6 @@ class Subspace(c.Module):
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
 
-    def vote_pool(self, netuid=None, network=None):
-        my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
-        for m in my_modules:
-            c.vote(m, netuid=netuid, network=network)
-        return {'success': True, 'msg': f'Voted for all modules {my_modules}'}
-
-    
-    def self_votes(self, search=None, netuid: int = None, network: str = None, parity=False, n=20, normalize=False, key=None) -> int:
-        modules = self.my_modules(search=search, netuid=netuid, network=network)
-        uids = [module['uid'] for module in modules]
-        weights = [1 for _ in uids]
-
-
-
-        if parity:
-            votes = self.parity_votes(modules=modules)
-        else:
-            votes =  {'uids': uids, 'weights': weights}
-
-        if n != None:
-            votes['uids'] = votes['uids'][:n]
-            votes['weights'] = votes['weights'][:n]
-
-        return votes
-    
-
-    def self_vote(self, search= None, netuid: int = None, network: str = None, parity=False, n=20, timeout=100, normalize=False, key=None) -> int:
-        votes = self.self_votes(netuid=netuid, network=network, parity=parity, n=n, normalize=normalize, key=key)
-        if key == None:
-            key = self.rank_my_modules(n=1, k='stake')[0]['name']
-        kwargs={**votes, 'key': key, 'netuid': netuid, 'network': network}        
-        return self.vote(**kwargs)
-
-
-
-    def self_vote_pool(self, netuid: int = None, network: str = None, parity=False, n=20, timeout=20, normalize=False, key=None) -> int:
-        keys = [m['name'] for m in self.rank_my_modules(n=n, k='stake')[:n] ]
-        results = []
-        for key in keys:
-            kwargs = {'key': key, 'netuid': netuid, 'network': network, 'parity': parity, 'n': n, 'normalize': normalize}
-            result = self.self_vote(**kwargs)
-            results += [result]
-        return results
-    
-    
-    def vote_parity_loop(self, netuid: int = None, network: str = None, n=20, timeout=20, normalize=False, key=None) -> int:
-        kwargs = {'key': key, 'netuid': netuid, 'network': network, 'parity': True, 'n': n, 'normalize': normalize}
-        return self.self_vote(**kwargs)
-        
 
     def vote(
         self,
@@ -3137,6 +3023,8 @@ class Subspace(c.Module):
                     self.register(name=m)
             except Exception as e:
                 c.print(e, color='red')
+
+        
     reg_servers = register_servers
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
@@ -3191,15 +3079,6 @@ class Subspace(c.Module):
     unreged = unreged_servers = unregistered_servers
                
     
-    def most_valuable_key(self, **kwargs):
-        my_balance = self.my_balance( **kwargs)
-        return  dict(sorted(my_balance.items(), key=lambda item: item[1]))
-    
-    def most_stake_key(self, **kwargs):
-        my_stake = self.my_stake( **kwargs)
-        return  dict(sorted(my_stake.items(), key=lambda item: item[1]))
-
-    
     def my_balances(self, search=None, min_value=1000, fmt='j', **kwargs):
         balances = self.balances(fmt=fmt, **kwargs)
         address2key = c.address2key(search)
@@ -3211,7 +3090,6 @@ class Subspace(c.Module):
             my_balances = {k:v for k,v in my_balances.items() if v >= min_value}
         return my_balances
 
-    
 
     def launcher_key(self, search=None, min_value=1000, **kwargs):
         
@@ -3225,9 +3103,6 @@ class Subspace(c.Module):
         key_addresses = list(my_balances.keys())[:n]
         address2key = c.address2key()
         return [address2key[k] for k in key_addresses]
-
-    
-
 
     def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=50):
         key = self.resolve_key(key)
@@ -3415,21 +3290,6 @@ class Subspace(c.Module):
 
     def my_total_balance(self, network = None, fmt=fmt, update=False):
         return sum(self.my_balance(network=network, fmt=fmt, ).values())
-    
-    def parity_votes(self, modules=None, netuid: int = 0, network: str = None, n=None) -> int:
-        if modules == None:
-            modules = self.modules(netuid=netuid, network=network)
-        # sample inversely proportional to emission rate
-        weights = [module['emission'] for module in modules]
-        uids = [module['uid'] for module in modules]
-        weights = torch.tensor(weights)
-        max_weight = weights.max()
-        weights = max_weight - weights
-        weights = weights / weights.sum()
-        # weights = weights * U16_MAX
-        weights = weights.tolist()
-        return {'uids': uids, 'weights': weights}
-
 
 
     def check_valis(self):
