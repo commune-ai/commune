@@ -343,6 +343,7 @@ class Subspace(c.Module):
                 k = k.value
 
             if return_dict:
+                c.print(k,v)
                 c.dict_put(new_qmap, k, v)
             else:
                 new_qmap.append([k,v])
@@ -967,7 +968,11 @@ class Subspace(c.Module):
         return age
 
      
-    def global_params(self, network: str = network, netuid: int = 0 ) -> Optional[float]:
+    def global_params(self, 
+                      network: str = network,
+                        netuid: int = 0, 
+                         timeout = 5
+                          ) -> Optional[float]:
 
         """
         max_name_length: Option<u16>,
@@ -981,19 +986,35 @@ class Subspace(c.Module):
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         global_params = {}
-        global_params['max_name_length'] = self.query_constant( 'MaxNameLength')
-        global_params['max_allowed_subnets'] = self.query_constant( 'MaxAllowedSubnets')
-        global_params['max_allowed_modules'] = self.query_constant( 'MaxAllowedModules' )
-        global_params['max_registrations_per_block'] = self.query_constant( 'MaxRegistrationsPerBlock' )
-        global_params['unit_emission'] = self.query_constant( 'UnitEmission' )
-        global_params['tx_rate_limit'] = self.query_constant( 'TxRateLimit' )
-        global_params['vote_threshold'] = self.query_constant( 'GlobalVoteThreshold' )
-        global_params['vote_mode'] = self.query_constant( 'VoteModeGlobal' )
-        global_params['max_proposals'] = self.query_constant( 'MaxProposals' )
-        global_params['min_weight_stake'] = self.query_constant( 'MinWeightStake' )
-        global_params['min_stake'] = self.query_constant( 'MinStakeGlobal' )
 
+
+    
+        global_params['burn_rate'] =  'BurnRate' 
+        global_params['max_allowed_modules'] =  'MaxAllowedModules' 
+        global_params['max_allowed_subnets'] =  'MaxAllowedSubnets'
+        global_params['max_name_length'] =  'MaxNameLength'
+        global_params['max_proposals'] =  'MaxProposals'
+        global_params['max_registrations_per_block'] =  'MaxRegistrationsPerBlock' 
+        global_params['min_burn'] =  'MinBurn' 
+        global_params['min_stake'] =  'MinStakeGlobal' 
+        global_params['min_weight_stake'] =  'MinWeightStake'       
+        global_params['tx_rate_limit'] =  'TxRateLimit' 
+        global_params['unit_emission'] =  'UnitEmission' 
+        global_params['vote_threshold'] =  'GlobalVoteThreshold' 
+        global_params['vote_mode'] =  'VoteModeGlobal' 
+
+
+        async def aquery_constant(f):
+            return self.query_constant(f)
+        
         for k,v in global_params.items():
+            global_params[k] = aquery_constant(v)
+        
+        futures = list(global_params.values())
+        results = c.wait(futures, timeout=timeout)
+        global_params = dict(zip(global_params.keys(), results))
+
+        for i,(k,v) in enumerate(global_params.items()):
             global_params[k] = v.value
         return global_params
 
@@ -1976,10 +1997,10 @@ class Subspace(c.Module):
             storage_names = [s for s in storage_names if search in s.lower()]
         return storage_names
     
-    features = ['Keys', 'StakeTo', 'Name', 'Address', 'Emission', 'Incentive', 'Trust', 'Dividends', 'LastUpdate', 'DelegationFee']
+    features = ['Keys', 'StakeTo', 'Name', 'Address', 'Emission', 'Incentive', 'Trust', 'Dividends', 'LastUpdate', 'DelegationFee', 'ProfitShares']
 
     @classmethod
-    def test_query(cls , timeout=20):
+    def get_features(cls , timeout=20):
         feature2result = {}
 
         def fn_query(*args, **kwargs):
@@ -1991,7 +2012,7 @@ class Subspace(c.Module):
 
         futures = list(feature2result.values())
         results = c.wait(futures, timeout=timeout)
-
+        return results
 
 
     @classmethod
@@ -2453,38 +2474,21 @@ class Subspace(c.Module):
     #################
     def update_global(
         self,
-        netuid: int = None,
-        max_name_length: int = None,
-        max_allowed_subnets : int = None,
-        max_allowed_modules: int = None,
-        max_registrations_per_block : int = None,
-        unit_emission : int =None ,
-        tx_rate_limit: int = None,
         key: str = None,
-        network = network,
+        network = 'main',
+        **params,
     ) -> bool:
 
-        self.resolve_network(network)
+        key = self.resolve_key
+        network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        global_params = self.global_params( netuid=netuid )
-        key = self.resolve_key(key)
-
-        params = {
-            'max_name_length': max_name_length,
-            'max_allowed_subnets': max_allowed_subnets,
-            'max_allowed_modules': max_allowed_modules,
-            'max_registrations_per_block': max_registrations_per_block,
-            'unit_emission': unit_emission,
-            'tx_rate_limit': tx_rate_limit
-        }
-
-        # remove the params that are the same as the module info
-        for k, v in params.items():
-            if v == None:
-                params[k] = global_params[k]
-                
+        global_params = self.global_params( )
+        global_params.update(params)
         # this is a sudo call
-        response = self.compose_call(fn='update_global',params=params, key=key, sudo=True)
+        response = self.compose_call(fn='update_global',
+                                     params=params, 
+                                     key=key, 
+                                     sudo=True)
 
         return response
 
