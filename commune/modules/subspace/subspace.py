@@ -337,14 +337,12 @@ class Subspace(c.Module):
             progress.update(1)
             if isinstance(k, tuple):
                 k = [_k.value for _k in k]
-            elif hasattr(v, 'value'):
-                v = v.value
             elif hasattr(k, 'value'):
                 k = k.value
-
+            if hasattr(v, 'value'):
+                v = v.value
             if return_dict:
-                c.print(k,v)
-                c.dict_put(new_qmap, k, v)
+                c.dict_put(new_qmap, str(k), v)
             else:
                 new_qmap.append([k,v])
 
@@ -974,32 +972,20 @@ class Subspace(c.Module):
                          timeout = 5
                           ) -> Optional[float]:
 
-        """
-        max_name_length: Option<u16>,
-		max_allowed_subnets: Option<u16>,
-		max_allowed_modules: Option<u16>,
-		max_registrations_per_block: Option<u16>,
-		unit_emission: Option<u64>,
-		tx_rate_limit: Option<u64>,
-        
-        """
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         global_params = {}
-
-
-    
         global_params['burn_rate'] =  'BurnRate' 
+        global_params['max_name_length'] =  'MaxNameLength'
         global_params['max_allowed_modules'] =  'MaxAllowedModules' 
         global_params['max_allowed_subnets'] =  'MaxAllowedSubnets'
-        global_params['max_name_length'] =  'MaxNameLength'
         global_params['max_proposals'] =  'MaxProposals'
         global_params['max_registrations_per_block'] =  'MaxRegistrationsPerBlock' 
         global_params['min_burn'] =  'MinBurn' 
         global_params['min_stake'] =  'MinStakeGlobal' 
         global_params['min_weight_stake'] =  'MinWeightStake'       
-        global_params['tx_rate_limit'] =  'TxRateLimit' 
         global_params['unit_emission'] =  'UnitEmission' 
+        global_params['tx_rate_limit'] =  'TxRateLimit' 
         global_params['vote_threshold'] =  'GlobalVoteThreshold' 
         global_params['vote_mode'] =  'VoteModeGlobal' 
 
@@ -1015,6 +1001,7 @@ class Subspace(c.Module):
         global_params = dict(zip(global_params.keys(), results))
 
         for i,(k,v) in enumerate(global_params.items()):
+
             global_params[k] = v.value
         return global_params
 
@@ -2479,11 +2466,15 @@ class Subspace(c.Module):
         **params,
     ) -> bool:
 
-        key = self.resolve_key
+        key = self.resolve_key(key)
         network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
         global_params = self.global_params( )
         global_params.update(params)
+        params = global_params
+        for k,v in params.items():
+            if isinstance(v, str):
+                params[k] = v.encode('utf-8')
+
         # this is a sudo call
         response = self.compose_call(fn='update_global',
                                      params=params, 
@@ -2638,7 +2629,6 @@ class Subspace(c.Module):
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
-        old_stake = self.get_stakefrom( module, from_key=key.ss58_address , fmt='j', netuid=netuid, update=True)
         if amount is None:
             amount = old_balance
 
@@ -2653,11 +2643,6 @@ class Subspace(c.Module):
                     }
 
         response = self.compose_call('add_stake',params=params, key=key)
-
-        new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid, update=True)
-        new_balance = self.get_balance(  key.ss58_address , fmt='j', update=True)
-        response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
-
         return response
 
 
@@ -2669,6 +2654,7 @@ class Subspace(c.Module):
             key : 'c.Key' = None,  # defaults to first key
             netuid : Union[str, int] = 0, # defaults to module.netuid
             network: str= None,
+            **kwargs
         ) -> dict:
         """
         description: 
@@ -2723,7 +2709,7 @@ class Subspace(c.Module):
             'netuid': netuid,
             'module_key': module_key
             }
-        response = self.compose_call(fn='remove_stake',params=params, key=key)
+        response = self.compose_call(fn='remove_stake',params=params, key=key, **kwargs)
         
         if response['success']: # If we successfully unstaked.
             new_balance = self.get_balance( key.ss58_address , fmt='j')
