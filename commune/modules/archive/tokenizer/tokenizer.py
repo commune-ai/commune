@@ -55,8 +55,7 @@ class Tokenizer(commune.Module):
         
         config = self.set_config(kwargs=kwargs)
         self.set_tokenizer(config)
-    
-        
+            
     @property
     def device(self):
         return self.config['device']

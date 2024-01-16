@@ -1,5 +1,4 @@
 import commune as c
-from diffusers import DiffusionPipeline
 import torch
 
 class DiffisionPipeline(c.Module):
@@ -8,21 +7,31 @@ class DiffisionPipeline(c.Module):
                     model: str =  'stabilityai/stable-diffusion-xl-base-1.0',
                     variant : str = 'fp16',
                     device: str=  None,
-                    test: bool = True,
+                    use_safetensors:bool = True,
                     **kwargs):
                     
-        self.set_model(model=model, device=device , variant=variant)
+        self.set_model(model=model, 
+                       device=device,
+                       variant=variant, 
+                       use_safetensors=use_safetensors, 
+                       **kwargs)
         self.test()
 
-    def set_model(self, model:str, device:str = None, variant: str = 'fp16'):
-        c.ensure_lib("diffusers")
-        device = device if device != None else f'cuda:{c.most_free_gpu()}' 
+    def set_model(self, model:str, device:str = None, variant: str = 'fp16', use_safetensors=True,**kwargs):
+
+        try:
+            from diffusers import DiffusionPipeline
+        except:
+            self.install()
+            from diffusers import DiffusionPipeline
+
+        device = device if device != None else f'cuda' 
         # load both base & refiner
         self.model = DiffusionPipeline.from_pretrained(model, 
                                                       torch_dtype=torch.float16, 
                                                       variant=variant, 
-                                                      use_safetensors=True).to(device)
-
+                                                      use_safetensors=use_safetensors, 
+                                                      **kwargs).to(device)
 
         self.device = device
         self.variant= variant 
@@ -46,11 +55,13 @@ class DiffisionPipeline(c.Module):
                 output_type=output_type,
             ).images
 
+            return {"images": images}
 
-            return images
+    def install(self):
+        c.ensure_lib("diffusers")
 
 
     def test(self, **kwargs):
-        return self.generate()
+        c.print(type(self.generate(n_steps=1)))
 
 

@@ -12,60 +12,38 @@
 # workers to exit when their work queues are empty and then waits until the
 # threads finish.
 
-
-import os
-import sys
 import time
-import queue
-import random
-import weakref
-import itertools
-import threading
-
-from loguru import logger
-from typing import Callable
-import concurrent
 from concurrent.futures._base import Future
 import commune as c
-import gc
-
-
-
 
 class Task(c.Module):
     def __init__(self, 
-                 fn:str,
+                fn:str,
                 args:list, 
                 kwargs:dict, 
                 timeout:int=10, 
                 priority:int=1, 
-                path=None,
+                save:bool = False,
+                path = None,
                 **extra_kwargs):
         
-        self.path = path
         self.future = Future()
         self.fn = fn # the function to run
-        if self.fn == None:
-            return None
         self.start_time = time.time() # the time the task was created
         self.args = args # the arguments of the task
         self.kwargs = kwargs # the arguments of the task
         self.timeout = timeout # the timeout of the task
         self.priority = priority # the priority of the task
-        self.path = path # the path to store the state of the task
-        self.status = 'pending' # pending, running, done
         self.data = None # the result of the task
-
-        self.fn_name = fn.__name__ # the name of the function
-
+    
+        self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.extra_kwargs = extra_kwargs
+        self.save = save
+        self.status = 'pending' # pending, running, done
         self.__dict__.update(extra_kwargs)
+        # save the task state
 
-        # store the state of the task if a path is given
-        if path != None:
-            self.path = f'{self.path}/{self.fn_name}_utc_{self.start_time}'
-            self.save()
 
     @property
     def lifetime(self) -> float:
@@ -79,19 +57,28 @@ class Task(c.Module):
             'args': self.args,
             'timeout': self.timeout,
             'start_time': self.start_time, 
-            'priority': self.lifetime,
+            'priority': self.priority,
             'status': self.status,
             'data': self.data, 
             **self.extra_kwargs
         }
     
     @property
-    def save(self, path= None):
-        path = path if path else self.path
-        self.put(path, self.state)
-        return {'path': path, 'state': self.state}
-
-
+    def save_state(self):
+        
+        self.path
+        path = f"{self.status}_{self.fn_name}_args={str(self.args)}_kwargs={str(self.kwargs)}"
+        if self.path != None:
+            path = f"{self.path}/{path}"
+        if self.status == 'pending':
+            return self.put(self.status2path[self.status], self.state)
+        elif self.status in ['complete', 'failed']:
+            if c.exists(self.paths['pending']):
+                c.rm(self.paths['pending'])
+            return self.put(self.paths[self.status], self.state)
+        else:
+            raise ValueError(f"Task status must be pending or complete, not {self.status}")
+    
     def run(self):
         """Run the given work item"""
         # Checks if future is canceled or if work item is stale
@@ -100,22 +87,24 @@ class Task(c.Module):
         ):
             self.future.set_exception(TimeoutError('Task timed out'))
 
-        self.status = 'running'
         try:
             data = self.fn(*self.args, **self.kwargs)
-            self.status = 'done'
+            self.status = 'complete'
         except Exception as e:
+
             # what does this do? A: it sets the exception of the future, and sets the status to failed
-            self.status = 'failed'
             data = c.detailed_error(e)
-            c.print(data)
-        
+            if 'event loop' in data['error']: 
+                c.new_event_loop(nest_asyncio=True)
+            self.status = 'failed'
+
         self.future.set_result(data)
         # store the result of the task
+        
         self.data = data       
 
-        if self.path != None:
-            self.save()
+        if self.save:
+            self.save_state()
 
     def result(self) -> object:
         return self.future.result()
@@ -147,5 +136,6 @@ class Task(c.Module):
             return self.priority < other
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
-    
+
+
 

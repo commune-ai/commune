@@ -43,22 +43,23 @@ class ModelTransformer(Model):
                 max_length : int = 256,                        
                 **kwargs):
 
-
+        sample = {}
 
         if isinstance(input_ids, str) or \
                  bool(isinstance(input_ids, list) and len(input_ids) > 0 and isinstance(input_ids[0], str)):
+            # if its a string then tokenize it
             sample = self.tokenize(input_ids)
         elif isinstance(input_ids, torch.Tensor):
             input_ids = input_ids
-        
-        # clip the input ids to the vocab size to avoid index errors
-        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)        
+            # clip the input ids to the vocab size to avoid index errors
+            sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)        
         # forward pass
-        output = self.model(input_ids=sample['input_ids'].to(self.device), output_hidden_states=output_hidden_states, **kwargs)
+        output = self.model(input_ids=input_ids .to(self.device), output_hidden_states=output_hidden_states, **kwargs)
 
-        response = {}
+        response = {
+            'logits': output['logits'],
+        }
 
-        response['logits'] = output['logits']
         if output_hidden_states:
             response['hidden_states'] = output['hidden_states'][hidden_layer].detach()
         if topk:
@@ -67,6 +68,12 @@ class ModelTransformer(Model):
             response['logits']= output['logits'].detach()
         
         return response
+    
+
+    def logit2token(self, logits):
+        logit2token = torch.argmax(logits, dim=0).to_list()
+        return logit2token
+
         
     
     def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
@@ -164,8 +171,6 @@ class ModelTransformer(Model):
                 
         return self.tokenizer
 
-    
-    
     @staticmethod
     def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
         """ Returns topk tokens/probabilities given unnormalized logits as input. """
@@ -175,7 +180,7 @@ class ModelTransformer(Model):
         logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
         probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
 
-        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        topk_indices = torch.argsort(logits, dim=-1, descending=True)[...,:topk]
         # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
 
         topk_values = probs.gather( index=topk_indices, dim=-1)
@@ -367,6 +372,13 @@ class ModelTransformer(Model):
         kwargs = c.fn_defaults(cls.__init__)
         kwargs.pop('self')
         return kwargs
+    
+    def generate_token(self, text, **kwargs):
+        logits = self.forward(text, **kwargs)['logits']
+        next_tokens = self.logit2token(logits)
+        return next_tokens
+
+
 
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
@@ -398,6 +410,9 @@ class ModelTransformer(Model):
             loss = loss.item()
         
         return loss
+    
+
+    
 
 
     def generate_stream(self, text: str, 

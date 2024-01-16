@@ -35,7 +35,6 @@ class Tree(c.Module):
         if isinstance(cls.module_python_paths, list): 
             return cls.module_python_paths
         modules = []
-        failed_modules = []
 
         # find all of the python files
         for f in glob(c.root_path + '/**/*.py', recursive=True):
@@ -46,8 +45,7 @@ class Tree(c.Module):
             if file_ext == '.py':
                 dir_path, file_name = os.path.split(file_path)
                 dir_name = os.path.basename(dir_path)
-                previous_dir_path = dir_path.split('/')[-2]
-                
+
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
