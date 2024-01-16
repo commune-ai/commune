@@ -190,7 +190,7 @@ class Subspace(c.Module):
         return wasm_file_path
 
     def stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='nano'):
-        stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', params=netuid, block=block, update=update, network=network)}
+        stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', params=netuid, block=block, update=update)}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
     
     def my_stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
@@ -292,6 +292,7 @@ class Subspace(c.Module):
                   max_results=100000,
                   module='SubspaceModule',
                   update: bool = True,
+                  return_dict:bool = True
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
 
@@ -326,18 +327,27 @@ class Subspace(c.Module):
                 block_hash =block_hash
             )
 
-        new_qmap = []
-        for k,v in qmap:
+        new_qmap = {} if return_dict else []
+
+        # number of records
+        n = self.n()
+        progress = c.tqdm(desc=f'Querying {name} {n} records')
+
+        for i, (k,v) in enumerate(qmap):
+            progress.update(1)
             if isinstance(k, tuple):
                 k = [_k.value for _k in k]
-            if hasattr(v, 'value'):
+            elif hasattr(v, 'value'):
                 v = v.value
-            if hasattr(k, 'value'):
+            elif hasattr(k, 'value'):
                 k = k.value
-            new_qmap.append([k,v])
 
-        self.put(path, new_qmap)
-                
+            if return_dict:
+                c.dict_put(new_qmap, k, v)
+            else:
+                new_qmap.append([k,v])
+
+        self.put(path, new_qmap)                
         return new_qmap
 
     def runtime_spec_version(self, network:str = 'main'):
@@ -363,9 +373,9 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
-        stakes =  self.query_map('Stake', params=netuid , update=update, **kwargs)
-        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes}
+    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
+        stakes =  self.query_map('Stake', update=update, **kwargs)[netuid]
+        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -1089,6 +1099,7 @@ class Subspace(c.Module):
             return subnet2netuid[subnet]
         return subnet2netuid
 
+    subnet_namespace = subnet2netuid
 
     def resolve_netuid(self, netuid: int = None, network=network) -> int:
         '''
@@ -1443,9 +1454,9 @@ class Subspace(c.Module):
         uid2key = {uid: uid2key[uid] for uid in sorted(uids)}
         return uid2key
 
-    def uid2name(self, netuid: int = None, update=False,  **kwargs) -> List[str]:
+    def uid2name(self, netuid: int = 0, update=False,  **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
-        names = {v[0]: v[1] for v in self.query_map('Name', params=[netuid], update=update,**kwargs)}
+        names = {int(k): v for k,v in self.query_map('Name', update=update,**kwargs)[str(netuid)].items()}
         names = {k: names[k] for k in sorted(names)}
         return names
     
@@ -1488,7 +1499,7 @@ class Subspace(c.Module):
     
     def weights(self,  netuid = None, nonzero:bool = False, network=network, update=False, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        subnet_weights =  self.query_map('Weights', params=netuid, network=network, update=update, **kwargs)
+        subnet_weights =  self.query_map('Weights', network=network, update=update, **kwargs)
         subnet_weights_sorted = sorted(subnet_weights, key=lambda x: x[0])
         subnet_weights = [list(map(list,v)) for k,v in subnet_weights_sorted]
         if nonzero:
@@ -1965,6 +1976,22 @@ class Subspace(c.Module):
             storage_names = [s for s in storage_names if search in s.lower()]
         return storage_names
     
+    features = ['Keys', 'StakeTo', 'Name', 'Address', 'Emission', 'Incentive', 'Trust', 'Dividends', 'LastUpdate', 'DelegationFee']
+
+    @classmethod
+    def test_query(cls , timeout=20):
+        feature2result = {}
+
+        def fn_query(*args, **kwargs):
+            self = cls()
+            return self.query_map(*args,**kwargs)
+
+        for f in cls.features:
+            feature2result[f] = c.submit(fn_query, kwargs=dict(name=f, update=True), timeout=timeout)
+
+        futures = list(feature2result.values())
+        results = c.wait(futures, timeout=timeout)
+
 
 
     @classmethod

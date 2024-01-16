@@ -4902,7 +4902,7 @@ class c:
         futures = []
         for m in modules:
             job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
-            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout, return_future=True)
+            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout)
             futures.append(future)
         responses = c.wait(futures, timeout=timeout)
         return responses
@@ -5123,7 +5123,7 @@ class c:
             futures = []
             for i in range(n):
                 server_kwargs={'tag':tag + str(i), **kwargs}
-                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout, return_future=True)
+                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout)
                 futures = futures + [future]
             
             results =  c.wait(futures, timeout=timeout)
@@ -5170,13 +5170,13 @@ class c:
                 args:list = [], 
                 kwargs: dict = {}, 
                 timeout:int = 20, 
-                return_future:bool=False,
+                return_future:bool=True,
                 init_args : list = [],
                 init_kwargs:dict= {},
                 executor = None,
                 module: str = None,
                 mode:str='thread',
-                max_workers : int = None,
+                max_workers : int = 20,
                 ):
         
         fn = c.get_fn(fn)
@@ -5235,7 +5235,7 @@ class c:
                 if c.is_registered(server_name):
                     c.print(f'Server {server_name} already exists, skipping', color='yellow')
                     continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout, return_future=True)
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
@@ -7748,6 +7748,10 @@ class c:
     @classmethod
     def n(self, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
+
+    @classmethod
+    def query_map(self, *args, **kwargs):
+        return c.module('subspace')().query_map(*args, **kwargs)
     
     @classmethod
     def upgrade_proto(cls, verbose:bool = True):
