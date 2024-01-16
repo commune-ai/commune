@@ -143,7 +143,11 @@ class Vali(c.Module):
 
 
 
-    def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
+    def sync_network(self, 
+                     network:str=None, 
+                     search:str=None,  
+                     netuid:int=None, 
+                     update: bool = False):
 
         if 'subspace' in self.config.network:
             if '.' in self.config.network:
@@ -155,12 +159,12 @@ class Vali(c.Module):
                 self.config.network = network
                 self.config.netuid = netuid
             else: 
-                self.config.chain = 'subspace'
                 network = 'main'
-            self.subspace = c.module('subspace')(network=network, netuid=self.config.netuid)
+                netuid = 0
+                self.config.netuid = netuid
+            self.subspace = c.module("subspace")(network=network, netuid=self.config.netuid)
             self.name2key = self.subspace.name2key(netuid=self.config.netuid)
         else:
-    
             self.name2key = {}
 
         self.namespace = c.namespace(search=self.config.search, 
@@ -217,7 +221,7 @@ class Vali(c.Module):
         
         # emoji = c.emoji('hi')
         computer_emoji = f"\U0001F4BB"
-        c.print(f'Evaluating {computer_emoji} {module_name}', color='cyan')
+        c.print(f'Evaluating {computer_emoji} {module_name}', color='cyan', verbose=self.config.verbose)
 
         if module_address == my_info['address']:
             return {'error': f'Cannot evaluate self {module_address}'}
@@ -257,7 +261,6 @@ class Vali(c.Module):
         module_info['start_timestamp'] = start_timestamp
         module_info['end_timestamp'] = end_timestamp
         module_info['latency'] = end_timestamp - start_timestamp
-        module_info['ss58_address'] = self.name2key.get(module_name, None)
 
         self.save_module_info(module_name, module_info)
 
@@ -399,7 +402,6 @@ class Vali(c.Module):
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
 
-        c.print(jobs)
 
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
@@ -443,57 +445,6 @@ class Vali(c.Module):
     @property
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
-
-
-    def run(self, vote=False):
-
-
-        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
-        c.new_event_loop(nest_asyncio=True)
-        self.running = True
-        futures = []
-        vote_futures = []
-        while self.running:
-
-            if self.last_sync_time + self.config.sync_interval < c.time():
-                c.print(f'Syncing network {self.config.network}', color='cyan') 
-                self.sync_network()
-
-            modules = c.shuffle(c.copy(self.names))
-            module = c.choice(modules)
-
-            # c.sleep(self.config.sleep_time)
-            # rocket ship emoji
-            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan', verbose=self.config.verbose)
-            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
-            futures.append(future)
-
-            if len(futures) >= self.config.max_futures:
-                try:
-                    for future in c.as_completed(futures, timeout=self.config.timeout):
-
-                        try:
-                            result = future.result()
-                        except Exception as e:
-                            result = {'error': c.detailed_error(e)}
-                        futures.remove(future)
-                        self.errors += 1
-                        break
-                except TimeoutError as e:
-                    e = c.print('TimeoutError', color='red', verbose=self.config.verbose)
-
-
-            if self.count % 10 == 0 and self.count > 0:
-                stats =  {
-                'total_modules': self.count,
-                'lifetime': int(self.lifetime),
-                'modules_per_second': int(self.modules_per_second()), 
-                'vote_staleness': self.vote_staleness,
-                'errors': self.errors,
-                'vote_interval': self.config.vote_interval,
-                'epochs': self.epochs,
-                    }
-                c.print(f'STATS  --> {stats}\n', color='white')
 
 
     @property
@@ -655,7 +606,7 @@ class Vali(c.Module):
         import streamlit as st
         # disable the run_loop to avoid the background  thread from running
         self = cls(run_loop=False)
-        module_path = cls.path()
+        module_path = self.path()
         
         st.title(module_path)
         vali_modules = c.my_modules(fmt='j', search='vali::')
@@ -665,14 +616,20 @@ class Vali(c.Module):
         module = vali_name.split("::")[0] if '::' in vali_name else vali_name
         tag = vali_name.split("::")[-1] if '::' in vali_name else None
         module = c.module(module)
-        st.write(module)
+
         df = c.df(vali_modules)
-        del df['stake_from']
-        st.write(df)
+        columns = list(df.columns)
+        columns.pop(columns.index('stake_from'))
+        with st.expander('Columns'):
+            columns = st.multiselect('Select columns',columns ,columns )
+        df = df[columns]
 
         namespace = c.namespace(search=module_path)
         network = 'main'
 
+        st.write(df)
+        c.plot_dashboard(df)
+        
         subspace = c.module('subspace')(network=network)
 
         @st.cache_data
@@ -686,3 +643,4 @@ class Vali(c.Module):
         state = get_state_dict(network=network)
         subnet2netuid = {s['name']: i for i,s in enumerate(state['subnets'])}
         
+Vali.run(__name__)
