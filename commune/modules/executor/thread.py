@@ -58,19 +58,24 @@ class ThreadPoolExecutor(c.Module):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args:dict=None, kwargs:dict=None, timeout=200, return_future:bool=True, path:str=None) -> Future:
+    def submit(self, 
+               fn: Callable,
+                args:dict=None, 
+                kwargs:dict=None, 
+                timeout=200, 
+                return_future:bool=True, 
+                path:str=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
-
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
-
             priority = kwargs.get("priority", 1)
             if "priority" in kwargs:
                 del kwargs["priority"]
+
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
@@ -123,7 +128,6 @@ class ThreadPoolExecutor(c.Module):
 
     @staticmethod
     def worker(executor_reference, work_queue):
-        
         try:
             while True:
                 work_item = work_queue.get(block=True)
@@ -137,7 +141,10 @@ class ThreadPoolExecutor(c.Module):
                 item = work_item[1]
 
                 if item is not None:
-                    item.run()
+                    try:
+                        item.run()
+                    except Exception as e:
+                        c.new_event_loop(nest_asyncio=True)
                     # Delete references to object. See issue16284
                     del item
                     continue

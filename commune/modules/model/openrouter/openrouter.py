@@ -19,9 +19,7 @@ class OpenRouterModule(c.Module):
                 ):
         self.url = url
         self.set_api_key(api_key)
-        self.set_models(model)
-
-    
+        self.set_model(model)
 
         self.model = model
         self.role = role
@@ -29,20 +27,16 @@ class OpenRouterModule(c.Module):
         self.x_title = x_title
         self.max_history = max_history
 
-    def set_models(self, model:str):
-        if model == None:
-            model = c.choice(self.models())
-            self.models = self.self.models()
-        elif 'all' in model:
-            self.models = self.models()
-        elif isinstance(model, str):
-            self.models = self.models(search=model)
-        elif isinstance(model, list):
-            for m in model:
-                assert isinstance(m, str), "Model must be a string"
-                self.models = self.models(search=m)
+    def set_model(self, model:str):
+        self.model_pool = self.models()
 
-        assert isinstance(self.models, list), "Model must be a list"
+        if isinstance(model, str) and \
+                        model not in self.model_pool:
+            self.model_pool = [ m for m in self.model_pool if model in m['id']]
+            
+        assert len(self.model_pool) > 0, f'No models found with {model}'
+        if model == None:
+            model = c.choice(self.model_pool)
 
         return {"status": "success", "model": model, "models": self.models}
         
@@ -69,7 +63,7 @@ class OpenRouterModule(c.Module):
             
                 
 
-        model = model or c.choice(self.models)['id']
+        model = model or c.choice(self.model_pool)['id']
         history = history or []
 
         c.print(f"Generating response with {model}...", color='yellow')
@@ -98,6 +92,8 @@ class OpenRouterModule(c.Module):
         c.print(response)
 
         tokens_per_word = 2
+        if 'choices' not in response:
+            return response
         output_text = response["choices"][0]["message"]["content"]
         output_tokens = output_text * tokens_per_word
 
@@ -132,12 +128,24 @@ class OpenRouterModule(c.Module):
         assert isinstance(api_key, str), "API key must be a string"
         self.api_key = api_key   
 
-    def test(self):
+    def test(self, text = 'Hello', model=None):
         t1 = c.time()
-        response = self.prompt("Hello")
+        if model == None:
+            model = c.choice(self.model_pool)['id']
+        response = self.prompt(text, model=model, text_only=True)
+        if isinstance(response, dict) and 'error' in response:
+            return response
+        tokens_per_second = self.num_tokens(response) / (c.time() - t1)
         latency = c.time() - t1
         assert isinstance(response, str)
-        return {"status": "success", "response": response, 'latency': latency}
+        return {"status": "success", "response": response, 'latency': latency, 'model': model , 'tokens_per_second': tokens_per_second}
+    
+
+    def test_models(self, search=None, timeout=10, models=None):
+        models = models or self.models(search=search)
+        futures = [c.submit(self.test, kwargs=dict(model=m['id']), timeout=timeout) for m in models]
+        results = c.wait(self.test)
+        return results
     
     @classmethod
     def model2info(cls, search:str = None):
@@ -172,11 +180,3 @@ class OpenRouterModule(c.Module):
     def num_tokens(self, text):
         return len(str(text).split(' '))
 
-    @classmethod
-    def sand(cls): 
-        cls.add_api_keys([
-    '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',
-    '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',
-    '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'
-    ])
-    

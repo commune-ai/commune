@@ -169,11 +169,14 @@ class Keypair(c.Module):
             return json.loads(cls.get(path))
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        kwargs['mnemonic'] = mnemonic
+        if mnemonic != None:
+            kwargs['mnemonic'] = mnemonic
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
+        c.print(key_json, mnemonic)
         cls.put(path, key_json)
+
         return  json.loads(key_json)
     
 
@@ -249,7 +252,7 @@ class Keypair(c.Module):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
 
     @classmethod
-    def load_key(cls, path):
+    def load_key(cls, path=None):
         key_info = cls.get(path)
         key_info = c.jload(key_info)
         if key_info['path'] == None:
@@ -320,10 +323,10 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def get_keys(cls, prefix=None):
+    def get_keys(cls, search=None):
         keys = {}
         for key in cls.keys():
-            if str(key).startswith(str(prefix)) or prefix == None:
+            if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
                     keys.pop(key)
@@ -339,13 +342,23 @@ class Keypair(c.Module):
         return key2address
     
     @classmethod
-    def address2key(cls, search:Optional[str]=None):
+    def address2key(cls, search:Optional[str]=None, update=False):
+        path = "address2key"
+
+        if not update:
+            address2key = cls.get(path, None)
+            if address2key != None:
+                return address2key
+
         address2key =  { v: k for k,v in cls.key2address().items()}
         if search in address2key:
             return address2key[search]
         else:
             if search != None:
                 address2key =  {k:v for k,v in address2key.items() if  search in v}
+        
+        cls.put(path, address2key)
+
         return address2key
     
     @classmethod
@@ -486,7 +499,8 @@ class Keypair(c.Module):
     def gen(cls, 
             mnemonic:str = None,
             suri:str = None, 
-            private_key:str = None,
+            password : str = None,
+            private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
             json: bool = False,
             verbose:bool=False,
@@ -498,6 +512,7 @@ class Keypair(c.Module):
 
         if mnemonic == None:
             mnemonic = cls.generate_mnemonic()
+
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
 
@@ -512,9 +527,11 @@ class Keypair(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-        
+
         if json:
             return key.to_json()
+
+    
         
         return key
     
@@ -667,6 +684,7 @@ class Keypair(c.Module):
         Keypair
         """
 
+
         if type(seed_hex) is str:
             seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
 
@@ -689,10 +707,12 @@ class Keypair(c.Module):
             return kwargs 
         else:
             return cls(**kwargs)
-
+    @classmethod
+    def from_password(cls, password:str, **kwargs):
+        return cls.create_from_uri(password, **kwargs)
 
     @classmethod
-    def create_from_uri(
+    def from_uri(
             cls, 
             suri: str, 
             ss58_format: Optional[int] = 42, 
@@ -714,6 +734,7 @@ class Keypair(c.Module):
         Keypair
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
+        suri = str(suri)
         if not suri.startswith('//'):
             suri = '//' + suri
 
@@ -774,7 +795,8 @@ class Keypair(c.Module):
                 derived_keypair = Keypair(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
 
         return derived_keypair
-
+    create_from_uri = from_uri
+    from_mnem = from_mnemonic = create_from_mnemonic
     @classmethod
     def create_from_private_key(
             cls, private_key: Union[bytes, str], public_key: Union[bytes, str] = None, ss58_address: str = None,
@@ -799,6 +821,8 @@ class Keypair(c.Module):
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type
         )
+    from_private_key = create_from_private_key
+
 
     @classmethod
     def create_from_encrypted_json(cls, json_data: Union[str, dict], passphrase: str,
@@ -871,8 +895,15 @@ class Keypair(c.Module):
         }
 
         return json_data
+    
+    seperator = "<DATA::SIGNATURE>"
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], return_json:bool=False) -> bytes:
+    def sign(self, 
+             data: Union[ScaleBytes, bytes, str], 
+             return_json:bool=False,
+             seperator:str = "<DATA::SIGNATURE>",
+             return_str = False,
+             ) -> bytes:
         """
         Creates a signature for given data
 
@@ -917,9 +948,17 @@ class Keypair(c.Module):
                 'address': self.ss58_address,
             }
 
+        if return_str:
+            
+            return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
-
-    def verify(self, data: Union[ScaleBytes, bytes, str, dict], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto_type = None) -> bool:
+    
+    def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
+               signature: Union[bytes, str] = None,
+               public_key:Optional[str]= None, 
+               crypto_type = None,
+               seperator = "<DATA::SIGNATURE>",
+               ) -> bool:
         
         """
         Verifies data with specified signature
@@ -934,7 +973,13 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        if isinstance(data, str) and seperator in data:
+            data, signature = data.split(seperator)
+            c.print(data, 'DALA', signature)
+            signature = bytes.fromhex(signature)
+
         data = c.copy(data)
+
         if isinstance(data, dict):
 
             crypto_type = int(data.pop('crypto_type'))
@@ -943,8 +988,8 @@ class Keypair(c.Module):
             if 'data' in data:
                 data = data.pop('data')
             
-            # if not isinstance(data, str):
-            #     data = c.python2str(data)
+            if not isinstance(data, str):
+                data = c.python2str(data)
             
                 
         if public_key == None:
@@ -959,11 +1004,13 @@ class Keypair(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-
+            
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
+
+        c.print(signature)
 
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
@@ -1014,13 +1061,20 @@ class Keypair(c.Module):
             self._aes_key = c.module('key.aes')(c.bytes2str(password))
         return self._aes_key
 
-    
-    
     def encrypt(self, data: Union[str, bytes], password: str = None, **kwargs) -> bytes:
-        return self.aes_key.encrypt(data, **kwargs)
+        aes_key = self.resolve_aes_key(password)
+        return aes_key.encrypt(data, **kwargs)
 
-    def decrypt(self, data: Union[str, bytes]) -> bytes:
-        return self.aes_key.decrypt(data)
+    def resolve_aes_key(self, password = None):
+        if password != None:
+            aes_key = Keypair.from_password(password).aes_key
+        else: 
+            aes_key = self.aes_key
+        c.print(aes_key.__dict__)
+        return aes_key
+    def decrypt(self, data: Union[str, bytes], password=None) -> bytes:
+        aes_key = self.resolve_aes_key(password)
+        return aes_key.decrypt(data)
 
 
 
@@ -1086,7 +1140,8 @@ class Keypair(c.Module):
     @classmethod
     def test(cls):
         self = cls.create_from_uri('//Alice')
-        test_fns = [fn for fn in dir(self) if fn.startswith('test_')]
+        module_fns = c.fns()
+        test_fns = [fn for fn in dir(self) if fn.startswith('test_') and fn not in module_fns ]
         num_tests = len(test_fns)
         for i, fn in enumerate(test_fns):
             try:
@@ -1103,15 +1158,60 @@ class Keypair(c.Module):
 
     def test_signing(self):
         sig = self.sign('test')
+        c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
+        
+    encrypted_prefix = ''
 
-    def test_encryption(self):
-        for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
-            auth = self.encrypt(o)
-            c.print(auth)
-            assert self.decrypt(auth) == o, f'Encryption failed, {self.decrypt(auth)} != {o}'
-            c.print(f'Passed encryption test for {o}', color='green')
+
+    def encrypt_file(self, path, password=None, prefix=encrypted_prefix):
+        if password == None:
+            password = self.private_key
+        text = c.get_text(path)
+        enc_text =  self.encrypt(text, password=password)
+        enc_text = f'{prefix}{enc_text}'
+        c.put_text(path, enc_text)
+        return {'encrypted':enc_text, 'path':path }
+
+
+
+
+    def decrypt_file(self, path, password=None, prefix=encrypted_prefix):
+        if password == None:
+            password = self.private_key
+        enc_text = c.get_text(path)
+
+        assert enc_text.startswith(prefix), f'file {path} is not encrypted'
+        enc_text = enc_text[len(prefix):]
+        c.print(enc_text, 'ence')
+        dec_text =  self.decrypt(enc_text, password=password)
+        if not isinstance(dec_text, str):
+            dec_text = json.dumps(dec_text)
+        c.put_text(path, dec_text)
+        
+        return {'encrypted':enc_text, 'decrypted': dec_text, 'path':path }
+
+
+    
+    def test_encryption_file(self, n=10, filepath='tests/dummy', value='test'):
+        if n > 1:
+            return [self.test_encryption_file(filepath=filepath, value=value, n=1) for i in range(n)]
+        c.put(filepath, value)
+        
+        auth = self.encrypt_file(filepath)
+        decode = self.decrypt_file(filepath)
+        decoded = c.get(filepath)
+        c.print(decoded, 'decoded')
+        assert decoded == value, f'encryption failed, {decoded} != {value}'
+        c.rm(filepath)
+        assert not c.exists(filepath), f'file {filepath} not deleted'
+        return {'encrypted':auth, 'decrypted': decode, 'path':filepath }
+
+
+
+
+
 
     def test_key_management(self):
         if self.key_exists('test'):
@@ -1131,12 +1231,12 @@ class Keypair(c.Module):
 
     @classmethod
     def getmem(cls, key):
+    
         return cls.get_key(key).mnemonic
     mem = getmem
     def __str__(self):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
-    mems_path = c.repo_path + '/data/keymems.json'
 
     def save(self, path=None):
         if path == None:
@@ -1150,6 +1250,9 @@ class Keypair(c.Module):
         c.cp(self.path, new_path)
         return {'copied':new_path}
     
+    
+    mems_path = c.repo_path + '/data/keymems.json'
+
     @classmethod
     def savemems(cls, path=mems_path):
         c.print(f'saving mems to {path}')
@@ -1161,6 +1264,7 @@ class Keypair(c.Module):
     def loadmems(cls, path=mems_path, **kwargs):
         mems = c.load_json(path)
         for k,mem in mems.items():
+            c.print(k,mems)
             cls.add_key(k, mem, **kwargs)
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
@@ -1168,7 +1272,11 @@ class Keypair(c.Module):
     def mems(cls, search=None):
         mems = {}
         for key in cls.keys():
-            mems[key] = cls.getmem(key)
+            try:
+                mems[key] = cls.getmem(key)
+            except Exception as e:
+                c.print(f'failed to get mem for {key} due to {e}', color='red')
+            
 
         if search:
             mems = {k:v for k,v in mems.items() if search in k or search in v}
@@ -1253,7 +1361,7 @@ class Keypair(c.Module):
 
         
     @staticmethod
-    def is_valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
+    def valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1265,7 +1373,7 @@ class Keypair(c.Module):
         """
 
         try:
-            return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
+            return ss58.valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
         except Exception as e:
             return False
 
@@ -1276,7 +1384,7 @@ class Keypair(c.Module):
 
 
     @classmethod
-    def is_valid_ss58_address(cls, address: str ) -> bool:
+    def valid_ss58_address(cls, address: str ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1341,12 +1449,31 @@ class Keypair(c.Module):
                 return cls.is_valid_ed25519_pubkey( address )
             else:
                 # Assume ss58 address
-                return cls.is_valid_ss58_address( address )
+                return cls.valid_ss58_address( address )
         elif isinstance( address, bytes ):
             # Check if ed25519
             return cls.is_valid_ed25519_pubkey( address )
         else:
             # Invalid address type
             return False
+        
+    def id_card(self, return_json=True,**kwargs):
+        return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
+    
 
+    def test_str_signing(self):
+        sig = self.sign('test', return_str=True)
+        # c.print(''+sig)
+        assert not self.verify('1'+sig)
+        assert self.verify(sig)
+
+    def ticket(self, **kwargs):
+        return self.sign(str(c.timestamp()), return_str=True, **kwargs)
+
+    def verify_ticket(self, ticket, **kwargs):
+        data = ticket.split(self.seperator)[0]
+        return self.verify(ticket, **kwargs)
+    
+
+    
 
