@@ -630,8 +630,6 @@ class Vali(c.Module):
         st.write(df)
         c.plot_dashboard(df)
         
-        subspace = c.module('subspace')(network=network)
-
         @st.cache_data
         def get_state_dict(network='main'):
             subspace = c.module('subspace')(network=network)

@@ -8810,6 +8810,7 @@ class c:
         import plotly.express as px
         import streamlit as st
         cols = list(df.columns)
+        cols = st.multiselect('Select Columns', cols, cols)
         # bar_chart based on x and y
 
         if len(df) == 0:
