@@ -2055,7 +2055,6 @@ class c:
 
         # we dont want to load the namespace if we have the address
         is_address = c.is_address(module)
-        c.print(is_address)
         if is_address:
             address = module
         else:
@@ -2272,7 +2271,6 @@ class c:
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
         conds.append('.' in address and c.is_number(address.split('.')[0]))
-        c.print(conds, address)
         return all(conds)
     
     @classmethod
@@ -3491,7 +3489,6 @@ class c:
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
 
-            c.print(args)
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
             else:
@@ -3569,7 +3566,6 @@ class c:
             module2_code += '\n'
             module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
             module2_code += '\n'
-        c.print('module2_code', module2_code)
         c.put_text(filepath, module2_code)
 
         return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
@@ -8809,9 +8805,10 @@ class c:
     
     ########
     
-    
-    def plot_dashboard(self, df):
-        
+    @classmethod
+    def plot_dashboard(cls, df):
+        import plotly.express as px
+        import streamlit as st
         cols = list(df.columns)
         # bar_chart based on x and y
 
@@ -8855,58 +8852,7 @@ class c:
             fig = plot_fn(df, **plot_kwargs, title=title)    
             st.plotly_chart(fig)
         # st.write(kwargs)
-
-
-    def plot_dashboard(self, df):
         
-        cols = list(df.columns)
-        # bar_chart based on x and y
-
-        if len(df) == 0:
-            st.error('You are not staked to any modules')
-            return 
-        col2idx = {c:i for i,c in enumerate(cols)}
-        defult_x_col = col2idx['name']
-        default_y_col = col2idx['emission']
-
-        plot_kwargs = {}
-
-        st_cols = st.columns([1,3])
-
-        with st_cols[0]:
-            plot_type = st.selectbox('Select Plot Type', ['pie', 'bar', 'line', 'scatter', 'histogram', 'treemap'], 0, key='info.plot')
-
-            if plot_type in [ 'bar', 'line', 'scatter']:
-                plot_kwargs['x'] = st.selectbox('Select X', cols, defult_x_col)
-                plot_kwargs['y'] = st.selectbox('Select Y', cols, default_y_col)
-            elif plot_type in ['histogram']:
-                plot_kwargs['x'] = st.selectbox('Select Value', cols, defult_x_col)
-            elif plot_type in ['pie']:
-                plot_kwargs['names'] = st.selectbox('Select Names', cols, defult_x_col)
-                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
-            elif plot_type in ['treemap']:
-                plot_kwargs['path'] = st.multiselect('Select Path', cols, ["name"])
-                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
-
-
-            sort_type = st.selectbox('Sort Type', cols , 0)
-
-            if sort_type in cols:
-                ascending = st.checkbox('Ascending', False)
-                df = df.sort_values(sort_type, ascending=ascending)
-
-        with st_cols[1]:
-            plot_fn = getattr(px, plot_type)
-            plot_kwargs_title =  " ".join([f"{k.lower()}:{v}" for k,v in plot_kwargs.items()])
-            title = f'My Modules {plot_type} for ({plot_kwargs_title})'
-            fig = plot_fn(df, **plot_kwargs, title=title)    
-            st.plotly_chart(fig)
-        # st.write(kwargs)
-            
-
-
-    
-
 
 Module = c
 Module.run(__name__)
