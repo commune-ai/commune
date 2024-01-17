@@ -221,7 +221,7 @@ class Subspace(c.Module):
     def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3, fmt='nano'):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
-        stake_to =  {k: list(map(list,v)) for k,v in self.query_map('StakeTo', block=block, update=update)[str(netuid)].items()}
+        stake_to =  {k: list(map(list,v)) for k,v in self.query_map('StakeTo', block=block, update=update)[netuid].items()}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
     def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False, netuid=None):
@@ -993,11 +993,11 @@ class Subspace(c.Module):
             futures = list(global_params.values())
             results = c.wait(futures, timeout=timeout)
             global_params = dict(zip(global_params.keys(), results))
-            c.print(global_params)
-            self.put(path, global_params)
 
-        for i,(k,v) in enumerate(global_params.items()):
-            global_params[k] = v.value
+            for i,(k,v) in enumerate(global_params.items()):
+                global_params[k] = v.value
+            
+            self.put(path, global_params)
 
         for k in ['min_stake', 'min_burn', 'unit_emission']:
             global_params[k] = self.format_amount(global_params[k], fmt=fmt)
@@ -1049,18 +1049,19 @@ class Subspace(c.Module):
         )
         return account
     
-    def get_accounts(self, key = None, network=None, update=True):
+    def get_accounts(self, key = None, network=None, update=True, block=None):
         self.resolve_network(network)
         key = self.resolve_key_ss58(key)
         accounts = self.query_map(
             module='System',
             name='Account',
-            update=update
+            update=update,
+            block = block
         )
         return accounts
     
     def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False ) -> Dict[str, Balance]:
-        accounts = self.get_accounts(network=network, update=update)
+        accounts = self.get_accounts(network=network, update=update, block=block)
         balances =  {r[0]:r[1]['data']['free'] for r in accounts}
         balances = {k: self.format_amount(v, fmt=fmt) for k,v in balances.items()}
         return balances
@@ -1998,22 +1999,50 @@ class Subspace(c.Module):
                   'Proposals'
                   ]
 
-    @classmethod
-    def sync(cls , timeout=30, update=True, features=features, block=None):
+    def state_dict(self , timeout=40, network='main', update=False, features=features, block=None):
+        
         feature2result = {}
-        block = block if block != None else cls.block
+
+        self.resolve_network(network)
+
+        block = block if block != None else self.block
+
+        path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
+
+        if not update:
+            state_dict = self.get(path, None)
+            if state_dict != None:
+                return state_dict
 
         def fn_query(*args, **kwargs):
-            self = cls()
+            self = Subspace()
             return self.query_map(*args,**kwargs)
 
         for f in features:
-            feature2result[f] = c.submit(fn_query, kwargs=dict(name=f, update=update), timeout=timeout)
+            feature2result[f] = c.submit(fn_query, kwargs=dict(name=f, update=update, block=block), timeout=timeout)
 
         futures = list(feature2result.values())
-        results = c.wait(futures, timeout=timeout)
-        return {'success': True, 'msg': 'Got features', 'features': features}
+        subnet_params = c.submit(self.subnet_params, kwargs=dict(update=update, block=block))
+        global_params = c.submit(self.global_params, kwargs=dict(update=update, block=block))
+        results = c.wait(futures + [subnet_params, global_params], timeout=timeout)
+        subnet_params, global_params = results[-2:]
+        modules = results[:-2]
+        state_dict = {
+            'block': block,
+            'modules': modules,
+            'global_params': global_params,
+            'subnet_params': subnet_params
 
+        }
+
+        self.put(path, state_dict)
+        response = {"success": True, "msg": f'Saving state_dict to {path}'}
+        
+        return response  # put it in storage
+    
+
+    def sync(self,*args, **kwargs):
+        return self.state_dict(*args, **kwargs)
 
     @classmethod
     def test(cls):
@@ -3299,12 +3328,13 @@ class Subspace(c.Module):
     
 
     def staker2netuid2stake(self,  update=False, network=None, fmt='j', local=False):
-        stake_to_tuples = self.query_map("StakeTo", update=update, network=network)
+        stake_to = self.query_map("StakeTo", update=update, network=network)
         staker2netuid2stake = {}
-        for (netuid, staker), stake_tuples in stake_to_tuples:
-            staker2netuid2stake[staker] = staker2netuid2stake.get(staker, {})
-            staker2netuid2stake[staker][netuid] = staker2netuid2stake[staker].get(netuid, [])
-            staker2netuid2stake[staker][netuid] = sum(list(map(lambda x: x[-1], stake_tuples )))
+        for netuid , stake_to_subnet in enumerate(stake_to):
+            for staker, stake_tuples in stake_to_subnet.items():
+                staker2netuid2stake[staker] = staker2netuid2stake.get(staker, {})
+                staker2netuid2stake[staker][netuid] = staker2netuid2stake[staker].get(netuid, [])
+                staker2netuid2stake[staker][netuid] = sum(list(map(lambda x: x[-1], stake_tuples )))
 
         if local:
             address2key = c.address2key()
