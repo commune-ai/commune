@@ -55,6 +55,7 @@ class Vali(c.Module):
                 if run_info['vote_staleness'] > self.config.vote_interval:
                     if 'subspace' in self.config.network:
                         try:
+                            c.print('voting')
                             self.vote()
                         except Exception as e:
                             c.print('VOTING ERROR ->', color='red')
