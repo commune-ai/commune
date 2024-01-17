@@ -91,8 +91,9 @@ class Router(c.Module):
     def submit(self,
                 module: str = 'module',
                 fn : str = 'info',
-                args:dict=None):
-        return self.call(module=module, fn=fn, args=args, return_future=True)
+                args:dict=None, 
+                kwargs:dict=None):
+        return self.call(module=module, fn=fn, args=args, kwargs=kwargs, return_future=True)
 
     def call(self, 
                 module: str = 'module',

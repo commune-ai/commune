@@ -17,7 +17,6 @@ class OpenAILLM(c.Module):
                 max_tokens : int= 250,
                 max_stats: int= 175,
                 tokenizer: str= 'gpt2',
-                models: List[str]= ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo'],
                 save:bool = False,
                 prompt:bool = None,
                 max_input_tokens: int = 10_000_000,
@@ -113,7 +112,7 @@ class OpenAILLM(c.Module):
     
     def generate(self,
                 prompt:str = 'sup?',
-                model:str = 'gpt-3.5-turbo',
+                model:str = 'gpt-4-vision-preview',
                 presence_penalty:float = 0.0, 
                 frequency_penalty:float = 0.0,
                 temperature:float = 0.9, 
@@ -125,9 +124,7 @@ class OpenAILLM(c.Module):
                 history: list = None,
                 **kwargs) -> str:
         t = c.time()
-        if not model in self.config.models:
-            f"Model must be one of {self.config.models}"
-        
+
         openai.api_key = api_key or self.api_key
 
         params = dict(
@@ -188,7 +185,7 @@ class OpenAILLM(c.Module):
     
     
     @classmethod
-    def tokens_per_period(cls, timescale='m'):
+    def tokens_per_period(cls, timescale='day'):
         stats = cls.stats()
 
         if timescale == 's':
@@ -197,24 +194,24 @@ class OpenAILLM(c.Module):
             period = 60
         elif timescale == 'h':
             period = 3600
+        elif timescale == 'day':
+            period = 3600 * 24
         else:
             raise NotImplemented(timescale)
-        
-
         
         one_hour_ago = c.time() - period
         stats = [s for s in stats if s['timestamp'] > one_hour_ago]
         tokens_per_period = sum([s['input_tokens'] + s['output_tokens'] for s in stats])
         return tokens_per_period
 
-    def add_stats(self, tag:str, stats:dict,  ):
+    def add_stats(self, tag:str, stats:dict):
         self.put(f'stats/{tag}.json', stats)
         saved_stats_paths = self.ls('stats')
         if len(saved_stats_paths) > self.config.max_stats:
             # remove the oldest stat
             sorted(saved_stats_paths, key=lambda x: int(x.split('.')[0]))
             self.rm(saved_stats_paths[0])
-
+            
         return {'msg': f"Saved stats for {tag}", 'success': True}
 
     forward = call = generate
@@ -291,23 +288,6 @@ class OpenAILLM(c.Module):
         self.tokenizer = tokenizer
     
         return self.tokenizer
-
-    def decode_tokens(self,input_ids: Union[torch.Tensor, List[int]], **kwargs) -> Union[str, List[str], torch.Tensor]:
-        return self.tokenizer.decode(input_ids, **kwargs)
-    
-    def encode_tokens(self, 
-                 text: Union[str, List[str], torch.Tensor], 
-                 return_tensors='pt', 
-                 padding=True, 
-                 truncation=True, 
-                 max_length=256,
-                 **kwargs):
-        
-        return self.tokenizer(text, 
-                         return_tensors=return_tensors, 
-                         padding=padding, 
-                         truncation=truncation, 
-                         max_length=max_length)
 
     @classmethod
     def validate(cls, text = 'What is the meaning of life?', max_tokens=10):

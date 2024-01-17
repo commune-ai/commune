@@ -79,20 +79,12 @@ class c:
     
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
-        import inspect
         # odd case where the module is a module in streamlit
         obj = cls.resolve_module(obj)
-        try:
-            module_path =  inspect.getfile(obj)
-        except Exception as e:
-            if 'source code not available' in str(e):
-                return cls.class_name()
-            else: 
-                raise e
-     
+        module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
-            return cls.path2simple(path=module_path)
+            module_path = cls.path2simple(module_path)
         return module_path
     
     @classmethod
@@ -226,13 +218,23 @@ class c:
         return fn_code_map
     
     @classmethod
-    def fn_code(cls,fn:str, detail:bool=False, ) -> str:
+    def fn_code(cls,fn:str, 
+                detail:bool=False, 
+                seperator: str = '/'
+                ) -> str:
         '''
         Returns the code of a function
         '''
+
+        if seperator in fn:
+            module_path, fn = fn.split(seperator)
+            module = c.module(module_path)
+            fn = getattr(module, fn)
+        else:
+            fn = getattr(cls, fn)
         
         
-        code_text = inspect.getsource(getattr(cls, fn))
+        code_text = inspect.getsource(fn)
         text_lines = code_text.split('\n')
         if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
             text_lines.pop(0)
@@ -356,24 +358,7 @@ class c:
         assert not self.exists(k)
         assert not os.path.exists(self.resolve_path(k))
         return {'success': True, 'msg': 'test_file passed'}
-    @classmethod
-    def decrypt_path(cls, path:str, key=None, password=None, prefix=encrypted_prefix) -> str:
-        '''
-        Encrypts the path
-        '''
-        path = cls.resolve_path(path)
-        text = c.get_text(path)
-        c.print(f'text: {text}')
-        assert text.startswith(prefix), f'path {path} is not encrypted'
-        text = text[len(prefix):]
-        c.print(text)
-        encrypted_text = c.decrypt(text, key=key, password=password)
-        c.print(f'encrypted_text: {encrypted_text}')
-        c.print(f'encrypted_text: {encrypted_text}')
-        # c.put_text(path, encrypted_text)
-
-        return {'success': True, 'msg': f'encrypted {path}'}
-        
+ 
 
     def is_encrypted_path(self, path:str, prefix=encrypted_prefix) -> bool:
         '''
@@ -383,8 +368,6 @@ class c:
         text = c.get_text(path)
         return text.startswith(prefix)
 
-
-    
     @classmethod
     def put(cls, 
             k, 
@@ -1512,8 +1495,6 @@ class c:
 
         return module_tree
     
-
-
     tree_folders_path = 'module_tree_folders'
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
@@ -1524,7 +1505,6 @@ class c:
         assert isinstance(tree_folder, list)
         c.put(path, tree_folder, **kwargs)
         return {'module_tree_folders': tree_folder}
-    
     
     @classmethod
     def rm_tree(cls, tree_path:str, **kwargs):
@@ -1537,6 +1517,12 @@ class c:
     @classmethod
     def simple2path(cls, path:str, **kwargs) -> str:
         tree = c.tree(**kwargs)
+        if path not in tree:
+            shortcuts = c.shortcuts()
+            if path in shortcuts:
+                path = shortcuts[path]
+            else:
+                raise Exception(f'Could not find {path} in {len(list(tree.keys()))} modules')
         return tree[path]
     
     @classmethod
@@ -2096,7 +2082,7 @@ class c:
         try:
             if not c.server_exists(name, network=network):
                 c.serve(name, network=network, wait_for_server=True, **kwargs)
-            address = c.call('module', 'address', network=network, timeout=timeout)
+            address = c.call('module/address', network=network, timeout=timeout)
             ip = c.ip()
             address = ip+':'+address.split(':')[-1]
         except Exception as e:
@@ -2740,9 +2726,6 @@ class c:
         
         return default_value_map   
     
-
-
-    
     def is_fn_allowed(self, fn_name:str) -> bool:
         whitelist = self.whitelist
         blacklist = self.blacklist
@@ -2879,7 +2862,6 @@ class c:
         '''
         Get function schema of function in cls
         '''
-        import inspect
         fn_schema = {}
         fn = cls.get_fn(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
@@ -3020,32 +3002,14 @@ class c:
     def self_restart(self):
         c.restart(self.server_name)
         
-    @classmethod
-    def set_shortcut(cls, shortcut: str, kwargs: dict) -> dict:
-        self.shortcuts = self.get_shortcuts()
-        # remove shortcut if it exists
-        kwargs.pop('shortcut', None)
-        cls.shortcuts[shortcut] = kwargs
-        self.put_json('shortcuts', cls.shortcuts)
-        
-        return kwargs
-    
-    @classmethod
-    def get_shortcut(cls, shortcut:str) -> dict:
-        cls.shortcuts = cls.get_shortcuts()
-        kwargs =  cls.shortcuts.get(shortcut, None)
-        return kwargs
-    
-    def get_shortcuts(cls) -> dict:
-        return cls.get_json('shortcuts')
 
     @classmethod
-    def has_shortcut(cls, shortcut:str):
-        return cls.get_shortcut(shortcut) != None
-    
+    def get_shortcut(cls, shortcut:str) -> dict:
+        return cls.shortcuts().get(shortcut)
+ 
     @classmethod
     def rm_shortcut(cls, shortcut) -> str:
-        shortcuts = cls.get_shortcuts()
+        shortcuts = cls.shortcuts()
         if shortcut in shortcuts:
             cls.shortcuts.pop(shortcut)
             cls.put_json('shortcuts', cls.shortcuts)
@@ -3071,8 +3035,10 @@ class c:
         if update:
             cls.update()
 
-        kwargs = kwargs if kwargs else {}
-        args = args if args else []
+        kwargs = kwargs or {}
+        args = args or []
+
+        # if module is not specified, use the current module
         if module == None:
             module = cls 
         elif isinstance(module, str):
@@ -3081,11 +3047,11 @@ class c:
 
         # resolve the name
         if name == None:
+            # if the module has a module_path function, use that as the name
             if hasattr(module, 'module_path'):
                 name = module.module_path()
             else:
                 name = module.__name__.lower() 
-                
             # resolve the tag
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
@@ -3109,157 +3075,6 @@ class c:
     
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
-   
-
-    
-    @classmethod
-    def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
-        futures = []
-        for name in cls.pm2_list(search=search):
-            c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
-            f = c.submit(c.pm2_kill, kwargs=dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
-            futures.append(f)
-        return c.wait(futures)
-    
-    @classmethod
-    def pm2_kill_all(cls, verbose:bool = True, timeout=10):
-        return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
-                
-    @classmethod
-    def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
-        output_string = cls.run_command('pm2 status', verbose=False)
-        module_list = []
-        for line in output_string.split('\n'):
-            if '│ default     │ ' in line:
-                server_name = line.split('│')[2].strip()
-                # fixes odd issue where there is a space between the name and the front 
-                server_name = server_name.split(' ')[-1]
-                module_list += [server_name]
-                
-        
-        if search:
-            if isinstance(search, str):
-                search = [search]
-            elif isinstance(search, list):
-                pass
-                assert all([isinstance(s, str) for s in search]), 'search must be a list of strings'
-                
-            search_true = lambda x: any([s in x for s in search])
-            module_list = [m for m in module_list if search_true(m)]
-                
-        return module_list
-
-    lspm2 = ls_pm2 = pm2ls = pm2_ls = pm2list = pm2_list
-    # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
-    
-    
-    @classmethod
-    def pm2_exists(cls, name:str) -> bool:
-        return bool(name in cls.pm2_list())
-    
-    @staticmethod
-    def pm2_start(path:str , 
-                  name:str,
-                  cmd_kwargs:str = None, 
-                  refresh: bool = True,
-                  verbose:bool = True,
-                  force : bool = True,
-                  interpreter : str = None,
-                  **kwargs):
-        if c.pm2_exists(name) and refresh:
-            c.pm2_kill(name, verbose=verbose)
-            
-        cmd = f'pm2 start {path} --name {name}'
-        if force:
-            cmd += ' -f'
-            
-        if interpreter != None:
-            cmd += f' --interpreter {interpreter}'
-            
-        if cmd_kwargs != None:
-            cmd += f' -- '
-            if isinstance(cmd_kwargs, dict):
-                for k, v in cmd_kwargs.items():
-                    cmd += f'--{k} {v}'
-            elif isinstance(cmd_kwargs, str):
-                cmd += f'{cmd_kwargs}'
-                
-
-        c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
-            
-        return c.cmd(cmd, verbose=verbose,**kwargs)
-        
-    @classmethod
-    
-    def pm2_launch(cls, 
-                   module:str = None,  
-                   fn: str = 'serve',
-                   name:Optional[str]=None, 
-                   tag : str = None,
-                   args : list = None,
-                   kwargs: dict = None,
-                   device:str=None, 
-                   interpreter:str='python3', 
-                   auto: bool = True,
-                   verbose: bool = False , 
-                   force:bool = True,
-                   meta_fn: str = 'module_fn',
-                   tag_seperator:str = '::',
-                   refresh:bool=True ):
-
-        if module == None:
-            module = cls.module_path()
-        elif hasattr(module, 'module_path'):
-            module = module.module_path()
-            
-        # avoid these references fucking shit up
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-
-        # convert args and kwargs to json strings
-        kwargs =  {
-            'module': module,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs
-            
-        }
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-
-        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
-
-
-        if refresh:
-            cls.pm2_kill(name)
-            
-        
-        
-        # build command to run pm2
-        command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
-
-        if not auto:
-            command = command + ' ' + '--no-autorestart'
-        if force:
-            command += ' -f '
-        command = command + ''
-
-        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
-        env = {}
-        if device != None:
-            if isinstance(device, int):
-                env['CUDA_VISIBLE_DEVICES']=str(device)
-            if isinstance(device, list):
-                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-                
-        if refresh:
-            cls.pm2_kill(name)  
-
-        if verbose:
-            c.print(f'Launching {module} with command: {command}', color='green')
-            
-        stdout = c.cmd(command, env=env, verbose=verbose)
-        
-        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
 
     @classmethod
     def register(cls,  
@@ -3280,12 +3095,10 @@ class c:
             if isinstance(module, str) and  '::' in module:
                 module, tag = module.split('::')
             name = cls.resolve_server_name(module=module, tag=tag)
-            if not c.key_exists(name):
-                c.add_key(name)
+
             if c.server_exists(name, network='local') and refresh == False:
                 c.print(f'Server already Exists ({name})')
                 address = c.get_address(name)
-            
             else:
                 module = cls.resolve_module(module)
                 serve_info =  module.serve(
@@ -3294,11 +3107,17 @@ class c:
                                     refresh=refresh, 
                                     tag=tag,
                                     **kwargs)
+                
                 name = serve_info['name']
                 address = serve_info['address']
                 module_key = c.get_key(name).ss58_address
 
-        response =  subspace.register(name=name, address=address, subnet=subnet, key=key, stake=stake, module_key=module_key)
+        response =  subspace.register(name=name,
+                                      address=address, 
+                                      subnet=subnet, 
+                                      key=key, 
+                                      stake=stake, 
+                                      module_key=module_key)
         return response
 
     @classmethod
@@ -3309,29 +3128,6 @@ class c:
     def key2stats(cls, *args, **kwargs):
         return c.module('subspace')().key_stats(*args, **kwargs)
 
-    
-    r = reg = register
-    @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        pm2_list = cls.pm2_list()
-        rm_list = []
-        if name in pm2_list:
-            rm_list = [name]
-
-        if prefix_match:
-            rm_list = [ p for p in pm2_list if p.startswith(name)]
-
-        if len(rm_list) == 0:
-            return {'success':False, 'message':f'No pm2 processes found for {name}'}
-        for n in rm_list:
-            if verbose:
-                c.print(f'Killing {n}', color='red')
-            cls.cmd(f"pm2 delete {n}", verbose=False)
-            # remove the logs from the pm2 logs directory
-            cls.pm2_rm_logs(n)
-
-        return {'success':True, 'killed':rm_list, 'message':f'Killed {name}'}
-    
     @staticmethod
     def detailed_error(e) -> dict:
         import traceback
@@ -3349,39 +3145,41 @@ class c:
         return response
     
     @classmethod
+    def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
+        return c.module('pm2').kill_many(search=search, verbose=verbose, timeout=timeout)
+    
+    @classmethod
+    def pm2_kill_all(cls, verbose:bool = True, timeout=10):
+        return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
+                
+    @classmethod
+    def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
+        return  c.module('pm2').list(verbose=verbose)
+    pm2ls  = pm2_list
+    # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
+    
+    @classmethod
+    def pm2_exists(cls, name:str) -> bool:
+        return c.module('pm2').exists(name=name)
+    
+    @classmethod
+    def pm2_start(cls, *args, **kwargs):
+        return c.module('pm2').start(*args, **kwargs)
+    
+    @classmethod
+    def pm2_launch(cls, *args, **kwargs):
+        return c.module('pm2').launch(*args, **kwargs)
+                              
+    @classmethod
     def pm2_restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        pm2_list = cls.pm2_list()
-        if name in pm2_list:
-            rm_list = [name]
-        else:
-            if prefix_match:
-                rm_list = [ p for p in pm2_list if p.startswith(name)]
-            else:
-                raise Exception(f'pm2 process {name} not found')
-
-        if len(rm_list) == 0:
-            return []
-        for n in rm_list:
-            c.print(f'Restarting {n}', color='cyan')
-            c.cmd(f"pm2 restart {n}", verbose=False)
-            cls.pm2_rm_logs(n)  
-        return {'success':True, 'message':f'Restarted {name}'}
-       
+        return c.module('pm2').restart(name=name, verbose=verbose, prefix_match=prefix_match)
     @classmethod
     def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
-        pm2_list = cls.pm2_list()
-            
-        restarted_modules = []
-        
-        for module in pm2_list:
-            if module.startswith(name) or name in ['all']:
-                if verbose:
-                    c.print(f'Restarting {module}', color='cyan')
-                c.cmd(f"pm2 restart {module}", verbose=verbose)
-                restarted_modules.append(module)
-        
-        return restarted_modules
-            
+        return c.module('pm2').restart_prefix(name=name, verbose=verbose)  
+    
+    @classmethod
+    def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
+        return c.module('pm2').kill(name=name, verbose=verbose, prefix_match=prefix_match)
     
     @classmethod
     def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
@@ -3396,7 +3194,6 @@ class c:
 
     update_self = restart_self
 
-
     def kill_self(self):
         """
         Helper function to kill the server
@@ -3406,34 +3203,14 @@ class c:
     refresh = reset = restart
     @classmethod
     def pm2_status(cls, verbose=True):
-        stdout = cls.run_command(f"pm2 status")
-        if verbose:
-            c.print(stdout,color='green')
-        return stdout
+        return c.module('pm2').status(verbose=verbose)
 
-    pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
     def pm2_logs_path_map(cls, name=None):
-        pm2_logs_path_map = {}
-        for l in c.ls(f'{cls.pm2_dir}/logs/'):
-            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
-            pm2_logs_path_map[key] = pm2_logs_path_map.get(key, []) + [l]
-
-    
-        for k in pm2_logs_path_map.keys():
-            pm2_logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(pm2_logs_path_map[k])}
-
-        if name != None:
-            return pm2_logs_path_map.get(name, {})
-
-        return pm2_logs_path_map
-
+        return c.module('pm2').logs_path_map(name=name)
     @classmethod
     def pm2_rm_logs( cls, name):
-        pm2_logs_map = cls.pm2_logs_path_map(name)
-
-        for k in pm2_logs_map.keys():
-            c.rm(pm2_logs_map[k])
+        return c.module('pm2').rm_logs(name=name)
 
     @classmethod
     def pm2_logs(cls, 
@@ -3442,25 +3219,13 @@ class c:
                 verbose: bool=True ,
                 mode: str ='cmd',
                 **kwargs):
-        
-        if mode == 'local':
-            text = ''
-            for m in ['out','error']:
-
-                # I know, this is fucked 
-                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
-                try:
-                    text +=  c.get_text(path, tail=tail)
-                    c.print(text)
-                except Exception as e:
-                    c.print(e)
-                    continue
-            
-            return text
-        elif mode == 'cmd':
-            return cls.run_command(f"pm2 logs {module}", verbose=verbose)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
+        return c.module('pm2').logs(module=module,
+                                     tail=tail, 
+                                     verbose=verbose, 
+                                     mode=mode, 
+                                     **kwargs)
+    
+    
     @staticmethod
     def memory_usage(fmt='gb'):
         fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
@@ -3501,9 +3266,6 @@ class c:
                     return
 
                 return getattr(cls, args.function)(*args.args, **args.kwargs)     
-
-    
-    
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -4719,7 +4481,6 @@ class c:
             cls.hash_module = cls.get_module('crypto.hash')()
         return cls.hash_module(data, mode=mode, **kwargs)
     
-    default_password = 'bitconnect'
 
     @classmethod
     def readme_paths(cls):
@@ -4739,45 +4500,26 @@ class c:
         return c.get_text(readme_paths[0])
 
     @classmethod
-    def resolve_password(cls, password: str) -> str:
-        if password == None:
-            password = cls.default_password
-            
-            
-        password = cls.python2str(password)
-        assert isinstance(password, str), f'Password must be a string , not {type(password)}'
-        return password
-
-
-    @classmethod
     def encrypt(cls, 
                 data: Union[str, bytes],
                 key: str = None, 
                 password: str = None,
+                **kwargs
                 ) -> bytes:
-        
         """
         encrypt data with key
         """
-        if password == None:
-            key = c.module('key').from_password(password)
-
         key = c.get_key(key)
-        path = None
-        if c.exists(data):
-            path = data
-            data =  c.get_text(data)
+        return key.encrypt(data, password=password,**kwargs)
+    
 
-        data = c.python2str(data)
-
-        c.print(f'Encrypting {data} with {key}', color='cyan')
-
-        encrypted_data = key.encrypt(data, password=password)
-
-        if path != None:
-            c.put_text(path, encrypted_data)
-
-        return encrypted_data
+    def test_encrypt(self):
+        data = 'hello world'
+        password = 'bitconnect'
+        encrypted = self.encrypt(data, password=password)
+        decrypted = self.decrypt(encrypted, password=password)
+        assert data == decrypted, f'Encryption failed. {data} != {decrypted}'
+        return {'success': True, 'msg': 'Encryption successful'}
     
 
     @classmethod
@@ -4785,30 +4527,9 @@ class c:
                 data: Union[str, bytes],
                 key: str = None, 
                 password : str = None,
-                include_files:bool = True,
-                path=None) -> bytes:
-
-
+                **kwargs) -> bytes:
         key = c.get_key(key)
-        if c.exists(data) and include_files:
-            c.print(f'Decrypting from {data} as it exists', color='cyan')
-            path = data
-            data =  c.get_text(path)
-        try:
-            c.print(key, password)
-            data = key.decrypt(data, password=password)
-            c.print(data, 'hey')
-        except Exception as e:
-            c.print(e)
-            response = c.detailed_error(e)
-            return response
-        if path != None:
-            c.put_text(path, c.python2str(data))
-            if isinstance(data, str):
-                data = c.str2dict(data)['data']
-                
-            
-        return data
+        return key.decrypt(data, password=password, **kwargs)
     
     @classmethod
     def put_cache(cls,k,v ):
@@ -4825,30 +4546,26 @@ class c:
     
     @classmethod
     def call(cls, module : str, 
-                fn : str = 'info',
-                *args,
+                fn:str = None,*args,
                 timeout : int = 10,
                 prefix_match:bool = False,
                 network:str = None,
                 key:str = None,
                 kwargs = None,
-                n = 1,
                 return_future:bool = False,
                 **extra_kwargs) -> None:
-        
-        client_kwargs = { 'network': network,
+
+        client_kwargs = { 
+                          'network': network,
                           'prefix_match': prefix_match,
                           'network': network,
                           'key': key,
                           'kwargs': kwargs,
                           'timeout': timeout,
                           **extra_kwargs}
-        if '/' in module:
-            args = [fn, *args]
-        if n > 1:
-            futures = [ c.async_call(module, fn, *args,**client_kwargs) for i in range(n)]
-        else:
-            futures = c.async_call(module, fn , *args, **client_kwargs)
+
+        
+        futures = c.async_call(module, fn, *args, **client_kwargs)
         if return_future:
             return futures
         return c.gather(futures, timeout=timeout)
@@ -4856,7 +4573,7 @@ class c:
     @classmethod
     async def async_call(cls,
                 module : str, 
-                fn : str = 'info',
+                fn : str = None,
                 *args,
                 timeout : int = 10,
                 prefix_match:bool = False,
@@ -4864,9 +4581,18 @@ class c:
                 key:str = None,
                 kwargs = None,
                 verbose = False,
+                default_fn = 'info',
                 **extra_kwargs
                 ) -> None:
-
+  
+        if '/' in module:
+            # adjust the split
+            if fn != None:
+                args = [fn] + list(args)
+            module, fn  = module.split('/')
+        else:
+            if fn == None:
+                fn = default_fn
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs)    
         try:
@@ -5418,6 +5144,7 @@ class c:
             return False
         return True
     
+    is_digit = is_number
     @classmethod
     def resolve_network(cls, network=None):
 
@@ -5923,7 +5650,7 @@ class c:
 
     @classmethod
     def get_fn(cls, fn:str, 
-               seperator='.',ignore_module_pattern:bool = False):
+               seperator='/',ignore_module_pattern:bool = False):
         if isinstance(fn, str):
             if seperator in fn and (not ignore_module_pattern):
                 # module{sperator}fn
@@ -7017,7 +6744,6 @@ class c:
         Gets the function defaults
         """
 
-        import inspect
         
         fn = cls.get_fn(fn)
         function_defaults = dict(inspect.signature(fn)._parameters)
@@ -7152,6 +6878,8 @@ class c:
     
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
+        if '/' in str(module):
+            return c.fn_code(module)
         module = cls.resolve_module(module)
         path = module.pypath()
         text =  c.get_text( module.pypath(), *args, **kwargs)
@@ -8085,7 +7813,6 @@ class c:
         """
         Is this shiz a generator dawg?
         """
-        import inspect
         return inspect.isgeneratorfunction(obj)
     
     @classmethod
