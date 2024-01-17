@@ -4883,10 +4883,10 @@ class c:
     executor_cache = {}
     @classmethod
     def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
-        executor = cls.executor_cache.get(mode, None)
-        if executor != None and cache:
-            return executor
-
+        
+        if cache:
+            if mode in cls.executor_cache:
+                return cls.executor_cache[mode]
         executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
         cls.executor_cache[mode] = executor
         return executor
