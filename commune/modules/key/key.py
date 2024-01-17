@@ -1064,17 +1064,16 @@ class Keypair(c.Module):
         return aes_key.encrypt(data, **kwargs)
 
     def resolve_aes_key(self, password = None):
-        if password != None:
-            aes_key = Keypair.from_password(password).aes_key
+        if password == None:
+            key = Keypair.from_password(password)
         else: 
-            aes_key = self.aes_key
-        c.print(aes_key.__dict__)
-        return aes_key
-    def decrypt(self, data: Union[str, bytes], password=None) -> bytes:
+            key = self
+        return key.aes_key
+
+    def decrypt(self, data: Union[str, bytes], password=None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
-        return aes_key.decrypt(data)
-
-
+        data = aes_key.decrypt(data, **kwargs)
+        return data
 
     def encrypt_message(
         self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
@@ -1175,17 +1174,15 @@ class Keypair(c.Module):
 
 
 
-    def decrypt_file(self, path, password=None, prefix=encrypted_prefix):
+    def decrypt_file(self, path, password=None):
         if password == None:
             password = self.private_key
         enc_text = c.get_text(path)
-        assert enc_text.startswith(prefix), f'file {path} is not encrypted'
-        text = enc_text[len(prefix):]
-        c.print(enc_text, 'ence')
+        c.print(enc_text)
         dec_text =  self.decrypt(enc_text, password=password)
         if not isinstance(dec_text, str):
             dec_text = json.dumps(dec_text)
-        # c.put_text(path, dec_text)
+        c.put_text(path, dec_text)
         
         return {'encrypted':enc_text, 'decrypted': dec_text, 'path':path }
 
@@ -1195,12 +1192,14 @@ class Keypair(c.Module):
         if n > 1:
             return [self.test_encryption_file(filepath=filepath, value=value, n=1) for i in range(n)]
         c.put(filepath, value)
-        
+        decode = c.get(filepath)
+        c.print(decode, 'decoded')
         auth = self.encrypt_file(filepath)
         decode = self.decrypt_file(filepath)
-        decoded = c.get(filepath)
-        c.print(decoded, 'decoded')
-        assert decoded == value, f'encryption failed, {decoded} != {value}'
+        decode = c.get(filepath)
+        c.print(decode, 'decoded')
+        
+        assert decode == value, f'encryption failed, {decoded} != {value}'
         c.rm(filepath)
         assert not c.exists(filepath), f'file {filepath} not deleted'
         return {'encrypted':auth, 'decrypted': decode, 'path':filepath }

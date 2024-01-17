@@ -8,26 +8,41 @@ class Tree(c.Module):
     base_module = c.base_module # 
     whitelist = ['commune', 'c', 'commune.base_module', 'c.base_module']
 
+    module_tree_cache = None
     @classmethod
-    def add_tree(cls, tree, path):
-        assert not c.isdir(path)
-        trees = cls.get(tree, {'path': path, 'tree': {}})
-        return cls.put('trees', trees )
-    
-
-    @classmethod
-    def build_tree(cls, 
+    def tree(cls, search=None, 
+                mode='path', 
                 update:bool = False,
-                verbose:bool = False) -> List[str]:
-                
-        if update and verbose:
-            c.print('Building module tree', verbose=verbose)
-        module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-        if cls.root_module_class in module_tree:
-            module_tree['module'] = module_tree.pop(cls.root_module_class)
+                path = 'local_module_tree',
+                **kwargs) -> List[str]:
+        
+        module_tree = None
+        if not update:
+            if cls.module_tree_cache != None:
+                return cls.module_tree_cache
+            module_tree = c.get(path, None)
+        if module_tree == None:
+
+            assert mode in ['path', 'object']
+            module_tree = {}
+            if mode == 'path':
+                module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+            elif mode == 'object':
+                module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
+            module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+            
+            # to use functions like c. we need to replace it with module lol
+            if cls.root_module_class in module_tree:
+                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+            
+            c.put(path, module_tree)
+
+        
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
+
         return module_tree
     
-
     module_python_paths = None
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
