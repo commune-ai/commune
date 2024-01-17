@@ -229,7 +229,7 @@ class Subspace(c.Module):
     
     
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
-        return {k:v for k,v in self.query_map('DelegationFee', netuid, block=block ,update=update, network=network)}
+        return {k:v for k,v in self.query_map('DelegationFee', block=block ,update=update, network=network)[netuid].items()}
     
     
     def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3, fmt='nano'):
@@ -330,12 +330,6 @@ class Subspace(c.Module):
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
         if not update:
-            value = self.get(path, None)
-            if value != None:
-                return value
-            
-        if not update:
-            c.print('Loading from cache', path)
             value = self.get(path, None)
             if value != None:
                 return value
@@ -904,7 +898,7 @@ class Subspace(c.Module):
 
     def regblock(self, netuid: int = None, block: Optional[int] = None, network=network, update=False ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        return {k:v for k,v  in self.query_map('RegistrationBlock',params=netuid, block=block, update=update ) }
+        return {k:v for k,v  in enumerate(self.query_map('RegistrationBlock',block=block, update=update )[netuid]) }
 
     def age(self, netuid: int = None) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
@@ -929,7 +923,7 @@ class Subspace(c.Module):
 
         if global_params == None:
             self.resolve_network(network)
-            
+
             global_params = {}
             global_params['burn_rate'] =  'BurnRate' 
             global_params['max_name_length'] =  'MaxNameLength'
@@ -1238,17 +1232,10 @@ class Subspace(c.Module):
                 netuid: int = netuid,
                 block: Optional[int] = None,
                 fmt='nano', 
-                keys : List[str] = [
-                    'uid2key',
-                    'addresses', 
-                    'names', 
-                    'emission', 
-                    'incentive', 
-                    'dividends', 
-                    'last_update',
-                    'stake_from', 
-                    'delegation_fee', 
-                    'trust'],
+                features : List[str] = ['uid2key', 'addresses', 'names', 
+                    'emission', 'incentive', 'dividends', 
+                    'last_update', 'stake_from', 'delegation_fee',
+                      'trust', 'regblock', 'weights'],
                 update: bool = False,
                 include_weights = False,
                 df = False,
@@ -1257,73 +1244,25 @@ class Subspace(c.Module):
                 include_balances = False, 
                 
                 ) -> Dict[str, 'ModuleInfo']:
-        import inspect
-        if netuid == None:
-            netuid = 0
-
+        
+        start_time = c.time()
+        netuid = netuid or 0
         cache_path = f'modules/{network}.{netuid}'
 
-        modules = []
-        if not update :
+ 
+        if update:
+            self.sync()
+            modules = []
+        else: 
             modules = self.get(cache_path, [])
 
+        
         if len(modules) == 0:
-
-            network = self.resolve_network(network)
-            netuid = self.resolve_netuid(netuid)
-            block = self.block if block == None else block
- 
+            state = [getattr(self, f)(network=network, netuid=netuid, block=block, update=False) \
+                    for f in features]
             
-            if include_balances:
-                keys += ['balances']
-            if include_weights:
-                keys += ['weights']
-            if parallel:
-                state = {}
-
-                async def async_get_chain_data(key:str, network:str=network, block:int=None, netuid:int=0):
-                    try:
-                        results =  getattr(self, key)(netuid=netuid, block=block, update=True, network=network)
-                    except Exception as e:
-                        c.print(f"Failed to get {key} for netuid {netuid} at block {block}")
-                        c.print(e)
-                        results = None
-                    return results
-
-                while len(state) < len(keys):
-                    futures = []
-                    remaining_keys = [k for k in keys if k not in state]
-                    for key in remaining_keys:
-                        future = async_get_chain_data(key=key, netuid=netuid, block=block, network=network)
-                        futures.append(future)
-                    # remove completed futures
-                    if len(futures) == 0:
-                        break
-                    results = c.gather(futures, timeout=timeout)
-                    for key, result in zip(remaining_keys, results):
-                        if result == None:
-                            continue
-                        if c.is_error(result):
-                            continue
-                        state[key] = result
-            else: 
-                state = {}
-
-                for key in c.tqdm(keys):
-                    func = getattr(self, key)
-                    args = inspect.getfullargspec(func).args
-
-                    kwargs = {}
-                    if 'netuid' in args:
-                        kwargs['netuid'] = netuid
-                    if 'block' in args:
-                        kwargs['block'] = block
-
-                    state[key] = func(**kwargs)
-
             for uid, key in state['uid2key'].items():
 
-                c.print(f"Getting module {uid} {key}")
                 module= {
                     'uid': uid,
                     'address': state['addresses'][uid],
@@ -1363,10 +1302,8 @@ class Subspace(c.Module):
 
                 for k in ['emission', 'stake']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
-
                 for k in ['incentive', 'dividends']:
                     module[k] = module[k] / (U16_MAX)
-                
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
       
                 if include_balances:
@@ -1378,7 +1315,8 @@ class Subspace(c.Module):
         if df:
             modules = c.df(modules)
 
-        return modules
+        latency =  c.time() - start_time 
+        return {'success': True, 'msg': 'Saved modules', 'latenty': latency }
     
 
 
@@ -1433,9 +1371,8 @@ class Subspace(c.Module):
 
     def addresses(self, netuid: int = None, update=False, **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
-        names = {v[0]: v[1] for v in self.query_map('Address', params=[netuid], update=update, **kwargs)}
-        names = list({k: names[k] for k in sorted(names)}.values())
-        return names
+        addreses = self.query_map('Address', update=update, **kwargs)[netuid]
+        return addreses
 
     def namespace(self, search=None, netuid: int = netuid, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
         namespace = {}  
@@ -1485,14 +1422,14 @@ class Subspace(c.Module):
         return len(pending_deregistrations)
         
     def emission(self, netuid = netuid, network=network, nonzero=False, **kwargs):
-        emissions = [v for v in self.query('Emission', params=netuid, network=network, **kwargs)]
+        emissions = self.query_map('Emission',network=network, **kwargs)[netuid]
         if nonzero:
             emissions =[e for e in emissions if e > 0]
         return emissions
     
 
     def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False, return_dict=False, **kwargs):
-        incentive = [v for v in self.query('Incentive', params=netuid, network=network, block=block, update=update, **kwargs)]
+        incentive = self.query_map('Incentive', network=network, block=block, update=update, **kwargs)[netuid]
 
         if nonzero:
             incentive = {uid:i for uid, i in enumerate(incentive) if i > 0}
@@ -1506,18 +1443,20 @@ class Subspace(c.Module):
         return proposals
         
     def trust(self, netuid = netuid, network=network, nonzero=False, update=False, **kwargs):
-        trust = [v for v in self.query('Trust', params=netuid, network=network, update=update, **kwargs)]
-        if nonzero:
-            trust = [t for t in trust if t > 0]
+        trust = self.query_map('Trust', network=network, update=update, **kwargs)
+        if len(trust) == 0:
+            trust = []
+        else:
+            trust = trust[netuid]
         return trust
     
     def last_update(self, netuid = netuid, block=None, network=network, update=False, **kwargs):
-        return [v for v in self.query('LastUpdate', params=[netuid], network=network, block=block,  update=update, **kwargs)]
+        return self.query_map('LastUpdate', network=network, block=block,  update=update, **kwargs)[netuid]
         
 
     def dividends(self, netuid = netuid, network=network, nonzero=False,  update=False, return_dict=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        dividends =  [v for v in self.query('Dividends', params=netuid, network=network,  update=update,  **kwargs)]
+        dividends =  self.query_map('Dividends', network=network,  update=update,  **kwargs)[netuid]
         if nonzero:
             dividends = {i: d for i,d in enumerate(dividends) if d > 0}
         else:
