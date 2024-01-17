@@ -295,6 +295,8 @@ class Subspace(c.Module):
                   return_dict:bool = True
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
+        if name  == 'Account':
+            module = 'System'
 
         if params == None:
             params = []
@@ -392,7 +394,7 @@ class Subspace(c.Module):
     def n(self, network = network , netuid: int = None, block: Optional[int] = None ) -> int:
         self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
-        return self.query('N', params=[netuid], block=block )
+        return self.query('N', params=[netuid], block=block , update=True)
 
     ##########################
     #### Account functions ###
@@ -588,66 +590,69 @@ class Subspace(c.Module):
 
 
 
-    state_dict_cache = {}
-    def state_dict(self,
-                    network=network, 
-                    key: Union[str, list]=None, 
-                    inlcude_weights:bool=False, 
-                    update:bool=False, 
-                    verbose:bool=False, 
-                    netuids: List[int] = None,
-                    parallel:bool=True,
-                    save:bool = True,
-                    timeout = 10,
-                    **kwargs):
+    # state_dict_cache = {}
+    # def state_dict(self,
+    #                 network=network, 
+    #                 key: Union[str, list]=None, 
+    #                 inlcude_weights:bool=False, 
+    #                 update:bool=False, 
+    #                 verbose:bool=False, 
+    #                 netuids: List[int] = None,
+    #                 parallel:bool=True,
+    #                 save:bool = True,
+    #                 timeout = 10,
+    #                 **kwargs):
         
-        # cache and update are mutually exclusive 
-        if  update == False:
-            c.print('Loading state_dict from cache', verbose=verbose)
-            state_dict = self.latest_archive(network=network)
-            if len(state_dict) > 0:
-                self.state_dict_cache = state_dict
+    #     # cache and update are mutually exclusive 
+    #     if  update == False:
+    #         c.print('Loading state_dict from cache', verbose=verbose)
+    #         state_dict = self.latest_archive(network=network)
+    #         if len(state_dict) > 0:
+    #             self.state_dict_cache = state_dict
 
-        if len(self.state_dict_cache) == 0 :
+    #     if len(self.state_dict_cache) == 0 :
 
-            # get the latest block
-            block = self.block
-            netuids = self.netuids(network=network, block=block, update=True)
-            c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
+    #         # get the latest block
+    #         block = self.block
+    #         netuids = self.netuids(network=network, block=block, update=True)
+    #         c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
 
 
-            c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
+    #         c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
         
 
 
-            state_dict = {
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
-                        'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
-                        'balances': self.balances(network=network, block=block, update=True),
-                        'block': block,
-                        'network': network,
-                        'subnets': [self.subnet_params(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
+    #         state_dict = {
+    #                     'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
+    #                     'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
+    #                     'balances': self.balances(network=network, block=block, update=True),
+    #                     'block': block,
+    #                     'network': network,
+    #                     'subnets': [self.subnet_params(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
 
-                        }
+    #                     }
 
-            if save:
+    #         if save:
 
-                path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
-                c.print(f'Saving state_dict to {path}')
+    #             path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
+    #             c.print(f'Saving state_dict to {path}')
                 
-                self.put(path, state_dict) # put it in storage
-                self.state_dict_cache = state_dict # update it in memory
+    #             self.put(path, state_dict) # put it in storage
+    #             self.state_dict_cache = state_dict # update it in memory
             
-        state_dict = c.copy(self.state_dict_cache)
+    #     state_dict = c.copy(self.state_dict_cache)
         
-        # if key is a string
-        if key in state_dict:
-            return state_dict[key]
+    #     # if key is a string
+    #     if key in state_dict:
+    #         return state_dict[key]
     
-        # if key is a list of keys
-        if isinstance(key,list):
-            return {k:state_dict[k] for k in key}
-        return state_dict
+    #     # if key is a list of keys
+    #     if isinstance(key,list):
+    #         return {k:state_dict[k] for k in key}
+    #     return state_dict
+    
+    
+    
     @classmethod
     def ls_archives(cls, network=network):
         if network == None:
@@ -837,9 +842,7 @@ class Subspace(c.Module):
                     network = network,
                     block : Optional[int] = None,
                     update = False,
-                    trials = 3,
-                    timeout = 10,
-                    parallel = True,
+                    timeout = 30,
                     fmt:str='j', 
                      path = f'cache/network.subnet_params.json'
                     ) -> list:
@@ -866,7 +869,7 @@ class Subspace(c.Module):
                     'name': 'SubnetNames',
                     'max_stake': 'MaxStake',
                 }
-            name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}) for k,v in name2feature.items()}
+            name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}, timeout=timeout) for k,v in name2feature.items()}
             futures = list(name2job.values())
             results = c.wait(futures, timeout=timeout)
             subnet_params = {k:v for k,v in zip(name2job.keys(), results)}
@@ -1049,20 +1052,20 @@ class Subspace(c.Module):
         )
         return account
     
-    def get_accounts(self, key = None, network=None, update=True, block=None):
+    def accounts(self, key = None, network=None, update=True, block=None):
         self.resolve_network(network)
         key = self.resolve_key_ss58(key)
         accounts = self.query_map(
             module='System',
             name='Account',
             update=update,
-            block = block
+            block = block,
         )
         return accounts
     
     def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False ) -> Dict[str, Balance]:
-        accounts = self.get_accounts(network=network, update=update, block=block)
-        balances =  {r[0]:r[1]['data']['free'] for r in accounts}
+        accounts = self.accounts(network=network, update=update, block=block)
+        balances =  {k:v['data']['free'] for k,v in accounts.items()}
         balances = {k: self.format_amount(v, fmt=fmt) for k,v in balances.items()}
         return balances
     
@@ -1362,13 +1365,13 @@ class Subspace(c.Module):
 
                     state[key] = func(**kwargs)
 
-
             for uid, key in state['uid2key'].items():
 
+                c.print(f"Getting module {uid} {key}")
                 module= {
                     'uid': uid,
                     'address': state['addresses'][uid],
-                    'name': state['names'][uid],
+                    'name': state['names'][uid] if uid < len(state['names']) else None,
                     'key': key,
                     'emission': state['emission'][uid],
                     'incentive': state['incentive'][uid],
@@ -1464,7 +1467,7 @@ class Subspace(c.Module):
 
     def uid2name(self, netuid: int = 0, update=False,  **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
-        names = {int(k): v for k,v in self.query_map('Name', update=update,**kwargs)[str(netuid)].items()}
+        names = {k: v for k,v in enumerate(self.query_map('Name', update=update,**kwargs)[netuid])}
         names = {k: names[k] for k in sorted(names)}
         return names
     
@@ -1984,8 +1987,6 @@ class Subspace(c.Module):
     
     features = ['Keys', 
                 'StakeTo',
-                 'Stake', 
-                 'StakeFrom',
                   'Name', 
                   'Address',
                   'Weights',
@@ -1994,12 +1995,10 @@ class Subspace(c.Module):
                   'Trust', 
                   'Dividends', 
                   'LastUpdate', 
-                  'DelegationFee',
-                  'ProfitShares', 
-                  'Proposals'
+                  'ProfitShare',
                   ]
 
-    def state_dict(self , timeout=40, network='main', update=False, features=features, block=None):
+    def state_dict(self , timeout=50, network='main', update=True, features=features, block=None):
         
         feature2result = {}
 
@@ -2022,16 +2021,19 @@ class Subspace(c.Module):
             feature2result[f] = c.submit(fn_query, kwargs=dict(name=f, update=update, block=block), timeout=timeout)
 
         futures = list(feature2result.values())
-        subnet_params = c.submit(self.subnet_params, kwargs=dict(update=update, block=block))
-        global_params = c.submit(self.global_params, kwargs=dict(update=update, block=block))
-        results = c.wait(futures + [subnet_params, global_params], timeout=timeout)
-        subnet_params, global_params = results[-2:]
-        modules = results[:-2]
+        subnet_params = c.submit(self.subnet_params, kwargs=dict(update=update, block=block, netuid=None, timeout=timeout), timeout=timeout)
+        global_params = c.submit(self.global_params, kwargs=dict(update=update, block=block), timeout=timeout)
+        balances = c.submit(self.balances, kwargs=dict(update=update, block=block), timeout=timeout)
+        results = c.wait(futures + [subnet_params, global_params, balances], timeout=timeout)
+        subnet_params, global_params, balances = results[-3:]
+        modules = results[:-3]
+        
         state_dict = {
             'block': block,
             'modules': modules,
             'global_params': global_params,
-            'subnet_params': subnet_params
+            'subnet_params': subnet_params,
+            'balances': balances,
 
         }
 
