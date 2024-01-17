@@ -7,7 +7,7 @@ import urllib
 import os
 from commune.modules.model.beautifulsoap.random_website.random_website import generate_random_ip, \
     get_domain, check_webapp, get_text_content, generate_random_website_url, is_valid_website
-from commune.modules.model.openai.openai import OpenAILLM
+from commune.modules.model.openai.model_openai import OpenAILLM
 from commune.modules.model.beautifulsoap.google_search.google_search import google_search, google_search_with_api
 from urllib.parse import urlencode, urlunparse
 from urllib.request import urlopen, Request

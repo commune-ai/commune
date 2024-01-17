@@ -92,7 +92,9 @@ class Router(c.Module):
                 module: str = 'module',
                 fn : str = 'info',
                 args:dict=None, 
-                kwargs:dict=None):
+                kwargs:dict=None, 
+                
+                ):
         return self.call(module=module, fn=fn, args=args, kwargs=kwargs, return_future=True)
 
     def call(self, 
