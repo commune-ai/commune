@@ -2,7 +2,7 @@ import asyncio
 import websockets
 import commune as c
 
-class WS(c.Module):
+class ServerWS(c.Module):
     
     
     def __init__(self,

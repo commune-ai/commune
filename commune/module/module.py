@@ -4893,8 +4893,8 @@ class c:
     @classmethod
     def submit(cls, 
                 fn, 
-                args:list = [], 
                 kwargs: dict = {}, 
+                args:list = [], 
                 timeout:int = 20, 
                 return_future:bool=True,
                 init_args : list = [],

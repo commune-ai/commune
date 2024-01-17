@@ -29,6 +29,21 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
+    
+    features = ['Keys', 
+                'StakeTo',
+                'StakeFrom',
+                'Name', 
+                'Address',
+                'Weights',
+                'Emission', 
+                'Incentive', 
+                'Dividends', 
+                'LastUpdate',
+                'ProfitShares',
+                'Proposals', 
+                'Voter2Info',
+                ]
 
     def __init__( 
         self, 
@@ -90,7 +105,6 @@ class Subspace(c.Module):
             self.url = url
             url = url.replace(c.ip(), '0.0.0.0')
 
-            c.print(f'Connecting to {url}')
             
             kwargs.update(url=url, 
                         websocket=websocket, 
@@ -224,28 +238,36 @@ class Subspace(c.Module):
         stake_to =  {k: list(map(list,v)) for k,v in self.query_map('StakeTo', block=block, update=update)[netuid].items()}
         return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
-    def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule', update=False, netuid=None):
+    @classmethod    
+    def resolve_query_path(cls, module='SubspaceModule', name='Stake', params=None,network=None):
+
+        return path
+    
+    def query(self, name:str,  
+              params = None, 
+              module:str='SubspaceModule',
+              block=None,  
+              network: str = network, 
+            update=False):
         
         """
         query a subspace storage function with params and block.
         """
-        
-        if params == None:
-            params = []
-        else:
-            if not isinstance(params, list):
-                params = [params]
-        params_str = ','.join([str(p) for p in params])
-        cache_path = f'query/{network}_{name}_params_{params_str}'
-        if not update:
-            value = self.get(cache_path, None)
-            if value != None:
-                return value
-        
+        network = self.resolve_network(network)
+        path = f'query/{network}/{module}.{name}'
+    
+        params = params or []
         if not isinstance(params, list):
             params = [params]
-        network = self.resolve_network(network)
+            
+        if len(params) > 0 :
+            path = path + f'::params::' + '-'.join([str(p) for p in params])
 
+        if not update:
+            value = self.get(path, None)
+            if value != None:
+                return value
+            
         with self.substrate as substrate:
 
             response =  substrate.query(
@@ -254,10 +276,9 @@ class Subspace(c.Module):
                 block_hash = None if block == None else substrate.get_block_hash(block), 
                 params = params
             )
-            
         value =  response.value
+        self.put(path, value)
 
-        self.put(cache_path, value)
         return value
 
     def query_constant( self, 
@@ -287,7 +308,7 @@ class Subspace(c.Module):
     def query_map(self, name: str, 
                   params: list = None,
                   block: Optional[int] = None, 
-                  network:str = 'main',
+                  network:str = network,
                   page_size=1000,
                   max_results=100000,
                   module='SubspaceModule',
@@ -298,21 +319,21 @@ class Subspace(c.Module):
         if name  == 'Account':
             module = 'System'
 
-        if params == None:
-            params = []
-        if params == None:
-            params = []
-        if params != None and not isinstance(params, list):
+        network = self.resolve_network(network)
+        path = f'query/{network}/{module}.{name}'
+    
+        params = params or []
+        if not isinstance(params, list):
             params = [params]
+            
+        if len(params) > 0 :
+            path = path + f'::params::' + '-'.join([str(p) for p in params])
 
-        params_str = '-'.join([str(p) for p in params])
-
-
-
-        path = f'cache/{self.network}:{module}.{name}::params::{params_str}.json'
-
-
-        c.print(path)
+        if not update:
+            value = self.get(path, None)
+            if value != None:
+                return value
+            
         if not update:
             c.print('Loading from cache', path)
             value = self.get(path, None)
@@ -336,19 +357,19 @@ class Subspace(c.Module):
 
         # number of records
 
-        progress = c.tqdm(desc=f'**GET {name} MAP')
         is_key_digit = []
         for i, (k,v) in enumerate(qmap):
-            progress.update(1)
             if not isinstance(k, tuple):
                 k = [k]
             if type(k) in [tuple,list]:
                 k = [_k.value for _k in k]
-                if len(is_key_digit) == 0 :
+                if len(is_key_digit) == 0:
                     is_key_digit = [c.is_digit(_k) for _k in k]
-                for _i_k, _k in enumerate(k):
-                    if is_key_digit[_i_k]:
-                        _k = int(_k)
+                
+                if len(is_key_digit) > 0:
+                    for _i_k, _k in enumerate(k):
+                        if is_key_digit[_i_k]:
+                            _k = int(_k)
             if hasattr(v, 'value'):
                 v = v.value
             if return_dict:
@@ -358,24 +379,28 @@ class Subspace(c.Module):
 
         if return_dict:
             num_key_digits = sum([1 for _ in is_key_digit if _])
-            if num_key_digits == 1:
+            
+            if num_key_digits == 0:
+                pass
+            elif num_key_digits == 1:
+                # this means that you have [uid] as keys
                 newer_map = [None] * len(new_qmap)
                 for k,v in new_qmap.items():
                     newer_map[int(k)] = v
                 new_qmap = newer_map
             elif num_key_digits == 2:
+                # this means that you have [netuid, uid] as keys
                 newer_map = [None] * len(new_qmap)
                 for k1,v1 in new_qmap.items():
-                    tmp_map = [None] * len(v1)
+                    v1_n = max(v1.keys()) + 1
+                    tmp_map = [None] * v1_n
                     for k2,v2 in v1.items():
                         tmp_map[int(k2)] = v2
                     newer_map[int(k1)] = tmp_map
-
                 new_qmap = newer_map
 
-
         self.put(path, new_qmap)
-        c.print(path)           
+
         return new_qmap
 
     def runtime_spec_version(self, network:str = 'main'):
@@ -430,7 +455,6 @@ class Subspace(c.Module):
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_address
-        c.print(key, 'key')
         assert c.valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
@@ -588,71 +612,6 @@ class Subspace(c.Module):
             return None
         return blocks[-1]
 
-
-
-    # state_dict_cache = {}
-    # def state_dict(self,
-    #                 network=network, 
-    #                 key: Union[str, list]=None, 
-    #                 inlcude_weights:bool=False, 
-    #                 update:bool=False, 
-    #                 verbose:bool=False, 
-    #                 netuids: List[int] = None,
-    #                 parallel:bool=True,
-    #                 save:bool = True,
-    #                 timeout = 10,
-    #                 **kwargs):
-        
-    #     # cache and update are mutually exclusive 
-    #     if  update == False:
-    #         c.print('Loading state_dict from cache', verbose=verbose)
-    #         state_dict = self.latest_archive(network=network)
-    #         if len(state_dict) > 0:
-    #             self.state_dict_cache = state_dict
-
-    #     if len(self.state_dict_cache) == 0 :
-
-    #         # get the latest block
-    #         block = self.block
-    #         netuids = self.netuids(network=network, block=block, update=True)
-    #         c.print(f'Getting state_dict for {netuids} at block {block}', verbose=verbose)
-
-
-    #         c.print(f'Getting modules for {netuids} at block {block}', verbose=verbose)
-        
-
-
-    #         state_dict = {
-    #                     'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True, parallel=parallel) for netuid in netuids],
-    #                     'stake_to': [self.stake_to(network=network, block=block, update=True, netuid=netuid) for netuid in netuids],
-    #                     'balances': self.balances(network=network, block=block, update=True),
-    #                     'block': block,
-    #                     'network': network,
-    #                     'subnets': [self.subnet_params(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids]
-
-    #                     }
-
-    #         if save:
-
-    #             path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
-    #             c.print(f'Saving state_dict to {path}')
-                
-    #             self.put(path, state_dict) # put it in storage
-    #             self.state_dict_cache = state_dict # update it in memory
-            
-    #     state_dict = c.copy(self.state_dict_cache)
-        
-    #     # if key is a string
-    #     if key in state_dict:
-    #         return state_dict[key]
-    
-    #     # if key is a list of keys
-    #     if isinstance(key,list):
-    #         return {k:state_dict[k] for k in key}
-    #     return state_dict
-    
-    
-    
     @classmethod
     def ls_archives(cls, network=network):
         if network == None:
@@ -760,9 +719,6 @@ class Subspace(c.Module):
             block = self.block
             staleness = {k:block - last_block_update[k] for k in intervals.keys()}
             
-            if staleness["check_servers"] > intervals["check_servers"]:
-                c.print(self.check_servers())
-
 
             if staleness["full"] > intervals["full"]:
                 save = staleness["save"] > intervals["save"]
@@ -771,8 +727,6 @@ class Subspace(c.Module):
                 
                 request = {
                             'network': network, 
-                           'remote': remote, 
-                           'save': save, 
                            'block': block
                            }
                 response = self.sync(**request)
@@ -844,9 +798,11 @@ class Subspace(c.Module):
                     update = False,
                     timeout = 30,
                     fmt:str='j', 
-                     path = f'cache/network.subnet_params.json'
+                    
                     ) -> list:
+
         network = self.resolve_network(network)
+        path = f'cache/{network}.subnet_params.json'
         subnet_params = None if update else self.get(path, None) 
 
         if subnet_params == None:
@@ -875,7 +831,9 @@ class Subspace(c.Module):
             subnet_params = {k:v for k,v in zip(name2job.keys(), results)}
             self.put(path, subnet_params)
 
-        if netuid != None:
+        
+
+        if netuid != None and netuid != 'all':
             netuid = self.resolve_netuid(netuid)
             subnet_params = {k:v[netuid] for k,v in subnet_params.items()}
             for k in ['min_stake', 'max_stake']:
@@ -960,9 +918,9 @@ class Subspace(c.Module):
      
     def global_params(self, 
                       network: str = network,
-                        netuid: int = 0, 
                          timeout = 2,
                          update = False,
+                         block : Optional[int] = None,
                          fmt = 'nanos'
                           ) -> Optional[float]:
         
@@ -971,7 +929,7 @@ class Subspace(c.Module):
 
         if global_params == None:
             self.resolve_network(network)
-            netuid = self.resolve_netuid(netuid)
+            
             global_params = {}
             global_params['burn_rate'] =  'BurnRate' 
             global_params['max_name_length'] =  'MaxNameLength'
@@ -987,11 +945,11 @@ class Subspace(c.Module):
             global_params['vote_threshold'] =  'GlobalVoteThreshold' 
             global_params['vote_mode'] =  'VoteModeGlobal' 
 
-            async def aquery_constant(f):
-                return self.query_constant(f)
+            async def aquery_constant(f, **kwargs):
+                return self.query_constant(f, **kwargs)
             
             for k,v in global_params.items():
-                global_params[k] = aquery_constant(v)
+                global_params[k] = aquery_constant(v, block=block )
             
             futures = list(global_params.values())
             results = c.wait(futures, timeout=timeout)
@@ -1018,25 +976,15 @@ class Subspace(c.Module):
                 account balance
         """
         key_ss58 = self.resolve_key_ss58( key )
-        result = 0 
-        if not update:
-            balances = self.balances(network=network, block=block, update=update, fmt=fmt)
-            result =  balances.get(key_ss58, result)
-        else:
-            self.resolve_network(network)
-            try:
-                @retry(delay=2, tries=3, backoff=2, max_delay=4)
-                def make_substrate_call_with_retry():
-                    with self.substrate as substrate:
-                        return substrate.query(
-                            module='System',
-                            storage_function='Account',
-                            params=[key_ss58],
-                            block_hash = None if block == None else substrate.get_block_hash( block )
-                        )
-                result = make_substrate_call_with_retry()
-            except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-                c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+        self.resolve_network(network)
+
+        result = self.query(
+                module='System',
+                storage_function='Account',
+                params=[key_ss58],
+                block = block,
+                network=network
+            )
 
         return  self.format_amount(result['data']['free'].value , fmt=fmt)
         
@@ -1290,9 +1238,17 @@ class Subspace(c.Module):
                 netuid: int = netuid,
                 block: Optional[int] = None,
                 fmt='nano', 
-                keys : List[str] = ['uid2key', 'addresses', 'names', 'emission', 
-                    'incentive', 'dividends', 'regblock', 'last_update', 
-                    'stake_from', 'delegation_fee', 'trust'],
+                keys : List[str] = [
+                    'uid2key',
+                    'addresses', 
+                    'names', 
+                    'emission', 
+                    'incentive', 
+                    'dividends', 
+                    'last_update',
+                    'stake_from', 
+                    'delegation_fee', 
+                    'trust'],
                 update: bool = False,
                 include_weights = False,
                 df = False,
@@ -1457,7 +1413,7 @@ class Subspace(c.Module):
 
     def uid2key(self, uid=None, netuid = None, update=False, network=network, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        uid2key = {v[0]: v[1] for v in self.query_map('Keys', params=[netuid], update=update, network=network, **kwargs)}
+        uid2key = {uid:k for uid,k in enumerate(self.query_map('Keys', update=update, network=network, **kwargs)[netuid])}
         # sort by uid
         if uid != None:
             return uid2key[uid]
@@ -1472,7 +1428,8 @@ class Subspace(c.Module):
         return names
     
     def names(self, netuid: int = None, update=False, **kwargs) -> List[str]:
-        return list(self.uid2name(netuid=netuid, update=update, **kwargs).values())
+        names = list(self.uid2name(netuid=netuid, update=update, **kwargs).values())
+        return names
 
     def addresses(self, netuid: int = None, update=False, **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
@@ -1984,61 +1941,74 @@ class Subspace(c.Module):
         if search != None:
             storage_names = [s for s in storage_names if search in s.lower()]
         return storage_names
-    
-    features = ['Keys', 
-                'StakeTo',
-                  'Name', 
-                  'Address',
-                  'Weights',
-                  'Emission', 
-                  'Incentive', 
-                  'Trust', 
-                  'Dividends', 
-                  'LastUpdate', 
-                  'ProfitShare',
-                  ]
 
-    def state_dict(self , timeout=50, network='main', update=True, features=features, block=None):
+    def state_dict(self , timeout=50, 
+                   network='main', 
+                   update=True, 
+                   features=features,
+                   save = True,
+                   block=None):
         
-        feature2result = {}
-
+        
+        start_time = c.time()
         self.resolve_network(network)
 
         block = block if block != None else self.block
 
         path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
 
-        if not update:
-            state_dict = self.get(path, None)
-            if state_dict != None:
-                return state_dict
 
         def fn_query(*args, **kwargs):
             self = Subspace()
             return self.query_map(*args,**kwargs)
+        
+        def get_feature(feature, **kwargs):
+            self = Subspace()
+            return getattr(self, feature)(**kwargs)
+
+        feature2params = {}
+
+        feature2params['balances'] = [get_feature, dict(feature='balances', update=update, block=block)]
+        feature2params['subnet'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
+        feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
 
         for f in features:
-            feature2result[f] = c.submit(fn_query, kwargs=dict(name=f, update=update, block=block), timeout=timeout)
+            feature2params[f] = [fn_query, dict(name=f, update=update, block=block)]
+        num_features = len(feature2params)
+        progress = c.tqdm(total=num_features)
 
-        futures = list(feature2result.values())
-        subnet_params = c.submit(self.subnet_params, kwargs=dict(update=update, block=block, netuid=None, timeout=timeout), timeout=timeout)
-        global_params = c.submit(self.global_params, kwargs=dict(update=update, block=block), timeout=timeout)
-        balances = c.submit(self.balances, kwargs=dict(update=update, block=block), timeout=timeout)
-        results = c.wait(futures + [subnet_params, global_params, balances], timeout=timeout)
-        subnet_params, global_params, balances = results[-3:]
-        modules = results[:-3]
+        feature2result = {}
+        state_dict = {}
+        while len(feature2params) > 0:
+            
+            for feature, (fn, kwargs) in feature2params.items():
+                feature2result[feature] = c.submit(fn, kwargs) 
+            
+            result2feature = {v:k for k,v in feature2result.items()}
+            futures = list(feature2result.values())
+            features = list(feature2result.keys())
+            for future in c.as_completed(futures, timeout=timeout):
+                feature = result2feature[future]
+                result = future.result()
+                if c.is_error(result):
+                    continue
+                feature2params.pop(feature, None)
+                result2feature.pop(future)
+                state_dict[feature] = result
+                c.print(f'Got {feature} {c.emoji("checkmark")}')
+                features_left = list(feature2params.keys())
+                c.print(f'Features left {features_left}')
+                progress.update(1)
+            
+            feature2result = {}
+
+        if save:
+            self.put(path, state_dict)
+            end_time = c.time()
+            latency = end_time - start_time
+            response = {"success": True, "msg": f'Saving state_dict to {path}', 'latency': latency}
         
-        state_dict = {
-            'block': block,
-            'modules': modules,
-            'global_params': global_params,
-            'subnet_params': subnet_params,
-            'balances': balances,
 
-        }
-
-        self.put(path, state_dict)
-        response = {"success": True, "msg": f'Saving state_dict to {path}'}
         
         return response  # put it in storage
     
