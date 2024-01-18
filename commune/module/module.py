@@ -769,6 +769,8 @@ class c:
         return c.module('gradio')(*args, **kwargs)
     
     
+
+
     @classmethod
     def st(cls, module:str = None, fn='dashboard', port=8501, public:bool = False, remote:bool = False, kwargs=None):
         if module == None: 
@@ -2345,6 +2347,9 @@ class c:
         
     @server_name.setter
     def server_name(self, v):
+        if callable(self.config):
+            self.config = self.config()
+
         self.config['server_name'] = v
         return self.config['server_name']
     
@@ -2852,6 +2857,8 @@ class c:
     @classmethod
     def get_function_annotations(cls, fn):
         fn = cls.get_fn(fn)
+        if not hasattr(fn, '__annotations__'):
+            return {}
         return fn.__annotations__
         
     @classmethod
@@ -4907,6 +4914,7 @@ class c:
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
+        
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
@@ -8192,7 +8200,9 @@ class c:
 
 
     @classmethod
-    def get_api_key(cls):
+    def get_api_key(cls, module=None):
+        if module != None:
+            cls = c.module(module)
         api_keys = cls.api_keys()
         if len(api_keys) == 0:
             return None
@@ -8537,19 +8547,20 @@ class c:
     ########
     
     @classmethod
-    def plot_dashboard(cls, df):
+    def plot_dashboard(cls, df, key='dashboard', x='name', y='emission', select_columns=True):
         import plotly.express as px
         import streamlit as st
         cols = list(df.columns)
-        cols = st.multiselect('Select Columns', cols, cols)
+        if select_columns:
+            cols = st.multiselect('Select Columns', cols, cols, key=key+'multi')
         # bar_chart based on x and y
 
         if len(df) == 0:
             st.error('You are not staked to any modules')
             return 
         col2idx = {c:i for i,c in enumerate(cols)}
-        defult_x_col = col2idx['name']
-        default_y_col = col2idx['emission']
+        defult_x_col = col2idx.get(x, 0)
+        default_y_col = col2idx.get(y, 1)
 
         plot_kwargs = {}
 

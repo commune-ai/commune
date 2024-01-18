@@ -32,7 +32,6 @@ class Subspace(c.Module):
     
     features = ['Keys', 
                 'StakeTo',
-                'StakeFrom',
                 'Name', 
                 'Address',
                 'Weights',
@@ -313,7 +312,8 @@ class Subspace(c.Module):
                   max_results=100000,
                   module='SubspaceModule',
                   update: bool = True,
-                  return_dict:bool = True
+                  return_dict:bool = True,
+                  update_interval:int = 10,
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         if name  == 'Account':
@@ -336,8 +336,11 @@ class Subspace(c.Module):
         
         network = self.resolve_network(network)
 
+        if block == None:
+            block = self.block
+
         with self.substrate as substrate:
-            block_hash = None if block == None else substrate.get_block_hash(block)
+            block_hash = substrate.get_block_hash(block)
             qmap =  substrate.query_map(
                 module=module,
                 storage_function = name,
@@ -352,7 +355,10 @@ class Subspace(c.Module):
         # number of records
 
         is_key_digit = []
+        tqdm = c.tqdm(qmap, desc=f'Querying {name} map')
+
         for i, (k,v) in enumerate(qmap):
+            tqdm.update(1)
             if not isinstance(k, tuple):
                 k = [k]
             if type(k) in [tuple,list]:
@@ -1881,7 +1887,7 @@ class Subspace(c.Module):
             storage_names = [s for s in storage_names if search in s.lower()]
         return storage_names
 
-    def state_dict(self , timeout=50, 
+    def state_dict(self , timeout=1000, 
                    network='main', 
                    update=True, 
                    features=features,
