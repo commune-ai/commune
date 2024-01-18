@@ -24,7 +24,7 @@ class Vali(c.Module):
         # we want to make sure that the config is a munch
         self.start_time = c.time()
         self.sync_network()
-        if self.config.run_loop:
+        if self.config.start:
             c.thread(self.run_loop)
 
     def run_info(self):
@@ -66,6 +66,13 @@ class Vali(c.Module):
     
     def workers(self):
         return [f for f in c.pm2ls() if self.worker_name_prefix in f]
+    
+    def worker2logs(self, worker:str):
+        workers = self.workers()
+        worker2logs = {}
+        for w in workers:
+            worker2logs[w] = c.logs(w, lines=100)
+
 
     @property
     def worker_name_prefix(self):
@@ -77,7 +84,6 @@ class Vali(c.Module):
         config= c.copy(self.config)
         config.start = False
         config.num_workers = 0
-        config.is_main_worker = False
         config = c.munch2dict(config)
 
         # we don't want the workers to start more workers
@@ -96,6 +102,7 @@ class Vali(c.Module):
             responses.append(r)
 
         return responses
+    
         
     @classmethod
     def worker(cls, *args, **kwargs):
@@ -107,26 +114,30 @@ class Vali(c.Module):
         futures = []
         
         while self.running:
-            
+
+        
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync_network()
 
-            modules = c.shuffle(c.copy(self.names))
-            module = c.choice(modules)
+            module_addresses = c.shuffle(c.copy(self.module_addresses))
+            batch_size = self.config.batch_size 
+            # select a module
 
-            # rocket ship emoji
-
+            module_address = c.choice(module_addresses)
             # if we have enough futures, we want to gather them
-            if len(futures) < self.config.batch_size:
-                future = self.async_eval_module(module=module)
-                futures.append(future)
+            if len(futures) < batch_size:
+            
+                try:
+                    future = c.submit(self.eval_module, args=[module_address], timeout=1)
+                    futures.append(future)
+                except Exception as e:
+                    continue
             else:
                 try:
-                    results = c.gather(futures)
+                    results = c.wait(futures, timeout=1)
                 except Exception as e:
                     e = c.detailed_error(e)
-                    c.print(f'Gather error {e}', color='red')
                 futures = []
                 continue
 
@@ -173,7 +184,7 @@ class Vali(c.Module):
                                     netuid=self.config.netuid, 
                                     update=update)
         self.n  = len(self.namespace)    
-        self.addresses = [self.namespace.values()]
+        self.module_addresses = list(self.namespace.values())
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
         self.last_sync_time = c.time()
@@ -201,7 +212,8 @@ class Vali(c.Module):
     def eval_module(self, module:str):
         return c.gather([self.async_eval_module(module=module)])
     
-    async def async_eval_module(self, module:str):
+    async def async_eval_module(self, module:str,
+                                 max_staleness:str = None):
         """
         The following evaluates a module server
         """
@@ -213,6 +225,7 @@ class Vali(c.Module):
         my_info = self.my_info
         module_info = self.load_module_info( module, {})
 
+        # CONFIGURE THE ADDRESS AND NAME (INFER THE NAME IF THE ADDDRESS IS PASED)
         if module in self.namespace:
             module_name = module
             module_address = self.namespace[module]
@@ -232,7 +245,8 @@ class Vali(c.Module):
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
         
         # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
-        if seconds_since_called < self.config.max_staleness:
+        max_staleness = max_staleness or self.config.max_staleness
+        if seconds_since_called < max_staleness :
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
             r = {'error': f'{module_name} is too new as we pinged it {seconds_since_called}(s) ago'}
             return r
@@ -240,17 +254,15 @@ class Vali(c.Module):
         try:
             # check the info of the module
             module = c.connect(module_address, key=self.key)
-            if len(module_info) == 0:
-                module_info = module.info(timeout=self.config.info_timeout)
+            module_info = module.info(timeout=self.config.info_timeout)
             # this is where we connect to the client
             response = self.score_module(module)
             response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
         except Exception as e:
-            response = {'error': c.detailed_error(e), 
-                        'w': 0.001, 
+            response = {
+                        'w': 0, 
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
-            c.print(response, color='red', verbose=self.config.verbose)
 
         end_timestamp = c.time()        
         w = response['w']
@@ -267,6 +279,8 @@ class Vali(c.Module):
 
         # VERBOSITY
         emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
+        
+        
         c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.count += 1
         return module_info
@@ -606,7 +620,7 @@ class Vali(c.Module):
     def dashboard(cls):
         import streamlit as st
         # disable the run_loop to avoid the background  thread from running
-        self = cls(run_loop=False)
+        self = cls(start=False)
         module_path = self.path()
         
         st.title(module_path)

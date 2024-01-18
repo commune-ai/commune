@@ -83,7 +83,7 @@ class Client(c.Module):
         url = f"http://{self.address}/{fn}/"
 
 
-
+        
         input =  { 
                         "args": args,
                         "kwargs": kwargs,
@@ -120,12 +120,11 @@ class Client(c.Module):
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
-
-            
         if self.save_history:
             input['result'] = result
             input['server']  = self.address
             input['fn'] = fn
+            input['latency'] =  c.time() - input['timestamp']
             path = self.history_path+'/' + self.key.ss58_address + '/' + str(input['timestamp'])
             self.put(path, input)
         return result

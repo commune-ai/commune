@@ -341,6 +341,5 @@ class OpenAILLM(c.Module):
         cls.put('api_keys', api_keys)
         return {'msg': f"Saved API Keys", 'success': True}
    
-
-   def embed(self, text:str, **kwargs):
-        
+    def embed(self, text:str, **kwargs):
+        pass

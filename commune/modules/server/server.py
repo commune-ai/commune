@@ -304,9 +304,6 @@ class Server(c.Module):
         serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return serve_kwargs.get(server_name, {})
 
-    @classmethod
-    def history(cls,server='module',  mode='http'):
-        return c.module(f'server.{mode}').history(server)
 
     @classmethod
     def all_history(cls,server='module',  mode='http'):
@@ -318,11 +315,41 @@ class Server(c.Module):
     def has_serve_kwargs(cls, server_name:str, network='local'):
         serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return server_name in serve_kwargs
+    
+    def history(self, server=None, mode='http'):
+        return c.module(f'server.{mode}').history(server)
+    
+    def history_dashboard(self):
+
+        history_paths = self.history()
+        history = []
+        import os
+        for h in history_paths:
+            row =  {
+                    'module': h.split('/')[-2],
+                    **c.get(h)
+                }
+        
+            row.update(row.pop('data', {}))
+            history.append(row)
+        
+        df = pd.DataFrame(history)
+        modules = list(df['module'].unique())
+        module = st.multiselect('Select Module', modules, modules)
+        df = df[df['module'].isin(module)]
+        columns = list(df.columns)
+        with st.expander('Select Columns'):
+            selected_columns = st.multiselect('Select Columns', columns, columns)
+            df = df[selected_columns]
+        
+        st.write(df) 
+        self.plot_dashboard(df=df, key='dam', select_columns=False)
 
     @classmethod
     def dashboard(cls, network = None, key= None):
         import pandas as pd
         self = cls()
+        
         self.st = c.module('streamlit')
         modules = c.modules()
         self.servers = c.servers()
@@ -361,7 +388,7 @@ class Server(c.Module):
         launcher_namespace = c.namespace(search='module::', namespace='remote')
         launcher_addresses = list(launcher_namespace.values())
 
-        pages = ['serve', 'code', 'search', 'playground']
+        pages = ['serve', 'code', 'history', 'playground']
         # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
 
         tabs = st.tabs(pages)
@@ -371,16 +398,17 @@ class Server(c.Module):
         with tabs[1]:
             self.code_dashboard()
         with tabs[2]:
-            self.search_dashboard()
-        # with tabs[3]:
-        #     self.playground_dashboard()
+            self.history_dashboard()
+
+        with tabs[3]:
+            self.playground_dashboard()
         # for i, page in enumerate(pages):
         #     with tabs[i]:
         #         getattr(self, f'{page}_dashboard')()
 
         module_name = self.module.path()
         # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-
-
+    def playground_dashboard(self):
+        c.module('playground').dashboard()
 
 Server.run(__name__)

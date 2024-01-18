@@ -103,6 +103,7 @@ class ServerHTTP(c.Module):
                 signature: the signature of the request
 
             """
+            input['start_time'] = c.time()
             try:
                 input['fn'] = fn
                 # you can verify the input with the server key class
@@ -143,32 +144,45 @@ class ServerHTTP(c.Module):
             else:
                 c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
             result = self.process_result(result)
-
             
+            output = {
+                **input['data'],
+                'result': result
+            }
+            output = input
+            output['result'] = result
+            output.update(output.pop('data', {}))
+            output['latency'] = c.time() - output['timestamp']
+        
             if self.save_history:
-                path = self.history_path+'/' + str(input['data']['timestamp']) + '_' +input['address'] 
-                input['result'] = result
-                self.put(path, input)
-            
-            
+                path = self.history_path+'/' + fn + '/'+output['address']  + '/' + str(output['timestamp']) 
+                self.put(path, output)
+        
             return result
         
         self.serve()
 
     @classmethod
-    def history(cls, server='module', history_path='history'):
-        dirpath  = f'{history_path}/{server}'
-        return cls.ls(dirpath)
+    def history(cls, server=None, history_path='history'):
+        if server == None:
+            dirpath  = f'{history_path}'
+            return cls.glob(dirpath)
+        else:
+            
+            dirpath  = f'{history_path}/{server}'
+            return cls.ls(dirpath)
+
     
     @classmethod
-    def all_history(cls,history_path='history'):
-        dirpath  = f'{history_path}'
-        return cls.glob(dirpath)
-    
-    @classmethod
-    def rm_history(cls, server='module', history_path='history'):
+    def rm_history(cls, server=None, history_path='history'):
         dirpath  = f'{history_path}/{server}'
         return cls.rm(dirpath)
+    
+    @classmethod
+    def rm_all_history(cls, server=None, history_path='history'):
+        dirpath  = f'{history_path}'
+        return cls.rm(dirpath)
+
 
     def state_dict(self) -> Dict:
         return {

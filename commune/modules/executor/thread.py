@@ -30,7 +30,7 @@ class ThreadPoolExecutor(c.Module):
     def __init__(
         self,
         max_workers: int =None,
-        maxsize : int =-1,
+        maxsize : int =30 ,
         thread_name_prefix : str ="",
     ):
         """Initializes a new ThreadPoolExecutor instance.
@@ -67,6 +67,9 @@ class ThreadPoolExecutor(c.Module):
                 path:str=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
+        # check if the queue is full and if so, raise an exception
+        if self.work_queue.full():
+            raise RuntimeError("cannot schedule new futures after maxsize exceeded")
         with self.shutdown_lock:
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
