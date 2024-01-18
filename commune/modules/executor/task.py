@@ -16,41 +16,33 @@ import time
 from concurrent.futures._base import Future
 import commune as c
 
-
-
-
 class Task(c.Module):
     def __init__(self, 
-                 fn:str,
+                fn:str,
                 args:list, 
                 kwargs:dict, 
                 timeout:int=10, 
                 priority:int=1, 
-                path=None,
                 save:bool = False,
+                path = None,
                 **extra_kwargs):
         
-        self.path = path
         self.future = Future()
         self.fn = fn # the function to run
-        if self.fn == None:
-            return None
         self.start_time = time.time() # the time the task was created
         self.args = args # the arguments of the task
         self.kwargs = kwargs # the arguments of the task
         self.timeout = timeout # the timeout of the task
         self.priority = priority # the priority of the task
-        self.path = path # the path to store the state of the task
-        self.status = 'pending' # pending, running, done
         self.data = None # the result of the task
-        self.fn_name = fn.__name__ # the name of the function
+    
+        self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.extra_kwargs = extra_kwargs
+        self.save = save
+        self.status = 'pending' # pending, running, done
         self.__dict__.update(extra_kwargs)
         # save the task state
-        self.save = save
-        if self.save:
-            self.save_state()
 
 
     @property
@@ -65,7 +57,7 @@ class Task(c.Module):
             'args': self.args,
             'timeout': self.timeout,
             'start_time': self.start_time, 
-            'priority': self.lifetime,
+            'priority': self.priority,
             'status': self.status,
             'data': self.data, 
             **self.extra_kwargs
@@ -73,9 +65,13 @@ class Task(c.Module):
     
     @property
     def save_state(self):
-        self.paths = {f'{status}/{self.fn_name}_utc_{self.start_time}' for status in ['pending', 'complete']}
+        
+        self.path
+        path = f"{self.status}_{self.fn_name}_args={str(self.args)}_kwargs={str(self.kwargs)}"
+        if self.path != None:
+            path = f"{self.path}/{path}"
         if self.status == 'pending':
-            return self.put(self.path[self.status], self.state)
+            return self.put(self.status2path[self.status], self.state)
         elif self.status in ['complete', 'failed']:
             if c.exists(self.paths['pending']):
                 c.rm(self.paths['pending'])
@@ -95,8 +91,11 @@ class Task(c.Module):
             data = self.fn(*self.args, **self.kwargs)
             self.status = 'complete'
         except Exception as e:
+
             # what does this do? A: it sets the exception of the future, and sets the status to failed
             data = c.detailed_error(e)
+            if 'event loop' in data['error']: 
+                c.new_event_loop(nest_asyncio=True)
             self.status = 'failed'
 
         self.future.set_result(data)
@@ -137,5 +136,6 @@ class Task(c.Module):
             return self.priority < other
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
-    
+
+
 

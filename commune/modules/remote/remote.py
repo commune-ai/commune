@@ -231,13 +231,15 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, search=None, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
 
         output = {}
         if hosts == None:
             hosts = cls.hosts()
             if host != None:
                 hosts = {host:hosts[host]}
+        if search != None:
+            hosts = {k:v for k,v in hosts.items() if search in k}
         if isinstance(hosts, list):
             hosts = {h:hosts[h] for h in hosts}
         elif isinstance(hosts, str):
@@ -286,12 +288,12 @@ class Remote(c.Module):
         return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
 
     @classmethod
-    def add_peers(cls, add_admins:bool=False, timeout=20, refresh=False, network='remote'):
+    def add_peers(cls, add_admins:bool=False, timeout=20, update=True, network='remote'):
         """
         Adds servers to the network by running `c add_peers` on each server.
         
         """
-        if refresh:
+        if update:
             c.rm_namespace(network=network)
         if add_admins:
             cls.add_admin(timeout=timeout)
@@ -299,9 +301,8 @@ class Remote(c.Module):
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
         ip2host = cls.ip2host()
-    
-        server_addresses_responses = list(cls.cmd('c addy', verbose=True, timeout=timeout).values())
-        for i, server_address in enumerate(server_addresses_responses):
+        host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
+        for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
             if isinstance(server_address, str):
                 server_address = server_address.split('\n')[-1]
 
@@ -311,17 +312,14 @@ class Remote(c.Module):
                     continue
                 else:
                     ip = ':'.join(server_address.split(':')[:-1])
-                    if ip in ip2host:
-                        tag = ip2host[ip]
-                    else:
-                        tag = str(server_address)[:4]
 
-                    server_name = 'module' + '_' +  tag
+
+                    server_name = 'module' + '_' +  host
                     namespace[server_name] = server_address
 
         c.put_namespace(network=network, namespace=namespace)
 
-        return {'status': 'success', 'msg': f'Servers added', 'servers': namespace}
+        return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
 
     @classmethod
     def servers(self,search: str ='module', network='remote'):
@@ -370,42 +368,22 @@ class Remote(c.Module):
     
     @classmethod
     def namespace(cls, search=None, network='remote', update=False):
+        namespace = {}
+        if not update:
+            namespace = c.get_namespace(network=network)
+            return namespace
+        
+        peer2namespace = cls.peer2namespace()
+        c.print(peer2namespace)
+        for peer, peer_namespace in peer2namespace.items():
 
-        if update:
-            namespace = {}
-            host2namespace = cls.call('namespace', public=True, timeout=20)
-
-            for host, host_namespace in host2namespace.items():
-                if c.is_error(host_namespace):
+            for name, address in peer_namespace.items():
+                if search != None and search not in name:
                     continue
-                for name, address in host_namespace.items():
-                    tag = ''
-                    while name + str(tag) in namespace:
-                        if tag == '':
-                            tag = 1
-                        else:
-                            tag += 1
-                    namespace[name + str(tag)] = address
-            c.put_namespace(namespace=namespace, network=network)
-        else:
-            namespace = c.get_namespace(search, network=network)
-        if search != None: 
-            namespace = {k:v for k,v in namespace.items() if search in k}
-
-        address2name = {v:k for k,v in namespace.items()}
-        ip2host = cls.ip2host()
-        local_ip = c.ip()
-        for address, name in address2name.items():
-            if 'module' in name:
-                if address in address2name:
+                if name in namespace:
                     continue
-                else:
-                    ip = c.address2ip(address)                        
-
-                    if ip in ip2host:
-                        host = ip2host[ip]
-                    server_name = 'module' + '_' +  str(host)
-                    namespace[server_name] = address
+                namespace[name + '_'+ {peer}] = address
+        c.put_namespace(namespace=namespace, network=network)
         return namespace
 
     @classmethod
@@ -460,7 +438,7 @@ class Remote(c.Module):
             
         for name, address in c.shuffle(list(namespace.items()))[:n]:
             c.print(f'Calling {name} {address}')
-            futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True, timeout=timeout)
+            futures[name] = c.async_call(address, fn, *args)
         
         if return_future:
             if len(futures) == 1:
@@ -468,8 +446,28 @@ class Remote(c.Module):
             return futures
         else:
 
-            results = c.wait(list(futures.values()), timeout=timeout)
-            results = dict(zip(futures.keys(), results))
+    
+            
+            num_futures = len(futures)
+            results = {}
+            import tqdm 
+
+
+            progress_bar = tqdm.tqdm(total=num_futures)
+            error_progress = tqdm.tqdm(total=num_futures)
+
+            results = c.gather(list(futures.values()), timeout=timeout)
+
+            for i, result in enumerate(results):
+                if c.is_error(result):
+                    # c.print(f'Error {result}')
+                    error_progress.update(1)
+                    continue
+
+                else:
+                    # c.print(f'Success {result}')
+                    results[i] = result
+                    progress_bar.update(1)
             # if len(results) == 1:
             #     return list(results.values())[0]
         
@@ -590,30 +588,94 @@ class Remote(c.Module):
         c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
         c.print(cls.cmd(f'c serve', **kwargs))
 
-    def sidebar(self):
-        import streamlit as st
+    def sidebar(self, sidebar=True, **kwargs):
+        if sidebar:
+            with st.sidebar:
+                return self.sidebar(sidebar=False)
 
-        with st.sidebar:
-            with st.expander('Add Host', expanded=False):
-                st.markdown('## Hosts')
-                cols = st.columns(2)
-                host = cols[0].text_input('Host',  '0.0.0.0')
-                port = cols[1].number_input('Port', 22, 30000000000, 22)
-                user = st.text_input('User', 'root')
-                pwd = st.text_input('Password', type='password')
-                add_host = st.button('Add Host')
+        host_map = self.hosts()
+        host_names = list(host_map.keys())
 
-                if add_host:
-                    self.add_host(host=host, port=port, user=user, pwd=pwd)
+        with st.expander('Add Host', expanded=False):
+            st.markdown('## Hosts')
+            cols = st.columns(2)
+            host = cols[0].text_input('Host',  '0.0.0.0')
+            port = cols[1].number_input('Port', 22, 30000000000, 22)
+            user = st.text_input('User', 'root')
+            pwd = st.text_input('Password', type='password')
+            add_host = st.button('Add Host')
 
-            with st.expander('Remove Host', expanded=False):
-                host_names = list(self.hosts().keys())
-                rm_host_name = st.selectbox('Host Name', host_names)
-                rm_host = st.button('Remove Host')
-                if rm_host:
-                    self.rm_host(rm_host_name)
+            if add_host:
+                self.add_host(host=host, port=port, user=user, pwd=pwd)
 
+        with st.expander('Remove Host', expanded=False):
+            host_names = list(self.hosts().keys())
+            rm_host_name = st.selectbox('Host Name', host_names)
+            rm_host = st.button('Remove Host')
+            if rm_host:
+                self.rm_host(rm_host_name)
 
+        
+        search_terms_dict = {
+            'include': '',
+            'avoid': ''
+        }
+
+        for search_type, search_terms in search_terms_dict.items():
+            search_terms = st.text_input(search_type, search_terms)
+            if len(search_terms) > 0:
+                if ',' in search_terms:
+                    search_terms = search_terms.split(',')
+                else:
+                    search_terms = [search_terms]
+                
+                search_terms = [a.strip() for a in search_terms]
+            else:
+                search_terms = []
+
+            search_terms_dict[search_type] = search_terms
+        
+        with st.expander('Search Terms', expanded=False):
+            st.write( search_terms_dict)
+
+        def filter_host(host_name):
+            for avoid_term in search_terms_dict["avoid"]:
+                if avoid_term in host_name:
+                    return False
+            for include_term in search_terms_dict["include"]:
+                if not include_term in host_name:
+                    return False
+            return True
+
+        host_map = {k:v for k,v in host_map.items() if filter_host(k)}
+        host_names = list(host_map.keys())
+
+        n = len(host_names)
+
+        with st.expander(f'Hosts (n={n})', expanded=False):
+            host_names = st.multiselect('Host', host_names, host_names)
+
+            for host_name, host in host_map.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+host_name)
+                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+
+            hosts = self.hosts()
+            hosts = {k:v for k,v in hosts.items() if k in host_names}
+            host_names = list(hosts.keys())
+
+            for host_name, host in hosts.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+host_name)
+                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
+        
+        self.host_map = host_map
+
+    def enter(self, host='root10'):
+        host2ssh  = self.host2ssh()
+        c.print(host2ssh)
+        ssh = host2ssh[host]
+        c.cmd(ssh)
 
 
     def host2ssh(self, *args,  **kwargs):
@@ -678,7 +740,9 @@ class Remote(c.Module):
                 gpus[host] = json.loads(gpu)
                 
         return gpus
+    
 
+ 
     def check_peers(self, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():
@@ -689,46 +753,37 @@ class Remote(c.Module):
     def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
         if remote:
             return self.remote_fn('loop',kwargs = locals())
-        futures = []
-        future2path = {}
         while True:
-            namespace = c.namespace('module', network='remote')
-            peer2lag = self.peer2lag()
-            c.print(peer2lag)
-            for name, address in namespace.items():
-                c.sleep(0.1)
-                path = 'peers/' + address.split(':')[0]
-                existing_peer_info = self.get(path, {})
-                peer_update_ts = existing_peer_info.get('timestamp', 0)
-                peer_staleness = int(c.time() - peer_update_ts)
-                if peer_staleness < max_staleness:
-                    c.print(f'updating {name} {address} was refreshed {peer_staleness} > {max_staleness} {c.emoji("check")}', color='cyan')
-                    continue
+            self.sync()
+            c.sleep(10)
+    def sync(self, timeout=40,  max_staleness=360):
+        futures = []
+        namespace = c.namespace('module', network='remote')
+        c.print('peer2lag: ', namespace)
+        paths = []
+        for name, address in namespace.items():
+            path = 'peers/' + name
+            existing_peer_info = self.get(path, {})
+            peer_update_ts = existing_peer_info.get('timestamp', 0)
+            future = c.submit(c.call, 
+                                args = [address, 'info'],
+                                kwargs = dict(schema=True, namespace=True, hardware=True),
+                                timeout=timeout, return_future=True
+                                )
+            paths += [path]
+            futures += [future]
 
-                future = c.submit(c.call, 
-                                    args = (address, 'info'),
-                                    kwargs = dict(schema=True, namespace=True, hardware=True),
-                                    timeout=timeout, return_future=True
-                                    )
-                # id of fuutre is the same as the id of the future in the remote process
-                
-                
-                futures += [future]
-                
-
-                if batch_size != None and len(futures) >= batch_size:
-                    for future in c.as_completed(futures, timeout=timeout):
-                        result = future.result()
-                        if not c.is_error(result):
-                           path = 'peers/' + address.split(':')[0]
-                           c.print(f'Saving {path}', color='yellow')
-                           result['timestamp'] = c.time()
-                           self.put(path, result)
-                        
-
-                        break 
-                futures = [future for future in futures if not future.done()]
-
+        results = c.wait(futures, timeout=timeout, generator=False)
+        for i, result in enumerate(results):
+            path = paths[i]
+            if c.is_error(result):
+                c.print(f'Error {result}')
+                continue
+            else:
+                c.print(f'Success {path}')
+                self.put(path, result)
+            self.put(path, result)
+        return {'status': 'success', 'msg': f'Peers synced'}
 
     def peerpath2name(self, path:str):
         return path.split('/')[-1].replace('.json', '')
@@ -758,55 +813,57 @@ class Remote(c.Module):
         info_paths = self.ls('peers')
         peer_infos = []
         for path in info_paths:
-            peer_infos += [self.get(path, {}).get('hardware', {})]
+            c.print(path)
+            info = self.get(path, {})
+            # c.print(info)
+            peer_infos += [info.get('hardware', {})]
         return peer_infos
     
-    def peer2namespace(self):
-        info_paths = self.ls('peers')
-        peer_infos = []
+    # def path2ip(self, path):
+    #     return path.split('/')[-1].replace('.json', '')
+    # def path2peer(self, path):
+    #     return self.ip2host().get(self.path2ip(path), None)
+    
+    @classmethod
+    def peer2namespace(cls):
+        info_paths = cls.ls('peers')
+        peer2namespace = {}
         for path in info_paths:
-            c.print(path)
-            peer_infos += [self.get(path, {}).keys()]
-        return peer_infos
+            info = cls.get(path, {})
+            peer2namespace[path] = info.get('namespace', {})
+        return peer2namespace
 
         
 
     @classmethod
-    def dashboard(cls, deploy:bool=True):
+    def dashboard(cls):
+        c.new_event_loop()
+        import streamlit as st
+        st.set_page_config(layout="wide")
 
-        if deploy:
-            cls.st(kwargs=dict(deploy=False))
+        c.load_style()
+        st.title('Remote Dashboard')
         self = cls()
 
-        import streamlit as st
-
-        st.set_page_config(layout="wide")
-        st.title('Remote Dashboard')
-        self.sidebar()
-
-        self.st = c.module('streamlit')()
-        self.st.load_style()
-
-        tabs = st.tabs(['Servers', 'Peers'])
-        
+        self.sidebar(True)
+        self.ssh_dashboard()
+    def peer_info(self, peer):
+        host2ip = self.host2ip()
+        peer = host2ip.get(peer, peer)
+        return self.get(f'peers/{peer}', {})
     
-
-        with tabs[0]:
-            st.markdown('## Servers')
-            self.ssh_dashboard()
-        with tabs[1]:
-            st.markdown('## Peers')
-            self.peer_dashboard()
 
 
     def peer_dashboard(self):
         import streamlit as st
         import pandas as pd
 
-        cols = st.columns(2)
-        search = cols[0].text_input('Search', 'module')
-        ip2host = self.ip2host()
-        peer2info = self.peer2info()
+        with st.sidebar:
+            cols = st.columns(2)
+            search = cols[0].text_input('Search', 'module')
+            peer2info = self.peer2info()
+
+            st.write(list(peer2info.values())[0])
 
         peer_info_df = []
         for peer, info in peer2info.items():
@@ -823,8 +880,8 @@ class Remote(c.Module):
             row['num_modules'] = len(info.get('namespace', {}))
         
         peer_info_df = pd.DataFrame(peer_info_df)
-        st.dataframe(peer_info_df)
         namespace = c.namespace(search=search, network='remote')
+        ip2host = self.ip2host()
 
         with st.expander('Peers', expanded=False):
             for peer, info in peer2info.items():
@@ -857,6 +914,7 @@ class Remote(c.Module):
         cols = st.columns(3)
         module_name = cols[0].selectbox('Module', module_names, index=0)
         module_address = namespace[module_name]
+        c.print(f'Connecting to {module_name} {module_address}')
         module = c.connect(module_address)
         cache = cols[2].checkbox('Cache', True)
 
@@ -869,6 +927,7 @@ class Remote(c.Module):
 
         if len(module_info) == 0:
             st.write('Getting module info')
+            
             module_info = module.info()
             self.put_json(cache_path, module_info)
         fns = list(module_info['schema'].keys())
@@ -906,67 +965,52 @@ class Remote(c.Module):
         st.write(f'Info took {t2-t1} seconds')
 
 
+
     def ssh_dashboard(self):
         import streamlit as st
-        host_map = self.hosts()
-        cols = st.columns(2)
-        search = st.text_input('Search')
-        host_map = {k:v for k,v in host_map.items() if search in k}
+        host_map = self.host_map
+
         host_names = list(host_map.keys())
-        host_names = st.multiselect('Host', host_names, host_names)
 
 
-        with st.expander('Hosts', expanded=False):
-            
-            st.write(host_map)
-            for host_name, host in host_map.items():
-                cols = st.columns([1,4])
-                cols[0].write('#### '+host_name)
-                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
-
-
-            if len(search) > 0:
-                host_names = [h for h in host_names if search in h]
-            hosts = self.hosts()
-            hosts = {k:v for k,v in hosts.items() if k in host_names}
-            host_names = list(hosts.keys())
-
-            for host_name, host in hosts.items():
-                cols = st.columns([1,4])
-                cols[0].write('#### '+host_name)
-                cols[1].code(f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}')
-
-                    
+                        
         # progress bar
-        
-        
-        
-        
-        cols = st.columns([4,2,1])
 
-        cmd = cols[0].text_input('Command', 'ls')
-
-        [cols[1].write('') for i in range(1)]
+        
+        cols = st.columns([4,4,2])
+        cwd = cols[0].text_input('cwd', '/')
         timeout = cols[1].number_input('Timeout', 1, 100, 10)
-        # add splace to cols[2] vertically
         [cols[2].write('') for i in range(2)]
         sudo = cols[2].checkbox('Sudo')
+        if cwd == '/':
+            cwd = None
+
+        # add splace to cols[2] vertically
+        
+        cols = st.columns([2,1,1])
+        cmd = cols[0].text_input('Command', 'ls')
+        fn_code = cols[1].text_input('Function', '''x''')
+        for i in range(2):
+            cols[2].write('\n')
+        filter_bool = cols[2].checkbox('Filter', False)
+
+        if 'x' not in fn_code:
+            fn_code = f'x'
+
+        fn_code = eval(f'lambda x: {fn_code}')                               
+
         run_button = st.button('Run')
-
-
         host2future = {}
         if run_button:
             for host in host_names:
-                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names), return_future=True, timeout=timeout)
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
 
-        futures = list(host2future.values())
-        hosts = list(host2future.keys())
-        host2error = {}
-        count = 0
-        cols = st.columns(4)
+            futures = list(host2future.values())
+            hosts = list(host2future.keys())
+            host2error = {}
+            cols = st.columns(4)
 
-        with st.expander('Results', expanded=False):
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
                     host = hosts[result['idx']]
@@ -974,14 +1018,16 @@ class Remote(c.Module):
                     if host == None:
                         continue
                     host2future.pop(host)
-
                     result = result['result']
-                    if c.is_error(result):
-                        host2error[host] = result
-                    else:
-                        count += 1
-                        st.markdown(host + ' ' + c.emoji('check_mark'))
-                        st.markdown(f"""```bash\n{result}```""")
+                    is_error = c.is_error(result)
+                    emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
+                    msg = f"""```bash\n{result['error']}```""" if is_error else f"""```bash\n{result}```"""
+
+                    with st.expander(f'{host} -> {emoji}', expanded=False):
+                        msg = fn_code(x=msg)
+                        if filter_bool and msg != True:
+                            continue
+                        st.markdown(msg)
 
             except Exception as e:
                 pending_hosts = list(host2future.keys())
@@ -991,7 +1037,21 @@ class Remote(c.Module):
             for host, result in host2error.items():
                 st.markdown(host + ' ' + c.emoji('cross'))
                 st.markdown(f"""```bash\n{result}```""")
-    dash = dashboard
+
+    def save_ssh_config(self, path="~/.ssh/config"):
+        ssh_config = []
+
+        for host_name, host in self.hosts().items():
+            ssh_config.append(f'Host {host_name}')
+            ssh_config.append(f'  HostName {host["host"]}')
+            ssh_config.append(f'  Port {host["port"]}')
+            ssh_config.append(f'  User {host["user"]}')
+
+        ssh_config = '\n'.join(ssh_config)
+
+        return c.put_text(path, ssh_config)
+        
+    
 
 
 Remote.run(__name__)

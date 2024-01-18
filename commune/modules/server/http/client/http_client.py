@@ -38,6 +38,7 @@ class Client(c.Module):
         self.my_ip = c.ip()
         self.network = c.resolve_network(network)
         self.start_timestamp = c.timestamp()
+        
 
     
     def age(self):
@@ -165,5 +166,8 @@ class Client(c.Module):
 
     def virtual(self):
         return c.virtual_client(module = self)
+    
+    def __repr__(self) -> str:
+        return super().__repr__()
 
 

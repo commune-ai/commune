@@ -55,7 +55,7 @@ You can stake to multiple validators by using the following command:
 Stake 100 form your balance to vali::whadup and vali::whadup2
 
 ```bash
-c multistake amount=100 modules=["vali::whadup","vali::whadup2"]
+c stake_many amount=100 modules=["vali::whadup","vali::whadup2"]
 ```
 
 

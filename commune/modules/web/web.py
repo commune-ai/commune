@@ -1,16 +1,53 @@
 import commune as c
 from bs4 import BeautifulSoup
 import requests
+import asyncio
+import aiohttp
 
 class Web(c.Module):
+
     @classmethod
-    def request(self, url:str, method:str='GET',  headers={'User-Agent': 'Mozilla/5.0'}, **kwargs):
-        response =  requests.request(method, url, **kwargs)
-        if response.status_code == 200:
-            return response.text
+    async def async_request(cls, url, method, headers, **kwargs):
+        async with aiohttp.ClientSession() as session:
+            async with session.request(method, url, headers=headers, **kwargs) as response:
+                if response.status == 200:
+                    return {'status_code': response.status, 'text': await response.text()}
+                else:
+                    return {'status_code': response.status, 'text': await response.text()}
+
+    def url2text(self, url, max_words=50):
+        url_text = self.request(url)
+        content = self.soup(url_text)
+        response = {
+                    'title': content.contents[0],
+                    'url': url, 
+                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
+                    }
+        text_words = response['text'].split(' ')
+        num_words = len(text_words)
+        if num_words > max_words:
+            response['text'] = ' '.join(text_words[:max_words])
+        return response
+
+    @classmethod
+    def request(cls, url = "https://google.com", method='GET', headers={'User-Agent': 'Mozilla/5.0'}, mode="request", **kwargs):
+        if mode == "request":
+            response = requests.request(method, url, headers=headers, **kwargs)
+            
+            if response.status_code == 200:
+                text =  response.text
+                return text
+
+            else:
+                return {'status_code': response.status_code, 'text': response.text}
+        elif mode == "asyncio":
+            loop = asyncio.get_event_loop()
+            response = loop.run_until_complete(cls.async_request(url, method, headers, **kwargs))
+            return response
         else:
-            return {'status_code': response.status_code, 'text': response.text}
-        
+            raise ValueError(f"Invalid mode: {mode}")
+
+
 
     def html(self, url:str = 'https://www.google.com/', **kwargs):
         return self.request(url, **kwargs)
@@ -20,7 +57,6 @@ class Web(c.Module):
     def get_text(self, url:str, min_chars=100, **kwargs):
         text_list = [p.split('">')[-1].split('<')[0] for p in self.get_components(url, 'p')['p']]
         return [text for text in text_list if len(text) > min_chars]
-    
     
 
     def get_components(self, url, *tags):
@@ -52,21 +88,35 @@ class Web(c.Module):
         return cls.request(url, 'POST', **kwargs)
 
 
-    def google_search(self, keyword='isreal-hamas', n=1):
+    def google_search(self, keyword='isreal-hamas', n=10, max_words=1000):
         from googlesearch import search
+        urls = search(keyword, num_results=n)
+        futures = []
+        for url in urls:
+            futures.append(c.submit(self.url2text, args=[url], return_future=True))
+        results = c.wait(futures, timeout=10)
+        # url2result = {url: result for url, result in zip(urls, results)}
+        return results
 
-        result = []
-        for url in search(keyword, num_results=n):
-            url_text = self.request(url)
-            content = self.soup(url_text)
-            item = {
-                "url": url,
-                "content": content
-            }
-            result.append(item)
+    bing_search = google_search
 
-        return result
+    def url2text(self, url, max_words=50):
+        url_text = self.request(url)
+        content = self.soup(url_text)
+        response = {
+                    'title': content.contents[0],
+                    'url': url, 
+                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
+                    }
+    
+        for i in range(10):
+            response['text'] = response['text'].replace('\n\n', '')
 
+        text_words = response['text'].split(' ')
+        num_words = len(text_words)
+        if num_words > max_words:
+            response['text'] = ' '.join(text_words[:max_words])
+        return response
     def yahoo_search(self, keyword):
         from yahoo import search as yahoo_search
 
@@ -106,28 +156,42 @@ class Web(c.Module):
     
 
     def soup(self, webpage=None, url=None, **kwargs):
-        from bs4 import BeautifulSoup as soup
         if webpage is None:
             webpage = self.webpage(url)
-        page_soup = soup(webpage, "html.parser", **kwargs)
-        return page_soup
+        soup = BeautifulSoup(webpage, 'html.parser', **kwargs)
+        return soup
     
 
     def find(self,url=None, tag='p', **kwargs):
         return self.soup(url=url).find(tag, **kwargs)
 
-    
 
-    def sand(self, url='https://www.fool.ca/recent-headlines/',   **kwargs):
-        from bs4 import BeautifulSoup as soup
+    def sand(self, url='https://www.fool.ca/recent-headlines/', **kwargs):
+        
 
         webpage = self.webpage(url)
-        page_soup = c.soup(webpage, "html.parser", **kwargs)
+        page_soup = self.soup(webpage, "html.parser", **kwargs)
         title = page_soup.find("title")
         containers = page_soup.findAll("p","promo")
         for container in containers:
             print(container)
 
-
-
     
+    @classmethod
+    def install(cls):
+        c.cmd("pip3 install beautifulsoup4")
+
+    @classmethod
+    def dashboard(cls, url='https://google.com', ):
+        from urllib.request import Request, urlopen
+
+        import streamlit as st
+        st.title("Web")
+
+        self = cls()
+        # show html of webpage
+        webpage_html = self.html(url)
+        
+    
+    
+Web.run(__name__)

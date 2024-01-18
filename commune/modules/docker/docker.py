@@ -129,11 +129,32 @@ class Docker(c.Module):
         for i, l in enumerate(text.split('\n')):
             if len(l) > 0:
                 if i == 0:
-                    cols = [_.strip().replace(' ', '_') for _ in l.split('  ') if len(_) > 0]
+                    cols = [_.strip().replace(' ', '_').lower() for _ in l.split('  ') if len(_) > 0]
                 else:
                     df.append([_.strip() for _ in l.split('  ') if len(_) > 0])
         df = pd.DataFrame(df, columns=cols) 
+        if to_records:
+            return df.to_records()
         return df
+    
+    def rm_image(self, image_id):
+        response = {'success': False, 'image_id': image_id}
+        c.cmd(f'docker image rm -f {image_id}', verbose=True)
+        response['success'] = True
+        return response
+
+    def rm_images(self, search:List[str]=None):
+        image_records = self.images(to_records=False)
+        responses = []
+        for i, image_record in image_records.iterrows():
+            image_dict = image_record.to_dict()
+
+            if search == None or str(search.lower()) in image_dict['repository']:
+                r = self.rm_image(image_dict['image_id'])
+                responses.append(r)
+                
+        return {'success': True, 'responses': responses }
+    
 
     @classmethod
     def image2id(cls, image=None):

@@ -25,7 +25,7 @@ class WatchdogModule(c.Module, FileSystemEventHandler):
         self.folder_path = folder_path
         self.observer = None
         if run:
-            self.start_server()
+            c.thread(self.start_server)
     def start_server(self):
         event_handler = FileChangeHandler(self)
         self.observer = Observer()

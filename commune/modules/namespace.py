@@ -56,14 +56,18 @@ class Namespace(c.Module):
         return address
 
     @classmethod
-    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False) -> dict:
+    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False, subnet=None, **kwargs) -> dict:
         if network == None: 
             network = cls.network
 
-        if network == 'subspace':
-            if ':' in network:
-                network, subnet = search.split(':')
-            return c.module(network)().namespace(update=update, netuid=subnet)
+        if 'subspace' in network:
+            if '.' in network:
+                network, subnet = network.split('.')
+            else: 
+                if subnet == None:
+                    subnet = 0
+            kwargs['netuid'] = subnet
+            return c.module(network)().namespace(update=update, **kwargs)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))
@@ -135,6 +139,7 @@ class Namespace(c.Module):
     def module_exists(cls, module:str, network:str=network) -> bool:
         namespace = cls.get_namespace(network=network)
         return bool(module in namespace)
+    
 
     @classmethod
     def update_namespace(cls,
@@ -156,14 +161,17 @@ class Namespace(c.Module):
         if network == 'local':
             if full_scan == True or len(addresses) == 0 and network == 'local':
                 addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
+        import asyncio
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
             futures = []
-            for address in addresses_chunk:
-                futures += [c.submit(c.call, kwargs=dict(module=address, fn='server_name'), timeout=timeout ,return_future=True)]
 
-            names_chunk = c.wait(futures, timeout=timeout)
+            for address in addresses_chunk:
+
+                futures += [c.async_call(module=address, fn='server_name')]
+
+            names_chunk = c.gather(futures, timeout=timeout)
             
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
