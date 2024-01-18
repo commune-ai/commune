@@ -836,6 +836,7 @@ class Subspace(c.Module):
         if netuid != None and netuid != 'all':
             netuid = self.resolve_netuid(netuid)
             subnet_params = {k:v[netuid] for k,v in subnet_params.items()}
+            c.print()
             for k in ['min_stake', 'max_stake']:
                 subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         
