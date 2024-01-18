@@ -251,6 +251,13 @@ class StreamlitModule(c.Module):
         style_path =  cls.style2path(style)        
         with open(style_path) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        css = r'''
+            <style>
+                [data-testid="stForm"] {border: 0px}
+            </style>
+        '''
+
+        st.markdown(css, unsafe_allow_html=True)
         
     @classmethod
     def line_seperator(cls, text='-', length=50):
@@ -494,4 +501,5 @@ class StreamlitModule(c.Module):
     
         # lisst all the prots
     
+
 

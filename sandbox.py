@@ -1,24 +1,35 @@
+
+# # import requests
+# # response = requests.post(
+# #     "https://search.dria.co/search",
+# #     headers={'x-api-key': '63f19480-3f06-4e7c-8c12-6d2a8c30678b', 'Content-Type': 'application/json'},
+# #     json={
+# #     "rerank": True,
+# #     "top_n": 10,
+# #     "contract_id": "7LUEmgCw9f3DJ6a0haw7mFgzNhbwdWSdWaSqrVkB1E0",
+# #     "query": "What is alexanDRIA library?"
+# # }
+# # )
+# # print(response.status_code)
+# # print(response.json())
+
 # import commune as c
 
-# model = c.connect('model.hf.mistral7b_int4::3')
-# t1 = c.time()
-# vali = c.module('vali.text.truthqa')(start=False)
+# r = c.module("remote")
+# df = []
+# for i in range(100):
+#     t1 = c.time()
+#     c.module("model.openai")
+#     t2 = c.time()
+#     period = t2 - t1
+#     print(period)
+#     df.append({'period': period, 'i': i})
 
-# text = 'what is the difference between metalica and school'
-# c.print(vali.score_module(model))
-# # output =  model.generate(text, max_new_tokens=max_new_tokens)
-# # latency = c.time() - t1
-# # tokens_per_second = max_new_tokens / latency
-# # c.print(tokens_per_second, output)
+# df = c.df(df)
 
-from tqdm import tqdm
-from time import sleep
-import psutil
+# df.plot()
 
-with tqdm(total=100, desc='cpu%', position=1) as cpubar, tqdm(total=100, desc='ram%', position=0) as rambar:
-    while True:
-        rambar.n=psutil.virtual_memory().percent
-        cpubar.n=psutil.cpu_percent()
-        rambar.refresh()
-        cpubar.refresh()
-        sleep(0.5)
+
+import commune as c
+c.new_event_loop()
+c.print(c.call('24.83.20.198:2700', 'info'))

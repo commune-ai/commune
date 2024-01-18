@@ -50,7 +50,7 @@ class AccessSubspace(c.Module):
         fn = input.get('fn')
 
         
-        assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
+        assert fn in self.module.whitelist or fn in c.whitelist, f"Function {fn} not in whitelist"
         assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
         # RATE LIMIT CHECKING HERE

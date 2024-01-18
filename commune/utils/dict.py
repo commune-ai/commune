@@ -429,7 +429,7 @@ def dict_merge(*args):
 
 
 async def async_get_json(path, return_type='dict', handle_error=True, default = None):
-    from commune.utils.asyncio import async_read, sync_wrapper
+    from commune.utils.asyncio import async_read
     
     try:  
         

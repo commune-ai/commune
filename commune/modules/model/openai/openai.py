@@ -113,7 +113,7 @@ class OpenAILLM(c.Module):
         
 
     
-    def forward(self,
+    def generate(self,
                 prompt:str = 'sup?',
                 model:str = 'gpt-3.5-turbo',
                 presence_penalty:float = 0.0, 
@@ -123,7 +123,6 @@ class OpenAILLM(c.Module):
                 top_p:float = 1,
                 choice_idx:int = 0,
                 api_key:str = None,
-                retry: bool = True,
                 role:str = 'user',
                 history: list = None,
                 **kwargs) -> str:
@@ -158,7 +157,6 @@ class OpenAILLM(c.Module):
         self.input_tokens += input_tokens
         self.output_tokens += output_tokens
 
-
         latency = c.time() - t
 
         stats = {
@@ -175,9 +173,9 @@ class OpenAILLM(c.Module):
 
         return output_text
 
-
     _stats = None
     _stats_update_time = 0
+
     @classmethod
     def stats(cls, skip_keys = ['prompt', 'response', 'history'], refresh_interval=5):
         if cls._stats != None or c.time() % refresh_interval > (c.time() - cls._stats_update_time):
@@ -190,7 +188,7 @@ class OpenAILLM(c.Module):
 
         return  stats
     
-
+    
     @classmethod
     def tokens_per_period(cls, timescale='m'):
         stats = cls.stats()
@@ -221,7 +219,7 @@ class OpenAILLM(c.Module):
 
         return {'msg': f"Saved stats for {tag}", 'success': True}
 
-    generate = call = forward
+    forward = call = generate
 
     @classmethod
     def chat(cls, *args, **kwargs):
@@ -235,7 +233,6 @@ class OpenAILLM(c.Module):
         self.config['history'] = history
 
     def set_prompt(self, prompt: str):
-        
         if prompt == None:
             prompt = self.prompt
         self.prompt = prompt

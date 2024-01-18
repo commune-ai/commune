@@ -262,7 +262,8 @@ class OsModule(c.Module):
 
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
-        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        assert type(x) in [int, float, str], f'x must be int or float, not {type(x)}'
+        x = float(x)
         fmt2scale = {
             'b': 1,
             'kb': 1000,
@@ -354,12 +355,16 @@ class OsModule(c.Module):
                 'ratio': mem_info[0]/mem_info[1],
             }
 
+        gpu_info_map = {}
+
         for gpu_id, gpu_info in gpu_info.items():
             for key, value in gpu_info.items():
                 if key in ['ratio', 'total']:
                     continue
                 gpu_info[key] = cls.format_data_size(value, fmt=fmt)
+            gpu_info_map[gpu_id] = gpu_info
         return gpu_info
+        
 
     gpu_map =gpu_info
 
