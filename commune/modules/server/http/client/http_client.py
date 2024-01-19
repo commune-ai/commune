@@ -123,7 +123,6 @@ class Client(c.Module):
                     result = json.loads(result)
                     if 'data' in result:
                         result = self.serializer.deserialize(result)
-                        result =  result['data']
           
                 elif response.content_type == 'application/json':
                     # PROCESS JSON EVENTS
@@ -133,6 +132,8 @@ class Client(c.Module):
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
+        if 'data' in result:
+            result = result['data']
         if self.save_history:
             input['fn'] = fn
             input['result'] = result

@@ -1,216 +1,83 @@
 import commune as c
 import json
 
-
-
-
-class Agent(c.Module):
-    description = """
-    You have a set of tools, and you should call them if you need to 
-    if you call a tool, store the response in the answer field, and you will be fed 
-    the response in the next step. So dont worry if you dont know.
-
-    call_tools: {tool:str, kwargs:dict} -> answer
-
-    Notes:
-    ALWAYS FILL THE ANSWER AND RETURN THE JSON
-    YOU HAVE N TRIES, HAVE AN ANSWER BY N
-    JUST RESPOND IN THE ANSWER, CALL_TOOLS
-
-    """
-
-    tools = [
-            'module.ls', 
-            'module.fns', 
-            'module.cmd' ,
-            'module.servers', 
-            'module.modules', 
-            'module.module', 
-            'module.ip', 
-            'key.keys', 
-            'module.block', 
-            'module.fn_code', 
-            'module.fn_info',
-            'web.google_search',
-            'module.namespace',
-            'module.hardware'
-            ]
-
-    def __init__(self,
-                name='agent',
-                description : str = None, 
-                model : str = 'model.openai',
-                network : str = 'local',
-                tools:list = tools
-                ):
-        self.name = name
-        self.description = description if description != None else self.description
-        self.set_model(model, network=network)
-        self.set_tools(tools)
-
-
-    def set_model(self, model:str = 'model.openai ', network:str = 'local'):
-        self.model_namespace = c.namespace(search=model, netowrk=network)
-        assert len(self.model_namespace) > 0, f"no models found in {model}, please check the model path"
-        self.model_addresses = list(self.model_namespace.values())
-        self.model_names = list(self.model_namespace.keys())
-        self.network = network
-        self.model = c.connect(c.choice(self.model_addresses))
-        return {"success": True, "message": f"set model to {self.model}"}
-    
-    
-    def rm_tools(self, tools:list = None):
-        if tools == None:
-            self.tools = {}
-        else:
-            for t in tools:
-                self.rm_tool(t)
-        return self.tools
-    
-
-    def resolve_tools(self, tools):
-
-        if isinstance(tools, str):
-            tools = [tools]
-        if isinstance(tools, list):
-            tools = self.get_tools(tools)
-        if tools == None:
-            tools = self.tools
-
-        return tools
-    
-
-
-    
-
-    def call(self, 
-             text:str,
-             model=None, 
-             history=None, 
-             tools=tools, 
-             n = 1,
-             description:str = None) -> str:
+class AgentCoder(c.Module):
+    def document_fn(self,
+             fn='agent.coder/call', 
+             model = 'model.openai',
+             **model_params
+             ):
+        '''
+        ### Function Documentation
         
+        #### Function Name: 
+        call
+        
+        #### Parameters:
+        - `fn` (str): The designated function name. Default value is 'agent.coder/call'.
+        - `model` (str): The model identifier. Default value is 'model.openai'.
+        
+        #### Description:
+        This function is designed to generate documentation for a given function by connecting to a model and sending a JSON-encoded request containing the function's code and instruction for documentation. The function handles the connection to the model, generates
+        '''
+        model = c.connect(model, **model_params)
+        input = json.dumps({
+            'instruction': 'given the code, document the function in a professional manner in the docs section', 
+            'code': c.fn_code(fn),
+            'docs': None,
 
+        })
+        # get the docs
+        docs = model.generate(input)
+        docs = self.process_response(docs)
 
-        if model != None:
-            self.model = c.connect(model)
-        tools = self.resolve_tools(tools)
-        history = history or []
-        description = self.description if description == None else description
+        # add docs to the function
+        c.add_docs(fn, docs)
 
-        for i in range(n):
-            prompt = {
-                'step': i,
-                'max_steps': n, 
-                'description': description,
-                'input': text,
-                'history': history,
-                'tools': tools,
-                'purpose': """ ANSWER THE FOLLOWING""",
-                'confidence': 0,
-                'call_tool': {'tool': None, 'kwargs': None},
-                'answer': None
-            }
-            output = self.model.generate(json.dumps(prompt), max_tokens=512)
-            c.print(output)
-            output = json.loads(output)
-            prompt.update(output)
-            if 'call_tool' in output:
-                tool = output['call_tool']['tool']
-                kwargs = output['call_tool']['kwargs']
-                if kwargs == None:
-                    kwargs = {}
-                if tool != None:
-                    module = '.'.join(tool.split('.')[:-1])
-                    fn = tool.split('.')[-1]
-                    module = c.module(module)
-                    fn_type = module.classify_fn(fn)
-                    if fn_type == "self":
-                        module = module()
-                    try:
-                        response = getattr(module, fn)(**kwargs)
-                    except Exception as e:
-                        response = c.detailed_error(e)
-                    
-                    
-                    output['call_tool']['response'] = response
-                    history.append(output['call_tool'])
-        return output
-    # prompt tooling 
-    generate = call 
-
-    @classmethod
-    def find_tools(cls, prompt:str):
-        raise NotImplementedError
-
-    @classmethod
-    def prompt2agent(cls, prompt:str) -> 'Agent':
-        cls.find_tools(prompt, topk=5)
-
-
-
-
+        return docs
     
-
-
-    def set_tools(self, tools:list):
-        self.tools = {}
-        self.add_tools(tools)
-        return self.tools
     
-    def add_tools(self, tools:list):
-        for t in tools:
-            self.add_tool(t)
-        return self.tools
     
-    def get_tool(self, tool:str, fn_seperator:str = '.'):
-        module = fn_seperator.join(tool.split(fn_seperator)[:1])
-        fn = tool.split(fn_seperator)[1]
-        module = c.module(module)
-        tool_info = module.fn_schema(fn, docs=True)
-        return tool_info
+    def document_module(self,
+             module='agent.coder', 
+             fns = ['document_fn'],
+             model = 'model.openai',
+             **model_params
+             ):
 
+        model = c.connect(model, **model_params)
+        input = json.dumps({
+            'instruction': 'given the code, document the function in a professional manner in the docs section', 
+            'code': c.fn_code(fn),
+            'docs': None,
+
+        })
+        # get the docs
+        docs = model.generate(input)
+        docs = self.process_response(docs)
+
+        # add docs to the function
+        c.add_docs(fn, docs)
+
+        return docs
     
-    def get_tools(self, tools:list, fn_seperator:str = '.'):
-        return {t: self.get_tool(t, fn_seperator=fn_seperator) for t in tools}
-    
-    def add_tool(self, tool:str):
-        schema = self.schema(tool)
-        self.tools[tool] = schema
-        return self.tools
-    
-    def rm_tool(self, tool:str):
-        del self.tools[tool]
-        return self.tools
-    
+    def process_response(self, response):
+        '''
+        """
+        Documentation for `process_response` function:
+        
+        This function is responsible for processing a given response and ensuring it's in a proper JSON format. If the response is in a string format, the function attempts to load it as a JSON object. If the loading fails, it simply passes without raising any exceptions.
+        
+        Parameters:
+            - self: The instance of the class that this method is bound to.
+            - response: A response object that is to be processed. It can be a string or already a
+        '''
+        if isinstance(response, str):
+            try:
+                response = json.loads(response)
+            except:
+                pass
+        assert isinstance(response, str), f'Invalid docs type: {type(docs)}'
+        
+        return response
 
-
-    def test_model(self, prompt:str, model=None, history=None, **kwargs):
-        if model != None:
-            self.model = c.connect(model)
-
-        prompt = {
-            'description': self.description,
-            'prompt': prompt,
-            'history': history,
-            'response': None,
-            'instruction': 'complete response'
-        }
-
-        output = self.model.generate(json.dumps(prompt))
-
-        prompt.update(json.loads(self.model.generate(json.dumps(prompt))))
-        return prompt
-    
-    def test(self, prompt:str='hey', model=None, history=None, **kwargs):
-        response =  self.call(prompt, model=model, history=history, **kwargs)
-
-        assert 'response' in response, f"response not in {response}"
-        assert isinstance(response['response'], str), f"response is not a string: {response['response']}"
-        return {
-            'prompt': prompt,
-            'response': response['response'],
-            'success': True,
-            }
-    

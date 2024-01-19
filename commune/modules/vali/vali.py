@@ -143,9 +143,8 @@ class Vali(c.Module):
                     except Exception as e:
                         c.print(f'Error in as_completed {e}', color='red')
                         futurues = []
-                    c.print(results)
 
-                    c.print(f'Got {len(results)} results', color='cyan')
+                    c.print(f'Got {len(results)} results and have {len(futures)} futures', color='cyan')
 
                     futures = []
                     w_list = [r['w']  for r in results if isinstance(r, dict) and 'w' in r]
@@ -346,7 +345,6 @@ class Vali(c.Module):
         return f'{tag}.{network}'
         
     def refresh_stats(self, network='subspace', tag=None):
-        tag = self.tag if tag == None else tag
         path = self.resolve_storage_path(network=network, tag=tag)
         return self.rm(path)
     

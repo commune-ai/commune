@@ -622,7 +622,12 @@ class c:
 
         return {'success': True, 'msg': f'config({k} = {v})'}
    
+    
+    def setc(self, k, v, password=None) -> Munch:
+        return setattr(self.config, k, v)
    
+   
+
     @classmethod
     def rmc(cls, k, password=None) -> Munch:
         '''
@@ -690,6 +695,8 @@ class c:
         else:
             raise ValueError(f'config must be a dict or munch, not {type(config)}')
         
+        assert isinstance(config, dict), f'config must be a dict, not {config}'
+
         config = cls.save_yaml(data=config , path=path)
 
         return config
@@ -743,7 +750,7 @@ class c:
             config = cls.dict2munch(config)
         
         return config
-
+ 
     config = get_config
 
     @classmethod
@@ -2445,7 +2452,8 @@ class c:
             loop = asyncio.get_event_loop()
         except Exception:
             loop = c.new_event_loop(nest_asyncio=nest_asyncio)
-            
+
+
 
         return loop
 
@@ -2664,6 +2672,8 @@ class c:
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
             # module::tag
+            if tag_seperator in module:
+                module, tag = module.split(tag_seperator)
             module = cls.module_path() if module == None else module
             if tag_seperator in module: 
                 module, tag = module.split(tag_seperator)
@@ -2693,31 +2703,20 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
-              update:bool = False,
               max_workers:int = None,
               mode:str = "thread",
               public: bool = False,
-              verbose:bool = False,
               **extra_kwargs
               ):
-        
-        kwargs = {} if kwargs == None else kwargs
-        extra_kwargs = {} if extra_kwargs == None else extra_kwargs
-        kwargs.update(extra_kwargs)
-
-        if module == None:
-            module = cls.module_path()
-        # module::tag
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs or {})
+        module = module or cls.module_path()
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
-
-
-        # resovle the port 
+            
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
             address = c.get_address(server_name, network=network)
@@ -2725,15 +2724,17 @@ class c:
                 port = int(address.split(':')[-1])
             else:
                 port = c.free_port()
+
+
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
 
-            # we can get the 
-            remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs = c.locals2kwargs(locals(), merge_kwargs=False)
             
-            
-            remote_kwargs['remote'] = False # SET THIS TO FALSE
+            # SET THIS TO FALSE TO AVOID RECURSION
+            remote_kwargs['remote'] = False 
 
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
@@ -2759,11 +2760,14 @@ class c:
         # this automatically adds 
         self = module_class(**kwargs)
 
-        
         self.server_name = server_name
-        self.tag = server_name.split(tag_seperator)[-1]
 
+        if tag_seperator in server_name:
+            tag = server_name.split(tag_seperator)[-1]
+        else:
+            tag = None
 
+        self.tag = tag
         self.key = server_name
 
         address = c.get_address(server_name, network=network)
@@ -2771,20 +2775,11 @@ class c:
             port = address.split(':')[-1]   
 
 
-        if c.server_exists(server_name, network=network): 
-            
-            if refresh:
-                c.print(f'Stopping existing server {server_name}', color='yellow') 
-                # c.deregister_server(server_name, network=network)
-                # if c.pm2_exists(server_name): 
-                #     c.kill(server_name)
-            else:  
-                return {'success':True, 'message':f'Server {server_name} already exists'}
-
+        if c.server_exists(server_name, network=network) and not refresh: 
+            return {'success':True, 'message':f'Server {server_name} already exists'}
 
         # RESOLVE THE WHITELIST AND BLACKLIST
-        if hasattr(self, 'whitelist') :
-            whitelist = self.whitelist
+        whitelist = self.whitelist if hasattr(self, 'whitelist') else []
         if len(whitelist) == 0 and module != 'module':
             whitelist = self.functions(include_parents=False)
             
@@ -7034,8 +7029,10 @@ class c:
         filepath = cls.filepath()
 
         # start code line
-        for i, line in enumerate(lines): 
-            if ')' and ':' in line:
+        for i, line in enumerate(lines):
+            
+            is_end = bool(')' in line and ':' in line)
+            if is_end:
                 start_code_line = i
                 break 
 
@@ -7053,7 +7050,6 @@ class c:
             
         }
     
-        return r
 
     @classmethod
     def set_line(cls, idx:int, text:str):
@@ -7151,7 +7147,9 @@ class c:
         '''
         This is a document
         '''
-        
+        if '/' in fn:
+            cls = c.module(fn.split('/')[0])
+            fn = fn.split('/')[1]
     
         fn_info = cls.fn_info(fn)
         start_line = fn_info["start_code_line"]
@@ -7190,28 +7188,26 @@ class c:
             'text': comment_text,
             }
         return comment_text
-        
-
-
 
     @classmethod
     def add_docs(cls, fn='add_docs', comment="This is a document"):
         '''
-        sup fam
+        This is a document
         '''
         '''
         This is a document
         '''
-        c.print(fn)
-        cls.rm_docs(fn)
+        if '/' in fn:
+            cls = c.module(fn.split('/')[0])
+            fn = fn.split('/')[1]
+
+        
         fn_info = cls.fn_info(fn)
         start_line = fn_info["start_code_line"] + 1
-        c.print(start_line)
         tab_space = "        "
         cls.add_line(idx=start_line, text=tab_space+"'''")
         for i, line in enumerate(comment.split('\n')):
             cls.add_line(idx=start_line+i+1, text=tab_space + line)
-
         cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
         
         
