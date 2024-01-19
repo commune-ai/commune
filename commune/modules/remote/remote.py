@@ -1057,6 +1057,7 @@ class Remote(c.Module):
         ssh_config = '\n'.join(ssh_config)
 
         return c.put_text(path, ssh_config)
+    
         
 
 

@@ -204,12 +204,25 @@ class Subspace(c.Module):
         wasm_file_path = self.libpath + '/target/release/wbuild/node-subspace-runtime/node_subspace_runtime.compact.compressed.wasm'
         return wasm_file_path
 
-    def stake_from(self, netuid = 0, block=None, update=True, network=network, fmt='nano'):
+    def stake_from(self, netuid = 0,
+                    block=None, 
+                    update=False,
+                    network=network,
+                    tuples = False,
+                    fmt='nano'):
         stake_from =  {k: list(map(list,v)) for k,v in self.query_map('StakeFrom', block=block, update=update)[netuid].items()}
-        return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
+        stake_from = {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_from.items()}
+        if tuples:
+            return stake_from
+        return {k: {k2:v2 for k2,v2 in v} for k,v in stake_from.items()}
     
     def my_stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j'):
-        stake_from_tuples = self.stake_from(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
+        stake_from_tuples = self.stake_from(netuid=netuid,
+                                             block=block,
+                                               update=update, 
+                                               network=network, 
+                                               tuples = True,
+                                               fmt=fmt)
         address2key = c.address2key()
         stake_from_total = {}
         for module_key,staker_tuples in stake_from_tuples.items():
@@ -3186,28 +3199,7 @@ class Subspace(c.Module):
             
         return mystaketo
     my_staketo = my_stake_to
-
-
-    # def my_stakefrom(self, 
-    #                 search:str=None, 
-    #                 netuid:int = None, 
-    #                 network:str = None, 
-    #                 fmt:str=fmt,  
-    #                 decimals:int=2):
-    #     staketo = self.stake_from(netuid=netuid, network=network)
-    #     mystakefrom = {}
-    #     key2address = c.key2address()
-    #     for key, address in key2address.items():
-    #         if address in mystakefrom:
-    #             mystakefrom[key] = self.format_amount(mystakefrom[address])
     
-    #     if search != None:
-    #         mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
-    #     return mystakefrom
-
-    # my_stake_from = my_stakefrom
-
-
     def my_value(
                  self, 
                  network = None,

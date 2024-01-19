@@ -33,8 +33,6 @@ class Access(c.Module):
             self.rm_state()
         self.last_time_synced = c.time()
         self.state = {}
-
-        self.sync()
         
         # c.thread(self.sync_loop_thread)
 
@@ -61,7 +59,7 @@ class Access(c.Module):
     def save_state(self):
         self.put(self.state_path, self.state)
         return {'success': True, 'msg': f'saved {self.state_path}'}
-    def sync(self, update=False):
+    def sync_network(self, update=False):
         state = self.get(self.state_path, {})
         if len(self.state) == 0:
             self.get
@@ -72,6 +70,8 @@ class Access(c.Module):
         if time_since_sync > self.config.sync_interval or update:
             self.subspace = c.module('subspace')(network=self.config.chain)
             self.stakes = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=False)
+            c.print('gettting ')
+
             state['stake_from'] = self.subspace.my_stake_from(netuid=self.config.netuid, update=False)
             state['sync_time'] = c.time()
 
@@ -87,7 +87,7 @@ class Access(c.Module):
         response = {'success': True, 'msg': f'synced {self.state_path}', 
                     'until_sync': self.config.sync_interval - time_since_sync,
                     'time_since_sync': time_since_sync}
-        
+        c.print(response)
         return response
 
     def verify(self, input:dict) -> dict:
@@ -106,7 +106,7 @@ class Access(c.Module):
         current_time = c.time()
 
         # sync of the state is not up to date 
-        self.sync()
+        self.sync_network()
 
         # get the rate limit for the user
         role2rate = self.state.get('role2rate', {})

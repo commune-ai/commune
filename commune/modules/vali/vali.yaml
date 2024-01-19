@@ -4,16 +4,16 @@ chain: null
 network: subspace
 netuid: 0
 voting_networks: ['subspace', 'bittensor']
-
+threads_per_worker: 20
 max_history: 10
 alpha: 0.5
-timeout: 10
+timeout: 4
 
 tag: null
-num_workers: 1
+num_workers: 10
 start: True
 verbose: False
-batch_size: 4
+batch_size: 200
 refresh_stats: False
 vote_interval: 100
 sync_interval: 100
