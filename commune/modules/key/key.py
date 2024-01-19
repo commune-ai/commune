@@ -1158,6 +1158,11 @@ class Keypair(c.Module):
         c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
+
+        sig = self.sign('test', return_str=True)
+        assert self.verify('test',sig, self.public_key)
+        assert self.verify('test',sig, self.public_key)
+
         
     encrypted_prefix = ''
 

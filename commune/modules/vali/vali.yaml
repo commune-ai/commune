@@ -18,7 +18,7 @@ refresh_stats: False
 vote_interval: 100
 sync_interval: 100
 search: null
-batch_size: 300
+batch_size: 16
 max_staleness: 10
 virtual_module: False
 check_loop: True
@@ -31,9 +31,11 @@ vote: True
 min_stake: 1
 vote_interval: 200
 vote_timeout: 50
+timeout: 3
 min_count_before_vote: 100
 
 # stats
+history_features: ['w', 'timestamp', 'latency']
 max_history: 10
 refresh_stats: False
 

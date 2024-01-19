@@ -56,6 +56,140 @@ class c:
     def init(cls, *args, **kwargs):
         return cls(*args, **kwargs)
 
+
+    default_tag = 'base'
+    @property
+    def tag(self):
+        tag = None
+        if not hasattr(self, 'config') or not isinstance(self.config, dict):
+            self.config = c.dict2munch({})
+        if 'tag' in self.config:
+            tag = self.config['tag']
+        return tag
+    @tag.setter
+    def tag(self, value):
+        if not hasattr(self, 'config') or not isinstance(self.config, dict):
+            self.config = c.dict2munch({})
+        self.config['tag'] = value
+        return value
+        
+
+    def set_config(self, 
+                   config:Optional[Union[str, dict]]=None, 
+                   kwargs:dict=None,
+                   to_munch: bool = True,
+                   add_attributes: bool = False,
+                   save_config:bool = False) -> Munch:
+        '''
+        Set the config as well as its local params
+        '''
+        kwargs = kwargs if kwargs != None else {}
+
+        # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
+        kwargs = c.locals2kwargs(kwargs)
+
+        if 'config' in kwargs:
+            config = kwargs.pop('config')
+            
+        # get the config
+        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
+
+
+        # add the config attributes to the class (via munch -> dict -> class )
+        if add_attributes:
+            self.__dict__.update(self.munch2dict(config))
+
+        
+        self.config = config 
+        self.kwargs = kwargs
+        
+        if save_config:
+            self.save_config(config=config)
+    
+        return self.config
+
+
+    @property
+    def key(self):
+        if not hasattr(self, '_key'):
+            self._key = c.get_key(self.server_name, create_if_not_exists=True)
+        return self._key
+    
+    @key.setter
+    def key(self, key: 'Key'):
+        self._key = c.get_key(key, create_if_not_exists=True)
+        return self._key
+
+
+    
+    
+    @classmethod
+    def call(cls, module : str, 
+                fn:str = None,*args,
+                timeout : int = 10,
+                prefix_match:bool = False,
+                network:str = None,
+                key:str = None,
+                kwargs = None,
+                return_future:bool = False,
+                **extra_kwargs) -> None:
+
+        client_kwargs = { 
+                          'network': network,
+                          'prefix_match': prefix_match,
+                          'network': network,
+                          'key': key,
+                          'kwargs': kwargs,
+                          'timeout': timeout,
+                          **extra_kwargs}
+
+        
+        futures = c.async_call(module, fn, *args, **client_kwargs)
+        if return_future:
+            return futures
+        return c.gather(futures, timeout=timeout)
+    
+    @classmethod
+    async def async_call(cls,
+                module : str, 
+                fn : str = None,
+                *args,
+                timeout : int = 10,
+                prefix_match:bool = False,
+                network:str = None,
+                key:str = None,
+                kwargs = None,
+                verbose = False,
+                default_fn = 'info',
+                **extra_kwargs
+                ) -> None:
+        
+        if '://' in module:
+            module = module.split('://')[-1]
+  
+        if '/' in module:
+            # adjust the split
+            if fn != None:
+                args = [fn] + list(args)
+            module , fn = module.split('/')
+        else:
+            if fn == None:
+                fn = default_fn
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)  
+        try:
+            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
+            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
+            result = await asyncio.wait_for(future, timeout=timeout)
+        except Exception as e:
+            result = c.detailed_error(e)
+        
+        return result
+
+    
+
+
+
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
 
@@ -615,40 +749,6 @@ class c:
     @classmethod
     def cfg(cls, *args, **kwargs):
         return cls.get_config(*args, **kwargs)
-
-    def set_config(self, 
-                   config:Optional[Union[str, dict]]=None, 
-                   kwargs:dict=None,
-                   to_munch: bool = True,
-                   add_attributes: bool = False,
-                   save_config:bool = False) -> Munch:
-        '''
-        Set the config as well as its local params
-        '''
-        kwargs = kwargs if kwargs != None else {}
-
-        # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
-        kwargs = c.locals2kwargs(kwargs)
-
-        if 'config' in kwargs:
-            config = kwargs.pop('config')
-            
-        # get the config
-        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
-
-
-        # add the config attributes to the class (via munch -> dict -> class )
-        if add_attributes:
-            self.__dict__.update(self.munch2dict(config))
-
-        
-        self.config = config 
-        self.kwargs = kwargs
-        
-        if save_config:
-            self.save_config(config=config)
-    
-        return self.config
 
     @classmethod
     def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
@@ -1651,8 +1751,32 @@ class c:
         from commune.utils.time import Timer
         return Timer(*args, **kwargs)
 
-    @staticmethod
-    def timeit(fn):
+    @classmethod
+    def timefn(cls, fn, *args, trials=1, **kwargs):
+        if trials > 1:
+            responses = []
+            for i in range(trials):
+                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
+            return responses
+        if isinstance(fn, str):
+            if '/' in fn:
+                module, fn = fn.split('/')
+                module = c.module(module)
+            else:
+                module = cls
+            if module.classify_fn(fn) == 'self':
+                module = cls()
+            fn = getattr(module, fn)
+        
+        t1 = c.time()
+        result = fn(*args, **kwargs)
+        t2 = c.time()
+
+        return {'time': t2 - t1}
+
+    @classmethod
+    def timeit(cls, fn):
+
         def wrapper(*args, **kwargs):
             t = c.time()
             result = fn(*args, **kwargs)
@@ -2037,9 +2161,12 @@ class c:
         Connects to a server by the name of the module
         :param module: name of the module
         """
+        if '://' in module:
+            module = module.split('://')[-1]
 
         network = c.resolve_network(network)
         key = cls.get_key(key)
+
 
         # we dont want to load the namespace if we have the address
         is_address = c.is_address(module)
@@ -2057,6 +2184,8 @@ class c:
                 raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
             address = namespace.get(module, None)
 
+        if '://' in address:
+            address = address.split('://')[-1]
         ip = ':'.join(address.split(':')[:-1])
         port = int(address.split(':')[-1])
 
@@ -2254,6 +2383,8 @@ class c:
     def is_address(cls, address:str) -> bool:
         if not isinstance(address, str):
             return False
+        if '//:' in address:
+            return True
         conds = []
         conds.append(isinstance(address, str))
         conds.append(':' in address)
@@ -2312,8 +2443,9 @@ class c:
 
         try:
             loop = asyncio.get_event_loop()
-        except RuntimeError as e:
+        except Exception:
             loop = c.new_event_loop(nest_asyncio=nest_asyncio)
+            
 
         return loop
 
@@ -2585,7 +2717,9 @@ class c:
             tag = server_name.split(tag_seperator)[-1] 
 
 
+        # resovle the port 
         if port == None:
+            # now if we have the server_name, we can repeat the server
             address = c.get_address(server_name, network=network)
             if address != None :
                 port = int(address.split(':')[-1])
@@ -2594,7 +2728,11 @@ class c:
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
 
         if remote:
+
+            # we can get the 
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            
+            
             remote_kwargs['remote'] = False # SET THIS TO FALSE
 
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
@@ -2603,8 +2741,10 @@ class c:
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
+
+            # 
             address = c.ip() + ':' + str(remote_kwargs['port'])
-            return {'success':True, 'name': server_name, 'address':address}
+            return {'success':True, 'name': server_name, 'address':address, 'kwargs':kwargs}
         
         
         module_class = cls.resolve_module(module)
@@ -2666,7 +2806,11 @@ class c:
                                           public=public)
 
     
-        response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
+        response =  {'success':True, 
+                     'address':  f'{c.default_ip}:{port}' , 
+                     'name':server_name, 
+                     'kwargs': kwargs,
+                     'module':module}
 
         return response
 
@@ -2755,9 +2899,9 @@ class c:
         
     def info(self , 
              schema: bool = True,
-             namespace:bool = False,
-             commit_hash:bool = False,
-             hardware : bool = False,
+             namespace:bool = True,
+             commit_hash:bool = True,
+             hardware : bool = True,
              ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
@@ -2788,7 +2932,7 @@ class c:
             info['hardware'] = self.hardware()
 
         if namespace:
-            info['namespace'] = self.namespace(network='local')
+            info['namespace'] = c.namespace(network='local')
         if commit_hash:
             info['commit_hash'] = c.commit_hash()
         return info
@@ -3222,7 +3366,7 @@ class c:
     @classmethod
     def pm2_logs(cls, 
                 module:str, 
-                tail: int =100, 
+                tail: int =20, 
                 verbose: bool=True ,
                 mode: str ='cmd',
                 **kwargs):
@@ -4550,68 +4694,7 @@ class c:
     def auth(self,*args,  key=None, **kwargs):
         key = self.resolve_key(key)
         return self.module('subspace')().auth(*args, key=key, **kwargs)
-    
-    @classmethod
-    def call(cls, module : str, 
-                fn:str = None,*args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = None,
-                key:str = None,
-                kwargs = None,
-                return_future:bool = False,
-                **extra_kwargs) -> None:
 
-        client_kwargs = { 
-                          'network': network,
-                          'prefix_match': prefix_match,
-                          'network': network,
-                          'key': key,
-                          'kwargs': kwargs,
-                          'timeout': timeout,
-                          **extra_kwargs}
-
-        
-        futures = c.async_call(module, fn, *args, **client_kwargs)
-        if return_future:
-            return futures
-        return c.gather(futures, timeout=timeout)
-    
-    @classmethod
-    async def async_call(cls,
-                module : str, 
-                fn : str = None,
-                *args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = None,
-                key:str = None,
-                kwargs = None,
-                verbose = False,
-                default_fn = 'info',
-                **extra_kwargs
-                ) -> None:
-  
-        if '/' in module:
-            # adjust the split
-            if fn != None:
-                args = [fn] + list(args)
-            module, fn  = module.split('/')
-        else:
-            if fn == None:
-                fn = default_fn
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)    
-        try:
-            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
-            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
-            result = await asyncio.wait_for(future, timeout=timeout)
-        except Exception as e:
-            result = c.detailed_error(e)
-        
-        return result
-
-    
 
     @classmethod
     def call_pool(cls, 
@@ -5896,23 +5979,6 @@ class c:
         k = max(int(len(x) * ratio),1)
         return x[:k]
 
-    default_tag = 'base'
-    @property
-    def tag(self):
-        tag = None
-        if not hasattr(self, 'config') or not isinstance(self.config, dict):
-            self.config = c.dict2munch({})
-        if 'tag' in self.config:
-            tag = self.config['tag']
-        return tag
-    @tag.setter
-    def tag(self, value):
-        if not hasattr(self, 'config') or not isinstance(self.config, dict):
-            self.config = c.dict2munch({})
-        self.config['tag'] = value
-        return value
-        
-    
     @classmethod
     def tags(cls):
         return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon', 'huck']
@@ -7366,17 +7432,6 @@ class c:
         return c.module('key').valid_ss58_address(address)
     is_valid_ss58_address = valid_ss58_address
 
-    @property
-    def key(self):
-        if not hasattr(self, '_key'):
-            self._key = c.get_key(self.server_name, create_if_not_exists=True)
-        return self._key
-    
-    @key.setter
-    def key(self, key: 'Key'):
-        self._key = c.get_key(key, create_if_not_exists=True)
-        return self._key
-
     @classmethod
     def node_keys(cls, *args, **kwargs):
         return c.module('subspace').node_keys(*args, **kwargs)
@@ -7806,8 +7861,8 @@ class c:
         return c.module('docker').name2compose(**kwargs)
 
     @classmethod
-    def generator(cls):
-        for i in range(10):
+    def generator(cls, n=10):
+        for i in range(n):
             yield i
 
     @classmethod
@@ -7816,12 +7871,22 @@ class c:
         """
         for i in cls.generator():
             c.print(i)
+
+    
     @classmethod
     def is_generator(cls, obj):
         """
         Is this shiz a generator dawg?
         """
-        return inspect.isgeneratorfunction(obj)
+        if isinstance(obj, str):
+            if not hasattr(cls, obj):
+                return False
+            obj = getattr(cls, obj)
+        if not callable(obj):
+            result = inspect.isgenerator(obj)
+        else:
+            result =  inspect.isgeneratorfunction(obj)
+        return result
     
     @classmethod
     def module2docpath(cls):
