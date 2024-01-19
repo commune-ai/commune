@@ -94,6 +94,8 @@ class Subspace(c.Module):
         
         if network == None:
             network = self.config.network
+        if 'subspace' == network:
+            network = 'main'
         chain = c.module('subspace.chain')
         trials = 0
         while trials < max_trials :
@@ -967,7 +969,14 @@ class Subspace(c.Module):
 
 
 
-    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None, update=True) -> Balance:
+    def balance(self,
+                 key: str = None ,
+                 block: int = None,
+                   fmt='j',
+                     network=None,
+                       update=True, 
+                          **kwargs) -> Optional['Balance']:
+        
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -981,15 +990,16 @@ class Subspace(c.Module):
 
         result = self.query(
                 module='System',
-                storage_function='Account',
+                name='Account',
                 params=[key_ss58],
                 block = block,
-                network=network
+                network=network,
+                update=update
             )
 
-        return  self.format_amount(result['data']['free'].value , fmt=fmt)
+        return  self.format_amount(result['data']['free'] , fmt=fmt)
         
-    balance =  get_balance
+    get_balance = balance 
 
     def get_account(self, key = None, network=None, update=True):
         self.resolve_network(network)

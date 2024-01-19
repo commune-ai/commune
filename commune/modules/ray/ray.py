@@ -246,7 +246,7 @@ class Ray(c.Module):
         return ray_context
     
     @classmethod
-    def create_actor(cls,
+    def serve(cls,
                  module : str = None,
                  name:str = None,
                  tag:str = None,
@@ -300,7 +300,7 @@ class Ray(c.Module):
         # create the actor if it doesnt exisst
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
         
-        actor = cls.get_actor(name, virtual=virtual)
+        # actor = cls.get_actor(name, virtual=virtual)
 
         return actor
 
