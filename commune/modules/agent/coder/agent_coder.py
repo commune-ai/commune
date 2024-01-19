@@ -44,6 +44,8 @@ class AgentCoder(c.Module):
              model = 'model.openai',
              **model_params
              ):
+        
+        
 
         model = c.connect(model, **model_params)
         input = json.dumps({

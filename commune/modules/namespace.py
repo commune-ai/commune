@@ -400,4 +400,6 @@ class Namespace(c.Module):
     
 
 
+Namespace.run(__name__)
+
 

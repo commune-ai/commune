@@ -11,7 +11,7 @@ class CLI(c.Module):
     def __init__(
             self,
             config: c.Config = None,
-            module_overrides: dict = ['network', 'key', 'auth'],
+            module_overrides: dict = ['network', 'key', 'auth', 'namespace'],
 
         ) :
         self.protected_modules = module_overrides
@@ -34,6 +34,7 @@ class CLI(c.Module):
             module_list = c.modules()
             if '/' in args[0]:
                 args = args[0].split('/') + args[1:]
+                
                 
             if args[0] in functions and args[0] not in module_overrides and args[0] not in self.protected_modules:
                 # is a function
