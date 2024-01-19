@@ -63,13 +63,18 @@ class ThreadPoolExecutor(c.Module):
                 args:dict=None, 
                 kwargs:dict=None, 
                 timeout=200, 
-                return_future:bool=True, 
+                return_future:bool=True,
+                wait = True, 
                 path:str=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         # check if the queue is full and if so, raise an exception
         if self.work_queue.full():
-            raise RuntimeError("cannot schedule new futures after maxsize exceeded")
+            if wait:
+                while self.work_queue.full():
+                    time.sleep(0.1)
+            else:
+                return {'success': False, 'msg':"cannot schedule new futures after maxsize exceeded"}
         with self.shutdown_lock:
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")

@@ -111,13 +111,13 @@ class Vali(c.Module):
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
         
         self.running = True
-        futures = []
 
-        df_rows = []
-        
+        self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
+
         while self.running:
-
-        
+            results = []
+            futures = []
+            df_rows = []
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync_network()
@@ -125,46 +125,33 @@ class Vali(c.Module):
             module_addresses = c.shuffle(c.copy(self.module_addresses))
             batch_size = self.config.batch_size 
             # select a module
-            progress_bar = c.tqdm(total=len(module_addresses), desc='Evaluating modules')
+            progress_bar = c.tqdm(total=len(module_addresses))
+            results = []
             for  i, module_address in enumerate(module_addresses):
                 
                 if len(futures) < batch_size:
                 
-                    try:
-                        future = c.submit(self.eval_module, args=[module_address], timeout=1)
-                        futures.append(future)
-                    except Exception as e:
-                        continue
+                    future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
+                    futures.append(future)
                 else:
-                    results = []
-                    try:
-                        for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                            results += [ready_future.result()]
-                    except Exception as e:
-                        c.print(f'Error in as_completed {e}', color='red')
-                        futurues = []
+                    
+                    for ready_future in c.as_completed(futures, timeout=self.config.timeout):
+                        result = ready_future.result()
+                        results.append(result)
+    
 
-                    c.print(f'Got {len(results)} results and have {len(futures)} futures', color='cyan')
-
-                    futures = []
-                    w_list = [r['w']  for r in results if isinstance(r, dict) and 'w' in r]
-                    w = sum(w_list) / (len(w_list) + 1e-8)
-                    latency_list = [r['latency'] for r in results if 'latency' in r]
-                    latency = sum(latency_list) / (len(latency_list) + 1e-8)
-
+                if i % 1000 == 0:
                     stats =  {
-                    'count': self.count,
-                    'requests': self.requests,
-                    'errors': self.errors,
-                    'successes': self.successes,
-                    'rate': int(self.modules_per_second()), 
-                    'eval_time': c.round(c.time() - self.last_evaluation_time,1),
-                    'w': w,
-                    'latency': latency
-                        }
+                        'count': self.count,
+                        'requests': self.requests,
+                        'errors': self.errors,
+                        'successes': self.successes,
+                        'rate': int(self.modules_per_second()), 
+                        'eval_time': c.round(c.time() - self.last_evaluation_time,1),
+                            }
                     df_rows += [stats]
-                    df = c.df(df_rows[-10:])
-
+                    df = c.df(df_rows[-5:])
+                    results = []
                     c.print(df)
                     # c.print(f'STATS  --> {stats}\n', color='white')
 

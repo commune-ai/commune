@@ -5,9 +5,6 @@ import torch
 import traceback
 import json 
 
-
-
-
 class ServerHTTP(c.Module):
     def __init__(
         self,
@@ -32,9 +29,7 @@ class ServerHTTP(c.Module):
         ) -> 'Server':
 
 
-    
-        c.new_event_loop()
-
+   
         self.serializer = c.module(serializer)()
         self.ip = ip
         self.port = int(port) if port != None else c.free_port()
@@ -62,9 +57,15 @@ class ServerHTTP(c.Module):
         module.port = self.port
         module.address  = self.address
         self.module = module 
+
+
         self.access_module = c.module(access_module)(module=self.module)  
+        c.print('fam')
+
         self.history_path = history_path or f'history/{self.name}'
-        
+         
+    
+
         self.set_api(ip=self.ip, port=self.port)
 
 
@@ -169,6 +170,7 @@ class ServerHTTP(c.Module):
                 allow_methods=["*"],
                 allow_headers=["*"],
             )
+       
         @self.app.post("/{fn}")
         def forward_api(fn:str, input:dict):
             return self.forward(fn=fn, input=input)

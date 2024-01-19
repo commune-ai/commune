@@ -2711,10 +2711,14 @@ class c:
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
         module = module or cls.module_path()
+
+        if tag_seperator in module:
+            module, tag = module.split(tag_seperator)
+
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in server_name:
-            tag = server_name.split(tag_seperator)[-1] 
+            module, tag = server_name.split(tag_seperator)
             
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
@@ -2789,9 +2793,6 @@ class c:
         setattr(self, 'whitelist', whitelist)
         setattr(self, 'blacklist', blacklist)
 
-
-        c.print(server_name, 'NAME')
-
         c.module(f'server.{server_mode}')(module=self, 
                                           name=server_name, 
                                           port=port, 
@@ -2800,13 +2801,12 @@ class c:
                                           mode=mode, 
                                           public=public)
 
-    
+        c.print('fam')
         response =  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
                      'name':server_name, 
                      'kwargs': kwargs,
                      'module':module}
-
         return response
 
     serve_module = serve
