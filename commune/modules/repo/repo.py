@@ -66,7 +66,25 @@ class Repo(c.Module):
         with tabs[1]:
             self.repo_manager()
         st.write(repo_path)
-        
+
+    def git_files(self, repo):
+        repo_path = self.repo2path()[repo]
+        return c.glob(repo_path+'/.git/**/*')
+
+    def submodules(self, repo):
+        repo_path = self.repo2path()[repo]
+        submodules = c.ls(repo_path+'/.git/modules')
+        submodules = [os.path.basename(s) for s in submodules if os.path.basename(s) != 'config']
+        return submodules
+    
+    def repo2submodules(self):
+        repo2submodules = {}
+        for repo in self.repos():
+            repo2submodules[repo] = self.submodules(repo)
+        return repo2submodules
+    
+
+    
     def repo_explorer(self, repo_path):
         
         repo_files = os.listdir(repo_path)
@@ -80,12 +98,34 @@ class Repo(c.Module):
                 readme_text = c.get_text(os.path.join(repo_path, readme_path))
                 st.write(readme_text)
 
-    def add_repo(self, repo_path, path = None):
-        path = path or repo_path.split('/')[-1]
+    def rm_repo(self, repo):
+        repo_path = self.repo2path()[repo]
+        c.rm(repo_path)
+        self.update()
+        repos = self.repos()
+        assert repo not in repos
+        return {'success': True, 'path': repo_path, 'repo': repo, 
+                'msg': f'Repo {repo} removed successfully'}
+    
+    def repo_paths(self):
+        return list(self.repo2path().values())
+    def add_repo(self, repo_path, path = None, update=False):
+        
+        path = path or repo_path
+        if path.endswith('.git'):
+            path = path.replace('.git','')
+        if os.path.exists(path):
+            if update:
+                c.rm(path)
+            else:
+                raise Exception(f'Path {path} already exists')
         c.cmd(f'git clone {repo_path} {path}')
         self.update()
+        repo_paths = self.repo_paths()
+        assert path in repo_paths
         return {'success': True, 'path': path, 'repo_path': repo_path}
-    
+    def repos(self):
+        return list(self.repo2path().keys())
     def repo_manager(self):
         with st.expander('Add Repo'):
             cols = st.columns(2)
