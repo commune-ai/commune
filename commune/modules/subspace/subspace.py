@@ -1323,7 +1323,7 @@ class Subspace(c.Module):
             modules = c.df(modules)
 
         latency =  c.time() - start_time 
-        return {'success': True, 'msg': 'Saved modules', 'latenty': latency }
+        return modules
     
 
 

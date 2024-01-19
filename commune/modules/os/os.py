@@ -199,6 +199,7 @@ class OsModule(c.Module):
                     password: bool = None,
                     color: str = 'white',
                     bash : bool = False,
+                    return_process: bool = False,
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -231,10 +232,15 @@ class OsModule(c.Module):
             
         if bash:
             command = f'bash -c "{command}"'
+
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.STDOUT,
                                     env={**os.environ, **env}, **kwargs)
+        
+        if return_process:
+            return process
+        
         
         new_line = b''
         stdout_text = ''

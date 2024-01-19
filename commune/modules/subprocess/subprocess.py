@@ -26,6 +26,11 @@ class SubprocessModule(c.Module):
             rm_dict[k] = self.rm(key=k, load=False, save=False)
 
         return rm_dict
+    
+    def remote_fn(self, key, fn, *args, **kwargs):
+        subprocess_dict = self.get(key)
+        pid = subprocess_dict['pid']
+        return self.remote_fn_pid(pid, fn, *args, **kwargs)
 
     def serve(self, command:str,cache=True, add_info={}, key=None ):
 

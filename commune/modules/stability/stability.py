@@ -17,7 +17,7 @@ class StabilityAI(c.Module):
         response = self._make_request("GET", url)
         return response.json()
 
-    def image_to_image(self, init_image_path, text_prompt, image_strength=0.35, cfg_scale=7, samples=1, steps=30):
+    def image2image(self, init_image_path, text_prompt, image_strength=0.35, cfg_scale=7, samples=1, steps=30):
         url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image"
         files = {"init_image": open(init_image_path, "rb")}
         data = {
@@ -31,8 +31,12 @@ class StabilityAI(c.Module):
         response = self._make_request("POST", url, files=files, data=data)
         return self._process_response(response)
 
-    def text_to_image(self, text_prompt, cfg_scale=7, height=1024, width=1024, samples=1, steps=30):
+    def text2image(self, text_prompt, cfg_scale=7, height=1024, width=1024, samples=1, steps=30):
         url = f"{self.api_host}/v1/generation/{self.engine_id}/text-to-image"
+        
+        is_batch = isinstance(text_prompt, list)
+
+        
         json = {
             "text_prompts": [{"text": text_prompt}],
             "cfg_scale": cfg_scale,
@@ -42,7 +46,11 @@ class StabilityAI(c.Module):
             "steps": steps,
         }
         response = self._make_request("POST", url, json=json)
-        return self._process_response(response)
+        result = self._process_response(response)
+        if is_batch:
+            return result
+        else:
+            return result[0]
 
     def upscale_image(self, image_path, width=1024):
         url = f"{self.api_host}/v1/generation/esrgan-v1-x2plus/image-to-image/upscale"
@@ -96,7 +104,7 @@ class StabilityAI(c.Module):
         try:
             result = self.account()
             assert isinstance(result, dict)  # Check if the result is a dictionary
-            responses = [self.test_image_to_image(), self.test_text_to_image()]
+            responses = [self.test_image2image(), self.test_text2image()]
             self.test_dir.cleanup()
         except Exception as e:
             self.test_dir.cleanup()
@@ -104,21 +112,21 @@ class StabilityAI(c.Module):
         return responses
 
 
-    def test_image_to_image(self):
+    def test_image2image(self):
         # Create a temporary image file for testing
         temp_image_path = os.path.join(self.test_dir.name, "temp_image.png")
         with open(temp_image_path, "wb") as f:
             # Create a small black image for testing
             f.write(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/wcAAgUB/gc1KgkAAAAASUVORK5CYII="))
         
-        # Call the image_to_image method
-        result = self.stability_ai.image_to_image(temp_image_path, "Test prompt")
+        # Call the image2image method
+        result = self.stability_ai.image2image(temp_image_path, "Test prompt")
         assert isinstance(result, list)  # Check if the result is a list
         assert isinstance(all(isinstance(item, bytes) for item in result))  # Check if all items in the list are bytes
 
-    def test_text_to_image(self):
-        # Call the text_to_image method
-        result = self.stability_ai.text_to_image("Test prompt")
+    def test_text2image(self):
+        # Call the text2image method
+        result = self.stability_ai.text2image("Test prompt")
         assert isinstance(result, list)
         assert all(isinstance(item, bytes) for item in result)
 

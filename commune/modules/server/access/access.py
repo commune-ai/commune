@@ -32,7 +32,10 @@ class Access(c.Module):
         if refresh:
             self.rm_state()
         self.last_time_synced = c.time()
+        self.state = {}
+
         self.sync()
+        
         # c.thread(self.sync_loop_thread)
 
     def default_state(self):
@@ -59,35 +62,32 @@ class Access(c.Module):
         self.put(self.state_path, self.state)
         return {'success': True, 'msg': f'saved {self.state_path}'}
     def sync(self, update=False):
-
-        state = self.get(self.state_path, {}) 
-        if len(state) == 0 or self.refresh:
-            self.refresh= False
-            state = self.default_state()
+        state = self.get(self.state_path, {})
+        if len(self.state) == 0:
+            self.get
+            update=True
             
-        else:
-            state = self.get(self.state_path, {})
-
-    
-        current_time = c.time()
-        time_since_sync = current_time - state.get('sync_time', 0)
+        time_since_sync = c.time() - state.get('sync_time', 0)
         
-        if time_since_sync > self.config.sync_interval:
+        if time_since_sync > self.config.sync_interval or update:
             self.subspace = c.module('subspace')(network=self.config.chain)
             self.stakes = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=False)
             state['stake_from'] = self.subspace.my_stake_from(netuid=self.config.netuid, update=False)
             state['sync_time'] = c.time()
 
-        until_sync = self.config.sync_interval - time_since_sync
-
-        response = {  'until_sync': until_sync,
-                        'time_since_sync': time_since_sync
-                        }
-        c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
         self.last_time_synced = state['sync_time']
 
         self.state = state
         self.save_state()
+
+        response = {  
+
+                    }
+        c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
+        response = {'success': True, 'msg': f'synced {self.state_path}', 
+                    'until_sync': self.config.sync_interval - time_since_sync,
+                    'time_since_sync': time_since_sync}
+        
         return response
 
     def verify(self, input:dict) -> dict:
@@ -97,60 +97,62 @@ class Access(c.Module):
 
         
         """
+
         address = input['address']
         if c.is_admin(address):
-            return {'success': True, 'msg': f'admin {address}'}
+            return {'success': True, 'msg': f'admin {address}', 'passed': True}
         fn = input['fn']
 
         current_time = c.time()
 
-        sync_staleness = current_time - self.last_time_synced
-        if sync_staleness > self.config.sync_interval:
-            self.sync()
+        # sync of the state is not up to date 
+        self.sync()
 
+        # get the rate limit for the user
         role2rate = self.state.get('role2rate', {})
-        role = self.user_module.get_role(address)
-        if role is None:
-            role = 'public'
+
+        # get the role of the user
+        role = self.user_module.get_role(address) or 'public'
         rate_limit = role2rate.get(role, 0)
 
+        # stake rate limit
         stake = self.stakes.get(address, 0)
-        stake_from = self.state['stake_from'].get(address, 0)
+        # we want to also know if the user has been staked from
+        stake_from = self.state.get('stake_from', {}).get(address, 0)
 
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
         whitelist =  self.module.whitelist
         blacklist =  self.module.blacklist
 
-        assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist={whitelist}"
-        assert fn not in blacklist, f"Function {fn} is blacklisted" 
-        
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
         fn2info = self.state['fn_info'].get(fn,{'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
         stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
-
         total_stake_score = stake + stake_from
-
         rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
 
         # STEP 3: CHECK THE MAX RATE
         max_rate = fn2info.get('max_rate', self.config.max_rate)
         rate_limit = min(rate_limit, max_rate) # cap the rate limit at the max rate
-       
-       
-       
-        # NOW LETS CHECK THE RATE LIMIT
-        user_info = {'timestamp':0 , 'requests': 0 }
-        user_info = self.state.get('user_info', {}).get(address, user_info)
         
+        # NOW LETS CHECK THE RATE LIMIT
+        user_info = self.state.get('user_info', {}).get(address, {})
         # check if the user has exceeded the rate limit
-        time_since_called = current_time - user_info['timestamp']
+        time_since_called = current_time - user_info.get('timestamp', 0)
         period = self.timescale_map[self.config.timescale]
         # if the time since the last call is greater than the seconds in the period, reset the requests
         if time_since_called > period:
             user_info['rate'] = 0
-        passed = bool(user_info['rate'] <= rate_limit)
-        
+
+        try:
+            assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist={whitelist}"
+            assert fn not in blacklist, f"Function {fn} is blacklisted" 
+            assert user_info['rate'] <= rate_limit
+            user_info['passed'] = True
+        except Exception as e:
+            user_info['error'] = c.detailed_error(e)
+            user_info['passed'] = False
+       
         # update the user info
         user_info['rate_limit'] = rate_limit
         user_info['period'] = period
@@ -161,11 +163,9 @@ class Access(c.Module):
         user_info['stake'] = stake
         user_info['stake_from'] = stake_from
         user_info['rate'] = user_info.get('rate', 0) + 1
-
+        user_info['timescale'] = self.config.timescale
         # store the user info into the state
         self.state['user_info'][address] = user_info
-        self.put(self.state_path, self.state)
-        assert  passed,  f"Rate limit too high (calls per second) {user_info}, increase your stake to {self.module.key.ss58_address}"
         # check the rate limit
         return user_info
 

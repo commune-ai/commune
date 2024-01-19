@@ -71,7 +71,7 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'}
+        headers : dict ={'Content-Type': 'application/json'},
         ):
 
         self.resolve_client(ip=ip, port=port)
@@ -94,36 +94,49 @@ class Client(c.Module):
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
 
-        result = '{}'
+        result = ''
 
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
+                    stream_prefix :str = 'data: ' 
                     # Process SSE events
-                    result = ''
+                    progress_bar = c.tqdm(desc='MB per Second', position=0)
                     async for line in response.content:
+                        
+                        event_data = line.decode('utf-8')
+                        event_bytes  = len(event_data)
+                        progress_bar.update(event_bytes/(10^6))
                         # remove the "data: " prefix
-                        event_data = line.decode('utf-8').strip().replace("data: {", "{")
+                        if event_data.startswith(stream_prefix):
+                            event_data = event_data[len(stream_prefix):]
+
+                        event_data = event_data.strip()
                         if event_data == "":
                             continue
+                        if isinstance(event_data, bytes):
+                            event_data = event_data.decode('utf-8')
                         if isinstance(event_data, str):
                             result += event_data
-                    result = self.process_output(json.loads(result))
-                elif response.content_type == 'application/json':
-                    result = await asyncio.wait_for(response.json(), timeout=timeout)
-                    result = self.process_output(result)
-                elif response.content_type == 'text/plain':
-                    # result = await asyncio.wait_for(response.text, timeout=timeout)
+        
                     result = json.loads(result)
-                    result = self.process_output(result)
+                    if 'data' in result:
+                        result = self.serializer.deserialize(result)
+                        result =  result['data']
+          
+                elif response.content_type == 'application/json':
+                    # PROCESS JSON EVENTS
+                    result = await asyncio.wait_for(response.json(), timeout=timeout)
+                    if 'data' in result:
+                        result = self.serializer.deserialize(result['data'])
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
         if self.save_history:
-            input['result'] = result
-            input['server']  = self.address
             input['fn'] = fn
+            input['result'] = result
+            input['module']  = self.address
             input['latency'] =  c.time() - input['timestamp']
             path = self.history_path+'/' + self.key.ss58_address + '/' + str(input['timestamp'])
             self.put(path, input)
@@ -155,7 +168,7 @@ class Client(c.Module):
         if isinstance(result, str):
             result = json.loads(result)
         if 'data' in result:
-            result = self.serializer.deserialize(result['data'])
+            result = self.serializer.deserialize(result)
             return result['data']
         else:
             return result
@@ -177,14 +190,6 @@ class Client(c.Module):
     def __exit__ ( self ):
         self.__del__()
 
-
-    def test_module(self):
-        module = Client(ip='0.0.0.0', port=8091)
-        import torch
-        data = {
-            'bro': torch.ones(10,10),
-            'fam': torch.zeros(10,10)
-        }
 
     def virtual(self):
         return c.virtual_client(module = self)
