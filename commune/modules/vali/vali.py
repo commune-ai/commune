@@ -50,17 +50,20 @@ class Vali(c.Module):
             c.print(f'Vali loop started', color='cyan')
 
             while True:
-                steps += 1
-                c.print(f'Vali loop step {steps}', color='cyan')
-                run_info = self.run_info()
-                # sometimes the worker thread stalls, and you can just restart it
-                if 'subspace' in self.config.network:
-                    if run_info['vote_staleness'] > self.config.vote_interval:
-                        self.vote()
+                try:
+                    steps += 1
+                    c.print(f'Vali loop step {steps}', color='cyan')
+                    run_info = self.run_info()
+                    # sometimes the worker thread stalls, and you can just restart it
+                    if 'subspace' in self.config.network:
+                        if run_info['vote_staleness'] > self.config.vote_interval:
+                            self.vote()
+                    c.print(run_info)
+                    c.print('Sleeping... for {}', color='cyan')
+                    c.sleep(self.config.run_loop_sleep)
+                except Exception as e: 
+                    c.print(e, color='red')
 
-                c.print(run_info)
-                c.print('Sleeping... for {}', color='cyan')
-                c.sleep(self.config.run_loop_sleep)
 
     
     def workers(self):
@@ -505,50 +508,9 @@ class Vali(c.Module):
     def epochs(self):
         return self.count // (self.n + 1)
     
-           
-    def check_score(self, module):
-        module_name = module['name']
-
-        return self.w.get(module_name, 0)
-            
     def stop(self):
         self.running = False
-        
-    @classmethod
-    def check_valis(cls, network=network, interval:int = 1, max_staleness:int=300, return_all:bool=True, remote=False):
-        # get the up to date vali stats
-        vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
-        for v in vali_stats:
-            if 'serving' not in v:
-                continue
-            if v['staleness'] > max_staleness:
-                c.print(f'{v["name"]} is stale {v["staleness"]}s, restrting', color='red')
-                c.serve(v['name'])
-            if v['serving'] == False:
-                c.print(f'{v["name"]} is not serving, restarting', color='red')
-                address = c.get_address(v['name'])
-                port = None
-                if address != None:
-                    port = int(address.split(':')[-1])
-                c.serve(v['name'], port=port)
-
-            c.print(f'{interval} ', color='green')
-            c.sleep(interval)
-
-            
-
-    check_loop_name = 'vali::check_loop'
-    @classmethod
-    def check_loop(cls, interval=2, remote=True, **kwargs):
-        if remote:
-            kwargs['remote'] = False
-            cls.remote_fn('check_loop', name=cls.check_loop_name, kwargs=kwargs)
-            return {'success': True, 'message': 'Started check_vali_loop'}
-        while True:
-            c.print('Checking valis', color='cyan')
-            c.print(cls.all_stats())
-            cls.check_valis(**kwargs)
-            c.sleep(interval)
+    
 
     @classmethod
     def check_loop_running(cls):
@@ -558,81 +520,6 @@ class Vali(c.Module):
     def ensure_check_loop(self):
         if self.check_loop_running() == False:
             self.check_loop(remote=True)
-
-    @classmethod
-    def stats(cls,     
-                    network=network, 
-                    df:bool = True,
-                    sortby:str=['name'], 
-                    update:bool=True, 
-                    cache_path:str = 'vali_stats',
-                    return_all:bool=False):
-        if return_all:
-            return cls.all_stats(network=network, df=df)
-        vali_stats = []
-        if update == False:
-            vali_stats = cls.get(cache_path, default=[])
-
-
-        if len(vali_stats) == 0:
-            module_path = cls.module_path()
-            stats = c.stats(module_path+'::', df=False, network=network)
-            name2stats = {s['name']: s for s in stats}
-            for tag, path in cls.tag2path(mode='votes', network=network).items():
-                v = cls.get(path)
-                name = module_path + "::" +tag
-                vote_info = name2stats.get(name, {})
-
-                if vote_info.get('registered') == None:
-                    continue
-                if 'timestamp' in v:
-                    vote_info['name'] = name
-                    vote_info['n'] = len(v['uids'])
-                    vote_info['timestamp'] = v['timestamp']
-                    vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
-                    vali_stats += [vote_info]
-            cls.put(cache_path, vali_stats)    
-
-        
-        for v in vali_stats:
-            v['staleness'] = int(c.time() - v['timestamp'])
-
-            del v['timestamp']
-
-
-        if df:
-            vali_stats = c.df(vali_stats)
-            # filter out NaN values for registered modules
-            # include nans  for registered modules
-            if len(vali_stats) > 0:
-                vali_stats.sort_values(sortby, ascending=False, inplace=True)
-            
-        return vali_stats
-
-    @classmethod
-    def all_stats(cls, network=network, df:bool = True, sortby:str=['name'] , update=True, cache_path:str = 'vali_stats'):
-        modules = c.modules('vali')
-        all_vote_stats = []
-        for m in modules:
-            if not m.startswith('vali'):
-                continue 
-            try:
-                # WE ONLY WANT TO UPDATE THE STATS IF THE MODULE IS RUNNING
-                m_vote_stats = c.module(m).stats(df=False, network=network, return_all=False, update=update)
-                c.print(f'Got vote stats for {m} (n={len(m_vote_stats)})')
-                if len(m_vote_stats) > 0:
-                    all_vote_stats += m_vote_stats
-            except Exception as e:
-                e = c.detailed_error(e)
-                c.print(c.dict2str(e), color='red')
-                continue
-                
-        if df == True:
-            df =  c.df(all_vote_stats)
-            # filter out NaN values for registered modules
-            df.sort_values(sortby, ascending=False, inplace=True)
-            return df
-        return all_vote_stats
 
     @property
     def lifetime(self):
@@ -655,37 +542,61 @@ class Vali(c.Module):
         # disable the run_loop to avoid the background  thread from running
         self = cls(start=False)
         module_path = self.path()
+        network = 'local'
+        c.new_event_loop()
         
         st.title(module_path)
-        vali_modules = c.my_modules(fmt='j', search='vali::')
+
+
+        servers = c.servers(search='vali')
+        server = st.selectbox('Select Vali', servers)
+        state_path = f'dashboard/{server}'
+        state = self.get(state_path, {})
+        server = c.connect(server)
+        update = st.button('Update')
+        if len(state) == 0 or update:
+            state = {
+                'run_info': server.run_info(),
+                'module_infos': server.module_infos()
+            }
+
+            self.put(state_path, state)
+
+
+        run_info = state['run_info']
+        module_infos = state['module_infos']
+        df = []
+        default_columns = ['name', 'staleness', 'w', 'count', 'timestamp']
+        columns = list(module_infos[0].keys())
+        selected_columns = st.multiselect('Select columns', columns, default_columns)
+        for row in module_infos:
+            row = {k: row.get(k, None) for k in selected_columns}
+            df += [row]
+        
+        df = c.df(df)
+
+        st.write(df)
+        st.write(run_info)
+
+
+        
+        vali_modules = c.my_modules(fmt='j', search='vali')
         vali_names =  [v['name'] for v in vali_modules]
         vali_name = st.selectbox('select vali', vali_names)
         
         module = vali_name.split("::")[0] if '::' in vali_name else vali_name
         tag = vali_name.split("::")[-1] if '::' in vali_name else None
-        module = c.module(module)
-
         df = c.df(vali_modules)
-        columns = list(df.columns)
-        columns.pop(columns.index('stake_from'))
-        with st.expander('Columns'):
-            columns = st.multiselect('Select columns',columns ,columns )
-        df = df[columns]
+        # columns = list(df.columns)
+        # columns.pop(columns.index('stake_from'))
+        # with st.expander('Columns'):
+        #     default_columns = ['name', 'stake', 'dividends', 'last_update', 'delegation_fee']
+        #     columns = st.multiselect('Select columns',columns ,default_columns )
+        # df = df[columns]
 
-        namespace = c.namespace(search=module_path)
+        # namespace = c.namespace(search=module_path)
 
-        st.write(df)
-        c.plot_dashboard(df)
-        
-        @st.cache_data
-        def get_state_dict():
-            subspace = c.module('subspace')()
-            state_dict = subspace.state_dict()
-            return state_dict
-
-        network = st.text_input('Network', network)
-
-        state = get_state_dict(network=network)
-        subnet2netuid = {s['name']: i for i,s in enumerate(state['subnets'])}
+        # st.write(df)
+        # c.plot_dashboard(df)
         
 Vali.run(__name__)

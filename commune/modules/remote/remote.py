@@ -1059,7 +1059,15 @@ class Remote(c.Module):
         return c.put_text(path, ssh_config)
     
         
-
+    def text2hosts(self, text, model='model.openai'):
+        prompt = {
+            'instruciton': 'given the text place into the following format',
+            'text': text,
+            'format': list(self.hosts().values())[0],
+            'output': None
+        }
+        model = c.module(model)
+        return model.generate(c.python2str(prompt))
 
 
 
