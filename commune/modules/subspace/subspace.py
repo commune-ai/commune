@@ -337,10 +337,10 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         path = f'query/{network}/{module}.{name}'
     
+        # resolving the params
         params = params or []
         if not isinstance(params, list):
             params = [params]
-            
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
@@ -3199,7 +3199,7 @@ class Subspace(c.Module):
             
         return mystaketo
     my_staketo = my_stake_to
-    
+
     def my_value(
                  self, 
                  network = None,
@@ -3265,7 +3265,7 @@ class Subspace(c.Module):
         return staker2netuid2stake
     
 
-
+ 
     def my_total_balance(self, network = None, fmt=fmt, update=False):
         return sum(self.my_balance(network=network, fmt=fmt, ).values())
 

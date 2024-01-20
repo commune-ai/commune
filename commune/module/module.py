@@ -4989,6 +4989,8 @@ class c:
                 mode:str='thread',
                 max_workers : int = 20,
                 ):
+
+        c.print(f'Running {fn} with args {args} and kwargs {kwargs}', color='yellow')
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
@@ -6665,7 +6667,10 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.get_fn(fn, ignore_module_pattern=True)
+        try:
+            fn = cls.get_fn(fn, ignore_module_pattern=True)
+        except :
+            return False
 
         return isinstance(fn, property)
 

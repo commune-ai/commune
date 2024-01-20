@@ -41,7 +41,7 @@ class Repo(c.Module):
             repo2path[repo_name] = path
         self.put(repo_path, repo2path)
         if repo != None:
-            return repo2path[repo]
+            return {k:v for k,v in repo2path.items()}
         return repo2path
     
 
@@ -55,10 +55,15 @@ class Repo(c.Module):
         update_button = st.button('Update')
         if update_button:
             c.submit(self.update)
-        self.repo2path = self.repo2path()
-        repos = list(self.repo2path.keys())
+        repo2path = self.repo2path()
+        repos = list(repo2path.keys())
         repo = st.selectbox('Repo', repos)
-        repo_path = self.repo2path[repo]
+        repo_pull_button = st.button('pull')
+        if repo_pull_button:
+            st.write('pulling')
+            st.write(repo)
+            c.submit(self.pull_repo, args=[repo])
+        repo_path = repo2path[repo]
         tabs = ['explorer', 'manager']
         tabs = st.tabs(tabs)
         with tabs[0]:
@@ -97,6 +102,9 @@ class Repo(c.Module):
             for readme_path in readme_paths:
                 readme_text = c.get_text(os.path.join(repo_path, readme_path))
                 st.write(readme_text)
+
+
+
 
     def rm_repo(self, repo):
         repo_path = self.repo2path()[repo]
@@ -138,10 +146,21 @@ class Repo(c.Module):
 
         with st.expander('Remove Repo'):
             cols = st.columns(2)
-            repo = cols[0].selectbox('Repo', list(self.repo2path.keys()))
+            repo = cols[0].selectbox('Repo', list(self.repo2path().keys()), key='remove_repo')
             remove_repo_button = st.button('Remove Repo')
             if remove_repo_button:
                 self.remove_repo(repo)
 
+        
+
+    def pull_repo(self, repo):
+        repo_path = self.repo2path()[repo]
+        return c.cmd(f'git pull', cwd=repo_path)
+    
+    def pull_many(self, *repos, timeout=20):
+        futures = []
+        for repo in repos:
+            futures.append(c.submit(self.pull_repo, args=[repo], timeout=timeout))
+        return c.wait(futures, timeout=timeout)
 
 Repo.run(__name__)
