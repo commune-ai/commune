@@ -329,6 +329,7 @@ class Subspace(c.Module):
                   update: bool = True,
                   return_dict:bool = True,
                   update_interval:int = 10,
+                  
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         if name  == 'Account':
