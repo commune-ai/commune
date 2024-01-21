@@ -327,7 +327,7 @@ class Server(c.Module):
         for h in history_paths:
             row =  {
                     'module': h.split('/')[-2],
-                    **c.get(h)
+                    **c.get(h, {})
                 }
         
             row.update(row.pop('data', {}))

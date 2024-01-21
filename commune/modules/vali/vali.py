@@ -174,7 +174,6 @@ class Vali(c.Module):
         
 
 
-
         if 'subspace' in network:
             if '.' in network:
                 """
@@ -290,7 +289,7 @@ class Vali(c.Module):
             # check the info of the module
             # this is where we connect to the client
             response = self.score_module(module)
-            response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
+            response['msg'] = f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
             self.successes += 1
             c.print(response, color='green')
         except Exception as e:
@@ -569,7 +568,12 @@ class Vali(c.Module):
         default_columns = ['name', 'staleness', 'w', 'count', 'timestamp']
         columns = list(module_infos[0].keys())
         selected_columns = st.multiselect('Select columns', columns, default_columns)
+        search = st.text_input('Search')
+        
         for row in module_infos:
+            if search != '' and search not in row['name']:
+                continue
+            
             row = {k: row.get(k, None) for k in selected_columns}
             df += [row]
         

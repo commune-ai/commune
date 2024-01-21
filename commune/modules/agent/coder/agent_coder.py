@@ -40,28 +40,22 @@ class AgentCoder(c.Module):
     
     def document_module(self,
              module='agent.coder', 
-             fns = ['document_fn'],
+             fns = None,
              model = 'model.openai',
              **model_params
              ):
-        
-        
+        fns = c.module(module).fns()
+        for fn in fns:
+            c.print(f'Documenting function {fn} in module {module}...')
 
-        model = c.connect(model, **model_params)
-        input = json.dumps({
-            'instruction': 'given the code, document the function in a professional manner in the docs section', 
-            'code': c.fn_code(fn),
-            'docs': None,
+            try:
+                future = c.submit(self.document_fn, dict(fn=module+'/'+fn, model=model, **model_params))
+                future.result()
+            except:
+                c.print(f'Failed to document function {fn} in module {module}...')
+            print(f'Documenting function {fn} in module {module}...')
 
-        })
-        # get the docs
-        docs = model.generate(input)
-        docs = self.process_response(docs)
-
-        # add docs to the function
-        c.add_docs(fn, docs)
-
-        return docs
+        return 
     
     def process_response(self, response):
         '''
@@ -79,7 +73,6 @@ class AgentCoder(c.Module):
                 response = json.loads(response)
             except:
                 pass
-        assert isinstance(response, str), f'Invalid docs type: {type(docs)}'
         
         return response
 
