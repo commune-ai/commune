@@ -1952,6 +1952,8 @@ class Subspace(c.Module):
         while len(feature2params) > 0:
             
             for feature, (fn, kwargs) in feature2params.items():
+                if feature in feature2result:
+                    continue
                 feature2result[feature] = c.submit(fn, kwargs) 
             
             result2feature = {v:k for k,v in feature2result.items()}

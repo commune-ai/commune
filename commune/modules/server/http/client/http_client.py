@@ -29,7 +29,7 @@ class Client(c.Module):
             save_history: bool = True,
             history_path : str = 'history',
             loop: 'asyncio.EventLoop' = None, 
-            debug: bool = False,
+            debug: bool = True,
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
@@ -121,6 +121,7 @@ class Client(c.Module):
                             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                                 event_data = json.loads(event_data)['data']
                             result += [event_data]
+                            
                     try:
                         
                         if result.startswith('{') and result.endswith('}') or \
@@ -135,8 +136,8 @@ class Client(c.Module):
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         
-        if 'data' in result:
-            result = self.serializer.deserialize(result['data'])
+
+        result = self.serializer.deserialize(result)
         if 'data' in result:
             result = result['data']
         if self.save_history:
