@@ -60,11 +60,10 @@ class ServerHTTP(c.Module):
 
 
         self.access_module = c.module(access_module)(module=self.module)  
-        c.print('fam')
+
 
         self.history_path = history_path or f'history/{self.name}'
          
-    
 
         self.set_api(ip=self.ip, port=self.port)
 
@@ -90,7 +89,7 @@ class ServerHTTP(c.Module):
             # you can verify the input with the server key class
             if not self.public:
                 assert self.key.verify(input), f"Data not signed with correct key"
-
+                
             input['data'] = self.serializer.deserialize(input['data'])
             # here we want to verify the data is signed with the correct key
             request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
@@ -101,7 +100,6 @@ class ServerHTTP(c.Module):
             user_info = self.access_module.verify(input)
             if not user_info['passed']:
                 return user_info
-
             assert 'args' in input['data'], f"args not in input data"
 
             data = input['data']
@@ -122,7 +120,6 @@ class ServerHTTP(c.Module):
             # if the result is a future, we need to wait for it to finish
         except Exception as e:
             result = c.detailed_error(e)
-            
         if isinstance(result, dict) and 'error' in result:
             success = False 
         success = True
@@ -222,7 +219,6 @@ class ServerHTTP(c.Module):
     def process_result(self,  result):
         if self.sse:
             from sse_starlette.sse import EventSourceResponse
-
             # for sse we want to wrap the generator in an eventsource response
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
@@ -230,8 +226,7 @@ class ServerHTTP(c.Module):
             # if we are not using sse, then we can do this with json
             if c.is_generator(result):
                 result = list([r for r in result])
-            c.print(result, c.is_generator(result))
-            result = self.serializer.serialize({'data': result})
+            result = self.serializer.serialize(result)
             result = self.key.sign(result, return_json=True)
             return result
         
@@ -243,7 +238,7 @@ class ServerHTTP(c.Module):
         for item in generator:
  
             # we wrap the item in a json object, just like the serializer does
-            item = self.serializer.serialize({'data': item})
+            item = self.serializer.serialize(item)
             
             item_size = c.sizeof(item)
             # we need to add a chunk start and end to the item

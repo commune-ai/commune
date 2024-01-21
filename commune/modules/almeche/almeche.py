@@ -38,7 +38,7 @@ class Almeche(c.Module):
 
         # Generate the CAD model using the final instructions
         operation_id = text_to_cad(manufacturing_instructions, "stl")
-
+        
         if operation_id:
             print(f"CAD model generation initiated. Operation ID: {operation_id}")
             

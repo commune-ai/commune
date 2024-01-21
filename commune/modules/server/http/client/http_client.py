@@ -29,6 +29,7 @@ class Client(c.Module):
             save_history: bool = True,
             history_path : str = 'history',
             loop: 'asyncio.EventLoop' = None, 
+            debug: bool = False,
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
@@ -40,6 +41,7 @@ class Client(c.Module):
         self.start_timestamp = c.timestamp()
         self.save_history = save_history
         self.history_path = history_path
+        self.debug = debug
 
         
 
@@ -64,6 +66,7 @@ class Client(c.Module):
             self.set_client(ip =ip,port = port)
     
 
+
     async def async_forward(self,
         fn: str,
         args: list = None,
@@ -71,19 +74,13 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
+        generator: bool = False,
         headers : dict ={'Content-Type': 'application/json'},
         ):
-
         self.resolve_client(ip=ip, port=port)
-
         args = args if args else []
         kwargs = kwargs if kwargs else {}
-
-
         url = f"http://{self.address}/{fn}/"
-
-
-        
         input =  { 
                         "args": args,
                         "kwargs": kwargs,
@@ -94,23 +91,26 @@ class Client(c.Module):
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
 
-        result = ''
+        result = []
 
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
-                    stream_prefix :str = 'data: ' 
-                    # Process SSE events
-                    progress_bar = c.tqdm(desc='MB per Second', position=0)
+                    STREAM_PREFIX = 'data: '
+                    BYTES_PER_MB = 1e6
+                    if self.debug:
+                        progress_bar = c.tqdm(desc='MB per Second', position=0)
+                    
                     async for line in response.content:
                         
                         event_data = line.decode('utf-8')
                         event_bytes  = len(event_data)
-                        progress_bar.update(event_bytes/(10^6))
+                        if self.debug :
+                            progress_bar.update(event_bytes/(BYTES_PER_MB))
                         # remove the "data: " prefix
-                        if event_data.startswith(stream_prefix):
-                            event_data = event_data[len(stream_prefix):]
+                        if event_data.startswith(STREAM_PREFIX):
+                            event_data = event_data[len(STREAM_PREFIX):]
 
                         event_data = event_data.strip()
                         if event_data == "":
@@ -118,20 +118,25 @@ class Client(c.Module):
                         if isinstance(event_data, bytes):
                             event_data = event_data.decode('utf-8')
                         if isinstance(event_data, str):
-                            result += event_data
-        
-                    result = json.loads(result)
-                    if 'data' in result:
-                        result = self.serializer.deserialize(result)
-          
+                            if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
+                                event_data = json.loads(event_data)['data']
+                            result += [event_data]
+                    try:
+                        
+                        if result.startswith('{') and result.endswith('}') or \
+                            result.startswith('[') and result.endswith(']'):
+                            result = ''.join(result)
+                            result = json.loads(result)
+                    except Exception as e:
+                        pass
                 elif response.content_type == 'application/json':
                     # PROCESS JSON EVENTS
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
-                    if 'data' in result:
-                        result = self.serializer.deserialize(result['data'])
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
-        # process output 
+        
+        if 'data' in result:
+            result = self.serializer.deserialize(result['data'])
         if 'data' in result:
             result = result['data']
         if self.save_history:

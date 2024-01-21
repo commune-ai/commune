@@ -19,13 +19,13 @@ class c:
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
     git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
-    homepath = os.path.expanduser('~') # the home path
+    homepath = home_path = os.path.expanduser('~') # the home path
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
-    libpath = os.path.dirname(root_path) # the path to the library
+    libpath = lib_path = os.path.dirname(root_path) # the path to the library
     datapath = os.path.join(libpath, 'data') # the path to the data folder
     modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
@@ -4239,10 +4239,10 @@ class c:
         return cls.logger
 
     @classmethod
-    def resolve_console(cls, console = None):
+    def resolve_console(cls, console = None, **kwargs):
         if not hasattr(cls,'console'):
             from rich.console import Console
-            cls.console = Console()
+            cls.console = Console(**kwargs)
         if console is not None:
             cls.console = console
         return cls.console
@@ -4268,22 +4268,25 @@ class c:
     @classmethod
     def print(cls, *text:str, 
               color:str=None, 
-              return_text:bool=False, 
               verbose:bool = True,
               console: Console = None,
+              flush:bool = False,
               **kwargs):
+              
         if verbose:
             if color == 'random':
                 color = cls.random_color()
             if color:
                 kwargs['style'] = color
-            console = cls.resolve_console(console)
+            console = cls.resolve_console(console, **kwargs)
+
+
             try:
-                return console.print(*text, **kwargs)
+                if flush:
+                    console.print(**kwargs, end='\r')
+                console.print(*text, **kwargs)
             except Exception as e:
                 print(e)
-                # print(*text, **kwargs)
-
     @classmethod
     def success(cls, *args, **kwargs):
         logger = cls.resolve_logger()
