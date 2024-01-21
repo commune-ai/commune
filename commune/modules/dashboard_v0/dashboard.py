@@ -85,8 +85,12 @@ class Dashboard(c.Module):
         self = cls()
         self.sidebar()
 
-        tabs = st.tabs(['SERVE', 'WALLET', 'PLAYGROUND', 'REMOTE', 'CHAT'])
+        modules = ['subspace', 'wallet', 'playground', 'remote', 'server']
+        tabs = st.tabs(modules)
         chat = False
+        for i, tab in enumerate(tabs):
+            with tab:
+                c.module(modules[i]).dashboard()
         with tabs[0]: 
             self.serve_dashboard()  
         with tabs[1]:

@@ -26,6 +26,17 @@ class ModelTransformer(Model):
                  load: bool = False,  # Assuming load is a boolean
                  quantize: str = None,
                  test:bool = True): # OPTIONS = ['int4', 'int8', None]
+        '''
+        ### Documentation for `__init__` Function
+        
+        #### Description:
+        The `__init__` function initializes an object instance with specified configurations and settings for the model.
+        
+        #### Parameters:
+        - `model` (str, default 'llama2.7b'): A string identifier for the model to be used.
+        - `tag` (str, default 'base'): The tag corresponding to the model.
+        - `device` (str, optional): The device on which the model should run. If `
+        '''
 
         # Here you would initial
         config = self.set_config(kwargs=locals())
@@ -42,6 +53,24 @@ class ModelTransformer(Model):
                 hidden_layer: int = -1, # -1 is the last hidden layer
                 max_length : int = 256,                        
                 **kwargs):
+        '''
+        ## Documentation
+        
+        ### Function: forward
+        ```python
+        def forward(self,  
+                    input_ids: Union[str, torch.Tensor], 
+                    output_hidden_states: bool = False,
+                    output_topk: bool = False,
+                    topk:int=None,
+                    hidden_layer: int = -1, # -1 is the last hidden layer
+                    max_length : int = 256,                        
+                    **kwargs):
+        ```
+        
+        #### Description
+        Executes a forward pass on the provided input_ids using the
+        '''
 
         sample = {}
 
@@ -71,12 +100,33 @@ class ModelTransformer(Model):
     
 
     def logit2token(self, logits):
+        '''
+        ### Documentation
+        
+        #### Function: logit2token
+        ##### Description:
+        The `logit2token` function takes a tensor of logits (raw predictions from a model), applies an `argmax` operation along the dimension 0 (selecting the index of the maximum value in each column), and converts the resulting tensor to a list.
+        
+        ##### Parameters:
+        - `self`: Refers to the instance of the class where the function is defined.
+        - `logits`: A tensor containing raw predictions from
+        '''
         logit2token = torch.argmax(logits, dim=0).to_list()
         return logit2token
 
         
     
     def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
+        '''
+        ```python
+        def encode(self, text: str, token_idx: int = None, **kwargs) -> torch.Tensor:
+            """
+            Encodes the input text into a tensor representation.
+        
+            This function tokenizes the input text, updates the tokenization results with any additional keyword arguments,
+            and passes the result to the model's forward method to obtain the hidden states. If a `token_idx` is provided,
+            it returns the hidden state corresponding to that token index. Otherwise, it returns
+        '''
         sample  = self.tokenize(text)
         kwargs.update(sample)
         hidden_states = self.forward(**kwargs)['hidden_states']
@@ -88,6 +138,16 @@ class ModelTransformer(Model):
     embed = encode
 
     def set_model(self, config) -> None: 
+        '''
+        ## Documentation for `set_model` function
+        
+        **Description:**
+        Sets up the model for training or fine-tuning based on the provided configuration. It handles quantization, device mapping, offloading and establishes necessary dependencies. Additionally, it initializes the tokenizer and optimizer, and optionally tests the setup.
+        
+        **Arguments:**
+        - `self`: Object reference to the instance of the class containing the function.
+        - `config`: An object containing the configuration parameters. Expected to have attributes like `model`, `quant
+        '''
         c.print(config)
         config.model = self.shortcuts().get(config.model, config.model)
         from transformers import  AutoModelForCausalLM
@@ -148,6 +208,17 @@ class ModelTransformer(Model):
         
 
     def set_tokenizer(self, tokenizer:str):
+        '''
+        ### Docs
+        
+        #### Function: `set_tokenizer`
+        
+        ##### Description:
+        The `set_tokenizer` function is responsible for setting the tokenizer for a given instance. It initializes the tokenizer using the `transformers` library, and ensures that the tokenizer has a padding token set. If the tokenizer does not come with a padding token, the function asserts that an end-of-string (EOS) token exists and uses it as the padding token.
+        
+        ##### Arguments: 
+        - `tokenizer`: A string representing the pretrained
+        '''
 
         c.print('SETTING Tokenizer -> ', tokenizer)
 
@@ -173,6 +244,19 @@ class ModelTransformer(Model):
 
     @staticmethod
     def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
+        '''
+        ## Documentation
+        
+        ### Function: encode_topk
+        
+        #### Description:
+        The `encode_topk` function takes a tensor of unnormalized logit scores and returns the top-k tokens and their corresponding probabilities. The input tensor is expected to represent a batch of sequences, with each sequence containing a distribution over a vocabulary of possible tokens.
+        
+        #### Parameters:
+        - `forward_response_tensor` (torch.Tensor): A tensor containing unnormalized logit scores of shape `[batch_size, sequence_len, vocab_size]`.
+          
+        
+        '''
         """ Returns topk tokens/probabilities given unnormalized logits as input. """
 
         #import ipdb; ipdb.set_trace()
@@ -210,6 +294,30 @@ class ModelTransformer(Model):
 
 
     def tokenizer_name(self):
+        '''
+        ### Documentation
+        
+        #### Function: `tokenizer_name`
+        
+        **Description:**
+        
+        This function returns the name of the tokenizer configured for use.
+        
+        **Parameters:**
+        
+        - `self`: The instance of the class from which the function is called.
+        
+        **Returns:**
+        
+        - `str`: The name of the tokenizer as specified in the instance's configuration.
+        
+        **Usage:**
+        
+        ```python
+        # Assuming an instance of the class has been created and named 'instance'
+        tokenizer_name = instance.tokenizer_name()
+        print(f"The
+        '''
         return self.config['tokenizer']
 
     def tokenize(self, 
@@ -494,6 +602,17 @@ class ModelTransformer(Model):
 
     @classmethod
     def test_encode(cls, model='gpt2.7b', text='Whadup?', **kwargs):
+        '''
+        ### Function Documentation
+        
+        #### `test_encode`
+        
+        - **Description**: This class method is used to encode text using a pre-trained language model for causal language modeling. It uses transformers library to load the model and tokenizer, then generates text based on the provided prompt.
+        
+        - **Parameters**:
+          - `model` (str, optional): The model to be used for encoding. Defaults to 'gpt2.7b'.
+          - `text` (str, optional): The prompt text to generate
+        '''
         from transformers import (
             AutoTokenizer,
             AutoModelForCausalLM,

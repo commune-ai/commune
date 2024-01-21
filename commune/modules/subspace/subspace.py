@@ -1444,11 +1444,11 @@ class Subspace(c.Module):
         self.query_map('Weights',network=network, update=True, **kwargs)
         return {'success': True, 'msg': 'Saved weights'}
 
-    def pending_deregistrations(self, netuid = None, **kwargs):
-        pending_deregistrations = self.query_map('PendingDeregisterUids', params=netuid, **kwargs)
+    def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
+        pending_deregistrations = self.query_map('PendingDeregisterUids',update=update, **kwargs)[netuid]
         return pending_deregistrations
     
-    def num_pending_deregistrations(self, netuid = None, **kwargs):
+    def num_pending_deregistrations(self, netuid = 0, **kwargs):
         pending_deregistrations = self.pending_deregistrations(netuid=netuid, **kwargs)
         return len(pending_deregistrations)
         

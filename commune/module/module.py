@@ -879,40 +879,37 @@ class c:
 
 
     @classmethod
-    def st(cls, module:str = None, fn='dashboard', port=8501, public:bool = False, remote:bool = False, kwargs=None):
+    def st(cls,
+           fn='dashboard', 
+           module:str = None, 
+           port=8501, 
+           public:bool = False, 
+           remote:bool = False, 
+           kwargs=None):
         if module == None: 
             module = cls.module_path()
 
-        kwargs = kwargs if kwargs != None else {}
+        kwargs = kwargs or {}
+        if public:
+            port = c.free_port()
 
         while c.port_used(port):
-
             c.print(f'Port {port} is already in use', color='red')
             port = port + 1
-
-        if public == True:
-            port = c.free_port()
         if remote:
             remote_kwargs = c.locals2kwargs(locals())
             remote_kwargs['remote'] = False
             c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
             url = f'http://{c.ip()}:{port}'
 
-            return {'success': True, 'msg': f'running {module} on {port}', 'url': url}
-        
+            return {'success': True, 
+                    'msg': f'running {module} on {port}', 
+                    'url': url}
         module_path = module
         module = c.module(module_path)
         module_filepath = module.filepath()
-        c.print(f'Running {module_filepath}', color='green')
         # add port to the command
-        cmd = f'streamlit run {module_filepath}'
-        if port != None:
-            cmd += f' --server.port {port}'
-
-        port2dashboard = c.get('port2dashboard', {})
-        port2dashboard[str(port)] = module_path
-        c.put('port2dashboard', port2dashboard)
-
+        cmd = f'streamlit run {module_filepath} --server.port {port}'
         
         if kwargs == None:
             kwargs = {}
@@ -922,9 +919,23 @@ class c:
 
         cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
 
+        module2dashboard = c.get('module2dashboard', {})
+        module2dashboard[module_path] = {
+            'port': port,
+            'fn': fn,
+            'kwargs': kwargs,
+            'cmd': cmd
+            
+        }
+        module2dashboard[module_path] = module_path
+        c.put('module2dashboard', module2dashboard)
+
+
         c.cmd(cmd, verbose=True)
 
+
     
+
 
     @staticmethod
     def stside(fn):
@@ -1286,7 +1297,10 @@ class c:
         futures = []
         for port in range(*port_range):
             c.print(f'Killing port {port}', color='red')
-            self.kill_port(port) 
+            try:
+                self.kill_port(port) 
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
 
 
     def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
@@ -1300,11 +1314,7 @@ class c:
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
         
-        port2module = cls.port2module()
-        if port in port2module:
 
-            cls.kill(port2module[port])
-        
         if mode == 'python':
             import signal
             from psutil import process_iter
@@ -1461,6 +1471,9 @@ class c:
     def object_path(cls):
         return cls.path2objectpath(cls.module_path(simple=False))
 
+    def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
+        return self.find_python_classes(path=path, search=search, start_lines=start_lines)
+
     @classmethod
     def find_classes(cls, module=None):
         if module == None:
@@ -1490,7 +1503,16 @@ class c:
     @classmethod
     def find_python_classes(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
-        
+        path = cls.resolve_path(path)
+        if os.path.isdir(path):
+            file2classes = {}
+            for f in c.glob(path):
+                if f.endswith('.py'):
+                    try:
+                        file2classes[f] = cls.find_python_classes(f, class_index=class_index, search=search, start_lines=start_lines)
+                    except Exception as e:
+                        c.print(f'Error: {e}', color='red')
+            return file2classes
         # read the contents of the Python script file
         python_script = cls.readlines(path, end_line = start_lines, resolve=False)
         class_names  = []
@@ -8661,6 +8683,30 @@ class c:
             fig = plot_fn(df, **plot_kwargs, title=title)    
             st.plotly_chart(fig)
         # st.write(kwargs)
+            
+    @classmethod
+    def docu(cls, fn):
+        '''
+        ## Documentation
+        
+        ### `docu` method
+        
+        ```python
+        @classmethod
+        def docu(cls, fn):
+            return c.module('agent.coder')().document_fn(fn)
+        ```
+        
+        #### Description:
+        This class method is responsible for documenting a given function `fn`.
+        
+        #### Parameters:
+        - `fn`: A function object that needs to be documented.
+        
+        #### Returns:
+        - Returns the documentation of the provided function `fn` as generated by the `document_fn` method of the `agent.coder
+        '''
+        return c.module('agent.coder')().document_fn(fn)
         
 
 Module = c
