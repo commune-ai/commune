@@ -114,6 +114,7 @@ class Vali(c.Module):
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
         
         self.running = True
+        last_print = 0
 
         self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
 
@@ -128,7 +129,6 @@ class Vali(c.Module):
             module_addresses = c.shuffle(c.copy(self.module_addresses))
             batch_size = self.config.batch_size 
             # select a module
-            progress_bar = c.tqdm(total=len(module_addresses))
             results = []
             for  i, module_address in enumerate(module_addresses):
                 
@@ -139,23 +139,31 @@ class Vali(c.Module):
                 else:
                     
                     for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                        result = ready_future.result()
+                        try:
+                            result = ready_future.result()
+                        except Exception as e:
+                            continue
+
                         results.append(result)
+                        futures.remove(ready_future)
+                        break
     
 
-                if i % 1000 == 0:
+                if c.time() - last_print > self.config.print_interval:
                     stats =  {
-                        'count': self.count,
-                        'requests': self.requests,
+                        'lifetime': self.lifetime,
+                        'pending': len(futures),
+                        'sent': self.requests,
                         'errors': self.errors,
                         'successes': self.successes,
-                        'rate': int(self.modules_per_second()), 
-                        'eval_time': c.round(c.time() - self.last_evaluation_time,1),
                             }
                     df_rows += [stats]
-                    df = c.df(df_rows[-5:])
+                    df = c.df(df_rows[-1:])
                     results = []
+                    import sys
+                    sys.stdout.flush()
                     c.print(df)
+                    last_print = c.time()
                     # c.print(f'STATS  --> {stats}\n', color='white')
 
 
@@ -264,14 +272,14 @@ class Vali(c.Module):
         start_timestamp = c.time()
 
 
+        self.requests += 1
         # BEGIN EVALUATION
         try:
             module = c.connect(module_address, key=self.key)
         except Exception as e:
+            self.errors += 1
             e = c.detailed_error(e)
             return {'error': f'Error connecting to {module_address} {e}'}
-
-    
 
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
 
@@ -281,17 +289,13 @@ class Vali(c.Module):
             info = module.info(timeout=self.config.info_timeout)
             module_info.update(info)
 
-        self.requests += 1
-
         try:
-
 
             # check the info of the module
             # this is where we connect to the client
             response = self.score_module(module)
             response['msg'] = f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
             self.successes += 1
-            c.print(response, color='green')
         except Exception as e:
             e = c.detailed_error(e)
             self.errors += 1
@@ -299,7 +303,7 @@ class Vali(c.Module):
                         'w': 0, 
                         'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
                         }
-            c.print(response['msg'], color='red')
+            c.print(response['msg'], color='red', verbose=self.config.verbose)
             
 
         end_timestamp = c.time()        

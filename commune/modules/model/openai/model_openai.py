@@ -122,6 +122,8 @@ class OpenAILLM(c.Module):
                 api_key:str = None,
                 role:str = 'user',
                 history: list = None,
+                stream =  True,
+                return_generator = False,
                 **kwargs) -> str:
         t = c.time()
 
@@ -143,31 +145,41 @@ class OpenAILLM(c.Module):
 
         assert self.too_many_tokens == False, f"Too many tokens, {self.input_tokens} input tokens and {self.output_tokens} output tokens where generated and the limit is {self.config.max_input_tokens} input tokens and {self.config.max_output_tokens} output tokens"
 
-        response = openai.ChatCompletion.create(messages=messages, **params)
-            
-        output_text = response = response['choices'][choice_idx]['message']['content']
-        input_tokens = self.num_tokens(prompt)
-        output_tokens = self.num_tokens(output_text)
+        response = openai.chat.completions.create(messages=messages, stream=stream, **params)
+        
+        if stream:
+            for r in response:
+                token = r.choices[choice_idx].delta.content
+                yield token
+        else:
+            output_text = response = response.choices[choice_idx].message.content
+            input_tokens = self.num_tokens(prompt)
+            output_tokens = self.num_tokens(output_text)
 
-        self.input_tokens += input_tokens
-        self.output_tokens += output_tokens
+            self.input_tokens += input_tokens
+            self.output_tokens += output_tokens
 
-        latency = c.time() - t
+            latency = c.time() - t
 
-        stats = {
-            'prompt': prompt,
-            'response': output_text,
-            'input_tokens': input_tokens,
-            'output_tokens': output_tokens,
-            'latency': latency,
-            'history': history,
-            'timestamp': t,
-        }
+            stats = {
+                'prompt': prompt,
+                'response': output_text,
+                'input_tokens': input_tokens,
+                'output_tokens': output_tokens,
+                'latency': latency,
+                'history': history,
+                'timestamp': t,
+            }
 
-        # self.add_stats(tag=t, stats=stats)
+            # self.add_stats(tag=t, stats=stats)
 
-        return output_text
+            return output_text
 
+    
+    
+
+    
+    
     _stats = None
     _stats_update_time = 0
 

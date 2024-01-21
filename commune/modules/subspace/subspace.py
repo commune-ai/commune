@@ -1445,7 +1445,7 @@ class Subspace(c.Module):
         return {'success': True, 'msg': 'Saved weights'}
 
     def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
-        pending_deregistrations = self.query_map('PendingDeregisterUids',update=update, **kwargs)[netuid]
+        pending_deregistrations = self.query_map('PendingDeregisterUids',update=update,**kwargs)[netuid]
         return pending_deregistrations
     
     def num_pending_deregistrations(self, netuid = 0, **kwargs):

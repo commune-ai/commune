@@ -3,7 +3,6 @@ import os
 import streamlit as st
 
 class Repo(c.Module):
-    home_dir = os.path.expanduser("~")
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())
 
@@ -18,7 +17,7 @@ class Repo(c.Module):
     
     def find_repo_paths(self, path = None, avoid_strings = ['.cargo']):
         if path == None:
-            path = self.home_dir
+            path = c.home_path
         repos = []
         c.print(path)
         for root, dirs, files in os.walk(path):
@@ -62,7 +61,7 @@ class Repo(c.Module):
         if repo_pull_button:
             st.write('pulling')
             st.write(repo)
-            c.submit(self.pull_repo, args=[repo])
+            c.submit(self.pull_repo, args=[repo)
         repo_path = repo2path[repo]
         tabs = ['explorer', 'manager']
         tabs = st.tabs(tabs)
@@ -118,10 +117,12 @@ class Repo(c.Module):
     def repo_paths(self):
         return list(self.repo2path().values())
     def add_repo(self, repo_path, path = None, update=False):
-        
-        path = path or repo_path
+        if path == None:
+        path = c.home_path + os.path.basename(repo_path).replace('.git', '')
         if path.endswith('.git'):
             path = path.replace('.git','')
+            c.home_path 
+
         if os.path.exists(path):
             if update:
                 c.rm(path)
