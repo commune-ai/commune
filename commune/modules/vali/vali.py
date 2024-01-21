@@ -161,9 +161,7 @@ class Vali(c.Module):
                     df = c.df(df_rows[-1:])
                     results = []
                     import sys
-                    sys.stdout.flush()
                     c.print(df)
-                    last_print = c.time()
                     # c.print(f'STATS  --> {stats}\n', color='white')
 
 

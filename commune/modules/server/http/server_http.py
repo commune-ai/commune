@@ -14,7 +14,7 @@ class ServerHTTP(c.Module):
         ip = '0.0.0.0',
         port: Optional[int] = None,
         sse: bool = True,
-        chunk_size: int = 42_000,
+        chunk_size: int = 1000,
         max_request_staleness: int = 60, 
         max_workers: int = None,
         mode:str = 'thread',
@@ -217,30 +217,25 @@ class ServerHTTP(c.Module):
 
 
     def process_result(self,  result):
-        if self.sse:
+        if c.is_generator(result):
             from sse_starlette.sse import EventSourceResponse
             # for sse we want to wrap the generator in an eventsource response
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:
             # if we are not using sse, then we can do this with json
-            if c.is_generator(result):
-                result = list([r for r in result])
             result = self.serializer.serialize(result)
             result = self.key.sign(result, return_json=True)
             return result
         
     
     def generator_wrapper(self, generator):
-        if not c.is_generator(generator):   
-            generator = [generator]
-            
+
         for item in generator:
  
             # we wrap the item in a json object, just like the serializer does
-            item = self.serializer.serialize(item)
-            
-            item_size = c.sizeof(item)
+            item = self.serializer.serialize({'data': item})
+            item_size = len(str(item))
             # we need to add a chunk start and end to the item
             if item_size > self.chunk_size:
                 # if the item is too big, we need to chunk it
