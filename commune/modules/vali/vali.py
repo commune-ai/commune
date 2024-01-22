@@ -170,7 +170,7 @@ class Vali(c.Module):
                     results = []
                     c.print(df)
                     # c.print(f'STATS  --> {stats}\n', color='white')
-
+                    last_print = c.time()
 
 
     def sync_network(self, 
@@ -257,7 +257,7 @@ class Vali(c.Module):
         else:
             module_address = module
             module_name = address2name.get(module_address, module_address)
-
+            
         start_timestamp = c.time()
         self.requests += 1
 
@@ -384,7 +384,17 @@ class Vali(c.Module):
         return paths
 
 
-    def vote(self, tag=None, votes=None):
+    def vote(self, tag=None, votes=None, cache_exceptions=True):
+        if cache_exceptions:
+            try:
+                response =  self.vote(tag=tag, votes=votes, cache_exceptions=False)
+            except Exception as e:
+                e = c.detailed_error(e)
+                c.print(f'Error {e}', color='red')
+                return {'success': False, 'error': e}
+            
+            return response
+
 
         votes = votes or self.calculate_votes(tag=tag) 
         if tag != None:
