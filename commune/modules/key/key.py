@@ -335,27 +335,27 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def key2address(cls, prefix=None):
-        key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+    def key2address(cls, search=None, update:bool=False):
+        path = 'key2address'
+        key2address = []
+        if not update:
+            key2address =  cls.get(path, key2address)
+        
+        if len(key2address) == 0:
+            key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+            cls.put(path, key2address)
+        if search != None:
+            key2address =  {k:v for k,v in key2address.items() if  search in k}
         return key2address
     
     @classmethod
-    def address2key(cls, search:Optional[str]=None, update=False):
-        path = "address2key"
-
-        if not update:
-            address2key = cls.get(path, None)
-            if address2key != None:
-                return address2key
-
-        address2key =  { v: k for k,v in cls.key2address().items()}
-        if search in address2key:
-            return address2key[search]
+    def address2key(cls, search:Optional[str]=None, update:bool=False):
+        address2key =  { v: k for k,v in cls.key2address(update=update).items()}
+        if search != None :
+            return address2key.get(search, None)
         else:
             if search != None:
                 address2key =  {k:v for k,v in address2key.items() if  search in v}
-        
-        cls.put(path, address2key)
 
         return address2key
     

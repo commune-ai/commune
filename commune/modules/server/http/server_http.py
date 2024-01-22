@@ -24,11 +24,13 @@ class ServerHTTP(c.Module):
         public: bool = False,
         serializer: str = 'serializer',
         save_history:bool= True,
-        history_path:str = None 
+        history_path:str = None , 
+        new_loop = True,
         
         ) -> 'Server':
 
-
+        if new_loop:
+            c.new_event_loop()
    
         self.serializer = c.module(serializer)()
         self.ip = ip
@@ -185,14 +187,16 @@ class ServerHTTP(c.Module):
         
 
     @classmethod
-    def history(cls, server=None, history_path='history'):
+    def history(cls, server=None, history_path='history', n=100):
         if server == None:
             dirpath  = f'{history_path}'
-            return cls.glob(dirpath)
+            paths =  cls.glob(dirpath)
         else:
             
             dirpath  = f'{history_path}/{server}'
-            return cls.ls(dirpath)
+            paths =  cls.ls(dirpath)
+        paths = sorted(paths, reverse=True)[:n]
+        return paths
 
     @classmethod
     def rm_history(cls, server=None, history_path='history'):

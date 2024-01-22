@@ -411,8 +411,7 @@ class Dashboard(c.Module):
     @classmethod
     def dashboard(cls, *args, **kwargs):
         
-        
-        
+    
         self = cls(*args, **kwargs)
 
         fns = cls.fns()
@@ -461,6 +460,7 @@ class Dashboard(c.Module):
         def get_state(network):
             subspace = c.module('subspace')()
             state =  subspace.state_dict(update=update, network=network)
+            st.write(state.keys())
             state['total_balance'] = sum(state['balances'].values())/1e9
             state['key2address'] = c.key2address()
             state['lag'] = c.lag()
@@ -471,11 +471,12 @@ class Dashboard(c.Module):
 
         self.state =  get_state(self.network)
 
-
-        self.subnets = self.state['subnets']
+        st.write(self.state.keys())
+        self.subnets = self.state['subnet']
         keys = c.keys()
         subnets = self.subnets
 
+        st.write(self.subnets, 'subnets')
         name2subnet = {s['name']:s for s in subnets}
         name2idx = {s['name']:i for i,s in enumerate(subnets)}
         subnet_names = list(name2subnet.keys())
@@ -609,6 +610,5 @@ class Dashboard(c.Module):
     #             #     )
 
     #             #     st.plotly_chart(fig)
-
 
 Dashboard.run(__name__)

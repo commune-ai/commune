@@ -11,7 +11,7 @@ class CLI(c.Module):
     def __init__(
             self,
             config: c.Config = None,
-            module_overrides: dict = ['network', 'key', 'auth', 'namespace'],
+            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer'],
 
         ) :
         self.protected_modules = module_overrides
@@ -32,7 +32,9 @@ class CLI(c.Module):
             # is it a fucntion, assume it is for the module
 
             module_list = c.modules()
+            using_seperator = False
             if '/' in args[0]:
+                using_seperator = True
                 args = args[0].split('/') + args[1:]
                 
                 

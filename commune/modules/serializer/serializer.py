@@ -103,16 +103,18 @@ class Serializer(c.Module):
         """Serializes a torch object to DataBlock wire format.
         """
         if isinstance(x, str):
-            x = self.str2dict(x)
-
-
+            if x.startswith('{') or x.startswith('['):
+                x = self.str2dict(x)
+            else:
+                return x
+        
         is_single = isinstance(x,dict) and all([k in x for k in ['data', 'data_type', 'serialized']])
         if is_single:
             x = [x]
         k_list = []
         if isinstance(x, dict):
             k_list = list(x.keys())
-        elif isinstance(x, list):
+        elif type(x) in [list]:
             k_list = list(range(len(x)))
         elif type(x) in [tuple, set]: 
             # convert to list, to format as json

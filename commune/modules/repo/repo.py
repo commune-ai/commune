@@ -61,7 +61,7 @@ class Repo(c.Module):
         if repo_pull_button:
             st.write('pulling')
             st.write(repo)
-            c.submit(self.pull_repo, args=[repo)
+            c.submit(self.pull_repo, args=[repo])
         repo_path = repo2path[repo]
         tabs = ['explorer', 'manager']
         tabs = st.tabs(tabs)
@@ -118,7 +118,7 @@ class Repo(c.Module):
         return list(self.repo2path().values())
     def add_repo(self, repo_path, path = None, update=False):
         if path == None:
-        path = c.home_path + os.path.basename(repo_path).replace('.git', '')
+            path = c.home_path + os.path.basename(repo_path).replace('.git', '')
         if path.endswith('.git'):
             path = path.replace('.git','')
             c.home_path 
