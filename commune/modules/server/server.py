@@ -317,7 +317,7 @@ class Server(c.Module):
         return server_name in serve_kwargs
     
     def history(self, server=None, mode='http'):
-        return c.module(f'server.{mode}').history(server)
+        return c.module(f'server.{mode}').history(server, n=100)
     
     def history_dashboard(self):
 
@@ -334,7 +334,8 @@ class Server(c.Module):
             history.append(row)
         
         df = pd.DataFrame(history)
-        modules = list(df['module'].unique())
+        address2key = {v:k for k,v in self.namespace.items()}
+        modules = list(df['module'].unique()).apply(lambda x: address2key[x])
         module = st.multiselect('Select Module', modules, modules)
         df = df[df['module'].isin(module)]
         columns = list(df.columns)

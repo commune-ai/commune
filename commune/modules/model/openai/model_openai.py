@@ -122,9 +122,9 @@ class OpenAILLM(c.Module):
                 api_key:str = None,
                 role:str = 'user',
                 history: list = None,
-                stream =  True,
-                return_generator = False,
+                stream =  False,
                 **kwargs) -> str:
+        
         t = c.time()
 
         openai.api_key = api_key or self.api_key
@@ -148,9 +148,11 @@ class OpenAILLM(c.Module):
         response = openai.chat.completions.create(messages=messages, stream=stream, **params)
         
         if stream:
-            for r in response:
-                token = r.choices[choice_idx].delta.content
-                yield token
+            def stream_response(response):
+                for r in response:
+                    token = r.choices[choice_idx].delta.content
+                    yield token
+            return stream_response(response)
         else:
             output_text = response = response.choices[choice_idx].message.content
             input_tokens = self.num_tokens(prompt)

@@ -920,6 +920,14 @@ class c:
         cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
 
         module2dashboard = c.get('module2dashboard', {})
+        if module_path in module2dashboard:
+            try:
+                module_port = module2dashboard[module_path]['port']
+                c.print(f'Killing {module_path} on port {module_port}')
+                c.kill_port(module_port)
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+
         module2dashboard[module_path] = {
             'port': port,
             'fn': fn,
@@ -927,7 +935,6 @@ class c:
             'cmd': cmd
             
         }
-        module2dashboard[module_path] = module_path
         c.put('module2dashboard', module2dashboard)
 
 
@@ -1312,7 +1319,7 @@ class c:
 
 
     @classmethod
-    def kill_port(cls, port:int, mode='bash')-> str:
+    def kill_port(cls, port:int, mode='python')-> str:
         
 
         if mode == 'python':
@@ -1755,7 +1762,6 @@ class c:
 
     @classmethod
     def dash(cls, *args, **kwargs):
-        c.print('FAM')
         if cls.module_path() == 'module':
             return cls.st('dashboard')
         else:
@@ -2693,10 +2699,11 @@ class c:
 
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
+            module = cls.module_path() if module == None else module
+
             # module::tag
             if tag_seperator in module:
                 module, tag = module.split(tag_seperator)
-            module = cls.module_path() if module == None else module
             if tag_seperator in module: 
                 module, tag = module.split(tag_seperator)
             name = module
@@ -5014,8 +5021,6 @@ class c:
                 mode:str='thread',
                 max_workers : int = 20,
                 ):
-
-        c.print(f'Running {fn} with args {args} and kwargs {kwargs}', color='yellow')
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
@@ -6595,7 +6600,6 @@ class c:
 
     @classmethod
     def classify_fns(cls, obj= None):
-        obj = obj or cls
         method_type_map = {}
         for attr_name in dir(obj):
             method_type = None
@@ -8611,7 +8615,7 @@ class c:
 
     @classmethod
     def dashboard(cls):
-        st.write(cls.module_path().upper())
+        c.module('dashboard').dashboard()
 
     @classmethod
     def ticket(self, key=None):

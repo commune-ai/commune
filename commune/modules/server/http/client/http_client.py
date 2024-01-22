@@ -103,7 +103,6 @@ class Client(c.Module):
                         progress_bar = c.tqdm(desc='MB per Second', position=0)
                     
                     async for line in response.content:
-                        
                         event_data = line.decode('utf-8')
                         event_bytes  = len(event_data)
                         if self.debug :
@@ -113,6 +112,7 @@ class Client(c.Module):
                             event_data = event_data[len(STREAM_PREFIX):]
 
                         event_data = event_data.strip()
+                        
                         if event_data == "":
                             continue
                         if isinstance(event_data, bytes):
@@ -121,6 +121,7 @@ class Client(c.Module):
                             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                                 event_data = json.loads(event_data)['data']
                             result += [event_data]
+                        
                             
                     try:
                         
@@ -136,9 +137,9 @@ class Client(c.Module):
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         
-
+        c.print(result)
         if isinstance(result, dict):
-            result = self.serializer.deserialize(result['data'])
+            result = self.serializer.deserialize(result)
         elif isinstance(result, str):
             result = self.serializer.deserialize(result)
         if 'data' in result:
@@ -148,7 +149,7 @@ class Client(c.Module):
             input['result'] = result
             input['module']  = self.address
             input['latency'] =  c.time() - input['timestamp']
-            path = self.history_path+'/' + self.key.ss58_address + '/' + str(input['timestamp'])
+            path = self.history_path+'/' + self.server_name + '/' + str(input['timestamp'])
             self.put(path, input)
         return result
     
