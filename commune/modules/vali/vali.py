@@ -109,6 +109,7 @@ class Vali(c.Module):
         
     @classmethod
     def worker(cls, *args, **kwargs):
+        kwargs['start'] = False
         self = cls(*args, **kwargs)
         c.new_event_loop(nest_asyncio=True)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
@@ -132,21 +133,28 @@ class Vali(c.Module):
             results = []
             for  i, module_address in enumerate(module_addresses):
                 
+              
                 if len(futures) < batch_size:
                 
                     future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
                     
-                    for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                        try:
-                            result = ready_future.result()
-                        except Exception as e:
-                            continue
-
-                        results.append(result)
-                        futures.remove(ready_future)
-                        break
+                    try:
+                        for ready_future in c.as_completed(futures, timeout=self.config.timeout):
+                            
+                            try:
+                                result = ready_future.result()
+                            except Exception as e:
+                                result = {'success': False, 'error': c.detailed_error(e)}
+                            futures.remove(ready_future)
+                            results.append(result)
+                        
+                            break
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        c.print(f'Error {e}', color='red')
+                        
     
 
                 if c.time() - last_print > self.config.print_interval:
@@ -160,7 +168,6 @@ class Vali(c.Module):
                     df_rows += [stats]
                     df = c.df(df_rows[-1:])
                     results = []
-                    import sys
                     c.print(df)
                     # c.print(f'STATS  --> {stats}\n', color='white')
 
@@ -225,18 +232,10 @@ class Vali(c.Module):
         
 
     def score_module(self, module):
-        '''
-        params:
-            module: module client
-            kwargs : the key word arguments
-        
-        '''
-        # info = module.info()
-        # assert 'name' in info, f'Info must have a name key, got {info.keys()}'
-        w = 1
-
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        return {'success': True, 'w': w}
+        info = module.info()
+        assert 'address' in info, f'Info must have a address key, got {info.keys()}'
+        return {'success': True, 'w': 1, 'info': info}
 
     def eval_module(self, module:str, network=None):
         return c.gather([self.async_eval_module(module=module, network=network)])
@@ -246,85 +245,58 @@ class Vali(c.Module):
         The following evaluates a module sver
         """
         # load the module stats (if it exists)
-        
         if network != None:
             self.sync_network(network=network)
 
-        module_info = self.load_module_info( module, {})
         namespace = self.namespace
+        address2name = self.address2name
         # CONFIGURE THE ADDRESS AND NAME (INFER THE NAME IF THE ADDDRESS IS PASED)
         if module in namespace:
             module_name = module
             module_address = namespace[module]
         else:
             module_address = module
-            module_name = self.address2name.get(module_address, module_address)
-        # emoji = c.emoji('hi')
-        # CHECK IF THE MODULE IS EVALUATING ITSELF, DISABLE FOR NOW
-        if not hasattr(self, 'my_info'):
-            self.my_info = self.info()
-        my_info = self.my_info
-        if module_address == my_info['address']:
-            return {'error': f'Cannot evaluate self {module_address}'}
+            module_name = address2name.get(module_address, module_address)
 
         start_timestamp = c.time()
-
-
         self.requests += 1
-        # BEGIN EVALUATION
-        try:
-            module = c.connect(module_address, key=self.key)
-        except Exception as e:
-            self.errors += 1
-            e = c.detailed_error(e)
-            return {'error': f'Error connecting to {module_address} {e}'}
 
+        # load the module info and calculate the staleness of the module
+        module_info = self.load_module_info( module, {})
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
-
-        # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
-        if seconds_since_called > self.config.max_staleness :
-            # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
-            info = module.info(timeout=self.config.info_timeout)
-            module_info.update(info)
-
         try:
-
-            # check the info of the module
-            # this is where we connect to the client
-            response = self.score_module(module)
-            response['msg'] = f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
-            self.successes += 1
+            if seconds_since_called > self.config.max_staleness :
+                module = c.connect(module_address)
+                response = self.score_module(module)
+                assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
+                assert 'w' in response, f'Response must have a w key, got {response.keys()}'
+                module_info.update(response)
+                response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
+                c.print(response["msg"], color='green')
+                self.successes += 1
+            else:
+                # skip this module if it is too stale, and return the module info
+                return module_info
         except Exception as e:
             e = c.detailed_error(e)
-            self.errors += 1
-            response = {
-                        'w': 0, 
-                        'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
-                        }
-            c.print(response['msg'], color='red', verbose=self.config.verbose)
+            response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
+            self.errors += 1  
             
-
-        end_timestamp = c.time()        
-        w = response['w']
         # we only want to save the module stats if the module was successful
-        module_info['count'] = module_info.get('count', 0) + 1 # update the count of times this module was hit
-        module_info['w'] = module_info.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_info['timestamp'] = end_timestamp
-        module_info['start_timestamp'] = start_timestamp
-        module_info['end_timestamp'] = end_timestamp
-        module_info['latency'] = end_timestamp - start_timestamp
-
+        
+        module_info['latency'] = c.time() - start_timestamp
+        module_info['timestamp'] = start_timestamp
+        # update the w with the new w
+        w = response['w']
+        module_info['w'] = module_info.get('w')*(1-self.config.alpha) + w * self.config.alpha
+        
+        # update the history
         history_record = {k:module_info[k] for k in self.config.history_features}
         module_info['history'] = (module_info.get('history', []) + [history_record])
         module_info['history'] = module_info['history'][:self.config.max_history]
 
         self.save_module_info(module_name, module_info)
 
-        # VERBOSITY
-        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
-        
-        
-        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan', verbose=self.config.verbose)
         self.count += 1
         self.last_evaluation_time = c.time()
         return module_info
