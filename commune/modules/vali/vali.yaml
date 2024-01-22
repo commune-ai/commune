@@ -18,7 +18,7 @@ refresh_stats: False
 vote_interval: 100
 sync_interval: 100
 search: null
-max_staleness: 10
+max_staleness: 100
 virtual_module: False
 check_loop: True
 run_mode : thread
@@ -30,7 +30,6 @@ vote: True
 min_stake: 1
 vote_interval: 200
 vote_timeout: 50
-timeout: 3
 min_count_before_vote: 100
 
 # stats
@@ -47,6 +46,7 @@ alpha: 0.5
 
 # workers
 timeout: 10
+info_timeout: 5
 sleep_time: 0.05
 num_workers: 1
 refresh : True
@@ -55,7 +55,6 @@ is_main_worker: True
 max_vote_delay_before_worker_restart: 20
 max_restart_lag: 20
 min_num_weights: 32
-info_timeout: 5
 debug: False
 print_interval: 10
 
