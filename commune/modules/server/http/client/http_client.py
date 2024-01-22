@@ -137,7 +137,10 @@ class Client(c.Module):
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         
 
-        result = self.serializer.deserialize(result)
+        if isinstance(result, dict):
+            result = self.serializer.deserialize(result['data'])
+        elif isinstance(result, str):
+            result = self.serializer.deserialize(result)
         if 'data' in result:
             result = result['data']
         if self.save_history:
