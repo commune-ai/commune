@@ -239,7 +239,7 @@ class Vali(c.Module):
         return {'success': True, 'w': 1, 'info': info}
 
     def eval_module(self, module:str, network=None):
-        return c.gather([self.async_eval_module(module=module, network=network)])
+        return c.gather(self.async_eval_module(module=module, network=network))
     
     async def async_eval_module(self, module:str, network = None):
         """

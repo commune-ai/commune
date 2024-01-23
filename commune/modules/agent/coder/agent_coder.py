@@ -2,23 +2,37 @@ import commune as c
 import json
 
 class AgentCoder(c.Module):
-    def document_fn(self,
+    def call(self,
              fn='agent.coder/call', 
              model = 'model.openai',
-             **model_params
-             ):
+             **model_params):
         '''
         ### Function Documentation
         
         #### Function Name: 
-        call
+        `call`
         
-        #### Parameters:
-        - `fn` (str): The designated function name. Default value is 'agent.coder/call'.
-        - `model` (str): The model identifier. Default value is 'model.openai'.
+        #### Parameters: 
+        - `fn` (str): The function name to be documented. Default value is `'agent.coder/call'`.
+        - `model` (str): The model name to connect to for generating the documentation. Default value is `'model.openai'`.
+        - `**model_params`: Arbitrary keyword arguments to be used as parameters when connecting to the model.
         
-        #### Description:
-        This function is designed to generate documentation for a given function by connecting to a model and sending a JSON-encoded request containing the function's code and instruction for documentation. The function handles the connection to the model, generates
+        #### Description: 
+        The `call` function is used to
+        '''
+        '''
+        ### Function Documentation
+        
+        #### Function Name: 
+        `call`
+        
+        #### Parameters: 
+        - `fn` (str): The function name to be documented. Default value is `'agent.coder/call'`.
+        - `model` (str): The model name to connect to for generating the documentation. Default value is `'model.openai'`.
+        - `**model_params`: Arbitrary keyword arguments to be used as parameters when connecting to the model.
+        
+        #### Description: 
+        This function is used to automatically generate documentation
         '''
         model = c.connect(model, **model_params)
         input = json.dumps({
@@ -36,7 +50,7 @@ class AgentCoder(c.Module):
 
         return docs
     
-    
+    document_fn = call
     
     def document_module(self,
              module='agent.coder', 

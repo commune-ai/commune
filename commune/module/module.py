@@ -7102,13 +7102,14 @@ class c:
         return {'success': True, 'msg': f'Set line {idx} to {text}'}
 
     @classmethod
-    def add_line(cls, idx=0, text:str = ''  ):
+    def add_line(cls, idx=0, text:str = '',  module=None  ):
 
-        code = cls.code()
+        code = cls.code() if module == None else c.module(module).code()
         lines = code.split('\n')
         new_lines = text.split('\n') if '\n' in text else [text]
         lines = lines[:idx] + new_lines + lines[idx:]
         new_code = '\n'.join(lines)
+        c.print(lines)
         cls.put_text(cls.filepath(), new_code)
         return {'success': True, 'msg': f'Added line {idx} to {text}'}
     
