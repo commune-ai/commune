@@ -728,7 +728,7 @@ class Subspace(c.Module):
         return {'success': True, 'block': self.block}
 
 
-    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 1000, 'check_servers': 300}, network=None, remote:bool=True):
+    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 100}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
@@ -744,23 +744,15 @@ class Subspace(c.Module):
                 save = staleness["save"] > intervals["save"]
                 if save:
                     block = (block // intervals['full']) * intervals['full']
+                    last_block_update['save'] = block
                 
                 request = {
                             'network': network, 
                            'block': block
                            }
-                response = self.sync(**request)
-                if save:
-                    last_block_update["save"] = 0
-                last_block_update["full"] = 0
+                self.sync(**request)
+                last_block_update['full'] = block
             
-            if staleness["light"] > intervals["light"]:
-                c.print("Synced StakeFrom and Namespace")
-                response = self.light_sync(network=network, remote=remote, block=block)
-                staleness["light"] = 0
-                c.print("Synced StakeFrom and Namespace")
-
-            c.print(response)
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
         subnets = self.subnets(network=network)
