@@ -342,6 +342,22 @@ class Wallet(c.Module):
             with tab:
                 getattr(self, dash_fn)()
 
+    @classmethod
+    def get_state(cls, network):
+        subspace = c.module('subspace')()
+        state = {
+            'subnets': subspace.subnet_params(netuid='all'),
+            'modules': subspace.modules(netuid='all'),
+            'balances': subspace.balances(),
+        }
+        state['stake_to'] = subspace.stake_to(netuid='all')
+        state['total_balance'] = sum(state['balances'].values())/1e9
+        state['key2address'] = c.key2address()
+        state['lag'] = c.lag()
+        state['block_time'] = 8
+
+        return state
+        
 
     def select_network(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
@@ -359,19 +375,8 @@ class Wallet(c.Module):
         self.network = st.selectbox('Select Network', self.networks, 0, key='network')
 
 
-        @st.cache_data(show_spinner=False)
-        def get_state(network):
-            subspace = c.module('subspace')()
-            state =  subspace.state_dict(update=update, network=network)
-            state['total_balance'] = sum(state['balances'].values())/1e9
-            state['key2address'] = c.key2address()
-            state['lag'] = c.lag()
-            state['block_time'] = 8
-
-            return state
         
-
-        self.state =  get_state(self.network)
+        self.state =  st.cache_data(show_spinner=False)(self.get_state)(self.network)
 
 
         self.subnets = self.state['subnets']

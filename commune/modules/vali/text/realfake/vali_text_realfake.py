@@ -36,10 +36,8 @@ class ValiTextRealfake(Vali):
         target = sample.pop(self.config.target) # a list of correct answers
         prompt = self.create_prompt(sample)
         output = module.generate(prompt)
-        prediction = json.loads(output)['answer']
-
-        w = int(target==prediction)
-
+        prediction = str(output)
+        w = int(str(target) in str(prediction))
         response = {
             'sample': sample,
             'target': target, 

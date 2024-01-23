@@ -335,7 +335,8 @@ class Server(c.Module):
         
         df = pd.DataFrame(history)
         address2key = {v:k for k,v in self.namespace.items()}
-        modules = list(df['module'].unique()).apply(lambda x: address2key[x])
+        modules = list(df['module'].unique())
+        
         module = st.multiselect('Select Module', modules, modules)
         df = df[df['module'].isin(module)]
         columns = list(df.columns)

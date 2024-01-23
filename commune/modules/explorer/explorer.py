@@ -29,20 +29,7 @@ class Explorer(c.Module):
 
         @st.cache_data(show_spinner=False)
         def get_state(network):
-            subspace = c.module('subspace')()
-            state =  subspace.state_dict(update=update, network=network)
-            state['total_balance'] = sum(state['balances'].values())/1e9
-            state['key2address'] = c.key2address()
-            state['lag'] = c.lag()
-            state['block_time'] = 8
-            state['blocks_per_day'] = 60 * 60 * 24 / state['block_time']
-
-            for netuid,m in enumerate(state['modules']):
-                for i,m in enumerate(state['modules'][netuid]):
-                    state['modules'][netuid][i]['ip'] = m['address'].split(':')[0] if ':' in m['address'] else None
-
-            return state
-        
+            return c.get_state(network)
 
         state  =  get_state(self.network)
         subnets = state['subnets']
@@ -123,7 +110,8 @@ class Explorer(c.Module):
         self = cls()
         # st.write(self.subnets)
 
-        self.select_network()
+        with st.sidebar:
+            self.select_network()
 
         tab_names =  ['Subnet', 'Modules']
         tabs = st.tabs(tab_names)

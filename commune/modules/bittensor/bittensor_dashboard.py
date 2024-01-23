@@ -7,8 +7,8 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
-
-class Dashboard(commune.Module):
+import commune as c
+class Dashboard(c.Module):
     
     def __init__(self,
                 wallet:Union[bittensor.wallet, str] = None,
@@ -106,7 +106,7 @@ class Dashboard(commune.Module):
 
     @classmethod
     def streamlit(cls):
-        st.set_page_config(layout="wide")
+        c.set_page_config(layout="wide")
         self = cls(wallet='fish.1', subtensor='nobunaga')
 
         with st.sidebar:

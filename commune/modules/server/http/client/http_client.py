@@ -29,7 +29,7 @@ class Client(c.Module):
             save_history: bool = True,
             history_path : str = 'history',
             loop: 'asyncio.EventLoop' = None, 
-            debug: bool = True,
+            debug: bool = False,
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
@@ -104,6 +104,7 @@ class Client(c.Module):
                     
                     async for line in response.content:
                         event_data = line.decode('utf-8')
+                        
                         event_bytes  = len(event_data)
                         if self.debug :
                             progress_bar.update(event_bytes/(BYTES_PER_MB))
@@ -136,8 +137,6 @@ class Client(c.Module):
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
-        
-        c.print(result)
         if isinstance(result, dict):
             result = self.serializer.deserialize(result)
         elif isinstance(result, str):

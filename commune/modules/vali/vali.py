@@ -277,8 +277,9 @@ class Vali(c.Module):
                 assert 'w' in response, f'Response must have a w key, got {response.keys()}'
                 module_info.update(response)
                 response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
-                c.print(response["msg"], color='green')
                 self.successes += 1
+                c.print(response['msg'], color='cyan', verbose=self.config.debug)
+
             else:
                 # skip this module if it is too stale, and return the module info
                 return module_info
@@ -286,19 +287,21 @@ class Vali(c.Module):
             e = c.detailed_error(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
             self.errors += 1  
+            c.print(response['msg'], color='cyan', verbose=self.config.debug)
+
             
         # we only want to save the module stats if the module was successful
         
         module_info['latency'] = c.time() - start_timestamp
         module_info['timestamp'] = start_timestamp
         # update the w with the new w
-        w = response['w']
-        module_info['w'] = module_info.get('w')*(1-self.config.alpha) + w * self.config.alpha
+        module_info['w'] = response['w'] * self.config.alpha + module_info.get('w', 0) * (1 - self.config.alpha)
         
         # update the history
         history_record = {k:module_info[k] for k in self.config.history_features}
         module_info['history'] = (module_info.get('history', []) + [history_record])
         module_info['history'] = module_info['history'][:self.config.max_history]
+
 
         self.save_module_info(module_name, module_info)
 
@@ -567,7 +570,10 @@ class Vali(c.Module):
         
 
         default_columns = ['name', 'staleness', 'w', 'timestamp', 'address']
-        columns = list(module_infos[0].keys())
+        for row in module_infos:
+            if isinstance(row, dict):
+                columns = list(row.keys())
+                break
         selected_columns = default_columns
 
         search = st.text_input('Search')
@@ -580,6 +586,9 @@ class Vali(c.Module):
             row = {k: row.get(k, None) for k in selected_columns}
             df += [row]
         df = c.df(df)
+        if len(df) == 0:
+            st.write('No modules found')
+            return
         df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
 
         st.write(df)
