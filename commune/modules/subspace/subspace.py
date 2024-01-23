@@ -245,23 +245,23 @@ class Subspace(c.Module):
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
         return {k:v for k,v in self.query_map('DelegationFee', block=block ,update=update, network=network)[netuid].items()}
     
-    
-    def stake_to(self, netuid = None, network=None, block=None, update=False, trials=3, fmt='nano'):
+    def stake_to(self, netuid = 0, network=network, block=None, update=False, trials=3, fmt='nano'):
         network = self.resolve_network(network)
-        netuid  = self.resolve_netuid(netuid)
-        stake_to =  {k: list(map(list,v)) for k,v in self.query_map('StakeTo', block=block, update=update)[netuid].items()}
-        return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
+        stake_to = self.query_map('StakeTo', block=block, update=update)
 
-    @classmethod    
-    def resolve_query_path(cls, module='SubspaceModule', name='Stake', params=None,network=None):
+        if netuid == 'all':
+            return stake_to
+        else:
+            stake_to = {k: v[netuid] for k,v in stake_to.items()}
+            return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
-        return path
     
     def query(self, name:str,  
               params = None, 
               module:str='SubspaceModule',
               block=None,  
               network: str = network, 
+              save= True,
             update=False):
         
         """
@@ -274,6 +274,7 @@ class Subspace(c.Module):
         if not isinstance(params, list):
             params = [params]
             
+        # we want to cache based on the params if there are any
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
@@ -291,7 +292,10 @@ class Subspace(c.Module):
                 params = params
             )
         value =  response.value
-        self.put(path, value)
+
+        # if the value is a tuple then we want to convert it to a list
+        if save:
+            self.put(path, value)
 
         return value
 
@@ -1071,15 +1075,15 @@ class Subspace(c.Module):
 
 
     def subnets(self, **kwargs) -> Dict[int, str]:
-        subnets = [s['name'] for s in self.subnet_states(**kwargs)]
+        subnets = [s['name'] for s in self.subnet_params(**kwargs)]
         return subnets
     
-    def netuids(self, network=None, update=False, block=None) -> Dict[int, str]:
-        return sorted(list(self.subnet_namespace(network=network, update=update, block=block).values()))
+    def netuids(self, network=network, update=False, block=None) -> Dict[int, str]:
+        return list(self.netuid2subnet(network=network, update=update, block=block).keys())
 
     def netuid2subnet(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
         records = self.query_map('SubnetNames', update=update, network=network, block=block, **kwargs)
-        return {k:v for k,v in records}
+        return {k:v for k,v in enumerate(records)}
     
     def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
         return [ v for k,v in self.netuid2subnet(network=network, update=update, block=block, **kwargs).items()]
@@ -1269,33 +1273,42 @@ class Subspace(c.Module):
     def modules(self,
                 search=None,
                 network = network,
-                netuid: int = netuid,
+                netuid: int = 0,
                 block: Optional[int] = None,
                 fmt='nano', 
-                features : List[str] = ['keys', 'addresses', 'names', 
-                    'emission', 'incentive', 'dividends', 
-                    'last_update', 'stake_from', 'delegation_fee',
-                      'trust', 'regblock', 'weights'],
+                features : List[str] = ['keys', 
+                                        'addresses', 
+                                        'names', 
+                                        'emission', 
+                                        'incentive', 
+                                        'dividends', 
+                                        'last_update', 
+                                        'stake_from', 
+                                        'delegation_fee',
+                                        'trust', 
+                                        'regblock', 
+                                        'weights'],
                 update: bool = False,
                 cache : bool = False,
                 df = False,
-                parallel:bool = False ,
-                timeout:int=200, 
                 save = True,
                 include_balances = False, 
                 
                 ) -> Dict[str, 'ModuleInfo']:
         
-        start_time = c.time()
-        netuid = netuid or 0
-        cache_path = f'modules/{network}.{netuid}'
-
         modules = []
         if update:
             self.sync()
             modules = []
 
+        if netuid in ['all']:
+            kwargs = c.locals2kwargs(locals())
+            netuids = self.netuids()
+            return [self.modules(search=search, netuid=netuid) for netuid in netuids]
+
         if cache:
+            start_time = c.time()
+            cache_path = f'modules/{network}.{netuid}'
             modules = self.get(cache_path, [])
         
         if len(modules) == 0:
@@ -1329,7 +1342,7 @@ class Subspace(c.Module):
                     module['balance'] = state['balances'].get(key, 0)
                     
                 modules.append(module)
-            if save:
+            if cache:
                 self.put(cache_path, modules)
 
         if len(modules) > 0:
@@ -1355,7 +1368,7 @@ class Subspace(c.Module):
         if df:
             modules = c.df(modules)
 
-        latency =  c.time() - start_time 
+
         return modules
     
 
@@ -1460,7 +1473,12 @@ class Subspace(c.Module):
     
     def weights(self,  netuid = None, nonzero:bool = False, network=network, update=False, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        subnet_weights =  self.query_map('Weights', network=network, update=update, **kwargs)[netuid]
+        
+        subnet_weights =  self.query_map('Weights', network=network, update=update, **kwargs)
+        if len(subnet_weights) <= netuid:
+            subnet_weights = []
+        else:
+            subnet_weights = subnet_weights[netuid]
         if nonzero:
             subnet_weights = {k:v for k,v in subnet_weights if len(v) > 0}
         return subnet_weights
@@ -1947,6 +1965,7 @@ class Subspace(c.Module):
         
         start_time = c.time()
         self.resolve_network(network)
+
         if save:
             update = True
         if not update:
@@ -1971,7 +1990,7 @@ class Subspace(c.Module):
         feature2params = {}
 
         feature2params['balances'] = [get_feature, dict(feature='balances', update=update, block=block)]
-        feature2params['subnet'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
+        feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
         
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
 
@@ -2013,7 +2032,6 @@ class Subspace(c.Module):
             latency = end_time - start_time
             response = {"success": True, "msg": f'Saving state_dict to {path}', 'latency': latency}
         
-
         
         return response  # put it in storage
     

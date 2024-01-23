@@ -846,7 +846,6 @@ class Remote(c.Module):
     def dashboard(cls):
         c.new_event_loop()
         import streamlit as st
-        st.set_page_config(layout="wide")
 
         c.load_style()
         st.title('Remote Dashboard')

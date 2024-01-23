@@ -102,6 +102,8 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
+        if isinstance(x, dict) and type(x.get('data', None)) in [str]:
+            x = x['data']
         if isinstance(x, str):
             if x.startswith('{') or x.startswith('['):
                 x = self.str2dict(x)
@@ -128,6 +130,11 @@ class Serializer(c.Module):
                 data = v['data']
                 if hasattr(self, f'deserialize_{data_type}'):
                     x[k] = getattr(self, f'deserialize_{data_type}')(data=data)
+            # elif isinstance(v, str):
+            #     # this is a very hacky way to infer json strings
+            #     if (v.startswith('{') and v.endswith('}')) or \
+            #             (v.startswith('[') and v.endswith(']')):
+            #         x[k] = self.deserialize(x=v)
             elif type(v) in [dict, list, tuple, set]:
                 x[k] = self.deserialize(x=v)
         if is_single:

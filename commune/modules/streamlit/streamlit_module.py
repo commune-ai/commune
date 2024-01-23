@@ -501,5 +501,10 @@ class StreamlitModule(c.Module):
     
         # lisst all the prots
     
-
-
+    @classmethod
+    def set_page_config(cls, layout:str='wide'):
+        try:
+            return c.set_page_config(layout="wide")
+        except Exception as e:
+            c.print(e)
+        
