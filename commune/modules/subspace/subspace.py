@@ -245,14 +245,12 @@ class Subspace(c.Module):
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False):
         return {k:v for k,v in self.query_map('DelegationFee', block=block ,update=update, network=network)[netuid].items()}
     
-    def stake_to(self, netuid = 0, network=network, block=None, update=False, trials=3, fmt='nano'):
-        network = self.resolve_network(network)
-        stake_to = self.query_map('StakeTo', block=block, update=update)
-
+    def stake_to(self, netuid = 0, network=network, block=None, update=False, fmt='nano'):
+        stake_to = self.query_map('StakeTo', block=block, update=update, network=network)
         if netuid == 'all':
             return stake_to
         else:
-            stake_to = {k: v[netuid] for k,v in stake_to.items()}
+            stake_to = {k: v[netuid] for k,v in stake_to[self.netuid].items()}
             return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
     
@@ -512,7 +510,8 @@ class Subspace(c.Module):
     from_token = to_nanos
 
     @classmethod
-    def format_amount(cls, x, fmt='nano', decimals = None):
+    def format_amount(cls, x, fmt='nano', decimals = None, format=None):
+        fmt = format or fmt # format is an alias for fmt
         if fmt in ['nano', 'n']:
             x =  x
         elif fmt in ['token', 'unit', 'j', 'J']:
@@ -786,21 +785,18 @@ class Subspace(c.Module):
             subnet_states.append(subnet_state)
         return subnet_states
 
-    def total_stake(self, network=network, block: Optional[int] = None, netuid:int=None, fmt='j', update=False) -> 'Balance':
-        self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
-        return self.format_amount(self.query( "TotalStake", params=[netuid], block=block, network=network , update=update), fmt=fmt)
+    def total_stake(self, network=network, block: Optional[int] = None, netuid:int='all', fmt='j', update=False) -> 'Balance':
+        return sum([sum([sum(list(map(lambda x:x[1], v))) for v in vv.values()]) for vv in self.stake_to(network=network, block=block,update=update, netuid='all')])
 
-    def total_balance(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
-        return sum(list(self.balances(network=network, block=block, fmt=fmt).values()))
+    def total_balance(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
+        return sum(list(self.balances(network=network, block=block, fmt=fmt).values()), update=update)
 
-    def total_supply(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
-        state = self.state_dict(network=network, block=block, update=update)
-        total_balance = sum(list(state['balances'].values()))
-        total_stake = sum([sum([v[1] for v in stake_to]) for k,stake_to in state['stake_to'][0].items()])
-        return self.format_amount(total_balance + total_stake, fmt=fmt)
+    def mcap(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
+        total_balance = self.total_balance(network=network, block=block, update=update)
+        total_stake = self.total_stake
+        return self.format_amount(total_stake + total_balance, fmt=fmt)
     
-    mcap = market_cap = total_supply
+    market_cap = total_supply = mcap  
             
         
     def subnet_params(self, 
@@ -1389,8 +1385,6 @@ class Subspace(c.Module):
     def max_registrations_per_block(self, network: str = network, fmt:str='j', **kwargs) -> int:
         return self.query('MaxRegistrationsPerBlock', params=[], network=network, **kwargs)
  
-    def keys(self, netuid = None, **kwargs):
-        return list(self.uid2key(netuid=netuid, **kwargs).values())
     def uids(self, netuid = None, **kwargs):
         return list(self.uid2key(netuid=netuid, **kwargs).keys())
 
@@ -1411,6 +1405,14 @@ class Subspace(c.Module):
         if return_dict:
             return uid2key
         return list(uid2key.values())
+    def uid2key(self, uid=None, 
+             netuid = None,
+              update=False, 
+             network=network, 
+             return_dict = False,
+             **kwargs):
+        return self.keys(uid=uid, netuid=netuid, update=update, network=network, return_dict=return_dict, **kwargs)
+    
 
     def uid2name(self, netuid: int = 0, update=False,  **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
