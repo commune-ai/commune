@@ -947,7 +947,6 @@ class Keypair(c.Module):
             }
 
         if return_str:
-            
             return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
     
@@ -973,8 +972,6 @@ class Keypair(c.Module):
         """
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
-            c.print(data, 'DALA', signature)
-            signature = bytes.fromhex(signature)
 
         data = c.copy(data)
 
@@ -1006,9 +1003,9 @@ class Keypair(c.Module):
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
+            c.print(signature)
             signature = bytes.fromhex(signature)
 
-        c.print(signature)
 
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
@@ -1158,12 +1155,10 @@ class Keypair(c.Module):
         c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
-
         sig = self.sign('test', return_str=True)
-        assert self.verify('test',sig, self.public_key)
-        assert self.verify('test',sig, self.public_key)
+        assert self.verify(sig, self.public_key)
+        return {'success':True}
 
-        
     encrypted_prefix = ''
 
 

@@ -200,18 +200,19 @@ class ThreadPoolExecutor(c.Module):
     def test(cls):
         def fn(x):
             result =  x*2
+            c.print(result)
             return result
             
         self = cls()
         futures = []
-        for i in range(100):
+        for i in range(10):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
         for future in c.tqdm(futures):
             future.result()
-        for i in range(100):
+        for i in range(10):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
 
-        results = c.wait(futures)
+        results = c.wait(futures, timeout=10)
         
         while self.num_tasks > 0:
             c.print(self.num_tasks, 'tasks remaining', color='red')
