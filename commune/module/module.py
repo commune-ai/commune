@@ -963,6 +963,7 @@ class c:
         return c.module('remote').cmd(*args, **kwargs)
     @classmethod
     def cmd(cls, command:Union[str, list],
+            *args,
                         verbose:bool = True, 
                         env:Dict[str, str] = {}, 
                         sudo:bool = False,
@@ -971,7 +972,8 @@ class c:
                         bash : bool = False,
                         **kwargs):
         return c.module('os').cmd( 
-                        command=command,
+                        command,
+                        *args,
                         verbose=verbose, 
                         env= env,
                         sudo=sudo,

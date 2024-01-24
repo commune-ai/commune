@@ -191,7 +191,8 @@ class OsModule(c.Module):
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
-                    verbose:bool = True, 
+                    *args,
+                    verbose:bool = False, 
                     env:Dict[str, str] = {}, 
                     sudo:bool = False,
                     password: bool = None,
@@ -203,13 +204,9 @@ class OsModule(c.Module):
         Runs  a command in the shell.
         
         '''
-        if isinstance(command, list):
-            kwargs = c.locals2kwargs(locals())
-            for idx,cmd in enumerate(command):
-                assert isinstance(cmd, str), f'command must be a string, not {type(cmd)}'
-                kwargs['command'] = cmd
-                response = cls.cmd(**kwargs)
-            return response
+        if len(args) > 0:
+            command = ' '.join([command] + list(args))
+
 
         import subprocess
         import shlex
@@ -238,28 +235,31 @@ class OsModule(c.Module):
         
         if return_process:
             return process
+
+        def stream_output(pipe):
+            new_line = b''
+            line_count_idx = 0
+            stdout_text = ''
+            try:
+
+                for ch in iter(lambda: pipe.read(1), b""):
+                    if  ch == b'\n':
+                        stdout_text += (new_line + ch).decode()
+                        line_count_idx += 1
+                        if verbose:
+                            c.print(new_line.decode(), color='cyan')
+                        new_line = b''
+                        continue
+                    new_line += ch
+                
+            except Exception as e:
+                kill_process(process)
+            finally:
+                kill_process(process)
+            
+            return stdout_text
         
-        
-        new_line = b''
-        stdout_text = ''
-        line_count_idx = 0
-        try:
-            for ch in iter(lambda: process.stdout.read(1), b""):
-                if  ch == b'\n':
-                    stdout_text += (new_line + ch).decode()
-                    line_count_idx += 1
-                    if verbose:
-                        c.print(new_line.decode(), color='cyan')
-                    new_line = b''
-                    continue
-                new_line += ch
-        except Exception as e:
-            c.print(e)
-            kill_process(process)
-        finally:
-             kill_process(process)
-        
-       
+        stdout_text = stream_output(process.stdout) + stream_output(process.stderr)
 
         return stdout_text
 
