@@ -1985,8 +1985,8 @@ class Subspace(c.Module):
 
         feature2params['balances'] = [get_feature, dict(feature='balances', update=update, block=block)]
         feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
-        
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
+        
 
         for f in features:
             feature2params[f] = [fn_query, dict(name=f, update=update, block=block)]
@@ -2024,14 +2024,18 @@ class Subspace(c.Module):
             self.put(path, state_dict)
             end_time = c.time()
             latency = end_time - start_time
-            response = {"success": True, "msg": f'Saving state_dict to {path}', 'latency': latency}
-        
+            response = {"success": True,
+                        "msg": f'Saving state_dict to {path}', 
+                        'latency': latency, 
+                        'block': state_dict['block']}
+
         
         return response  # put it in storage
     
 
     def sync(self,*args, **kwargs):
-        return self.state_dict(*args, save=True, update=True, **kwargs)
+       
+        return  self.state_dict(*args, save=True, update=True, **kwargs)
 
     @classmethod
     def test(cls):
