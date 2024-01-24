@@ -26,6 +26,9 @@ Test the module with a custom query:
 c model.langchain_agent search_the_web "what is the main idea of the book 'Origin'?"
 ```
 
+```
+c model.langchain_agent gradio
+```
 ## Contributing
 
 We welcome contributions! Please feel free to submit a pull request or open an issue if you have suggestions or find a bug.
