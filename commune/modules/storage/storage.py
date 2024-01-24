@@ -176,20 +176,12 @@ class Storage(c.Module):
         k = self.resolve_item_path(k)
         return c.rm(k)
 
-
-
     def rm_items(self, search):
         items = self.items(search=search)
         for item in items:
             self.rm_item(item)
         return {'success': True, 'items': items}
     
-
-    def drop_peers(self, item_key):
-        metadata = self.get_metadata(item_key)
-        return peers
-
-
 
     def get_item(self,k:str, deserialize:bool= True, include_metadata=False, tag=None) -> Any:
         k = self.resolve_item_path(k, tag=tag)

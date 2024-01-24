@@ -1319,9 +1319,10 @@ class c:
 
 
     @classmethod
-    def kill_port(cls, port:int, mode='python')-> str:
+    def kill_port(cls, port:int, mode='bash')-> str:
         
-
+        if not c.port_used(port):
+            return {'success': True, 'msg': f'port {port} is not in use'}
         if mode == 'python':
             import signal
             from psutil import process_iter
@@ -1334,7 +1335,8 @@ class c:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
             return port
         elif mode == 'bash':
-            return c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
+            c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
+        return {'success': True, 'msg': f'killed port {port}'}
 
     @classmethod
     def pm2_restart_all(cls):
@@ -1409,7 +1411,7 @@ class c:
 
         # does the config exist
 
-        file_name = path.split('.')[-1].replace('.py', '')
+   
 
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
 
@@ -1424,16 +1426,23 @@ class c:
 
         # compress nae
         chunks = simple_path.split('.')
-
-        new_chunks = []
+        simple_chunk = []
         for i, chunk in enumerate(chunks):
-            if len(new_chunks)>0:
-                if new_chunks[-1] == chunks[i]:
+            if len(simple_chunk)>0:
+
+                if simple_chunk[-1] == chunks[i]:
                     continue
                 elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
                     continue
-            new_chunks += [chunk]
-        simple_path = '.'.join(new_chunks)
+            simple_chunk += [chunk]
+        
+        if '_' in simple_chunk[-1]:
+            filename_chunks = simple_chunk[-1].split('_')
+            # if all of the chunks are in the filename
+            if all([c in simple_chunk for c in filename_chunks]):
+                simple_chunk = simple_chunk[:-1]
+
+        simple_path = '.'.join(simple_chunk)
 
 
         # remove the modules prefix
@@ -1573,6 +1582,8 @@ class c:
     @classmethod
     def get_module(cls, path:str, cache=True) -> str:
        
+        if not isinstance(path, str):
+            return path
         if cache:
             if path in c.module_cache:
                 return c.module_cache[path]
@@ -1619,8 +1630,7 @@ class c:
                 module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
             elif mode == 'object':
                 module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
-            module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
-            
+
             # to use functions like c. we need to replace it with module lol
             if cls.root_module_class in module_tree:
                 module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
@@ -1699,7 +1709,7 @@ class c:
                     modules.append(f)
                 elif len(cls.find_python_classes(f)) > 0 :
                     modules.append(f)
-                elif all([p for p in file_name.replace(".py", "").split("_")]):
+                elif all([p in dir_path for p in file_name.replace(".py", "").split("_")]):
                     modules.append(f)
         # we ar caching t
         cls.module_python_paths = modules
@@ -2314,19 +2324,12 @@ class c:
         return client
 
     
-   
-    nest_asyncio_enabled : bool = False
-    
+
     @classmethod
     def nest_asyncio(cls):
-        if not c.nest_asyncio_enabled:
-            import nest_asyncio
-            nest_asyncio.apply()
-       
-        c.nest_asyncio_enabled = True
-        
+        import nest_asyncio
+        nest_asyncio.apply()
 
-    
 
     @classmethod
     def port2module(cls, *args, **kwargs):
@@ -2456,6 +2459,7 @@ class c:
         asyncio.set_event_loop(loop)
         if nest_asyncio:
             cls.nest_asyncio()
+        
         return loop
   
 
@@ -2475,14 +2479,10 @@ class c:
 
     @classmethod
     def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
-
         try:
             loop = asyncio.get_event_loop()
-        except Exception:
+        except Exception as e:
             loop = c.new_event_loop(nest_asyncio=nest_asyncio)
-
-
-
         return loop
 
 
@@ -3084,7 +3084,8 @@ class c:
         return fn.__annotations__
 
     @classmethod
-    def kill(cls, module,
+    def kill(cls, 
+             module,
              mode:str = 'pm2',
              verbose:bool = False,
              update : bool = True,
@@ -3541,6 +3542,7 @@ class c:
         '''
         Wraps a python class as a module
         '''
+
         module_class =  c.get_module(module,**kwargs)
         
         return module_class
@@ -5019,7 +5021,7 @@ class c:
                 executor = None,
                 module: str = None,
                 mode:str='thread',
-                max_workers : int = 20,
+                max_workers : int = 100,
                 ):
         
         fn = c.get_fn(fn)
@@ -5264,7 +5266,7 @@ class c:
     
     is_digit = is_number
     @classmethod
-    def resolve_network(cls, network=None):
+    def resolve_network(cls, network='local'):
 
         network_shortcuts = {
             'r': 'remote',
@@ -5276,10 +5278,7 @@ class c:
         }
 
         network = network_shortcuts.get(network, network)
-        
-        if network == None:
-            network = cls.get_network()
-
+    
         return network
 
     get_network = resolve_network
@@ -8473,6 +8472,7 @@ class c:
                 v = None
             
             if isinstance(v, str):
+                c.print(v)
                 if v.startswith('[') and v.endswith(']'):
                     if len(v) > 2:
                         v = eval(v)

@@ -542,7 +542,7 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_stake_to( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , network=None, update=False, **kwargs) -> Optional['Balance']:
+    def get_stake_to( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , network=None, update=True, **kwargs) -> Optional['Balance']:
         network = self.resolve_network(network)
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
@@ -732,7 +732,7 @@ class Subspace(c.Module):
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
         staleness = {k:0 for k in intervals.keys()}
-        c.new_event_loop(nest_asyncio=True)
+        c.get_event_loop()
 
         while True:
             block = self.block
@@ -2706,10 +2706,8 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
-        old_balance = self.get_balance( key.ss58_address , fmt='j')       
         # get most stake from the module
         stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=key)
-
 
         module_key = None
         if module == None:
@@ -2730,8 +2728,8 @@ class Subspace(c.Module):
         # we expected to switch the module to the module key
         assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         assert module_key in stake_to, f"Module {module_key} not found in SubNetwork {netuid}"
-        stake = stake_to[module_key]
-        amount = amount if amount != None else stake
+        if amount == None:
+            amount = stake_to[module_key]
         # convert to nanos
         params={
             'amount': int(self.to_nanos(amount)),
@@ -2739,23 +2737,6 @@ class Subspace(c.Module):
             'module_key': module_key
             }
         response = self.compose_call(fn='remove_stake',params=params, key=key, **kwargs)
-        
-        if response['success']: # If we successfully unstaked.
-            new_balance = self.get_balance( key.ss58_address , fmt='j')
-            new_stake = self.get_stakefrom(module_key, from_key=key.ss58_address , fmt='j') # Get stake on hotkey.
-            return {
-                'success': True,
-                'from': {
-                    'key': key.ss58_address,
-                    'balance_before': old_balance,
-                    'balance_after': new_balance,
-                },
-                'to': {
-                    'key': module_key,
-                    'stake_before': stake,
-                    'stake_after': new_stake
-            }
-            }
 
         return response
             
@@ -3400,14 +3381,8 @@ class Subspace(c.Module):
 
         start_time = c.datetime()
         ss58_address = key.ss58_address
+        paths = {m: f'history/{self.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
 
-
-        pending_path = f'history/{ss58_address}/pending/{self.network}_{module}::{fn}::nonce_{nonce}.json'
-        complete_path = f'history/{ss58_address}/complete/{start_time}_{self.network}_{module}::{fn}.json'
-
-        # if self.exists(pending_path):
-        #     nonce = self.get_nonce(key=key, network=self.network) + 1
-            
         compose_kwargs = dict(
                 call_module=module,
                 call_function=fn,
@@ -3417,7 +3392,7 @@ class Subspace(c.Module):
         c.print('compose_kwargs', compose_kwargs, color=color)
         tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
 
-        self.put_json(pending_path, tx_state)
+        self.put_json(paths['pending'], tx_state)
 
         with self.substrate as substrate:
 
@@ -3448,7 +3423,6 @@ class Subspace(c.Module):
                                                   wait_for_inclusion=wait_for_inclusion, 
                                                   wait_for_finalization=wait_for_finalization)
 
-
         if wait_for_finalization:
             if process_events:
                 response.process_events()
@@ -3457,35 +3431,26 @@ class Subspace(c.Module):
                 response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
             else:
                 response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
-
-            if save_history:
-                self.add_history(response)
         else:
             response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
         
-        
+
         tx_state['end_time'] = c.datetime()
         tx_state['status'] = 'completed'
         tx_state['response'] = response
 
         # remo 
-        self.rm(pending_path)
-        self.put_json(complete_path, tx_state)
+        self.rm(paths['pending'])
+        self.put_json(paths['complete'], tx_state)
 
         return response
             
 
-    @classmethod
-    def add_history(cls, response:dict) -> dict:
-        return cls.put(cls.history_path + f'/{c.time()}',response)
-
-    @classmethod
-    def clear_history(cls):
-        return cls.put(cls.history_path,[])
-
-    def tx_history(self, key:str=None, mode='pending', **kwargs):
-        pending_path = self.resolve_pending_dirpath(key=key, mode=mode, **kwargs)
-        return self.ls(pending_path)
+    def tx_history(self, key:str=None, mode='complete',network=network, **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{network}/{key_ss58}/{mode}'
+        return self.glob(pending_path)
     
     def pending_txs(self, key:str=None, **kwargs):
         return self.tx_history(key=key, mode='pending', **kwargs)
@@ -3497,23 +3462,12 @@ class Subspace(c.Module):
         return self.ls(f'tx_history')
 
         
-
-    def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending',  **kwargs):
+    def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending', network=network, **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
         assert mode in ['pending', 'complete']
-        pending_path = f'tx_history/{key_ss58}/pending'
+        pending_path = f'history/{network}/{key_ss58}/{mode}'
         return pending_path
     
-    def resolve_tx_history_path(self, key:str=None, mode:str='pending', **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        assert mode in ['pending', 'complete']
-        pending_path = f'tx_history/{key_ss58}/{mode}'
-        return pending_path
-
-    def has_tx_history(self, key:str, mode='pending', **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        return self.exists(f'tx_history/{key_ss58}')
-
 
     def resolve_key(self, key = None):
         if key == None:

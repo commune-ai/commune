@@ -6,34 +6,14 @@ from glob import glob
 class Tree(c.Module):
     base_module = c.base_module # 
 
-    @classmethod
-    def add_tree(cls, tree, path):
-        assert not c.isdir(path)
-        trees = cls.get(tree, {'path': path, 'tree': {}})
-        return cls.put('trees', trees )
-    
-
-    @classmethod
-    def build_tree(cls, 
-                update:bool = False,
-                verbose:bool = False) -> List[str]:
-                
-        if update and verbose:
-            c.print('Building module tree', verbose=verbose)
-        module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-        if cls.root_module_class in module_tree:
-            module_tree['module'] = module_tree.pop(cls.root_module_class)
-        return module_tree
-    
-
     module_python_paths = None
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
-        if isinstance(cls.module_python_paths, list): 
-            return cls.module_python_paths
+        if isinstance(c.module_python_paths, list): 
+            return c.module_python_paths
         modules = []
 
         # find all of the python files
@@ -62,12 +42,11 @@ class Tree(c.Module):
                     modules.append(f)
                 else:
                     # FIX ME
-                    f_classes = cls.find_python_class(f, search=['commune.Module', 'c.Module'])
+                    f_classes = c.find_python_class(f, search=['commune.Module', 'c.Module'])
                     # f_classes = []
                     if len(f_classes) > 0:
                         modules.append(f)
 
-            
         cls.module_python_paths = modules
         
         return modules
@@ -116,4 +95,23 @@ class Tree(c.Module):
         return simple_path
     
 
-Tree.run(__name__)
+
+    tree_folders_path = 'module_tree_folders'
+    @classmethod
+    def add_tree(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(path, [])
+        tree_folder += [tree_path]
+        assert os.path.isdir(tree_path)
+        assert isinstance(tree_folder, list)
+        c.put(path, tree_folder, **kwargs)
+        return {'module_tree_folders': tree_folder}
+    
+    @classmethod
+    def rm_tree(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(tree_path, [])
+        tree_folder = [f for f in tree_folder if f != tree_path ]
+        c.put(path, tree_folder)
+        return {'module_tree_folders': tree_folder}
+

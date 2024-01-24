@@ -32,6 +32,7 @@ class RouterTask(c.Module):
                 **extra_kwargs):
         if fn_seperator in str(module):
             module, fn = module.split(fn_seperator)
+            
         self.fn_seperator = fn_seperator
         self.network = network
         self.module = module

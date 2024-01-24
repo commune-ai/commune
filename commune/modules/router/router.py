@@ -190,7 +190,6 @@ class Router(c.Module):
 
     @staticmethod
     def worker(executor_reference, task_queue):
-        
         try:
             while True:
                 work_item = task_queue.get(block=True)
@@ -257,6 +256,7 @@ class Router(c.Module):
         assert output['name'] == test_module_name
         c.kill(test_module_name)
         return {'success': True, 'msg': 'thread pool test passed'}
+
 
     @classmethod
     def dashboard(cls):
