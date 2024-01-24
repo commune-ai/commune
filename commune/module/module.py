@@ -542,13 +542,16 @@ class c:
         if cache:
             if k in cls.cache:
                 return cls.cache[k]
-            
+
+ 
 
         verbose = kwargs.get('verbose', False)
         data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
+            
         if data == None: 
             data = default
         encrypted = c.is_encrypted(data)
+   
         if encrypted:
             data = cls.decrypt(data, key=key)
         if isinstance(data, dict):
@@ -1628,10 +1631,10 @@ class c:
 
             assert mode in ['path', 'object']
             module_tree = {}
-            if mode == 'path':
-                module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-            elif mode == 'object':
-                module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
+            module_tree = {c.path2simple(f):f for f in c.get_module_python_paths()}
+
+            if mode == 'object':
+                module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
 
             # to use functions like c. we need to replace it with module lol
             if cls.root_module_class in module_tree:
@@ -1934,6 +1937,7 @@ class c:
                              **kwargs):
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
+
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
         try:
@@ -1942,6 +1946,7 @@ class c:
             if verbose:
                 c.print(f'Failed to load json from {path} with error {e}')
             return default
+    
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
                 data = data['data']
@@ -2073,12 +2078,15 @@ class c:
         assert isinstance(path, str), f'path must be a string, got {type(path)}'
         path = cls.resolve_path(path=path, extension=extension, root=root)
 
-        if not os.path.exists(path) and os.path.exists(path+'.'+mode):
-            path += f'.{mode}'
+        # incase we want to remove the json file
+        mode_suffix = f'.{mode}'
+        if not os.path.exists(path) and os.path.exists(path+mode_suffix):
+            path += mode_suffix
+
         if not os.path.exists(path):
             return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
-            cls.rmdir(path)
+            c.rmdir(path)
         else:
             os.remove(path)
         assert not os.path.exists(path), f'{path} was not removed'
@@ -2843,7 +2851,9 @@ class c:
     serve_module = serve
     
     @classmethod
-    def functions(cls, search: str=None , include_parents:bool = False):
+    def functions(cls, search: str=None , include_parents:bool = False, module=None):
+        if module != None:
+            cls = c.module(module)
         functions = cls.get_functions(include_parents=include_parents)  
         functions = list(set(functions))
         if isinstance(search, str):
@@ -2964,16 +2974,7 @@ class c:
         return info
         
     help = info
-    @classmethod
-    def schema(cls,search: str = None,
-                    code : bool = False,
-                    docs: bool = True,
-                    include_parents:bool = False,
-                    cache = False,
-                     defaults:bool = True) -> 'Schema':
 
-        kwargs = c.locals2kwargs(locals())
-        return {k: v for k,v in cls.get_schema(**kwargs).items()}
     
     @classmethod
     def hardware(cls, fmt:str = 'gb', **kwargs):
@@ -2999,7 +3000,7 @@ class c:
         return kwargs
 
     @classmethod
-    def get_schema(cls,
+    def schema(cls,
                                 search = None,
                                 module = None,
                                 code : bool = False,
@@ -5593,6 +5594,7 @@ class c:
                    include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
+        
         """ Makes directories for path.
         """
         if module == None: 
@@ -6378,7 +6380,10 @@ class c:
         
     @classmethod
     def ssh_authorized_keys(cls, authorized_keys_file:str='~/.ssh/authorized_keys'):
+        
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        if not os.path.exists(authorized_keys_file):
+            return ''
         return cls.get_text(authorized_keys_file)
 
     @staticmethod
@@ -6859,7 +6864,6 @@ class c:
 
         return function_defaults
  
-        
     @staticmethod
     def is_class(obj):
         '''
@@ -8093,6 +8097,10 @@ class c:
 
         
     
+    @classmethod
+    def getcwd(cls):
+        return os.getcwd()
+
     @classmethod
     def kill_replicas(self, network:str=None, **kwargs):
         for m in cls.replicas(network=network, **kwargs):

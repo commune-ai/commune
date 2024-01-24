@@ -215,10 +215,11 @@ class PM2(c.Module):
                    force:bool = True,
                    meta_fn: str = 'module_fn',
                    tag_seperator:str = '::',
+                   cwd = None,
                    refresh:bool=True ):
 
         if module == None:
-            module = cls.module_path()
+            module = c.module_path()
         elif hasattr(module, 'module_path'):
             module = module.module_path()
             
@@ -242,8 +243,10 @@ class PM2(c.Module):
         if refresh:
             cls.kill(name)
         
+        module = c.module()
         # build command to run pm2
-        command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
+        
+        command = f" pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
 
         if not auto:
             command = command + ' ' + '--no-autorestart'
@@ -262,9 +265,7 @@ class PM2(c.Module):
         if refresh:
             cls.kill(name)  
 
-        if verbose:
-            c.print(f'Launching {module} with command: {command}', color='green')
-            
-        stdout = c.cmd(command, env=env, verbose=verbose)
-        
+        cwd = cwd or c.dirpath()
+        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
+    
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}

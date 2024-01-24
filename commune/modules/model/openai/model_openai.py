@@ -23,7 +23,10 @@ class OpenAILLM(c.Module):
                 max_output_tokens: int = 10_000_000,
                 **kwargs
                 ):
+        
+
         self.set_config(kwargs=locals())
+
         self.output_tokens = 0
         self.input_tokens = 0
         
@@ -99,16 +102,15 @@ class OpenAILLM(c.Module):
         prompt = prompt.format(**kwargs)
         return prompt
     
+
     
-
-    def is_error(self, response):
-        return 'error' in response
-
-    def is_success(self, response):
-        return not self.is_error(response)
-
-    def call(self, text):
-        return self.forward(text, role='user')
+    def register_tokens(self, prompt:str, mode='input'):
+        if not isinstance(prompt, str):
+            prompt = str(prompt)
+        input_tokens = self.num_tokens(prompt)
+        self.token_usage[mode] += input_tokens
+        return 
+    
     
     def generate(self,
                 prompt:str = 'sup?',
@@ -116,7 +118,7 @@ class OpenAILLM(c.Module):
                 presence_penalty:float = 0.0, 
                 frequency_penalty:float = 0.0,
                 temperature:float = 0.9, 
-                max_tokens:int = 100, 
+                max_tokens:int = 10000, 
                 top_p:float = 1,
                 choice_idx:int = 0,
                 api_key:str = None,
@@ -143,6 +145,9 @@ class OpenAILLM(c.Module):
         if history:
             messages = history + messages
 
+
+
+        self.register_tokens(prompt)
         assert self.too_many_tokens == False, f"Too many tokens, {self.input_tokens} input tokens and {self.output_tokens} output tokens where generated and the limit is {self.config.max_input_tokens} input tokens and {self.config.max_output_tokens} output tokens"
 
         response = openai.chat.completions.create(messages=messages, stream=stream, **params)
@@ -247,6 +252,8 @@ class OpenAILLM(c.Module):
         self.prompt = prompt
         assert isinstance(self.prompt, str), "Prompt must be a string"
         self.prompt_variables = self.get_prompt_variables(self.prompt)
+
+        
     @staticmethod   
     def get_prompt_variables(prompt):
         variables = []

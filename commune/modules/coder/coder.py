@@ -1,7 +1,7 @@
 import commune as c
 import json
 
-class AgentCoder(c.Module):
+class Coder(c.Module):
     def call(self,
              fn='agent.coder/call', 
              model = 'model.openai',

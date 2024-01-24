@@ -438,3 +438,8 @@ class OsModule(c.Module):
                     largest_folder = folder_path
 
         return largest_folder, largest_size
+    
+
+    @classmethod
+    def getcwd(*args,  **kwargs):
+        return os.getcwd(*args, **kwargs)
