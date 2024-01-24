@@ -2,11 +2,13 @@
 
 # **Commune AI**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Discord Chat](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/DgjvQXvhqf)
 [![Website Uptime](https://img.shields.io/website-up-down-green-red/http/monip.org.svg)](https://www.communeai.org/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/communeaidotorg.svg?style=social&label=Follow)](https://twitter.com/communeaidotorg)
+
 ### An Open Modules Network
+
 </div>
 
 Commune is a protocol that aims to connect all developer tools into one network, fostering a more shareable, reusable, and open economy. It follows an inclusive design philosophy that is based on being maximally unopinionated. This means that developers can leverage Commune as a versatile set of tools alongside their existing projects and have the freedom to incorporate additional tools they find valuable.
@@ -14,9 +16,6 @@ Commune is a protocol that aims to connect all developer tools into one network,
 By embracing an unopinionated approach, Commune acknowledges the diverse needs and preferences of developers. It provides a flexible framework that allows developers to integrate specific tools seamlessly while avoiding imposing rigid structures or constraints. This adaptability enables developers to leverage Commune's capabilities in a manner that best aligns with their individual projects and workflows.
 
 The overarching goal of Commune is to create a collaborative ecosystem where developers can easily share, connect, and extend their tools, ultimately fostering innovation and efficiency within the development community. By providing a network that encourages openness and accessibility, Commune empowers developers to leverage the collective knowledge and resources of the community to enhance their own projects.
-
-
-![Example of CLI](https://drive.google.com/uc?export=view&id=1ZqCK-rBKF2p8KFr5DvuFcJaPXdMcISlT)
 
 # Install
 
@@ -70,6 +69,7 @@ pip install -e ./
 ```
 
 Ensure you have an enviroment for pm2
+
 ```bash
 chmod +x ./scripts/*
 sudo ./scripts/install_npm_env.sh
@@ -77,20 +77,20 @@ npm install -g pm2
 ```
 
 Congratulations! Commune is now set up and running without Docker
-## Note: 
+
+## Note:
 
 If you're primarily interested in using the core features of the protocol (such as intuitive cli) or seeking a more lightweight implementation, consider installing the [Communex]("https://github.com/agicommies/communex") package.
 
-
-
-
 # Key Features
+
 ## Module Filesystem
 
 The `module.py` file serves as an anchor, organizing future modules in what we call a module filesystem. For example, you can store a dataset module in `{PWD}/dataset/text`, which will have a path of `dataset.text`. The current limitation is to have a config where the name of the config is that of the Python object.
 
-
 ## Subspace
+
+![Example](https://drive.google.com/uc?export=view&id=1ZqCK-rBKF2p8KFr5DvuFcJaPXdMcISlT)
 
 Subspace is a blockchain that Commune uses for several purposes:
 
