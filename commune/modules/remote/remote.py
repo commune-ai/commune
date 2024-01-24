@@ -159,14 +159,19 @@ class Remote(c.Module):
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
     @classmethod
-    def hosts(cls, search=None, filetype=filetype):
+    def hosts(cls, search=None, filetype=filetype, enable_search_terms: bool = True):
         hosts = cls.load_hosts(filetype=filetype)
         if len(hosts) == 0:
             assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
+
+        if enable_search_terms:
+            return cls.filter_hosts(hosts=hosts)
         return hosts
 
+
+    host_map = hosts
 
     @classmethod
     def host2ip(cls, search=None):
@@ -602,13 +607,7 @@ class Remote(c.Module):
         c.cmd(ssh)
 
 
-    def host2ssh(self, *args,  **kwargs):
-        hosts = self.hosts(*args, **kwargs)
-        host2ssh = {}
-        for host_name, host in hosts.items():
-            host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'
 
-        return host2ssh
 
 
 
@@ -759,9 +758,6 @@ class Remote(c.Module):
 
         
 
-    @classmethod
-    def dashboard(cls):
-        return c.module('remote.dashboard').dashboard()
 
 
     def peer_info(self, peer):
@@ -909,82 +905,119 @@ class Remote(c.Module):
 
 
 
-    @classmethod
-    def dashboard(cls, module: str = None, **kwargs):
-        if module:
-            cls = c.module(module)
-        c.new_event_loop()
-        import streamlit as st
-
-        c.load_style()
-        st.title('Remote Dashboard')
-        self = cls()
-        self.sidebar()
-        self.ssh_dashboard()
-
-
     def sidebar(self, **kwargs):
         with st.sidebar:
-            self.filter_hosts()
-            self.manage_hosts()
+            self.filter_hosts_dashboard()
+            self.manage_hosts_dashboard()
 
 
-    def filter_hosts(self, **kwargs):
+    search_terms_path = 'search_terms'
+    @classmethod
+    def set_search_terms(cls, search_terms):
+        path = cls.search_terms_path
+        cls.put(path, search_terms)
+        return {'status': 'success', 'msg': f'Search terms set', 'search_terms': search_terms}
 
-        host_map = self.hosts()
-        host_names = list(host_map.keys())
+    @classmethod
+    def clear_terms(cls):
+        path = cls.search_terms_path
+        return  cls.put(path, {'include': '', 'avoid': ''})
 
-        search_terms_dict = {
-            'include': '',
-            'avoid': ''
-        }
 
-        for search_type, search_terms in search_terms_dict.items():
-            search_terms = st.text_input(search_type, search_terms)
-            if len(search_terms) > 0:
-                if ',' in search_terms:
-                    search_terms = search_terms.split(',')
+    @classmethod
+    def avoid(cls, *terms):
+        terms = ','.join(terms)
+        search_terms = cls.get_search_terms()
+        search_terms['avoid'] = terms
+        cls.set_search_terms(search_terms)
+        return {'status': 'success', 'msg': f'Added {terms} to avoid terms', 'search_terms': search_terms}
+    
+    @classmethod
+    def include(cls, *terms):
+        terms = ','.join(terms)
+        search_terms = cls.get_search_terms()
+        search_terms['include'] = terms
+        cls.set_search_terms(search_terms)
+        return {'status': 'success', 'msg': f'Added {terms} to include terms', 'search_terms': search_terms}
+
+    @classmethod
+    def get_search_terms(cls):
+        path = cls.search_terms_path
+        return cls.get(path, {'include': '', 'avoid': ''})
+    search_terms = get_search_terms
+
+    @classmethod
+    def filter_hosts(cls, include=None, avoid=None, hosts=None):
+
+        host_map = hosts or cls.hosts()
+        search_terms = cls.search_terms()
+        if avoid != None:
+            search_terms['avoid'] = avoid
+        if include != None:
+            search_terms['include'] = include
+
+        for k, v in search_terms.items():
+            # 
+            if v == None:
+                v = ''
+
+            if len(v) > 0:
+                if ',' in v:
+                    v = v.split(',')
                 else:
-                    search_terms = [search_terms]
+                    v = [v]
                 
-                search_terms = [a.strip() for a in search_terms]
+                v = [a.strip() for a in v]
             else:
-                search_terms = []
-
-            search_terms_dict[search_type] = search_terms
-        
-        with st.expander('Search Terms', expanded=False):
-            st.write( search_terms_dict)
+                v = []
+            search_terms[k] = v
 
         def filter_host(host_name):
-            for avoid_term in search_terms_dict["avoid"]:
+            for avoid_term in search_terms["avoid"]:
                 if avoid_term in host_name:
                     return False
-            for include_term in search_terms_dict["include"]:
+            for include_term in search_terms["include"]:
                 if not include_term in host_name:
                     return False
             return True
 
-        host_map = {k:v for k,v in host_map.items() if filter_host(k)}
+        return {k:v for k,v in host_map.items() if filter_host(k)}
+
+
+
+    def filter_hosts_dashboard(self, host_names: list = None):
+
+        host_map = self.hosts()
         host_names = list(host_map.keys())
 
+        # get the search terms
+        search_terms = self.get_search_terms()
+        for k, v  in search_terms.items():
+            search_terms[k] = st.text_input(k, v)     
+        self.set_search_terms(search_terms)
+        host_map = self.filter_hosts(**search_terms)
+        host_names = list(host_map.keys())
         n = len(host_names)
-        host2ssh =  {}
+
+        self.filter_hosts()
+        
+
         with st.expander(f'Hosts (n={n})', expanded=False):
             host_names = st.multiselect('Host', host_names, host_names)
-            
-            for host_name, host in host_map.items():
-                cols = st.columns([1,4])
-                cols[0].write('#### '+host_name)
-                host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'
-                st.code(host2ssh[host_name])
-            self.host_map = host_map
-
-        self.host2ssh = host2ssh
-        self.host_map = host_map
+        host_map = {k:host_map[k] for k in host_names}
+        host2ssh = self.host2ssh(host_map=host_map)
 
 
-    def manage_hosts(self):
+    @classmethod
+    def host2ssh(cls, host_map=None):
+        host_map = host_map or cls.hosts()
+        host2ssh = {}
+        for k, v in host_map.items():
+            host2ssh[k] = f'sshpass -p {v["pwd"]} ssh {v["user"]}@{v["host"]} -p {v["port"]}'
+        return host2ssh
+    
+
+    def manage_hosts_dashboard(self):
 
         with st.expander('Add Host', expanded=False):
             st.markdown('## Hosts')
@@ -1009,7 +1042,7 @@ class Remote(c.Module):
     
     def ssh_dashboard(self):
         import streamlit as st
-        host_map = self.host_map
+        host_map = self.hosts()
 
         host_names = list(host_map.keys())
 
@@ -1092,6 +1125,19 @@ class Remote(c.Module):
                     st.write(host)
                     st.code(ssh)
 
+
+    @classmethod
+    def dashboard(cls, module: str = None, **kwargs):
+        if module:
+            cls = c.module(module)
+        c.new_event_loop()
+        import streamlit as st
+
+        c.load_style()
+        st.title('Remote Dashboard')
+        self = cls()
+        self.sidebar()
+        self.ssh_dashboard()
 
 
 Remote.run(__name__)

@@ -250,7 +250,7 @@ class Subspace(c.Module):
         if netuid == 'all':
             return stake_to
         else:
-            stake_to = {k: v[netuid] for k,v in stake_to[self.netuid].items()}
+            stake_to = {k: v for k,v in stake_to[netuid].items()}
             return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
     
@@ -339,6 +339,7 @@ class Subspace(c.Module):
 
         network = self.resolve_network(network)
         path = f'query/{network}/{module}.{name}'
+
     
         # resolving the params
         params = params or []
@@ -406,7 +407,7 @@ class Subspace(c.Module):
                 for k,v in new_qmap.items():
                     newer_map[int(k)] = v
                 new_qmap = newer_map
-            elif num_key_digits == 2:
+            elif num_key_digits == 2: # for eights
                 # this means that you have [netuid, uid] as keys
                 newer_map = [None] * len(new_qmap)
                 for k1,v1 in new_qmap.items():
@@ -844,7 +845,6 @@ class Subspace(c.Module):
 
         if netuid != None and netuid != 'all':
             netuid = self.resolve_netuid(netuid)
-            c.print(subnet_params)
             new_subnet_params = {}
             for k,v in subnet_params.items():
                 c.print(k,v)
@@ -1970,7 +1970,7 @@ class Subspace(c.Module):
         if save:
             update = True
         if not update:
-            state_path = self.latest_archive_path()
+            state_path = self.latest_archive_path() # get the latest archive path
             state_dict = c.get(state_path, None)
             if state_path != None:
                 return state_dict
@@ -1978,7 +1978,6 @@ class Subspace(c.Module):
         block = block if block != None else self.block
 
         path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
-
 
         def fn_query(*args, **kwargs):
             self = Subspace()
@@ -1988,30 +1987,27 @@ class Subspace(c.Module):
             self = Subspace()
             return getattr(self, feature)(**kwargs)
 
-        feature2params = {}
 
+        feature2params = {}
         feature2params['balances'] = [get_feature, dict(feature='balances', update=update, block=block)]
         feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
         
-
         for f in features:
             feature2params[f] = [fn_query, dict(name=f, update=update, block=block)]
         num_features = len(feature2params)
         progress = c.tqdm(total=num_features)
 
         feature2result = {}
-        state_dict = {}
+        state_dict = {'block': block}
         while len(feature2params) > 0:
             
             for feature, (fn, kwargs) in feature2params.items():
                 if feature in feature2result:
                     continue
                 feature2result[feature] = c.submit(fn, kwargs) 
-            
             result2feature = {v:k for k,v in feature2result.items()}
             futures = list(feature2result.values())
-            features = list(feature2result.keys())
             for future in c.as_completed(futures, timeout=timeout):
                 feature = result2feature[future]
                 result = future.result()
@@ -2020,9 +2016,13 @@ class Subspace(c.Module):
                 feature2params.pop(feature, None)
                 result2feature.pop(future)
                 state_dict[feature] = result
-                c.print(f'Got {feature} {c.emoji("checkmark")}')
-                features_left = list(feature2params.keys())
-                c.print(f'Features left {features_left}')
+
+                # verbose 
+                msg = {
+                    'features_left': list(feature2params.keys()),
+
+                }
+                c.print(msg)
                 progress.update(1)
             
             feature2result = {}
