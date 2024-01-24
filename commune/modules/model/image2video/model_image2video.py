@@ -47,7 +47,7 @@ class ModelImage2video(c.Module):
         img = Image.open(img)
         wpercent = (basewidth / float(img.size[0]))
         hsize = int((float(img.size[1]) * float(wpercent)))
-        img = img.resize((basewidth, hsize), Image.ANTIALIAS)
+        img = img.resize((basewidth, hsize), Image.LANCZOS)
         return img
 
     def resize_img(self, img1, img2, output_name):
@@ -121,12 +121,12 @@ class ModelImage2video(c.Module):
                     with gr.Row():
                         # upload images and get image strings
                         input_arr = [
-                            gr.inputs.File(type="file", label="Images", file_count="multiple")
+                            gr.File(type="filepath", label="Images", file_count="multiple")
                         ]
 
                     with gr.Row():
-                        input_arr.append(gr.inputs.Slider(minimum=2, maximum=10, step=1, label="Times to Interpolate"))
-                        input_arr.append(gr.inputs.Slider(minimum=15, maximum=60, step=1, label="fps"))
+                        input_arr.append(gr.Slider(minimum=2, maximum=10, step=1, label="Times to Interpolate"))
+                        input_arr.append(gr.Slider(minimum=15, maximum=60, step=1, label="fps"))
                                 
                     # Rows of instructions & buttons
                     with gr.Row():
@@ -140,4 +140,4 @@ class ModelImage2video(c.Module):
             # Bind functions to buttons
             button_gen_video.click(fn=self.generate_interpolation, inputs=input_arr, outputs=output_interpolation)
 
-        demo.launch(quiet=True, enable_queue=True, share=True)
+        demo.launch(share=True)
