@@ -1,5 +1,6 @@
 import http
 import commune as c
+import gradio as gr
 
 class Stock(c.Module):
     
@@ -38,6 +39,24 @@ class Stock(c.Module):
         res = self.conn.getresponse()
         data = res.read()
         return data.decode("utf-8")
+    def gradio(self):
+        with gr.Blocks(title="Stock") as demo:
+            with gr.Column():
+                with gr.Row():                    
+                    api_key = gr.Text(label="api_key", type='password', interactive=True)
+                    ticker = gr.Text(label="Ticker", value="AAPL", interactive=True)
+                with gr.Row():
+                    start_date = gr.Text(label="Start Date", value="2023-01-01", interactive=True)
+                    end_date = gr.Text(label="End Date", value="2023-01-20", interactive=True)
+                test_btn = gr.Button()
+                output = gr.Text(label="Result")
+            
+            def generate(api_key, ticker, start_date, end_date):
+                return gr.update(value=self.call(api_key, ticker, start=start_date, end=end_date))
+            test_btn.click(fn = generate, inputs = [api_key, ticker, start_date, end_date], outputs = [output])
+            
+        demo.launch(share=True)
+        # demo.launch()
 
     forward = ask = generate = call
     
@@ -76,4 +95,5 @@ class Stock(c.Module):
     @classmethod
     def api_keys(cls):
         return cls.get('api_keys', [])
+    
     
