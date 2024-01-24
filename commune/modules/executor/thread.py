@@ -138,6 +138,7 @@ class ThreadPoolExecutor(c.Module):
     @staticmethod
     def worker(executor_reference, work_queue):
         c.new_event_loop(nest_asyncio=True)
+    
         try:
             while True:
                 work_item = work_queue.get(block=True)

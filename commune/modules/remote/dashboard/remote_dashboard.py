@@ -130,40 +130,21 @@ class RemoteDashboard(Remote):
         c.load_style()
         st.title('Remote Dashboard')
         self = cls()
-
-        self.sidebar(True)
+        self.sidebar()
         self.ssh_dashboard()
 
 
+    def sidebar(self, **kwargs):
+        with st.sidebar:
+            self.filter_hosts()
+            self.manage_hosts()
 
-    def sidebar(self, sidebar=True, **kwargs):
-        if sidebar:
-            with st.sidebar:
-                return self.sidebar(sidebar=False)
+
+    def filter_hosts(self, **kwargs):
 
         host_map = self.hosts()
         host_names = list(host_map.keys())
 
-        with st.expander('Add Host', expanded=False):
-            st.markdown('## Hosts')
-            cols = st.columns(2)
-            host = cols[0].text_input('Host',  '0.0.0.0')
-            port = cols[1].number_input('Port', 22, 30000000000, 22)
-            user = st.text_input('User', 'root')
-            pwd = st.text_input('Password', type='password')
-            add_host = st.button('Add Host')
-
-            if add_host:
-                self.add_host(host=host, port=port, user=user, pwd=pwd)
-
-        with st.expander('Remove Host', expanded=False):
-            host_names = list(self.hosts().keys())
-            rm_host_name = st.selectbox('Host Name', host_names)
-            rm_host = st.button('Remove Host')
-            if rm_host:
-                self.rm_host(rm_host_name)
-
-        
         search_terms_dict = {
             'include': '',
             'avoid': ''
@@ -213,6 +194,29 @@ class RemoteDashboard(Remote):
         self.host2ssh = host2ssh
         self.host_map = host_map
 
+
+    def manage_hosts(self):
+
+        with st.expander('Add Host', expanded=False):
+            st.markdown('## Hosts')
+            cols = st.columns(2)
+            host = cols[0].text_input('Host',  '0.0.0.0')
+            port = cols[1].number_input('Port', 22, 30000000000, 22)
+            user = st.text_input('User', 'root')
+            pwd = st.text_input('Password', type='password')
+            add_host = st.button('Add Host')
+
+            if add_host:
+                self.add_host(host=host, port=port, user=user, pwd=pwd)
+
+        with st.expander('Remove Host', expanded=False):
+            host_names = list(self.hosts().keys())
+            rm_host_name = st.selectbox('Host Name', host_names)
+            rm_host = st.button('Remove Host')
+            if rm_host:
+                self.rm_host(rm_host_name)
+
+        
     
     def ssh_dashboard(self):
         import streamlit as st
@@ -225,22 +229,25 @@ class RemoteDashboard(Remote):
         # progress bar
 
         
-        cols = st.columns([4,4,2])
-        cwd = cols[0].text_input('cwd', '/')
-        timeout = cols[1].number_input('Timeout', 1, 100, 10)
-        [cols[2].write('') for i in range(2)]
-        sudo = cols[2].checkbox('Sudo')
-        if cwd == '/':
-            cwd = None
 
         # add splace to cols[2] vertically
         
-        cols = st.columns([2,1,1])
+
+        with st.expander('params', False):
+            cols = st.columns([4,4,2])
+            cwd = cols[0].text_input('cwd', '/')
+            timeout = cols[1].number_input('Timeout', 1, 100, 10)
+            if cwd == '/':
+                cwd = None
+            fn_code = st.text_input('Function', '''x''')
+            for i in range(2):
+                cols[2].write('\n')
+            filter_bool = cols[2].checkbox('Filter', False)
+
+        cols = st.columns([5,1])
         cmd = cols[0].text_input('Command', 'ls')
-        fn_code = cols[1].text_input('Function', '''x''')
-        for i in range(2):
-            cols[2].write('\n')
-        filter_bool = cols[2].checkbox('Filter', False)
+        [cols[1].write('') for i in range(2)]
+        sudo = cols[1].checkbox('Sudo')
 
         if 'x' not in fn_code:
             fn_code = f'x'
@@ -249,16 +256,18 @@ class RemoteDashboard(Remote):
 
         run_button = st.button('Run')
         host2future = {}
+        
         if run_button:
             for host in host_names:
-                st.write(host)
                 future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
 
             futures = list(host2future.values())
+            num_jobs = len(futures )
             hosts = list(host2future.keys())
             host2error = {}
             cols = st.columns(4)
+            failed_hosts = []
 
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
@@ -276,11 +285,20 @@ class RemoteDashboard(Remote):
                         msg = fn_code(x=msg)
                         if is_error:
                             st.write('ERROR')
+                            failed_hosts += [host]
                         if filter_bool and msg != True:
                             continue
                         st.markdown(msg)
+                    
 
             except Exception as e:
                 pending_hosts = list(host2future.keys())
                 st.error(c.detailed_error(e))
                 st.error(f"Hosts {pending_hosts} timed out")
+                failed_hosts += pending_hosts
+            
+            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
+            with st.expander('Failed Hosts', expanded=False):
+                for host, ssh in failed_hosts2ssh.items():
+                    st.write(host)
+                    st.code(ssh)
