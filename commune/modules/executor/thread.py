@@ -80,6 +80,7 @@ class ThreadPoolExecutor(c.Module):
                 raise Exception("ThreadPoolExecutor is broken")
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
+            c.print(kwargs)
             priority = kwargs.get("priority", 1)
             if "priority" in kwargs:
                 del kwargs["priority"]
@@ -136,6 +137,7 @@ class ThreadPoolExecutor(c.Module):
 
     @staticmethod
     def worker(executor_reference, work_queue):
+        c.new_event_loop(nest_asyncio=True)
         try:
             while True:
                 work_item = work_queue.get(block=True)
@@ -149,10 +151,7 @@ class ThreadPoolExecutor(c.Module):
                 item = work_item[1]
 
                 if item is not None:
-                    try:
-                        item.run()
-                    except Exception as e:
-                        c.new_event_loop(nest_asyncio=True)
+                    item.run()
                     # Delete references to object. See issue16284
                     del item
                     continue

@@ -3,8 +3,6 @@ import os
 import commune as c
 from typing import Dict, List, Optional, Union
 
-
-
 class OsModule(c.Module):
     @staticmethod
     def check_pid(pid):        

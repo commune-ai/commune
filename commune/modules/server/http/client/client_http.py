@@ -30,11 +30,12 @@ class Client(c.Module):
             history_path : str = 'history',
             loop: 'asyncio.EventLoop' = None, 
             debug: bool = False,
+            serializer= 'serializer',
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
         self.set_client(ip =ip,port = port)
-        self.serializer = c.serializer()
+        self.serializer = c.module(serializer)()
         self.key = c.get_key(key)
         self.my_ip = c.ip()
         self.network = c.resolve_network(network)
@@ -135,13 +136,16 @@ class Client(c.Module):
                 elif response.content_type == 'application/json':
                     # PROCESS JSON EVENTS
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
+                elif response.content_type == 'text/plain':
+                    # PROCESS TEXT EVENTS
+                    result = await asyncio.wait_for(response.text(), timeout=timeout)
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         if isinstance(result, dict):
             result = self.serializer.deserialize(result)
         elif isinstance(result, str):
             result = self.serializer.deserialize(result)
-        if 'data' in result:
+        if isinstance(result, dict) and 'data' in result:
             result = result['data']
         if self.save_history:
             input['fn'] = fn
@@ -160,6 +164,7 @@ class Client(c.Module):
     def all_history(cls, key=None, history_path='history'):
         key = c.get_key(key)
         return cls.glob(history_path)
+        
 
 
     @classmethod
