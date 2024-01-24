@@ -556,7 +556,7 @@ class Subspace(c.Module):
     
     get_staketo = get_stake_to
     
-    def get_value(self, key):
+    def get_value(self, key=None):
         key = self.resolve_key_ss58(key)
         value = self.get_balance(key)
         netuids = self.netuids()

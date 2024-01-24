@@ -6951,6 +6951,11 @@ class c:
         return c.module('subspace')().my_value(*args, **kwargs)
     
     @classmethod
+    def get_value(cls, *args, **kwargs):
+        return c.module('subspace')().get_value(*args, **kwargs)
+    
+
+    @classmethod
     def partial(cls, fn, *args, **kwargs):
         from functools import partial
         return partial(fn, *args, **kwargs)
