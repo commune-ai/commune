@@ -342,7 +342,7 @@ class Keypair(c.Module):
             key2address =  cls.get(path, key2address)
         
         if len(key2address) == 0:
-            key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+            key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         if search != None:
             key2address =  {k:v for k,v in key2address.items() if  search in k}

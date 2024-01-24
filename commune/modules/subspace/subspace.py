@@ -844,7 +844,14 @@ class Subspace(c.Module):
 
         if netuid != None and netuid != 'all':
             netuid = self.resolve_netuid(netuid)
-            subnet_params = {k:v[netuid] for k,v in subnet_params.items()}
+            c.print(subnet_params)
+            new_subnet_params = {}
+            for k,v in subnet_params.items():
+                c.print(k,v)
+                new_subnet_params[k] = v[netuid]
+
+            subnet_params = new_subnet_params
+
             for k in ['min_stake', 'max_stake']:
                 subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         else:
@@ -1409,7 +1416,7 @@ class Subspace(c.Module):
              netuid = None,
               update=False, 
              network=network, 
-             return_dict = False,
+             return_dict = True,
              **kwargs):
         return self.keys(uid=uid, netuid=netuid, update=update, network=network, return_dict=return_dict, **kwargs)
     
@@ -3310,8 +3317,6 @@ class Subspace(c.Module):
         cols = ['name', 'registered', 'serving', 'address', 'last_update', 'stake']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
-        subnet = self.subnet()
-        namespace = c.namespace(search=search, network=network, update=True)
 
         response_batch = {}
         for module, stats in module2stats.items():

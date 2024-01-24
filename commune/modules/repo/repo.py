@@ -116,20 +116,23 @@ class Repo(c.Module):
     
     def repo_paths(self):
         return list(self.repo2path().values())
-    def add_repo(self, repo_path, path = None, update=False):
+    def add_repo(self, repo_path, 
+                 path = None,
+                 update=True, 
+                 sudo=True):
         if path == None:
             path = c.home_path + os.path.basename(repo_path).replace('.git', '')
         if path.endswith('.git'):
             path = path.replace('.git','')
-            c.home_path 
 
         if os.path.exists(path):
             if update:
                 c.rm(path)
             else:
                 raise Exception(f'Path {path} already exists')
-        c.cmd(f'git clone {repo_path} {path}')
-        self.update()
+        c.cmd(f'git clone {repo_path} {path}', sudo=sudo, verbose=True)
+        if update:
+            self.update()
         repo_paths = self.repo_paths()
         assert path in repo_paths
         return {'success': True, 'path': path, 'repo_path': repo_path}

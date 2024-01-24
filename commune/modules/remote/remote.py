@@ -797,8 +797,7 @@ class Remote(c.Module):
         return model.generate(c.python2str(prompt))
 
 
-
-    def dashboard(self):
+    def peer_dashboard(self):
         import streamlit as st
         import pandas as pd
 
@@ -907,6 +906,191 @@ class Remote(c.Module):
         
         t2 = c.time()
         st.write(f'Info took {t2-t1} seconds')
+
+
+
+    @classmethod
+    def dashboard(cls, module: str = None, **kwargs):
+        if module:
+            cls = c.module(module)
+        c.new_event_loop()
+        import streamlit as st
+
+        c.load_style()
+        st.title('Remote Dashboard')
+        self = cls()
+        self.sidebar()
+        self.ssh_dashboard()
+
+
+    def sidebar(self, **kwargs):
+        with st.sidebar:
+            self.filter_hosts()
+            self.manage_hosts()
+
+
+    def filter_hosts(self, **kwargs):
+
+        host_map = self.hosts()
+        host_names = list(host_map.keys())
+
+        search_terms_dict = {
+            'include': '',
+            'avoid': ''
+        }
+
+        for search_type, search_terms in search_terms_dict.items():
+            search_terms = st.text_input(search_type, search_terms)
+            if len(search_terms) > 0:
+                if ',' in search_terms:
+                    search_terms = search_terms.split(',')
+                else:
+                    search_terms = [search_terms]
+                
+                search_terms = [a.strip() for a in search_terms]
+            else:
+                search_terms = []
+
+            search_terms_dict[search_type] = search_terms
+        
+        with st.expander('Search Terms', expanded=False):
+            st.write( search_terms_dict)
+
+        def filter_host(host_name):
+            for avoid_term in search_terms_dict["avoid"]:
+                if avoid_term in host_name:
+                    return False
+            for include_term in search_terms_dict["include"]:
+                if not include_term in host_name:
+                    return False
+            return True
+
+        host_map = {k:v for k,v in host_map.items() if filter_host(k)}
+        host_names = list(host_map.keys())
+
+        n = len(host_names)
+        host2ssh =  {}
+        with st.expander(f'Hosts (n={n})', expanded=False):
+            host_names = st.multiselect('Host', host_names, host_names)
+            
+            for host_name, host in host_map.items():
+                cols = st.columns([1,4])
+                cols[0].write('#### '+host_name)
+                host2ssh[host_name] = f'sshpass -p {host["pwd"]} ssh {host["user"]}@{host["host"]} -p {host["port"]}'
+                st.code(host2ssh[host_name])
+            self.host_map = host_map
+
+        self.host2ssh = host2ssh
+        self.host_map = host_map
+
+
+    def manage_hosts(self):
+
+        with st.expander('Add Host', expanded=False):
+            st.markdown('## Hosts')
+            cols = st.columns(2)
+            host = cols[0].text_input('Host',  '0.0.0.0')
+            port = cols[1].number_input('Port', 22, 30000000000, 22)
+            user = st.text_input('User', 'root')
+            pwd = st.text_input('Password', type='password')
+            add_host = st.button('Add Host')
+
+            if add_host:
+                self.add_host(host=host, port=port, user=user, pwd=pwd)
+
+        with st.expander('Remove Host', expanded=False):
+            host_names = list(self.hosts().keys())
+            rm_host_name = st.selectbox('Host Name', host_names)
+            rm_host = st.button('Remove Host')
+            if rm_host:
+                self.rm_host(rm_host_name)
+
+        
+    
+    def ssh_dashboard(self):
+        import streamlit as st
+        host_map = self.host_map
+
+        host_names = list(host_map.keys())
+
+
+                        
+        # progress bar
+
+        
+
+        # add splace to cols[2] vertically
+        
+
+        with st.expander('params', False):
+            cols = st.columns([4,4,2])
+            cwd = cols[0].text_input('cwd', '/')
+            timeout = cols[1].number_input('Timeout', 1, 100, 10)
+            if cwd == '/':
+                cwd = None
+            fn_code = st.text_input('Function', '''x''')
+            for i in range(2):
+                cols[2].write('\n')
+            filter_bool = cols[2].checkbox('Filter', False)
+
+        cols = st.columns([5,1])
+        cmd = cols[0].text_input('Command', 'ls')
+        [cols[1].write('') for i in range(2)]
+        sudo = cols[1].checkbox('Sudo')
+
+        if 'x' not in fn_code:
+            fn_code = f'x'
+
+        fn_code = eval(f'lambda x: {fn_code}')                               
+
+        run_button = st.button('Run')
+        host2future = {}
+        
+        if run_button:
+            for host in host_names:
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
+                host2future[host] = future
+
+            futures = list(host2future.values())
+            num_jobs = len(futures )
+            hosts = list(host2future.keys())
+            host2error = {}
+            cols = st.columns(4)
+            failed_hosts = []
+
+            try:
+                for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                    host = hosts[result['idx']]
+
+                    if host == None:
+                        continue
+                    host2future.pop(host)
+                    result = result['result']
+                    is_error = c.is_error(result)
+                    emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
+                    msg = f"""```bash\n{result['error']}```""" if is_error else f"""```bash\n{result}```"""
+
+                    with st.expander(f'{host} -> {emoji}', expanded=False):
+                        msg = fn_code(x=msg)
+                        if is_error:
+                            st.write('ERROR')
+                            failed_hosts += [host]
+                        if filter_bool and msg != True:
+                            continue
+                        st.markdown(msg)
+                    
+
+            except Exception as e:
+                pending_hosts = list(host2future.keys())
+                st.error(c.detailed_error(e))
+                st.error(f"Hosts {pending_hosts} timed out")
+                failed_hosts += pending_hosts
+            
+            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
+            with st.expander('Failed Hosts', expanded=False):
+                for host, ssh in failed_hosts2ssh.items():
+                    st.write(host)
+                    st.code(ssh)
 
 
 
