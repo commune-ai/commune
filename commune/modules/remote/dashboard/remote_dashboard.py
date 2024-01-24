@@ -131,7 +131,8 @@ class RemoteDashboard(Remote):
         st.title('Remote Dashboard')
         self = cls()
         self.sidebar()
-        self.ssh_dashboard()
+        self.peer_dashboard()
+        # self.ssh_dashboard()
 
 
     def sidebar(self, **kwargs):
@@ -302,3 +303,6 @@ class RemoteDashboard(Remote):
                 for host, ssh in failed_hosts2ssh.items():
                     st.write(host)
                     st.code(ssh)
+
+
+
