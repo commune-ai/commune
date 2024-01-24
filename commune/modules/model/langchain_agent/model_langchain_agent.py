@@ -2,12 +2,13 @@ import commune as c
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from langchain.tools import Tool, DuckDuckGoSearchResults
-from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import LLMChain
-from langchain.agents import initialize_agent, AgentType
+from langchain_community.tools import Tool, DuckDuckGoSearchResults
 
+from langchain.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+from langchain.chains import LLMChain
+from langchain.agents import initialize_agent, AgentType, create_json_agent
+import gradio as gr
 
 class WebSurfingAgent(c.Module):
     def __init__(self):
@@ -56,6 +57,14 @@ class WebSurfingAgent(c.Module):
         return soup.get_text()
     
     def search_the_web(self, query):
-        results = self.agent.run(query)
+        results = self.agent.invoke(query)
         return results
-    
+    def gradio(self):
+        with gr.Blocks(title="Langchain Web Search Agent") as demo:
+            with gr.Column():
+                prompt_text = gr.Textbox(label="Prompt")
+                search_btn = gr.Button(value="Search")
+                result_text = gr.Textbox(label="Searching Result")
+
+            search_btn.click(fn=self.search_the_web, inputs=[prompt_text], outputs=[result_text])
+        demo.launch(share=True)
