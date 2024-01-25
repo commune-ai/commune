@@ -192,24 +192,26 @@ class OsModule(c.Module):
     def cmd(cls, 
                     command:Union[str, list],
                     *args,
-                    verbose:bool = False, 
+                    verbose:bool = False , 
                     env:Dict[str, str] = {}, 
                     sudo:bool = False,
                     password: bool = None,
-                    color: str = 'white',
                     bash : bool = False,
                     return_process: bool = False,
+                    generator: bool =  False,
+                    color : str = 'white',
                     **kwargs) -> 'subprocess.Popen':
+        
         '''
         Runs  a command in the shell.
         
         '''
+        import subprocess
+        import shlex
+        
         if len(args) > 0:
             command = ' '.join([command] + list(args))
 
-
-        import subprocess
-        import shlex
         
         def kill_process(process):
             import signal
@@ -236,32 +238,44 @@ class OsModule(c.Module):
         if return_process:
             return process
 
-        def stream_output(pipe):
-            new_line = b''
-            line_count_idx = 0
-            stdout_text = ''
+        def stream_output(process):
+            pipes = {
+                'stdout': process.stdout, 
+                'stderr': process.stderr,
+            }
             try:
-
-                for ch in iter(lambda: pipe.read(1), b""):
-                    if  ch == b'\n':
-                        stdout_text += (new_line + ch).decode()
-                        line_count_idx += 1
-                        if verbose:
-                            c.print(new_line.decode(), color='cyan')
-                        new_line = b''
-                        continue
-                    new_line += ch
-                
+                while True:
+                    for pipe_name in pipes.keys():
+                        pipe = pipes[pipe_name]
+                        for ch in iter(lambda: pipe.read(1), b""):
+                            yield ch.decode()
+                                
             except Exception as e:
-                kill_process(process)
+                c.print(e)
             finally:
                 kill_process(process)
-            
-            return stdout_text
-        
-        stdout_text = stream_output(process.stdout) + stream_output(process.stderr)
 
-        return stdout_text
+
+
+        if generator:
+            return stream_output(process)
+
+        else:
+            text = ''
+            new_line = ''
+            
+            for ch in stream_output(process):
+                
+                text += ch
+                
+                # only for verbose
+                if verbose:
+                    new_line += ch
+                    if ch == '\n':
+                        c.print(new_line, color=color)
+                        new_line = ''
+
+        return text
 
 
     @staticmethod
