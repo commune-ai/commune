@@ -168,8 +168,13 @@ class Repo(c.Module):
         
 
     def repo2hash(self, repo):
-        repo_path = self.repo2path()[repo]
-        return c.cmd(f'git commit', cwd=repo_path)
+
+        repo2path = self.repo2path()
+        futures = []
+        for repo in self.repos():
+            futures += [c.asubmit(c.cmd, f'git pull', cwd=repo2path[repo])]
+        
+        return c.wait(futures)
     
     def pull_many(self, *repos, timeout=20):
         futures = []
