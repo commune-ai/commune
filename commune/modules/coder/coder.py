@@ -50,6 +50,7 @@ class Coder(c.Module):
 
         return docs
     
+    comment = call
     document_fn = call
     
     def document_module(self,
