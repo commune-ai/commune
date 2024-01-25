@@ -32,9 +32,7 @@ class ServerHTTP(c.Module):
         self.loop = c.new_event_loop(nest_asyncio=nest_asyncio)
    
         self.serializer = c.module(serializer)()
-        self.ip = ip
-        self.port = int(port) if port != None else c.free_port()
-        self.address = f"http://{self.ip}:{self.port}"
+        self.set_address(ip=ip, port=port)
         self.max_request_staleness = max_request_staleness
         self.network = network
         self.verbose = verbose
@@ -70,6 +68,16 @@ class ServerHTTP(c.Module):
 
 
 
+    def set_address(self,ip='0.0.0.0', port:int=None):
+        if '://' in ip:
+            assert ip.startswith('http'), f"Invalid ip {ip}"
+            ip = ip.split('://')[1]
+            
+        self.ip = ip
+        self.port = int(port) if port != None else c.free_port()
+        while c.port_used(self.port):
+            self.port = c.free_port()
+        self.address = f"http://{self.ip}:{self.port}"
 
     def forward(self, fn:str, input:dict):
         """
@@ -177,7 +185,7 @@ class ServerHTTP(c.Module):
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
             c.register_server(name=self.name, address = self.address, network=self.network)
             c.print(f'\033🚀 Registered {self.name} --> {self.ip}:{self.port} 🚀\033')
-            uvicorn.run(self.app, host=c.default_ip, port=self.port, loop ='asyncio' )
+            uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:
             c.print(e, color='red')
             c.deregister_server(self.name, network=self.network)

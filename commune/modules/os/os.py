@@ -239,21 +239,13 @@ class OsModule(c.Module):
             return process
 
         def stream_output(process):
-            pipes = {
-                'stdout': process.stdout, 
-                'stderr': process.stderr,
-            }
-            try:
-                while True:
-                    for pipe_name in pipes.keys():
-                        pipe = pipes[pipe_name]
-                        for ch in iter(lambda: pipe.read(1), b""):
-                            yield ch.decode()
-                                
-            except Exception as e:
-                c.print(e)
-            finally:
-                kill_process(process)
+            pipe = process.stdout
+            for ch in iter(lambda: pipe.read(1), b""):
+                try:
+                    yield ch.decode()
+                except Exception as e:
+                    pass       
+            kill_process(process)
 
 
 
@@ -267,12 +259,12 @@ class OsModule(c.Module):
             for ch in stream_output(process):
                 
                 text += ch
-                
                 # only for verbose
                 if verbose:
                     new_line += ch
+
                     if ch == '\n':
-                        c.print(new_line, color=color)
+                        c.print(new_line[:-1], color=color)
                         new_line = ''
 
         return text
