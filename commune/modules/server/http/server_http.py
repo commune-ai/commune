@@ -26,10 +26,12 @@ class ServerHTTP(c.Module):
         save_history:bool= True,
         history_path:str = None , 
         nest_asyncio = True,
+        new_loop = True,
         
         ) -> 'Server':
 
-        self.loop = c.new_event_loop(nest_asyncio=nest_asyncio)
+        if new_loop:
+            self.loop = c.new_event_loop(nest_asyncio=nest_asyncio)
    
         self.serializer = c.module(serializer)()
         self.set_address(ip=ip, port=port)
@@ -185,7 +187,7 @@ class ServerHTTP(c.Module):
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
             c.register_server(name=self.name, address = self.address, network=self.network)
             c.print(f'\033🚀 Registered {self.name} --> {self.ip}:{self.port} 🚀\033')
-            uvicorn.run(self.app, host=c.default_ip, port=self.port)
+            uvicorn.run(self.app, host=c.default_ip, port=self.port, loop="asyncio")
         except Exception as e:
             c.print(e, color='red')
             c.deregister_server(self.name, network=self.network)

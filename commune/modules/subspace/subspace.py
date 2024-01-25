@@ -715,9 +715,9 @@ class Subspace(c.Module):
         namespace_futures = []
         weight_futures = []
         for netuid in netuids:
-            stake_from_futures += [c.asubmit(self.stake_from, kwargs=dict(netuid=netuid, network=network, update=True))]
-            namespace_futures += [c.asubmit(self.namespace, kwargs=dict(netuid=netuid, network=network, update=True))]
-            weight_futures += [c.asubmit(self.weights, kwargs=dict(netuid=netuid, network=network, update=True))]
+            stake_from_futures += [c.asubmit(self.stake_from, netuid=netuid, network=network, update=True)]
+            namespace_futures += [c.asubmit(self.namespace, netuid=netuid, network=network, update=True)]
+            weight_futures += [c.asubmit(self.weights, netuid=netuid, network=network, update=True)]
 
         c.gather(stake_from_futures + namespace_futures + weight_futures, timeout=timeout)
 

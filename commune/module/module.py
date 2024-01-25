@@ -1588,7 +1588,9 @@ class c:
 
     module_cache = {}
     @classmethod
-    def get_module(cls, path:str, cache=True) -> str:
+    def get_module(cls, path:str, cache=True, timeit=True) -> str:
+        if timeit:
+            return c.get_module(path, cache=cache, timeit=False)
        
         if not isinstance(path, str):
             return path
@@ -1634,7 +1636,10 @@ class c:
 
             assert mode in ['path', 'object']
             module_tree = {}
-            module_tree = {c.path2simple(f):f for f in c.get_module_python_paths()}
+
+            # get the python paths
+            python_paths = c.get_module_python_paths()
+            module_tree ={c.path2simple(f): f for f in python_paths}
 
             if mode == 'object':
                 module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
@@ -1681,18 +1686,56 @@ class c:
                 raise Exception(f'Could not find {path} in {len(list(tree.keys()))} modules')
         return tree[path]
     
+
     @classmethod
-    def get_module_python_paths(cls) -> List[str]:
+    def python_paths(cls, path:str = None, recursive=True, **kwargs) -> List[str]:
+        '''
+        """
+        Documentation for the function `python_paths`:
+        
+        ### Description:
+        This class method returns a list of all `.py` file paths within a specified directory. It allows for optional recursive searching within subdirectories.
+        
+        ### Arguments:
+        - `cls`: The class from which the method is called.
+        - `path` (str, optional): The directory path where the search should begin. Defaults to the homepath of the class.
+        - `recursive` (bool, optional): A flag indicating whether to search subdirectories recursively. Defaults to `True`.
+        - `**kwargs`: Additional keyword arguments that can be passed to the `glob` function.
+        
+        ### Returns:
+        - List[str]: A list of strings, where each element is the path to a `.py` file found in the specified directory and its subdirectories (if recursive searching is enabled).
+        
+        ### Usage Example:
+        
+        ```python
+        # To get all Python file paths in the current home directory of the class
+        python_files = ClassName.python_paths()
+        
+        # To get Python file paths in a specific directory, non-recursively
+        python_files = ClassName.python_paths('/path/to/directory', recursive=False)
+        ```
+        """
+        '''
+
+        if path == None:
+            path = c.homepath
+        
+        return  glob(path + '/**/*.py', recursive=recursive, **kwargs)
+        
+    
+    @classmethod
+    def get_module_python_paths(cls, path = None) -> List[str]:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
+        path = path if path else c.root_path
         if hasattr(cls, 'module_python_paths'): 
             return cls.module_python_paths
         modules = []
         failed_modules = []
 
         # find all of the python files
-        for f in glob(c.root_path + '/**/*.py', recursive=True):
+        for f in glob(path + '/**/*.py', recursive=True):
             if os.path.isdir(f):
                 continue
             file_path, file_ext =  os.path.splitext(f)
@@ -1700,7 +1743,6 @@ class c:
             if file_ext == '.py':
                 dir_path, file_name = os.path.split(file_path)
                 dir_name = os.path.basename(dir_path)
-                previous_dir_path = dir_path.split('/')[-2]
                 
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
@@ -1712,6 +1754,7 @@ class c:
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                 elif 'module' in file_name.lower():
+
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
                     modules.append(f)
@@ -1827,18 +1870,25 @@ class c:
 
         return {'time': t2 - t1}
 
-    @classmethod
-    def timeit(cls, fn):
 
-        def wrapper(*args, **kwargs):
-            t = c.time()
-            result = fn(*args, **kwargs)
-            c.print(f'Finished {fn.__name__} in {c.time() - t:.2f} seconds')
+
+    @classmethod
+    def timeit(cls, fn, *args, include_result=False, **kwargs):
+
+        t = c.time()
+        if isinstance(fn, str):
+            fn = cls.get_fn(fn)
+        result = fn(*args, **kwargs)
+        response = {
+            'latency': c.time() - t,
+            'fn': fn.__name__,
+            
+        }
+        if include_result:
+            c.print(response)
             return result
-        
-        return wrapper
-    
-    
+        return response
+
     @staticmethod
     def remotewrap(fn, remote_key:str = 'remote'):
         '''
@@ -3524,6 +3574,7 @@ class c:
     def fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
         module = c.module(module)
         is_self_method = bool(fn in module.self_methods())
+
         if is_self_method:
             module = module()
             fn = getattr(module, fn)
@@ -3546,12 +3597,11 @@ class c:
         '''
         Wraps a python class as a module
         '''
-
+    
         module_class =  c.get_module(module,**kwargs)
         
         return module_class
         
-
 
     m = mod = module
 
@@ -4573,11 +4623,13 @@ class c:
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
     @classmethod
-    def asubmit(cls, fn:str, kwargs:dict, timeout=None, **extra_kwargs):
-
+    def asubmit(cls, fn:str, *args, **kwargs):
         async def _asubmit():
             return fn(**kwargs)
         return _asubmit()
+    
+    fn2async = asubmit
+    
 
 
     @classmethod
@@ -5774,6 +5826,7 @@ class c:
     @classmethod
     def get_fn(cls, fn:str, 
                seperator='/',ignore_module_pattern:bool = False):
+        
         if isinstance(fn, str):
             if seperator in fn and (not ignore_module_pattern):
                 # module{sperator}fn
@@ -7121,13 +7174,51 @@ class c:
 
     @classmethod
     def add_line(cls, idx=0, text:str = '',  module=None  ):
+        '''
+        ### Documentation
+        
+        #### `add_line` Method
+        
+        **Description:**
+        
+        The `add_line` method is a class method that allows you to insert one or multiple lines of text at a specified index in the code of a file or module. If no module is provided, it defaults to modifying the code of the class itself.
+        
+        **Parameters:**
+        
+        - `idx` (optional): The index (line number) at which the new text should be inserted. Default is `0`.
+        - `text` (optional): A string representing the new line(s) of text to be added. If multiple lines are provided, they should be separated by '\n'. Default is an empty string `''`.
+        - `module` (optional): The module whose code should be modified. If `None`, the class's own code is modified.
+        
+        **Returns:**
+        
+        A dictionary with two key-value pairs:
+        - `'success'`: A boolean value indicating the success of the operation.
+        - `'msg'`: A formatted string message indicating the line number and text that was added.
+        
+        **Usage:**
+        
+        ```python
+        result = ClassName.add_line(idx=5, text="New line of code", module='some_module')
+        print(result)
+        # Output: {'success': True, 'msg': 'Added line 5 to New line of code'}
+        ```
+        
+        **Notes:**
+        
+        - The method accesses and modifies the code by converting it into a list of lines.
+        - After inserting the new lines of text, the modified code is joined back into a single string and updated within the file or module.
+        - The method assumes that the class contains `code`, `put_text`, and `filepath` methods which are responsible for retrieving the current code, updating the text in the file, and providing the file path respectively.
+        
+        ---
+        
+        Developers should ensure that the index provided is within the bounds of the code line count to avoid any errors. The method does not perform any syntax or error-checking on the new lines of text to be added, so developers should ensure the text is valid code before insertion.
+        '''
 
         code = cls.code() if module == None else c.module(module).code()
         lines = code.split('\n')
         new_lines = text.split('\n') if '\n' in text else [text]
         lines = lines[:idx] + new_lines + lines[idx:]
         new_code = '\n'.join(lines)
-        c.print(lines)
         cls.put_text(cls.filepath(), new_code)
         return {'success': True, 'msg': f'Added line {idx} to {text}'}
     

@@ -139,23 +139,16 @@ class PM2(c.Module):
                 
     @classmethod
     def list(cls, search=None,  verbose:bool = False) -> List[str]:
-        output_string = cls.run_command('pm2 status', verbose=False)
+        output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n'):
-            if '│ default     │ ' in line:
-                server_name = line.split('│')[2].strip()
+            if '  default  ' in line:
+                server_name = line.split('default')[0].strip()
+                server_name = server_name.split(' ')[-1].strip()
                 # fixes odd issue where there is a space between the name and the front 
-                server_name = server_name.split(' ')[-1]
                 module_list += [server_name]
-                
-        
-        if search:
-            if isinstance(search, str):
-                search = [search]
-            elif isinstance(search, list):
-                pass
-                assert all([isinstance(s, str) for s in search]), 'search must be a list of strings'
-                
+            
+        if search != None:
             search_true = lambda x: any([s in x for s in search])
             module_list = [m for m in module_list if search_true(m)]
                 
