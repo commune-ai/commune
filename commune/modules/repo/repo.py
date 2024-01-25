@@ -164,6 +164,13 @@ class Repo(c.Module):
         repo_path = self.repo2path()[repo]
         return c.cmd(f'git pull', cwd=repo_path)
     
+
+        
+
+    def repo2hash(self, repo):
+        repo_path = self.repo2path()[repo]
+        return c.cmd(f'git commit', cwd=repo_path)
+    
     def pull_many(self, *repos, timeout=20):
         futures = []
         for repo in repos:

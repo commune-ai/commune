@@ -4574,6 +4574,7 @@ class c:
 
     @classmethod
     def asubmit(cls, fn:str, kwargs:dict, timeout=None, **extra_kwargs):
+
         async def _asubmit():
             return fn(**kwargs)
         return _asubmit()
