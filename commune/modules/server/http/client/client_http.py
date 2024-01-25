@@ -92,8 +92,8 @@ class Client(c.Module):
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
 
-        result = []
-
+        
+        
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
@@ -102,10 +102,12 @@ class Client(c.Module):
                     BYTES_PER_MB = 1e6
                     if self.debug:
                         progress_bar = c.tqdm(desc='MB per Second', position=0)
+
+                    result = {}
                     
                     async for line in response.content:
                         event_data = line.decode('utf-8')
-                        
+                       x 
                         event_bytes  = len(event_data)
                         if self.debug :
                             progress_bar.update(event_bytes/(BYTES_PER_MB))
@@ -115,24 +117,26 @@ class Client(c.Module):
 
                         event_data = event_data.strip()
                         
+                        # skip empty lines
                         if event_data == "":
                             continue
+
+                        # if the data is formatted as a json string, load it {data: ...}
                         if isinstance(event_data, bytes):
                             event_data = event_data.decode('utf-8')
+
+                        # if the data is formatted as a json string, load it {data: ...}
                         if isinstance(event_data, str):
                             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                                 event_data = json.loads(event_data)['data']
                             result += [event_data]
                         
-                            
-                    try:
-                        
-                        if result.startswith('{') and result.endswith('}') or \
-                            result.startswith('[') and result.endswith(']'):
-                            result = ''.join(result)
-                            result = json.loads(result)
-                    except Exception as e:
-                        pass
+                    # process the result if its a json string
+                    if result.startswith('{') and result.endswith('}') or \
+                        result.startswith('[') and result.endswith(']'):
+                        result = ''.join(result)
+                        result = json.loads(result)
+
                 elif response.content_type == 'application/json':
                     # PROCESS JSON EVENTS
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
