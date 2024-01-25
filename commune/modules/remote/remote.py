@@ -305,8 +305,8 @@ class Remote(c.Module):
 
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
-        ip2host = cls.ip2host()
         host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
+        c.print(host2_server_addresses_responses)
         for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
             if isinstance(server_address, str):
                 server_address = server_address.split('\n')[-1]
@@ -1056,21 +1056,19 @@ class Remote(c.Module):
         
 
         with st.expander('params', False):
-            cols = st.columns([4,4,2])
+            cols = st.columns([4,4,2,2])
             cwd = cols[0].text_input('cwd', '/')
             timeout = cols[1].number_input('Timeout', 1, 100, 10)
             if cwd == '/':
                 cwd = None
-            fn_code = st.text_input('Function', '''x''')
             for i in range(2):
                 cols[2].write('\n')
             filter_bool = cols[2].checkbox('Filter', False)
 
             st.write('Print Formatting')
-            cols = st.columns([4,4,2])
-            num_columns = st.number_input('Columns', 1, 10, 2)
-            expanded = st.checkbox('Expand', True)
-
+            expanded = True
+            num_columns = 3
+            fn_code = st.text_input('Function', 'x')
 
         cols = st.columns([5,1])
         cmd = cols[0].text_input('Command', 'ls')
@@ -1079,8 +1077,8 @@ class Remote(c.Module):
 
         if 'x' not in fn_code:
             fn_code = f'x'
-
-        fn_code = eval(f'lambda x: {fn_code}')                               
+        fn_code = f'lambda x: {fn_code}'
+        fn_code = eval(fn_code)                               
 
         run_button = st.button('Run')
         host2future = {}
@@ -1100,23 +1098,27 @@ class Remote(c.Module):
 
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+
                     host = hosts[result['idx']]
-
-
                     if host == None:
                         continue
+
                     host2future.pop(host)
                     result = result['result']
                     is_error = c.is_error(result)
                     emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
-                    msg = f"""```bash\n{result['error']}```""" if is_error else f"""```bash\n{result}```"""
+                    msg = result['error'] if is_error else result.strip()
 
+                    # get the colkumne
                     col_idx = (col_idx) % len(cols)
                     col = cols[col_idx]
                     col_idx += 1
+
+
+                    # if the column is full, add a new column
                     with col:
                         with st.expander(f'{host} -> {emoji}', expanded=expanded):
-                            msg = fn_code(x=msg)
+                            msg = fn_code(msg)
                             if is_error:
                                 st.write('ERROR')
                                 failed_hosts += [host]
