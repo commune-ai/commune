@@ -223,6 +223,7 @@ class RemoteDashboard(Remote):
         host_map = self.host_map
 
         host_names = list(host_map.keys())
+        
 
 
                         

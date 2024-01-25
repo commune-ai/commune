@@ -1005,7 +1005,7 @@ class Remote(c.Module):
         with st.expander(f'Hosts (n={n})', expanded=False):
             host_names = st.multiselect('Host', host_names, host_names)
         host_map = {k:host_map[k] for k in host_names}
-        host2ssh = self.host2ssh(host_map=host_map)
+        self.host2ssh = self.host2ssh(host_map=host_map)
 
 
     @classmethod
