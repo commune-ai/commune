@@ -80,7 +80,6 @@ class ThreadPoolExecutor(c.Module):
                 raise Exception("ThreadPoolExecutor is broken")
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
-            c.print(kwargs)
             priority = kwargs.get("priority", 1)
             if "priority" in kwargs:
                 del kwargs["priority"]

@@ -130,4 +130,31 @@ class StabilityAI(c.Module):
         assert isinstance(result, list)
         assert all(isinstance(item, bytes) for item in result)
 
+    def text2video(self, path):
+        assert os.path.exists(path), f'Path {path} does not exist'
+        import requests
+        path = self.resolve_path(path)
+
+        response = requests.post(
+            "https://api.stability.ai/v2alpha/generation/image-to-video",
+            headers={
+                f"authorization": "Bearer {self.api_key}",
+            },
+            data={
+                "seed": 0,
+                "cfg_scale": 2.5,
+                "motion_bucket_id": 40
+            },
+            files={
+                "image": ("file", open(path, "rb"), )
+            },
+        )
+
+        if response.status_code != 200:
+            raise Exception("Non-200 response: " + str(response.text))
+
+        data = response.json()
+        generation_id = data["id"]
+        return data
+
     # Additional tests for other methods can be added here

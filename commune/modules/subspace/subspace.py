@@ -1,18 +1,13 @@
 
-import scalecodec
 from retry import retry
-from typing import List, Dict, Union, Optional, Tuple
-from substrateinterface import SubstrateInterface
-from typing import List, Dict, Union, Optional, Tuple
-from commune.utils.network import ip_to_int, int_to_ip
-from rich.prompt import Confirm
-from commune.modules.subspace.balance import Balance
-from commune.modules.subspace.utils import (U16_MAX,  is_valid_address_or_public_key, )
-import streamlit as st
+from typing import *
+from .balance import Balance
 import json
 import os
 import commune as c
 
+U32_MAX = 4294967295
+U16_MAX = 65535
 
 class Subspace(c.Module):
     """
@@ -246,10 +241,12 @@ class Subspace(c.Module):
         return {k:v for k,v in self.query_map('DelegationFee', block=block ,update=update, network=network)[netuid].items()}
     
     def stake_to(self, netuid = 0, network=network, block=None, update=False, fmt='nano'):
+
         stake_to = self.query_map('StakeTo', block=block, update=update, network=network)
         if netuid == 'all':
             return stake_to
         else:
+            netuid = self.resolve_netuid(netuid)
             stake_to = {k: v for k,v in stake_to[netuid].items()}
             return {k: list(map(lambda x : [x[0], self.format_amount(x[1], fmt=fmt)], v)) for k,v in stake_to.items()}
 
@@ -1680,7 +1677,7 @@ class Subspace(c.Module):
             archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
             archive = c.get(archive_path)
             total_balances = sum([b for b in archive['balances'].values()])
-            # st.write(archive['modules']netuid[:3])
+
             total_stake = sum([sum([_[1]for _ in m['stake_from']]) for m in archive['modules'][netuid]])
             subnet = archive['subnets'][netuid]
             row = {
@@ -1722,73 +1719,6 @@ class Subspace(c.Module):
             
         return archive_history
         
-
-    @classmethod
-    def dashboard(cls):
-        import plotly.express as px
-
-        self = cls()
-
-        modules = self.modules(fmt='j')
-        
-        num_searches = self.get('dashboard/search', [])
-        search = st.text_input('search', '') 
-
-        modules = [m for m in modules if search in m['name'] or search in m['key'] or search in m['address']]
-        df = c.df(modules)
-
-        df['ip'] = df['address'].apply(lambda x: x.split(':')[0])
-        df['module'] = df['name'].apply(lambda x: x.split('::')[0])
-
-        cols = ['name', 'emission', 'incentive', 'dividends', 'stake', 'delegation_fee', 'trust',  'ip', 'last_update', 'module']
-        with st.expander('columns', expanded=False):
-            selected_cols = st.multiselect('Select columns', cols, default=cols)
-            df = df[selected_cols]
-        df = df.sort_values('emission', ascending=False)
-        df = df[cols]
-
-        st.write(df)
-
-        with st.expander('histogram', expanded=False):
-            col = st.selectbox('Select column', cols)
-            fig = px.histogram(df, x=col)
-            st.plotly_chart(fig)
-
-        with st.expander('scatter', expanded=False):
-            x = st.selectbox('Select x', cols)
-            y = st.selectbox('Select y', cols)
-            fig = px.scatter(df, x=x, y=y)
-            st.plotly_chart(fig)
-
-        with st.expander('pie', expanded=False):
-            treemap = st.checkbox('treemap', False)
-            if treemap:
-                value = st.selectbox('Select column', cols, key='treemap')
-                name = st.selectbox('Select name', ['module', 'ip'], key='pie_name')
-
-                fig = px.treemap(df, path=[name], values=value)
-                st.plotly_chart(fig)
-            else:
-                    
-                col = st.selectbox('Select column', cols, key='pie')
-
-                name = st.selectbox('Select name', ['module', 'ip'], key='pie_name')
-                fig = px.pie(df, values=col, names=name)
-                st.plotly_chart(fig)
-
-    @classmethod
-    def st_search_archives(cls,
-                        start_time = '2023-09-08 04:00:00', 
-                        end_time = '2023-09-08 04:30:00'):
-        start_time = st.text_input('start_time', start_time)
-        end_time = st.text_input('end_time', end_time)
-        df = cls.search_archives(end_time=end_time, start_time=start_time)
-
-        
-        st.write(df)
-
-
-
     def key_usage_path(self, key:str):
         key_ss58 = self.resolve_key_ss58(key)
         return f'key_usage/{key_ss58}'

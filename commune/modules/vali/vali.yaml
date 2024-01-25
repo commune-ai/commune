@@ -54,9 +54,9 @@ start: True
 is_main_worker: True
 max_vote_delay_before_worker_restart: 20
 max_restart_lag: 20
-min_num_weights: 32
+min_num_weights: 10
 debug: False
-print_interval: 10
+print_interval: 5
 
 
 

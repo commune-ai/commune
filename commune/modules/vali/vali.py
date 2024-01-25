@@ -278,7 +278,7 @@ class Vali(c.Module):
                 module_info.update(response)
                 response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
                 self.successes += 1
-                c.print(response['msg'], color='cyan', verbose=self.config.debug)
+                # c.print(response['msg'], color='cyan', verbose=self.config.debug)
 
             else:
                 # skip this module if it is too stale, and return the module info

@@ -52,6 +52,8 @@ class Coder(c.Module):
     
     comment = call
     document_fn = call
+
+    
     
     def document_module(self,
              module='agent.coder', 
