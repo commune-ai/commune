@@ -80,7 +80,7 @@ Congratulations! Commune is now set up and running without Docker
 
 ## Note:
 
-If you're primarily interested in using the core features of the protocol (such as intuitive cli) or seeking a more lightweight implementation, consider installing the [Communex]("https://github.com/agicommies/communex") package.
+If you're primarily interested in using the core features of the protocol (such as intuitive cli) or seeking a more lightweight implementation, consider installing the [Communex](https://github.com/agicommies/communex) package.
 
 # Key Features
 
