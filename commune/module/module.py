@@ -2840,13 +2840,11 @@ class c:
                                           mode=mode, 
                                           public=public)
 
-        c.print('fam')
-        response =  {'success':True, 
+        return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
                      'name':server_name, 
                      'kwargs': kwargs,
                      'module':module}
-        return response
 
     serve_module = serve
     
@@ -5909,6 +5907,7 @@ class c:
                     refresh : bool =True,
                     mode = 'pm2',
                     tag_seperator : str = '::',
+                    cwd = None,
                     **extra_launch_kwargs
                     ):
         
@@ -5941,6 +5940,7 @@ class c:
                     kwargs=kwargs,
                     refresh=refresh,
                     name=name, 
+                    cwd = cwd or cls.dirpath(),
                     **extra_launch_kwargs)
         
         return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp(), 'response': response}

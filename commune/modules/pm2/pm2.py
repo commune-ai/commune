@@ -218,9 +218,7 @@ class PM2(c.Module):
                    cwd = None,
                    refresh:bool=True ):
 
-        if module == None:
-            module = c.module_path()
-        elif hasattr(module, 'module_path'):
+        if hasattr(module, 'module_path'):
             module = module.module_path()
             
         # avoid these references fucking shit up
@@ -265,7 +263,7 @@ class PM2(c.Module):
         if refresh:
             cls.kill(name)  
 
-        cwd = cwd or c.dirpath()
+        cwd = cwd or module.dirpath()
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
     
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
