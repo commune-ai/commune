@@ -1128,7 +1128,11 @@ class c:
                     path = path + '.' + extension
             
         if not os.path.exists(path) and os.path.exists(path + f'.{file_type}'):
-            path = path + f'.{file_type}'       
+            path = path + f'.{file_type}' 
+
+        dirpath = os.path.dirname(path)
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)      
                  
         return path
     
@@ -1580,7 +1584,6 @@ class c:
     @classmethod
     def path2object(cls, path:str) -> str:
         path = cls.path2objectpath(path)
-        c.print(path)
         return c.import_object(path)
 
     module_cache = {}

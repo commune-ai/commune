@@ -1066,6 +1066,12 @@ class Remote(c.Module):
                 cols[2].write('\n')
             filter_bool = cols[2].checkbox('Filter', False)
 
+            st.write('Print Formatting')
+            cols = st.columns([4,4,2])
+            num_columns = st.number_input('Columns', 1, 10, 2)
+            expanded = st.checkbox('Expand', True)
+
+
         cols = st.columns([5,1])
         cmd = cols[0].text_input('Command', 'ls')
         [cols[1].write('') for i in range(2)]
@@ -1088,12 +1094,14 @@ class Remote(c.Module):
             num_jobs = len(futures )
             hosts = list(host2future.keys())
             host2error = {}
-            cols = st.columns(4)
+            cols = st.columns(num_columns)
             failed_hosts = []
+            col_idx = 0
 
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
                     host = hosts[result['idx']]
+
 
                     if host == None:
                         continue
@@ -1103,14 +1111,18 @@ class Remote(c.Module):
                     emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
                     msg = f"""```bash\n{result['error']}```""" if is_error else f"""```bash\n{result}```"""
 
-                    with st.expander(f'{host} -> {emoji}', expanded=False):
-                        msg = fn_code(x=msg)
-                        if is_error:
-                            st.write('ERROR')
-                            failed_hosts += [host]
-                        if filter_bool and msg != True:
-                            continue
-                        st.markdown(msg)
+                    col_idx = (col_idx) % len(cols)
+                    col = cols[col_idx]
+                    col_idx += 1
+                    with col:
+                        with st.expander(f'{host} -> {emoji}', expanded=expanded):
+                            msg = fn_code(x=msg)
+                            if is_error:
+                                st.write('ERROR')
+                                failed_hosts += [host]
+                            if filter_bool and msg != True:
+                                continue
+                            st.markdown(msg)
                     
 
             except Exception as e:

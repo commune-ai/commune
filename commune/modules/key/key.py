@@ -896,6 +896,8 @@ class Keypair(c.Module):
     
     seperator = "<DATA::SIGNATURE>"
 
+
+
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
@@ -1472,10 +1474,18 @@ class Keypair(c.Module):
         assert self.verify(sig)
 
     def ticket(self, **kwargs):
-        return self.sign(str(c.timestamp()), return_str=True, **kwargs)
+        data = str(c.timestamp())
+        return self.sign(data, return_str=True, **kwargs)
 
-    def verify_ticket(self, ticket, **kwargs):
+    def verify_ticket(self, ticket=None, **kwargs):
+        if ticket == None:
+            ticket = self.ticket(**kwargs)
         data = ticket.split(self.seperator)[0]
+        return self.verify(ticket, **kwargs)
+    
+
+    def ticket_staleness(self, ticket):
+        
         return self.verify(ticket, **kwargs)
     
 

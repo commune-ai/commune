@@ -1,6 +1,6 @@
 import commune as c
 import os
-import streamlit as st
+
 
 class Repo(c.Module):
     def __init__(self, a=1, b=2):
@@ -114,23 +114,26 @@ class Repo(c.Module):
         return {'success': True, 'path': repo_path, 'repo': repo, 
                 'msg': f'Repo {repo} removed successfully'}
     
+
+    def path2name(self, path):
+        return os.path.basename(path).replace('.git', '')
+
     def repo_paths(self):
         return list(self.repo2path().values())
     def add_repo(self, repo_path, 
                  path = None,
                  update=True, 
-                 sudo=True):
+                 cwd = None, 
+                 sudo=False):
+        cwd = cwd or c.home_path
+        repo_name = self.path2name(repo_path)
         if path == None:
-            path = c.home_path + os.path.basename(repo_path).replace('.git', '')
-        if path.endswith('.git'):
-            path = path.replace('.git','')
+            path = c.home_path + '/'+ repo_name
+        if os.path.isdir(path) and update:
+            c.rm(path)
 
-        if os.path.exists(path):
-            if update:
-                c.rm(path)
-            else:
-                raise Exception(f'Path {path} already exists')
-        c.cmd(f'git clone {repo_path} {path}', sudo=sudo, verbose=True)
+        c.print(f'Adding repo {repo_path} to {path}')
+        c.cmd(f'git clone {repo_path}', verbose=True, cwd=cwd, sudo=sudo)
         if update:
             self.update()
         repo_paths = self.repo_paths()
