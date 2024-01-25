@@ -107,7 +107,7 @@ class Client(c.Module):
                     
                     async for line in response.content:
                         event_data = line.decode('utf-8')
-                       x 
+                        
                         event_bytes  = len(event_data)
                         if self.debug :
                             progress_bar.update(event_bytes/(BYTES_PER_MB))
