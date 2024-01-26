@@ -1270,17 +1270,14 @@ class Keypair(c.Module):
 
 
     @classmethod
-    def loadmems(cls, search=None, path=mems_path, save=False, **kwargs):
+    def loadmems(cls, path=mems_path, refresh=False, **kwargs):
         mems = c.load_json(path)
-        if save:
-            for k,mem in mems.items():
-                c.print(k,mems)
-                cls.add_key(k, mem, **kwargs)
-            
-            return {'loaded_mems':list(mems.keys()), 'path':path}
-        if search:
-            mems = {k:v for k,v in mems.items() if search in k or search in v}
-        return mems
+        for k,mem in mems.items():
+            try:
+                cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
+            except Exception as e:
+                c.print(f'failed to load mem {k} due to {e}', color='red')
+        return {'loaded_mems':list(mems.keys()), 'path':path}
 
     @classmethod
     def mems(cls, search=None):

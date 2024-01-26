@@ -779,7 +779,7 @@ class Chain(c.Module):
 
 
     @classmethod
-    def add_local_node(cls,
+    def start_local_node(cls,
                      node:str='alice', 
                      mode=mode, 
                      chain=chain, 
@@ -797,7 +797,7 @@ class Chain(c.Module):
 
         return response
 
-    start_local_node = add_local_node
+    add_local_node = start_local_node
 
     @classmethod
     def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, node_infos=None, **kwargs):
@@ -887,6 +887,14 @@ class Chain(c.Module):
         return [p for p in cls.ls(f'local_nodes/{chain}')]
 
     @classmethod
+    def remove_local_nodes(cls, search=None, chain=chain):
+        paths = cls.ls(f'local_nodes/{chain}')
+        for path in paths:
+            if search != None and search not in path:
+                continue
+            cls.rm(path)
+
+    @classmethod
     def local_nodes(cls, chain=chain):
         return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
     
@@ -914,8 +922,9 @@ class Chain(c.Module):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(cls, url = None, chain=chain):
-        local  = bool("local" in chain)
+    def resolve_node_url(cls, url = None, chain=chain, local=False):
+        if 'local' in chain:
+            chain = cls.chain
         if url == None:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
