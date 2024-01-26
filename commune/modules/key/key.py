@@ -1267,11 +1267,13 @@ class Keypair(c.Module):
         return {'saved_mems':list(mems.keys()), 'path':path}
 
     @classmethod
-    def loadmems(cls, path=mems_path, **kwargs):
+    def loadmems(cls, path=mems_path, refresh=False, **kwargs):
         mems = c.load_json(path)
         for k,mem in mems.items():
-            c.print(k,mems)
-            cls.add_key(k, mem, **kwargs)
+            try:
+                cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
+            except Exception as e:
+                c.print(f'failed to load mem {k} due to {e}', color='red')
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
     @classmethod

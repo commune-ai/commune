@@ -24,6 +24,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
+    local = default_config['local']
     
     features = ['Keys', 
                 'StakeTo',
@@ -60,6 +61,7 @@ class Subspace(c.Module):
                 verbose:bool=False,
                 max_trials:int = 10,
                 parallel_calls:bool=1,
+                local: bool = local,
                 **kwargs):
 
         '''
@@ -96,12 +98,11 @@ class Subspace(c.Module):
         while trials < max_trials :
             trials += 1
             if url == None:
-                url = chain.resolve_node_url(url=url, chain=network)
+                url = chain.resolve_node_url(url=url, chain=network, local=local)
             
             self.url = url
             url = url.replace(c.ip(), '0.0.0.0')
 
-            
             kwargs.update(url=url, 
                         websocket=websocket, 
                         ss58_format=ss58_format, 
@@ -119,12 +120,15 @@ class Subspace(c.Module):
                 c.print(f'Could not connect to {url}, switching to main. Trying again in 10 seconds.')
                 c.print(e)
                 network = 'main'
+                local=False
                 url = None # set the url to none so it will be resolved again
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
+           
             return {'success': False, 'message': f'Could not connect to {url}'}
 
-        response = {'network': network, 'url': url, 'success': True}
+        response = {'network': network, 'url': url}
+        c.print(response)
 
         return response
 
@@ -725,7 +729,7 @@ class Subspace(c.Module):
         return {'success': True, 'block': self.block}
 
 
-    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 100}, network=None, remote:bool=True):
+    def loop(self, intervals = {'light': 5, 'full': 600,}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
@@ -1805,8 +1809,6 @@ class Subspace(c.Module):
         ip = c.ip()
         modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt, **kwargs)
         stats = []
-
-        c.print(modules, "seconds")
 
         local_key_addresses = list(c.key2address().values())
         for i, m in enumerate(modules):
