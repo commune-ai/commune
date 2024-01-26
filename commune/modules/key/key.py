@@ -1265,14 +1265,22 @@ class Keypair(c.Module):
         mems = cls.mems()
         c.put_json(path, mems)
         return {'saved_mems':list(mems.keys()), 'path':path}
+    
+
+
 
     @classmethod
-    def loadmems(cls, path=mems_path, **kwargs):
+    def loadmems(cls, search=None, path=mems_path, save=False, **kwargs):
         mems = c.load_json(path)
-        for k,mem in mems.items():
-            c.print(k,mems)
-            cls.add_key(k, mem, **kwargs)
-        return {'loaded_mems':list(mems.keys()), 'path':path}
+        if save:
+            for k,mem in mems.items():
+                c.print(k,mems)
+                cls.add_key(k, mem, **kwargs)
+            
+            return {'loaded_mems':list(mems.keys()), 'path':path}
+        if search:
+            mems = {k:v for k,v in mems.items() if search in k or search in v}
+        return mems
 
     @classmethod
     def mems(cls, search=None):

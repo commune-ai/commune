@@ -44,6 +44,35 @@ class Subspace(c.Module):
         **kwargs,
     ):
         config = self.set_config(kwargs=kwargs)
+    connection_mode = 'ws'
+    def resolve_url(self, url:str = None, network:str = None, mode=None , **kwargs):
+        chain = c.module('subspace.chain')
+        if url == None:
+            mode = mode or self.config.connection_mode
+            url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
+            is_match = lambda x: any([url in x for url in url_search_terms])
+            c.print(f'Checking {url_search_terms} for {mode} mode')
+            urls = []
+            for provider, mode2url in self.config.urls.items():
+                if is_match(provider):
+                    if provider == 'commune':
+                        url = chain.resolve_node_url(url=url, chain=network) 
+                    elif provider == 'local':
+                        url = chain.resolve_node_url(url=url, chain='local')
+                    else:
+                        url = mode2url[mode]
+
+                    if isinstance(url, list):
+                        urls += url
+                    else:
+                        urls += [url] 
+
+            url = c.choice(urls)
+        
+        url = url.replace(c.ip(), '0.0.0.0')
+
+
+        return url
 
     def set_network(self, 
                 network:str = network,
@@ -60,6 +89,7 @@ class Subspace(c.Module):
                 verbose:bool=False,
                 max_trials:int = 10,
                 parallel_calls:bool=1,
+                mode = 'ws',
                 **kwargs):
 
         '''
@@ -91,16 +121,12 @@ class Subspace(c.Module):
             network = self.config.network
         if 'subspace' == network:
             network = 'main'
-        chain = c.module('subspace.chain')
+
         trials = 0
         while trials < max_trials :
             trials += 1
-            if url == None:
-                url = chain.resolve_node_url(url=url, chain=network)
-            
-            self.url = url
-            url = url.replace(c.ip(), '0.0.0.0')
-
+    
+            url = self.resolve_url(url)
             
             kwargs.update(url=url, 
                         websocket=websocket, 
@@ -124,9 +150,9 @@ class Subspace(c.Module):
             c.print(f'Could not connect to {url}')
             return {'success': False, 'message': f'Could not connect to {url}'}
 
-        response = {'network': network, 'url': url, 'success': True}
-
-        return response
+        self.url = url
+        self.network= network
+        return {'network': network, 'url': url}
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
@@ -3156,7 +3182,7 @@ class Subspace(c.Module):
         
     key2balance = myb = mybal = my_balance
 
-    def my_stake_to(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
+    def my_stake_to(self,search=None, netuid = 0, network = None, fmt=fmt,  decimals=2, block=None, update=False):
         staketo = self.stake_to(netuid=netuid, network=network, block=block, update=update)
         mystaketo = {}
         key2address = c.key2address()
@@ -3228,7 +3254,6 @@ class Subspace(c.Module):
 
         if local:
             address2key = c.address2key()
-            
             staker2netuid2stake = {address:staker2netuid2stake.get(address,{}) for address in address2key.keys()}
 
         
