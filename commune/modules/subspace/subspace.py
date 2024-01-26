@@ -24,6 +24,7 @@ class Subspace(c.Module):
     libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
+    local = default_config['local']
     
     features = ['Keys', 
                 'StakeTo',
@@ -145,9 +146,11 @@ class Subspace(c.Module):
                 c.print(f'Could not connect to {url}, switching to main. Trying again in 10 seconds.')
                 c.print(e)
                 network = 'main'
+                local=False
                 url = None # set the url to none so it will be resolved again
         if trials == max_trials:
             c.print(f'Could not connect to {url}')
+           
             return {'success': False, 'message': f'Could not connect to {url}'}
 
         self.url = url
@@ -751,7 +754,7 @@ class Subspace(c.Module):
         return {'success': True, 'block': self.block}
 
 
-    def loop(self, intervals = {'light': 5, 'full': 100, 'save': 100}, network=None, remote:bool=True):
+    def loop(self, intervals = {'light': 5, 'full': 600,}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
@@ -1831,8 +1834,6 @@ class Subspace(c.Module):
         ip = c.ip()
         modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt, **kwargs)
         stats = []
-
-        c.print(modules, "seconds")
 
         local_key_addresses = list(c.key2address().values())
         for i, m in enumerate(modules):
@@ -3268,45 +3269,30 @@ class Subspace(c.Module):
     def check_valis(self):
         return self.check_servers(search='vali', netuid=None, wait_for_server=False, update=False)
     
-    def check_servers(self, search=None, wait_for_server=False, update:bool=False, key=None, min_stake:int =1000,  network='local'):
-        cols = ['name', 'registered', 'serving', 'address', 'last_update', 'stake']
+    def check_servers(self, search=None,
+                    wait_for_server=False, 
+                    update:bool=False, 
+                    min_lag=1000, 
+                    key=None, 
+                    min_stake:int =1000,  
+                    network='local'):
+        cols = ['name', 'registered', 'serving', 'address', 'last_update', 'stake', 'dividends']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
+        block = self.block
 
         response_batch = {}
+
         for module, stats in module2stats.items():
             if stats['stake'] > min_stake:
-                if not c.server_exists(module):
+                # check if the module is serving
+                lag = block - stats['last_update']
+                should_validator_update = lag > min_lag and stats['dividends'] > 0
+                if should_validator_update:
+                    c.print(f"Vali {module} has not voted in {lag} blocks. Restarting...")
+                if not c.server_exists(module) and should_validator_update:
                     response_batch[module] = c.serve(module)
                     c.print(response_batch[module])
-
-        # c.print('checking', list(namespace.keys()))
-        # for name, address in namespace.items():
-        #     if name not in module2stats :
-        #         # get the stats for this module
-        #         self.register(name=name, address=address, key=key)
-        #         continue
-            
-        #     m_stats = module2stats.get(name)
-        #     if 'vali' in module: # if its a vali
-        #         if stats['last_update'] > subnet['tempo']:
-        #             c.print(f"Vali {module} has not voted in {stats['last_update']} blocks. Restarting...")
-        #             c.serve(module)
-                    
-        #     else:
-        #         if m_stats['serving']:
-        #             if address != m_stats['address']:
-        #                 c.update_module(module=m_stats['name'], address=address, name=name)
-        #         else:
-                    
-        #             if ':' in m_stats['address']:
-        #                 port = int(m_stats['address'].split(':')[-1])
-        #             else:
-        #                 port = None
-                        
-        #             c.serve(name, port=port, wait_for_server=wait_for_server)
-
-
 
     def compose_call(self,
                      fn:str, 
