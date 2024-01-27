@@ -6,12 +6,8 @@ urls:
   onfinality:
     ws: wss://commune.api.onfinality.io/public-ws
     http: https://commune.api.onfinality.io/public-http
-  commune: 
-    ws: ws://
-    http: http://
-  local:
-    ws: ws://
-    http: http://
+  commune: null
+  local: null
   
 
 frontend:
