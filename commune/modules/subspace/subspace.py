@@ -56,9 +56,9 @@ class Subspace(c.Module):
             for provider, mode2url in self.config.urls.items():
                 if is_match(provider):
                     if provider == 'commune':
-                        url = chain.resolve_node_url(url=url, chain=network) 
+                        url = chain.resolve_node_url(url=url, chain=network, mode=mode) 
                     elif provider == 'local':
-                        url = chain.resolve_node_url(url=url, chain='local')
+                        url = chain.resolve_node_url(url=url, chain='local', mode=mode)
                     else:
                         url = mode2url[mode]
 
@@ -125,9 +125,7 @@ class Subspace(c.Module):
         trials = 0
         while trials < max_trials :
             trials += 1
-    
             url = self.resolve_url(url)
-            
             kwargs.update(url=url, 
                         websocket=websocket, 
                         ss58_format=ss58_format, 
@@ -756,7 +754,7 @@ class Subspace(c.Module):
         return {'success': True, 'block': self.block}
 
 
-    def loop(self, intervals = {'light': 5, 'full': 600,}, network=None, remote:bool=True):
+    def loop(self, intervals = {'light': 5, 'full': 600}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
         last_block_update = {k:0 for k in intervals.keys()}
@@ -766,14 +764,7 @@ class Subspace(c.Module):
         while True:
             block = self.block
             staleness = {k:block - last_block_update[k] for k in intervals.keys()}
-            
-
             if staleness["full"] > intervals["full"]:
-                save = staleness["save"] > intervals["save"]
-                if save:
-                    block = (block // intervals['full']) * intervals['full']
-                    last_block_update['save'] = block
-                
                 request = {
                             'network': network, 
                            'block': block
@@ -1914,10 +1905,12 @@ class Subspace(c.Module):
             storage_names = [s for s in storage_names if search in s.lower()]
         return storage_names
 
-    def state_dict(self , timeout=1000, 
+    def state_dict(self , 
+                   timeout=1000, 
                    network='main', 
                    update=False, 
                    features=features,
+                   mode='http', 
                    save = False,
                    block=None):
         
@@ -1938,11 +1931,11 @@ class Subspace(c.Module):
         path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
 
         def fn_query(*args, **kwargs):
-            self = Subspace()
+            self = Subspace(mode=mode)
             return self.query_map(*args,**kwargs)
         
         def get_feature(feature, **kwargs):
-            self = Subspace()
+            self = Subspace(mode=mode)
             return getattr(self, feature)(**kwargs)
 
 

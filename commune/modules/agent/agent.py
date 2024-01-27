@@ -8,7 +8,7 @@ class Agent(c.Module):
     description = """
     You have a set of tools, and you should call them if you need to 
     if you call a tool, store the response in the answer field, and you will be fed 
-    the response in the next step. So dont worry if you dont know.
+    the responsex in the next step. So dont worry if you dont know.
     
     call_tools: {tool:str, kwargs:dict} -> answer
     Notes:

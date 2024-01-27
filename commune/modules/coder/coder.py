@@ -5,61 +5,55 @@ class Coder(c.Module):
     def call(self,
              fn='coder/call', 
              model = 'model.openai',
-             timeout=10,
+             timeout=20,
              **model_params):
         '''
-        ## Function Documentation
+        ### Function Documentation
         
-        ### `call` method
+        #### `call(self, fn='coder/call', model='model.openai', timeout=20, **model_params)`
         
-        **Description:**
+        This function is responsible for generating documentation for a given piece of code by utilizing a language model. 
         
-        The `call` method is responsible for connecting to a specified model, sending a code input along with an instruction to document the function in a professional manner, and then retrieving the generated documentation.
+        Parameters:
+        - `fn` (str): The name of the function that needs documentation. Default value is `'coder/call'`.
+        - `model` (str): The identifier of the language model to be used. Default is `'model.openai'`.
+        - `timeout` (int): The maximum amount of time (in seconds) to wait for the model to generate the documentation. Default is `20`.
+        - `**model_params`: Arbitrary keyword arguments that will be passed to the `connect` method of the `c` object when connecting to the language model.
         
-        **Parameters:**
+        Returns:
+        - `docs` (str): The generated documentation for the specified code.
         
-        - `fn` (str): The filename or identifier of the code function to document. Defaults to `'coder/call'`.
-        - `model` (str): The model identifier to use for generating the documentation. Defaults to `'model.openai'`.
-        - `timeout` (int): The maximum amount of time (in seconds) to wait for the model to generate the documentation. Defaults to `10`.
-        - `**model_params`: Additional parameters that are passed to the model upon connection.
+        The function performs the following steps:
+        1. Connects to the specified language model using the provided parameters.
+        2. Constructs an input JSON object containing the instruction, code, and a placeholder for documentation.
+        3. Requests the language model to generate documentation based on the provided input.
+        4. Processes the generated documentation response.
+        5. Adds the generated documentation to the function using the `c.add_docs()` method.
+        6. Returns the generated documentation.
         
-        **Returns:**
-        
-        - `docs` (str): The generated documentation for the given function.
-        
-        **Usage Example:**
+        **Example Usage:**
         
         ```python
-        # Instantiate the class
-        c = SomeClass()
-        
-        # Call the 'call' method to generate documentation
-        documentation = c.call(
-            fn='my_function',
-            model='model.openai',
-            timeout=15,
-            param1=value1,
-            param2=value2
+        # assuming the 'c' object and 'call' method are part of a class
+        caller = YourClass()
+        documentation = caller.call(
+            fn='your_function_name',
+            model='your_model_identifier',
+            timeout=30,
+            model_params={'additional': 'parameters'}
         )
+        print(documentation)
+        ``` 
         
-        # 'documentation' variable now contains the generated documentation for 'my_function'
-        ```
-        
-        **Notes:**
-        
-        - The method generates the documentation by first connecting to the model with the provided model parameters.
-        - It then sends a structured input containing the instruction and code to the model.
-        - The model is expected to generate documentation based on this input within the specified timeout period.
-        - The generated documentation is then processed and added to the function identified by `fn`.
-        - The method returns the processed documentation for further use or inspection.
+        **Note:** 
+        - The `c` object is assumed to be a pre-defined object with methods `connect`, `fn_code`, and `add_docs`.
+        - `self.process_response` is assumed to be a method that processes the generated documentation response. Its functionality is not detailed in the provided code.
         '''
-
         model = c.connect(model, **model_params)
         input = json.dumps({
             'instruction': 'given the code, document the function in a professional manner in the docs section', 
             'code': c.fn_code(fn),
             'docs': None,
-
         })
         # get the docs
         docs = model.generate(input, timeout=timeout)

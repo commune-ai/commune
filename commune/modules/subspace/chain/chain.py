@@ -922,7 +922,7 @@ class Chain(c.Module):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(cls, url = None, chain=chain, local=False):
+    def resolve_node_url(cls, url = None, chain=chain, local=False, mode='ws'):
         if 'local' in chain:
             chain = cls.chain
         if url == None:
@@ -931,12 +931,12 @@ class Chain(c.Module):
                 local_node_info = cls.get(c.choice(local_node_paths))
                 assert isinstance(local_node_info, dict), f'local_node_info must be a dict'
                 port = local_node_info['rpc_port']
-                url = f'ws://0.0.0.0:{port}'
+                url = f'{mode}://0.0.0.0:{port}'
             else:
                 url = c.choice(cls.urls(chain=chain))
 
-        if not url.startswith('ws://') and not url.startswith('wss://'):
-            url = 'ws://' + url
+        if not url.startswith(f'{mode}://') and not url.startswith(f'{mode}s://'):
+            url = f'{mode}://' + url
 
         return url
 
