@@ -371,7 +371,7 @@ class Dashboard(c.Module):
         fns = cls.fns()
         fns = ['_'.join(f.split('_')[:-1]).replace('_',' ').lower() for f in fns if f.endswith('_dashboard')]
         fns = ['wallet' , 'explorer']
-        options = ["wallet", "server", "tokenomics", "dashboard", "chat", 'remote', 'server', "vali", "explorer"]
+        options = c.modules()
         page = st.sidebar.selectbox('Select Page', options, 0, key='page')
 
         st.sidebar.markdown('---')

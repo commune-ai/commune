@@ -1,6 +1,6 @@
 block_time: 8
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
-url_search: finality
+url_search: finality,commune
 connection_mode: ws
 urls: 
   onfinality:
@@ -22,7 +22,7 @@ frontend:
 key: null
 local: true
 loop: false
-mode: local
+mode: main
 netuid: 0
 network: main
 retry_params:
