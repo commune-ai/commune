@@ -3,37 +3,57 @@ import json
 
 class Coder(c.Module):
     def call(self,
-             fn='agent.coder/call', 
+             fn='coder/call', 
              model = 'model.openai',
+             timeout=10,
              **model_params):
         '''
-        ### Function Documentation
+        ## Function Documentation
         
-        #### Function Name: 
-        `call`
+        ### `call` method
         
-        #### Parameters: 
-        - `fn` (str): The function name to be documented. Default value is `'agent.coder/call'`.
-        - `model` (str): The model name to connect to for generating the documentation. Default value is `'model.openai'`.
-        - `**model_params`: Arbitrary keyword arguments to be used as parameters when connecting to the model.
+        **Description:**
         
-        #### Description: 
-        The `call` function is used to
+        The `call` method is responsible for connecting to a specified model, sending a code input along with an instruction to document the function in a professional manner, and then retrieving the generated documentation.
+        
+        **Parameters:**
+        
+        - `fn` (str): The filename or identifier of the code function to document. Defaults to `'coder/call'`.
+        - `model` (str): The model identifier to use for generating the documentation. Defaults to `'model.openai'`.
+        - `timeout` (int): The maximum amount of time (in seconds) to wait for the model to generate the documentation. Defaults to `10`.
+        - `**model_params`: Additional parameters that are passed to the model upon connection.
+        
+        **Returns:**
+        
+        - `docs` (str): The generated documentation for the given function.
+        
+        **Usage Example:**
+        
+        ```python
+        # Instantiate the class
+        c = SomeClass()
+        
+        # Call the 'call' method to generate documentation
+        documentation = c.call(
+            fn='my_function',
+            model='model.openai',
+            timeout=15,
+            param1=value1,
+            param2=value2
+        )
+        
+        # 'documentation' variable now contains the generated documentation for 'my_function'
+        ```
+        
+        **Notes:**
+        
+        - The method generates the documentation by first connecting to the model with the provided model parameters.
+        - It then sends a structured input containing the instruction and code to the model.
+        - The model is expected to generate documentation based on this input within the specified timeout period.
+        - The generated documentation is then processed and added to the function identified by `fn`.
+        - The method returns the processed documentation for further use or inspection.
         '''
-        '''
-        ### Function Documentation
-        
-        #### Function Name: 
-        `call`
-        
-        #### Parameters: 
-        - `fn` (str): The function name to be documented. Default value is `'agent.coder/call'`.
-        - `model` (str): The model name to connect to for generating the documentation. Default value is `'model.openai'`.
-        - `**model_params`: Arbitrary keyword arguments to be used as parameters when connecting to the model.
-        
-        #### Description: 
-        This function is used to automatically generate documentation
-        '''
+
         model = c.connect(model, **model_params)
         input = json.dumps({
             'instruction': 'given the code, document the function in a professional manner in the docs section', 
@@ -42,7 +62,7 @@ class Coder(c.Module):
 
         })
         # get the docs
-        docs = model.generate(input)
+        docs = model.generate(input, timeout=timeout)
         docs = self.process_response(docs)
 
         # add docs to the function

@@ -935,7 +935,7 @@ class Chain(c.Module):
             else:
                 url = c.choice(cls.urls(chain=chain))
 
-        if not url.startswith('ws://'):
+        if not url.startswith('ws://') and not url.startswith('wss://'):
             url = 'ws://' + url
 
         return url

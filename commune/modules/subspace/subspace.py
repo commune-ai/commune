@@ -46,13 +46,12 @@ class Subspace(c.Module):
     ):
         config = self.set_config(kwargs=kwargs)
     connection_mode = 'ws'
-    def resolve_url(self, url:str = None, network:str = None, mode=None , **kwargs):
+    def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
         chain = c.module('subspace.chain')
         if url == None:
             mode = mode or self.config.connection_mode
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             is_match = lambda x: any([url in x for url in url_search_terms])
-            c.print(f'Checking {url_search_terms} for {mode} mode')
             urls = []
             for provider, mode2url in self.config.urls.items():
                 if is_match(provider):
@@ -155,7 +154,10 @@ class Subspace(c.Module):
 
         self.url = url
         self.network= network
-        return {'network': network, 'url': url}
+        response = {'network': network, 'url': url}
+        c.print(f'Connected to {url}')
+        c.print(response)
+        return response
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
@@ -834,7 +836,6 @@ class Subspace(c.Module):
                     timeout = 30,
                     fmt:str='j', 
                     rows:bool = True,
-                    
                     ) -> list:
 
         network = self.resolve_network(network)
