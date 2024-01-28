@@ -2379,10 +2379,10 @@ class c:
         '''
         Returns a client to a server
         '''
-        client = c.module(f'server.{mode}.client')(ip=ip, port=port,**kwargs)
+        client = c.module(f'client.{mode}')(ip=ip, port=port,**kwargs)
         # if virtual turn client into a virtual client, making it act like if the server was local
         if virtual:
-            client = c.virtual_client(client)
+            client = c.module('client.{mode}.virtual')(client)
         
         return client
 
@@ -2626,10 +2626,7 @@ class c:
         return attrs
 
     
-    @classmethod
-    def virtual_client(cls, module): 
-        virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
-        return virtual_client(module)
+
     
     # NAMESPACE::MODULE
     namespace_module = 'module.namespace'
@@ -3256,7 +3253,7 @@ class c:
                mode:str = 'pm2',
                tag:str=None, 
                tag_seperator: str = '::',
-               verbose : bool = True, 
+               verbose : bool = False, 
                update: bool = False,
                **extra_launch_kwargs):
         '''
@@ -6000,7 +5997,7 @@ class c:
                     cwd = cwd or cls.dirpath(),
                     **extra_launch_kwargs)
         
-        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp(), 'response': response}
+        return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
 
     rfn = remote_fn
     @classmethod

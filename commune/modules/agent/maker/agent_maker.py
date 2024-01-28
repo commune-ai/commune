@@ -9,6 +9,7 @@ class Demo(c.Module):
         "name": "math",
         "description": "A demo agent.",
         "prompt": "Make a gpt that can do math.",
+        
     }
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())

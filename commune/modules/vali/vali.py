@@ -179,15 +179,11 @@ class Vali(c.Module):
                      search:str=None,  
                      netuid:int=None, 
                      update: bool = False):
-        if network == None:
-            network = self.config.network
-        if search == None:
-            search = self.config.search
-        if netuid == None:
-            netuid = self.config.netuid
         
-
-
+        network = network or self.config.network
+        search =  search or self.config.search
+        netuid = netuid or self.config.netuid
+        
         if 'subspace' in network:
             if '.' in network:
                 """
@@ -213,22 +209,26 @@ class Vali(c.Module):
         self.config.netuid = netuid
         self.config.search = search
 
-        self.namespace = c.namespace(search=self.config.search, 
-                                    network=self.config.network, 
-                                    netuid=self.config.netuid, 
+        self.namespace = c.namespace(search=search, 
+                                    network=network, 
+                                    netuid=netuid, 
                                     update=update)
         self.n  = len(self.namespace)    
         self.module_addresses = list(self.namespace.values())
         self.names = list(self.namespace.keys())
         self.address2name = {v: k for k, v in self.namespace.items()}    
         self.last_sync_time = c.time()
-        c.print(f'Synced network {self.config.network} netuid {self.config.netuid} n {self.n}', color='cyan')
-        return {
-                'network': self.config.network, 
-                'netuid': self.config.netuid, 
+        
+        r =  {
+                'network': network, 
+                'netuid': netuid, 
                 'n': self.n, 
-                'timestamp': self.last_sync_time
+                'timestamp': self.last_sync_time,
+                'msg': 'Synced network'
                 }
+        
+        c.print(r)
+        return r
         
         
 
@@ -436,13 +436,13 @@ class Vali(c.Module):
         return modules
 
     @classmethod
-    def num_module_infos(cls, tag=None, network=network):
-        return len(cls.module_names(network=network,tag=tag))
+    def num_module_infos(cls, tag=None, network=network, **kwargs):
+        return len(cls.module_names(network=network,tag=tag, **kwargs))
         
     @classmethod
     def module_infos(cls,
-                     tag=None,
-                      network:str='subspace', 
+                    tag=None,
+                    network:str='subspace', 
                     batch_size:int=20 , # batch size for 
                     max_staleness:int= 1000,
                     keys:str=None):
