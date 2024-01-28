@@ -2379,10 +2379,11 @@ class c:
         '''
         Returns a client to a server
         '''
-        client = c.module(f'client.{mode}')(ip=ip, port=port,**kwargs)
+        client_path = f'client.{mode}'
+        client = c.module(client_path)(ip=ip, port=port,**kwargs)
         # if virtual turn client into a virtual client, making it act like if the server was local
         if virtual:
-            client = c.module('client.{mode}.virtual')(client)
+            client = c.module(f'client.{mode}.virtual')(client)
         
         return client
 
@@ -4412,7 +4413,7 @@ class c:
     @classmethod
     def time2datetime(cls, t:float):
         import datetime
-        return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d_%H:%M:%S")
     time2date = time2datetime
 
     @classmethod
