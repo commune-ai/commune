@@ -1,26 +1,27 @@
 import commune as c
 
 class Tool(c.Module):
-    def __init__(
-        self,
-        # other params
-        name: str = 'dam',
-        description: str = 'This is a base tool that does nothing.',
-        tags: list[str] = ['defi', 'tool'], 
-        **kwargs
-    ):
-        self.set_config(kwargs=locals())
+
+    def tools(self, fn_name='call'):
+        tools = []
+        for module in c.tqdm(c.modules()):
+            try:
+                if hasattr(c.module(module),fn_name):
+                    tools.append(module)
+            except Exception as e:
+                pass
+        return tools
+
+    def has_tool(self, module, fn_name='call'):
+        try:
+            return f'def {fn_name}(' in c.code(module)
+        except:
+            return False
         
-        self.name = name
-        self.description = description
-        self.tags = tags
-        self.kwargs = kwargs
-
-        ## DEFINE TOOL STUFF
-        pass
-
-    def call(self, x:int , y:int, z: int ) -> int:
-        return x * 2 + y + z
-
     
+
+
+
+
+
     

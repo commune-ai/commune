@@ -819,6 +819,22 @@ class Subspace(c.Module):
     market_cap = total_supply = mcap  
             
         
+    @classmethod
+    def feature2storage(cls, feature:str):
+        storage = ''
+        capitalize = True
+        for i, x in enumerate(feature):
+            if capitalize:
+                x =  x.upper()
+                capitalize = False
+
+            if '_' in x:
+                capitalize = True
+
+            storage += x
+        return storage
+
+    
     def subnet_params(self, 
                     netuid=0,
                     network = network,
@@ -832,31 +848,44 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         path = f'cache/{network}.subnet_params.json'
         subnet_params = None if update else self.get(path, None) 
+        
+        name2feature  = {
+                'tempo': "Tempo",
+                'immunity_period': 'ImmunityPeriod',
+                'min_allowed_weights': 'MinAllowedWeights',
+                'max_allowed_weights': 'MaxAllowedWeights',
+                'max_allowed_uids': 'MaxAllowedUids',
+                'min_stake': 'MinStake',
+                'founder': 'Founder', 
+                'founder_share': 'FounderShare',
+                'incentive_ratio': 'IncentiveRatio',
+                'trust_ratio': 'TrustRatio',
+                'vote_threshold': 'VoteThresholdSubnet',
+                'vote_mode': 'VoteModeSubnet',
+                'self_vote': 'SelfVote',
+                'name': 'SubnetNames',
+                'max_stake': 'MaxStake',
+            }
+        
+
+
+        
+        features = list(name2feature.keys())
 
         if subnet_params == None:
             def query(*args, **kwargs ):
                 return Subspace().query_map(*args,**kwargs)
-            name2feature  = {
-                    'tempo': "Tempo",
-                    'immunity_period': 'ImmunityPeriod',
-                    'min_allowed_weights': 'MinAllowedWeights',
-                    'max_allowed_weights': 'MaxAllowedWeights',
-                    'max_allowed_uids': 'MaxAllowedUids',
-                    'min_stake': 'MinStake',
-                    'founder': 'Founder', 
-                    'founder_share': 'FounderShare',
-                    'incentive_ratio': 'IncentiveRatio',
-                    'trust_ratio': 'TrustRatio',
-                    'vote_threshold': 'VoteThresholdSubnet',
-                    'vote_mode': 'VoteModeSubnet',
-                    'self_vote': 'SelfVote',
-                    'name': 'SubnetNames',
-                    'max_stake': 'MaxStake',
-                }
-            name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}, timeout=timeout) for k,v in name2feature.items()}
+            
+            subnet_params = {}
+            name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}, timeout=timeout) for k, v in name2feature.items()}
             futures = list(name2job.values())
             results = c.wait(futures, timeout=timeout)
-            subnet_params = {k:v for k,v in zip(name2job.keys(), results)}
+            features = list(name2feature.keys())
+            for i,future in enumerate(futures):
+                k = features[i]
+                v = results[i]
+                subnet_params[k] = future.result()
+
             self.put(path, subnet_params)
 
         
@@ -865,7 +894,7 @@ class Subspace(c.Module):
             netuid = self.resolve_netuid(netuid)
             new_subnet_params = {}
             for k,v in subnet_params.items():
-                c.print(k,v)
+                c.print(k, v)
                 new_subnet_params[k] = v[netuid]
 
             subnet_params = new_subnet_params
