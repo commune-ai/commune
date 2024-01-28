@@ -75,6 +75,8 @@ class Namespace(c.Module):
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 
+        namespace = {k:v for k,v in namespace.items() if 'Internal Server Error' not in k} 
+
         if public:
             ip = c.ip()
             namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}

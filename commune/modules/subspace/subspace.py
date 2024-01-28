@@ -757,20 +757,25 @@ class Subspace(c.Module):
     def loop(self, intervals = {'light': 5, 'full': 600}, network=None, remote:bool=True):
         if remote:
             return self.remote_fn('loop', kwargs=dict(intervals=intervals, network=network, remote=False))
-        last_block_update = {k:0 for k in intervals.keys()}
+        last_update = {k:0 for k in intervals.keys()}
         staleness = {k:0 for k in intervals.keys()}
         c.get_event_loop()
 
         while True:
             block = self.block
-            staleness = {k:block - last_block_update[k] for k in intervals.keys()}
+            timestamp = c.timestamp()
+            staleness = {k:timestamp - last_update[k] for k in intervals.keys()}
             if staleness["full"] > intervals["full"]:
                 request = {
                             'network': network, 
                            'block': block
                            }
-                self.sync(**request)
-                last_block_update['full'] = block
+                try:
+                    self.sync(**request)
+                except Exception as e:
+                    c.print(e)
+                    continue
+                last_update['full'] = timestamp
             
 
     def subnet_exists(self, subnet:str, network=None) -> bool:
