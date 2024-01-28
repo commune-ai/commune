@@ -10,6 +10,36 @@ import json
 
 from aiohttp.streams import StreamReader
 
+
+
+class History(c.Module):
+    def add_history(self, item:dict,  key=None):
+        path = self.history_path+'/' + self.key.ss58_address + '/' + str(item['timestamp'])
+        return self.put(path, item)
+    
+    @classmethod
+    def history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.ls(history_path + '/' + key.ss58_address)
+    
+    
+    @classmethod
+    def all_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.glob(history_path)
+        
+    @classmethod
+    def rm_key_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path + '/' + key.ss58_address)
+    
+    @classmethod
+    def rm_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path)
+
+
+
 # Define a custom StreamReader with a higher limit
 class CustomStreamReader(StreamReader):
     def __init__(self, *args, **kwargs):
@@ -160,30 +190,6 @@ class Client(c.Module):
           
         return result
     
-    def add_history(self, item:dict,  key=None):
-        filename = str(item['timestamp'])
-        path = self.history_path+'/' + self.key.ss58_address + '/' + filename
-        return self.put(path, item)
-    
-    @classmethod
-    def history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.ls(history_path + '/' + key.ss58_address)
-    @classmethod
-    def all_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.glob(history_path)
-        
-    @classmethod
-    def rm_key_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path + '/' + key.ss58_address)
-    
-    @classmethod
-    def rm_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path)
-
 
     def process_output(self, result):
         ## handles 
