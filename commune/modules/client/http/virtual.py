@@ -4,7 +4,7 @@ from functools import partial
 import asyncio
 
 
-class VirtualClient:
+class VirtualClient(c.Module):
     def __init__(self, module: str ='ReactAgentModule'):
         if isinstance(module, str):
             import commune

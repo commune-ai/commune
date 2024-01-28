@@ -58,15 +58,12 @@ class ServerHTTP(c.Module):
         module.port = self.port
         module.address  = self.address
         self.module = module 
-
-
         self.access_module = c.module(access_module)(module=self.module)  
-
-
-        self.history_path = history_path or f'history/{self.name}'
-         
-
+        self.set_history_path(history_path)
         self.set_api(ip=self.ip, port=self.port)
+
+
+
 
 
 
@@ -144,23 +141,25 @@ class ServerHTTP(c.Module):
 
         result = self.process_result(result)
         
-        output = {
-            **input['data'],
+
+        if self.save_history:
+
+            output = {
+            'module': self.name,
+            'fn': fn,
+            'timestamp': input['data']['timestamp'],
+            'address': input['address'],
+            'args': input['data']['args'],
+            'kwargs': input['data']['kwargs'],
             'result': None if self.sse else result,
             'user': user_info,
-        }
-        output = input
-        output.update(output.pop('data', {}))
-        output['latency'] = c.time() - output['timestamp']
-    
-        c.print(output)
-        if self.save_history:
-            path = self.history_path+'/' + fn + '/'+output['address']  + '/' + str(output['timestamp']) 
-            self.put(path, output)
-    
-        return result
-    
 
+            }
+            output.update(output.pop('data', {}))
+            output['latency'] = c.time() - output['timestamp']
+            self.add_history(output)
+
+        return result
 
 
     def set_api(self, ip:str = '0.0.0.0', port:int = 8888):
@@ -196,7 +195,7 @@ class ServerHTTP(c.Module):
         
 
     @classmethod
-    def history(cls, server=None, history_path='history', n=100):
+    def history_paths(cls, server=None, history_path='history', n=100, key=None):
         if server == None:
             dirpath  = f'{history_path}'
             paths =  cls.glob(dirpath)
@@ -206,16 +205,6 @@ class ServerHTTP(c.Module):
             paths =  cls.ls(dirpath)
         paths = sorted(paths, reverse=True)[:n]
         return paths
-
-    @classmethod
-    def rm_history(cls, server=None, history_path='history'):
-        dirpath  = f'{history_path}/{server}'
-        return cls.rm(dirpath)
-    
-    @classmethod
-    def rm_all_history(cls, server=None, history_path='history'):
-        dirpath  = f'{history_path}'
-        return cls.rm(dirpath)
 
 
     def state_dict(self) -> Dict:
@@ -274,4 +263,41 @@ class ServerHTTP(c.Module):
         module.put("hey",1)
         c.kill(module_name)
 
+    def add_history(self, item:dict):    
+        path = self.history_path + '/' + item['address'] + '/'+  str(item['timestamp']) 
+        self.put(path, item)
 
+    def set_history_path(self, history_path):
+        self.history_path = history_path or f'history/{self.name}'
+        return {'history_path': self.history_path}
+
+    @classmethod
+    def rm_history(cls, server=None, history_path='history'):
+        dirpath  = f'{history_path}/{server}'
+        return cls.rm(dirpath)
+    
+    @classmethod
+    def rm_all_history(cls, server=None, history_path='history'):
+        dirpath  = f'{history_path}'
+        return cls.rm(dirpath)
+
+
+    @classmethod
+    def history(cls, 
+                key=None, 
+                history_path='history',
+                features=[ 'module', 'fn', 'seconds_ago', 'latency', 'address'], 
+                to_list=False
+                ):
+        key = c.get_key(key)
+        history_path = cls.history_paths(key=key, history_path=history_path)
+        df =  c.df([cls.get(path) for path in history_path])
+        now = c.timestamp()
+        df['seconds_ago'] = df['timestamp'].apply(lambda x: now - x)
+        df = df[features]
+        
+        if to_list:
+            return df.to_dict('records')
+  
+
+        return df

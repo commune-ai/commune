@@ -160,32 +160,6 @@ class Client(c.Module):
           
         return result
     
-    def add_history(self, item:dict,  key=None):
-
-        path = self.history_path+'/' + self.key.ss58_address + '/' + str(item['timestamp'])
-        return self.put(path, item)
-    
-    @classmethod
-    def history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.ls(history_path + '/' + key.ss58_address)
-    
-    
-    @classmethod
-    def all_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.glob(history_path)
-        
-    @classmethod
-    def rm_key_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path + '/' + key.ss58_address)
-    
-    @classmethod
-    def rm_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path)
-
 
     def process_output(self, result):
         ## handles 
@@ -220,3 +194,41 @@ class Client(c.Module):
     
     def __repr__(self) -> str:
         return super().__repr__()
+
+    # HISTORY
+
+    def add_history(self, item:dict,  key=None):
+
+        path = self.history_path+'/' + self.key.ss58_address + '/' + str(item['timestamp'])
+        return self.put(path, item)
+    
+    @classmethod
+    def history_paths(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.ls(history_path + '/' + key.ss58_address)
+
+    def history(self, key=None, history_path='history', features=['module', 'fn', 'seconds_ago', 'latency']):
+        key = c.get_key(key)
+        history_path = self.history_paths(key=key, history_path=history_path)
+        df =  c.df([self.get(path) for path in history_path])
+        now = c.timestamp()
+        df['seconds_ago'] = df['timestamp'].apply(lambda x: now - x)
+        df = df[features]
+        return df
+        
+    
+    @classmethod
+    def all_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.glob(history_path)
+        
+    @classmethod
+    def rm_key_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path + '/' + key.ss58_address)
+    
+    @classmethod
+    def rm_history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.rm(history_path)
+
