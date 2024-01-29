@@ -157,7 +157,6 @@ class Server(c.Module):
         cols = st.columns([2,2])
 
     def search_dashboard(self):
-        c.print('fam')
         search = st.text_input('Search', '', key=f'search')
         namespace = {k:v for k,v in self.namespace.items() if search in k}
         df = pd.DataFrame(namespace.values(), index=namespace.keys(), columns=['address'])
