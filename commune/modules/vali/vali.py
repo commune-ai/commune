@@ -241,6 +241,19 @@ class Vali(c.Module):
     def eval_module(self, module:str, network=None):
         return c.gather(self.async_eval_module(module=module, network=network))
     
+    def filter_module(self, module_info:dict):
+        """
+        The following filters out modules that have been called recently
+        
+        """
+        seconds_since_called = c.time() - module_info.get('timestamp', 0)
+
+        # if the module was called recently, we can just return the module info
+        return bool(seconds_since_called > self.config.max_staleness)
+            
+        
+        
+
     async def async_eval_module(self, module:str, network = None):
         """
         The following evaluates a module sver
@@ -251,6 +264,8 @@ class Vali(c.Module):
 
         namespace = self.namespace
         address2name = self.address2name
+
+        # RESOLVE THE MODULE ADDRESS
         # CONFIGURE THE ADDRESS AND NAME (INFER THE NAME IF THE ADDDRESS IS PASED)
         if module in namespace:
             module_name = module
@@ -264,31 +279,29 @@ class Vali(c.Module):
 
         # load the module info and calculate the staleness of the module
         module_info = self.load_module_info( module, {})
-        seconds_since_called = c.time() - module_info.get('timestamp', 0)
-        try:
-            if seconds_since_called > self.config.max_staleness :
-                module = c.connect(module_address)
-                if 'info' not in module_info:
-                    info = module.info()
-                    if 'address' in info and 'name' in info:
-                        module_info.update(info)
-                response = self.score_module(module)
-                assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
-                assert 'w' in response, f'Response must have a w key, got {response.keys()}'
-                module_info.update(response)
-                response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
-                self.successes += 1
-                # c.print(response['msg'], color='cyan', verbose=self.config.debug)
 
-            else:
-                # skip this module if it is too stale, and return the module info
-                return module_info
+        # if the module is stale, we can just return the module info
+        if not self.filter_module(module_info):
+            return module_info
+
+        try:
+            module = c.connect(module_address, key=self.key)
+            c.print(f'Calling {module_name} {module_address}', color='cyan')
+            if 'info' not in module_info:
+                info = module.info()
+                if 'address' in info and 'name' in info:
+                    module_info.update(info)
+            response = self.score_module(module)
+            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
+            assert 'w' in response, f'Response must have a w key, got {response.keys()}'
+            module_info.update(response)
+            response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
+            self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
+            c.print(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
             self.errors += 1  
-            c.print(response['msg'], color='cyan', verbose=self.config.debug)
-
             
         # we only want to save the module stats if the module was successful
         
@@ -302,6 +315,7 @@ class Vali(c.Module):
         module_info['history'] = (module_info.get('history', []) + [history_record])
         module_info['history'] = module_info['history'][:self.config.max_history]
 
+        c.print(response['msg'], color='cyan', verbose=self.config.debug)
 
         self.save_module_info(module_name, module_info)
 
@@ -438,14 +452,23 @@ class Vali(c.Module):
     @classmethod
     def num_module_infos(cls, tag=None, network=network, **kwargs):
         return len(cls.module_names(network=network,tag=tag, **kwargs))
+    
+
+
+    @classmethod
+    def leaderboard(cls, *args, **kwargs): 
+        df =  c.df(cls.module_infos(*args, **kwargs))
+        df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
+        return df
         
     @classmethod
     def module_infos(cls,
                     tag=None,
                     network:str='subspace', 
-                    batch_size:int=20 , # batch size for 
+                    batch_size:int=100 , # batch size for 
                     max_staleness:int= 1000,
-                    keys:str=None):
+                    keys:str=None, 
+                    ):
 
         paths = cls.module_paths(network=network, tag=tag)   
         c.print(f'Loading {len(paths)} module infos', color='cyan')

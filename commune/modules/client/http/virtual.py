@@ -4,7 +4,7 @@ from functools import partial
 import asyncio
 
 
-class VirtualClient(c.Module):
+class VirtualClient:
     def __init__(self, module: str ='ReactAgentModule'):
         if isinstance(module, str):
             import commune
@@ -13,7 +13,7 @@ class VirtualClient(c.Module):
             self.success = self.module_client.success
         else:
             self.module_client = module
-    
+
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout:int=10, **kwargs):
         future =  asyncio.wait_for(self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs), timeout=timeout)
         if return_future:
