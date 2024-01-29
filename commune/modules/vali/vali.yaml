@@ -4,13 +4,9 @@ chain: null
 network: subspace
 netuid: 0
 voting_networks: ['subspace', 'bittensor']
-threads_per_worker: 20
 max_history: 10
 alpha: 0.5
-timeout: 4
-
 tag: null
-num_workers: 10
 start: True
 verbose: False
 batch_size: 32
@@ -18,7 +14,7 @@ refresh_stats: False
 vote_interval: 100
 sync_interval: 100
 search: null
-max_staleness: 100
+max_staleness: 500
 virtual_module: False
 check_loop: True
 run_mode : thread
@@ -45,10 +41,10 @@ alpha: 0.5
 
 
 # workers
-timeout: 10
-info_timeout: 5
-sleep_time: 0.05
 num_workers: 1
+num_threads: 32
+timeout: 10
+sleep_time: 0.05
 refresh : True
 start: True
 is_main_worker: True

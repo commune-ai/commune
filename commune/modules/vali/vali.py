@@ -118,7 +118,8 @@ class Vali(c.Module):
         self.running = True
         last_print = 0
 
-        self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
+        self.executor  = c.module('executor.thread')(max_workers=self.config.num_threads)
+
 
         while self.running:
             results = []
@@ -127,30 +128,26 @@ class Vali(c.Module):
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync_network()
-
+                
             module_addresses = c.shuffle(c.copy(self.module_addresses))
             batch_size = self.config.batch_size 
             # select a module
             results = []
             for  i, module_address in enumerate(module_addresses):
-                
               
                 if len(futures) < batch_size:
-                
                     future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
                     
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                            
                             try:
                                 result = ready_future.result()
                             except Exception as e:
                                 result = {'success': False, 'error': c.detailed_error(e)}
                             futures.remove(ready_future)
                             results.append(result)
-                        
                             break
                     except Exception as e:
                         e = c.detailed_error(e)
@@ -170,7 +167,6 @@ class Vali(c.Module):
                     df = c.df(df_rows[-1:])
                     results = []
                     c.print(df)
-                    # c.print(f'STATS  --> {stats}\n', color='white')
                     last_print = c.time()
 
 
@@ -234,24 +230,25 @@ class Vali(c.Module):
 
     def score_module(self, module):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        info = module.info()
-        assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        return {'success': True, 'w': 1, 'info': info}
+        return {'success': True, 'w': 1}
 
     def eval_module(self, module:str, network=None):
         return c.gather(self.async_eval_module(module=module, network=network))
     
-    def filter_module(self, module_info:dict):
-        """
-        The following filters out modules that have been called recently
-        
-        """
-        seconds_since_called = c.time() - module_info.get('timestamp', 0)
 
-        # if the module was called recently, we can just return the module info
-        return bool(seconds_since_called > self.config.max_staleness)
-            
-        
+    def check_response(self, response:dict):
+        """
+        The following processes the response from the module
+        """
+        if type(response) in [int, float]:
+            response = {'w': response}
+        elif type(response) == bool:
+            response = {'w': int(response)}
+        else:
+            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
+            assert 'w' in response, f'Response must have a w key, got {response.keys()}'
+
+        return response
         
 
     async def async_eval_module(self, module:str, network = None):
@@ -263,60 +260,59 @@ class Vali(c.Module):
             self.sync_network(network=network)
 
         namespace = self.namespace
-        address2name = self.address2name
-
         # RESOLVE THE MODULE ADDRESS
-        # CONFIGURE THE ADDRESS AND NAME (INFER THE NAME IF THE ADDDRESS IS PASED)
         if module in namespace:
             module_name = module
             module_address = namespace[module]
-        else:
+        elif module in self.address2name:
+            module_name = self.address2name[module]
             module_address = module
-            module_name = address2name.get(module_address, module_address)
-            
-        start_timestamp = c.time()
-        self.requests += 1
-
+        else:
+            module_name = module
+        
         # load the module info and calculate the staleness of the module
-        module_info = self.load_module_info( module, {})
-
+        module_info = self.load_module_info( module_name, {})
         # if the module is stale, we can just return the module info
-        if not self.filter_module(module_info):
+        seconds_since_called = c.time() - module_info.get('timestamp', 0)
+
+        if seconds_since_called < self.config.max_staleness:
             return module_info
+        
+        module_info['timestamp'] = c.time()
 
         try:
+            self.requests += 1
             module = c.connect(module_address, key=self.key)
-            c.print(f'Calling {module_name} {module_address}', color='cyan')
-            if 'info' not in module_info:
+            if 'address' not in module_info:
                 info = module.info()
-                if 'address' in info and 'name' in info:
-                    module_info.update(info)
+                assert 'address' in info, f'Info must have a address key, got {info.keys()}'
+                assert 'name' in info, f'Info must have a name key, got {info.keys()}'
+                # we want to make sure that the module info has a timestamp
+                module_info.update(info)
+                
+            
+            module_name = module_info['name']
+            # we want to make sure that the module info has a timestamp
             response = self.score_module(module)
-            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
-            assert 'w' in response, f'Response must have a w key, got {response.keys()}'
+            response = self.check_response(response)
             module_info.update(response)
             response['msg'] =  f'{c.emoji("checkmark")}{module_name} --> w:{response["w"]} {c.emoji("checkmark")} '
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
-            c.print(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
             self.errors += 1  
-            
-        # we only want to save the module stats if the module was successful
         
-        module_info['latency'] = c.time() - start_timestamp
-        module_info['timestamp'] = start_timestamp
-        # update the w with the new w
-        module_info['w'] = response['w'] * self.config.alpha + module_info.get('w', 0) * (1 - self.config.alpha)
+
+        module_info['latency'] = c.time() - module_info['timestamp']
         
-        # update the history
-        history_record = {k:module_info[k] for k in self.config.history_features}
-        module_info['history'] = (module_info.get('history', []) + [history_record])
-        module_info['history'] = module_info['history'][:self.config.max_history]
+        # UPDATE W
+        alpha = self.config.alpha # the weight of the new w
+        w_old = module_info.get('w', 0) # the old weight
+        w = response['w'] # the new weight
+        module_info['w'] = w * alpha + w_old * (1 - alpha)
 
         c.print(response['msg'], color='cyan', verbose=self.config.debug)
-
         self.save_module_info(module_name, module_info)
 
         self.count += 1
@@ -451,7 +447,7 @@ class Vali(c.Module):
 
     @classmethod
     def num_module_infos(cls, tag=None, network=network, **kwargs):
-        return len(cls.module_names(network=network,tag=tag, **kwargs))
+        return len(cls.module_infos(network=network,tag=tag, **kwargs))
     
 
 
@@ -466,9 +462,17 @@ class Vali(c.Module):
                     tag=None,
                     network:str='subspace', 
                     batch_size:int=100 , # batch size for 
-                    max_staleness:int= 1000,
-                    keys:str=None, 
+                    max_staleness:int= 3600,
+                    update = True,
+                    keys = ['name', 'w', 'staleness', 'timestamp', 'address'],
+                    path = 'cache/module_infos'
                     ):
+        
+        if not update:
+            path = cls.resolve_storage_path(network=network, tag=tag) + f'/{path}'
+            module_infos = cls.get(path, [])
+            if len(module_infos) > 0:
+                return module_infos
 
         paths = cls.module_paths(network=network, tag=tag)   
         c.print(f'Loading {len(paths)} module infos', color='cyan')
@@ -487,12 +491,17 @@ class Vali(c.Module):
                     s['staleness'] = c.timestamp() - s['timestamp']
                 else:
                     s['staleness'] = 0
+                
                 if s['staleness'] > max_staleness:
+                    continue
+                if s['w'] <= 0:
                     continue
                 if keys  != None:
                     s = {k: s.get(k,None) for k in keys}
                 module_infos += [s]
-        
+
+        cls.put(path, module_infos)
+
         return module_infos
     
 
@@ -510,15 +519,14 @@ class Vali(c.Module):
         module_infos = self.load_module_info(k, default=default)
         return module_infos.get('history', [])
     
-    def save_module_info(self,k:str, v):
-        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{k}'
-        self.put_json(path, v)
+    def save_module_info(self,module_name:str, module_info:dict):
+        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{module_name}'
+        self.put_json(path, module_info)
 
 
     @property
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
-
 
     @property
     def epochs(self):
@@ -527,7 +535,6 @@ class Vali(c.Module):
     def stop(self):
         self.running = False
     
-
     @classmethod
     def check_loop_running(cls):
         return c.pm2_exists(cls.check_loop_name)
@@ -563,8 +570,6 @@ class Vali(c.Module):
         c.new_event_loop()
         
         st.title(module_path)
-
-
 
         servers = c.servers(search='vali')
         server = st.selectbox('Select Vali', servers)
