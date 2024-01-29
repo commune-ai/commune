@@ -171,8 +171,6 @@ class ThreadPoolExecutor(c.Module):
                     return
                 del executor
         except Exception as e:
-            c.print("work_item", work_item, color='red')
-
             e = c.detailed_error(e)
 
     @property
