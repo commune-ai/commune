@@ -357,6 +357,7 @@ class Subspace(c.Module):
                   update: bool = True,
                   return_dict:bool = True,
                   update_interval:int = 10,
+                  max_age = 1000,
                   
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
@@ -374,16 +375,17 @@ class Subspace(c.Module):
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
+        timestamp = int(c.timestamp())
         if not update:
-            value = self.get(path, None)
+            value = self.get(path, None, max_age=max_age)
             if value != None:
                 return value
         
         network = self.resolve_network(network)
 
-        if block == None:
-            block = self.block
-
+        # if the value is a tuple then we want to convert it to a list
+        block = block or self.block
+        
         with self.substrate as substrate:
             block_hash = substrate.get_block_hash(block)
             qmap =  substrate.query_map(
@@ -443,7 +445,7 @@ class Subspace(c.Module):
                         tmp_map[int(k2)] = v2
                     newer_map[int(k1)] = tmp_map
                 new_qmap = newer_map
-
+        
         self.put(path, new_qmap)
 
         return new_qmap

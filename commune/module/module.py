@@ -558,7 +558,7 @@ class c:
             if max_age != None:
                 timestamp = data.get('timestamp', None)
                 if timestamp != None:
-                    age = c.get_age(timestamp)
+                    age = c.timestamp() - timestamp
                     if age > max_age:
                         if verbose:
                             c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
@@ -600,15 +600,28 @@ class c:
         data_map = {k: cls.get(k, default=default, mode=mode, max_age=max_age, cache=cache, full=full, **kwargs) for k in k}
         return data_map
 
+    @classmethod
+    def get_age(cls, k:int=0, scale:str = 'hours', **kwargs) -> int:
 
+        try:
+            timestamp =  cls.get_json(k).get('timestamp', 0)
+        except:
+            timestamp = 0
 
-    @staticmethod
-    def get_age(timestamp:int=0):
-        return c.time() - timestamp
+        seconds =  c.timestamp() - int(timestamp)
+        scale2factor = {'seconds': 1,
+                         'minutes': 60, 
+                         'hours': 3600,
+                           'days': 86400, 
+                           'weeks': 604800, 
+                           'years': 31536000}
+        
+        return seconds / scale2factor[scale]
+
     
     @staticmethod
     def too_old(self, timestamp:int, max_age:int):
-        return self.get_age(timestamp) > max_age
+        return c.time() - timestamp > max_age
     
     
     @classmethod
