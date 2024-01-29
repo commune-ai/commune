@@ -2383,7 +2383,7 @@ class c:
         client = c.module(client_path)(ip=ip, port=port,**kwargs)
         # if virtual turn client into a virtual client, making it act like if the server was local
         if virtual:
-            client = c.module(f'client.{mode}.virtual')(client)
+            return client.virtual()
         
         return client
 
@@ -5307,8 +5307,14 @@ class c:
         return True
     
     @classmethod
-    def is_error(cls, x:dict):
-        return not cls.is_success(x)
+    def is_error(cls, x:Any):
+        if isinstance(x, dict):
+            if 'error' in x:
+                return False
+            if 'success' in x and x['success'] == False:
+                return False
+        
+        return False
 
 
     @staticmethod

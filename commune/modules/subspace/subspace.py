@@ -877,20 +877,23 @@ class Subspace(c.Module):
         
         features = list(name2feature.keys())
 
+
         if subnet_params == None:
             def query(*args, **kwargs ):
                 return Subspace().query_map(*args,**kwargs)
             
             subnet_params = {}
-            name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}, timeout=timeout) for k, v in name2feature.items()}
-            futures = list(name2job.values())
-            results = c.wait(futures, timeout=timeout)
-            features = list(name2feature.keys())
-            for i,future in enumerate(futures):
-                k = features[i]
-                v = results[i]
-                subnet_params[k] = future.result()
-
+            has_all_features = lambda x: all([f in x for f in features])
+            while not has_all_features(subnet_params):
+                features_left = [f for f in features if f not in subnet_params]
+                c.print(f'Querying {features_left}')
+                name2job = {k:c.submit(query, kwargs={'name':v, 'update': update}, timeout=timeout) for k,v in name2feature.items()}
+                jobs = list(name2job.values())
+                results = c.wait(jobs, timeout=timeout)
+                for i, feature in enumerate(features_left):
+                    c.print(results[i])
+                    if not c.is_error(results[i]):
+                        subnet_params[feature] = results[i]
             self.put(path, subnet_params)
 
         
@@ -899,7 +902,7 @@ class Subspace(c.Module):
             netuid = self.resolve_netuid(netuid)
             new_subnet_params = {}
             for k,v in subnet_params.items():
-                c.print(k, v)
+                c.print(k,v)
                 new_subnet_params[k] = v[netuid]
 
             subnet_params = new_subnet_params
