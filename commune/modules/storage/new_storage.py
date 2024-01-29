@@ -68,7 +68,14 @@ class Storage(c.Module):
 
 
 
-    def put(self, k,  v: Dict, password:str=None, timestamp=None):
+    def put(self, k,  
+            v: Dict, 
+            password:str=None, 
+            ticket = None,
+            timestamp=None):
+        
+        path = self.resolve_item_path(k) 
+        
         timestamp = timestamp or c.timestamp()
         
         if password != None:
@@ -81,17 +88,17 @@ class Storage(c.Module):
             'data': v,
             'timestamp': timestamp,
             'encrypted': encrypted,
-   
         }
         data['signature'] = self.key.sign(data)
 
         self.check_data(data)
 
-        path = self.tag + '/' + k  
         self.put_json(path, data)
         
         return {'success': True, 'msg': f'Put {k} with {len(v)} bytes'}
     
+
+
 
     def check_data(self, data:Dict) -> bool:
         assert isinstance(data, dict), f'Data must be a dict, got {type(data)}'
@@ -107,11 +114,9 @@ class Storage(c.Module):
         self.check_data(data)
         if password != None:
             data = c.decrypt(data['data'], password=password)
-
-        if not raw:
-            return data['data']
-    
-        return data
+        if raw:
+            return data
+        return data['data']
     
     def exists(self, k, tag=None) -> bool:
         path = self.resolve_item_path(k, tag=tag)
@@ -166,8 +171,7 @@ class Storage(c.Module):
             peer = c.choice(self.peers())
             client = c.module(peer)
             response = client.put(item_key, item_data)
-        else
-
+ 
         item_data['replicas'] = replicas + [peer]
         self.put_json(item_key, item_data)
 

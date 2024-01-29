@@ -356,8 +356,7 @@ class Subspace(c.Module):
                   module='SubspaceModule',
                   update: bool = True,
                   return_dict:bool = True,
-                  update_interval:int = 10,
-                  max_age = 1000,
+                  max_age = 3600,
                   
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """

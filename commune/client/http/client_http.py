@@ -234,6 +234,5 @@ class ClientHttp(c.Module):
         return cls.rm(history_path)
     
     def virtual(self):
-        c.print('fam')
         return VirtualClient(module = self)
 
