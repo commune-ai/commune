@@ -6,44 +6,9 @@ from functools import partial
 import commune as c
 import aiohttp
 import json
-
-
+from .virtual_client import VirtualClient
 from aiohttp.streams import StreamReader
 
-
-
-
-class VirtualClient:
-    def __init__(self, module: str ='ReactAgentModule'):
-        if isinstance(module, str):
-            import commune
-            self.module_client = c.connect(module)
-            self.loop = self.module_client.loop
-            self.success = self.module_client.success
-        else:
-            self.module_client = module
-    
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout:int=10, **kwargs):
-        future =  asyncio.wait_for(self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs), timeout=timeout)
-        if return_future:
-            return future
-        else:
-            loop = asyncio.get_event_loop()
-            return loop.run_until_complete(future)
-            
-    def __str__(self):
-        return f'<VirtualClient(name={self.module_client.name}, address={self.module_client.address})>'
-
-    def __repr__(self):
-        return self.__str__()
-        
-    protected_attributes = [ 'module_client', 'remote_call']
-    def __getattr__(self, key):
-
-        if key in self.protected_attributes :
-            return getattr(self, key)
-        else:
-            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
 
 
 # Define a custom StreamReader with a higher limit
@@ -54,7 +19,7 @@ class CustomStreamReader(StreamReader):
         super().__init__(*args, limit=1024*1024, **kwargs)
 
 
-class Client(c.Module):
+class ClientHttp(c.Module):
 
     def __init__( 
             self,
@@ -219,7 +184,7 @@ class Client(c.Module):
     __call__ = forward
 
     def __str__ ( self ):
-        return "Client({})".format(self.address) 
+        return f"ClientHttp({self.address})"
     def __repr__ ( self ):
         return self.__str__()
     def __exit__ ( self ):
@@ -234,8 +199,7 @@ class Client(c.Module):
 
     # HISTORY
 
-    def add_history(self, item:dict,  key=None):
-
+    def add_history(self, item:dict):
         path = self.history_path+'/' + self.key.ss58_address + '/' + str(item['timestamp'])
         return self.put(path, item)
     
@@ -270,5 +234,6 @@ class Client(c.Module):
         return cls.rm(history_path)
     
     def virtual(self):
+        c.print('fam')
         return VirtualClient(module = self)
 

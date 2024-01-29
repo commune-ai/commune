@@ -464,7 +464,7 @@ class Vali(c.Module):
                     batch_size:int=100 , # batch size for 
                     max_staleness:int= 3600,
                     update = True,
-                    keys = ['name', 'w', 'staleness', 'timestamp', 'address'],
+                    keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos'
                     ):
         
@@ -475,23 +475,22 @@ class Vali(c.Module):
                 return module_infos
 
         paths = cls.module_paths(network=network, tag=tag)   
-        c.print(f'Loading {len(paths)} module infos', color='cyan')
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
-
-
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
             results = c.gather(jobs_batch)
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
+
+                if not isinstance(s, dict):
+                    continue
+                s['staleness'] = c.timestamp() - s.get('timestamp', 0)
+                if keys != None and not all([k in s for k in keys]):
+                    # the module info is missing some keys
+                    continue
                 if s == None:
                     continue
-                if 'timestamp' in s:
-                    s['staleness'] = c.timestamp() - s['timestamp']
-                else:
-                    s['staleness'] = 0
-                
                 if s['staleness'] > max_staleness:
                     continue
                 if s['w'] <= 0:
