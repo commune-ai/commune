@@ -903,7 +903,6 @@ class Subspace(c.Module):
             netuid = self.resolve_netuid(netuid)
             new_subnet_params = {}
             for k,v in subnet_params.items():
-                c.print(k,v)
                 new_subnet_params[k] = v[netuid]
 
             subnet_params = new_subnet_params
