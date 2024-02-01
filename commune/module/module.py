@@ -5323,12 +5323,10 @@ class c:
     def is_error(cls, x:Any):
         if isinstance(x, dict):
             if 'error' in x:
-                return False
-            if 'success' in x and x['success'] == False:
-                return False
-        
+                return True
+            if 'success' in x and x['success'] == True:
+                return True
         return False
-
 
     @staticmethod
     def is_number(value):
@@ -8129,6 +8127,11 @@ class c:
     def threads(cls, *args, **kwargs):
         return list(cls.thread_map(*args, **kwargs).keys())
 
+
+    @classmethod
+    def thread_count(cls):
+        import threading
+        return threading.active_count()
     @classmethod
     def resolve_key_address(cls, key):
         key2address = c.key2address()
