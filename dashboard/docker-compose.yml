@@ -2,13 +2,13 @@ version: '3'
 services:
   commune:
     build:
-      context: ./commune
+      context: ../../commune
       dockerfile: Dockerfile
     container_name: commune
 
-  yolo-commune:
+  yolo:
     build:
-      context: ./yolo-commune
+      context: ./yolo
       dockerfile: Dockerfile
     container_name: yolo-commune
     depends_on:
@@ -20,7 +20,7 @@ services:
     build:
       context: ./langchain-agent
       dockerfile: Dockerfile
-    container_name: langchain-agent
+    container_name: langchain-agent-commune
     depends_on:
       - commune
     ports:

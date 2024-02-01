@@ -7,8 +7,8 @@ st.set_page_config(layout="wide", page_title="X-Runner", page_icon=":🪐:")
 
 data = pd.DataFrame(
     [
-        {"No": 1, "Modules": "Langchain Agent", "Link": "https://11d5a0a1a66f1b164f.gradio.live/"},
-        {"No": 2, "Modules": "Yolo", "Link": "https://4591126046ad032086.gradio.live/"},
+        {"No": 1, "Modules": "Langchain Agent", "Link": "https://0103ab2f88cbbd0e36.gradio.live"},
+        {"No": 2, "Modules": "Yolo", "Link": "https://aabb2740c8bc05e8a4.gradio.live"},
     ]
 )
 
