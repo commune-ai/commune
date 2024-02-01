@@ -356,7 +356,7 @@ class Subspace(c.Module):
                   module='SubspaceModule',
                   update: bool = True,
                   return_dict:bool = True,
-                  max_age = 3600,
+                  max_age = None,
                   
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
@@ -819,7 +819,7 @@ class Subspace(c.Module):
 
     def mcap(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
         total_balance = self.total_balance(network=network, block=block, update=update)
-        total_stake = self.total_stake
+        total_stake = self.total_stake(network=network, block=block, update=update)
         return self.format_amount(total_stake + total_balance, fmt=fmt)
     
     market_cap = total_supply = mcap  
@@ -892,7 +892,6 @@ class Subspace(c.Module):
                 jobs = list(name2job.values())
                 results = c.wait(jobs, timeout=timeout)
                 for i, feature in enumerate(features_left):
-                    c.print(results[i])
                     if not c.is_error(results[i]):
                         subnet_params[feature] = results[i]
             self.put(path, subnet_params)
@@ -904,7 +903,6 @@ class Subspace(c.Module):
             new_subnet_params = {}
             for k,v in subnet_params.items():
                 new_subnet_params[k] = v[netuid]
-
             subnet_params = new_subnet_params
 
             for k in ['min_stake', 'max_stake']:
@@ -923,9 +921,7 @@ class Subspace(c.Module):
     
     subnet = subnet_params
 
-    def total_subnets( self, block: Optional[int] = None ) -> int:
-        return self.query( 'TotalSubnets', block=block )      
-    
+
     def subnet2params( self, network: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuids = self.netuids(network=network)
         subnet2params = {}
@@ -1999,10 +1995,11 @@ class Subspace(c.Module):
             for future in c.as_completed(futures, timeout=timeout):
                 feature = result2feature[future]
                 result = future.result()
-                if c.is_error(result):
-                    continue
                 feature2params.pop(feature, None)
-                result2feature.pop(future)
+                result2feature.pop(future, None)
+                if c.is_error(result):
+                    c.print('ERROR IN FEATURE', feature, result)
+                    continue
                 state_dict[feature] = result
 
                 # verbose 
@@ -3105,8 +3102,8 @@ class Subspace(c.Module):
     unreged = unreged_servers = unregistered_servers
                
     
-    def my_balances(self, search=None, min_value=1000, fmt='j', **kwargs):
-        balances = self.balances(fmt=fmt, **kwargs)
+    def my_balances(self, search=None, min_value=1000, fmt='j', update=False, **kwargs):
+        balances = self.balances(fmt=fmt, update=update, **kwargs)
         address2key = c.address2key(search)
         my_balances = {k:balances.get(k, 0) for k in address2key.keys()}
 
@@ -3294,7 +3291,7 @@ class Subspace(c.Module):
 
  
     def my_total_balance(self, network = None, fmt=fmt, update=False):
-        return sum(self.my_balance(network=network, fmt=fmt, ).values())
+        return sum(self.my_balance(network=network, fmt=fmt, update=update ).values())
 
 
     def check_valis(self):

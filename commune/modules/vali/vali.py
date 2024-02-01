@@ -331,13 +331,19 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return self.tag if tag == None else tag
     
+    def vote_info(self, tag=None, network=None):
+        votes = self.calculate_votes(tag=tag, network=network)
+        return {
+            'votes': votes,
+        }
+    
     def calculate_votes(self, tag=None, network = None):
         network = network or self.config.network
         tag = tag or self.tag
         c.print(f'Calculating votes for {network} {tag}', color='cyan')
 
         # get the list of modules that was validated
-        module_infos = self.module_infos(network=network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
+        module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'], tag=tag)
         votes = {
             'keys' : [],            # get all names where w > 0
             'weights' : [],  # get all weights where w > 0
