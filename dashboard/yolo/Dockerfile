@@ -1,4 +1,4 @@
-FROM x-runner-commune:latest
+FROM dashboard-commune:latest
 
 # Copy the script into the image
 COPY Yolo.sh /usr/local/bin/

@@ -1,4 +1,4 @@
-FROM x-runner-commune:latest
+FROM dashboard-commune:latest
 
 # Copy the script into the image
 COPY run-langchain-agent-commune.sh /usr/local/bin/
@@ -6,7 +6,7 @@ COPY run-langchain-agent-commune.sh /usr/local/bin/
 # Make the script executable
 RUN chmod +x /usr/local/bin/run-langchain-agent-commune.sh
 
-ENV OPENAI_API_KEY=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
+ENV OPENAI_API_KEY=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
 
 #RUN  install portaudio19-dev
 # Install Python packages
