@@ -2876,7 +2876,7 @@ class c:
 
         self.tag = tag
         self.key = server_name
-
+        
         address = c.get_address(server_name, network=network)
         if address != None and ':' in address:
             port = address.split(':')[-1]   

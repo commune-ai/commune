@@ -599,7 +599,8 @@ class Subspace(c.Module):
         stake_from = self.get_stake_from(key=key, block=block, netuid=netuid, fmt=fmt)
         key2module = self.key2module(netuid=netuid)
         return {key2module[k]['name'] : v for k,v in stake_from}
-        
+    
+
     def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
@@ -3112,8 +3113,8 @@ class Subspace(c.Module):
         if min_value != None:
             my_balances = {k:v for k,v in my_balances.items() if v >= min_value}
         return my_balances
-
-
+    
+    
     def launcher_key(self, search=None, min_value=1000, **kwargs):
         
         my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
@@ -3267,8 +3268,9 @@ class Subspace(c.Module):
         staker2netuid2stake = self.staker2netuid2stake(update=update, network=network, fmt=fmt, local=local)
         staker2stake = {}
         for staker, netuid2stake in staker2netuid2stake.items():
-            staker2stake[staker] = sum(netuid2stake.values())
-            staker2stake[staker] = self.format_amount(staker2stake[staker],fmt=fmt)
+            if staker not in staker2stake:
+                staker2stake[staker] = 0
+            staker2stake[staker] +=  self.format_amount(sum(netuid2stake.values()),fmt=fmt)
         return staker2stake
     
 

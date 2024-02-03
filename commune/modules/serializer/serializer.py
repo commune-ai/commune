@@ -8,9 +8,6 @@ import torch
 import msgpack
 import msgpack_numpy
 from typing import Tuple, List, Union, Optional
-import sys
-import os
-import asyncio
 from copy import deepcopy
 from munch import Munch
 
@@ -19,27 +16,14 @@ import json
 
 
 class Serializer(c.Module):
-    r""" Bittensor base serialization object for converting between DataBlock and their
-    various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
-    """
-    @staticmethod
-    def resolve_key_list(x):
-        if isinstance(x, dict):
-            k_list = list(x.keys())
-        elif isinstance(x, list):
-            k_list = list(range(len(x)))
-        elif type(x) in [tuple, set]: 
-            # convert to list, to format as json
-            x = list(x) 
-            k_list = list(range(len(x)))
-        else:
-            raise Exception(f'{type(x)} not supported to get the keylist fam')
+
 
     python_types = [int, bool, float, tuple, dict, list, str, type(None)]
+    iterable_types = [dict, list, tuple, set]
     def serialize(self,x:dict, mode = 'str'):
         x = c.copy(x)
         x_type = type(x)
-        if x_type in [dict, list, tuple, set]:
+        if x_type in self.iterable_types:
             k_list = []
             if isinstance(x, dict):
                 k_list = list(x.keys())
@@ -49,12 +33,10 @@ class Serializer(c.Module):
                 # convert to list, to format as json
                 x = list(x) 
                 k_list = list(range(len(x)))
-
             for k in k_list:
                 x[k] = self.resolve_value(v=x[k])
         else:
             x = self.resolve_value(v=x)
-
 
         if mode == 'str':
             if isinstance(x, dict):
@@ -67,10 +49,8 @@ class Serializer(c.Module):
         elif mode == 'dict' or mode == None:
             x = x
         else:
-            raise Exception(f'{mode} not supported')
-            
+            raise Exception(f'{mode} not supported') 
         return x
-
 
     def resolve_value(self, v):
         new_value = None
@@ -102,7 +82,7 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
-        if isinstance(x, dict) and type(x.get('data', None)) in [str]:
+        if isinstance(x, dict) and isinstance(x.get('data', None), str):
             x = x['data']
         if isinstance(x, str):
             if x.startswith('{') or x.startswith('['):
@@ -130,11 +110,6 @@ class Serializer(c.Module):
                 data = v['data']
                 if hasattr(self, f'deserialize_{data_type}'):
                     x[k] = getattr(self, f'deserialize_{data_type}')(data=data)
-            # elif isinstance(v, str):
-            #     # this is a very hacky way to infer json strings
-            #     if (v.startswith('{') and v.endswith('}')) or \
-            #             (v.startswith('[') and v.endswith(']')):
-            #         x[k] = self.deserialize(x=v)
             elif type(v) in [dict, list, tuple, set]:
                 x[k] = self.deserialize(x=v)
         if is_single:
@@ -189,7 +164,11 @@ class Serializer(c.Module):
         data_json_str = json.dumps(data)
         return data_json_str
     def str2dict(self, data:str) -> bytes:
-        data_json_str = json.loads(data)
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        if isinstance(data, str):
+            data_json_str = json.loads(data)
+
         return data_json_str
     
     @classmethod
@@ -270,6 +249,34 @@ class Serializer(c.Module):
 
 
     def get_type_str(self, data):
+        '''
+        ## Documentation for get_type_str function
+        
+        ### Purpose
+        The purpose of this function is to determine and return the data type of the input given to it in string format. It supports identification of various data types including Munch, Tensor, ndarray, and DataFrame.
+        
+        ### Parameters
+        - `self`: The instance of the class calling this function.
+        - `data`: The input data whose type needs to be identified.
+        
+        ### Returns
+        - `data_type`: A string representing the type of `data`. It can be one of the following:
+          - 'munch' if the input data is of type Munch
+          - 'torch' if the input data is a Torch tensor
+          - 'numpy' if the input data is a NumPy ndarray
+          - 'pandas' if the input data is a Pandas DataFrame
+          - The actual type of the data as a string if it does not match any of the above
+        
+        ### Example Usage
+        ```python
+        my_class_instance = MyClass()
+        data_type = my_class_instance.get_type_str(my_data)
+        print(f"The data type is {data_type}")
+        ```
+        
+        ### Notes
+        This function utilizes Python's `type()` built-in function and string manipulation to parse and determine the data type. It simplifies type checking for specific common data types used in data science and machine learning applications.
+        '''
         data_type = str(type(data)).split("'")[1]
         if 'Munch' in data_type:
             data_type = 'munch'
