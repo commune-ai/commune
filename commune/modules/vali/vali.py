@@ -45,10 +45,10 @@ class Vali(c.Module):
         
         if self.config.start:
             c.print(f'Vali config: {self.config}', color='cyan')
-            self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
-            steps = 0
-            c.print(f'Vali loop started', color='cyan')
-
+            if self.config.vote_tag == None:
+                self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
+                steps = 0
+                c.print(f'Vali loop started', color='cyan')
             while True:
                 try:
                     steps += 1
@@ -339,7 +339,7 @@ class Vali(c.Module):
     
     def calculate_votes(self, tag=None, network = None):
         network = network or self.config.network
-        tag = tag or self.tag
+        tag = tag or self.config.vote_tag or self.tag
         c.print(f'Calculating votes for {network} {tag}', color='cyan')
 
         # get the list of modules that was validated
