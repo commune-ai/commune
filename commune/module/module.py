@@ -4393,18 +4393,17 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, modules=['server', 'key', 'namespace', 'executor'], verbose:bool=False):
-        test_results = []
+    def test(cls,
+              modules=['server', 'key', 'namespace', 'executor'],
+              timeout=40):
+        futures = []
         for module_name in modules:
-            c.print('#'*300)
-            c.print(f'[bold cyan]Testing {module_name}[/bold cyan]', color='yellow')
-
             module = c.module(module_name)
             assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-            module_test_results = module.test()
-            test_results.append(module_test_results)
-            c.print(f'Test Results: {module_test_results}', color='white')
-        return test_results
+            futures.append(c.submit(module.test))
+        results = c.wait(futures, timeout=timeout)
+        results = dict(zip(modules, results))
+        return results
         
 
     ### TIME LAND ###

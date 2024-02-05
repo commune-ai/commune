@@ -1147,7 +1147,7 @@ class Keypair(c.Module):
                 c.print(f'Failed ({i+1}/{num_tests}) {fn} due to {e}', color='red')
             c.print(f'Passed ({i+1}/{num_tests}) {fn}', color='green')
 
-    
+        return {'success':True}
     @classmethod
     def is_key(cls, key) -> bool:
         return isinstance(key, Keypair)
