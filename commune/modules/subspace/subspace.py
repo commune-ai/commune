@@ -5,6 +5,7 @@ from .balance import Balance
 import json
 import os
 import commune as c
+import requests 
 
 U32_MAX = 4294967295
 U16_MAX = 65535
@@ -46,6 +47,7 @@ class Subspace(c.Module):
     ):
         config = self.set_config(kwargs=kwargs)
     connection_mode = 'ws'
+
     def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
         chain = c.module('subspace.chain')
         if url == None:
@@ -1267,13 +1269,24 @@ class Subspace(c.Module):
         return self.block_time * self.subnet(netuid=netuid)['tempo']
 
     
-    def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> 'ModuleInfo':
-        if key != None:
-            module = self.key2module(key=key, netuid=netuid, **kwargs)
-        if name != None:
-            module = self.name2module(name=name, netuid=netuid, **kwargs)
-            
+    def get_module(self, key=None,
+                    netuid=0,
+                    network='main',
+                    **kwargs) -> 'ModuleInfo':
+        url = self.resolve_url(network=network, mode='http')
+        key = self.resolve_key_ss58(key)
+        start_time = c.time()
+        module = requests.post(url, 
+                            json={'id':1, 
+                                  'jsonrpc':'2.0', 
+                                  'method': 'subspace_getModuleInfo', 
+                                  'params': [key, netuid]}).json()
+        latency = c.time() - start_time
+        c.print(f"Latency: {latency}")
         return module
+    
+
+
 
     @property
     def null_module(self):
@@ -1908,17 +1921,47 @@ class Subspace(c.Module):
 
 
 
-    def my_modules(self,search:str=None,  modules:List[int] = None, netuid:int=0, df:bool = True, network=network, **kwargs):
-        my_modules = []
-        t1 = c.time()
-        address2key = c.address2key()
-        c.print(f"Got address2key in {c.time() - t1} seconds")
+    def my_modules(self,
+                   search:str=None,  
+                   netuid:int=0, 
+                   network=network, 
+                   df:bool = True, 
+                   timeout=30,
+                   batch_size=30,
+                   update = False,
+                   modules:List[int] = None, 
+                   **kwargs):
+        keys = self.my_keys(netuid=netuid, network=network, **kwargs)
+        futures = []
+        path = f'my_modules/{network}.{netuid}'
+        if not update:
+            modules = self.get(path, modules)
+
         if modules == None:
-            modules = self.modules(search=search, netuid=netuid, df=False, network=network, **kwargs)
-        for module in modules:
-            if module['key'] in address2key:
-                my_modules += [module]
-        return my_modules
+            path = f'my_modules/{network}.{netuid}'
+            modules = []
+            for k in keys:
+                kwargs = dict(key=k, netuid=netuid, network=network)
+                futures += [c.submit(self.get_module, kwargs = kwargs, timeout=timeout)]
+                if len(futures) >= batch_size:
+                    for future in c.as_completed(futures):
+                        module = future.result()
+                        futures.remove(future)
+                        if not c.is_error(module):
+                            modules += [module]
+                        break
+
+            for future in c.as_completed(futures, timeout=timeout):
+                module = future.result()
+                if not c.is_error(module):
+                    modules += [module]
+
+            self.put(path, modules)
+            
+        if search != None:
+            modules = [m for m in modules if search in m['name'].lower()]
+    
+        return modules
 
 
     @classmethod
@@ -2932,7 +2975,11 @@ class Subspace(c.Module):
         key_addresses = list(key2address.values())
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
-
+    
+    
+    
+    def my_keys(self, *args, **kwargs):
+        return list(self.my_key2uid(*args, **kwargs).keys())
 
     def vote(
         self,
@@ -3164,6 +3211,15 @@ class Subspace(c.Module):
         s.stake_many(key=key, modules=module_keys, amounts=stake_per_module)
 
        
+    def key2value(self, search=None, fmt='j', netuid=0, **kwargs):
+        key2value = self.my_balance(search=search, fmt=fmt, netuid=netuid, **kwargs)
+        for k,v in self.my_stake(search=search, fmt=fmt, netuid=netuid, **kwargs).items():
+            key2value[k] += v
+        return key2value
+
+    def total_value(self, search=None, fmt='j', **kwargs):
+        return sum(self.key2value(search=search, fmt=fmt, **kwargs).values())
+
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, update=False):
         mystaketo = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block, update=update)
@@ -3213,16 +3269,22 @@ class Subspace(c.Module):
     key2balance = myb = mybal = my_balance
 
     def my_stake_to(self,search=None, netuid = 0, network = None, fmt=fmt,  decimals=2, block=None, update=False):
-        staketo = self.stake_to(netuid=netuid, network=network, block=block, update=update)
+        staketo = self.stake_to(netuid=netuid, 
+                                network=network, 
+                                block=block, 
+                                update=update)
         mystaketo = {}
         key2address = c.key2address()
-        for key, address in key2address.items():
-            if address in staketo:
-                mystaketo[key] = [[a, self.format_amount(s, fmt=fmt)] for a, s in staketo[address]]
+        if netuid == 'all':
+            netuids = list(range(len(staketo)))
+        else:
+            netuids = [netuid]
+        
+        for netuid in netuids:
+            for key, address in key2address.items():
+                if address in staketo[netuid]:
+                    mystaketo[key] = [[a, self.format_amount(s, fmt=fmt)] for a, s in staketo[address]]
 
-        if search != None:
-            mystaketo = {k:v for k,v in mystaketo.items() if search in k}
-            
         return mystaketo
     my_staketo = my_stake_to
 
@@ -3310,6 +3372,7 @@ class Subspace(c.Module):
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
         block = self.block
+
 
         response_batch = {}
 
@@ -3492,6 +3555,9 @@ class Subspace(c.Module):
         c.pull(cwd=cls.libpath)
         if rpull:
             cls.rpull()
+
+
+
 
 
     
