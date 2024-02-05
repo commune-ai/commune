@@ -43,6 +43,7 @@ class Access(c.Module):
             'stake_from': {},
             'whitelist': self.module.whitelist,
             'blacklist': self.module.blacklist,
+            'fn2weight': {}, # dict(fn, weight),
             'fn_info': {fn: {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate} for fn in self.module.fns()},
             'role2rate': self.config.role2rate, # dict(role, rate),
             'timescale': 'min', # 'sec', 'min', 'hour', 'day
