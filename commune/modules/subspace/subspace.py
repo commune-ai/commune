@@ -359,7 +359,7 @@ class Subspace(c.Module):
                   update: bool = True,
                   return_dict:bool = True,
                   max_age = None,
-                  
+                  **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         if name  == 'Account':
@@ -1932,34 +1932,38 @@ class Subspace(c.Module):
                    modules:List[int] = None, 
                    **kwargs):
         keys = self.my_keys(netuid=netuid, network=network, **kwargs)
-        futures = []
-        path = f'my_modules/{network}.{netuid}'
-        if not update:
-            modules = self.get(path, modules)
+        modules = self.modules(search=search, netuid=netuid, network=network, update=update, **kwargs)
+        my_modules = [m for m in modules if m['key'] in keys]
+        return my_modules
 
-        if modules == None:
-            path = f'my_modules/{network}.{netuid}'
-            modules = []
-            for k in keys:
-                kwargs = dict(key=k, netuid=netuid, network=network)
-                futures += [c.submit(self.get_module, kwargs = kwargs, timeout=timeout)]
-                if len(futures) >= batch_size:
-                    for future in c.as_completed(futures):
-                        module = future.result()
-                        futures.remove(future)
-                        if not c.is_error(module):
-                            modules += [module]
-                        break
+        # futures = []
+        # path = f'my_modules/{network}.{netuid}'
+        # if not update:
+        #     modules = self.get(path, modules)
 
-            for future in c.as_completed(futures, timeout=timeout):
-                module = future.result()
-                if not c.is_error(module):
-                    modules += [module]
+        # if modules == None:
+        #     path = f'my_modules/{network}.{netuid}'
+        #     modules = []
+        #     for k in keys:
+        #         kwargs = dict(key=k, netuid=netuid, network=network)
+        #         futures += [c.submit(self.get_module, kwargs = kwargs, timeout=timeout)]
+        #         if len(futures) >= batch_size:
+        #             for future in c.as_completed(futures):
+        #                 module = future.result()
+        #                 futures.remove(future)
+        #                 if not c.is_error(module):
+        #                     modules += [module]
+        #                 break
 
-            self.put(path, modules)
+        #     for future in c.as_completed(futures, timeout=timeout):
+        #         module = future.result()
+        #         if not c.is_error(module):
+        #             modules += [module]
+
+        #     self.put(path, modules)
             
-        if search != None:
-            modules = [m for m in modules if search in m['name'].lower()]
+        # if search != None:
+        #     modules = [m for m in modules if search in m['name'].lower()]
     
         return modules
 
@@ -2070,7 +2074,6 @@ class Subspace(c.Module):
     
 
     def sync(self,*args, **kwargs):
-       
         return  self.state_dict(*args, save=True, update=True, **kwargs)
 
     @classmethod
@@ -3249,7 +3252,7 @@ class Subspace(c.Module):
 
     def my_balance(self, search:str=None, update=False, network:str = 'main', fmt=fmt,  block=None, min_value:int = 0):
 
-        balances = self.balances(network=network, fmt=fmt, block=block)
+        balances = self.balances(network=network, fmt=fmt, block=block, update=update)
         my_balance = {}
         key2address = c.key2address()
         for key, address in key2address.items():
