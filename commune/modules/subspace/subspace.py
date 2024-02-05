@@ -3285,7 +3285,7 @@ class Subspace(c.Module):
         
         for netuid in netuids:
             for key, address in key2address.items():
-                if address in staketo[netuid]:
+                if address in staketo:
                     mystaketo[key] = [[a, self.format_amount(s, fmt=fmt)] for a, s in staketo[address]]
 
         return mystaketo
