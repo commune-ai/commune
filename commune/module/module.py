@@ -987,7 +987,7 @@ class c:
                         color: str = 'white',
                         bash : bool = False,
                         **kwargs):
-        return c.module('os').cmd( 
+        return type(c.module('os').cmd( 
                         command,
                         *args,
                         verbose=verbose, 
@@ -996,7 +996,7 @@ class c:
                         password=password,
                         color=color,
                         bash=bash,
-                        **kwargs)
+                        **kwargs))
     run_command = shell = cmd 
 
     @classmethod
@@ -1115,11 +1115,45 @@ class c:
     @classmethod
     def resolve_path(cls, path:str = None, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
         '''
-        Resolves path for saving items that relate to the module
+        ### Documentation for `resolve_path` class method
         
-        The path is determined by the module path 
+        #### Purpose:
+        The `resolve_path` method is a class method designed to process and resolve file and directory paths based on various inputs and conditions. This method is useful for preparing file paths for operations such as reading, writing, and manipulation.
         
+        #### Parameters:
+        - `path` (str, optional): The initial path to be resolved. If not provided, a temporary directory path will be returned.
+        - `extension` (Optional[str], optional): The file extension to append to the path if necessary. Defaults to None.
+        - `root` (bool, optional): A flag to determine whether the path should be resolved in relation to the root directory. Defaults to False.
+        - `file_type` (str, optional): The default file type/extension to append if the `path` does not exist but appending the file type results in a valid path. Defaults to 'json'.
+        
+        #### Behavior:
+        - If `path` is not provided, the method returns a path to a temporary directory.
+        - If `path` starts with '/', it is returned as is.
+        - If `path` starts with '~/', it is expanded to the user’s home directory.
+        - If `path` starts with './', it is resolved to an absolute path.
+        - If `path` does not fall under the above conditions, it is treated as a relative path. If `root` is True, it is resolved relative to the root temp directory; otherwise, relative to the class's temp directory.
+        - If `path` is a relative path and does not contain the temp directory, the method joins `path` with the appropriate temp directory.
+        - If `path` does not exist as a directory and an `extension` is provided, the extension is appended to `path`.
+        - If `path` does not exist but appending the `file_type` results in an existing path, the `file_type` is appended.
+        - The parent directory of `path` is created if it does not exist, avoiding any errors when the path is accessed later.
+        
+        #### Returns:
+        - `str`: The resolved and potentially created path, ensuring it is ready for further file operations. 
+        
+        #### Example Usage:
+        ```python
+        # Resolve a path in relation to the class's temporary directory
+        file_path = MyClassName.resolve_path('data/subfolder/file', extension='txt')
+        
+        # Resolve a path in relation to the root temporary directory
+        root_file_path = MyClassName.resolve_path('configs/settings', root=True)
+        ```
+        
+        #### Notes:
+        - This method relies on the `os` module to perform path manipulations and checks.
+        - This method is versatile and can handle various input path formats, simplifying file path resolution in the class's context.
         '''
+
         if path == None:
             return cls.tmp_dir()
         
@@ -2072,29 +2106,25 @@ class c:
     
     @classmethod
     def file_exists(cls, path:str, root:bool = False)-> bool:
-        path = cls.resolve_path(path=path,  root=root)
-        
+        path = cls.resolve_path(path=path, root=root)
         exists =  os.path.exists(path)
         if not exists and not path.endswith('.json'):
             exists = os.path.exists(path + '.json')
-        
         return exists
 
-        
+    exists = exists_json = file_exists 
 
     @classmethod
-    def docs(cls):
+    def readme(cls):
         # Markdown input
         markdown_text = "## Hello, *Markdown*!"
-
-
         path = cls.filepath().replace('.py', '_docs.md')
         markdown_text =  cls.get_text(path=path)
         return markdown_text
+    
+    docs = readme
 
 
-
-    exists = exists_json = file_exists
 
     @classmethod
     def rm_json(cls, path=None, root:bool = False):
@@ -8868,6 +8898,35 @@ class c:
         state['block_time'] = 8
         state['blocks_per_day'] = 60*60*24/state['block_time']
         return state
+    
+
+    @classmethod
+    def eval(cls, module):
+        '''
+        Docs:
+        
+        ### eval(cls, module)
+        
+        This class method evaluates a given module by invoking its 'vali' method and passing the 'module' parameter. 
+        
+        #### Parameters:
+        - `module`: The module to be evaluated.
+        
+        #### Returns:
+        - The result of evaluating the module using the 'vali' method.
+        
+        #### Usage:
+        This method is intended to be used in a class that has a 'vali' method implemented. It can be called as follows:
+        
+        ```
+        result = ClassName.eval(some_module)
+        ```
+        Where `ClassName` is the name of the class with the `eval` class method, and `some_module` is the module to evaluate.
+        '''
+        return c.module('vali')().eval(module)
+    @classmethod
+    def comment(self,fn:str='module/ls'):
+        return c.module('coder').comment(fn)
         
 
 Module = c

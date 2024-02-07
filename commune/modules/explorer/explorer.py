@@ -107,6 +107,8 @@ class Explorer(c.Module):
         '''
         hey
         '''
+        st.title('GO ISREAL')
+        #
         self = cls()
         # st.write(self.subnets)
 

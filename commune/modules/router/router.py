@@ -149,7 +149,6 @@ class Router(c.Module):
         return {'ticket': k}
     
 
-
     futures = {}
 
     def adjust_thread_count(self):
