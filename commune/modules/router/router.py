@@ -144,12 +144,12 @@ class Router(c.Module):
             self.task_queue.put((task.priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
+        k = c.timestamp()
+        self.tasks[k] = task
+        return {'ticket': k}
+    
 
-        if return_future:
-            return task.future
-        else:
-            return task.result()
-
+    futures = {}
 
     def adjust_thread_count(self):
         # if idle threads are available, don't spin new threads

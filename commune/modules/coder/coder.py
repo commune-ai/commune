@@ -2,7 +2,7 @@ import commune as c
 import json
 
 class Coder(c.Module):
-    def call(self,
+    def comment(self,
              fn='coder/call', 
              model = 'model.openai',
              timeout=20,
@@ -64,10 +64,7 @@ class Coder(c.Module):
 
         return docs
     
-    comment = call
-    document_fn = call
-
-    
+    call = document_fn = comment
     
     def document_module(self,
              module='agent.coder', 

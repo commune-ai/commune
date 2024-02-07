@@ -147,12 +147,15 @@ class ClientHttp(c.Module):
                     result = await asyncio.wait_for(response.text(), timeout=timeout)
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
-        if isinstance(result, dict):
+        
+        try:
             result = self.serializer.deserialize(result)
-        elif isinstance(result, str):
-            result = self.serializer.deserialize(result)
+        except:
+            pass
+
         if isinstance(result, dict) and 'data' in result:
             result = result['data']
+
         if self.save_history:
             input['fn'] = fn
             input['result'] = result

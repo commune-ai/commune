@@ -42,11 +42,13 @@ class Socket(c.Module):
         return data
     
 
-    def server(self, port=8888, ip: str = '0.0.0.0'):
+    def serve(self, port=8889, ip: str = '0.0.0.0'):
+        import socket
         socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         socket.bind((ip, port))
         socket.listen(1)
         conn, addr = socket.accept()
+        c.print('Connected by', addr)
         with conn:
             print('Connected by', addr)
             while True:

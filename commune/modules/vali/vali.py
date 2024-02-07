@@ -45,10 +45,10 @@ class Vali(c.Module):
         
         if self.config.start:
             c.print(f'Vali config: {self.config}', color='cyan')
-            self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
-            steps = 0
-            c.print(f'Vali loop started', color='cyan')
-
+            if self.config.vote_tag == None:
+                self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
+                steps = 0
+                c.print(f'Vali loop started', color='cyan')
             while True:
                 try:
                     steps += 1
@@ -232,8 +232,6 @@ class Vali(c.Module):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
         return {'success': True, 'w': 1}
 
-    def eval_module(self, module:str, network=None):
-        return c.gather(self.async_eval_module(module=module, network=network))
     
 
     def check_response(self, response:dict):
@@ -251,6 +249,11 @@ class Vali(c.Module):
         return response
         
 
+    def eval_module(self, module:str, network=None):
+        return c.gather(self.async_eval_module(module=module, network=network))
+
+    eval = eval_module
+
     async def async_eval_module(self, module:str, network = None):
         """
         The following evaluates a module sver
@@ -261,6 +264,7 @@ class Vali(c.Module):
 
         namespace = self.namespace
         # RESOLVE THE MODULE ADDRESS
+        module_address = None
         if module in namespace:
             module_name = module
             module_address = namespace[module]
@@ -276,7 +280,11 @@ class Vali(c.Module):
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
 
         if seconds_since_called < self.config.max_staleness:
-            return module_info
+            return {'w': module_info.get('w', 0),
+                     'module': module_name,
+                       'address': module_address,
+                         'timestamp': c.time(), 
+                         'msg': f'Module is not stale, {int(seconds_since_called)} < {self.config.max_staleness}'}
         
         module_info['timestamp'] = c.time()
 
@@ -312,12 +320,15 @@ class Vali(c.Module):
         w = response['w'] # the new weight
         module_info['w'] = w * alpha + w_old * (1 - alpha)
 
-        c.print(response['msg'], color='cyan', verbose=self.config.debug)
-        self.save_module_info(module_name, module_info)
+
+        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{module_name}'
+        self.put_json(path, module_info)
 
         self.count += 1
         self.last_evaluation_time = c.time()
-        return module_info
+
+        response =  {'w': w, 'module': module_name, 'address': module_address, 'timestamp': c.time(), 'path': path }
+        return response
 
     @classmethod
     def resolve_storage_path(cls, network:str = 'subspace', tag:str=None):
@@ -339,7 +350,7 @@ class Vali(c.Module):
     
     def calculate_votes(self, tag=None, network = None):
         network = network or self.config.network
-        tag = tag or self.tag
+        tag = tag or self.config.vote_tag or self.tag
         c.print(f'Calculating votes for {network} {tag}', color='cyan')
 
         # get the list of modules that was validated
@@ -524,9 +535,6 @@ class Vali(c.Module):
         module_infos = self.load_module_info(k, default=default)
         return module_infos.get('history', [])
     
-    def save_module_info(self,module_name:str, module_info:dict):
-        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{module_name}'
-        self.put_json(path, module_info)
 
 
     @property
@@ -561,8 +569,8 @@ class Vali(c.Module):
         kwargs['num_workers'] = 0
         kwargs['vote'] = False
         kwargs['verbose'] = True
-        self = cls(**kwargs )
-        return self.rufn()
+        self = cls(**kwargxs )
+        return self.run()
 
     @classmethod
     def dashboard(cls):

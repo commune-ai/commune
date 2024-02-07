@@ -4,19 +4,11 @@ import json
 
 Vali = c.module('vali')
 class ValiTextMMLU(Vali):
+
     def __init__(self,**kwargs):
         config = self.set_config(kwargs=kwargs)
         self.dataset = c.module('data.hf')(path=config.dataset)
         self.init_vali(**config)
-
-    def create_prompt(self, sample: dict) -> str:
-        # format the prompt
-        prompt = f'''
-        {sample}
-        GIVE THE ANSWER AS AN INDEX -> {{answer:str}} ?
-        EXAMPLE: {{answer:A}}
-        ```json'''
-        return prompt
 
     def score_module(self, module='model', **kwargs) -> int:
 
@@ -25,17 +17,28 @@ class ValiTextMMLU(Vali):
         # get sample
         sample = self.dataset.sample()
 
+
+
         target = sample.pop(self.config.target) # a list of correct answers
-
-        # create the prompt
-        prompt = self.create_prompt(sample)
+        prompt = json.dumps({
+        'sample': sample,
+        'instruction': 'GIVE THE ANSWER AS AN INDEX -> {{answer:str}} ?',
+        })
         output: str = model.generate(prompt)
-        prediction = json.loads(output)['answer']
 
+
+        # process the output
+        if isinstance(output, dict):
+            output = output['answer']
+        else:
+            try:
+                output = json.loads(output)['answer']
+            except:
+                pass
         # get the correct answer
-        w = float(prediction in target)
+        w = float(target in output)
 
-        return {'w': w, 'target': target, 'prediction': prediction, 'sample': sample, 'output': output}
+        return {'w': w, 'target': target, 'input': prompt, 'output': output}
 
     @classmethod
     def test(cls):
