@@ -274,6 +274,7 @@ class Subspace(c.Module):
     def stake_to(self, netuid = 0, network=network, block=None, update=False, fmt='nano'):
 
         stake_to = self.query_map('StakeTo', block=block, update=update, network=network)
+        
         if netuid == 'all':
             return stake_to
         else:
@@ -358,7 +359,7 @@ class Subspace(c.Module):
                   module='SubspaceModule',
                   update: bool = True,
                   return_dict:bool = True,
-                  max_age = None,
+                  max_age = None, # max age in seconds
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
@@ -576,12 +577,11 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update)}
-
+        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update)
+        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to}
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
             stake_to ={ k:v for k, v in stake_to}.get(module_key, 0)
-
         return stake_to
     
     get_staketo = get_stake_to
@@ -1348,6 +1348,7 @@ class Subspace(c.Module):
                                         'trust', 
                                         'regblock', 
                                         'weights'],
+                timeout = 30,
                 update: bool = False,
                 cache : bool = False,
                 df = False,
@@ -1357,9 +1358,6 @@ class Subspace(c.Module):
                 ) -> Dict[str, 'ModuleInfo']:
         
         modules = []
-        if update:
-            self.sync()
-            modules = []
 
         if netuid in ['all']:
             kwargs = c.locals2kwargs(locals())
@@ -1372,27 +1370,32 @@ class Subspace(c.Module):
             modules = self.get(cache_path, [])
         
         if len(modules) == 0:
-            state = {f: getattr(self, f)(network=network, netuid=netuid, block=block, update=False) \
-                    for f in features}
-            
+            futures  = [c.submit(getattr(self, f), kwargs=dict(network=network, netuid=netuid, block=block, update=update) ) for f in features]
+            results = c.wait(futures, timeout=timeout)
+            state = {f:results[i] for i,f in enumerate(features)}
+         
             for uid, key in enumerate(state['keys']):
+                try:
+                    module= {
+                        'uid': uid,
+                        'address': state['addresses'][uid],
+                        'name': state['names'][uid] if uid < len(state['names']) else None,
+                        'key': key,
+                        'emission': state['emission'][uid],
+                        'incentive': state['incentive'][uid],
+                        'trust': state['trust'][uid] if len(state['trust']) > uid else 0,
+                        'dividends': state['dividends'][uid],
+                        'stake_from': state['stake_from'].get(key, {}),
+                        'regblock': state['regblock'].get(uid, 0),
+                        'last_update': state['last_update'][uid],
+                        'delegation_fee': state['delegation_fee'].get(key, 20)
+                    }
 
-                module= {
-                    'uid': uid,
-                    'address': state['addresses'][uid],
-                    'name': state['names'][uid] if uid < len(state['names']) else None,
-                    'key': key,
-                    'emission': state['emission'][uid],
-                    'incentive': state['incentive'][uid],
-                    'trust': state['trust'][uid] if len(state['trust']) > 0 else 0,
-                    'dividends': state['dividends'][uid],
-                    'stake_from': state['stake_from'].get(key, {}),
-                    'regblock': state['regblock'].get(uid, 0),
-                    'last_update': state['last_update'][uid],
-                    'delegation_fee': state['delegation_fee'].get(key, 20)
-                }
+                    module['stake'] = sum([v for k,v in module['stake_from'].items()])
+                except Exception as e:
 
-                module['stake'] = sum([v for k,v in module['stake_from'].items()])
+                    c.print(state['addresses'])
+                    module = self.null_module
                 if  len(state['weights']) > 0:
                     try:
                         module['weight'] = state['weights'][uid]
@@ -1433,20 +1436,11 @@ class Subspace(c.Module):
     
 
 
-    def min_stake(self, netuid: int = None, network: str = None, fmt:str='j', registration=True, **kwargs) -> int:
+    def min_stake(self, netuid: int = 0, network: str = None, fmt:str='j', registration=True, **kwargs) -> int:
         
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         min_stake = self.query('MinStake', network=network, **kwargs)[netuid]
-        min_stake = self.format_amount(min_stake, fmt=fmt)
-        if registration:
-            registrations_per_block = self.registrations_per_block(netuid=netuid)
-            max_registrations_per_block = self.max_registrations_per_block(netuid=netuid)
-            
-            # 2 to the power of the number of registrations per block over the max registrations per block
-            # this is the factor by which the min stake is multiplied, to avoid ddos attacks
-            min_stake_factor = 2 **(registrations_per_block // max_registrations_per_block)
-            return min_stake * min_stake_factor
         return min_stake
 
 
@@ -1539,7 +1533,6 @@ class Subspace(c.Module):
     
     def weights(self,  netuid = None, nonzero:bool = False, network=network, update=False, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        
         subnet_weights =  self.query_map('Weights', network=network, update=update, **kwargs)
         if len(subnet_weights) <= netuid:
             subnet_weights = []
@@ -1568,11 +1561,20 @@ class Subspace(c.Module):
         return emissions
     
 
-    def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False, return_dict=False, **kwargs):
+    def incentive(self, 
+                  netuid = netuid, 
+                  block=None,  
+                  network=network, 
+                  nonzero:bool=False, 
+                  update:bool = False, 
+                  return_dict=False, 
+                  **kwargs):
         incentive = self.query_map('Incentive', network=network, block=block, update=update, **kwargs)[netuid]
 
         if nonzero:
             incentive = {uid:i for uid, i in enumerate(incentive) if i > 0}
+            # sort by incentive
+            incentive = {k:v for k,v in sorted(incentive.items(), key=lambda x: x[1], reverse=False)}
         else:
             if return_dict: 
                 return {k:v for k,v in enumerate(incentive)}
@@ -1582,12 +1584,11 @@ class Subspace(c.Module):
         proposals = [v for v in self.query_map('Proposals', network=network, block=block, update=update, **kwargs)]
         return proposals
         
-    def trust(self, netuid = netuid, network=network, nonzero=False, update=False, **kwargs):
+    def trust(self, netuid = None, network=network, nonzero=False, update=True, **kwargs):
         trust = self.query_map('Trust', network=network, update=update, **kwargs)
-        if len(trust) == 0:
-            trust = []
-        else:
+        if netuid != None and len(trust) > netuid:
             trust = trust[netuid]
+
         return trust
     
     def last_update(self, netuid = netuid, block=None, network=network, update=False, **kwargs):
@@ -1599,6 +1600,7 @@ class Subspace(c.Module):
         dividends =  self.query_map('Dividends', network=network,  update=update,  **kwargs)[netuid]
         if nonzero:
             dividends = {i: d for i,d in enumerate(dividends) if d > 0}
+            dividends = {k:v for k,v in sorted(dividends.items(), key=lambda x: x[1], reverse=False)}
         else:
             if return_dict:
                 return {k:v for k,v in enumerate(dividends)}
@@ -2442,7 +2444,7 @@ class Subspace(c.Module):
             
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        subnet_params = self.subnet_params( netuid=netuid , update=True, network=network, fmt='nanos' )
+        subnet_params = self.subnet_params( netuid=netuid , update=True, network=network, fmt='nanos')
         # infer the key if you have it
         if key == None:
             key2address = self.address2key()
@@ -2683,8 +2685,6 @@ class Subspace(c.Module):
         """
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        
-        
         key = c.get_key(key)
         
         name2key = self.name2key(netuid=netuid, update=update)
@@ -2785,36 +2785,30 @@ class Subspace(c.Module):
             
     
     
+    
 
     def stake_many( self, 
                         modules:List[str] = None,
                         amounts:Union[List[str], float, int] = None,
                         key: str = None, 
                         netuid:int = 0,
+                        min_balance = 100_000_000_000,
                         n:str = 100,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         netuid = self.resolve_netuid( netuid )
         key = self.resolve_key( key )
-        name2key = self.name2key(netuid=netuid)
-        subnet_keys = list(name2key.values())
 
-        if modules == None or modules == 'all':
-            modules = subnet_keys
+        if modules == None:
+            my_modules = self.my_modules(netuid=netuid, network=network, update=False)
+            modules = [m['key'] for m in my_modules if 'vali' in m['name']]
 
-        if isinstance(modules, str):
-            modules = [m for m in name2key.keys() if modules in m]
         modules = modules[:n] # only stake to the first n modules
-        # resolve module keys
-        for i, module in enumerate(modules):
-            if module in name2key:
-                modules[i] = name2key[module]
+
         assert len(modules) > 0, f"No modules found with name {modules}"
         module_keys = modules
-
-
         if amounts == None:
-            balance = self.get_balance(key=key, fmt='nanos')
+            balance = self.get_balance(key=key, fmt='nanos') - min_balance
             amounts = [(balance // len(modules))] * len(modules) 
             assert sum(amounts) < balance, f'The total amount is {sum(amounts)} > {balance}'
         else:
@@ -2956,6 +2950,30 @@ class Subspace(c.Module):
         return response
                     
 
+
+
+
+    def unstake_all( self, 
+                        key: str = None, 
+                        netuid = 0,
+                        network = network,
+                        min_stake: float = 256) -> Optional['Balance']:
+        
+        network = self.resolve_network( network )
+        key = self.resolve_key( key )
+    
+        key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
+        c.print(key_stake_to)
+        # params = {
+        #     "netuid": netuid,
+        #     "module_keys": module_keys,
+        #     "amounts": amounts
+        # }
+
+        # response = self.compose_call('remove_stake_multiple', params=params, key=key)
+
+        return key_stake_to
+                    
 
 
     def my_servers(self, search=None,  **kwargs):
@@ -3523,6 +3541,8 @@ class Subspace(c.Module):
         if isinstance(key, str):
             if c.key_exists( key ):
                 key = c.get_key( key )
+            else:
+                raise ValueError(f"Key {key} not found in your keys, please make sure you have it")
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
         
