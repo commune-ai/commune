@@ -170,7 +170,6 @@ class Remote(c.Module):
             return cls.filter_hosts(hosts=hosts)
         return hosts
 
-
     host_map = hosts
 
     @classmethod
@@ -193,7 +192,6 @@ class Remote(c.Module):
                 return name
         raise Exception(f'Host {host} not found')
     
-
     @classmethod
     def n(cls, search=None):
         return len(cls.hosts(search=search))
@@ -201,10 +199,7 @@ class Remote(c.Module):
     def num_servers(self):
         return len(self.servers())
     
-    def num_peers(self):
-        return len(self.peers())
-    n_peers = num_peers
-    
+
     @classmethod
     def n_servers(self):
         return len(self.servers())
@@ -220,24 +215,17 @@ class Remote(c.Module):
     @classmethod
     def has(cls, name):
         return name in cls.hosts()
-
     @classmethod
     def host_exists(self, name):
         return name in self.hosts()
-    
     @classmethod
     def install(self):
         c.cmd('pip3 install paramiko')
-    
-
     def test(self):
         # Test Remote
         c.print(self.ssh_cmd('ls'))
-
-
     @classmethod
     def cmd(cls, *commands, search=None, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
-
         output = {}
         if hosts == None:
             hosts = cls.hosts()
@@ -264,14 +252,12 @@ class Remote(c.Module):
         if all([v == None for v in results.values()]):
             raise Exception(f'all results are None')
         
-
         for k,v in results.items():
             if isinstance(v, str):
                 results[k] = v.strip('\n')
 
         return results 
 
-    
     @classmethod
     def add_admin(cls, timeout=10):
         root_key_address = c.root_key().ss58_address
@@ -293,40 +279,6 @@ class Remote(c.Module):
         return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
 
     @classmethod
-    def add_peers(cls, add_admins:bool=False, timeout=20, update=True, network='remote'):
-        """
-        Adds servers to the network by running `c add_peers` on each server.
-        
-        """
-        if update:
-            c.rm_namespace(network=network)
-        if add_admins:
-            cls.add_admin(timeout=timeout)
-
-        namespace = c.namespace(network=network)
-        address2name = {v:k for k,v in namespace.items()}
-        host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
-        c.print(host2_server_addresses_responses)
-        for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
-            if isinstance(server_address, str):
-                server_address = server_address.split('\n')[-1]
-
-                if server_address in address2name:
-                    server_name = address2name[server_address]
-                    c.print(f'{server_name} already in namespace')
-                    continue
-                else:
-                    ip = ':'.join(server_address.split(':')[:-1])
-
-
-                    server_name = 'module' + '_' +  host
-                    namespace[server_name] = server_address
-
-        c.put_namespace(network=network, namespace=namespace)
-
-        return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
-
-    @classmethod
     def servers(self,search: str ='module', network='remote'):
         return c.servers(search, network=network)
     
@@ -343,7 +295,6 @@ class Remote(c.Module):
     
     @classmethod
     def fleet(cls, *args, update=False, min_memory:int=20, n=10, tag=None, **kwargs):
-        
         responses = []
         for i in range(n):
             try:
@@ -379,7 +330,6 @@ class Remote(c.Module):
             return namespace
         
         peer2namespace = cls.peer2namespace()
-        c.print(peer2namespace)
         for peer, peer_namespace in peer2namespace.items():
 
             for name, address in peer_namespace.items():
@@ -414,15 +364,6 @@ class Remote(c.Module):
         return c.infos(search=search, network=network, update=update)
 
 
-    @classmethod
-    def peer2key(cls, search=None, network:str='remote', update=False):
-        infos = c.infos(search=search, network=network, update=update)
-        return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
-
-    @classmethod
-    def peer_addresses(cls, network:str='remote'):
-        infos = c.infos(network=network)
-        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
@@ -606,72 +547,6 @@ class Remote(c.Module):
         ssh = host2ssh[host]
         c.cmd(ssh)
 
-
-
-
-
-
-    def reg_servers(self, search='vali::cc', stake:str=200, timeout=40, batch_size=10):
-        namespace = self.namespace(search=search)
-        subspace = c.module('subspace')()
-        launcher_keys = subspace.launcher_keys()
-        c.print(f'Registering with launcher keys {len(launcher_keys)} for {len(namespace)} servers')
-        subspace_namespace = subspace.namespace(update=True)
-
-        for i, (name, address) in enumerate(namespace.items()):
-            if name in subspace_namespace:
-                c.print(f'{name} already registered')
-                continue
-            if len(launcher_keys) == 0:
-                c.print(f'No more launcher keys')
-                break
-            key = launcher_keys.pop(i % len(launcher_keys))
-            c.print(f'Registering {name} {address} {key}')
-            try:
-                result = subspace.register(name=name, address=address, stake=stake, key=key)
-            except Exception as e:
-                result = c.detailed_error(e)
-            c.print(result)
-
-    def update(self, interval=30, max_staleness = 30):
-        # self.add_peers()
-        t1 = c.time()
-        t2 = t1
-        # while True:
-        #     t2 = c.time()
-        #     if t2 - t1 > interval or t2 == t1:
-        #         t1 = c.time()
-        errored = []
-        servers = self.call('info', hardware=True, timeout=20)
-        peers = self.peers()
-
-
-        server2info = self.get('server2info', {})
-        for server, info in servers.items():
-            if isinstance(info, dict) and 'error' in info:
-                continue
-            c.print(f'{server} {info}')
-            info['timestamp'] = c.time()
-            server2info[server] = info
-
-    def gpus(self, **kwargs):
-        response = self.cmd('c gpus', **kwargs)
-        gpus = {}
-
-        for host, gpu in response.items():
-            if isinstance(gpu, str):
-                gpus[host] = json.loads(gpu)
-                
-        return gpus
-    
-
- 
-    def check_peers(self, timeout=10):
-        futures = []
-        for m,a in c.namespace(network='remote').items():
-            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
-        results = c.wait(futures, timeout=timeout)
-        return results
     
     def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
         if remote:
@@ -679,94 +554,6 @@ class Remote(c.Module):
         while True:
             self.sync()
             c.sleep(10)
-    def sync(self, timeout=40,  max_staleness=360):
-        futures = []
-        namespace = c.namespace('module', network='remote')
-        c.print('peer2lag: ', namespace)
-        paths = []
-        for name, address in namespace.items():
-            path = 'peers/' + name
-            existing_peer_info = self.get(path, {})
-            peer_update_ts = existing_peer_info.get('timestamp', 0)
-            future = c.submit(c.call, 
-                                args = [address, 'info'],
-                                kwargs = dict(schema=True, namespace=True, hardware=True),
-                                timeout=timeout, return_future=True
-                                )
-            paths += [path]
-            futures += [future]
-
-        results = c.wait(futures, timeout=timeout, generator=False)
-        for i, result in enumerate(results):
-            path = paths[i]
-            if c.is_error(result):
-                c.print(f'Error {result}')
-                continue
-            else:
-                c.print(f'Success {path}')
-                self.put(path, result)
-            self.put(path, result)
-        return {'status': 'success', 'msg': f'Peers synced'}
-
-    def peerpath2name(self, path:str):
-        return path.split('/')[-1].replace('.json', '')
-    
-
-    def peer2info(self):
-        peer_infos = {}
-        for path in self.ls('peers'):
-            peer_name = self.peerpath2name(path)
-            info = self.get(path, {})   
-            peer_infos[peer_name] = info
-            peer_infos[peer_name] = info
-        return peer_infos
-    
-
-    def peer2lag(self, max_staleness=1000):
-        peer2timestamp = self.peer2timestamp()
-        time = c.time()
-        ip2host = self.ip2host()
-        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
-
-    def peer2timestamp(self):
-        peer2info = self.peer2info()
-        return {k:v.get('timestamp', 0) for k,v in peer2info.items()}
-
-    def peer2hardware(self):
-        info_paths = self.ls('peers')
-        peer_infos = []
-        for path in info_paths:
-            c.print(path)
-            info = self.get(path, {})
-            # c.print(info)
-            peer_infos += [info.get('hardware', {})]
-        return peer_infos
-    
-    # def path2ip(self, path):
-    #     return path.split('/')[-1].replace('.json', '')
-    # def path2peer(self, path):
-    #     return self.ip2host().get(self.path2ip(path), None)
-    
-    @classmethod
-    def peer2namespace(cls):
-        info_paths = cls.ls('peers')
-        peer2namespace = {}
-        for path in info_paths:
-            info = cls.get(path, {})
-            peer2namespace[path] = info.get('namespace', {})
-        return peer2namespace
-
-        
-
-
-
-    def peer_info(self, peer):
-        host2ip = self.host2ip()
-        peer = host2ip.get(peer, peer)
-        return self.get(f'peers/{peer}', {})
-    
-
-
 
     def save_ssh_config(self, path="~/.ssh/config"):
         ssh_config = []
@@ -911,6 +698,8 @@ class Remote(c.Module):
             self.manage_hosts_dashboard()
 
 
+    # SEARCH TERM LAND
+
     search_terms_path = 'search_terms'
     @classmethod
     def set_search_terms(cls, search_terms):
@@ -1046,12 +835,8 @@ class Remote(c.Module):
 
         host_names = list(host_map.keys())
 
-
-                        
+           
         # progress bar
-
-        
-
         # add splace to cols[2] vertically
         
 
@@ -1067,7 +852,7 @@ class Remote(c.Module):
 
             st.write('Print Formatting')
             expanded = True
-            num_columns = 3
+            num_columns = 1
             fn_code = st.text_input('Function', 'x')
 
         cols = st.columns([5,1])
@@ -1124,7 +909,7 @@ class Remote(c.Module):
                                 failed_hosts += [host]
                             if filter_bool and msg != True:
                                 continue
-                            st.markdown(msg)
+                            st.code(msg)
                     
 
             except Exception as e:
@@ -1152,6 +937,142 @@ class Remote(c.Module):
         self = cls()
         self.sidebar()
         self.ssh_dashboard()
+
+    @classmethod
+    def peer2key(cls, search=None, network:str='remote', update=False):
+        infos = c.infos(search=search, network=network, update=update)
+        return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
+
+    @classmethod
+    def peer_addresses(cls, network:str='remote'):
+        infos = c.infos(network=network)
+        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
+    
+
+ 
+    def check_peers(self, timeout=10):
+        futures = []
+        for m,a in c.namespace(network='remote').items():
+            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
+        results = c.wait(futures, timeout=timeout)
+        return results
+    
+
+    def sync(self, timeout=40,  max_staleness=360):
+        futures = []
+        namespace = c.namespace('module', network='remote')
+        c.print('peer2lag: ', namespace)
+        paths = []
+        for name, address in namespace.items():
+            path = 'peers/' + name
+            existing_peer_info = self.get(path, {})
+            peer_update_ts = existing_peer_info.get('timestamp', 0)
+            future = c.submit(c.call, 
+                                args = [address, 'info'],
+                                kwargs = dict(schema=True, namespace=True, hardware=True),
+                                timeout=timeout, return_future=True
+                                )
+            paths += [path]
+            futures += [future]
+
+        results = c.wait(futures, timeout=timeout, generator=False)
+        for i, result in enumerate(results):
+            path = paths[i]
+            if c.is_error(result):
+                c.print(f'Error {result}')
+                continue
+            else:
+                c.print(f'Success {path}')
+                self.put(path, result)
+            self.put(path, result)
+        return {'status': 'success', 'msg': f'Peers synced'}
+
+    def peerpath2name(self, path:str):
+        return path.split('/')[-1].replace('.json', '')
+    
+
+    def peer2info(self):
+        peer_infos = {}
+        for path in self.ls('peers'):
+            peer_name = self.peerpath2name(path)
+            info = self.get(path, {})   
+            peer_infos[peer_name] = info
+            peer_infos[peer_name] = info
+        return peer_infos
+    
+
+    def peer2lag(self, max_staleness=1000):
+        peer2timestamp = self.peer2timestamp()
+        time = c.time()
+        ip2host = self.ip2host()
+        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
+
+    def peer2timestamp(self):
+        peer2info = self.peer2info()
+        return {k:v.get('timestamp', 0) for k,v in peer2info.items()}
+
+    def peer2hardware(self):
+        info_paths = self.ls('peers')
+        peer_infos = []
+        for path in info_paths:
+            c.print(path)
+            info = self.get(path, {})
+            # c.print(info)
+            peer_infos += [info.get('hardware', {})]
+        return peer_infos
+    
+    @classmethod
+    def peer2namespace(cls):
+        info_paths = cls.ls('peers')
+        peer2namespace = {}
+        for path in info_paths:
+            info = cls.get(path, {})
+            peer2namespace[path] = info.get('namespace', {})
+        return peer2namespace
+
+
+
+    @classmethod
+    def add_peers(cls, add_admins:bool=False, timeout=20, update=True, network='remote'):
+        """
+        Adds servers to the network by running `c add_peers` on each server.
+        
+        """
+        if update:
+            c.rm_namespace(network=network)
+        if add_admins:
+            cls.add_admin(timeout=timeout)
+
+        namespace = c.namespace(network=network)
+        address2name = {v:k for k,v in namespace.items()}
+        host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
+        c.print(host2_server_addresses_responses)
+        for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
+            if isinstance(server_address, str):
+                server_address = server_address.split('\n')[-1]
+
+                if server_address in address2name:
+                    server_name = address2name[server_address]
+                    c.print(f'{server_name} already in namespace')
+                    continue
+                else:
+                    ip = ':'.join(server_address.split(':')[:-1])
+
+                    server_name = 'module' + '_' +  host
+                    namespace[server_name] = server_address
+
+        c.put_namespace(network=network, namespace=namespace)
+
+        return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
+ 
+
+
+
+    def peer_info(self, peer):
+        host2ip = self.host2ip()
+        peer = host2ip.get(peer, peer)
+        return self.get(f'peers/{peer}', {})
+    
 
 
 Remote.run(__name__)

@@ -238,11 +238,15 @@ class Ray(c.Module):
         
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
         ray_context = {}
-        if cls.is_initialized():
+        is_initialized = cls.is_initialized()
+        c.print(f'RAY is_initialized: {is_initialized}')
+
+
+        if  is_initialized:
              ray_context =  cls.ray_runtime_context()
         else: 
             ray_context = ray.init(**init_kwargs)
-            
+        c.print(f'CONNECTED TO RAY: {ray_context}')
         return ray_context
     
     @classmethod

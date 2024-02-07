@@ -113,10 +113,7 @@ class Repo(c.Module):
         assert repo not in repos
         return {'success': True, 'path': repo_path, 'repo': repo, 
                 'msg': f'Repo {repo} removed successfully'}
-    
 
-    def path2name(self, path):
-        return os.path.basename(path).replace('.git', '')
 
     def repo_paths(self):
         return list(self.repo2path().values())
@@ -126,19 +123,25 @@ class Repo(c.Module):
                  cwd = None, 
                  sudo=False):
         cwd = cwd or c.home_path
-        repo_name = self.path2name(repo_path)
+
+        repo_name =  os.path.basename(path).replace('.git', '')
+        
         if path == None:
             path = c.home_path + '/'+ repo_name
         if os.path.isdir(path) and update:
             c.rm(path)
 
-        c.print(f'Adding repo {repo_path} to {path}')
         c.cmd(f'git clone {repo_path}', verbose=True, cwd=cwd, sudo=sudo)
+
         if update:
             self.update()
+
         repo_paths = self.repo_paths()
+
         assert path in repo_paths
+
         return {'success': True, 'path': path, 'repo_path': repo_path}
+    
     def repos(self):
         return list(self.repo2path().keys())
     def repo_manager(self):

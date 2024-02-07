@@ -38,8 +38,7 @@ connect_score: 0.1
 latency_score_weight: 0.2
 alpha: 0.5
 
-
-
+vote_tag : null
 # workers
 num_workers: 1
 num_threads: 32
