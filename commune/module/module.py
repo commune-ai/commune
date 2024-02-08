@@ -6186,10 +6186,11 @@ class c:
 
         if generator:
             def get_results():
+
                 for future in concurrent.futures.as_completed(futures, timeout=timeout):
                     if return_dict:
                         idx = future2idx[future]
-                        yield future.result()
+                        yield {'idx': idx, 'result': future.result()}
                     else:
                         yield future.result()
         else:
