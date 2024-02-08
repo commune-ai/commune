@@ -346,6 +346,10 @@ class Wallet(c.Module):
     def get_state(cls, network='main', netuid=0):
         t1 = c.time()
         subspace = c.module('subspace')(network=network)
+
+        futures = []
+        futures.append(c.submit(subspace.subnet_params, kwargs=dict(netuid='all'))
+
         state = {
             'subnets': subspace.subnet_params(netuid='all'),
             'modules': subspace.modules(netuid=netuid),
