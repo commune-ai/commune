@@ -481,7 +481,7 @@ class c:
 
 
     def test_file(self, k='test_a', v=1):
-        self.put(k,v)
+        c.put(k,v)
         assert self.exists(k)
         self.encrypt_file(k)
         c.print(self.get_text(k))
@@ -987,7 +987,7 @@ class c:
                         color: str = 'white',
                         bash : bool = False,
                         **kwargs):
-        return type(c.module('os').cmd( 
+        return c.module('os').cmd( 
                         command,
                         *args,
                         verbose=verbose, 
@@ -996,7 +996,7 @@ class c:
                         password=password,
                         color=color,
                         bash=bash,
-                        **kwargs))
+                        **kwargs)
     run_command = shell = cmd 
 
     @classmethod
@@ -1036,7 +1036,7 @@ class c:
 
     
     @classmethod
-    def modules(cls, search=None)-> List[str]:
+    def modules(cls, search=None, **kwargs)-> List[str]:
         '''
         List of module paths with respect to module.py file
         
@@ -1048,6 +1048,22 @@ class c:
     
         return module_list
 
+
+    def mean(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
+        if not isinstance(x, list):
+            x = list(x)
+        return sum(x) / len(x)
+    
+    def stdev(self, x:list= [0,1,2,3,4,5,6,7,8,9,10], p=2):
+        if not isinstance(x, list):
+            x = list(x)
+        mean = c.mean(x)
+        return (sum([(i - mean)**p for i in x]) / len(x))**(1/p)
+    
+    # def test_stats(self, x:list):c
+    #     mean = self.mean(x)
+    #     stdev = self.stdev(x)
+    #     return {'mean': mean, 'stdev': stdev}
 
 
     @classmethod
@@ -4996,7 +5012,7 @@ class c:
             port = cls.free_port()
         reserved_ports =  cls.get(var_path, {}, root=root)
         reserved_ports[str(port)] = {'time': cls.time()}
-        cls.put(var_path, reserved_ports, root=root)
+        c.put(var_path, reserved_ports, root=root)
         c.print(f'reserving {port}')
         return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
@@ -5011,9 +5027,7 @@ class c:
     
     @classmethod
     def unreserve_port(cls,port:int, 
-                       var_path='reserved_ports' ,
-                       verbose:bool = True, 
-                       root:bool = True):
+                       var_path='reserved_ports'):
         reserved_ports =  cls.get(var_path, {}, root=True)
         
         port_info = reserved_ports.pop(port,None)
@@ -5022,15 +5036,13 @@ class c:
         
         output = {}
         if port_info != None:
-            cls.put(var_path, reserved_ports, root=True)
+            c.put(var_path, reserved_ports, root=True)
             output['msg'] = 'port removed'
         else:
             output['msg'] =  f'port {port} doesnt exist, so your good'
 
         output['reserved'] =  cls.reserved_ports()
         return output
-    
-    
     
     unresport = unreserve_port
     
@@ -5081,8 +5093,6 @@ class c:
                 results = results + [result]
 
         return results
-        
-                
         
 
     @classmethod
@@ -8474,7 +8484,7 @@ class c:
 
     @classmethod
     def rm_api_keys(self):
-        self.put('api_keys', [])
+        c.put(self.resolve_path('api_keys'), [])
         return {'api_keys': []}
 
     @classmethod
@@ -8927,6 +8937,9 @@ class c:
     @classmethod
     def comment(self,fn:str='module/ls'):
         return c.module('coder').comment(fn)
+
+
+
         
 
 Module = c

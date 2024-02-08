@@ -308,6 +308,7 @@ class Vali(c.Module):
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
+            c.print(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
             self.errors += 1  
         
@@ -320,14 +321,14 @@ class Vali(c.Module):
         w = response['w'] # the new weight
         module_info['w'] = w * alpha + w_old * (1 - alpha)
 
-
         path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{module_name}'
         self.put_json(path, module_info)
 
         self.count += 1
         self.last_evaluation_time = c.time()
 
-        response =  {'w': w, 'module': module_name, 'address': module_address, 'timestamp': c.time(), 'path': path }
+        response =  {'w': w, 
+                     'module': module_name, 'address': module_address, 'timestamp': c.time(), 'path': path }
         return response
 
     @classmethod
@@ -340,15 +341,22 @@ class Vali(c.Module):
         return self.rm(path)
     
     def resolve_tag(self, tag:str=None):
-        return self.tag if tag == None else tag
+        return tag or self.config.vote_tag or self.tag
     
-    def vote_info(self, tag=None, network=None):
-        votes = self.calculate_votes(tag=tag, network=network)
-        return {
-            'votes': votes,
+    def vote_stats(self, votes = None, tag=None):
+        votes = votes or self.load_votes()
+        tag = self.resolve_tag(tag)
+        info = {
+            'num_uids': len(votes['uids']),
+            'avg_weight': c.mean(votes['weights']),
+            'stdev_weight': c.stdev(votes['weights']),
+            'timestamp': votes['timestamp'],
+            'lag': c.time() - votes['timestamp'],
+            'tag': tag,
         }
+        return info
     
-    def calculate_votes(self, tag=None, network = None):
+    def votes(self, tag=None, network = None):
         network = network or self.config.network
         tag = tag or self.config.vote_tag or self.tag
         c.print(f'Calculating votes for {network} {tag}', color='cyan')
@@ -359,7 +367,7 @@ class Vali(c.Module):
             'keys' : [],            # get all names where w > 0
             'weights' : [],  # get all weights where w > 0
             'uids': [],
-            'timestamp' : c.time()
+            'timestamp' : c.time() 
         }
 
         key2uid = self.subspace.key2uid()
@@ -374,12 +382,8 @@ class Vali(c.Module):
 
         return votes
 
-    @property
-    def last_vote_time(self):
-        votes = self.load_votes()
-        return votes.get('timestamp', 0)
-
-    def load_votes(self) -> dict:
+    def load_votes(self, tag=None) -> dict:
+        tag = self.resolve_tag(tag)
         default={'uids': [], 'weights': [], 'timestamp': 0, 'block': 0}
         votes = self.get(f'votes/{self.config.network}/{self.tag}', default=default)
         return votes
@@ -424,15 +428,12 @@ class Vali(c.Module):
             try:
                 response =  self.vote(tag=tag, votes=votes, cache_exceptions=False)
             except Exception as e:
-                e = c.detailed_error(e)
-                c.print(f'Error {e}', color='red')
-                return {'success': False, 'error': e}
-            
-            return response
+                response = c.detailed_error(e)
+            return response 
 
         c.print(f'Voting {self.config.network} {self.config.netuid}', color='cyan')
 
-        votes = votes or self.calculate_votes(tag=tag) 
+        votes = votes or self.votes(tag=tag) 
         if tag != None:
             key = self.resolve_server_name(tag=tag)
             key = c.get_key(key)
@@ -453,7 +454,9 @@ class Vali(c.Module):
 
         return {'success': True, 
                 'message': 'Voted', 
-                'votes': votes , 
+                'num_uids': len(votes['uids']),
+                'avg_weight': c.avg(votes['weights']),
+                'stdev_weight': c.stdev(votes['weights']),
                 'r': r}
 
     @classmethod
@@ -537,6 +540,11 @@ class Vali(c.Module):
     
 
 
+    @property
+    def last_vote_time(self):
+        votes = self.load_votes()
+        return votes.get('timestamp', 0)
+    
     @property
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
@@ -634,6 +642,15 @@ class Vali(c.Module):
 
         st.write(df)
 
+    def __del__(self):
+        self.stop()
+        c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
+        workers = self.workers()
+        futures = []
+        for w in workers:
+            c.print(f'Stopping worker {w}', color='cyan')
+            futures += [c.submit(c.kill, args=[w])]
+        return c.wait(futures, timeout=10)
         
 
 
