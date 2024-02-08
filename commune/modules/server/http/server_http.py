@@ -256,10 +256,6 @@ class ServerHTTP(c.Module):
 
 
 
-    def __del__(self):
-        c.deregister_server(self.name)
-
-
     @classmethod
     def test(cls):
         module_name = 'storage::test'
@@ -268,6 +264,9 @@ class ServerHTTP(c.Module):
         module.put("hey",1)
         c.kill(module_name)
 
+
+
+    # HISTORY 
     def add_history(self, item:dict):    
         path = self.history_path + '/' + item['address'] + '/'+  str(item['timestamp']) 
         self.put(path, item)
@@ -303,6 +302,9 @@ class ServerHTTP(c.Module):
         
         if to_list:
             return df.to_dict('records')
-  
 
         return df
+    
+
+    def __del__(self):
+        c.deregister_server(self.name)

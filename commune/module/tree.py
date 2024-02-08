@@ -6,95 +6,42 @@ from glob import glob
 class Tree(c.Module):
     base_module = c.base_module # 
 
-    module_python_paths = None
-    @classmethod
-    def get_module_python_paths(cls) -> List[str]:
-        '''
-        Search for all of the modules with yaml files. Format of the file
-        '''
-        if isinstance(c.module_python_paths, list): 
-            return c.module_python_paths
-        modules = []
-
-        # find all of the python files
-        for f in glob(c.root_path + '/**/*.py', recursive=True):
-            if os.path.isdir(f):
-                continue
-            file_path, file_ext =  os.path.splitext(f)
-   
-            if file_ext == '.py':
-                dir_path, file_name = os.path.split(file_path)
-                dir_name = os.path.basename(dir_path)
-
-                if dir_name.lower() == file_name.lower():
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                if file_name.lower().endswith(dir_name.lower()):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                if file_name.lower().endswith('module'):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                    
-                elif 'module' in file_name.lower():
-                    modules.append(f)
-                elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
-                    modules.append(f)
-                else:
-                    # FIX ME
-                    f_classes = c.find_python_class(f, search=['commune.Module', 'c.Module'])
-                    # f_classes = []
-                    if len(f_classes) > 0:
-                        modules.append(f)
-
-        cls.module_python_paths = modules
-        
-        return modules
-    
-    @classmethod
-    def get_tree_root_dir(cls):
-        tree_state = cls.get_tree_state()['path']
-
 
     @classmethod
-    def path2simple(cls, path:str) -> str:
-
-        # does the config exist
-
-        simple_path =  path.split(c.copy(cls.root_dir))[-1]
-
-        if cls.path_config_exists(path):
-            simple_path = os.path.dirname(simple_path)
-
-        simple_path = simple_path.replace('.py', '')
+    def tree(cls, search=None, 
+                mode='path', 
+                update:bool = False,
+                path = 'local_module_tree',
+                **kwargs) -> List[str]:
         
-        
-        simple_path = simple_path.replace('/', '.')[1:]
+        module_tree = None
+        if not update:
+            if cls.module_tree_cache != None:
+                return cls.module_tree_cache
+            module_tree = c.get(path, None)
+        if module_tree == None:
 
-        # compress nae
-        chunks = simple_path.split('.')
-        new_chunks = []
-        for i, chunk in enumerate(chunks):
-            if len(new_chunks)>0:
-                if new_chunks[-1] == chunks[i]:
-                    continue
-                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
-                    continue
-            new_chunks.append(chunk)
-        simple_path = '.'.join(new_chunks)
-        
-        # remove the modules prefix
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
+            assert mode in ['path', 'object']
+            module_tree = {}
 
-        # remove any files to compress the name even further for
-        if len(simple_path.split('.')) > 2:
+            # get the python paths
+            python_paths = c.get_module_python_paths()
+            module_tree ={c.path2simple(f): f for f in python_paths}
+
+            if mode == 'object':
+                module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
+
+            # to use functions like c. we need to replace it with module lol
+            if cls.root_module_class in module_tree:
+                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
             
-            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
-                simple_path = '.'.join(simple_path.split('.')[:-1])
-        return simple_path
-    
+            c.put(path, module_tree)
 
+        
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
+
+        return module_tree
 
     tree_folders_path = 'module_tree_folders'
     @classmethod
@@ -114,4 +61,3 @@ class Tree(c.Module):
         tree_folder = [f for f in tree_folder if f != tree_path ]
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
-
