@@ -953,11 +953,9 @@ class c:
         }
         c.put('module2dashboard', module2dashboard)
 
+        cwd = os.path.dirname(module_filepath)
+        c.cmd(cmd, verbose=True, cwd=cwd)
 
-        c.cmd(cmd, verbose=True)
-
-
-    
 
 
     @staticmethod
@@ -1648,6 +1646,10 @@ class c:
     def path2object(cls, path:str) -> str:
         path = cls.path2objectpath(path)
         return c.import_object(path)
+    
+    @classmethod
+    def url2text(cls, *args, **kwargs):
+        return c.module('web').url2text(*args, **kwargs).text
 
     module_cache = {}
     @classmethod
@@ -6187,7 +6189,7 @@ class c:
                 for future in concurrent.futures.as_completed(futures, timeout=timeout):
                     if return_dict:
                         idx = future2idx[future]
-                        yield {'idx': idx, 'result': future.result()}
+                        yield future.result()
                     else:
                         yield future.result()
         else:

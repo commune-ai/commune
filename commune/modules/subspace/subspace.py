@@ -1277,9 +1277,10 @@ class Subspace(c.Module):
         return self.block_time * self.subnet(netuid=netuid)['tempo']
 
     
-    def get_module(self, key=None,
+    def get_module(self, key='vali',
                     netuid=0,
                     network='main',
+                    fmt='j',
                     **kwargs) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode='http')
         key = self.resolve_key_ss58(key)
@@ -1291,11 +1292,39 @@ class Subspace(c.Module):
                                   'params': [key, netuid]}).json()
         latency = c.time() - start_time
         c.print(f"Latency: {latency}")
+        module = {**module['result']['stats'], **module['result']['params']}
+        module['stake_from'] = [[k, self.format_amount(v, fmt=fmt)] for k,v in module['stake_from']]
+        # convert list of u8 into a string 
+        module['name'] = self.list2str(module['name'])
+        module['address'] = self.list2str(module['address'])
+        module['key'] = key
+        module['stake'] = sum([v for k,v in module['stake_from']])
+        module['dividends'] = module['dividends'] / (U16_MAX)
+        module['incentive'] = module['incentive'] / (U16_MAX)
+        module['emission'] = self.format_amount(module['emission'], fmt=fmt)
+
+
         return module
     
+    def list2str(self, l):
+        return ''.join([chr(x) for x in l]).strip()
 
+    def get_modules(self, keys:list, timeout = 10) -> List['ModuleInfo']:
 
+        modules = []
+        futures = [c.submit(self.get_module, args=[key]) for key in keys]
+        progress = c.tqdm(total=len(keys))
+        for i, result in  enumerate(c.wait(futures, timeout=timeout, generator=True)):
+            
+            if isinstance(result, dict) and 'name' in result:
+                modules += [result]
+                progress.update(1)
 
+            else:
+                c.print(result.keys())
+            
+        return modules
+        
     @property
     def null_module(self):
         return {'name': None, 'key': None, 'uid': None, 'address': None, 'stake': 0, 'balance': 0, 'emission': 0, 'incentive': 0, 'dividends': 0, 'stake_to': {}, 'stake_from': {}, 'weight': []}
@@ -1892,46 +1921,32 @@ class Subspace(c.Module):
               **kwargs
               ):
 
-        ip = c.ip()
         modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt, **kwargs)
         stats = []
 
         local_key_addresses = list(c.key2address().values())
+        servers = c.servers(network='local')
         for i, m in enumerate(modules):
-
             if m['key'] not in local_key_addresses :
                 continue
             # sum the stake_from
             m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
-            m['registered'] = True
-
             # we want to round these values to make them look nice
             for k in ['emission', 'dividends', 'incentive', 'stake_from']:
                 m[k] = c.round(m[k], sig=4)
 
+            m['serving'] = bool(m['name'] in servers)
             stats.append(m)
-
-        servers = c.servers(network='local')
-        for i in range(len(stats)):
-            stats[i]['serving'] = bool(stats[i]['name'] in servers)
-
         df_stats =  c.df(stats)
-
         if len(stats) > 0:
-
             df_stats = df_stats[cols]
-
             if 'last_update' in cols:
                 df_stats['last_update'] = df_stats['last_update'].apply(lambda x: x)
-
             if 'emission' in cols:
                 epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
                 df_stats['emission'] = df_stats['emission'] * epochs_per_day
-
-
             sort_cols = [c for c in sort_cols if c in df_stats.columns]  
             df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
-
             if search is not None:
                 df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
 
@@ -1951,12 +1966,25 @@ class Subspace(c.Module):
                    timeout=30,
                    batch_size=30,
                    update = False,
+                   fmt = 'j',
                    modules:List[int] = None, 
+                   n = 100,
                    **kwargs):
-        keys = self.my_keys(netuid=netuid, network=network, **kwargs)
-        modules = self.modules(search=search, netuid=netuid, network=network, update=update, **kwargs)
-        my_modules = [m for m in modules if m['key'] in keys]
-        return my_modules
+        
+        path = 'my_modules'
+        if not update:
+            modules = self.get(path, None)
+            if modules != None:
+                return modules
+            
+        
+        futures = []
+        modules = []
+
+        my_keys = self.my_keys(netuid=netuid, network=network, update=update, **kwargs)
+        modules = self.get_modules(my_keys[:n], timeout=timeout)
+        self.put(path, modules)
+        return modules
 
         # futures = []
         # path = f'my_modules/{network}.{netuid}'
@@ -3013,6 +3041,17 @@ class Subspace(c.Module):
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
     
+    def staked_modules(self, key = None, netuid = 0, network = network, **kwargs):
+        key = self.resolve_key(key)
+        netuid = self.resolve_netuid(netuid)
+        staked_modules = self.get_stake_to(key=key, netuid=netuid, names=True, update=True, **kwargs)
+        keys = list(staked_modules.keys())
+
+        modules = self.get_modules(keys)
+
+        return modules
+
+    
     
     
     def my_keys(self, *args, **kwargs):
@@ -3396,10 +3435,10 @@ class Subspace(c.Module):
         return sum(self.my_balance(network=network, fmt=fmt, update=update ).values())
 
 
-    def check_valis(self):
-        return self.check_servers(search='vali', netuid=None, wait_for_server=False, update=False)
+    def check_valis(self, **kwargs):
+        return self.check_servers(search='vali', **kwargs)
     
-    def check_servers(self, search=None,
+    def check_servers(self, search='vali',
                     wait_for_server=False, 
                     update:bool=False, 
                     min_lag=1000, 
@@ -3601,7 +3640,9 @@ class Subspace(c.Module):
 
 
 
-
+    def dashboard(self, **kwargs):
+        import streamlit as st
+        return st.write(self.get_module())
     
 
 
