@@ -663,6 +663,7 @@ class Remote(c.Module):
             kwargs = self.function2streamlit(fn=fn_name, fn_schema=module_info['schema'][fn_name])
         timeout = cols[1].number_input('Timeout', 1, 100, 10, key='timeout_fn')
         run = st.button(f'Run {fn_name}')
+        
         if run:
             future2module = {}
             for module_address in module_addresses:
@@ -683,7 +684,8 @@ class Remote(c.Module):
 
                     st.markdown(f'### {module_name}')
                     if c.is_error(result):
-                        st.error(result)
+                        result
+                        pass
                     else:
                         st.write(result)
         
@@ -1047,7 +1049,6 @@ class Remote(c.Module):
         namespace = c.namespace(network=network)
         address2name = {v:k for k,v in namespace.items()}
         host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
-        c.print(host2_server_addresses_responses)
         for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
             if isinstance(server_address, str):
                 server_address = server_address.split('\n')[-1]

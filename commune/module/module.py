@@ -2861,6 +2861,7 @@ class c:
               tag_seperator:str='::',
               max_workers:int = None,
               mode:str = "thread",
+              universe = False,
               public: bool = False,
               **extra_kwargs
               ):
@@ -4640,10 +4641,14 @@ class c:
     @classmethod
     def rm_keys(cls,*args, **kwargs ):
         return c.module('key').rm_keys(*args, **kwargs )
-    
+
     @classmethod
     def key2address(cls,*args, **kwargs ):
         return c.module('key').key2address(*args, **kwargs )
+    
+    @classmethod
+    def key_addresses(cls,*args, **kwargs ):
+        return c.module('key').addresses(*args, **kwargs )
     k2a = key2address
 
     @classmethod
@@ -5127,6 +5132,7 @@ class c:
     def submit(cls, 
                 fn, 
                 kwargs: dict = {}, 
+                params = None,
                 args:list = [], 
                 timeout:int = 20, 
                 return_future:bool=True,
@@ -5137,6 +5143,8 @@ class c:
                 mode:str='thread',
                 max_workers : int = 100,
                 ):
+        if params != None:
+            kwargs = {**kwargs, **params}
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor

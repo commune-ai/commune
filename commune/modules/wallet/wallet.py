@@ -344,6 +344,7 @@ class Wallet(c.Module):
 
     @classmethod
     def get_state(cls, network='main', netuid=0):
+        t1 = c.time()
         subspace = c.module('subspace')(network=network)
         state = {
             'subnets': subspace.subnet_params(netuid='all'),
@@ -355,6 +356,7 @@ class Wallet(c.Module):
         state['key2address'] = c.key2address()
         state['lag'] = c.lag()
         state['block_time'] = 8
+        c.print(f'get_state took {c.time() - t1:.2f} seconds')
 
         return state
         
@@ -380,7 +382,6 @@ class Wallet(c.Module):
 
 
         self.subnets = self.state['subnets']
-        c.print()
         keys = c.keys()
         subnets = self.subnets
 
