@@ -46,7 +46,9 @@ class Vali(c.Module):
         if self.config.start:
             c.print(f'Vali config: {self.config}', color='cyan')
             if self.config.vote_tag == None:
-                self.start_workers(num_workers=self.config.num_workers, refresh=self.config.refresh)
+                self.start_workers(num_workers=self.config.num_workers, 
+                                   refresh=self.config.refresh, 
+                                   mode=self.config.mode)
                 steps = 0
                 c.print(f'Vali loop started', color='cyan')
             while True:
@@ -81,32 +83,40 @@ class Vali(c.Module):
     def worker_name_prefix(self):
         return f'{self.server_name}/{self.worker_fn}'
 
-    def start_workers(self, num_workers:int=1, refresh=True):
+    def start_workers(self, 
+                      num_workers:int=1, 
+                      refresh=True, 
+                      mode='process'):
         responses = []
 
         config= c.copy(self.config)
         config.start = False
         config.num_workers = 0
         config = c.munch2dict(config)
+        if mode == 'process':
 
         # we don't want the workers to start more workers
 
-        for i in range(num_workers):
-            name = f'{self.worker_name_prefix}_{i}'
-            if not refresh and c.pm2_exists(name):
-                c.print(f'Worker {name} already exists, skipping', color='yellow')
-                continue
-    
-            r = self.remote_fn(fn=self.worker_fn, 
-                            name = name,
-                            refresh=refresh,
-                            kwargs={'config': config})
-            c.print(f'Started worker {i} {r}', color='cyan')
-            responses.append(r)
+            for i in range(num_workers):
+                name = f'{self.worker_name_prefix}_{i}'
+                if not refresh and c.pm2_exists(name):
+                    c.print(f'Worker {name} already exists, skipping', color='yellow')
+                    continue
+                r = self.remote_fn(fn=self.worker_fn, 
+                                name = name,
+                                refresh=refresh,
+                                kwargs={'config': config})
+                c.print(f'Started worker {i} {r}', color='cyan')
+                responses.append(r)
 
-        return responses
-    
-
+            return responses
+        
+        elif mode == 'thread':
+            for i in range(num_workers):
+                worker = c.thread(self.worker, kwargs=dict(config=config))
+                c.print(f'Started worker {i} {worker}', color='cyan')
+                responses.append(worker)
+            return responses
         
     @classmethod
     def worker(cls, *args, **kwargs):
@@ -254,6 +264,10 @@ class Vali(c.Module):
 
     eval = eval_module
 
+    def eval_batch(self, modules:list, **kwargs):
+        return c.gather([self.async_eval_module(module=module, **kwargs) for module in modules])
+    
+
     async def async_eval_module(self, module:str, network = None):
         """
         The following evaluates a module sver
@@ -308,7 +322,6 @@ class Vali(c.Module):
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
-            c.print(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'}  
             self.errors += 1  
         
@@ -455,7 +468,7 @@ class Vali(c.Module):
         return {'success': True, 
                 'message': 'Voted', 
                 'num_uids': len(votes['uids']),
-                'avg_weight': c.avg(votes['weights']),
+                'avg_weight': c.mean(votes['weights']),
                 'stdev_weight': c.stdev(votes['weights']),
                 'r': r}
 

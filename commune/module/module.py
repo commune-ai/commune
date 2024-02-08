@@ -1651,7 +1651,14 @@ class c:
 
     module_cache = {}
     @classmethod
-    def get_module(cls, path:str, cache=True, timeit=True) -> str:
+    def get_module(cls, path:str, cache=True, timeit=True, catch_exception=True) -> str:
+        if catch_exception: 
+            try:
+                return cls.get_module(path, cache=cache, timeit=timeit, catch_exception=False)
+            except Exception as e:
+                # sometimes you need to update the module tree
+                cls.tree(update=True)
+        
         if timeit:
             return c.get_module(path, cache=cache, timeit=False)
        
@@ -4681,7 +4688,7 @@ class c:
     @classmethod
     def asubmit(cls, fn:str, *args, **kwargs):
         async def _asubmit():
-            return fn(**kwargs)
+            return fn(*args, **kwargs)
         return _asubmit()
     
     fn2async = asubmit

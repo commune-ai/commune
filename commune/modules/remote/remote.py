@@ -852,8 +852,9 @@ class Remote(c.Module):
 
             st.write('Print Formatting')
             expanded = True
-            num_columns = 1
-            fn_code = st.text_input('Function', 'x')
+            cols = st.columns([4,1])
+            num_columns = cols[1].number_input('Num Columns', 1, 10, 2)
+            fn_code = cols[0].text_input('Function', 'x')
 
         cols = st.columns([5,1])
         cmd = cols[0].text_input('Command', 'ls')
@@ -906,10 +907,10 @@ class Remote(c.Module):
                             msg = fn_code(msg)
                             if is_error:
                                 st.write('ERROR')
+                                st.error(msg)
                                 failed_hosts += [host]
-                            if filter_bool and msg != True:
-                                continue
-                            st.code(msg)
+                            else:
+                                st.code(msg)
                     
 
             except Exception as e:

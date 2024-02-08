@@ -91,7 +91,7 @@ class Subspace(c.Module):
                 auto_reconnect=True, 
                 verbose:bool=True,
                 max_trials:int = 10,
-                mode = 'ws',
+                mode = 'http',
                 **kwargs):
 
         '''
@@ -366,13 +366,14 @@ class Subspace(c.Module):
                   return_dict:bool = True,
                   max_age = None, # max age in seconds
                   new_connection=False,
+                  mode = 'http',
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         if name  == 'Account':
             module = 'System'
 
-        network = self.resolve_network(network, new_connection=new_connection)
+        network = self.resolve_network(network, new_connection=new_connection, mode=mode)
         path = f'query/{network}/{module}.{name}'
 
     
@@ -889,26 +890,28 @@ class Subspace(c.Module):
         block = block or self.block
 
         if subnet_params == None:
-            def query(**kwargs ):
+            async def query(**kwargs ):
                 c.print(kwargs)
                 return self.query_map(**kwargs)
             
             subnet_params = {}
+            n = len(features)
+            progress = c.tqdm(total=n, desc=f'Querying {n} features')
             while True:
+                
                 features_left = [f for f in features if f not in subnet_params]
                 if len(features_left) == 0:
-                    c.print(f'All features queried, {c.emoji("check")}')
+                    c.print(f'All features queried, {c.emoji("checkmark")}')
                     break
-                else:
-                    c.print(f'Querying {len(features_left)} left, ({features_left})')
-                c.print(f'Querying {features_left}')
-                name2job = {k:c.submit(query, kwargs=dict(name=v, update=update, block=block), timeout=timeout) for k, v in name2feature.items()}
+
+                name2job = {k:query(name=v, update=update, block=block) for k, v in name2feature.items()}
                 jobs = list(name2job.values())
                 results = c.wait(jobs, timeout=timeout)
                 for i, feature in enumerate(features_left):
                     if c.is_error(results[i]):
                         c.print(f'Error querying {results[i]}')
                     else:
+                        progress.update(1)
                         subnet_params[feature] = results[i]
             self.put(path, subnet_params)
 
@@ -1120,7 +1123,7 @@ class Subspace(c.Module):
         return balances
     
     
-    def resolve_network(self, network: Optional[int] = None, new_connection =False, **kwargs) -> int:
+    def resolve_network(self, network: Optional[int] = None, new_connection =False, mode='ws', **kwargs) -> int:
         if  not hasattr(self, 'substrate') or new_connection:
             self.set_network(network, **kwargs)
 
@@ -1139,7 +1142,7 @@ class Subspace(c.Module):
 
 
     def subnets(self, **kwargs) -> Dict[int, str]:
-        subnets = [s['name'] for s in self.subnet_params(**kwargs)]
+        subnets = [s['name'] for s in self.subnet_params(netuid='all', **kwargs)]
         return subnets
     
     def netuids(self, network=network, update=False, block=None) -> Dict[int, str]:
@@ -1405,7 +1408,7 @@ class Subspace(c.Module):
                     break
 
                 c.print(f'Querying {features_left}')
-                futures  = [c.submit(self.get_feature,kwargs=dict(feature=f, network=network, netuid=netuid, block=block, update=update) ) for f in features_left]
+                futures  = [c.asubmit(self.get_feature,feature=f, network=network, netuid=netuid, block=block, update=update ) for f in features_left]
                 for i, result in  enumerate(c.wait(futures, timeout=timeout)):
                     feature = features_left[i]
                     if is_success(result):
@@ -1489,7 +1492,6 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         uid2key = {uid:k for uid,k in enumerate(self.query_map('Keys', update=update, network=network, **kwargs)[netuid])}
         # sort by uid
-
         if uid != None:
             return uid2key[uid]
         uids = list(uid2key.keys())
@@ -1649,7 +1651,7 @@ class Subspace(c.Module):
     regblocks = registration_blocks
 
 
-    def key2uid(self, key = None, network:str=  None ,netuid: int = None, **kwargs):
+    def key2uid(self, key = None, network:str=  None ,netuid: int = 0, **kwargs):
         key2uid =  {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
@@ -3015,9 +3017,9 @@ class Subspace(c.Module):
         modules = self.my_modules(*args, **kwargs)
         return [m['key'] for m in modules]
 
-    def my_key2uid(self, *args, network=None, netuid=0, **kwargs):
+    def my_key2uid(self, *args, network=None, netuid=0, update=False, **kwargs):
         key2uid = self.key2uid(*args, network=network, netuid=netuid, **kwargs)
-        key2address = c.key2address()
+        key2address = c.key2address(update=update )
         key_addresses = list(key2address.values())
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
@@ -3451,6 +3453,7 @@ class Subspace(c.Module):
                     remote_module: str = None,
                     unchecked_weight: bool = False,
                     network = network,
+                    mode='ws',
                      **kwargs):
 
         """
@@ -3458,7 +3461,7 @@ class Subspace(c.Module):
 
         """
         key = self.resolve_key(key)
-        network = self.resolve_network(network, mode='url')
+        network = self.resolve_network(network, mode=mode)
 
         if remote_module != None:
             kwargs = c.locals2kwargs(locals())

@@ -21,6 +21,7 @@ run_mode : thread
 run_loop: True
 run_loop_sleep: 8
 
+
 # voting 
 vote: True
 min_stake: 1
@@ -40,6 +41,7 @@ alpha: 0.5
 
 vote_tag : null
 # workers
+mode: thread
 num_workers: 1
 num_threads: 32
 timeout: 10
