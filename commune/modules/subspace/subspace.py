@@ -50,6 +50,7 @@ class Subspace(c.Module):
 
     def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
         mode = mode or self.config.connection_mode
+        network = 'network' or self.config.network
         if url == None:
             
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
@@ -76,8 +77,9 @@ class Subspace(c.Module):
 
 
         return url
-
-    def set_network(self, 
+    
+    url2substrate = {}
+    def get_substrate(self, 
                 network:str = network,
                 url : str = None,
                 websocket:str=None, 
@@ -91,9 +93,12 @@ class Subspace(c.Module):
                 auto_reconnect=True, 
                 verbose:bool=True,
                 max_trials:int = 10,
-                mode = 'http',
-                **kwargs):
+                cache:bool = True,
+                mode = 'http',):
+        from substrateinterface import SubstrateInterface
 
+        url = self.resolve_url(url, mode=mode, network=network)
+        
         '''
         A specialized class in interfacing with a Substrate node.
 
@@ -117,46 +122,37 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        from substrateinterface import SubstrateInterface
+
+        if cache:
+            if url in self.url2substrate:
+                return self.url2substrate[url]
+
+
+        substrate= SubstrateInterface(url=url, 
+                    websocket=websocket, 
+                    ss58_format=ss58_format, 
+                    type_registry=type_registry, 
+                    type_registry_preset=type_registry_preset, 
+                    cache_region=cache_region, 
+                    runtime_config=runtime_config, 
+                    ws_options=ws_options, 
+                    auto_discover=auto_discover, 
+                    auto_reconnect=auto_reconnect)
         
-        if network == None:
-            network = self.config.network
-        if 'subspace' == network:
-            network = 'main'
+        if cache:
+            self.url2substrate[url] = substrate
+        
+        return substrate
 
-        trials = 0
-        while trials < max_trials :
-            trials += 1
-            url = self.resolve_url(url, mode=mode)
-            kwargs.update(url=url, 
-                        websocket=websocket, 
-                        ss58_format=ss58_format, 
-                        type_registry=type_registry, 
-                        type_registry_preset=type_registry_preset, 
-                        cache_region=cache_region, 
-                        runtime_config=runtime_config, 
-                        ws_options=ws_options, 
-                        auto_discover=auto_discover, 
-                        auto_reconnect=auto_reconnect)
-            try:
-                self.substrate= SubstrateInterface(**kwargs)
-                break
-            except Exception as e:
-                c.print(f'Could not connect to {url}, switching to main. Trying again in 10 seconds.')
-                c.print(e)
-                network = 'main'
-                local=False
-                url = None # set the url to none so it will be resolved again
-        if trials == max_trials:
-            c.print(f'Could not connect to {url}')
-           
-            return {'success': False, 'message': f'Could not connect to {url}'}
 
+    def set_network(self, 
+                network:str = network,
+                mode = 'http',
+                url : str = None, **kwargs):
         self.url = url
-        self.network= network
-        response = {'network': network, 'url': url}
-        c.print(response, verbose=verbose)
-        return response
+        self.network= network or self.config.network
+        self.substrate = self.get_substrate(network=network, url=url, mode=mode , **kwargs)
+        return {'network': network, 'url': url}
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
@@ -314,15 +310,13 @@ class Subspace(c.Module):
             value = self.get(path, None)
             if value != None:
                 return value
-            
-        with self.substrate as substrate:
-
-            response =  substrate.query(
-                module=module,
-                storage_function = name,
-                block_hash = None if block == None else substrate.get_block_hash(block), 
-                params = params
-            )
+        substrate = self.get_substrate(network=network)
+        response =  substrate.query(
+            module=module,
+            storage_function = name,
+            block_hash = None if block == None else substrate.get_block_hash(block), 
+            params = params
+        )
         value =  response.value
 
         # if the value is a tuple then we want to convert it to a list
@@ -342,13 +336,13 @@ class Subspace(c.Module):
         """
 
         network = self.resolve_network(network)
+        substrate = self.get_substrate(network=network)
 
-        with self.substrate as substrate:
-            value =  substrate.query(
-                module=module_name,
-                storage_function=constant_name,
-                block_hash = None if block == None else substrate.get_block_hash(block)
-            )
+        value =  substrate.query(
+            module=module_name,
+            storage_function=constant_name,
+            block_hash = None if block == None else substrate.get_block_hash(block)
+        )
             
         return value
     
@@ -384,7 +378,6 @@ class Subspace(c.Module):
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
-        timestamp = int(c.timestamp())
         if not update:
             value = self.get(path, None, max_age=max_age)
             if value != None:
@@ -394,17 +387,16 @@ class Subspace(c.Module):
 
         # if the value is a tuple then we want to convert it to a list
         block = block or self.block
-        
-        with self.substrate as substrate:
-            block_hash = substrate.get_block_hash(block)
-            qmap =  substrate.query_map(
-                module=module,
-                storage_function = name,
-                params = params,
-                page_size = page_size,
-                max_results = max_results,
-                block_hash =block_hash
-            )
+        substrate = self.get_substrate(network=network, mode=mode)
+        block_hash = substrate.get_block_hash(block)
+        qmap =  substrate.query_map(
+            module=module,
+            storage_function = name,
+            params = params,
+            page_size = page_size,
+            max_results = max_results,
+            block_hash =block_hash
+        )
 
         new_qmap = {} if return_dict else []
 
@@ -1137,7 +1129,7 @@ class Subspace(c.Module):
             assert subnet in self.netuids()
             subnet = self.netuid2subnet(netuid=subnet)
         subnets = self.subnets()
-        assert subnet in subnets, f"Subnet {subnet} not found in {subnets} for chain {self.network}"
+        assert subnet in subnets, f"Subnet {subnet} not found in {subnets}"
         return subnet
 
 
@@ -1408,7 +1400,7 @@ class Subspace(c.Module):
                     break
 
                 c.print(f'Querying {features_left}')
-                futures  = [c.asubmit(self.get_feature,feature=f, network=network, netuid=netuid, block=block, update=update ) for f in features_left]
+                futures  = [c.submit(self.get_feature,kwargs= dict(feature=f, network=network, netuid=netuid, block=block, update=update) ) for f in features_left]
                 for i, result in  enumerate(c.wait(futures, timeout=timeout)):
                     feature = features_left[i]
                     if is_success(result):
@@ -3471,7 +3463,7 @@ class Subspace(c.Module):
         if verbose:
             kwargs = c.locals2kwargs(locals())
             kwargs['verbose'] = False
-            c.status(f":satellite: Calling [bold]{fn}[/bold] on [bold yellow]{self.network}[/bold yellow]")
+            c.status(f":satellite: Calling [bold]{fn}[/bold]")
             return self.compose_call(**kwargs)
 
         start_time = c.datetime()
@@ -3489,34 +3481,33 @@ class Subspace(c.Module):
 
         self.put_json(paths['pending'], tx_state)
 
-        with self.substrate as substrate:
+        substrate = self.get_substrate(network=network, mode='ws')
+        call = substrate.compose_call(**compose_kwargs)
 
-            call = substrate.compose_call(**compose_kwargs)
+        if sudo:
+            call = substrate.compose_call(
+                call_module='Sudo',
+                call_function='sudo',
+                call_params={
+                    'call': call,
+                }
+            )
+        if unchecked_weight:
+            # uncheck the weights for set_code
+            call = substrate.compose_call(
+                call_module="Sudo",
+                call_function="sudo_unchecked_weight",
+                call_params={
+                    "call": call,
+                    'weight': (0,0)
+                },
+            )
+        # get nonce 
+        extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
 
-            if sudo:
-                call = substrate.compose_call(
-                    call_module='Sudo',
-                    call_function='sudo',
-                    call_params={
-                        'call': call,
-                    }
-                )
-            if unchecked_weight:
-                # uncheck the weights for set_code
-                call = substrate.compose_call(
-                    call_module="Sudo",
-                    call_function="sudo_unchecked_weight",
-                    call_params={
-                        "call": call,
-                        'weight': (0,0)
-                    },
-                )
-            # get nonce 
-            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
-
-            response = substrate.submit_extrinsic(extrinsic=extrinsic,
-                                                  wait_for_inclusion=wait_for_inclusion, 
-                                                  wait_for_finalization=wait_for_finalization)
+        response = substrate.submit_extrinsic(extrinsic=extrinsic,
+                                                wait_for_inclusion=wait_for_inclusion, 
+                                                wait_for_finalization=wait_for_finalization)
 
         if wait_for_finalization:
             if process_events:
