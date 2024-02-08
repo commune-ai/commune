@@ -346,7 +346,7 @@ class Wallet(c.Module):
     def get_state(cls, network='main', netuid=0):
         subspace = c.module('subspace')(network=network)
         state = {
-            'subnets': subspace.subnet_params(netuid=netuid),
+            'subnets': subspace.subnet_params(netuid='all'),
             'modules': subspace.modules(netuid=netuid),
             'balances': subspace.balances(),
         }

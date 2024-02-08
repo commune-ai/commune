@@ -14,6 +14,8 @@ class Agent(c.Module):
     and use it in the next step
     IF YOU NEED TO USE A TOOL, USE THE TOOL TO SOLVE THE PROBLEM
     please file in the 
+    WHEN YOU ARE DONE, PLEASE FILE IN THE ANSWER, AND FINISH THE PROMPT
+    PLEASE SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1, 1 BEING THE MOST CONFIDENT
 
     """
 
@@ -22,7 +24,11 @@ class Agent(c.Module):
         'description': description,
         'prompt': 'This is the prompt',
         'tools': tools,
-        'history': [],
+        'history': 'USE MEMORY TO SOLVE THE PROBLEM IN KNOWLEDGE TUPLES (HEAD, RELEATION, PAIR)(dict)',
+        'thoughts': 'WRITE YOUR THOUGHTS HERE IN KNOWLEDGE TUPLES (dict)',
+        'quit': 'INCLUDE THE FINISHED PROMPT HERE (bool)',
+        'answer': 'INCLUDE THE ANSWER HERE',
+        'confidence': 'SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1',
     }
 
     def __init__(self,
