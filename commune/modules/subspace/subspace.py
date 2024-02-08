@@ -875,15 +875,13 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         path = f'cache/{network}.subnet_params.json'
         subnet_params = None if update else self.get(path, None) 
-        
-
+    
         
         features = list(name2feature.keys())
         block = block or self.block
 
         if subnet_params == None:
             async def query(**kwargs ):
-                c.print(kwargs)
                 return self.query_map(**kwargs)
             
             subnet_params = {}
@@ -913,7 +911,7 @@ class Subspace(c.Module):
             netuid = self.resolve_netuid(netuid)
             new_subnet_params = {}
             for k,v in subnet_params.items():
-                c.print(v)
+
                 new_subnet_params[k] = v[netuid]
             subnet_params = new_subnet_params
 
@@ -1372,7 +1370,6 @@ class Subspace(c.Module):
                                         'weights'],
                 timeout = 100,
                 update: bool = False,
-                cache : bool = False,
                 df = False,
                 
                 ) -> Dict[str, 'ModuleInfo']:
@@ -1385,9 +1382,10 @@ class Subspace(c.Module):
             for netuid in netuids:
                 modules += self.modules(**kwargs, netuid=netuid)
 
-        if cache:
-            cache_path = f'modules/{network}.{netuid}'
-            modules = self.get(cache_path, [])
+
+        path = f'modules/{network}.{netuid}'
+        if not update:
+            modules = self.get(path, [])
         
         if len(modules) == 0:
             block = block or self.block
@@ -1406,7 +1404,7 @@ class Subspace(c.Module):
                     if is_success(result):
                         state[feature] = result
                     else:
-                        c.print(f"Error fetching {feature} {result}")
+                        c.print(f"Error fetching {feature}")
                 
                 
             for uid, key in enumerate(state['keys']):
@@ -1437,8 +1435,8 @@ class Subspace(c.Module):
                         module['weight'] = []
                     
                 modules.append(module)
-            if cache:
-                self.put(cache_path, modules)
+            
+                self.put(path, modules)
 
         if len(modules) > 0:
             keys = list(modules[0].keys())
@@ -1452,7 +1450,6 @@ class Subspace(c.Module):
             modules = [m for m in modules if search in m['name']]
         if df:
             modules = c.df(modules)
-
 
         return modules
     
