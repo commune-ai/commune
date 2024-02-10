@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 # INSTALL APT PACKAGES (NOT PYTHON)
 RUN apt update
 RUN apt upgrade -y
-iRUN apt install -y curl sudo git htop netcat wget unzip tmux apt-utils cmake build-essential protobuf-compiler
+RUN apt install -y curl sudo git htop netcat wget unzip tmux apt-utils cmake build-essential protobuf-compiler
 #  INSTALL PYTHON PACKAGES
 RUN apt install -y python3-dev python3-pip
 COPY ./commune /commune/commune
