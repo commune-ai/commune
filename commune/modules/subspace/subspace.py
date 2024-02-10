@@ -1318,8 +1318,9 @@ class Subspace(c.Module):
         futures = [c.submit(self.get_module, args=[key]) for key in keys]
         c.print('fm')
         progress = c.tqdm(total=len(keys))
-        for i, result in  enumerate(c.wait(futures, timeout=timeout, generator=True)):
+        for i, result in  enumerate(c.as_completed(futures, timeout=timeout)):
             c.print(i)
+            result = result.result()
             if isinstance(result, dict) and 'name' in result:
                 modules += [result]
                 progress.update(1)
