@@ -29,7 +29,7 @@ class Explorer(c.Module):
 
         @st.cache_data(show_spinner=False)
         def get_state(network):
-            return c.get_state(network)
+            return c.get_state(network, netuid='all')
 
         state  =  get_state(self.network)
         subnets = state['subnets']
@@ -47,7 +47,7 @@ class Explorer(c.Module):
             subnet = subnets[s_netuid]
             subnet['n'] = len(s_modules)
             subnet['max_stake'] /= 1e9
-            total_stake = sum([sum([v/1e9 for k,v in m['stake_from']]) for m in s_modules])
+            total_stake = sum([sum([v/1e9 for k,v in m['stake_from'].items()]) for m in s_modules])
             subnet['total_stake'] = total_stake
             subnet['emission_per_epoch'] = sum([m['emission']/1e9  for m in s_modules])
             subnet['emission_per_block'] = subnet['emission_per_epoch'] / subnet['tempo']
@@ -107,7 +107,6 @@ class Explorer(c.Module):
         '''
         hey
         '''
-        st.title('GO ISREAL')
         #
         self = cls()
         # st.write(self.subnets)

@@ -188,6 +188,9 @@ class OsModule(c.Module):
         return torch.cuda.device_count()
     
     
+    def add_rsa_key(self, b=2048, t='rsa'):
+        return c.cmd(f"ssh-keygen -b {b} -t {t}")
+    
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
@@ -241,6 +244,11 @@ class OsModule(c.Module):
         def stream_output(process):
             pipe = process.stdout
             for ch in iter(lambda: pipe.read(1), b""):
+                # if the the terminal is stuck and needs to enter
+
+                process.poll()  
+
+
                 try:
                     yield ch.decode()
                 except Exception as e:

@@ -509,6 +509,7 @@ class c:
             mode: bool = 'json',
             key : str = None,
             encrypt: bool = False,
+            verbose: bool = False
             ):
         '''
         Puts a value in the config
@@ -520,6 +521,9 @@ class c:
         data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
         # default json 
         getattr(cls,f'put_{mode}')(k, data)
+
+        if verbose:
+            c.print(f'put {k} = {v}')
     
         return data
     
@@ -1001,7 +1005,6 @@ class c:
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
         return import_module(import_path)
-
 
     @classmethod
     def import_object(cls, key:str, verbose: bool = False)-> Any:
@@ -6529,21 +6532,24 @@ class c:
 
         return public_key
         
-    ssh_path = os.path.expanduser('~/.ssh/id_rsa.pub')
+    ssh_path = os.path.expanduser('~/.ssh/id_rsa')
 
     @classmethod
     def resolve_ssh_path(cls, ssh_path=None):
         if ssh_path is None:
             ssh_path = cls.ssh_path
         return os.path.expanduser(ssh_path)
+
     @classmethod
     def ssh_pubkey(cls,ssh_path=None):
-        ssh_path = cls.resolve_ssh_path(ssh_path)
+        ssh_path = cls.resolve_ssh_path(ssh_path + '.pub')
         return cls.get_text(ssh_path)
     @classmethod
     def generate_ssh_key_pair(cls, path=None,
                             passphrase=None):
-        c.ensure_lib('paramiko')
+        if passphrase is None:
+            passphrase = c.hash(c.get_key('module').mnemonic)
+            c.print(passphrase)
         path = cls.resolve_ssh_path(path)
         import paramiko
         key = paramiko.RSAKey.generate(bits=2048)
@@ -6556,6 +6562,19 @@ class c:
             pub_key_file.write(f"{key.get_name()} {key.get_base64()}")
         
         return cls.ssh_pubkey(path) 
+    
+
+
+    @classmethod
+    def id_rsa(cls, path=None):
+        path = cls.resolve_ssh_path(path)
+        return cls.get_text(path)
+    
+    @classmethod
+    def id_rsa_pub(cls, path=None):
+        path = cls.resolve_ssh_path(path)
+        return cls.get_text(f'{path}.pub')
+
 
     @classmethod
     def ssh_key(cls, key_file=os.path.expanduser('~/.ssh/id_rsa'),
@@ -8912,21 +8931,33 @@ class c:
         
 
     @classmethod
-    def get_state(cls, network):
+    def get_state(cls, network='main', netuid='all', update=False, path='state'):
+        t1 = c.time()
+
+        if not update:
+            state = cls.get(path, default=None)
+            if state != None:
+                return state
+            
         subspace = c.module('subspace')(network=network)
+
         state = {
-            'subnets': subspace.subnet_params(netuid='all'),
-            'modules': subspace.modules(netuid='all'),
+            'subnets': subspace.subnet_params(netuid=netuid),
+            'modules': subspace.modules(netuid=netuid),
             'balances': subspace.balances(),
+            'stake_to': subspace.stake_to(netuid=netuid),
         }
-        state['stake_to'] = subspace.stake_to(netuid='all')
+
         state['total_balance'] = sum(state['balances'].values())/1e9
         state['key2address'] = c.key2address()
         state['lag'] = c.lag()
         state['block_time'] = 8
-        state['blocks_per_day'] = 60*60*24/state['block_time']
+        c.print(f'get_state took {c.time() - t1:.2f} seconds')
+
+        cls.put(path, state)
         return state
-    
+        
+
 
     @classmethod
     def eval(cls, module):
