@@ -917,6 +917,7 @@ class Subspace(c.Module):
 
             for k in ['min_stake', 'max_stake']:
                 subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+
         else:
             if rows:
                 num_subnets = len(subnet_params['tempo'])
@@ -924,10 +925,11 @@ class Subspace(c.Module):
                 for netuid in range(num_subnets):
                     subnets_param_row = {}
                     for k in subnet_params.keys():
-                        c.print( subnet_params[k])
                         subnets_param_row[k] = subnet_params[k][netuid]
                     subnets_param_rows.append(subnets_param_row)
-                subnet_params = subnets_param_rows                    
+                subnet_params = subnets_param_rows    
+
+                            
         return subnet_params
     
     subnet = subnet_params
@@ -1293,6 +1295,7 @@ class Subspace(c.Module):
         latency = c.time() - start_time
         c.print(f"Latency: {latency}")
         module = {**module['result']['stats'], **module['result']['params']}
+
         module['stake_from'] = [[k, self.format_amount(v, fmt=fmt)] for k,v in module['stake_from']]
         # convert list of u8 into a string 
         module['name'] = self.list2str(module['name'])
@@ -1313,9 +1316,10 @@ class Subspace(c.Module):
 
         modules = []
         futures = [c.submit(self.get_module, args=[key]) for key in keys]
+        c.print('fm')
         progress = c.tqdm(total=len(keys))
         for i, result in  enumerate(c.wait(futures, timeout=timeout, generator=True)):
-            
+            c.print(i)
             if isinstance(result, dict) and 'name' in result:
                 modules += [result]
                 progress.update(1)
@@ -1403,15 +1407,19 @@ class Subspace(c.Module):
                 
                 ) -> Dict[str, 'ModuleInfo']:
         
-        modules = []
+        
 
         if netuid in ['all']:
             kwargs = c.locals2kwargs(locals())
+            modules = []
             netuids = self.netuids()
+
             for netuid in netuids:
-                modules += self.modules(**kwargs, netuid=netuid)
+                kwargs['netuid'] = netuid
+                modules += self.modules(**kwargs)
+                kwargs['update'] = False
 
-
+        modules = []
         path = f'modules/{network}.{netuid}'
         if not update:
             modules = self.get(path, [])
@@ -1465,7 +1473,8 @@ class Subspace(c.Module):
                     
                 modules.append(module)
             
-                self.put(path, modules)
+                self.put(path, modules, verbose=True)
+      
 
         if len(modules) > 0:
             keys = list(modules[0].keys())
@@ -1957,7 +1966,6 @@ class Subspace(c.Module):
 
 
 
-
     def my_modules(self,
                    search:str=None,  
                    netuid:int=0, 
@@ -1970,17 +1978,12 @@ class Subspace(c.Module):
                    modules:List[int] = None, 
                    n = 100,
                    **kwargs):
-        
         path = 'my_modules'
         if not update:
             modules = self.get(path, None)
             if modules != None:
                 return modules
-            
-        
-        futures = []
         modules = []
-
         my_keys = self.my_keys(netuid=netuid, network=network, update=update, **kwargs)
         modules = self.get_modules(my_keys[:n], timeout=timeout)
         self.put(path, modules)
@@ -3643,6 +3646,9 @@ class Subspace(c.Module):
     def dashboard(self, **kwargs):
         import streamlit as st
         return st.write(self.get_module())
+    
+
+
     
 
 
