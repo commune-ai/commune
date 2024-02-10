@@ -342,25 +342,6 @@ class Wallet(c.Module):
             with tab:
                 getattr(self, dash_fn)()
 
-    @classmethod
-    def get_state(cls, network='main', netuid=0):
-        t1 = c.time()
-        subspace = c.module('subspace')(network=network)
-
-        state = {
-            'subnets': subspace.subnet_params(netuid='all'),
-            'modules': subspace.modules(netuid=netuid),
-            'balances': subspace.balances(),
-        }
-        state['stake_to'] = subspace.stake_to(netuid=netuid)
-        state['total_balance'] = sum(state['balances'].values())/1e9
-        state['key2address'] = c.key2address()
-        state['lag'] = c.lag()
-        state['block_time'] = 8
-        c.print(f'get_state took {c.time() - t1:.2f} seconds')
-
-        return state
-        
 
     def select_network(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
