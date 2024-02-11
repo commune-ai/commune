@@ -2779,6 +2779,8 @@ class c:
         """
         return c.module("namespace").rm_namespace(*args, **kwargs)
 
+
+
     @classmethod
     def empty_namespace(cls, *args, **kwargs):
         """
@@ -2868,6 +2870,7 @@ class c:
               mode:str = "thread",
               universe = False,
               public: bool = False,
+              mnemonic = None,
               **extra_kwargs
               ):
         kwargs = kwargs or {}
@@ -2881,6 +2884,8 @@ class c:
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
+
+
             
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
@@ -2917,6 +2922,8 @@ class c:
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
 
+        if mnemonic != None:
+            c.add_key(server_name, mnemonic)
 
         if module_class.is_arg_key_valid('tag'):
             kwargs['tag'] = tag
