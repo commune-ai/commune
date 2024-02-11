@@ -368,65 +368,6 @@ class Remote(c.Module):
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
 
-
-    @classmethod
-    def call(cls, fn:str='info' , *args, 
-             search:str='module', 
-             modules=None,  
-             network:str='remote',
-             avoid_hosts: str = 'root',
-               n:int=None, 
-               return_future: bool = False, 
-               timeout=4, **kwargs):
-        futures = {}
-        kwargs['network'] =  network
-            
-        namespace = c.namespace(search=search, network=network)
-
-        if modules != None:
-            assert isinstance(modules, list), f'modules must be a list, got {type(modules)}'
-            namespace = {k:v for k,v in namespace.items() if k in modules}
-        if n == None:
-            n = len(namespace)
-            
-        for name, address in c.shuffle(list(namespace.items()))[:n]:
-            c.print(f'Calling {name} {address}')
-            futures[name] = c.async_call(address, fn, *args)
-        
-        if return_future:
-            if len(futures) == 1:
-                return list(futures.values())[0]
-            return futures
-        else:
-
-    
-            
-            num_futures = len(futures)
-            results = {}
-            import tqdm 
-
-
-            progress_bar = tqdm.tqdm(total=num_futures)
-            error_progress = tqdm.tqdm(total=num_futures)
-
-            results = c.gather(list(futures.values()), timeout=timeout)
-
-            for i, result in enumerate(results):
-                if c.is_error(result):
-                    # c.print(f'Error {result}')
-                    error_progress.update(1)
-                    continue
-
-                else:
-                    # c.print(f'Success {result}')
-                    results[i] = result
-                    progress_bar.update(1)
-            # if len(results) == 1:
-            #     return list(results.values())[0]
-        
-            return results
-
-        
         
     @classmethod
     def pull(cls, stash=True, hosts=None):
@@ -455,6 +396,9 @@ class Remote(c.Module):
         c.put_json(cache_path, peer2hardware)
         return peer2hardware
     
+
+    # peers
+
     def peers(self, network='remote'):
         return self.servers(search='module', network=network)
     
@@ -470,14 +414,6 @@ class Remote(c.Module):
                 if memory_info['available'] >= min_memory:
                     peer2memory[server] = memory_info['available']
         return peer2memory
-    
-
-
-    def ps(self, update=False, **kwargs):
-        peer2ps = {}
-        for peer, ps in self.call('ps', **kwargs).items():
-            peer2ps[peer] = ps
-        return peer2ps
     
     @classmethod
     def available_peers(cls, min_memory:int=10, update: bool=False, address=False):
@@ -939,7 +875,9 @@ class Remote(c.Module):
         st.title('Remote Dashboard')
         self = cls()
         self.sidebar()
-        self.ssh_dashboard()
+        mode = ['ssh', 'peer']
+        mode = st.radio('Mode', mode, index=1)
+        getattr(self, f'{mode}_dashboard')()
 
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
@@ -951,7 +889,6 @@ class Remote(c.Module):
         infos = c.infos(network=network)
         return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     
-
  
     def check_peers(self, timeout=10):
         futures = []
@@ -964,7 +901,6 @@ class Remote(c.Module):
     def sync(self, timeout=40,  max_staleness=360):
         futures = []
         namespace = c.namespace('module', network='remote')
-        c.print('peer2lag: ', namespace)
         paths = []
         for name, address in namespace.items():
             path = 'peers/' + name
@@ -1076,5 +1012,63 @@ class Remote(c.Module):
         return self.get(f'peers/{peer}', {})
     
 
+    @classmethod
+    def call(cls, fn:str='info' , *args, 
+             search:str='module', 
+             modules=None,  
+             network:str='remote',
+             avoid_hosts: str = 'root',
+               n:int=None, 
+               return_future: bool = False, 
+               timeout=4, **kwargs):
+        futures = {}
+        kwargs['network'] =  network
+            
+        namespace = c.namespace(search=search, network=network)
+
+        if modules != None:
+            assert isinstance(modules, list), f'modules must be a list, got {type(modules)}'
+            namespace = {k:v for k,v in namespace.items() if k in modules}
+        if n == None:
+            n = len(namespace)
+            
+        for name, address in c.shuffle(list(namespace.items()))[:n]:
+            c.print(f'Calling {name} {address}')
+            futures[name] = c.async_call(address, fn, *args)
+        
+        if return_future:
+            if len(futures) == 1:
+                return list(futures.values())[0]
+            return futures
+        else:
+
+    
+            
+            num_futures = len(futures)
+            results = {}
+            import tqdm 
+
+
+            progress_bar = tqdm.tqdm(total=num_futures)
+            error_progress = tqdm.tqdm(total=num_futures)
+
+            results = c.gather(list(futures.values()), timeout=timeout)
+
+            for i, result in enumerate(results):
+                if c.is_error(result):
+                    # c.print(f'Error {result}')
+                    error_progress.update(1)
+                    continue
+
+                else:
+                    # c.print(f'Success {result}')
+                    results[i] = result
+                    progress_bar.update(1)
+            # if len(results) == 1:
+            #     return list(results.values())[0]
+        
+            return results
+
+        
 
 Remote.run(__name__)

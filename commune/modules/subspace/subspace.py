@@ -1318,9 +1318,9 @@ class Subspace(c.Module):
         futures = [c.submit(self.get_module, args=[key]) for key in keys]
         c.print('fm')
         progress = c.tqdm(total=len(keys))
-        for i, result in  enumerate(c.as_completed(futures, timeout=timeout)):
+        for i, future in  enumerate(c.as_completed(futures, timeout=timeout)):
             c.print(i)
-            result = result.result()
+            result = future.result()
             if isinstance(result, dict) and 'name' in result:
                 modules += [result]
                 progress.update(1)
@@ -3023,6 +3023,7 @@ class Subspace(c.Module):
         return key_stake_to
                     
 
+    
 
     def my_servers(self, search=None,  **kwargs):
         servers = [m['name'] for m in self.my_modules(**kwargs)]
@@ -3449,7 +3450,7 @@ class Subspace(c.Module):
                     key=None, 
                     min_stake:int =1000,  
                     network='local'):
-        cols = ['name', 'registered', 'serving', 'address', 'last_update', 'stake', 'dividends']
+        cols = ['name', 'serving', 'address', 'last_update', 'stake', 'dividends']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
         block = self.block
@@ -3464,6 +3465,7 @@ class Subspace(c.Module):
                 should_validator_update = lag > min_lag and stats['dividends'] > 0
                 if should_validator_update:
                     c.print(f"Vali {module} has not voted in {lag} blocks. Restarting...")
+
                 if not c.server_exists(module) and should_validator_update:
                     response_batch[module] = c.serve(module)
                     c.print(response_batch[module])
