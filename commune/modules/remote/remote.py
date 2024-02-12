@@ -459,6 +459,9 @@ class Remote(c.Module):
         c.rcmd('c pull', verbose=True)
         c.rcmd('c serve', verbose=True)
         c.add_peers()
+
+
+    
     
     @classmethod
     def check_peers(cls, timeout=10):

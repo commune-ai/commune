@@ -91,16 +91,22 @@ class Repo(c.Module):
     
     def repo_explorer(self, repo_path):
         
-        repo_files = os.listdir(repo_path)
+        repo_files = c.glob(repo_path)
+        readme_files = [file for file in repo_files if 'readme' in file.lower()]
         with st.expander('files'):
-            st.write(repo_files)
+            selected_files = st.multiselect('files', repo_files)
+            file2text = { file: c.get_text(file) for file in selected_files}
+
+            for file, text in file2text.items():
+                st.write(file)
+                st.markdown(text)
+
         with st.expander('readme', True):
-            readme_paths = [f for f in repo_files if 'readme' in f.lower() and '.md' in f.lower()]
-            if len(readme_paths) == 0:
+            if len(readme_files) == 0:
                 c.print('No readme found')
-            for readme_path in readme_paths:
-                readme_text = c.get_text(os.path.join(repo_path, readme_path))
-                st.write(readme_text)
+
+            readme_text = c.get_text(readme_files[0])
+            st.write(readme_text)
 
 
 

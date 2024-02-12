@@ -494,16 +494,14 @@ class Subspace(c.Module):
                 else:
                     assert resolve_name, f"Invalid Key {key} as it should have ss58_address attribute."
                     name2key = self.name2key(network=network, netuid=netuid)
-                    assert key in name2key, f"Invalid Key {key} as it should have ss58_address attribute."
+
                     if key in name2key:
                         key_address = name2key[key]
                     else:
-   
-                        raise Exception(f"Invalid Key {key} as it should have ss58_address attribute.")   
+                        key_address = key 
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_address
-        assert c.valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
     def subnet2modules(self, network:str='main', **kwargs):
@@ -572,15 +570,35 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_stake_to( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , network=None, update=True, **kwargs) -> Optional['Balance']:
-        network = self.resolve_network(network)
+    def get_stake_to( self, 
+                     key: str = None, 
+                     module_key=None,
+                       block: Optional[int] = None, 
+                       timeout=10,
+                       netuid:int = 0 , fmt='j' , network=None, update=True,
+                         **kwargs) -> Optional['Balance']:
+
+        if netuid == 'all':
+            netuids = self.netuids()
+            stake_to = []
+            for netuid in netuids:
+                stake_to += [c.submit(self.get_stake_to, kwargs=dict(key=key, 
+                                                                     module_key=module_key, 
+                                                                     block=block, 
+                                                                     netuid=netuid, fmt=fmt, update=update, **kwargs), timeout=timeout)]
+
+            stake_to = c.wait(stake_to, timeout=timeout)
+            return stake_to
+        
+        
+
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update)
+        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update, network=network)
         stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to}
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
-            stake_to ={ k:v for k, v in stake_to}.get(module_key, 0)
+            stake_to ={ k:v for k, v in stake_to.items()}.get(module_key, 0)
         return stake_to
     
     get_staketo = get_stake_to
@@ -1880,9 +1898,12 @@ class Subspace(c.Module):
 
     history_path = f'history'
 
-
+    chain_path = c.libpath + '/subspace'
+    spec_path = f"{chain_path}/specs"
+    snapshot_path = f"{chain_path}/snapshots"
     @classmethod
-    def convert_snapshot(cls, from_version=1, to_version=2, network=network):
+    def convert_snapshot(cls, from_version=3, to_version=2, network=network):
+        
         
         if from_version == 1 and to_version == 2:
             factor = 1_000 / 42 # convert to new supply
@@ -1897,6 +1918,43 @@ class Subspace(c.Module):
             snapshot['version'] = to_version
             c.put_json(path, snapshot)
             return {'success': True, 'msg': f'Converted snapshot from {from_version} to {to_version}'}
+
+        elif from_version == 3 and to_version == 2:
+            path = cls.latest_archive_path()
+            state = c.get(path)
+            subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder']
+            module_params : List[str] = ['Keys', 'Name', 'Address']
+
+            modules = []
+            subnets = []
+            for netuid in range(len(state['subnets'])):
+                keys = state['Keys'][netuid]
+                for i in range(len(keys)):
+                    module = [state[p][netuid][i] for p in module_params]
+                    modules += [module]
+                c.print(state['subnets'][netuid])
+                subnet = [state['subnets'][netuid][p] for p in subnet_params]
+                subnets += [subnet]
+
+            snapshot = {
+                'balances': state['balances'],
+                'modules': modules,
+                'version': 2,
+                'subnets' : subnets,
+                'stake_to': state['StakeTo'],
+            }
+
+            path = f'{cls.snapshot_path}/{network}-new.json'
+            c.put_json(path, snapshot)
+            total_balance = sum(snapshot['balances'].values())
+            c.print(f'Total balance: {total_balance}')
+
+
+            total_stake_to = sum([sum([sum([_v[1] for _v in v]) for k,v in l.items()]) for l in snapshot['stake_to']])
+            c.print(f'Total stake_to: {total_stake_to}')
+            total_tokens = total_balance + total_stake_to
+            c.print(f'Total tokens: {total_tokens}')
+            return {'success': True, 'msg': f'Converted snapshot from {from_version} to {to_version}', 'path': path}
 
         else:
             raise Exception(f'Invalid conversion from {from_version} to {to_version}')
@@ -2713,7 +2771,7 @@ class Subspace(c.Module):
             key: str = None,  # defaults to first key
             netuid:int = None,
             network:str = None,
-            existential_deposit: float = 0.01,
+            existential_deposit: float = 0.00,
             update=False
         ) -> bool:
         """
@@ -2748,11 +2806,11 @@ class Subspace(c.Module):
                 module_key = module
 
         # Flag to indicate if we are using the wallet's own hotkey.
-        old_balance = self.get_balance( key.ss58_address , fmt='j')
+        
         if amount is None:
-            amount = old_balance
-
-        amount = int(self.to_nanos(amount - existential_deposit))
+            amount = self.get_balance( key.ss58_address , fmt='nano') - 1
+        else:
+            amount = int(self.to_nanos(amount - existential_deposit))
         assert amount > 0, f"Amount must be greater than 0 and greater than existential deposit {existential_deposit}"
         
         # Get current stake
@@ -2957,7 +3015,7 @@ class Subspace(c.Module):
         key = self.resolve_key( key )
 
         if modules == None or modules == 'all':
-            stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
+            stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
             module_keys = [k for k in stake_to.keys()]
             # RESOLVE AMOUNTS
             if amounts == None:
@@ -3294,7 +3352,7 @@ class Subspace(c.Module):
 
        
     def key2value(self, search=None, fmt='j', netuid=0, **kwargs):
-        key2value = self.my_balance(search=search, fmt=fmt, netuid=netuid, **kwargs)
+        key2value = self.my_balance(search=search, fmt=fmt, **kwargs)
         for k,v in self.my_stake(search=search, fmt=fmt, netuid=netuid, **kwargs).items():
             key2value[k] += v
         return key2value

@@ -1,12 +1,14 @@
 block_time: 8
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
-url_search: onfinality,commune
+url_search: commies
 connection_mode: ws
 urls: 
   onfinality:
     ws: wss://commune.api.onfinality.io/public-ws
     http: https://commune.api.onfinality.io/public-http
-  commune: null
+  commies: 
+    ws: wss://commune-archive-node-0.agicommies.org
+    http: https://commune-archive-node-0.agicommies.org
   local: null
   
 

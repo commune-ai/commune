@@ -1692,7 +1692,19 @@ class c:
         c.module_cache[path] = module
         return module
 
+    @classmethod
+    def is_dir_module(cls, path:str) -> bool:
+        """
+        determine if the path is a module
+        """
+        filepath = self.simple2path(path)
+        if path.replace('.', '/') + '/' in filepath:
+            return True
+        if ('modules/' + path.replace('.', '/')) in filepath:
+            return True
+        return False
 
+        return os.path.isdir(path)
 
     module_tree_cache = None
     @classmethod
@@ -1704,34 +1716,45 @@ class c:
         
         module_tree = None
         if not update:
+            # this is to cache the module tree for faster access
             if cls.module_tree_cache != None:
                 return cls.module_tree_cache
             module_tree = c.get(path, None)
-        if module_tree == None:
+            if module_tree != None:
+                return module_tree
 
+        if module_tree == None:
             assert mode in ['path', 'object']
             module_tree = {}
-
             # get the python paths
             python_paths = c.get_module_python_paths()
             module_tree ={c.path2simple(f): f for f in python_paths}
-
             if mode == 'object':
                 module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
-
             # to use functions like c. we need to replace it with module lol
             if cls.root_module_class in module_tree:
                 module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
-            
             c.put(path, module_tree)
-
-        
         if search != None:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
 
         return module_tree
     
     tree_folders_path = 'module_tree_folders'
+
+
+    def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
+        search = search.split(',')
+        new_d = {}
+
+        for k,v in d.items():
+            if search in k.lower():
+                new_d[k] = v
+        
+        return new_d
+            
+
+
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
@@ -4728,10 +4751,7 @@ class c:
     def get_key_for_address(cls, address:str):
          return c.module('key').get_key_for_address(address)
 
-    # @classmethod
-    # def key_info(cls, key:str = None, **kwargs):
-    #     return c.module('key').key_info(key, **kwargs)
-    
+
     @classmethod
     def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
      
@@ -7656,6 +7676,8 @@ class c:
     def key_info(cls, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
 
+
+
     @classmethod
     def key2mem(cls, *args, **kwargs):
         return c.module('key').key2mem(*args, **kwargs)
@@ -8938,9 +8960,8 @@ class c:
         
 
     @classmethod
-    def get_state(cls, network='main', netuid='all', update=False, path='state'):
+    def get_state(cls, network='main', netuid='all', update=True, path='state'):
         t1 = c.time()
-
         if not update:
             state = cls.get(path, default=None)
             if state != None:
@@ -8960,7 +8981,6 @@ class c:
         state['lag'] = c.lag()
         state['block_time'] = 8
         c.print(f'get_state took {c.time() - t1:.2f} seconds')
-
         cls.put(path, state)
         return state
         
