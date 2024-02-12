@@ -34,11 +34,17 @@ pipe = StableDiffusionPipeline.from_pretrained(
 
 ip_model = IPAdapterFull(pipe, image_encoder_path, ip_ckpt, device, num_tokens=257)
 
-class ModelPhotoMaker(c.Module):
+
+class Demo(c.Module):
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())
 
-    def generate(self, imgUrl="default.png", promptText="") :      
+    def call(self, x:int = 1, y:int = 2) -> int:
+        c.print(self.config)
+        c.print(self.config, 'This is the config, it is a Munch object')
+        return x + y
+    
+    def generate(self, imgUrl="assets/images/ai_face.png", promptText="") :      
         # read image prompt
         image = Image.open(imgUrl)
         image.resize((256, 256))
@@ -48,6 +54,8 @@ class ModelPhotoMaker(c.Module):
             pil_image=image, num_samples=4, prompt="A photo of a girl wearing a black dress, holding red roses in hand, upper body, behind is the Eiffel Tower",
             scale=0.7, width=512, height=512, num_inference_steps=50, seed=42)
         
-        # c.print("File created. 1.png, 2.png, 3.png, 4.png")
+        for i, image in enumerate(images):
+            image.save(f"{i}.png")
+
+        c.print("File created. 0.png, 1.png, 2.png, 3.png")
         return
-    
