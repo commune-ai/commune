@@ -6,7 +6,6 @@ from glob import glob
 class Tree(c.Module):
     base_module = c.base_module # 
 
-
     @classmethod
     def tree(cls, search=None, 
                 mode='path', 
@@ -42,7 +41,7 @@ class Tree(c.Module):
             module_tree = {k:v for k,v in module_tree.items() if search in k}
 
         return module_tree
-
+    
     tree_folders_path = 'module_tree_folders'
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):

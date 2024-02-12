@@ -86,6 +86,9 @@ class PM2(c.Module):
 
         return logs_path_map
 
+   
+   
+   
     @classmethod
     def rm_logs( cls, name):
         logs_map = cls.logs_path_map(name)

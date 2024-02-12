@@ -1537,6 +1537,56 @@ class Chain(c.Module):
         path = f'{cls.snapshot_path}/main.json'
         return c.get_json(path)
 
+
+    @classmethod
+    def convert_snapshot(cls, from_version=3, to_version=2, network=network):
+        
+        
+        if from_version == 1 and to_version == 2:
+            factor = 1_000 / 42 # convert to new supply
+            path = f'{cls.snapshot_path}/{network}.json'
+            snapshot = c.get_json(path)
+            snapshot['balances'] = {k: int(v*factor) for k,v in snapshot['balances'].items()}
+            for netuid in range(len(snapshot['subnets'])):
+                for j, (key, stake_to_list) in enumerate(snapshot['stake_to'][netuid]):
+                    c.print(stake_to_list)
+                    for k in range(len(stake_to_list)):
+                        snapshot['stake_to'][netuid][j][1][k][1] = int(stake_to_list[k][1]*factor)
+            snapshot['version'] = to_version
+            c.put_json(path, snapshot)
+            return {'success': True, 'msg': f'Converted snapshot from {from_version} to {to_version}'}
+
+        elif from_version == 3 and to_version == 2:
+            path = cls.latest_archive_path()
+            state = c.get(path)
+            subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder']
+            module_params : List[str] = ['Keys', 'Name', 'Address']
+
+            modules = []
+            subnets = []
+            for netuid in range(len(state['subnets'])):
+                keys = state['Keys'][netuid]
+                for i in range(len(keys)):
+                    module = [state[p][netuid] for p in module_params]
+                    modules += [module]
+                c.print(state['subnets'][netuid])
+                subnet = [state['subnets'][netuid][p] for p in subnet_params]
+                subnets += [subnet]
+
+            snapshot = {
+                'balances': state['balances'],
+                'modules': modules,
+                'version': 2,
+                'subnets' : subnets,
+                'stake_to': state['StakeTo'],
+            }
+
+            c.put_json(f'{cls.snapshot_path}/{network}-new.json', snapshot)
+
+        else:
+            raise Exception(f'Invalid conversion from {from_version} to {to_version}')
+
+
     @classmethod
     def build_snapshot(cls, 
               path : str  = None,

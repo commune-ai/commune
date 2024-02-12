@@ -190,6 +190,7 @@ class Vali(c.Module):
         search =  search or self.config.search
         netuid = netuid or self.config.netuid
         
+        # this is only for 
         if 'subspace' in network:
             if '.' in network:
                 """
@@ -667,18 +668,6 @@ class Vali(c.Module):
         
 
 
-        
 
-        # columns = list(df.columns)
-        # columns.pop(columns.index('stake_from'))
-        # with st.expander('Columns'):
-        #     default_columns = ['name', 'stake', 'dividends', 'last_update', 'delegation_fee']
-        #     columns = st.multiselect('Select columns',columns ,default_columns )
-        # df = df[columns]
-
-        # namespace = c.namespace(search=module_path)
-
-        # st.write(df)
-        # c.plot_dashboard(df)
         
 Vali.run(__name__)

@@ -27,15 +27,39 @@ class Wallet(c.Module):
 
         return self.key
 
+    @classmethod
+    def get_state(cls, network='main', netuid='all', update=False, path='state'):
+        t1 = c.time()
+        if not update:
+            state = cls.get(path, default=None)
+            if state != None:
+                return state
+            
+        subspace = c.module('subspace')(network=network)
+
+        state = {
+            'subnets': subspace.subnet_params(netuid=netuid),
+            'modules': subspace.modules(netuid=netuid),
+            'balances': subspace.balances(),
+            'stake_to': subspace.stake_to(netuid=netuid),
+        }
+
+        state['total_balance'] = sum(state['balances'].values())/1e9
+        state['key2address'] = c.key2address()
+        state['lag'] = c.lag()
+        state['block_time'] = 8
+        c.print(f'get_state took {c.time() - t1:.2f} seconds')
+        cls.put(path, state)
+        return state
         
+
     def transfer_dashboard(self):
         cols = st.columns(2)
         amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
         to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
         multi_transfer = False
 
-        
-
+    
         if ',' in to_address:
             multi_transfer = True
             to_addresses = [a.strip() for a in to_address.split(',')]
@@ -357,16 +381,11 @@ class Wallet(c.Module):
         
         self.networks = get_networks()
         self.network = st.selectbox('Select Network', self.networks, 0, key='network')
-
+        update = st.button('Update')
 
         
-        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid=netuid)
-
-
-        self.subnets = self.state['subnets']
-        keys = c.keys()
-        subnets = self.subnets
-
+        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid='all', update=update)
+        self.subnets = subnets = self.state['subnets']
         name2subnet = {s['name']:s for s in subnets}
         name2idx = {s['name']:i for i,s in enumerate(subnets)}
         subnet_names = list(name2subnet.keys())

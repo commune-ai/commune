@@ -11,7 +11,7 @@ class CLI(c.Module):
     def __init__(
             self,
             config: c.Config = None,
-            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer'],
+            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer', 'tree'],
 
         ) :
         self.protected_modules = module_overrides
