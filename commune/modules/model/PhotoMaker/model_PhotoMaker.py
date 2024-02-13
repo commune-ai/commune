@@ -1,20 +1,18 @@
 import commune as c
+from os import path
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipelineLegacy, DDIMScheduler, AutoencoderKL
 from PIL import Image
-
 from ip_adapter import IPAdapterFull
 
+here = path.abspath(path.dirname(__file__))
 base_model_path = "SG161222/Realistic_Vision_V4.0_noVAE"
 vae_model_path = "stabilityai/sd-vae-ft-mse"
-image_encoder_path = "models/image_encoder/"
-ip_ckpt = "models/ip-adapter-full-face_sd15.bin"
+image_encoder_path = here + "/models/image_encoder/"
+ip_ckpt = here + "/models/ip-adapter-full-face_sd15.bin"
 device = "cuda"
 
-
-
-
-class Demo(c.Module):
+class ModelPhotoMaker(c.Module):
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())
                 
@@ -45,7 +43,7 @@ class Demo(c.Module):
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
     
-    def generate(self, imgUrl="assets/images/ai_face.png", promptText="wearing sunglases") :      
+    def generate(self, imgUrl="assets/images/ai_face.png", promptText="photo of a woman wearing sunglases") :      
         # read image prompt
         image = Image.open(imgUrl)
         image.resize((256, 256))
