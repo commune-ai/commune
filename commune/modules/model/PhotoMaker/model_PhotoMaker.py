@@ -4,6 +4,7 @@ import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, StableDiffusionInpaintPipelineLegacy, DDIMScheduler, AutoencoderKL
 from PIL import Image
 from ip_adapter import IPAdapterFull
+from datetime import datetime
 
 here = path.abspath(path.dirname(__file__))
 base_model_path = "SG161222/Realistic_Vision_V4.0_noVAE"
@@ -53,8 +54,10 @@ class ModelPhotoMaker(c.Module):
             pil_image=image, num_samples=4, prompt=promptText,
             scale=0.7, width=512, height=512, num_inference_steps=50, seed=42)
         
+        names = []
         for i, image in enumerate(images):
-            image.save(f"{i}.png")
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            image.save(f"{timestamp}_{i}.png")
+            names.append(f"{timestamp}_{i}.png")
 
-        c.print("File created. 0.png, 1.png, 2.png, 3.png")
-        return images
+        return names
