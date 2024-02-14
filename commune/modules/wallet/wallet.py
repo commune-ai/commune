@@ -100,6 +100,9 @@ class Wallet(c.Module):
         n = len(df)
         st.write(f'**{n}** modules with **{search}** in it')
         st.write(df)
+        playground = st.checkbox('Playground')
+        if playground:
+            xself.playground()
 
     def stake_dashboard(self):
         
