@@ -1344,13 +1344,9 @@ class Subspace(c.Module):
         modules = []
         modules = self.modules(netuid=netuid,network=network, update=update, fmt=fmt, **kwargs)
         key2module = { m['key']: m for m in modules }
-        my_keys = [k for k in self.my_keys(netuid=netuid, network=network)]
-        progress = c.tqdm(total=len(keys))
-        
-        for i, key in  enumerate(my_keys):
+        for key in keys:
             if key in key2module:
                 modules.append(key2module[key])
-                progress.update(1)
         return modules
         
     @property
@@ -1436,18 +1432,18 @@ class Subspace(c.Module):
         if netuid in ['all']:
             kwargs = c.locals2kwargs(locals())
             modules = []
-            netuids = self.netuids()
-
-            for netuid in netuids:
+            for netuid in self.netuids():
                 kwargs['netuid'] = netuid
-                modules += self.modules(**kwargs)
+                modules += [self.modules(**kwargs)]
                 kwargs['update'] = False
+            
+            return modules
 
-        modules = []
+       
         path = f'modules/{network}.{netuid}'
-        if not update:
-            modules = self.get(path, [])
-        
+
+        modules = [] if update else self.get(path, []) 
+
         if len(modules) == 0:
             block = block or self.block
             state = {}
@@ -1467,51 +1463,36 @@ class Subspace(c.Module):
                     else:
                         c.print(f"Error fetching {feature}")
                 
-                
             for uid, key in enumerate(state['keys']):
-                try:
-                    module= {
-                        'uid': uid,
-                        'address': state['addresses'][uid],
-                        'name': state['names'][uid] if uid < len(state['names']) else None,
-                        'key': key,
-                        'emission': state['emission'][uid],
-                        'incentive': state['incentive'][uid],
-                        'trust': state['trust'][uid] if len(state['trust']) > uid else 0,
-                        'dividends': state['dividends'][uid],
-                        'stake_from': state['stake_from'].get(key, {}),
-                        'regblock': state['regblock'].get(uid, 0),
-                        'last_update': state['last_update'][uid],
-                        'delegation_fee': state['delegation_fee'].get(key, 20),
-                    }
+                module = {
+                    'uid': uid,
+                    'address': state['addresses'][uid],
+                    'name': state['names'][uid] if uid < len(state['names']) else None,
+                    'key': key,
+                    'emission': state['emission'][uid],
+                    'incentive': state['incentive'][uid],
+                    'trust': state['trust'][uid] if len(state['trust']) > uid else 0,
+                    'dividends': state['dividends'][uid],
+                    'stake_from': state['stake_from'].get(key, {}),
+                    'regblock': state['regblock'].get(uid, 0),
+                    'last_update': state['last_update'][uid],
+                    'delegation_fee': state['delegation_fee'].get(key, 20),
+                }
 
-                    module['stake'] =  sum([v for k,v in c.copy(module['stake_from']).items()])
-
-                except Exception as e:
-                    module = self.null_module
-                if  len(state['weights']) > 0:
-                    try:
-                        module['weight'] = state['weights'][uid]
-                    except Exception as e:
-                        module['weight'] = []
-                    
+                module['stake'] =  sum([v for k,v in c.copy(module['stake_from']).items()])
+                module['weight'] = state['weights'][uid]
                 modules.append(module)
+
             
-                self.put(path, modules, verbose=True)
-      
+            self.put(path, modules)
 
         if len(modules) > 0:
-            keys = list(modules[0].keys())
-            if isinstance(keys, str):
-                keys = [keys]
-            keys = list(set(keys))
             for i, module in enumerate(modules):
-                modules[i] ={k: module[k] for k in keys}
                 modules[i] = self.format_module(modules[i], fmt=fmt)
-        if search != None:
-            modules = [m for m in modules if search in m['name']]
-        if df:
-            modules = c.df(modules)
+            if search != None:
+                modules = [m for m in modules if search in m['name']]
+            if df:
+                modules = c.df(modules)
 
         return modules
     
@@ -2004,12 +1985,8 @@ class Subspace(c.Module):
             if m['key'] not in local_key_addresses :
                 continue
             # sum the stake_from
-            if isinstance(m['stake_from'],list ):
-                m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
-            else:
-                c.print(m)
             # we want to round these values to make them look nice
-            for k in ['emission', 'dividends', 'incentive', 'stake_from']:
+            for k in ['emission', 'dividends', 'incentive']:
                 m[k] = c.round(m[k], sig=4)
 
             m['serving'] = bool(m['name'] in servers)
@@ -2044,14 +2021,19 @@ class Subspace(c.Module):
                    update = False,
                    fmt = 'j',
                    modules:List[int] = None, 
-                   n = 100,
+                   feature = None,
                    **kwargs):
         path = 'my_modules'
+
         modules = []
-        my_keys = self.my_keys(netuid=netuid, network=network, update=update, **kwargs)
-        modules = self.get_modules(my_keys[:n], fmt=fmt, netuid=netuid)
-        self.put(path, modules)
+        my_keys = list(c.key2address().values())
+        modules = self.modules(fmt=fmt, netuid=netuid, update=update, network=network, search=search)
+        modules = [m for m in modules if m['key'] in my_keys]
+        if feature != None:
+            modules = [m[feature] for m in modules]
+        
         return modules
+    
 
     @classmethod
     def status(cls):
@@ -2113,6 +2095,7 @@ class Subspace(c.Module):
         feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
         
+        modules = self.modules(netuid='all', network=network, block=block, update=update, timeout=timeout)
         
         for f in features:
             feature2params[f] = [fn_query, dict(name=f, update=update, block=block)]
@@ -2347,7 +2330,12 @@ class Subspace(c.Module):
         nonce= None,
         
     ) -> bool:
-        
+        # this is a bit of a hack to allow for the amount to be a string for c send 500 0x1234 instead of c send 0x1234 500
+        if type(dest) in [int, float]:
+            assert isinstance(amount, str), f"Amount must be a string"
+            new_amount = int(dest)
+            dest = new_amount
+            amount = int(dest)
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)

@@ -28,7 +28,7 @@ class Wallet(c.Module):
         return self.key
 
     @classmethod
-    def get_state(cls, network='main', netuid='all', update=False, path='state'):
+    def get_state(cls, network='main', netuid='all', update=True, path='state'):
         t1 = c.time()
         if not update:
             state = cls.get(path, default=None)
@@ -38,7 +38,7 @@ class Wallet(c.Module):
         subspace = c.module('subspace')(network=network)
 
         state = {
-            'subnets': subspace.subnet_params(netuid=netuid),
+            'subnets': subspace.subnet_params(netuid=netuid, network=network),
             'modules': subspace.modules(netuid=netuid),
             'balances': subspace.balances(),
             'stake_to': subspace.stake_to(netuid=netuid),
@@ -379,21 +379,27 @@ class Wallet(c.Module):
             chains = c.chains()
             return chains
         
+        subspace = c.module('subspace')()
+        
         self.networks = get_networks()
         self.network = st.selectbox('Select Network', self.networks, 0, key='network')
         update = st.button('Update')
 
-        
-        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid='all', update=update)
-        self.subnets = subnets = self.state['subnets']
+        subnets = subspace.subnet_params(netuid='all', network=self.network, update=update)
         name2subnet = {s['name']:s for s in subnets}
-        name2idx = {s['name']:i for i,s in enumerate(subnets)}
-        subnet_names = list(name2subnet.keys())
-        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
-        self.netuid = name2idx[subnet_name]
+        subnet_names = [s['name'] for s in subnets]
+        name2netuid = {s['name']:i for i, s in enumerate(subnets)}
+        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet')
+        netuid = name2netuid[subnet_name]
+        self.netuid = netuid
         self.subnet = name2subnet[subnet_name]
+        self.subnets = subnets
+
+        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid=netuid)
         
         self.modules = self.state['modules']
+
+
         self.state ['epochs_per_day'] = ( 24* 60 * 60 ) / (self.subnet["tempo"] * self.state['block_time'])
         self.name2module = {m['name']: m for m in self.modules}
         self.name2key = {k['name']: k['key'] for k in self.modules}
