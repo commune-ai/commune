@@ -3478,7 +3478,7 @@ class Subspace(c.Module):
         for module, stats in module2stats.items():
             # check if the module is serving
             lag = block - stats['last_update']
-            if not c.server_exists(module) and lag > min_lag:
+            if not c.server_exists(module) or lag > min_lag:
                 response  = c.serve(module)
             else:
                 response = f"{module} is already serving or has a lag of {lag} blocks but less than {min_lag} blocks"
