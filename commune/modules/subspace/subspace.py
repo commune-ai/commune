@@ -2436,6 +2436,7 @@ class Subspace(c.Module):
                 
 
 
+
     def update_module(
         self,
         module: str, # the module you want to change
@@ -3465,32 +3466,28 @@ class Subspace(c.Module):
     def check_valis(self, **kwargs):
         return self.check_servers(search='vali', **kwargs)
     
-    def check_servers(self, search='vali',
-                    wait_for_server=False, 
-                    update:bool=False, 
-                    min_lag=1000, 
-                    key=None, 
-                    min_stake:int =1000,  
-                    network='local'):
+    
+    def check_servers(self, search='vali',update:bool=False,  min_lag=100):
         cols = ['name', 'serving', 'address', 'last_update', 'stake', 'dividends']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
         block = self.block
-
-
         response_batch = {}
-
+        c.print(f"Checking {len(module2stats)} {search} servers")
         for module, stats in module2stats.items():
-            if stats['stake'] > min_stake:
-                # check if the module is serving
-                lag = block - stats['last_update']
-                should_validator_update = lag > min_lag and stats['dividends'] > 0
-                if should_validator_update:
-                    c.print(f"Vali {module} has not voted in {lag} blocks. Restarting...")
+            # check if the module is serving
+            lag = block - stats['last_update']
+            if not c.server_exists(module) and lag > min_lag:
+                response  = c.serve(module)
+            else:
+                response = f"{module} is already serving or has a lag of {lag} blocks but less than {min_lag} blocks"
+            response_batch[module] = response
 
-                if not c.server_exists(module) and should_validator_update:
-                    response_batch[module] = c.serve(module)
-                    c.print(response_batch[module])
+            c.print(response)
+        return response_batch
+
+
+
 
     def compose_call(self,
                      fn:str, 
