@@ -2336,8 +2336,8 @@ class Subspace(c.Module):
         if type(dest) in [int, float]:
             assert isinstance(amount, str), f"Amount must be a string"
             new_amount = int(dest)
-            dest = new_amount
-            amount = int(dest)
+            dest = amount
+            amount = new_amount
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)
