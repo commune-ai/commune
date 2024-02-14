@@ -375,9 +375,11 @@ class OsModule(c.Module):
 
         gpu_info_map = {}
 
+        skip_keys =  ['ratio', 'total', 'name']
+
         for gpu_id, gpu_info in gpu_info.items():
             for key, value in gpu_info.items():
-                if key in ['ratio', 'total']:
+                if key in skip_keys:
                     continue
                 gpu_info[key] = cls.format_data_size(value, fmt=fmt)
             gpu_info_map[gpu_id] = gpu_info

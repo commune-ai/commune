@@ -506,7 +506,7 @@ def imagebind_huge(pretrained=False):
     return model
 
 
-def save_module(module_dict: nn.ModuleDict, module_name: str = "",
+def save_module(module_dict: nn.ModuleDict, module_name: str = "huge",
                 checkpoint_dir: str = "./.checkpoints/full", postfix: str = "_last",
                 extension: str = "pth"):
     try:
@@ -517,7 +517,7 @@ def save_module(module_dict: nn.ModuleDict, module_name: str = "",
         logging.warning(f"Could not save module parameters for {module_name} to {checkpoint_dir}.")
 
 
-def load_module(module_dict: nn.ModuleDict, module_name: str = "",
+def load_module(module_dict: nn.ModuleDict, module_name: str = "huge",
                 checkpoint_dir: str = "./.checkpoints/full", postfix: str = "_last",
                 extension: str = "pth"):
     try:

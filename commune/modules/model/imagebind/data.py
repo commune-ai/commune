@@ -18,11 +18,11 @@ from pytorchvideo.data.encoded_video import EncodedVideo
 from torchvision import transforms
 from torchvision.transforms._transforms_video import NormalizeVideo
 
-from models.multimodal_preprocessors import SimpleTokenizer
+from .models.multimodal_preprocessors import SimpleTokenizer
 
 DEFAULT_AUDIO_FRAME_SHIFT_MS = 10  # in milliseconds
 
-BPE_PATH = "bpe/bpe_simple_vocab_16e6.txt.gz"
+BPE_PATH = f"bpe/bpe_simple_vocab_16e6.txt.gz"
 
 
 def waveform2melspec(waveform, sample_rate, num_mel_bins, target_length):
@@ -116,10 +116,10 @@ def load_and_transform_vision_data(image_paths, device, to_tensor=True):
     return image_ouputs if not to_tensor else torch.stack(image_ouputs, dim=0)
 
 
-def load_and_transform_text(text, device):
+def load_and_transform_text(text, device, bpe_path=BPE_PATH ):
     if text is None:
         return None
-    tokenizer = SimpleTokenizer(bpe_path=BPE_PATH)
+    tokenizer = SimpleTokenizer(bpe_path=bpe_path)
     tokens = [tokenizer(t).unsqueeze(0).to(device) for t in text]
     tokens = torch.cat(tokens, dim=0)
     return tokens
