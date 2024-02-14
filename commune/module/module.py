@@ -1710,7 +1710,7 @@ class c:
 
     module_tree_cache = None
     @classmethod
-    def tree(cls, search=None, 
+    def build_tree(cls, search=None, 
                 mode='path', 
                 update:bool = False,
                 path = 'local_module_tree',
@@ -1724,12 +1724,12 @@ class c:
             module_tree = c.get(path, None)
             if module_tree != None:
                 return module_tree
+        module_tree = {}
 
-        if module_tree == None:
+        for tree_path in cls.trees():
             assert mode in ['path', 'object']
-            module_tree = {}
             # get the python paths
-            python_paths = c.get_module_python_paths()
+            python_paths = c.get_module_python_paths(path=tree_path)
             module_tree ={c.path2simple(f): f for f in python_paths}
             if mode == 'object':
                 module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
@@ -1741,6 +1741,8 @@ class c:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
 
         return module_tree
+
+    tree = build_tree
     
     tree_folders_path = 'module_tree_folders'
 
@@ -1755,8 +1757,14 @@ class c:
         
         return new_d
             
-
-
+    @classmethod
+    def trees(cls):
+        path = cls.tree_folders_path
+        trees =   c.get(path, [])
+        if c.libpath not in trees:
+            trees += [c.libpath]
+        return trees
+        
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
@@ -5133,9 +5141,9 @@ class c:
         else:
             results = []
             for i in range(n):
-                c.print(f'Launching {tag}')
                 server_kwargs={'tag':tag + str(i), **kwargs}
                 result = cls.serve(**server_kwargs)
+                c.print(result)
                 results = results + [result]
 
         return results

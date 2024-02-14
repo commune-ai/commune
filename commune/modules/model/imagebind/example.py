@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, force=True)
 
 lora = True
 linear_probing = False
-device = "cpu"  # "cuda:0" if torch.cuda.is_available() else "cpu"
+device = "cuda"  # "cuda:0" if torch.cuda.is_available() else "cpu"
 load_head_post_proc_finetuned = True
 
 assert not (linear_probing and lora), \
@@ -25,7 +25,7 @@ else:
     # This assumes proper loading of all params but results in shift from original dist in case of LoRA
     lora_factor = 1
 
-text_list=["bird",
+text_list=["This is a bird",
            "car",
            "dog3",
            "dog5",
