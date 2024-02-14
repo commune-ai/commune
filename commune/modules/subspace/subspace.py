@@ -1291,6 +1291,21 @@ class Subspace(c.Module):
         self.resolve_network(network)
         return self.substrate.get_block( block_hash=block_hash)['header']['number']
 
+    def block_hash(self, block = None, network='main'): 
+        if block == None:
+            block = self.block
+
+        substrate = self.get_substrate(network=network)
+        
+        return substrate.get_block_hash(block)
+
+
+    def hash2block(self, network=None, block_hash=None):
+        block_hash = self.get_block_hash(network=network, block_hash=block_hash)
+        return self.get_block(network=network, block_hash=block_hash)
+
+    
+
     def seconds_per_epoch(self, netuid=None, network=None):
         self.resolve_network(network)
         netuid =self.resolve_netuid(netuid)
@@ -1305,15 +1320,9 @@ class Subspace(c.Module):
         url = self.resolve_url(network=network, mode='http')
         key = self.resolve_key_ss58(key)
         start_time = c.time()
-        module = requests.post(url, 
-                            json={'id':1, 
-                                  'jsonrpc':'2.0', 
-                                  'method': 'subspace_getModuleInfo', 
-                                  'params': [key, netuid]}).json()
-        latency = c.time() - start_time
-        c.print(f"Latency: {latency}")
+        json={'id':1, 'jsonrpc':'2.0',  'method': 'subspace_getModuleInfo', 'params': [key, netuid]}
+        module = requests.post(url,  json=json).json()
         module = {**module['result']['stats'], **module['result']['params']}
-
         module['stake_from'] = [[k, self.format_amount(v, fmt=fmt)] for k,v in module['stake_from']]
         # convert list of u8 into a string 
         module['name'] = self.list2str(module['name'])
@@ -1330,22 +1339,18 @@ class Subspace(c.Module):
     def list2str(self, l):
         return ''.join([chr(x) for x in l]).strip()
 
-    def get_modules(self, keys:list, timeout = 10) -> List['ModuleInfo']:
+    def get_modules(self, keys:list, network='main', update=False, netuid=0, fmt='j', **kwargs) -> List['ModuleInfo']:
 
         modules = []
-        futures = [c.submit(self.get_module, args=[key]) for key in keys]
-        c.print('fm')
+        modules = self.modules(netuid=netuid,network=network, update=update, fmt=fmt, **kwargs)
+        key2module = { m['key']: m for m in modules }
+        my_keys = [k for k in self.my_keys(netuid=netuid, network=network)]
         progress = c.tqdm(total=len(keys))
-        for i, future in  enumerate(c.as_completed(futures, timeout=timeout)):
-            c.print(i)
-            result = future.result()
-            if isinstance(result, dict) and 'name' in result:
-                modules += [result]
+        
+        for i, key in  enumerate(my_keys):
+            if key in key2module:
+                modules.append(key2module[key])
                 progress.update(1)
-
-            else:
-                c.print(result.keys())
-            
         return modules
         
     @property
@@ -1480,7 +1485,7 @@ class Subspace(c.Module):
                         'delegation_fee': state['delegation_fee'].get(key, 20),
                     }
 
-                    module['stake'] =  sum([v for k,v in module['stake_from'].items()])
+                    module['stake'] =  sum([v for k,v in c.copy(module['stake_from']).items()])
 
                 except Exception as e:
                     module = self.null_module
@@ -1936,6 +1941,7 @@ class Subspace(c.Module):
                 subnet = [state['subnets'][netuid][p] for p in subnet_params]
                 subnets += [subnet]
 
+
             snapshot = {
                 'balances': state['balances'],
                 'modules': modules,
@@ -1998,7 +2004,10 @@ class Subspace(c.Module):
             if m['key'] not in local_key_addresses :
                 continue
             # sum the stake_from
-            m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
+            if isinstance(m['stake_from'],list ):
+                m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
+            else:
+                c.print(m)
             # we want to round these values to make them look nice
             for k in ['emission', 'dividends', 'incentive', 'stake_from']:
                 m[k] = c.round(m[k], sig=4)
@@ -2038,47 +2047,11 @@ class Subspace(c.Module):
                    n = 100,
                    **kwargs):
         path = 'my_modules'
-        if not update:
-            modules = self.get(path, None)
-            if modules != None:
-                return modules
         modules = []
         my_keys = self.my_keys(netuid=netuid, network=network, update=update, **kwargs)
-        modules = self.get_modules(my_keys[:n], timeout=timeout)
+        modules = self.get_modules(my_keys[:n], fmt=fmt, netuid=netuid)
         self.put(path, modules)
         return modules
-
-        # futures = []
-        # path = f'my_modules/{network}.{netuid}'
-        # if not update:
-        #     modules = self.get(path, modules)
-
-        # if modules == None:
-        #     path = f'my_modules/{network}.{netuid}'
-        #     modules = []
-        #     for k in keys:
-        #         kwargs = dict(key=k, netuid=netuid, network=network)
-        #         futures += [c.submit(self.get_module, kwargs = kwargs, timeout=timeout)]
-        #         if len(futures) >= batch_size:
-        #             for future in c.as_completed(futures):
-        #                 module = future.result()
-        #                 futures.remove(future)
-        #                 if not c.is_error(module):
-        #                     modules += [module]
-        #                 break
-
-        #     for future in c.as_completed(futures, timeout=timeout):
-        #         module = future.result()
-        #         if not c.is_error(module):
-        #             modules += [module]
-
-        #     self.put(path, modules)
-            
-        # if search != None:
-        #     modules = [m for m in modules if search in m['name'].lower()]
-    
-        return modules
-
 
     @classmethod
     def status(cls):
@@ -2121,6 +2094,8 @@ class Subspace(c.Module):
 
         block = block if block != None else self.block
 
+        
+
         path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
 
         def fn_query(*args, **kwargs):
@@ -2138,13 +2113,14 @@ class Subspace(c.Module):
         feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=None, timeout=timeout)]
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
         
+        
         for f in features:
             feature2params[f] = [fn_query, dict(name=f, update=update, block=block)]
         num_features = len(feature2params)
         progress = c.tqdm(total=num_features)
 
         feature2result = {}
-        state_dict = {'block': block}
+        state_dict = {'block': block, 'block_hash': self.block_hash(block)}
         while len(feature2params) > 0:
             
             for feature, (fn, kwargs) in feature2params.items():
@@ -3109,9 +3085,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         staked_modules = self.get_stake_to(key=key, netuid=netuid, names=True, update=True, **kwargs)
         keys = list(staked_modules.keys())
-
         modules = self.get_modules(keys)
-
         return modules
 
     

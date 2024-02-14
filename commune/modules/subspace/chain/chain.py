@@ -428,7 +428,7 @@ class Chain(c.Module):
                 schema = 'Sr25519'
 
             # we need to resolve the key path based on the key type
-
+            
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
 
             if key_mems != None and len(key_mems) == 2 :
@@ -563,6 +563,7 @@ class Chain(c.Module):
             cmd += ' --disable-default-bootnode'  
        
 
+
         if mode == 'docker':
             # chain_spec_path_dir = os.path.dirname(chain_spec_path)
             container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
@@ -575,6 +576,7 @@ class Chain(c.Module):
             c.print(cmd)
             cmd = f'bash -c "{cmd} > {chain_spec_path}"'
 
+        c.print(cmd, color='green')
         value = c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
         if vali_node_keys == None:
@@ -585,7 +587,7 @@ class Chain(c.Module):
         
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
-        c.print(vali_node_keys)
+
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
@@ -1308,13 +1310,12 @@ class Chain(c.Module):
                     node_kwargs['sid'] = c.sid()
                     node_kwargs['boot_nodes'] = chain_info['boot_nodes']
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
-
                     c.print(f"node_kwargs {node_kwargs['key_mems']}")
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
 
                     response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout, mode=mode)
-                    c.print(response)
+                    
                     assert 'node_info' in response and ('boot_node' in response or 'boot_node' in response['node_info'])
                     
                     response['node_info'].pop('key_mems', None)
@@ -1329,7 +1330,6 @@ class Chain(c.Module):
                     chain_info['nodes'][node] = node_info
                     finished_nodes += [name]
 
-        
                     cls.putc(f'chain_info.{chain}', chain_info)
                     break
                 except Exception as e:
