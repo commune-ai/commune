@@ -278,7 +278,6 @@ class Serializer(c.Module):
         This function utilizes Python's `type()` built-in function and string manipulation to parse and determine the data type. It simplifies type checking for specific common data types used in data science and machine learning applications.
         '''
         data_type = str(type(data)).split("'")[1]
-        c.print(data_type)
         if 'Munch' in data_type:
             data_type = 'munch'
         if 'Tensor' in data_type or 'torch' in data_type:
