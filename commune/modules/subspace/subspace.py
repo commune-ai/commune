@@ -405,6 +405,8 @@ class Subspace(c.Module):
         is_key_digit = []
         tqdm = c.tqdm(qmap, desc=f'Querying {name} map')
 
+
+
         for i, (k,v) in enumerate(qmap):
             tqdm.update(1)
             if not isinstance(k, tuple):
@@ -1477,10 +1479,10 @@ class Subspace(c.Module):
                     'regblock': state['regblock'].get(uid, 0),
                     'last_update': state['last_update'][uid],
                     'delegation_fee': state['delegation_fee'].get(key, 20),
+                    'weight': state['weights'] if len(state['weights']) > uid  else []
                 }
+                module['stake'] =  sum([v for k,v in module['stake_from'].items()])
 
-                module['stake'] =  sum([v for k,v in c.copy(module['stake_from']).items()])
-                module['weight'] = state['weights'][uid]
                 modules.append(module)
 
             

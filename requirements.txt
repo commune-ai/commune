@@ -3,7 +3,6 @@ fastapi
 substrate-interface
 torch
 safetensors
-#visual tools
 streamlit
 plotly
 gradio
@@ -21,7 +20,6 @@ rich
 aiofiles
 aiohttp
 nest_asyncio
-
 
 # scraping
 # beautifulsoup4

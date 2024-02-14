@@ -687,8 +687,10 @@ class c:
         '''
         Saves the config to a yaml file
         '''
+
+        config = cls.config()
+        data = cls.dict_get(config, key, default)
         
-        data = cls.dict_get(cls.config(), key, default)
         if c.is_encrypted(data):
             if password == None:
                 return data
