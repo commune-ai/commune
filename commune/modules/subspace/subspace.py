@@ -1328,9 +1328,10 @@ class Subspace(c.Module):
         module['stake_from'] = [[k, self.format_amount(v, fmt=fmt)] for k,v in module['stake_from']]
         # convert list of u8 into a string 
         module['name'] = self.list2str(module['name'])
-        module['address'] = self.list2str(module['address'])
-        module['key'] = key
-        module['stake'] = sum([v for k,v in module['stake_from']])
+        module['address'] = dict(name='Address', params=[netuid,key], network=network, **kwargs)
+        module['key'] =  key
+        module['uid'] = dict(name='Uid', params=[netuid,key], network=network, **kwargs)
+        module['stake'] = dict(name='Stake', params=[netuid,key], network=network, **kwargs)
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
@@ -1421,8 +1422,7 @@ class Subspace(c.Module):
                                         'stake_from', 
                                         'delegation_fee',
                                         'trust', 
-                                        'regblock', 
-                                        'weights'],
+                                        'regblock'],
                 timeout = 100,
                 update: bool = False,
                 df = False,
@@ -1479,8 +1479,9 @@ class Subspace(c.Module):
                     'regblock': state['regblock'].get(uid, 0),
                     'last_update': state['last_update'][uid],
                     'delegation_fee': state['delegation_fee'].get(key, 20),
-                    'weight': state['weights'] if len(state['weights']) > uid  else []
                 }
+                if 'weights' in features:
+                    module['weight'] = state['weights'][uid] if len(state['weights']) > uid else []
                 module['stake'] =  sum([v for k,v in module['stake_from'].items()])
 
                 modules.append(module)
