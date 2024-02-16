@@ -1275,8 +1275,8 @@ class Subspace(c.Module):
             return name2div[name]
         return name2div
     
-    def epoch_time(self, netuid=None, network=None):
-        return self.subnet(netuid=netuid, network=network)['tempo']*self.block_time
+    def epoch_time(self, netuid=0, network='main', update=False, **kwargs):
+        return self.subnet_params(netuid=netuid, network=network)['tempo']*self.block_time
 
     def blocks_per_day(self, netuid=None, network=None):
         return 24*60*60/self.block_time
