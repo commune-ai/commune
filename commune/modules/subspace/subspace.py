@@ -290,6 +290,7 @@ class Subspace(c.Module):
               block=None,  
               network: str = network, 
               save= True,
+              mode = 'ws',
             update=False):
         
         """
@@ -310,7 +311,7 @@ class Subspace(c.Module):
             value = self.get(path, None)
             if value != None:
                 return value
-        substrate = self.get_substrate(network=network)
+        substrate = self.get_substrate(network=network, mode=mode)
         response =  substrate.query(
             module=module,
             storage_function = name,
@@ -570,25 +571,39 @@ class Subspace(c.Module):
                     staked_modules[module['name']] = v
 
         return staked_modules
+    
+
+
+    def key_info(self, key:str = None, netuid='all ', timeout=10, **kwargs):
+        key = self.resolve_key_ss58(key)
+        
+        key_info = {
+            'balance': c.submit(self.get_balance, kwargs=dict(key=key, **kwargs), timeout=timeout),
+            'stake_to': c.submit(self.get_stake_to, kwargs=dict(key=key, netuid=netuid, **kwargs), timeout=timeout),
+        }
+        futures = list(key_info.values())
+        results = c.wait(futures, timeout=timeout)
+        return {k:v for k,v in zip(key_info.keys(), results)}
+
         
 
     def get_stake_to( self, 
                      key: str = None, 
                      module_key=None,
+                     netuid:int = 0 ,
                        block: Optional[int] = None, 
                        timeout=10,
-                       netuid:int = 0 , fmt='j' , network=None, update=True,
+                        fmt='j' , network=None, update=True,
                          **kwargs) -> Optional['Balance']:
 
         if netuid == 'all':
             netuids = self.netuids()
             stake_to = []
             for netuid in netuids:
-                stake_to += [c.submit(self.get_stake_to, kwargs=dict(key=key, 
+                stake_to += [c.asubmit(self.get_stake_to, kwargs=dict(key=key, 
                                                                      module_key=module_key, 
                                                                      block=block, 
                                                                      netuid=netuid, fmt=fmt, update=update, **kwargs), timeout=timeout)]
-
             stake_to = c.wait(stake_to, timeout=timeout)
             return stake_to
         
@@ -1078,11 +1093,9 @@ class Subspace(c.Module):
     def balance(self,
                  key: str = None ,
                  block: int = None,
-                   fmt='j',
-                     network=None,
-                       update=True, 
-                          **kwargs) -> Optional['Balance']:
-        
+                 fmt='j',
+                 network=None,
+                 update=True) -> Optional['Balance']:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1604,6 +1617,9 @@ class Subspace(c.Module):
         if nonzero:
             subnet_weights = {k:v for k,v in subnet_weights if len(v) > 0}
         return subnet_weights
+
+    
+
 
     def save_weights(self, nonzero:bool = False, network=network,**kwargs) -> list:
         self.query_map('Weights',network=network, update=True, **kwargs)
@@ -2331,6 +2347,7 @@ class Subspace(c.Module):
         key: str = None,
         network : str = None,
         nonce= None,
+        **kwargs
         
     ) -> bool:
         # this is a bit of a hack to allow for the amount to be a string for c send 500 0x1234 instead of c send 0x1234 500
@@ -2342,12 +2359,7 @@ class Subspace(c.Module):
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)
-        account_balance = self.get_balance( key.ss58_address , fmt='j' )
-        if amount > account_balance:
-            return {'success': False, 'message': f'Insufficient balance: {account_balance}'}
-
         amount = self.to_nanos(amount) # convert to nano (10^9 nanos = 1 token)
-        dest_balance = self.get_balance( dest , fmt='j')
 
         response = self.compose_call(
             module='Balances',
@@ -2357,24 +2369,9 @@ class Subspace(c.Module):
                 'value': amount
             },
             key=key,
-            nonce = nonce
+            nonce = nonce,
+            **kwargs
         )
-
-        if response['success']:
-            response.update(
-                {
-                'from': {
-                    'address': key.ss58_address,
-                    'old_balance': account_balance,
-                    'new_balance': self.get_balance( key.ss58_address , fmt='j')
-                } ,
-                'to': {
-                    'address': dest,
-                    'old_balance': dest_balance,
-                    'new_balance': self.get_balance( dest , fmt='j'),
-                }, 
-                }
-            )
         
         return response
 
@@ -2392,15 +2389,12 @@ class Subspace(c.Module):
         network : str = None,
     ) -> bool:
         
-
-        name2key = self.name2key()
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         assert len(keys) > 0, f"Must provide at least one key"
         assert all([c.valid_ss58_address(k) for k in keys]), f"All keys must be valid ss58 addresses"
-        if shares == None:
-            shares = [1 for _ in keys]
-        
+        shares = shares or [1 for _ in keys]
+
         assert len(keys) == len(shares), f"Length of keys {len(keys)} must be equal to length of shares {len(shares)}"
 
         response = self.compose_call(
@@ -3024,29 +3018,61 @@ class Subspace(c.Module):
         return response
                     
 
+    def unstake2key( self,
+                    modules = 'all',
+                    netuid = 0,
+                    network = network,
+                    to = None):
+        if modules == 'all':
+            modules = self.my_modules()
+        else:
+            assert isinstance(modules, list), f"Modules must be a list of module names"
+            for m in modules:
+                assert m in self.my_modules_names(), f"Module {m} not found in your modules"
+            modules = [m for m in self.my_modules() if m['name'] in modules or m['key'] in modules]
+
+        c.print(f'Unstaking {len(modules)} modules')
+
+        
 
 
 
     def unstake_all( self, 
-                        key: str = None, 
+                        key: str = 'model.openai', 
                         netuid = 0,
                         network = network,
-                        min_stake: float = 256) -> Optional['Balance']:
+                        to = None,
+                        existential_deposit = 1) -> Optional['Balance']:
         
         network = self.resolve_network( network )
         key = self.resolve_key( key )
     
-        key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
-        c.print(key_stake_to)
-        # params = {
-        #     "netuid": netuid,
-        #     "module_keys": module_keys,
-        #     "amounts": amounts
-        # }
+        key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
+        
 
-        # response = self.compose_call('remove_stake_multiple', params=params, key=key)
 
-        return key_stake_to
+        params = {
+            "netuid": netuid,
+            "module_keys": list(key_stake_to.keys()),
+            "amounts": list(key_stake_to.values())
+        }
+
+        response = {}
+
+        if len(key_stake_to) > 0:
+            c.print(f'Unstaking all of {len(key_stake_to)} modules')
+            response['stake'] = self.compose_call('remove_stake_multiple', params=params, key=key)
+            total_stake = (sum(key_stake_to.values())) / 1e9
+        else: 
+            c.print(f'No modules found to unstake')
+            total_stake = self.get_balance(key)
+
+        total_stake = total_stake - existential_deposit
+        to = c.get_key(to)
+        c.print(f'Transfering {total_stake} to ')
+        response['transfer'] = self.transfer(dest=to, amount=total_stake, key=key)
+        
+        return response
                     
 
     
@@ -3531,14 +3557,15 @@ class Subspace(c.Module):
         start_time = c.datetime()
         ss58_address = key.ss58_address
         paths = {m: f'history/{self.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
-
+        params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
         compose_kwargs = dict(
                 call_module=module,
                 call_function=fn,
                 call_params=params,
         )
 
-        c.print('compose_kwargs', compose_kwargs, color=color)
+        
+        c.print('Sending Transaction: {satellite_emoji}', compose_kwargs, color=color)
         tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
 
         self.put_json(paths['pending'], tx_state)

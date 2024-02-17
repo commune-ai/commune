@@ -7147,6 +7147,10 @@ class c:
     def get_stake_to(cls, *args, **kwargs):
         return c.module('subspace')().get_stake_to(*args, **kwargs)
     
+    @classmethod
+    def get_stake_from(cls, *args, **kwargs):
+        return c.module('subspace')().get_stake_from(*args, **kwargs)
+    
 
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -7623,6 +7627,8 @@ class c:
     @classmethod
     def unstake_many(cls, *args, **kwargs):
         return c.module('subspace')().unstake_many(*args, **kwargs)
+
+
     unstake_all = unstake_many
     @classmethod
     def repo_url(cls, *args, **kwargs):
@@ -7672,6 +7678,8 @@ class c:
     @classmethod
     def balance(cls, *args, **kwargs):
         return c.module('subspace')().balance(*args, **kwargs)
+
+        
     get_balance = balance
     
     @classmethod
@@ -7779,7 +7787,7 @@ class c:
         return c.module('subspace')().key2value( *args, **kwargs)
 
     def key2stake(self,  *args, **kwargs):
-        return c.module('subspace')().key2balance( *args, **kwargs)
+        return c.module('subspace')().key2stake( *args, **kwargs)
 
     def live_keys(self,  *args, **kwargs):
         return c.module('subspace')().live_keys( *args, **kwargs)
@@ -8017,7 +8025,7 @@ class c:
 
     @classmethod
     def ask(cls, *args, **kwargs):
-        return c.module('model.hf').talk(*args, **kwargs)
+        return c.module('model.openai').generate(*args, **kwargs)
 
     @classmethod
     def containers(cls):
