@@ -1840,7 +1840,6 @@ class c:
         if hasattr(cls, 'module_python_paths'): 
             return cls.module_python_paths
         modules = []
-        failed_modules = []
 
         # find all of the python files
         for f in glob(path + '/**/*.py', recursive=True):
@@ -1862,9 +1861,9 @@ class c:
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                 elif 'module' in file_name.lower():
-
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
+                    # if the file has a yaml file then it is a module
                     modules.append(f)
                 elif len(cls.find_python_classes(f)) > 0 :
                     modules.append(f)
@@ -5825,6 +5824,9 @@ class c:
 
         return {'success': True, 'msg': f' created a new repo called {module}'}
         
+    
+    add_module = new_module
+    
     make_dir= mkdir
 
     @classmethod
@@ -6630,24 +6632,6 @@ class c:
         
         c.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
-    @classmethod
-    def miner(cls, 
-              api_key = None, 
-              wallet = 'ensemble.vali',
-              miner = '~/commune/bittensor/neurons/text/prompting/miners/openai/neuron.py',
-              port=2012,
-              network = 'finney',
-              netuid = 1,
-              *args, **kwargs):
-        miner = os.path.expanduser(miner)
-        api_key = api_key or os.environ.get('OPENAI_API_KEY')
-        wallet_name, wallet_hotkey = wallet.split('.')
-        name = f'miner::{wallet}::{network}::{netuid}'
-        command = f"pm2 start {miner} --name {name} --interpreter python3 -- --wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {api_key} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid} --logging.debug"
-        cls.cmd(command)
-        c.print({'msg': f"Started miner {name} on port {port}"})
-        
-        
     @staticmethod
     def reverse_map(x:dict)->dict:
         '''
