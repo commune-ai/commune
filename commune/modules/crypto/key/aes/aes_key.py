@@ -7,8 +7,9 @@ import json
 import sys
 import inspect
 import time
-import commune
-class AESKey(commune.Module):
+import commune as c
+
+class AESKey(c.Module):
 
     def __init__(self, key:str ): 
         self.bs = AES.block_size
@@ -29,10 +30,10 @@ class AESKey(commune.Module):
         enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
-        try:
-            decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-        except UnicodeDecodeError as e:
-            raise Exception('Bro, use another password, this one aint working')
+
+        decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+        
+
         return self.str2python(decrypted_data)
 
     def _pad(self, s):
@@ -117,6 +118,3 @@ class AESKey(commune.Module):
         with st.expander('Tests'):
             cls.test()
         
-
-if __name__ =='__main__':
-    AESKey.streamlit()

@@ -1,25 +1,61 @@
 
-
-key : null
+# network
+chain: null
+network: subspace
 netuid: 0
-module_prefix: null
-network: main 
+voting_networks: ['subspace', 'bittensor']
 max_history: 10
 alpha: 0.5
-timeout: 10
 tag: null
-num_workers: 10
 start: True
-verbose: True
-batch_size: 4
+verbose: False
+batch_size: 32
 refresh_stats: False
 vote_interval: 100
-sync_interval: 1000
-sleep_time: 1
+sync_interval: 100
+search: null
+max_staleness: 500
+virtual_module: False
+check_loop: True
+run_mode : thread
+run_loop: True
+run_loop_sleep: 8
+
+
+# voting 
 vote: True
 min_stake: 1
+vote_interval: 200
+vote_timeout: 50
+min_count_before_vote: 100
+
+# stats
+history_features: ['w', 'timestamp', 'latency']
+max_history: 10
+refresh_stats: False
+
+# score
 connect_score: 0.1 
-max_staleness: 2000
-virtual_module: False
+latency_score_weight: 0.2
+alpha: 0.5
+
+vote_tag : null
+# workers
+mode: thread
+num_workers: 1
+num_threads: 32
+timeout: 10
+sleep_time: 0.05
+refresh : True
+start: True
+is_main_worker: True
+max_vote_delay_before_worker_restart: 20
+max_restart_lag: 20
+min_num_weights: 10
+debug: False
+print_interval: 5
+
+
+
 
 

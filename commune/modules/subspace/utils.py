@@ -106,7 +106,7 @@ def unbiased_topk( values, k, dim=0, sorted = True, largest = True):
 
 
 
-def is_valid_ss58_address( address: str ) -> bool:
+def valid_ss58_address( address: str ) -> bool:
     """
     Checks if the given address is a valid ss58 address.
 
@@ -152,31 +152,6 @@ def is_valid_ed25519_pubkey( public_key: Union[str, bytes] ) -> bool:
 
     except (ValueError, IndexError):
         return False
-
-def is_valid_address_or_public_key( address: Union[str, bytes] ) -> bool:
-    """
-    Checks if the given address is a valid destination address.
-
-    Args:
-        address(Union[str, bytes]): The address to check.
-
-    Returns:
-        True if the address is a valid destination address, False otherwise.
-    """
-    if isinstance( address, str ):
-        # Check if ed25519
-        if address.startswith('0x'):
-            return is_valid_ed25519_pubkey( address )
-        else:
-            # Assume ss58 address
-            return is_valid_ss58_address( address )
-    elif isinstance( address, bytes ):
-        # Check if ed25519
-        return is_valid_ed25519_pubkey( address )
-    else:
-        # Invalid address type
-        return False
-
 
 
 def strtobool_with_default( default: bool ) -> Callable[[str], bool]:
@@ -249,8 +224,7 @@ def strtobool_with_default( default: bool ) -> Callable[[str], bool]:
 from typing import Tuple, List
 import torch
 
-U32_MAX = 4294967295
-U16_MAX = 65535
+
 
 def normalize_max_weight(  x: torch.FloatTensor, limit:float = 0.1 ) -> 'torch.FloatTensor':
     r""" Normalizes the tensor x so that sum(x) = 1 and the max value is not greater than the limit.

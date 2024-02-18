@@ -749,7 +749,7 @@ class BittensorModule(c.Module):
     # @classmethod
     # def dashboard(cls):
         
-    #     st.set_page_config(layout="wide")
+    #     c.set_page_config(layout="wide")
     #     self = cls(wallet='collective.0', network=default_network)
 
     #     with st.sidebar:
@@ -1274,7 +1274,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def dashboard(cls):
-        st.set_page_config(layout="wide")
+        c.set_page_config(layout="wide")
         self = cls( )
         self.button = {}
         with st.sidebar:

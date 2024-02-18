@@ -1,5 +1,18 @@
+import argparse
 import commune as c
 
-# addresses = c.addresses('module', network='remote')
-# c.print(c.call(addresses[0], fn='submit', kwargs={'fn': 'subspace.start_node', 'kwargs': {'node': 'alice'}}))
-c.print(c.repo_url())
+subspace = c.module('subspace')
+config = subspace.config(to_munch=False)
+
+
+urls ={'ws': [], 'http': []}
+for i in range(1,5):
+    name = f"commune-api-node-{i}.communeai.net"
+    urls['ws'].append(f"wss://{name}/")
+    urls['http'].append(f"https://{name}/")
+
+
+config['urls']['commies'] = urls
+
+subspace.save_config(config)
+

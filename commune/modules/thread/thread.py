@@ -77,8 +77,9 @@ class Thread(c.Module):
     @classmethod
     def num_threads(cls) -> int:
         return len(cls.thread_map)
-
-    def test(self):
+    @classmethod
+    def test(cls):
+        self = cls()
         def fn():
             print('fn')
             c.sleep(1)
