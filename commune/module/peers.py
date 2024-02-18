@@ -1,4 +1,5 @@
 import commune as c
+from typing import *
 
 class Peers(c.Module):
     @classmethod
@@ -45,7 +46,7 @@ class Peers(c.Module):
         peer_registry = await c.async_get_json('peer_registry', default={}, root=True)
 
 
-        peer_info = await C.async_call(module=peer_address, 
+        peer_info = await c.async_call(module=peer_address, 
                                               fn='info',
                                               include_namespace=True, 
                                               timeout=timeout)

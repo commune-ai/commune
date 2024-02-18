@@ -4,9 +4,7 @@ import pandas as pd
 from typing import Union, List
 import plotly.express as px
 from huggingface_hub import HfApi, hf_hub_download
-import transformers
 from transformers import AutoModel, AutoTokenizer
-from datasets import load_dataset, Dataset, load_dataset_builder
 import commune as c
 import streamlit as st
 import torch
@@ -21,15 +19,13 @@ class Huggingface(c.Module):
         self.set_config(config)
         self.hf_api = HfApi(self.config.get('hub'))
  
- 
- 
     @classmethod
     def get_tokenizer(cls, model:str=None, *args, **kwargs):
         model = cls.resolve_model(model)
         return AutoTokenizer.from_pretrained(model, *args, **kwargs)
 
     def get_model(self, model_name_or_path:str=None, *args, **kwargs):
-        model = cls.resolve_model(model)
+        model = self.resolve_model(model)
         return AutoModel.from_pretrained(model_name_or_path, *args, **kwargs)
  
  
@@ -330,12 +326,10 @@ class Huggingface(c.Module):
     
 
     @classmethod
-    def upgrade(cls):
-        c.upgrade('accelerate')
-        c.upgrade('datasets')
-        c.upgrade('huggingface_hub')
-        c.upgrade('transformers')
-        c.upgrade('tokenizers')
+    def install(cls):
+        c.install('accelerate')
+        c.install('transformers')
+        c.install('tokenizers')
 
 
 Huggingface.class_init()

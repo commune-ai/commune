@@ -31,7 +31,6 @@ export WEB3_INFURA_URL=" https://mainnet.infura.io/v3/${WEB3_INFURA_PROJECT_ID}"
 export WEB3_ALCHEMY_PROJECT_ID="RrtpZjiUVoViiDEaYxhN9o6m1CSIZvlL"
 export WEB3_ALCHEMY_URL="https://eth-mainnet.g.alchemy.com/v2/${WEB3_INFURA_PROJECT_ID}"
 # Ocean contracts
-
 export PRIVATE_KEY="0x8467415bb2ba7c91084d932276214b11a3dd9bdb2930fefa194b666dd8020b99"
 
 

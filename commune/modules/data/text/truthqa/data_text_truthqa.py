@@ -14,6 +14,8 @@ class DataTextTruthQa(c.Module):
             'answers': sample['correct_answers']
         }
 
+
+
         sample['answers'] = [i for i, choice in enumerate(sample['choices']) if choice in sample['answers']]
         return sample
 

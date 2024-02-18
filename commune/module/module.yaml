@@ -2,10 +2,11 @@ access_module:
   stake2rate: 100
 fam: bro
 ip: 162.157.13.236
+k: 2
 network: subspace
 shortcuts:
   bt: bittensor
-  chain: subspace
+  chain: subspace.chain
   d: docker
   f: frontend
   freegpt: model.freegpt
@@ -13,6 +14,7 @@ shortcuts:
   openai: model.openai
   r: remote
   s: subspace
+  sel: selenium
   store: storage
   tg: textgen
-tag: fams
+tag: null

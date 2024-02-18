@@ -602,7 +602,6 @@ class CortexTrainer(commune.Module):
     @classmethod
     def import_object(cls, key:str)-> 'Object':
         module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
         obj =  getattr(import_module(module), object_name)
         return obj
 
@@ -986,7 +985,7 @@ class CortexTrainer(commune.Module):
 
 if __name__ == '__main__':
 
-    # st.set_page_config(layout="wide")
+    # c.set_page_config(layout="wide")
     self = CortexTrainer(load=True, batch_size = 32, sequence_length=16, num_workers=1)
     self.cache_sample()
     # st.write(self.sample(synapses='TextCausalLMNext', timeout=4))

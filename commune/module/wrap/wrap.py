@@ -19,11 +19,11 @@ class ModuleWrapper(c.Module):
 
 
     def schema(self, **kwargs) -> Dict[str, Any]:
-        return c.get_schema(obj=self.module, **kwargs)
+        return c.schema(module=self.module, **kwargs)
     
     
     def functions(self, ) -> Dict[str, Any]:
-        return c.get_functions(obj=self.module)
+        return c.get_functions(module=self.module)
     
 
         

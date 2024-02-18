@@ -8,9 +8,7 @@ class Dataset(c.Module, torch.utils.data.Dataset):
     }
     def __init__(self,  dataset, config = None, **kwargs):
         config = self.set_config(config, kwargs=)
-        self.resolve_config()
-        self.logger = logging.getLogger(__name__)
-        self.set_dataset(config.)
+        self.set_dataset(config)
         self.set_model(config)
         if config.train:
             self.train()

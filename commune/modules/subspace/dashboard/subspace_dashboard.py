@@ -3,435 +3,487 @@ import streamlit as st
 import pandas as pd
 from streamlit.components.v1 import components
 import plotly.express as px
+import streamlit as st
 
+css = r'''
+    <style>
+        [data-testid="stForm"] {border: 0px}
+    </style>
+'''
+
+st.markdown(css, unsafe_allow_html=True)
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self, netuid = 0, network = 'main'): 
-        self.st = c.module('streamlit')()
-        st.set_page_config(layout="wide")
+    def __init__(self, state=None, key=None): 
         self.st = c.module('streamlit')()
         self.st.load_style()
-        self.set_config(config=config)
-        self.load_state(sync=False)
-        self.key = c.get_key()
-        
-        self.st = c.module('streamlit')()
-
-
-    def sync(self):
-        return self.load_state(sync=True)
-    
-
-    def load_state(self, sync:bool=False, netuid=0, network='main'):
-
-        t = c.timer()
-
-        self.subspace = c.module('subspace')()
-        self.state = self.subspace.state_dict()
-        c.print(f'Loaded State in {t.seconds} seconds')
-        self.netuid = self.netuid
-        self.subnets = self.state['subnets']
-
-        self.subnet2info = {s['netuid']: s for s in self.subnets}
-        self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
-        self.subnet_names = [s['name'] for s in self.subnets]
-
-        self.modules = self.state['modules'][self.netuid]
-        self.validators = [m for m in self.modules if m['name'].startswith('vali') ]
-        self.keys  = c.keys()
-        self.key2index = {k:i for i,k in enumerate(self.keys)}
-
-        self.subnet = self.subnet_names[0]
-        self.namespace = {m['name']: m['address'] for m in self.modules}
-        self.module_names = [m['name'] for m in self.modules]
-        self.subnet_info =  self.subnet2info[self.netuid]
-        self.block = self.state['block']
-
-
-    
-    def select_key(self,):
-        with st.expander('Select Key', expanded=True):
-            key = 'module'
-            key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
-            self.key =  c.get_key(key)
-            if self.key.path == None:
-                self.key.path = key
-            self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')
-
-            st.write('Address: ', self.key.ss58_address)
-            st.write('Stake', self.key_info_dict.get('stake', 0))
-            st.write('Balance', self.key_info_dict.get('balance', 0))
-
-    def create_key(self):
-        with st.expander('Create Key', expanded=False):                
-            new_key = st.text_input('Name of Key', '', key='create')
-            create_key_button = st.button('Create Key')
-            if create_key_button and len(new_key) > 0:
-                c.add_key(new_key)
-                key = c.get_key(new_key)
-
-    def rename_key(self):
-        with st.expander('Rename Key', expanded=False):    
-            old_key = st.selectbox('Select Key', self.keys, index=self.key2index[self.key.path], key='select old rename key')           
-            new_key = st.text_input('New of Key', '', key='rename')
-            rename_key_button = st.button('Rename Key')
-            replace_key = st.checkbox('Replace Key')
-            if rename_key_button and len(new_key) > 0:
-                if c.key_exists(new_key) and not replace_key:
-                    st.error('Key already exists')
-                c.rename_key(old_key,new_key)
-                key = c.get_key(new_key)
-    
-    def remove_key(self):       
-        with st.form(key='Remove Key'):            
-            rm_keys = st.multiselect('Select Key(s) to Remove', self.keys, [], key='rm_key')
-            rm_key_button = st.form_submit_button('Remove Key')
-            if rm_key_button:
-                c.rm_keys(rm_keys)
-
-    def key_dashboard(self):
-        # self.select_key()
-        self.create_key()
-        self.rename_key()
-        self.remove_key()
-
-    def subnet_management(self):
-        with st.expander('Subnet', expanded=True):
-        
-            subnets = self.subspace.subnets()
-            if len(subnets) == 0:
-                subnets = [self.default_subnet]
-            else:
-                subnets = [n['name'] for n in subnets]
-            subnet2index = {n:i for i,n in enumerate(subnets)}
-            subnet = st.selectbox('Subnet', subnets, index=subnet2index['commune'])
-            self.netuid = self.subspace.subnet2netuid(subnet)
-            
-    def sidebar(self):
+        t1 = c.time()
+        t2 = c.time()
+        time = t2 - t1
         with st.sidebar:
-            st.write('# commune')
-            key2index = {k:i for i,k in enumerate(self.keys)}
-            st.write('## Select Subnet')
-            self.subnet = st.selectbox(' ', self.subnet_names, 0, key='Select Subnet')
-            self.netuid = self.subnet2netuid[self.subnet]
-            sync = st.button('Sync')
-            if sync:
-                self.sync()
-        
             self.select_key()
+        self.load_state()
+        self.subnet_dashboard()
 
-    def get_module_stats(self, modules):
-        df = pd.DataFrame(modules)
-        del_keys = ['stake_from', 'stake_to', 'key']
-        for k in del_keys:
-            del df[k]
-        return df
-
-    # for k in ['emission', 'stake']:
-    #     df[k] = df[k].apply(lambda x: c.round_decimals(self.subspace.format_amount(x, fmt='j'), 2))
-
-    # df.sort_values('incentive', inplace=True, ascending=False)
-    # df = df[:max_rows]
-    # st.write(df)
-    # st.dataframe(df, width=1000)
-    # # BAR OF INCENTIVES
-    # options = ['emission', 'incentive', 'dividends']
-    # selected_keys = st.multiselect('Select Columns', options, options, key='stats')
-
-    # for i, k in enumerate(selected_keys):
-    #     cols = st.columns(2)
-
-    #     fig = px.line(df, y=k, x= 'name', title=f'{k.upper()} Per Module')
-    #     cols[0].plotly_chart(fig)
-    #     fig = px.histogram(df, y=k, title=f'{k.upper()} Distribution')
-    #     cols[1].plotly_chart(fig)
-
-
-    @classmethod
-    def dashboard(cls, key = None):
-        import streamlit as st
-        # plotly
-        self = cls()
-        self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Validators', 'Wallet']) 
-        with tabs[0]:   
-            self.modules_dashboard()
-        with tabs[1]:   
-            self.validator_dashboard()
-        with tabs[2]:
-            self.wallet_dashboard()
-        # with tabs[4]:
-        #     self.key_dashboard()
 
-    def subnet_dashboard(self):
-        st.write('# Subnet')
-        df = pd.DataFrame(self.subnets)
 
-        if len(df) > 0:
-            fig = px.pie(df, values='stake', names='name', title='Subnet Balances')
-            st.plotly_chart(fig)
+        # self.my_info_dashboard(expander=False)
 
-        for subnet in self.subnets:
-            subnet = subnet.pop('name', None)
-            with st.expander(subnet, expanded=True):
-                st.write(subnet)
+
+
+        if key != None:
+            self.key = key
         
         # convert into metrics
+
+        # self.archive_dashboard()
+
+
+    def subnet_dashboard(self):
+
+        subnet_params = pd.DataFrame(self.state['subnets'])
+        st.write(subnet_params)
+
+
+
+    def select_key(self):
+        import streamlit as st
+        keys = c.keys()
+
+        key2index = {k:i for i,k in enumerate(keys)}
+        cols = st.columns([2,2])
+        self.key = cols[0].selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        key_address = self.key.ss58_address
+        cols[1].write('\n')
+        cols[1].code(key_address)
+        return self.key
+    
+    def select_netuid(self):
+        import streamlit as st
+        keys = c.keys()
+        subnets = self.subnets
+        name2subnet = {s['name']:s for s in subnets}
+        name2idx = {s['name']:i for i,s in enumerate(subnets)}
+        subnet_names = list(name2subnet.keys())
+        c.print(subnet_names)
+        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
+        self.netuid = name2idx[subnet_name]
+        self.subnet = name2subnet[subnet_name]
+        self.modules = self.state['modules'][self.netuid]
+
+        return self.key
         
     def transfer_dashboard(self):
-        with st.expander('Transfer', expanded=True):
-            amount = st.number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
-            to_address = st.text_input('dest', '')
-            transfer_button = st.button('Transfer')
-            if transfer_button:
+        cols = st.columns(2)
+        amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
+        to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
+        multi_transfer = False
+
+        
+
+        if ',' in to_address:
+            multi_transfer = True
+            to_addresses = [a.strip() for a in to_address.split(',')]
+
+        transfer_button = st.button('Transfer')
+        if transfer_button:
+
+            if multi_transfer:
+                kwargs = {
+                    'destinations': to_addresses,
+                    'amounts': amount,
+                    'key': self.key,
+                }
+                st.write(kwargs)
+                response = c.transfer_many(**kwargs)
+
+            else:
+
                 kwargs = {
                     'dest': to_address,
                     'amount': amount,
                     'key': self.key,
                 }
-                self.subspace.transfer(**kwargs)
+                response = c.transfer(**kwargs)
+
+            st.write(response)
+
+
+
+    def stake_dashboard(self):
+        
+        cols = st.columns(2)
+        staked_modules = list(self.namespace.keys())
+        default_staked_modules = []
+        modules = st.multiselect('Modules', staked_modules, default_staked_modules)
+        balance = self.key_info['balance']
+        amounts = st.slider('Stake Amount', 0.0, balance, balance, 0.1)
+        
+        st.write(f'You have {len(modules)} ready to STAKE for a total of {amounts * len(modules)} ')
+        
+        stake_button = st.button('STAKE')
+
+        if stake_button:
+            kwargs = {
+                'amounts': amounts,
+                'modules': modules,
+                'key': self.key,
+                'netuid': self.netuid,
+            }
+
+            response = c.stake_many(**kwargs)
+            st.write(response)
 
     def staking_dashboard(self):
-        cols = st.columns(2)
-        with cols[0].expander('Stake', expanded=True):
+        # st.write(self.key_info)
+        # turn key_info into a dataframe
+        # st.write(self.key_info)
+        self.staking_plot()
+        with st.expander('Staking', False):
+            self.stake_dashboard()
+        with st.expander('Unstaking', False):
+            self.unstake_dashboard()
 
-            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info_dict['balance']), float(self.key_info_dict['balance']), 0.1)            
-            modules = st.multiselect('Module', self.module_names, [])
-            transfer_button = st.button('STAKE')
 
-            if transfer_button:
+    def staking_plot(self):
+        stake_to = self.key_info['stake_to']
+        df = pd.DataFrame(stake_to.items(), columns=['module', 'stake'])
 
 
-                for m in modules:
-                    kwargs = {
-                        'amount': amount,
-                        'module_key': m,
-                        'key': self.key,
-                    }
 
-                    self.subspace.stake(**kwargs)
 
-        with cols[1].expander('UnStake', expanded=True):
-            module2stake_from_key = self.subspace.get_staked_modules(self.key, fmt='j')
-            modules = list(module2stake_from_key.keys())
-            module = st.selectbox('Module', modules, index=0, key='unstake')
-            module_to_stake = module2stake_from_key[module]
-            amount = st.number_input('UNSTAKE Amount', 0.0, float(module_to_stake), float(module_to_stake), 1.0)
+        if len(df) > 0 : 
+            df = pd.DataFrame(stake_to.items(), columns=['module', 'stake'])
+            df.sort_values('stake', inplace=True, ascending=False)
+            # get a bar chart of the stake
+            fig = px.bar(df, x='module', y='stake', title='Stake')
 
-            unstake_button = st.button('UNSTAKE')
+            st.plotly_chart(fig)
+        else:
+            st.error(f'You are not staked to any modules {c.emoji("laughing")}')
+
+
+    def unstake_dashboard(self):
+        modules = list(self.key_info['stake_to'].keys())
+
+        default_modules = [k for k,v in self.key_info['stake_to'].items()]
+        default_values = [v for k,v in self.key_info['stake_to'].items()]
+        search = st.text_input('Search', '', key='search.unstake')
+        n = len(default_modules)
+        st.write(f'You have {n} modules staked')
+        unstake_percentage = st.slider('Unstake %', 0.0, 100.0) # format with the value of the balance
+
+
+        n = st.slider('Number of Modules', 1, n, 10, 1, key=f'n.unstake')
+        if search != '':
+            default_modules = [m for m in default_modules if search in m]
+        default_modules = default_modules[:n]
+        total_stake = sum([self.key_info['stake_to'][m] for m in default_modules])
+        total_stake_amount = total_stake * (unstake_percentage / 100)
+        st.write(f'You have {len(default_modules)} ready to UNSTAKE for a total of {total_stake_amount} ')
+       
+    
+        # module_names = st.multiselect('Module', default_modules, default_modules )
+        module_names = default_modules
+        df = [{'module': m, 'stake': self.key_info['stake_to'][m]} for m in module_names]
+        # add percentage unstaked to the dataframe
+        for i in range(len(df)):
+            df[i]['unstake'] = df[i]['stake'] * (unstake_percentage / 100)
+            df[i]['stake'] = df[i]['stake'] - df[i]['unstake']
+        df = pd.DataFrame(df)
+        if len(df) > 0:
+            df.sort_values('stake', inplace=True, ascending=False)
+            # get a bar chart of the stake
+            fig = px.bar(df, x='module', y='stake', title='Unstake vs Stake')
+            fig.add_bar(x=df['module'], y=df['unstake'], name='Unstake')
+            st.plotly_chart(fig)
+            
+        with st.form('unstake'):
+            total_stake_amount = unstake_percentage * len(modules)
+        
+            st.write(f'You have {len(module_names)} ready to UNSTAKE for a total of {total_stake_amount} ')
+
+            unstake_button = st.form_submit_button('UNSTAKE')
             if unstake_button:
                 kwargs = {
-                    'amount': amount,
-                    'module_key': module,
+                    'amounts': unstake_percentage,
+                    'modules': module_names,
                     'key': self.key,
+                    'netuid': self.netuid,
                 }
-                self.subspace.unstake(**kwargs)
+                response = c.unstake_many(**kwargs)
+                st.write(response)
 
 
-            
-    def playground_dashboard(self):
-        st.write('# Playground')
 
-    def register_dashboard(self):
-        
-        df = pd.DataFrame(self.modules)
-        
-        with st.expander('Register Module', expanded=True):
-            self.launch_dashboard()
-            
-        with st.expander('Modules', expanded=False):
-            st.write(self.modules)
-            
-        # pie of stake per module
-        # select fields to show
-        
-        if len(df)> 0:
-            with st.expander('Module Statistics', expanded=False):
-                value_field2index = {v:i for i,v in enumerate(list(df.columns))}
-                key_field2index = {v:i for i,v in enumerate(list(df.columns))}
-                value_field = st.selectbox('Value Field', df.columns , index=value_field2index['stake'])
-                key_field = st.selectbox('Key Field',df.columns, index=value_field2index['name'])
+
+    def register_dashboard(self, expanded=True, prefix= None, form = True ):
+
+
+        cols = st.columns([2,2,2])
+
+        modules = c.modules(prefix)
+        module  = cols[0].selectbox('Select A Module' , modules, 0)
+        subnet = cols[1].text_input('Subnet', self.subnet['name'])
+        with st.form(key='register'):
+            tag = cols[1].text_input('tag', c.random_word(n=1), key=f'tag.register')
+            stake = cols[2].number_input('stake', 0.0, 10000000.0, 0.1, key=f'stake.{prefix}.register')
+            n = st.number_input('Number of Replicas', 1, 30, 1, 1, key=f'n.{prefix}.register')
+            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
+            kwargs = self.function2streamlit(module=module, fn='__init__', salt='register')
+            register = st.form_submit_button('Register')
+
+            if 'None' == tag:
+                tag = None
                 
-                # plot pie chart in a funky color
                 
-                fig = px.pie(df, values=value_field, names=key_field, title='Module Balances', color_discrete_sequence=px.colors.sequential.RdBu)
-                # show the key field
-                # do it in funky way
-                
-                st.plotly_chart(fig)
-                st.write(df)
+            if 'tag' in kwargs:
+                kwargs['tag'] = tag
 
-    def modules_dashboard(self):
-        # self.launch_dashboard(expanded=False)
-        netuid = 0 
-        st.write('# Modules')
-        for m in self.modules:
-            m['delegate_stake'] = sum([s[1] for s in m['stake_from'][1:]])
-            # m['address'] = m['address'].split(':')[0]
-            for k in ['balance', 'stake', 'delegate_stake', 'emission']:
-                m[k] = m[k]/1e9
-            for del_k in ['key', 'stake_from', 'stake_to']:
-                del m[del_k]  
-        df = pd.DataFrame(self.modules)
-        df.sort_values('emission', inplace=True, ascending=False)
-        df.reset_index(inplace=True)
+            if register:
+                try:
+                    if n > 1:
+                        tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
+                    else:
+                        tags = [tag]
 
-        stats = {
-            'total_stake': sum(df['stake']),
-            'total_emission': sum(df['emission']),
-            'total_balance': sum(df['balance']),
-            'total_delegate_stake': sum(df['delegate_stake']),
-            'block': self.block,
+                    module_name = module
+                    try:
+                        module = c.module(module)
+                    except Exception as e:
+                        e = c.detailed_error(e)
+                        response = {'success': False, 'message': e}
+                        st.error(response)
+                        return
 
+                    for tag in tags:
+                        try:
+                            response = module.register(tag=tag, subnet= subnet, stake=stake)
+                            st.write(response)
+                        except Exception as e:
+                            e = c.detailed_error(e)
+                            response = {'success': False, 'message': e}
+                            st.error(response)
+                except Exception as e:
+                    e = c.detailed_error(e)
+                    response = {'success': False, 'message': e}
+                    raise e
+                if response['success']:
+                    st.success('Module Registered')
+                else:
+                    st.error(response['message'])
+
+    
+    def my_info_dashboard(self, expander = True):
+            
+        # pie map of stake
+
+        cols = st.columns([2,2])
+        cols[0].metric('Balance', int(self.key_info['balance']))
+        cols[1].metric('Stake', int(self.key_info['stake']))
+            
+        
+
+        values = list(self.key_info['stake_to'].values())
+        labels = list(self.key_info['stake_to'].keys())
+
+        sorted_labels_and_values = sorted(zip(labels, values), key=lambda x: x[1], reverse=True)
+        labels = [l for l,v in sorted_labels_and_values]
+        values = [v for l,v in sorted_labels_and_values]
+
+
+        modules = self.modules
+        
+        my_modules = [m for m in modules if m['name'] in labels]
+        daily_reward = sum([m['emission'] for m in my_modules]) * 108
+        st.write('### Daily Reward', daily_reward)        
+
+        st.write('## My Staked Modules')
+        for m in my_modules:
+            m.pop('stake_from')
+        df = pd.DataFrame(my_modules)
+        st.write(df)
+
+    @classmethod
+    def dashboard(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
+
+       
+
+        fns = cls.fns()
+        fns = ['_'.join(f.split('_')[:-1]).replace('_',' ').lower() for f in fns if f.endswith('_dashboard')]
+        fns = ['staking', 'register', 'transfer', 'my info' , 'subnet info']
+        tabs = st.tabs(fns)
+
+
+        for i, fn in enumerate(fns):
+            with tabs[i]:
+                fn_name = fn.lower().replace(' ', '_') + '_dashboard'
+                if not hasattr(self, fn_name):
+                    st.error(f'{fn_name} not found in {self.__class__.__name__}')
+                else:
+                    fn = getattr(self, fn_name)
+                    fn()
+
+
+
+        # if tokenomics:
+        #     c.module('subspace.tokenomics').dashboard()
+
+
+
+    def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
+        
+        if _self != None:
+            self = _self
+        
+        import streamlit as st
+        
+        self.key = c.get_key()
+
+        t = c.timer()
+        @st.cache_data(ttl=60*60*24, show_spinner=False)
+        def get_state():
+            subspace = c.module('subspace')()
+            state =  subspace.state_dict(update=update)
+            return state
+        
+        if state == None:
+            state = get_state()
+        self.state =  state
+        self.netuid = 0
+        self.subnets = self.state['subnets']
+
+        with st.sidebar:
+            self.select_netuid()
+
+
+
+
+        self.modules = self.state['modules'][self.netuid]
+
+        self.name2module = {m['name']: m for m in self.modules}
+        # c.print(self.modules)
+        self.name2key = {k['name']: k['key'] for k in self.modules}
+        self.key2name = {k['key']: k['name'] for k in self.modules}
+
+        self.keys  = c.keys()
+        self.key2index = {k:i for i,k in enumerate(self.keys)}
+
+        self.namespace = {m['name']: m['address'] for m in self.modules}
+
+        for i, m in enumerate(self.modules):
+            self.modules[i]['stake'] = m['stake']/1e9
+            self.modules[i]['emission'] = m['emission']/1e9
+        # st.write(self.state['stake_to'][self.netuid].get(self.key.ss58_address))
+        # st.write(self.state['stake_to'][self.netuid])
+        stake_to = self.state['stake_to'][self.netuid].get(self.key.ss58_address)
+        self.key_info = {
+            'ss58_address': self.key.ss58_address,
+            'balance': self.state['balances'].get(self.key.ss58_address,0),
+            'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
+            'stake': sum([v[1] for v in stake_to]) if stake_to != None else {},
         }
 
-        # make df hit the edge of the screen
-        st.write(df)
-
-        # make a pie chart of the stake
-        self.st.metrics_dict(stats, num_rows=1)
-
-        with st.expander('Plot', expanded=False):
-            self.st.run(df)
-
-
-
-    def archive_dashboard(self):
-        # self.launch_dashboard(expanded=False)
-        netuid = 0 
-        df = self.get_module_stats(self.modules)
-        archive_history = self.subspace.archive_history(lookback_hours=24, n=100, update=True)
-        df = c.df(archive_history[1:])
-        df['block'] = df['block'].astype(int)
-
-
-        df['dt'] = pd.to_datetime(df['dt'])
-        df.sort_values('block', inplace=True)
-        df.reset_index(inplace=True)
-        st.write(df)
-        # df= df[df['market_cap'] < 1e9]
-
-
-        fig = px.line(df, x='block', y='market_cap', title='Archive History')
-
-        block2path= {b:df['path'][i] for i,b in enumerate(df['block'])}
-        blocks = list(block2path.keys())
-        paths = list(block2path.values())
-        block = st.selectbox('Block', blocks, index=0)
-        path = block2path[block]
-        state = c.get(path)
-        st.write(state.keys())
-        modules = state['modules'][netuid]
-        for i in range(len(modules)):
-            for k in ['stake_to', 'stake_from', 'key', 'address']:
-                del modules[i][k]
-            for k in ['emission', 'stake', 'balance']:
-                modules[i][k] = modules[i][k]/1e9
-        df = pd.DataFrame(modules)
-
-        st.write(df)
-        subnet_df = pd.DataFrame(state['subnets'])
-        st.write(subnet_df)
-        # st.write(state)
-
-        
-
-        st.write(fig)
-        # options = ['emission', 'incentive', 'dividends', 'stake']
-        # y = st.selectbox('Select Columns', options, 0)
-        # # filter by stake > 1000
-
-        # df = df[df['stake'] > 10**9]
-        # histogram = px.histogram(df, x=y, title='My Modules')
-
-        # st.write(histogram)
+        self.key_info['balance']  = self.key_info['balance']/1e9
+        self.key_info['stake_to'] = {k:v/1e9 for k,v in self.key_info['stake_to']}
+        self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
+        # convert keys to names 
+        for k in ['stake_to']:
+            self.key_info[k] = {self.key2name[k]: v for k,v in self.key_info[k].items() if k in self.key2name}
        
-    def wallet_dashboard(self):
-        st.write('# Wallet')
-        self.launch_dashboard()
-        # if self.subspace.is_registered(self.key):
-        #     self.staking_dashboard()
-        #     self.transfer_dashboard()
-        # else:
-        #     # with emoji
-        #     st.error('Please Register Your Key')
-    
-    def validator_dashboard(self):
-        validators = [{k:v[k] for k in c.copy(list(v.keys())) if k != 'stake_from'} for v in self.validators if v['stake'] > 0]
-        # df = c.df(validators)
-        # if len(df) == 0:
-        #     st.error('No Validators')
-        #     return
+        balances = self.state['balances']
+        self.total_balance = sum(balances.values())/1e9
 
-        # df['stake'] = df['stake']/1e9
-        # df['emission'] = df['emission']/1e9
-        # st.dataframe(df)
-        # with st.expander('Register Validator', expanded=False):
-        #     self.launch_dashboard(expanded=False, prefix='vali')
-        
-            
-    def launch_dashboard(self, expanded=True, prefix= None ):
-        modules = c.modules(prefix)
-        module2idx = {m:i for i,m in enumerate(modules)}
+    def subnet_info_dashboard(self):
+        subnet_df = pd.DataFrame(self.subnets)
+        self.subnet_info = {}
+        self.subnet_info['params'] = self.state['subnets'][self.netuid]
+        with st.expander('Subnet Info', expanded=False):
+            self.subnet_info['n'] = len(self.modules)
+            self.subnet_info['total_stake'] = sum([m['stake'] for m in self.modules])
+            st.write(self.subnet_info)   
 
-        self.st.line_seperator()
-
-        cols = st.columns([3,1, 6])
-        
-
-
-        with cols[0]:
-            module  = st.selectbox('Select A Module', modules, 0)
-            tag = self.subspace.resolve_unique_server_name(module, tag=None ).replace(f'{module}::', '')
-            subnet = st.text_input('subnet', self.config.subnet, key=f'subnet.{prefix}')
-            tag = st.text_input('tag', tag, key=f'tag.{prefix}')
-            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
-            serve = st.checkbox('serve', True, key=f'serve.{prefix}')
-
-            register = st.button('Register', key=f'register.{prefix}')
 
     
-        with cols[-1]:
-            st.write(f'#### {module.upper()} Kwargs ')
 
-            fn_schema = c.fn_schema(c.module(module), '__init__')
-            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
 
-            kwargs = self.st.process_kwargs(kwargs, fn_schema)
-            self.st.line_seperator()
+    # def archive_dashboard(self):
+    #     # self.register_dashboard(expanded=False)
+    #     netuid = 0 
+    #     archive_history = c.archive_history(lookback_hours=24, n=100, update=True)
+    #     df = c.df(archive_history[1:])
+    #     df['block'] = df['block'].astype(int)
 
-        n = 1
+
+    #     df['dt'] = pd.to_datetime(df['dt'])
+    #     df.sort_values('block', inplace=True)
+    #     df.reset_index(inplace=True)
+    #     st.write(df)
+    #     # df= df[df['market_cap'] < 1e9]
+
+
+    #     fig = px.line(df, x='block', y='market_cap', title='Archive History')
+
+    #     block2path= {b:df['path'][i] for i,b in enumerate(df['block'])}
+    #     blocks = list(block2path.keys())
+    #     paths = list(block2path.values())
+    #     block = st.selectbox('Block', blocks, index=0)
+    #     path = block2path[block]
+    #     state = c.get(path)
+    #     modules = state['modules'][netuid]
+    #     for i in range(len(modules)):
+    #         for k in ['stake_to', 'stake_from', 'key', 'address']:
+    #             del modules[i][k]
+    #         for k in ['emission', 'stake', 'balance']:
+    #             modules[i][k] = modules[i][k]/1e9
+    #     df = pd.DataFrame(modules)
+
+    #     st.write(df)
+    #     subnet_df = pd.DataFrame(state['subnets'])
+    #     st.write(subnet_df)
+    #     # st.write(state)f
+
+    #     st.write(fig)
+    #     # options = ['emission', 'incentive', 'dividends', 'stake']
+    #     # y = st.selectbox('Select Columns', options, 0)
+    #     # # filter by stake > 1000
+
+    #     # df = df[df['stake'] > 10**9]
+    #     # histogram = px.histogram(df, x=y, title='My Modules')
+
+    #     # st.write(histogram)
+
+    # def 
+    #     with st.expander('Modules', expanded=False):
+    #         import pandas as pd
+    #         # search  for all of the modules with yaml files. Format of the file
+    #         search = st.text_input('Search', '')
+    #         df = None
+    #         self.modules = self.state['modules'][self.netuid]
+
         
-        if 'None' == tag:
-            tag = None
-            
-            
-        if 'tag' in kwargs:
-            kwargs['tag'] = tag
+    #         self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
+    #         df = pd.DataFrame(self.searched_modules)
+    #         if len(df) == 0:
+    #             st.error(f'{search} does not exist {c.emoji("laughing")}')
+    #             return
+    #         else:
+    #             st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
+    #             del df['stake_from']
+    #             st.write(df)
+    #             # with st.expander('Historam'):
+    #             #     key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
+                    
+    #             #     self.st.run(df)
+    #             #     fig = px.histogram(
+    #             #         x = df[key].to_list(),
+    #             #     )
 
-        if register:
-            try:
-                if n > 1:
-                    tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
-                else:
-                    tags = [tag]
-
-                for tag in tags:
-                    response = self.register(module=module, 
-                                                        tag=tag, 
-                                                        subnet=subnet, 
-                                                        kwargs=kwargs, 
-                                                        network=self.network, 
-                                                        serve=serve)
-            except Exception as e:
-                response = {'success': False, 'message': str(e)}
-            if response['success']:
-                st.success('Module Registered')
-            else:
-                st.error(response['message'])
-                
+    #             #     st.plotly_chart(fig)
 
 
-
+SubspaceDashboard.run(__name__)

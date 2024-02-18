@@ -11,73 +11,122 @@ import commune as c
 
 # we are inheriting from the base model class which is a c.Module and a torch.nn.Module
 Model = c.module('model')
-
 class ModelTransformer(Model):
-    default_config = c.config('model.hf')
-    shortcuts = default_config.shortcuts
     def __init__(self,
-                 config = None,
-                 **kwargs
-                ):
-        config = self.set_config(config=config, kwargs=kwargs)
-        Model.init_model(self)
+                 model: str = 'llama2.7b',  # Assuming 'llama2.7b' is a string identifier for the model
+                 tag: str = 'base',  # Default value 'base' for the tag
+                 device: str = None,  # None is used for null in Python
+                 device_map: str = 'auto',  # Assuming that device_map is a string, though it could be a different type
+                 max_memory: str = None,  # max_memory could be an int or float if it represents an amount
+                 trust_remote_code: bool = True,  # Boolean value for trust_remote_code
+                 finetune: int = 1,  # Assuming finetune should be an integer
+                 optimizer: str = {'module': 'torch.optim.Adam', 'lr':2.0e-05 },  # The module is a string path to the optimizer class
+                 max_length: int = 256,
+                 max_new_tokens: int = 256,
+                 load: bool = False,  # Assuming load is a boolean
+                 quantize: str = None,
+                 test:bool = True): # OPTIONS = ['int4', 'int8', None]
+        '''
+        ### Documentation for `__init__` Function
+        
+        #### Description:
+        The `__init__` function initializes an object instance with specified configurations and settings for the model.
+        
+        #### Parameters:
+        - `model` (str, default 'llama2.7b'): A string identifier for the model to be used.
+        - `tag` (str, default 'base'): The tag corresponding to the model.
+        - `device` (str, optional): The device on which the model should run. If `
+        '''
+
+        # Here you would initial
+        config = self.set_config(kwargs=locals())
+        self.init_model()
         self.set_model(config)
+
     
     
     def forward(self,  
                 input_ids: Union[str, torch.Tensor], 
-                attention_mask: torch.Tensor = None,
-                return_keys:List[str] = ['topk', 'hidden_states'],
-                topk:int=32,
+                output_hidden_states: bool = False,
+                output_topk: bool = False,
+                topk:int=None,
                 hidden_layer: int = -1, # -1 is the last hidden layer
-                max_input_tokens : int = 256,                        
+                max_length : int = 256,                        
                 **kwargs):
+        '''
+        ## Documentation
+        
+        ### Function: forward
+        ```python
+        def forward(self,  
+                    input_ids: Union[str, torch.Tensor], 
+                    output_hidden_states: bool = False,
+                    output_topk: bool = False,
+                    topk:int=None,
+                    hidden_layer: int = -1, # -1 is the last hidden layer
+                    max_length : int = 256,                        
+                    **kwargs):
+        ```
+        
+        #### Description
+        Executes a forward pass on the provided input_ids using the
+        '''
 
+        sample = {}
 
-        if isinstance(input_ids, str) or isinstance(input_ids, list):
-            input_ids = self.tokenize(input_ids)['input_ids']
+        if isinstance(input_ids, str) or \
+                 bool(isinstance(input_ids, list) and len(input_ids) > 0 and isinstance(input_ids[0], str)):
+            # if its a string then tokenize it
+            sample = self.tokenize(input_ids)
         elif isinstance(input_ids, torch.Tensor):
             input_ids = input_ids
+            # clip the input ids to the vocab size to avoid index errors
+            sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)        
+        # forward pass
+        output = self.model(input_ids=input_ids .to(self.device), output_hidden_states=output_hidden_states, **kwargs)
 
-        # resolve the max sequence length (sometimes we want to clip the input to make it faster)
-        attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
-
-        if max_input_tokens > self.config.max_input_tokens:
-            max_input_tokens = self.config.max_input_tokens
-            logger.warning(f"max_input_tokens is larger than the model's max_input_tokens. Clipping to {max_input_tokens}")
-        
-        sample = {
-        'input_ids': input_ids[:, -max_input_tokens:],
-        'attention_mask': attention_mask[:, -max_input_tokens:] if attention_mask is not None else None
+        response = {
+            'logits': output['logits'],
         }
 
-        # move to device for all tensors
-        for k,v in sample.items():
-            if isinstance(v, torch.Tensor):
-                sample[k] = sample[k].to(self.device)
-        
-        
-        # clip the input ids to the vocab size to avoid index errors
-        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
-        
-        output_hidden_states = 'hidden_states' in return_keys
-        output_topk = 'topk' in return_keys
-
-        # forward pass
-        output = self.model(input_ids=sample['input_ids'].to(self.device),
-                            output_hidden_states=output_hidden_states, **kwargs)
-        
-
         if output_hidden_states:
-            output['hidden_states'] = output.hidden_states[hidden_layer].detach()
+            response['hidden_states'] = output['hidden_states'][hidden_layer].detach()
+        if topk:
+            response['topk']=self.encode_topk(output['logits'].detach(), topk=topk).detach()
+        else:
+            response['logits']= output['logits'].detach()
+        
+        return response
+    
 
-        if output_topk:
-            output['topk']=self.encode_topk(output['logits'].detach(), topk=topk)
-        return {key:output[key] for key in return_keys}
+    def logit2token(self, logits):
+        '''
+        ### Documentation
+        
+        #### Function: logit2token
+        ##### Description:
+        The `logit2token` function takes a tensor of logits (raw predictions from a model), applies an `argmax` operation along the dimension 0 (selecting the index of the maximum value in each column), and converts the resulting tensor to a list.
+        
+        ##### Parameters:
+        - `self`: Refers to the instance of the class where the function is defined.
+        - `logits`: A tensor containing raw predictions from
+        '''
+        logit2token = torch.argmax(logits, dim=0).to_list()
+        return logit2token
+
         
     
     def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
-        kwargs['return_keys'] = ['hidden_states']
+        '''
+        ```python
+        def encode(self, text: str, token_idx: int = None, **kwargs) -> torch.Tensor:
+            """
+            Encodes the input text into a tensor representation.
+        
+            This function tokenizes the input text, updates the tokenization results with any additional keyword arguments,
+            and passes the result to the model's forward method to obtain the hidden states. If a `token_idx` is provided,
+            it returns the hidden state corresponding to that token index. Otherwise, it returns
+        '''
         sample  = self.tokenize(text)
         kwargs.update(sample)
         hidden_states = self.forward(**kwargs)['hidden_states']
@@ -88,32 +137,39 @@ class ModelTransformer(Model):
     
     embed = encode
 
-    def resolve_quantize(self, config):
-        if config.quantize == None:
-            for q in ['int4', 'int8']:
-                if q in config.model:
-                    config.quantize = q
+    def set_model(self, config) -> None: 
+        '''
+        ## Documentation for `set_model` function
+        
+        **Description:**
+        Sets up the model for training or fine-tuning based on the provided configuration. It handles quantization, device mapping, offloading and establishes necessary dependencies. Additionally, it initializes the tokenizer and optimizer, and optionally tests the setup.
+        
+        **Arguments:**
+        - `self`: Object reference to the instance of the class containing the function.
+        - `config`: An object containing the configuration parameters. Expected to have attributes like `model`, `quant
+        '''
+        c.print(config)
+        config.model = self.shortcuts().get(config.model, config.model)
+        from transformers import  AutoModelForCausalLM
+
         if config.quantize != None:
             c.ensure_lib('bitsandbytes')
             c.ensure_lib('scipy')
 
-        if config.quantize == 'int4':
+
+        if str(config.quantize) in ['int4', '4', '4bit']:
             config['load_in_4bit'] = True
-        if config.quantize == 'int8':
+        if str(config.quantize) in ['int8', '8', '8bit']:
             config['load_in_8bit'] = True
 
-        return config
-
-    def set_model(self, config) -> None: 
-        config.model = config.shortcuts.get(config.model, config.model)
-        from transformers import  AutoModelForCausalLM
+        else:
+            config['load_in_4bit'] = False
+            config['load_in_8bit'] = False
 
 
-        
-        config = self.resolve_quantize(config)
-
-        config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
-
+        # infer the device map
+        if config.device_map == None:  
+            config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
 
         kwargs = {
             'device_map': config.device_map,
@@ -130,28 +186,42 @@ class ModelTransformer(Model):
         t = c.time()
 
         c.print(f'LAUNCH PARAMS for {config.model} -> ',kwargs)
-        c.print(config.model)
+
+
         self.model = AutoModelForCausalLM.from_pretrained(config.model,**kwargs) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
-        c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
-        if not config.quantize: # cant finetune with quantization
-            self.set_finetune(config.finetune) 
-            self.set_optimizer(config.optimizer)
+        self.set_optimizer(**config.optimizer)
 
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
 
-
-        c.print('SETTING Tokenizer -> ', config.model)
         self.set_tokenizer(config.model)
         c.print('Tokenizer SET -> ', config.model)
+
+
+        if config.test:
+            self.test()
         
 
     def set_tokenizer(self, tokenizer:str):
+        '''
+        ### Docs
+        
+        #### Function: `set_tokenizer`
+        
+        ##### Description:
+        The `set_tokenizer` function is responsible for setting the tokenizer for a given instance. It initializes the tokenizer using the `transformers` library, and ensures that the tokenizer has a padding token set. If the tokenizer does not come with a padding token, the function asserts that an end-of-string (EOS) token exists and uses it as the padding token.
+        
+        ##### Arguments: 
+        - `tokenizer`: A string representing the pretrained
+        '''
+
+        c.print('SETTING Tokenizer -> ', tokenizer)
+
         from transformers import AutoTokenizer
         try:
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
@@ -164,15 +234,29 @@ class ModelTransformer(Model):
         if not hasattr(tokenizer, 'pad_token') or tokenizer.pad_token is None:
             assert hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None
             tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+
+        # set padding token
+
             
         self.tokenizer = tokenizer
                 
         return self.tokenizer
 
-    
-    
     @staticmethod
     def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
+        '''
+        ## Documentation
+        
+        ### Function: encode_topk
+        
+        #### Description:
+        The `encode_topk` function takes a tensor of unnormalized logit scores and returns the top-k tokens and their corresponding probabilities. The input tensor is expected to represent a batch of sequences, with each sequence containing a distribution over a vocabulary of possible tokens.
+        
+        #### Parameters:
+        - `forward_response_tensor` (torch.Tensor): A tensor containing unnormalized logit scores of shape `[batch_size, sequence_len, vocab_size]`.
+          
+        
+        '''
         """ Returns topk tokens/probabilities given unnormalized logits as input. """
 
         #import ipdb; ipdb.set_trace()
@@ -180,7 +264,7 @@ class ModelTransformer(Model):
         logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
         probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
 
-        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        topk_indices = torch.argsort(logits, dim=-1, descending=True)[...,:topk]
         # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
 
         topk_values = probs.gather( index=topk_indices, dim=-1)
@@ -210,6 +294,30 @@ class ModelTransformer(Model):
 
 
     def tokenizer_name(self):
+        '''
+        ### Documentation
+        
+        #### Function: `tokenizer_name`
+        
+        **Description:**
+        
+        This function returns the name of the tokenizer configured for use.
+        
+        **Parameters:**
+        
+        - `self`: The instance of the class from which the function is called.
+        
+        **Returns:**
+        
+        - `str`: The name of the tokenizer as specified in the instance's configuration.
+        
+        **Usage:**
+        
+        ```python
+        # Assuming an instance of the class has been created and named 'instance'
+        tokenizer_name = instance.tokenizer_name()
+        print(f"The
+        '''
         return self.config['tokenizer']
 
     def tokenize(self, 
@@ -317,22 +425,25 @@ class ModelTransformer(Model):
         
         
         return model
-                
+
+    @classmethod
+    def hf2commune(cls, path:str):
+        return path.split('/')[-1].lower()     
 
     @property
     def tag(self):
         if self.config.get('tag', None) == None:
             self.config['tag'] = 'base'
-            
-        return  self.config['tag']
+        commune_model_path = self.hf2commune(path)
+        return  commune_model_path + self.config['tag']
     
     @tag.setter
     def tag(self, tag):
         self.config['tag'] = tag
         
 
-    def test(self):
-        c.print(self.generate('whatup'))
+    def test(self, ):
+        output = self.generate('whatup')
 
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
@@ -346,7 +457,7 @@ class ModelTransformer(Model):
     @classmethod
     def resolve_server_name(cls, tag=None, **kwargs):
         config = cls.get_config(kwargs=kwargs)
-        server_name = 'model.'+config.model
+        server_name = 'model.'+ cls.hf2commune(config.model)
         if tag != None :
             server_name += '::' +  str(tag)
         return server_name
@@ -364,39 +475,25 @@ class ModelTransformer(Model):
         for i in range(n):
             cls.serve(*args, tag=tag+str(i), **kwargs)
         
-
     @classmethod
-    def serve(cls,
-            model: str,
-            tag = None,
-            refresh = True,    
-            server_name = None,
-            **kwargs
-            ):
-        
-        config = cls.get_config(kwargs=kwargs)
-        config.tag = tag
-        config.model = model
-        config.pop('shortcuts', None)
-        kwargs.update(
-            {
-                'tag': tag,
-                'config': config,
-                'refresh': refresh,
-                'verbose': True,
-                'module': cls.module_path(),
-                'server_name': cls.resolve_server_name(**config) if server_name == None else server_name
-            }
-        )
+    def init_kwargs(cls):
+        kwargs = c.fn_defaults(cls.__init__)
+        kwargs.pop('self')
+        return kwargs
+    
+    def generate_token(self, text, **kwargs):
+        logits = self.forward(text, **kwargs)['logits']
+        next_tokens = self.logit2token(logits)
+        return next_tokens
 
-        return c.serve(**kwargs)
-        
+
+
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
                     input_ids:torch.Tensor,
                     return_value = False,
                     **kwargs) -> torch.Tensor:
-        '''
+        '''get_fn_defaults
         Calculate the loss for the model.
         '''
         gt = input_ids[:, -(logits.shape[1]-1):].flatten()
@@ -421,6 +518,9 @@ class ModelTransformer(Model):
             loss = loss.item()
         
         return loss
+    
+
+    
 
 
     def generate_stream(self, text: str, 
@@ -451,34 +551,35 @@ class ModelTransformer(Model):
 
     hf = c.module('hf')()
     def generate(self, text: str, 
-                max_output_tokens: int = 256,
-                max_input_tokens: int = 20, 
+                max_new_tokens: int = 1000,
+                max_length: int = 512, 
                 early_stopping: bool = True,
                 stream:bool = False,
+                info : bool = False,
                 **kwargs) -> List[str]:
         if stream:
             return self.generate_stream(text, 
-                                        max_new_tokens=max_output_tokens, 
+                                        max_new_tokens=max_new_tokens, 
                                         early_stopping=early_stopping, **kwargs)
 
         is_string = isinstance(text, str)
         if is_string:
             text = [text]
 
-        # resolve max_input_tokens
-        if max_input_tokens > self.config.max_input_tokens:
-            max_input_tokens = self.config.max_input_tokens
+        # resolve max_length
+        if max_length > self.config.max_length:
+            max_length = self.config.max_length
 
-        # resolve max_output_tokens
-        if max_output_tokens > self.config.max_output_tokens:
-            max_output_tokens = self.config.max_output_tokens
+        # resolve max_new_tokens
+        if max_new_tokens > self.config.max_new_tokens:
+            max_new_tokens = self.config.max_new_tokens
 
         # get tokens
-        input_ids = self.tokenize(text, max_length=max_input_tokens)['input_ids']
+        input_ids = self.tokenize(text, max_length=max_length)
 
         # generate
-        output_ids = self.model.generate(input_ids, 
-                                        max_new_tokens=max_output_tokens,
+        output_ids = self.model.generate(**input_ids, 
+                                        max_new_tokens=max_new_tokens,
                                         early_stopping=early_stopping,
                                           **kwargs)
         
@@ -495,16 +596,23 @@ class ModelTransformer(Model):
         return output_text
     
 
-    
-    @classmethod
-    def test_generate(cls,model='gpt2.7b', text='Whadup?', **kwargs):
-        model = cls(model=model, **kwargs)
-        output_text = model.generate(text=text, max_output_tokens=100, early_stopping=False)
-
+    def test(self, text='hey whadup fam?'):
+        output_text = self.generate(text=text, max_new_tokens=100, early_stopping=False)
         return output_text
 
     @classmethod
     def test_encode(cls, model='gpt2.7b', text='Whadup?', **kwargs):
+        '''
+        ### Function Documentation
+        
+        #### `test_encode`
+        
+        - **Description**: This class method is used to encode text using a pre-trained language model for causal language modeling. It uses transformers library to load the model and tokenizer, then generates text based on the provided prompt.
+        
+        - **Parameters**:
+          - `model` (str, optional): The model to be used for encoding. Defaults to 'gpt2.7b'.
+          - `text` (str, optional): The prompt text to generate
+        '''
         from transformers import (
             AutoTokenizer,
             AutoModelForCausalLM,
@@ -546,3 +654,42 @@ class ModelTransformer(Model):
         )
 
         print(sequences[0]["generated_text"])
+
+
+    @classmethod
+    def shortcuts(cls):
+        return c.load_yaml(cls.dirpath() + '/model_shortcuts.yaml')
+
+    @classmethod
+    def resolve_model(cls, model:str) -> str:
+        shortcuts = cls.shortcuts()
+        return shortcuts.get(model, model)
+        
+    @classmethod
+    def shorten_hf_path(self, path:str):
+        return path.split('/')[-1].lower()
+
+
+    @classmethod
+    def serve(cls, model:str='mistral7b', tag:str=None, quantize=None, **kwargs):
+        server_name = cls.module_path() + '.' + cls.shorten_hf_path(model)
+
+        if quantize != None:
+            server_name = server_name + '_' + quantize
+    
+        if tag != None:
+            server_name += '::' + str(tag)
+
+        return c.serve(module='model.hf', server_name=server_name, model=model )
+
+
+
+    def set_optimizer(self, 
+                      lr:float=1e-5,
+                      module:str='torch.optim.Adam',
+                      **kwargs):
+        optimizer_map = {'adam':'torch.optim.Adam'}
+        module = optimizer_map.get(module, module)
+        module = c.import_object(module)
+        params = self.parameters()
+        self.optimizer = module(params,**kwargs) 

@@ -21,6 +21,7 @@ class StreamlitModule(c.Module):
     @property
     def streamlit_functions(self):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
+    
 
     def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
@@ -233,6 +234,97 @@ class StreamlitModule(c.Module):
 
         return fig
 
+
+
+    
+    @classmethod
+    def style2path(cls, style:str=None) -> str:
+        path = cls.dirpath() + '/styles'
+        style2path = {p.split('/')[-1].split('.')[0] : p for p in cls.ls(path)}
+        if style != None:
+            return style2path[style]
+        return style2path
+        
+        
+    @classmethod
+    def load_style(cls, style='commune'):
+        style_path =  cls.style2path(style)        
+        with open(style_path) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+        css = r'''
+            <style>
+                [data-testid="stForm"] {border: 0px}
+            </style>
+        '''
+
+        st.markdown(css, unsafe_allow_html=True)
+        
+    @classmethod
+    def line_seperator(cls, text='-', length=50):
+        st.write(text*length)
+      
+    @classmethod
+    def function2streamlit(cls, 
+                           module = None,
+                           fn:str = '__init__',
+                           fn_schema = None, 
+                           extra_defaults:dict=None,
+                           cols:list=None,
+                           skip_keys = ['self', 'cls'],
+                            mode = 'pm2'):
+        
+        key_prefix = f'{module}.{c.random_word()}'
+        if module == None:
+            module = cls
+            
+        elif isinstance(module, str):
+            module = c.module(module)
+        extra_defaults = {} if extra_defaults is None else extra_defaults
+        
+        if fn_schema == None:
+
+            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            if fn == '__init__':
+                config = module.config(to_munch=False)
+                extra_defaults = config
+            kwargs = {}
+            fn_schema['default'].pop('self', None)
+            fn_schema['default'].pop('cls', None)
+            fn_schema['default'].update(extra_defaults)
+            fn_schema['default'].pop('config', None)
+            fn_schema['default'].pop('kwargs', None)
+            
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
+            
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if fn_key in skip_keys:
+                continue
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            random_word = c.random_word()
+            col_idx = col_idx % (len(cols))
+            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}.{random_word}')
+     
+        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        
+        return kwargs
+
    
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
@@ -267,101 +359,12 @@ class StreamlitModule(c.Module):
                 elif v in ['True', 'False']:
                     v = eval(v)
                 else:
-                    try:
-                        v = eval(v) 
-                    except:
-                        pass
+                    v = v
             
             kwargs[k] = v
         return kwargs
     
-    
-
-    
-    @classmethod
-    def style2path(cls, style:str=None) -> str:
-        path = cls.dirpath() + '/styles'
-        style2path = {p.split('/')[-1].split('.')[0] : p for p in cls.ls(path)}
-        if style != None:
-            return style2path[style]
-        return style2path
-        
-        
-    @classmethod
-    def load_style(cls, style='commune'):
-        style_path =  cls.style2path(style)        
-        with open(style_path) as f:
-            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-        
-    @classmethod
-    def line_seperator(cls, text='-', length=50):
-        st.write(text*length)
-      
-    @classmethod
-    def function2streamlit(cls, 
-                           module = None,
-                           fn:str = '__init__', 
-                           extra_defaults:dict=None,
-                           cols:list=None,
-                           skip_keys = ['self', 'cls'],
-                            mode = 'pm2'):
-        
-        key_prefix = f'{module}.{fn}'
-        if module == None:
-            module = cls
-            
-        elif isinstance(module, str):
-            module = c.module(module)
-        
-        config = module.config(to_munch=False)
-        
-        fn_schema = module.schema(defaults=True, include_parents=True)[fn]
-
-        if fn == '__init__':
-            extra_defaults = config
-        elif extra_defaults is None:
-            extra_defaults = {}
-
-        kwargs = {}
-        fn_schema['default'].pop('self', None)
-        fn_schema['default'].pop('cls', None)
-        fn_schema['default'].update(extra_defaults)
-        fn_schema['default'].pop('config', None)
-        fn_schema['default'].pop('kwargs', None)
-        
-        
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
-        if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
-        cols = st.columns(cols)
-
-
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            if fn_key in skip_keys:
-                continue
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if 'Munch' in k_type or 'Dict' in k_type:
-                    k_type = 'Dict'
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
-                continue
-            
-
-            
-            col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
-     
-        kwargs = cls.process_kwargs(kwargs, fn_schema)       
-            
-        return kwargs
-        
+         
     @classmethod
     def st_metrics_dict(cls, x:str, num_columns=3):
         cols = st.columns(num_columns)
@@ -495,3 +498,13 @@ class StreamlitModule(c.Module):
                         df = df[df[column].astype(str).str.contains(user_text_input)]
 
         return df
+    
+        # lisst all the prots
+    
+    @classmethod
+    def set_page_config(cls, layout:str='wide'):
+        try:
+            return c.set_page_config(layout="wide")
+        except Exception as e:
+            c.print(e)
+        

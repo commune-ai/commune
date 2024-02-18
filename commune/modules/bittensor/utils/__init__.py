@@ -72,7 +72,7 @@ def version_checking():
         print('\u001b[33mBittensor Version: Current {}/Latest {}\nPlease update to the latest version at your earliest convenience\u001b[0m'.format(bittensor.__version__,latest_version))
 
 @staticmethod
-def is_valid_ss58_address( address: str, valid_ss58_format=42 ) -> bool:
+def valid_ss58_address( address: str, valid_ss58_format=42 ) -> bool:
     """
     Checks if the given address is a valid ss58 address.
 

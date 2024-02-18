@@ -1,38 +1,38 @@
-import commune
+
 from ray import tune
 from typing import *
 import torch
 from copy import deepcopy
+import commune as c
 
 
 
 
-class Trainer(commune.Module):
+class Trainer(c.Module):
     def __init__(self, 
                  model: str = 'model:gptj:train', 
-                 tag : str ='base_trainer',
                  metrics_server: str = 'metrics_server' ,
                  tuner: Dict = dict(
                      metric = 'loss',
                      mode = 'min',
-                     max_concurrent_trials = 1,
+                     mgax_concurrent_trials = 1,
                      resources_per_trial = {"cpu": 2, "gpu": 0},
                      num_samples= 1000
                  ),
                  **kwargs):
         
         
-        self.set_config(config = locals())
-        self.set_model(self.config['model'])
-        self.set_tag(self.config['tag'])
-        self.set_metrics_server(self.config['metrics_server'])
-        self.set_tuner(**self.config['tuner'])
+        config = self.set_config(locals())
+        self.set_model(config.model)
+        self.set_metrics_server(self.config.metrics_server)
+        self.set_tuner(**self.config.tuner)
 
     def set_config(self, config) -> None:
-        self.config = deepcopy(config)
-        self.config.pop('self',None)
-        self.config.pop('kwargs', None)
-        self.config.pop('args', None)
+        config.pop('self',None)
+        kwargs = config.pop('kwargs', {})
+        config.update(kwargs)
+        self.config = c.dict2munch(config)
+        return config
         
         # self.model = self.connect(self.model_name)
 
@@ -53,30 +53,7 @@ class Trainer(commune.Module):
             raise Exception('Your peer is not visible')
         
         self.model = model
-    
-        
-    def set_metrics_server(self, 
-                          metrics_server:str,
-                          refresh:bool = True,
-                          timeout:int = 10,
-                          check_step:int= 2):
-        # if not self.server_exists(metrics_server):
-        commune.launch(module='commune.metric.MetricServer', name=metrics_server, refresh=refresh)
-        
-        wait_time = 0
-
-        while not self.server_exists(metrics_server) and wait_time <= timeout:
-            self.sleep(check_step)
-            wait_time += check_step
-            
-        if wait_time >= timeout:
-            raise Exception('Timeout')
-        self.metrics_server = metrics_server
-        # self.metrics_server = self.connect(metrics_server)
-        metrics_module = commune.connect(metrics_server)
-        metrics_module.refresh()
-        metrics_module.set_metric('baseline', 3)
-        
+       
     def hyper2params(self, params: Dict) -> Dict:
         return self.flat2deep(params)
 
@@ -97,9 +74,6 @@ class Trainer(commune.Module):
         if hyperparams is None:
             hyperparams = {}
             
-            
-        
-        
         params = self.hyper2params(deepcopy(hyperparams))
         params['stats'] = {}
         train_kwargs.update(dict(
@@ -113,27 +87,18 @@ class Trainer(commune.Module):
 
         output = model.train_model(**train_kwargs, timeout=timeout)
         
-        metric_server = commune.connect(self.metrics_server)
+        metric_server = c.connect(self.metrics_server)
         best_metric = metric_server.best_metric()
         
         is_best = False
-        if self.config['tuner']['mode'] == 'min':
+        if self.config.tuner.mode == 'min':
             is_best =  bool(output['loss'] <  best_metric)
-        elif self.config['tuner']['mode'] == 'max':
+        elif self.config.tuner.mode == 'max':
             is_best =  bool(output['loss'] >  best_metric)
             
         hyperopt_tag = self.get_hyperopt_tag(hyperparams)
 
-        metric_server.set_metric(hyperopt_tag, output['loss'])
-        
-    
-        model.save(keys=['config'], tag=self.tag)
-        
-        trial_info_dict =  {**output, **hyperparams}
-        
-        trial_info_path =f'experiment/{self.model}/{self.tag}/{hyperopt_tag}.json'
-        model.save(trial_info_path, keys=['config'])
-                
+
         if is_best:
             model.save(tag=self.tag)
             
@@ -149,7 +114,7 @@ class Trainer(commune.Module):
         return search_space
     
     def set_tuner(self, 
-                 resources_per_trial:Dict,
+                 resources_per_trial:dict = {"cpu": 2, "gpu": 0},
                  max_concurrent_trials:int = 4,
                  num_samples: int = 10,
                  search_space:Dict = None,
@@ -176,6 +141,8 @@ class Trainer(commune.Module):
         self.tuner = tune.Tuner(self.objective_with_resources, 
                                 param_space=self.search_space, 
                                 tune_config=self.tune_config)
+        
+        return {'success': True, 'message': 'Tuner set'}
     def fit(self, **kwargs):
 
         results = self.tuner.fit()

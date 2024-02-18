@@ -1,5 +1,5 @@
-dataset: data.text.realfake
+dataset: data.text.math
 netuid: 0
-module_prefix: model
+search: model
 tag: base
 
