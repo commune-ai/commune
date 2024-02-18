@@ -7873,14 +7873,7 @@ class c:
         return c.module('subspace')().key2tokens(*args, **kwargs)
     @classmethod
     def key2stake(cls, *args, **kwargs):
-        return c.module('subspace')().key2tokens(*args, **kwargs)
-
-    @classmethod
-    def key2stake(cls, *args, **kwargs):
-        return c.module('subspace')().key2tokens(*args, **kwargs)
-    
-    
-        
+        return c.module('subspace')().key2stake(*args, **kwargs)
     
     @classmethod
     def build_proto(cls, *args, **kwargs):
