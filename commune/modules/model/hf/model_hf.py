@@ -73,17 +73,16 @@ class ModelTransformer(Model):
         '''
 
         sample = {}
+        is_string =  isinstance(input_ids, str) or \
+                 bool(isinstance(input_ids, list) and isinstance(input_ids[0], str))
 
-        if isinstance(input_ids, str) or \
-                 bool(isinstance(input_ids, list) and len(input_ids) > 0 and isinstance(input_ids[0], str)):
-            # if its a string then tokenize it
+        if is_string:
             sample = self.tokenize(input_ids)
-        elif isinstance(input_ids, torch.Tensor):
-            input_ids = input_ids
-            # clip the input ids to the vocab size to avoid index errors
-            sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)        
+        
+        input_ids = sample['input_ids'].to(self.device)
+
         # forward pass
-        output = self.model(input_ids=input_ids .to(self.device), output_hidden_states=output_hidden_states, **kwargs)
+        output = self.model(input_ids=input_ids.to(self.device), output_hidden_states=output_hidden_states, **kwargs)
 
         response = {
             'logits': output['logits'],

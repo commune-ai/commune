@@ -412,4 +412,7 @@ class Server(c.Module):
     def playground_dashboard(self):
         c.module('playground').dashboard()
 
+    def bro(self):
+        return 0
+
 Server.run(__name__)
