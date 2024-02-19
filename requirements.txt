@@ -20,6 +20,7 @@ rich
 aiofiles
 aiohttp
 nest_asyncio
+openai
 
 # scraping
 # beautifulsoup4

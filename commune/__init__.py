@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 from .module import Module
@@ -8,8 +10,6 @@ from .modules.cli import cli
 # from .modules.subspace import subspace
 # from .model import Model
 config = Config
-import warnings
-warnings.filterwarnings("ignore")
 
 
 # set the module functions as globals
