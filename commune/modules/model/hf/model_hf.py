@@ -48,10 +48,8 @@ class ModelTransformer(Model):
     def forward(self,  
                 input_ids: Union[str, torch.Tensor], 
                 output_hidden_states: bool = False,
-                output_topk: bool = False,
                 topk:int=None,
-                hidden_layer: int = -1, # -1 is the last hidden layer
-                max_length : int = 256,                        
+                hidden_layer: int = -1, # -1 is the last hidden layer                     
                 **kwargs):
         '''
         ## Documentation
@@ -82,7 +80,9 @@ class ModelTransformer(Model):
         input_ids = sample['input_ids'].to(self.device)
 
         # forward pass
-        output = self.model(input_ids=input_ids.to(self.device), output_hidden_states=output_hidden_states, **kwargs)
+        output = self.model(input_ids=input_ids,
+                            output_hidden_states=output_hidden_states, 
+                            **kwargs)
 
         response = {
             'logits': output['logits'],

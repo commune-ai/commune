@@ -272,9 +272,9 @@ class Subspace(c.Module):
             delegation_fee = {k: v for k,v in delegation_fee[netuid].items()}
             return delegation_fee
 
-    def stake_to(self, netuid = 0, network=network, block=None, update=False, fmt='nano'):
+    def stake_to(self, netuid = 0, network=network, block=None, update=False, fmt='nano',**kwargs):
 
-        stake_to = self.query_map('StakeTo', block=block, update=update, network=network)
+        stake_to = self.query_map('StakeTo', block=block, update=update, network=network, **kwargs)
         
         if netuid == 'all':
             return stake_to
@@ -573,24 +573,31 @@ class Subspace(c.Module):
         return staked_modules
     
 
+    def all_key_info(self, netuid='all', timeout=10, update=False, **kwargs):
+        my_keys = c.my_keys()
 
-    def key_info(self, key:str = None, netuid='all ', timeout=10, **kwargs):
+
+    def key_info(self, key:str = None, netuid='all', timeout=10, update=False, **kwargs):
         key = self.resolve_key_ss58(key)
-        
+        stake_to = self.stake_to(update=update, netuid=netuid, **kwargs)
+        key2address = c.key2address()
+        my_stake_to = {}
+        if netuid == 'all':
+            for i,stake_to_dict in enumerate(stake_to):
+                if key in stake_to_dict:
+                    my_stake_to[i] = stake_to_dict[key]
         key_info = {
-            'balance': c.submit(self.get_balance, kwargs=dict(key=key, **kwargs), timeout=timeout),
-            'stake_to': c.submit(self.get_stake_to, kwargs=dict(key=key, netuid=netuid, **kwargs), timeout=timeout),
+            'balance': c.get_balance(key=key, **kwargs),
+            'stake_to': my_stake_to,
         }
-        futures = list(key_info.values())
-        results = c.wait(futures, timeout=timeout)
-        return {k:v for k,v in zip(key_info.keys(), results)}
+        return key_info
 
         
 
     def get_stake_to( self, 
                      key: str = None, 
                      module_key=None,
-                     netuid:int = 0 ,
+                     netuid:int = 'all' ,
                        block: Optional[int] = None, 
                        timeout=10,
                         fmt='j' , network=None, update=True,
@@ -600,7 +607,7 @@ class Subspace(c.Module):
             netuids = self.netuids()
             stake_to = []
             for netuid in netuids:
-                stake_to += [c.asubmit(self.get_stake_to, kwargs=dict(key=key, 
+                stake_to += [c.submit(self.get_stake_to, kwargs=dict(key=key, 
                                                                      module_key=module_key, 
                                                                      block=block, 
                                                                      netuid=netuid, fmt=fmt, update=update, **kwargs), timeout=timeout)]
@@ -821,16 +828,28 @@ class Subspace(c.Module):
         return bool(subnet in subnets)
 
     def subnet_emission(self, netuid:str = 0, network=None, block=None, update=False, **kwargs):
-        return sum(self.query( "Emission", block=block, params=[netuid], network=network , update=update))
+        emissions = self.emission(block=block, update=update, network=network, netuid=netuid, **kwargs)
+        if isinstance(emissions[0], list):
+            emissions = [sum(e) for e in emissions]
+        return sum(emissions)
+    
     
     def unit_emission(self, network=None, block=None, update=False, **kwargs):
         return self.query_constant( "UnitEmission", block=block,network=network)
 
-    def subnet_state(self,  network=None, block=None, update=False, netuid=0, fmt='j', **kwargs):
+    def subnet_state(self,  netuid='all',  network='main', block=None, update=False, fmt='j', **kwargs):
+        
+        if netuid == 'all':
+            netuids = self.netuids(network=network)
+            subnet_states = []
+            for netuid in netuids:
+                subnet_state = self.subnet_state(network=network, block=block, update=update, netuid=netuid, fmt=fmt, **kwargs)
+                subnet_states.append(subnet_state)
+            return subnet_states
+        
         netuid= self.resolve_netuid(netuid)
         subnet_state = self.subnet_params(network=network, block=block, update=update, **kwargs)
         subnet_state['emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs)
-        subnet_state['blocks_per_day'] = ( 24*60*60 / (self.block_time))
         subnet_state['daily_emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs) * subnet_state['blocks_per_day']
         subnet_state['n'] = self.n(netuid=netuid)
 
@@ -1193,12 +1212,13 @@ class Subspace(c.Module):
         '''
         Resolves a netuid to a subnet name.
         '''
-        if netuid == None:
+        if netuid == None or  netuid == 'all':
             # If the netuid is not specified, use the default.
             return 0
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
+            c.print(netuid)
             netuid = int(self.subnet_namespace(network=network).get(netuid))
         elif isinstance(netuid, int):
             if netuid == 0: 
@@ -1531,11 +1551,11 @@ class Subspace(c.Module):
     def uids(self, netuid = None, **kwargs):
         return list(self.uid2key(netuid=netuid, **kwargs).keys())
 
-    def keys(self, uid=None, 
+    def uid2key(self, uid=None, 
              netuid = None,
               update=False, 
              network=network, 
-             return_dict = False,
+             return_dict = True,
              **kwargs):
         netuid = self.resolve_netuid(netuid)
         uid2key = {uid:k for uid,k in enumerate(self.query_map('Keys', update=update, network=network, **kwargs)[netuid])}
@@ -1546,14 +1566,16 @@ class Subspace(c.Module):
         uid2key = {uid: uid2key[uid] for uid in sorted(uids)}
         if return_dict:
             return uid2key
-        return list(uid2key.values())
-    def uid2key(self, uid=None, 
+        else:
+            return list(uid2key.values())
+    
+    def keys(self, uid=None, 
              netuid = None,
               update=False, 
-             network=network, 
-             return_dict = True,
-             **kwargs):
-        return self.keys(uid=uid, netuid=netuid, update=update, network=network, return_dict=return_dict, **kwargs)
+             network : str = 'main', 
+             return_dict = False,
+             **kwargs) -> List[str]:
+        return self.uid2key(uid=uid, netuid=netuid, update=update, network=network, return_dict=return_dict, **kwargs).values()
     
 
     def uid2name(self, netuid: int = 0, update=False,  **kwargs) -> List[str]:
@@ -1621,7 +1643,7 @@ class Subspace(c.Module):
     
 
 
-    def save_weights(self, nonzero:bool = False, network=network,**kwargs) -> list:
+    def save_weights(self, nonzero:bool = False, network = "main",**kwargs) -> list:
         self.query_map('Weights',network=network, update=True, **kwargs)
         return {'success': True, 'msg': 'Saved weights'}
 
@@ -1633,9 +1655,9 @@ class Subspace(c.Module):
         pending_deregistrations = self.pending_deregistrations(netuid=netuid, **kwargs)
         return len(pending_deregistrations)
         
-    def emission(self, netuid = 0, network=network, nonzero=False, update=False, **kwargs):
+    def emission(self, netuid = 0, network = "main", nonzero=False, update=False, **kwargs):
         emissions = self.query_map('Emission',network=network, update=update, **kwargs)
-        if netuid != None and len(emissions) > netuid:
+        if (netuid != None and netuid != 'all') and len(emissions) > netuid:
             emissions = emissions[netuid]
             if nonzero:
                 emissions =[e for e in emissions if e > 0]
@@ -1646,7 +1668,7 @@ class Subspace(c.Module):
     def incentive(self, 
                   netuid = netuid, 
                   block=None,  
-                  network=network, 
+                  network = "main", 
                   nonzero:bool=False, 
                   update:bool = False, 
                   return_dict=False, 
@@ -1662,11 +1684,11 @@ class Subspace(c.Module):
                 return {k:v for k,v in enumerate(incentive)}
         return incentive
     
-    def proposals(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, update:bool = False,  **kwargs):
+    def proposals(self, netuid = netuid, block=None,   network="main", nonzero:bool=False, update:bool = False,  **kwargs):
         proposals = [v for v in self.query_map('Proposals', network=network, block=block, update=update, **kwargs)]
         return proposals
         
-    def trust(self, netuid = None, network=network, nonzero=False, update=False, **kwargs):
+    def trust(self, netuid = 0, network="main", update=False, **kwargs):
         trust = self.query_map('Trust', network=network, update=update, **kwargs)
         if netuid != None and len(trust) > netuid:
             trust = trust[netuid]

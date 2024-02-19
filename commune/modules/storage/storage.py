@@ -155,8 +155,6 @@ class Storage(c.Module):
             # sign it for verif
             data = self.key.sign(data, return_json=True)
 
-       
-
         # SAVE METADATA 
         metadata = {
             'size_bytes': size_bytes,
@@ -166,7 +164,7 @@ class Storage(c.Module):
             'path': path,
             'shards': shards
         }
-
+        
         self.put_json(path['metadata'], metadata)
 
         return {'success': True, 'key': k,  'metadata': metadata}

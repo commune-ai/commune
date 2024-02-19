@@ -167,15 +167,17 @@ class Keypair(c.Module):
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}', color='red')
             return json.loads(cls.get(path))
-        if password != None:
-            key_json = cls.encrypt(data=key_json, password=password)
         if mnemonic != None:
             kwargs['mnemonic'] = mnemonic
+            c.print(c.num_words(kwargs['mnemonic']))
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
+        if password != None:
+            key_json = cls.encrypt(data=key_json, password=password)
         cls.put(path, key_json)
         return  json.loads(key_json)
+    
     
 
     

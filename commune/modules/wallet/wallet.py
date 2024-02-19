@@ -314,8 +314,6 @@ class Wallet(c.Module):
     def my_info(self, expander = True):
         st.write('My Public Address')
         st.code(self.key.ss58_address)
-        # pie map of stake
-        cols = st.columns([2,2,2])
 
         modules = self.modules
 
@@ -328,17 +326,14 @@ class Wallet(c.Module):
         my_modules = [m for m in modules if m['name'] in labels]
         self.key_info['daily_reward'] = sum([m['emission'] for m in my_modules]) * self.state['epochs_per_day']
 
-        for i, k in enumerate(['balance', 'stake', 'daily_reward']):
-            cols[i].write(k)
-            cols[i].code(int(self.key_info[k]))   
-        
+        my_info_df = pd.DataFrame(self.key_info)
+        st.write(self.key_info)
         for m in my_modules:
             m.pop('stake_from', None)
         
         
         
         df = pd.DataFrame(my_modules)
-
 
 
     @classmethod
@@ -349,7 +344,7 @@ class Wallet(c.Module):
     
         c.load_style()
         self.logo_url = "https://github.com/commune-ai/commune/blob/librevo/commune/modules/dashboard/commune_logo.gif?raw=true"
-        # st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
+        st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
         with st.sidebar:
             if key == None:
                 key = self.select_key()
@@ -358,9 +353,10 @@ class Wallet(c.Module):
         fns = self.fns()
         dash_fns = [f for f in fns if f.endswith('_dashboard')]
         options = [f.replace('_dashboard', '') for f in dash_fns]
-        
+
 
         self.my_info(expander=False) 
+
 
         tabs = st.tabs(options)
 

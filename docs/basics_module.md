@@ -80,7 +80,6 @@ function_name = 'bro'
 function_schema = demo.schema(function_name)
 c.print(function_schema)
 ```
-
 ---
 
 ## Serving
