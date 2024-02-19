@@ -475,6 +475,7 @@ class c:
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
         key = c.get_key(key)
         text = cls.get_text(path)
+        c.print("text")
         r = key.decrypt(text, password=password, **kwargs)
         return cls.put_text(path, r)
 
@@ -897,8 +898,9 @@ class c:
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
     
-    
-
+    @classmethod
+    def dash(cls, *args, **kwargs):
+        return cls.st(*args, **kwargs)
 
     @classmethod
     def st(cls,
@@ -910,7 +912,7 @@ class c:
            kwargs=None):
         if module == None: 
             module = cls.module_path()
-        
+
         kwargs = kwargs or {}
         if public:
             port = c.free_port()
@@ -955,8 +957,8 @@ class c:
             'fn': fn,
             'kwargs': kwargs,
             'cmd': cmd
-            
         }
+        
         c.put('module2dashboard', module2dashboard)
 
         cwd = os.path.dirname(module_filepath)
@@ -1699,50 +1701,58 @@ class c:
         """
         determine if the path is a module
         """
-        filepath = self.simple2path(path)
+        filepath = cls.simple2path(path)
         if path.replace('.', '/') + '/' in filepath:
             return True
         if ('modules/' + path.replace('.', '/')) in filepath:
             return True
         return False
+    
 
-        return os.path.isdir(path)
 
-    module_tree_cache = None
+
+    tree_cache = {}
     @classmethod
     def build_tree(cls, search=None, 
+                update:bool = True,
+                path = 'local_module_tree',
+                **kwargs) -> List[str]:
+        
+        if not update:
+            # this is to cache the module tree for faster access
+            if cls.tree_cache == None:
+                cls.tree_cache = c.get(path, None)
+
+        module_tree = cls.tree_cache
+        
+        if len(module_tree) == 0:
+            for tree_path in cls.trees():
+                # get modules from each tree
+                python_paths = c.get_module_python_paths(path=tree_path)
+                # add the modules to the module tree
+                module_tree.update({c.path2simple(f): f for f in python_paths})
+            # to use functions like c. we need to replace it with module lol
+            if cls.root_module_class in module_tree:
+                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+                c.put(path, module_tree)
+
+        # cache the module tree
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
+        return module_tree
+    
+    @classmethod
+    def tree(cls, search=None, 
                 mode='path', 
                 update:bool = False,
                 path = 'local_module_tree',
                 **kwargs) -> List[str]:
-        
-        module_tree = None
-        if not update:
-            # this is to cache the module tree for faster access
-            if cls.module_tree_cache != None:
-                return cls.module_tree_cache
-            module_tree = c.get(path, None)
-            if module_tree != None:
-                return module_tree
-        module_tree = {}
+        return cls.build_tree(search=search, 
+                              mode=mode, 
+                              update=update, 
+                              path=path, 
+                              **kwargs)
 
-        for tree_path in cls.trees():
-            assert mode in ['path', 'object']
-            # get the python paths
-            python_paths = c.get_module_python_paths(path=tree_path)
-            module_tree ={c.path2simple(f): f for f in python_paths}
-            if mode == 'object':
-                module_tree = {f:c.path2objectpath(f) for f in module_tree.values()}
-            # to use functions like c. we need to replace it with module lol
-            if cls.root_module_class in module_tree:
-                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
-            c.put(path, module_tree)
-        if search != None:
-            module_tree = {k:v for k,v in module_tree.items() if search in k}
-
-        return module_tree
-
-    tree = build_tree
     
     tree_folders_path = 'module_tree_folders'
 
@@ -1764,6 +1774,35 @@ class c:
         if c.libpath not in trees:
             trees += [c.libpath]
         return trees
+    
+
+    def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
+        if not repo_path.startswith('/') and not repo_path.startswith('.') and not repo_path.startswith('~'):
+            repo_path = os.path.abspath('~/' + repo_path)
+        assert os.path.isdir(repo_path), f'{repo_path} is not a directory, please clone it'
+        c.add_tree(repo_path)
+        template_module = c.module(template_module)
+        code = template_module.code()
+
+        # replace the template module with the name
+        name = name or repo_path.split('/')[-1] 
+        assert not c.module_exists(name), f'{name} already exists'
+        code_lines = code.split('\n')
+        for i, line in enumerate(code_lines):
+            if 'class' in line and 'c.Module' in line:
+                class_name = line.split('class ')[-1].split('(')[0]
+                code_lines[i] = line.replace(class_name, name)
+                break
+        code = '\n'.join(code_lines)
+            
+
+        module_path = repo_path + '/module.py'
+
+        # write the module code
+        c.put_text(code, module_path)
+
+        # build the tree
+        c.build_tree(update=True)
         
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
@@ -1836,42 +1875,24 @@ class c:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
+
         path = path if path else c.root_path
-        if hasattr(cls, 'module_python_paths'): 
-            return cls.module_python_paths
         modules = []
 
         # find all of the python files
-        for f in glob(path + '/**/*.py', recursive=True):
+        for f in glob(c.libpath+'/**/*.py', recursive=True):
+
+            initial_text = c.readlines(f, end_line=200)
+
+            commune_in_file = 'import commune as c' in initial_text 
+            is_commune_root = 'class c:' in initial_text
+            if not commune_in_file and not is_commune_root:
+                continue
             if os.path.isdir(f):
                 continue
-            file_path, file_ext =  os.path.splitext(f)
-   
-            if file_ext == '.py':
-                dir_path, file_name = os.path.split(file_path)
-                dir_name = os.path.basename(dir_path)
-                
-                if dir_name.lower() == file_name.lower():
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif file_name.lower().endswith(dir_name.lower()):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif file_name.lower().endswith('module'):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
-                elif 'module' in file_name.lower():
-                    modules.append(f)
-                elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
-                    # if the file has a yaml file then it is a module
-                    modules.append(f)
-                elif len(cls.find_python_classes(f)) > 0 :
-                    modules.append(f)
-                elif all([p in dir_path for p in file_name.replace(".py", "").split("_")]):
-                    modules.append(f)
+
+            modules.append(f)
         # we ar caching t
-        cls.module_python_paths = modules
-        
         return modules
 
 
@@ -1928,13 +1949,6 @@ class c:
         return  bool(package in sys.modules)
 
 
-    @classmethod
-    def dash(cls, *args, **kwargs):
-        if cls.module_path() == 'module':
-            return cls.st(module='dashboard')
-        else:
-            return cls.st(*args, **kwargs)
-    
 
     @classmethod
     def is_parent(cls, parent=None):
@@ -3577,13 +3591,21 @@ class c:
     def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-fn', '--fn', dest='function', help='fn', type=str, default="__init__")
+        parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
+        parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
+        parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
         if verbose:
             c.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
+        args.params = json.loads(args.params.replace("'",'"'))
+        args.inputs = json.loads(args.input.replace("'",'"'))
+
+        # if you pass in the params, it will override the kwargs
+        if len(args.params) > len(args.kwargs):
+            args.kwargs = args.params
         args.args = json.loads(args.args.replace("'",'"'))
 
         return args
@@ -4736,7 +4758,9 @@ class c:
 
     @classmethod
     def asubmit(cls, fn:str, *args, **kwargs):
+        
         async def _asubmit():
+            kwargs.update(kwargs.pop('kwargs',{}))
             return fn(*args, **kwargs)
         return _asubmit()
     
@@ -5810,7 +5834,7 @@ class c:
         
         # rename the class to the correct name 
         for code_ln in code.split('\n'):
-            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) or all([ k in code_ln for k in ['class','commune.Module', ')', '(']]):
+            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) :
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)
@@ -5862,9 +5886,6 @@ class c:
                        fmt:str = 'b',
                        decimals:int = 3,
                        **kwargs):
-
-            
-        
         
         memory = cls.resolve_memory(memory)
         min_memory = min_memory_ratio * memory
@@ -7517,6 +7538,10 @@ class c:
     @classmethod
     def num_tokens(cls, text, **kwargs):
         return len(cls.tokenize(text, **kwargs))
+    @staticmethod
+    def num_words( text):
+        return len(text.split(' '))
+    
 
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
         code = self.code()
@@ -8849,6 +8874,7 @@ class c:
     @classmethod
     def dashboard(cls):
         c.module('dashboard').dashboard()
+    app = dashboard
 
     @classmethod
     def ticket(self, key=None):
@@ -9006,6 +9032,16 @@ class c:
     @classmethod
     def comment(self,fn:str='module/ls'):
         return c.module('coder').comment(fn)
+    
+
+    def imported_modules(self, module=None):
+        # get the text
+        text = c.module(module).get_text(module)
+
+    @classmethod
+    def host2ssh(cls, *args, **kwarg):
+        return c.module('remote').host2ssh(*args, **kwarg)
+        
 
 
 

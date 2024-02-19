@@ -1,5 +1,4 @@
 import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 from .module import Module

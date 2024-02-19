@@ -72,10 +72,14 @@ class Storage(c.Module):
             v: Dict, 
             password:str=None, 
             ticket = None,
-            timestamp=None):
-        
+            timestamp=None, module=None):
+        if module == None:
+            kwargs = locals()
+            kwargs.pip('module')
+            module = c.connect(module).put(**kwargs)
+
         path = self.resolve_item_path(k) 
-        
+
         timestamp = timestamp or c.timestamp()
         
         if password != None:

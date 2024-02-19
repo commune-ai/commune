@@ -10,16 +10,17 @@ class CLI(c.Module):
     # 
     def __init__(
             self,
-            config: c.Config = None,
-            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer', 'tree'],
+            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer'],
+            new_event_loop: bool = True,
+
 
         ) :
         self.protected_modules = module_overrides
-        c.new_event_loop(True)
         self.module = c.Module()
         args, kwargs = self.parse_args()
-        
         module_list = c.modules()
+        if new_event_loop:
+            c.new_event_loop(True)
 
         fn = None
         module = None
@@ -27,14 +28,15 @@ class CLI(c.Module):
             result = c.schema()
         elif len(args)> 0:
             functions = list(set(self.module.functions()  + self.module.get_attributes()))
+
             args[0] = self.resolve_shortcut(args[0])
             
             # is it a fucntion, assume it is for the module
 
             module_list = c.modules()
-            using_seperator = False
+
+
             if '/' in args[0]:
-                using_seperator = True
                 args = args[0].split('/') + args[1:]
                 
                 
