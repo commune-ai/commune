@@ -1,0 +1,7 @@
+import warnings
+
+warnings.filterwarnings("ignore")
+import commune as c
+
+if __name__ == "__main__":
+    cli = c.module('cli')()

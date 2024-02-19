@@ -7165,13 +7165,11 @@ class c:
     def filesize(cls, filepath:str):
         filepath = cls.resolve_path(filepath)
         return os.path.getsize(filepath)
-    
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
         if '/' in str(module):
             return c.fn_code(module)
         module = cls.resolve_module(module)
-        path = module.pypath()
         text =  c.get_text( module.pypath(), *args, **kwargs)
         if search != None:
             find_lines = c.find_lines(text=text, search=search)

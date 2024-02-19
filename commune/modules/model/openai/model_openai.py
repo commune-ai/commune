@@ -1,18 +1,11 @@
 import openai
-import os
-import torch
-from typing import Union, List, Any, Dict
+from typing import *
 import commune as c
-import json
-# class OpenAILLM(c.Module):
-
 
 class UsageTracker:
     def __init__(self, tokenizer='gpt2',
                   max_output_tokens=10_000_000,
                   max_input_tokens=10_000_000, 
-                  period = 3600, # seconds
-
                  **kwargs):
 
         self.max_output_tokens = max_output_tokens

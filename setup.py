@@ -3,9 +3,6 @@ from setuptools import setup, find_packages
 from pkg_resources import parse_requirements
 from os import path
 from io import open
-import codecs
-import re
-import os
 
 here = path.abspath(path.dirname(__file__))
 
@@ -39,4 +36,4 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
-    ], python_requires='>=3.7')
+    ], python_requires='>=3.8')
