@@ -1840,7 +1840,6 @@ class c:
         if hasattr(cls, 'module_python_paths'): 
             return cls.module_python_paths
         modules = []
-        failed_modules = []
 
         # find all of the python files
         for f in glob(path + '/**/*.py', recursive=True):
@@ -1862,9 +1861,9 @@ class c:
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                 elif 'module' in file_name.lower():
-
                     modules.append(f)
                 elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
+                    # if the file has a yaml file then it is a module
                     modules.append(f)
                 elif len(cls.find_python_classes(f)) > 0 :
                     modules.append(f)
@@ -5825,6 +5824,9 @@ class c:
 
         return {'success': True, 'msg': f' created a new repo called {module}'}
         
+    
+    add_module = new_module
+    
     make_dir= mkdir
 
     @classmethod
@@ -6630,24 +6632,6 @@ class c:
         
         c.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
-    @classmethod
-    def miner(cls, 
-              api_key = None, 
-              wallet = 'ensemble.vali',
-              miner = '~/commune/bittensor/neurons/text/prompting/miners/openai/neuron.py',
-              port=2012,
-              network = 'finney',
-              netuid = 1,
-              *args, **kwargs):
-        miner = os.path.expanduser(miner)
-        api_key = api_key or os.environ.get('OPENAI_API_KEY')
-        wallet_name, wallet_hotkey = wallet.split('.')
-        name = f'miner::{wallet}::{network}::{netuid}'
-        command = f"pm2 start {miner} --name {name} --interpreter python3 -- --wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {api_key} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid} --logging.debug"
-        cls.cmd(command)
-        c.print({'msg': f"Started miner {name} on port {port}"})
-        
-        
     @staticmethod
     def reverse_map(x:dict)->dict:
         '''
@@ -7147,6 +7131,10 @@ class c:
     def get_stake_to(cls, *args, **kwargs):
         return c.module('subspace')().get_stake_to(*args, **kwargs)
     
+    @classmethod
+    def get_stake_from(cls, *args, **kwargs):
+        return c.module('subspace')().get_stake_from(*args, **kwargs)
+    
 
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -7177,13 +7165,11 @@ class c:
     def filesize(cls, filepath:str):
         filepath = cls.resolve_path(filepath)
         return os.path.getsize(filepath)
-    
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
         if '/' in str(module):
             return c.fn_code(module)
         module = cls.resolve_module(module)
-        path = module.pypath()
         text =  c.get_text( module.pypath(), *args, **kwargs)
         if search != None:
             find_lines = c.find_lines(text=text, search=search)
@@ -7623,6 +7609,8 @@ class c:
     @classmethod
     def unstake_many(cls, *args, **kwargs):
         return c.module('subspace')().unstake_many(*args, **kwargs)
+
+
     unstake_all = unstake_many
     @classmethod
     def repo_url(cls, *args, **kwargs):
@@ -7672,6 +7660,8 @@ class c:
     @classmethod
     def balance(cls, *args, **kwargs):
         return c.module('subspace')().balance(*args, **kwargs)
+
+        
     get_balance = balance
     
     @classmethod
@@ -7779,7 +7769,7 @@ class c:
         return c.module('subspace')().key2value( *args, **kwargs)
 
     def key2stake(self,  *args, **kwargs):
-        return c.module('subspace')().key2balance( *args, **kwargs)
+        return c.module('subspace')().key2stake( *args, **kwargs)
 
     def live_keys(self,  *args, **kwargs):
         return c.module('subspace')().live_keys( *args, **kwargs)
@@ -7865,14 +7855,7 @@ class c:
         return c.module('subspace')().key2tokens(*args, **kwargs)
     @classmethod
     def key2stake(cls, *args, **kwargs):
-        return c.module('subspace')().key2tokens(*args, **kwargs)
-
-    @classmethod
-    def key2stake(cls, *args, **kwargs):
-        return c.module('subspace')().key2tokens(*args, **kwargs)
-    
-    
-        
+        return c.module('subspace')().key2stake(*args, **kwargs)
     
     @classmethod
     def build_proto(cls, *args, **kwargs):
@@ -8017,7 +8000,7 @@ class c:
 
     @classmethod
     def ask(cls, *args, **kwargs):
-        return c.module('model.hf').talk(*args, **kwargs)
+        return c.module('model.openai').generate(*args, **kwargs)
 
     @classmethod
     def containers(cls):

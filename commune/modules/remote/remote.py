@@ -382,7 +382,6 @@ class Remote(c.Module):
             if len(peer2hardware) > 0:
                 return peer2hardware
         peer2hardware = {p:None for p in peers}
-
         peers = cls.peers()
         for i in range(trials):
             call_modules = [p for p in peers if peer2hardware[p] == None]
@@ -818,7 +817,6 @@ class Remote(c.Module):
             futures = list(host2future.values())
             num_jobs = len(futures )
             hosts = list(host2future.keys())
-            host2error = {}
             cols = st.columns(num_columns)
             failed_hosts = []
             col_idx = 0

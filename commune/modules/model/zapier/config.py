@@ -1,4 +1,4 @@
-# Discord Channel IDs
+
 mail_channel_id = ''
 
 # host:port

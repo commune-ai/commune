@@ -25,17 +25,11 @@ class AESKey(commune.Module):
 
         return encrypted_data
 
-    def decrypt(self, enc, trials=10):
+    def decrypt(self, enc):
         enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
-        while trials > 0:
-            try:
-                decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-                break
-            except Exception as e:
-                trials  -= 1
-
+        decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
         return self.str2python(decrypted_data)
 
     def _pad(self, s):
