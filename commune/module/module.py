@@ -1667,7 +1667,7 @@ class c:
             except Exception as e:
                 # sometimes you need to update the module tree
                 cls.tree(update=True)
-        
+        path = path or 'module'
         if timeit:
             return c.get_module(path, cache=cache, timeit=False)
        
@@ -1676,9 +1676,6 @@ class c:
         if cache:
             if path in c.module_cache:
                 return c.module_cache[path]
-            
-        if path == None:
-            path = 'module'
 
         # convert the simple to path
         path = c.simple2path(path)
@@ -3172,32 +3169,47 @@ class c:
             del kwargs['kwargs']
 
         return kwargs
+    
+
+
 
     @classmethod
     def schema(cls,
                                 search = None,
                                 module = None,
+                                fn = None,
                                 code : bool = False,
                                 docs: bool = True,
                                 include_parents:bool = False,
                                 defaults:bool = True, cache=False) -> 'Schema':
         
-        module = module if module else cls
-        
+        # if module is None, then we will use the cls
+        if hasattr(cls, str(search)):
+            fn = search
+            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
+
         if isinstance(module, str):
+
+            if '/' in module:
+                module , fn = module.split('/')
             module = c.module(module)
             
-        function_schema_map = {}
-        for fn in cls.get_functions(module, include_parents=include_parents):
-               
-            if search != None :
-                if search not in fn:
+
+        module = module or cls
+            
+        if fn == None:
+            function_schema_map = {}
+            for fn in module.get_functions(include_parents=include_parents):
+                if search != None  and search not in fn:
                     continue
-            module_fn = getattr(module, fn )
-            if callable(module_fn):
-                function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
+                module_fn = getattr(module, fn )
+                if callable(module_fn):
+                    function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
     
-        return function_schema_map
+            return function_schema_map
+        
+        else:
+            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
 
     @classmethod
     def get_function_annotations(cls, fn):
@@ -3967,7 +3979,6 @@ class c:
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
 
-    
     @classmethod
     def resolve_ip(cls, ip=None, external:bool=True) -> str:
         if ip == None:
@@ -6225,9 +6236,12 @@ class c:
     def as_completed(cls , futures:list, timeout:int=10, **kwargs):
         return concurrent.futures.as_completed(futures, timeout=timeout)
     @classmethod
-    def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
+    def wait(cls, futures:list, timeout:int = 30, generator:bool=False, return_dict:bool = True) -> list:
         import concurrent.futures
-        futures = [futures] if not isinstance(futures, list) else futures
+
+        is_singleton = bool(not isinstance(futures, list))
+
+        futures = [futures] if is_singleton else futures
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
             
@@ -6248,7 +6262,7 @@ class c:
 
 
         if generator:
-            def get_results():
+            def get_results(futures):
 
                 for future in concurrent.futures.as_completed(futures, timeout=timeout):
                     if return_dict:
@@ -6257,20 +6271,23 @@ class c:
                     else:
                         yield future.result()
         else:
-            def get_results():
+            def get_results(futures):
+                results = [None]*len(futures)
                 try:
                     for future in concurrent.futures.as_completed(futures, timeout=timeout):
                         idx = future2idx[future]
                         results[idx] = future.result()
                         del future2idx[future]
 
+                    if is_singleton: 
+                        results = results[0]
                 except Exception as e:
+                    results = []
                     unfinished_futures = [future for future in futures if future in future2idx]
                     c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
-
                 return results
             
-        return get_results()
+        return get_results(futures)
     
 
     @staticmethod

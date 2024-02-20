@@ -159,13 +159,12 @@ class Remote(c.Module):
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
     @classmethod
-    def hosts(cls, search=None, filetype=filetype, enable_search_terms: bool = True):
+    def hosts(cls, search=None, filetype=filetype, enable_search_terms: bool = False):
         hosts = cls.load_hosts(filetype=filetype)
         if len(hosts) == 0:
             assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
-
         if enable_search_terms:
             return cls.filter_hosts(hosts=hosts)
         return hosts
@@ -518,12 +517,6 @@ class Remote(c.Module):
         return model.generate(c.python2str(prompt))
 
 
-    def sidebar(self, **kwargs):
-        with st.sidebar:
-            self.filter_hosts_dashboard()
-            self.manage_hosts_dashboard()
-
-
     # SEARCH TERM LAND
 
     search_terms_path = 'search_terms'
@@ -801,7 +794,7 @@ class Remote(c.Module):
         
             return results
     @classmethod
-    def app(cls):
+    def dashboard(cls):
         c.module('remote.app').app()
 
 

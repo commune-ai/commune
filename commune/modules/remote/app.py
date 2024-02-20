@@ -2,11 +2,14 @@ import commune as c
 import streamlit as st
 from typing import *
 import json
-import streamlit as st
 
-class App(c.module('remote')):
+class App(c.Module):
+    def __init__(self, **kwargs):
+        self.set_config(kwargs=kwargs)
+        self.remote = c.module('remote')()
 
-    def __init__(cls, module: str = None, **kwargs):
+    @classmethod
+    def dashboard(cls, module: str = None, **kwargs):
         if module:
             cls = c.module(module)
         c.new_event_loop()
@@ -29,7 +32,7 @@ class App(c.module('remote')):
         with st.sidebar:
             cols = st.columns(2)
             search = cols[0].text_input('Search', 'module')
-            peer2info = self.peer2info()
+            peer2info = self.remote.peer2info()
 
             st.write(list(peer2info.values())[0])
 
@@ -49,7 +52,7 @@ class App(c.module('remote')):
         
         peer_info_df = pd.DataFrame(peer_info_df)
         namespace = c.namespace(search=search, network='remote')
-        ip2host = self.ip2host()
+        ip2host = self.remote.ip2host()
 
         with st.expander('Peers', expanded=False):
             for peer, info in peer2info.items():
@@ -138,25 +141,24 @@ class App(c.module('remote')):
 
     def filter_hosts_dashboard(self, host_names: list = None):
 
-        host_map = self.hosts()
+        host_map = self.remote.hosts()
         host_names = list(host_map.keys())
 
         # get the search terms
-        search_terms = self.get_search_terms()
+        search_terms = self.remote.search_terms()
         for k, v  in search_terms.items():
             search_terms[k] = st.text_input(k, v)     
-        self.set_search_terms(search_terms)
-        host_map = self.filter_hosts(**search_terms)
+        self.remote.set_search_terms(search_terms)
+        host_map = self.remote.filter_hosts(**search_terms)
         host_names = list(host_map.keys())
         n = len(host_names)
 
-        self.filter_hosts()
         
 
         with st.expander(f'Hosts (n={n})', expanded=False):
             host_names = st.multiselect('Host', host_names, host_names)
         host_map = {k:host_map[k] for k in host_names}
-        self.host2ssh = self.host2ssh(host_map=host_map)
+        self.host2ssh = self.remote.host2ssh(host_map=host_map)
 
 
     def manage_hosts_dashboard(self):
@@ -171,21 +173,19 @@ class App(c.module('remote')):
             add_host = st.button('Add Host')
 
             if add_host:
-                self.add_host(host=host, port=port, user=user, pwd=pwd)
+                self.remote.add_host(host=host, port=port, user=user, pwd=pwd)
 
         with st.expander('Remove Host', expanded=False):
-            host_names = list(self.hosts().keys())
+            host_names = list(self.remote.hosts().keys())
             rm_host_name = st.selectbox('Host Name', host_names)
             rm_host = st.button('Remove Host')
             if rm_host:
-                self.rm_host(rm_host_name)
+                self.remote.rm_host(rm_host_name)
 
         
     
     def ssh_dashboard(self):
-        
-        host_map = self.hosts()
-
+        host_map = self.remote.hosts()
         host_names = list(host_map.keys())
 
            
@@ -224,7 +224,7 @@ class App(c.module('remote')):
         
         if run_button:
             for host in host_names:
-                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
+                future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
 
             futures = list(host2future.values())
@@ -271,11 +271,17 @@ class App(c.module('remote')):
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
             
-            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
+            failed_hosts2ssh = {h:self.remote.host2ssh[h] for h in failed_hosts}
             with st.expander('Failed Hosts', expanded=False):
                 for host, ssh in failed_hosts2ssh.items():
                     st.write(host)
                     st.code(ssh)
+    
+
+    def sidebar(self, **kwargs):
+        with st.sidebar:
+            self.filter_hosts_dashboard()
+            self.manage_hosts_dashboard()
 
 
 App.run(__name__)
