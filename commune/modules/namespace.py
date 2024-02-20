@@ -75,6 +75,8 @@ class Namespace(c.Module):
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 
+        namespace = {k:v for k,v in namespace.items() if 'Internal Server Error' not in k} 
+
         if public:
             ip = c.ip()
             namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
@@ -309,10 +311,21 @@ class Namespace(c.Module):
             return {'success': False, 'msg': f'{name} does not exist'}
 
     @classmethod
+    def resolve_search(cls, search:str, namespace:dict):
+        if search != None:
+            
+            if ',' in search:
+                search = search.split(',')
+            else:
+                search = [search]
+            namespace = {k:v for k,v in namespace.items() if any([s in k for s in search])}
+        return namespace
+    
+        
+    @classmethod
     def namespace(cls, search=None, network:str = 'local', **kwargs):
         namespace = cls.get_namespace(network=network, **kwargs)
-        if search != None:
-            namespace = {k:v for k,v in namespace.items() if search in k}
+        namespace = cls.resolve_search(search, namespace)
         return namespace
 
     @classmethod
@@ -399,5 +412,7 @@ class Namespace(c.Module):
         return cls.namespace()
     
 
+
+Namespace.run(__name__)
 
 

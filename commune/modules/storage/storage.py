@@ -4,7 +4,7 @@ import streamlit as st
 import json
 
 class Storage(c.Module):
-    whitelist: List = ['put_item', 'get_item', 'hash_item', 'items']
+    whitelist: List = ['put', 'get', 'hash_item', 'items']
     replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
@@ -97,7 +97,7 @@ class Storage(c.Module):
         path = k + '/metadata.json'
         return c.get_json(path, default={})  
     
-    def get_item_replicas(self, k:str, tag:str=None) -> List[str]:
+    def get_replicas(self, k:str, tag:str=None) -> List[str]:
         metadata = self.get_metadata(k, tag=tag)
         return metadata.get('replicas', [])
     
@@ -112,7 +112,7 @@ class Storage(c.Module):
         path = self.store_dir(tag=tag)
         return c.rm(path)
 
-    def put_item(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
+    def put(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
         timestamp = c.timestamp()
         k = self.resolve_item_path(k, tag=tag)    
         path = {
@@ -143,7 +143,7 @@ class Storage(c.Module):
                 # split it along the bytes
                 shard = data[i*self.max_shard_size:(i+1)*self.max_shard_size]
                 assert len(shard) <= self.max_shard_size, f'Shard must be less than {self.max_shard_size} bytes, got {len(shard)}'
-                self.put_item(k=shard_path, v=shard, encrypt=encrypt, tag=tag, serialize=False)
+                self.put(k=shard_path, v=shard, encrypt=encrypt, tag=tag, serialize=False)
                 shards += [shard_path]
 
         else:
@@ -155,8 +155,6 @@ class Storage(c.Module):
             # sign it for verif
             data = self.key.sign(data, return_json=True)
 
-       
-
         # SAVE METADATA 
         metadata = {
             'size_bytes': size_bytes,
@@ -166,7 +164,7 @@ class Storage(c.Module):
             'path': path,
             'shards': shards
         }
-
+        
         self.put_json(path['metadata'], metadata)
 
         return {'success': True, 'key': k,  'metadata': metadata}
@@ -176,8 +174,6 @@ class Storage(c.Module):
         k = self.resolve_item_path(k)
         return c.rm(k)
 
-
-
     def rm_items(self, search):
         items = self.items(search=search)
         for item in items:
@@ -185,13 +181,7 @@ class Storage(c.Module):
         return {'success': True, 'items': items}
     
 
-    def drop_peers(self, item_key):
-        metadata = self.get_metadata(item_key)
-        return peers
-
-
-
-    def get_item(self,k:str, deserialize:bool= True, include_metadata=False, tag=None) -> Any:
+    def get(self,k:str, deserialize:bool= True, include_metadata=False, tag=None) -> Any:
         k = self.resolve_item_path(k, tag=tag)
         metadata = self.get_json(k+'/metadata.json', {})
 
@@ -200,7 +190,7 @@ class Storage(c.Module):
             data = ''
             for shard_path in metadata['shards']:
                 c.print(f'Getting shard {shard_path}')
-                shard = self.get_item(shard_path, deserialize=False)
+                shard = self.get(shard_path, deserialize=False)
                 c.print(f'Got shard {shard_path}, {shard}')
                 data += shard
             data = self.serializer.deserialize(data)
@@ -233,7 +223,7 @@ class Storage(c.Module):
         """
         if data == None:
             assert k != None, 'Must provide k or obj'
-            data = self.get_item(k, deserialize=False, tag=tag)
+            data = self.get(k, deserialize=False, tag=tag)
         if seed != None:
             data = str(data) + seed_sep + str(seed)
         return self.hash(data, seed=seed)
@@ -283,7 +273,7 @@ class Storage(c.Module):
         if len(items) == 0:
             return {'success': False, 'msg': 'No items to validate'}
         item_key = c.choice(items) if item_key == None else item_key
-        item_data = self.get_item(item_key)
+        item_data = self.get(item_key)
         metadata = self.get_metadata(item_key)
 
         # check staleness
@@ -345,7 +335,7 @@ class Storage(c.Module):
             # find peer to add replica and add it
             candidate_peers = [peer for peer in peers if peer not in replica_peers]
             peer = c.choice(candidate_peers)
-            response = c.call(peer, 'put_item', remote_item_key, item_data)
+            response = c.call(peer, 'put', remote_item_key, item_data)
             remote_hash = c.call(peer, 'hash_item', remote_item_key, seed=seed)
             assert bool(local_hash == remote_hash), f'{prefix} Hashes do not match for {item_key} on {peer} {local_hash} {remote_hash}'
         
@@ -396,9 +386,9 @@ class Storage(c.Module):
             for obj in object_list:
                 c.print(f'putting {obj}')
                 k = 'test'
-                self.put_item(k, obj,encrypt=encrypt)
+                self.put(k, obj,encrypt=encrypt)
                 assert self.item_exists(k), f'Failed to put {obj}'
-                get_obj = self.get_item(k, deserialize=False)
+                get_obj = self.get(k, deserialize=False)
                 c.print(f'putting {k} and got {get_obj}')
 
                 obj_str = self.serializer.serialize(get_obj)
@@ -426,6 +416,14 @@ class Storage(c.Module):
         tag = self.resolve_tag(tag)
         for i in range(10):
             k = f'test{i}'
-            self.put_item(k, {'dummy': i})
+            self.put(k, {'dummy': i})
             assert self.item_exists(k), f'Failed to put {k}'
 
+
+
+    @classmethod
+    def dashboard(cls):
+        st.write('Storage')
+
+
+Storage.run(__name__)

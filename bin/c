@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
-import sys
-import commune
+import warnings
 
-if __name__ == '__main__':
-    commune.cli(sys.argv[1:])
+warnings.filterwarnings("ignore")
+import commune as c
 
-    
+if __name__ == "__main__":
+    cli = c.module('cli')()

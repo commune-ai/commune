@@ -91,8 +91,11 @@ class Router(c.Module):
     def submit(self,
                 module: str = 'module',
                 fn : str = 'info',
-                args:dict=None):
-        return self.call(module=module, fn=fn, args=args, return_future=True)
+                args:dict=None, 
+                kwargs:dict=None, 
+                
+                ):
+        return self.call(module=module, fn=fn, args=args, kwargs=kwargs, return_future=True)
 
     def call(self, 
                 module: str = 'module',
@@ -141,12 +144,12 @@ class Router(c.Module):
             self.task_queue.put((task.priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
+        k = c.timestamp()
+        self.tasks[k] = task
+        return {'ticket': k}
+    
 
-        if return_future:
-            return task.future
-        else:
-            return task.result()
-
+    futures = {}
 
     def adjust_thread_count(self):
         # if idle threads are available, don't spin new threads
@@ -187,7 +190,6 @@ class Router(c.Module):
 
     @staticmethod
     def worker(executor_reference, task_queue):
-        
         try:
             while True:
                 work_item = task_queue.get(block=True)
@@ -254,6 +256,7 @@ class Router(c.Module):
         assert output['name'] == test_module_name
         c.kill(test_module_name)
         return {'success': True, 'msg': 'thread pool test passed'}
+
 
     @classmethod
     def dashboard(cls):

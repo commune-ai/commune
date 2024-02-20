@@ -154,7 +154,6 @@ class Pool(c.Module):
             fn = request.get('fn', 'forward') # identity function
             kwargs = request.get('kwargs', {})
             args = request.get('args', [])
-            result = asyncio.run(c.call(module=module, fn=fn, *args,**kwargs))
             assert callable(fn), f"Invalid function: {fn}"
             output = fn(*args, **kwargs)
             

@@ -1,5 +1,4 @@
 dataset: data.text.realfake
-netuid: 0
 search: model
 tag: base
 target: real

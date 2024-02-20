@@ -428,7 +428,7 @@ class Chain(c.Module):
                 schema = 'Sr25519'
 
             # we need to resolve the key path based on the key type
-
+            
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
 
             if key_mems != None and len(key_mems) == 2 :
@@ -563,6 +563,7 @@ class Chain(c.Module):
             cmd += ' --disable-default-bootnode'  
        
 
+
         if mode == 'docker':
             # chain_spec_path_dir = os.path.dirname(chain_spec_path)
             container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
@@ -575,6 +576,7 @@ class Chain(c.Module):
             c.print(cmd)
             cmd = f'bash -c "{cmd} > {chain_spec_path}"'
 
+        c.print(cmd, color='green')
         value = c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
         if vali_node_keys == None:
@@ -585,7 +587,7 @@ class Chain(c.Module):
         
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
-        c.print(vali_node_keys)
+
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
@@ -779,7 +781,7 @@ class Chain(c.Module):
 
 
     @classmethod
-    def add_local_node(cls,
+    def start_local_node(cls,
                      node:str='alice', 
                      mode=mode, 
                      chain=chain, 
@@ -797,7 +799,7 @@ class Chain(c.Module):
 
         return response
 
-    start_local_node = add_local_node
+    add_local_node = start_local_node
 
     @classmethod
     def add_local_nodes(cls, node:str='local', n=4, mode=mode, chain=chain, node_infos=None, **kwargs):
@@ -887,6 +889,14 @@ class Chain(c.Module):
         return [p for p in cls.ls(f'local_nodes/{chain}')]
 
     @classmethod
+    def remove_local_nodes(cls, search=None, chain=chain):
+        paths = cls.ls(f'local_nodes/{chain}')
+        for path in paths:
+            if search != None and search not in path:
+                continue
+            cls.rm(path)
+
+    @classmethod
     def local_nodes(cls, chain=chain):
         return [p.split('/')[-1].split('.')[0] for p in cls.ls(f'local_nodes/{chain}')]
     
@@ -914,20 +924,21 @@ class Chain(c.Module):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(cls, url = None, chain=chain):
-        local  = bool("local" in chain)
+    def resolve_node_url(cls, url = None, chain=chain, local=False, mode='ws'):
+        if 'local' in chain:
+            chain = cls.chain
         if url == None:
             if local:
                 local_node_paths = cls.local_node_paths(chain=chain)
                 local_node_info = cls.get(c.choice(local_node_paths))
                 assert isinstance(local_node_info, dict), f'local_node_info must be a dict'
                 port = local_node_info['rpc_port']
-                url = f'ws://0.0.0.0:{port}'
+                url = f'{mode}://0.0.0.0:{port}'
             else:
                 url = c.choice(cls.urls(chain=chain))
 
-        if not url.startswith('ws://'):
-            url = 'ws://' + url
+        if not url.startswith(f'{mode}://') and not url.startswith(f'{mode}s://'):
+            url = f'{mode}://' + url
 
         return url
 
@@ -1299,13 +1310,12 @@ class Chain(c.Module):
                     node_kwargs['sid'] = c.sid()
                     node_kwargs['boot_nodes'] = chain_info['boot_nodes']
                     node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
-
                     c.print(f"node_kwargs {node_kwargs['key_mems']}")
                     assert len(node_kwargs['key_mems']) == 2, f'no key mems found for node {node} on chain {chain}'
 
 
                     response = module.start_node(**node_kwargs, refresh=refresh, timeout=timeout, mode=mode)
-                    c.print(response)
+                    
                     assert 'node_info' in response and ('boot_node' in response or 'boot_node' in response['node_info'])
                     
                     response['node_info'].pop('key_mems', None)
@@ -1320,7 +1330,6 @@ class Chain(c.Module):
                     chain_info['nodes'][node] = node_info
                     finished_nodes += [name]
 
-        
                     cls.putc(f'chain_info.{chain}', chain_info)
                     break
                 except Exception as e:
@@ -1527,6 +1536,56 @@ class Chain(c.Module):
     def snapshot(cls, chain=chain) -> dict:
         path = f'{cls.snapshot_path}/main.json'
         return c.get_json(path)
+
+
+    @classmethod
+    def convert_snapshot(cls, from_version=3, to_version=2, network=network):
+        
+        
+        if from_version == 1 and to_version == 2:
+            factor = 1_000 / 42 # convert to new supply
+            path = f'{cls.snapshot_path}/{network}.json'
+            snapshot = c.get_json(path)
+            snapshot['balances'] = {k: int(v*factor) for k,v in snapshot['balances'].items()}
+            for netuid in range(len(snapshot['subnets'])):
+                for j, (key, stake_to_list) in enumerate(snapshot['stake_to'][netuid]):
+                    c.print(stake_to_list)
+                    for k in range(len(stake_to_list)):
+                        snapshot['stake_to'][netuid][j][1][k][1] = int(stake_to_list[k][1]*factor)
+            snapshot['version'] = to_version
+            c.put_json(path, snapshot)
+            return {'success': True, 'msg': f'Converted snapshot from {from_version} to {to_version}'}
+
+        elif from_version == 3 and to_version == 2:
+            path = cls.latest_archive_path()
+            state = c.get(path)
+            subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'trust_ratio', 'min_stake', 'founder']
+            module_params : List[str] = ['Keys', 'Name', 'Address']
+
+            modules = []
+            subnets = []
+            for netuid in range(len(state['subnets'])):
+                keys = state['Keys'][netuid]
+                for i in range(len(keys)):
+                    module = [state[p][netuid] for p in module_params]
+                    modules += [module]
+                c.print(state['subnets'][netuid])
+                subnet = [state['subnets'][netuid][p] for p in subnet_params]
+                subnets += [subnet]
+
+            snapshot = {
+                'balances': state['balances'],
+                'modules': modules,
+                'version': 2,
+                'subnets' : subnets,
+                'stake_to': state['StakeTo'],
+            }
+
+            c.put_json(f'{cls.snapshot_path}/{network}-new.json', snapshot)
+
+        else:
+            raise Exception(f'Invalid conversion from {from_version} to {to_version}')
+
 
     @classmethod
     def build_snapshot(cls, 

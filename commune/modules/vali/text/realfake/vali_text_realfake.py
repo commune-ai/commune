@@ -6,7 +6,7 @@ class ValiTextRealfake(Vali):
     def __init__(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)   
         self.dataset =  c.module(config.dataset)()
-        self.init_vali (config)
+        self.init_vali(config)
 
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
@@ -36,10 +36,8 @@ class ValiTextRealfake(Vali):
         target = sample.pop(self.config.target) # a list of correct answers
         prompt = self.create_prompt(sample)
         output = module.generate(prompt)
-        prediction = json.loads(output)['answer']
-
-        w = int(target==prediction)
-
+        prediction = str(output)
+        w = int(str(target) in str(prediction))
         response = {
             'sample': sample,
             'target': target, 

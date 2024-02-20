@@ -3,6 +3,8 @@ from bs4 import BeautifulSoup
 import requests
 import asyncio
 import aiohttp
+import json
+
 
 class Web(c.Module):
 
@@ -14,20 +16,6 @@ class Web(c.Module):
                     return {'status_code': response.status, 'text': await response.text()}
                 else:
                     return {'status_code': response.status, 'text': await response.text()}
-
-    def url2text(self, url, max_words=50):
-        url_text = self.request(url)
-        content = self.soup(url_text)
-        response = {
-                    'title': content.contents[0],
-                    'url': url, 
-                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
-                    }
-        text_words = response['text'].split(' ')
-        num_words = len(text_words)
-        if num_words > max_words:
-            response['text'] = ' '.join(text_words[:max_words])
-        return response
 
     @classmethod
     def request(cls, url = "https://google.com", method='GET', headers={'User-Agent': 'Mozilla/5.0'}, mode="request", **kwargs):
@@ -100,23 +88,7 @@ class Web(c.Module):
 
     bing_search = google_search
 
-    def url2text(self, url, max_words=50):
-        url_text = self.request(url)
-        content = self.soup(url_text)
-        response = {
-                    'title': content.contents[0],
-                    'url': url, 
-                    'text': "\n".join([content.contents[i].text for i in range(len(content.contents)) if content.contents[i].text != ''])
-                    }
-    
-        for i in range(10):
-            response['text'] = response['text'].replace('\n\n', '')
 
-        text_words = response['text'].split(' ')
-        num_words = len(text_words)
-        if num_words > max_words:
-            response['text'] = ' '.join(text_words[:max_words])
-        return response
     def yahoo_search(self, keyword):
         from yahoo import search as yahoo_search
 
@@ -191,7 +163,33 @@ class Web(c.Module):
         self = cls()
         # show html of webpage
         webpage_html = self.html(url)
-        
-    
+
+    @classmethod
+    def url2text(cls, url='https://www.google.com'):
+   
+        # Fetch HTML content
+        response = requests.get(url)
+        response.raise_for_status()
+
+        # Parse with BeautifulSoup
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Extract images
+        images = [img['src'] for img in soup.find_all('img') if img.get('src')]
+
+        # Extract text
+        texts = soup.get_text(separator='\n').splitlines()
+        texts = [line.strip() for line in texts if line.strip()]  # Clean up whitespace
+
+        # Format into JSON
+        data = {
+            "images": images,
+            "text": texts
+        }
+
+        return data
+
+
+
     
 Web.run(__name__)

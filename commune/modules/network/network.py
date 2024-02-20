@@ -3,6 +3,7 @@ import os
 import urllib
 import commune as c
 import requests
+import logging
 
 class Network(c.Module):
 
@@ -179,3 +180,26 @@ class Network(c.Module):
 
         except Exception as e:
             raise Exception(e) from e
+
+
+    
+    @classmethod
+    def unreserve_port(cls,port:int, 
+                       var_path='reserved_ports'):
+        reserved_ports =  cls.get(var_path, {}, root=True)
+        
+        port_info = reserved_ports.pop(port,None)
+        if port_info == None:
+            port_info = reserved_ports.pop(str(port),None)
+        
+        output = {}
+        if port_info != None:
+            c.put(var_path, reserved_ports, root=True)
+            output['msg'] = 'port removed'
+        else:
+            output['msg'] =  f'port {port} doesnt exist, so your good'
+
+        output['reserved'] =  cls.reserved_ports()
+        return output
+    
+    
