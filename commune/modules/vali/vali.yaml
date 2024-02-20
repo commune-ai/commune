@@ -1,27 +1,26 @@
 
 # network
-network: subspace 
+chain: null
+network: subspace
+netuid: 0
+voting_networks: ['subspace', 'bittensor']
 max_history: 10
 alpha: 0.5
-timeout: 10
-netuid: 0
 tag: null
-num_workers: 1
 start: True
-verbose: True
-batch_size: 4
+verbose: False
+batch_size: 32
 refresh_stats: False
 vote_interval: 100
 sync_interval: 100
 search: null
-batch_size: 20
-max_staleness: 10
+max_staleness: 500
 virtual_module: False
 check_loop: True
 run_mode : thread
-verbose: True
 run_loop: True
 run_loop_sleep: 8
+
 
 # voting 
 vote: True
@@ -31,6 +30,7 @@ vote_timeout: 50
 min_count_before_vote: 100
 
 # stats
+history_features: ['w', 'timestamp', 'latency']
 max_history: 10
 refresh_stats: False
 
@@ -39,18 +39,21 @@ connect_score: 0.1
 latency_score_weight: 0.2
 alpha: 0.5
 
-
-
+vote_tag : null
 # workers
+mode: thread
+num_workers: 1
+num_threads: 32
 timeout: 10
 sleep_time: 0.05
-num_workers: 1
 refresh : True
 start: True
 is_main_worker: True
 max_vote_delay_before_worker_restart: 20
 max_restart_lag: 20
-
+min_num_weights: 10
+debug: False
+print_interval: 5
 
 
 

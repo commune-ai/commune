@@ -27,15 +27,39 @@ class Wallet(c.Module):
 
         return self.key
 
+    @classmethod
+    def get_state(cls, network='main', netuid='all', update=True, path='state'):
+        t1 = c.time()
+        if not update:
+            state = cls.get(path, default=None)
+            if state != None:
+                return state
+            
+        subspace = c.module('subspace')(network=network)
+
+        state = {
+            'subnets': subspace.subnet_params(netuid=netuid, network=network),
+            'modules': subspace.modules(netuid=netuid),
+            'balances': subspace.balances(),
+            'stake_to': subspace.stake_to(netuid=netuid),
+        }
+
+        state['total_balance'] = sum(state['balances'].values())/1e9
+        state['key2address'] = c.key2address()
+        state['lag'] = c.lag()
+        state['block_time'] = 8
+        c.print(f'get_state took {c.time() - t1:.2f} seconds')
+        cls.put(path, state)
+        return state
         
+
     def transfer_dashboard(self):
         cols = st.columns(2)
         amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
         to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
         multi_transfer = False
 
-        
-
+    
         if ',' in to_address:
             multi_transfer = True
             to_addresses = [a.strip() for a in to_address.split(',')]
@@ -76,6 +100,9 @@ class Wallet(c.Module):
         n = len(df)
         st.write(f'**{n}** modules with **{search}** in it')
         st.write(df)
+        playground = st.checkbox('Playground')
+        if playground:
+            xself.playground()
 
     def stake_dashboard(self):
         
@@ -287,8 +314,6 @@ class Wallet(c.Module):
     def my_info(self, expander = True):
         st.write('My Public Address')
         st.code(self.key.ss58_address)
-        # pie map of stake
-        cols = st.columns([2,2,2])
 
         modules = self.modules
 
@@ -301,17 +326,14 @@ class Wallet(c.Module):
         my_modules = [m for m in modules if m['name'] in labels]
         self.key_info['daily_reward'] = sum([m['emission'] for m in my_modules]) * self.state['epochs_per_day']
 
-        for i, k in enumerate(['balance', 'stake', 'daily_reward']):
-            cols[i].write(k)
-            cols[i].code(int(self.key_info[k]))   
-        
+        my_info_df = pd.DataFrame(self.key_info)
+        st.write(self.key_info)
         for m in my_modules:
             m.pop('stake_from', None)
         
         
         
         df = pd.DataFrame(my_modules)
-
 
 
     @classmethod
@@ -322,7 +344,7 @@ class Wallet(c.Module):
     
         c.load_style()
         self.logo_url = "https://github.com/commune-ai/commune/blob/librevo/commune/modules/dashboard/commune_logo.gif?raw=true"
-        # st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
+        st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
         with st.sidebar:
             if key == None:
                 key = self.select_key()
@@ -331,9 +353,10 @@ class Wallet(c.Module):
         fns = self.fns()
         dash_fns = [f for f in fns if f.endswith('_dashboard')]
         options = [f.replace('_dashboard', '') for f in dash_fns]
-        
+
 
         self.my_info(expander=False) 
+
 
         tabs = st.tabs(options)
 
@@ -355,37 +378,27 @@ class Wallet(c.Module):
             chains = c.chains()
             return chains
         
+        subspace = c.module('subspace')()
+        
         self.networks = get_networks()
         self.network = st.selectbox('Select Network', self.networks, 0, key='network')
+        update = st.button('Update')
 
-
-        @st.cache_data(show_spinner=False)
-        def get_state(network):
-            subspace = c.module('subspace')()
-            state =  subspace.state_dict(update=update, network=network)
-            state['total_balance'] = sum(state['balances'].values())/1e9
-            state['key2address'] = c.key2address()
-            state['lag'] = c.lag()
-            state['block_time'] = 8
-
-            return state
-        
-
-        self.state =  get_state(self.network)
-
-
-        self.subnets = self.state['subnets']
-        keys = c.keys()
-        subnets = self.subnets
-
+        subnets = subspace.subnet_params(netuid='all', network=self.network, update=update)
         name2subnet = {s['name']:s for s in subnets}
-        name2idx = {s['name']:i for i,s in enumerate(subnets)}
-        subnet_names = list(name2subnet.keys())
-        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
-        self.netuid = name2idx[subnet_name]
+        subnet_names = [s['name'] for s in subnets]
+        name2netuid = {s['name']:i for i, s in enumerate(subnets)}
+        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet')
+        netuid = name2netuid[subnet_name]
+        self.netuid = netuid
         self.subnet = name2subnet[subnet_name]
+        self.subnets = subnets
+
+        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid=netuid)
         
-        self.modules = self.state['modules'][self.netuid]
+        self.modules = self.state['modules']
+
+
         self.state ['epochs_per_day'] = ( 24* 60 * 60 ) / (self.subnet["tempo"] * self.state['block_time'])
         self.name2module = {m['name']: m for m in self.modules}
         self.name2key = {k['name']: k['key'] for k in self.modules}
@@ -401,24 +414,21 @@ class Wallet(c.Module):
         for i, m in enumerate(self.modules):
             self.modules[i]['stake'] = m['stake']/1e9
             self.modules[i]['emission'] = m['emission']/1e9
-        balances = self.state['balances']
 
         self.name2key = {k['name']: k['key'] for k in self.modules}
         self.key2name = {k['key']: k['name'] for k in self.modules}
         self.name2address = {k['name']: k['address'] for k in self.modules}
         self.address2name = {k['address']: k['name'] for k in self.modules} 
 
-        stake_to = self.state['stake_to'][self.netuid].get(self.key.ss58_address, {})
+        stake_to = self.state['stake_to'].get(self.key.ss58_address, {})
         self.key_info['balance']  = self.state['balances'].get(self.key.ss58_address,0)/1e9
         self.key_info['stake_to'] = {k:v/1e9 for k,v in stake_to}
-        # sort by highest to lowest
         self.key_info['stake_to'] = {k:v for k,v in sorted(self.key_info['stake_to'].items(), key=lambda x: x[1], reverse=True)}
         self.key_info['stake'] = sum([v for _, v in stake_to])
         # convert keys to names 
         for k in ['stake_to']:
             self.key_info[k] = {self.key2name[k]: v for k,v in self.key_info[k].items() if k in self.key2name}
     
-
         self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
         stake_to = self.key_info['stake_to']
         df_stake_to = pd.DataFrame(stake_to.items(), columns=['module', 'stake'])

@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import commune as c
+import json
 
 class WSClient(c.Module):
     
@@ -26,15 +27,37 @@ class WSClient(c.Module):
         assert isinstance(address, str), f'address must be a string, not {type(address)}'
         return address
 
-    async def async_forward(self, data='hello', address = None):
-        address = self.resolve_address(address=address)
+    def forward(self, data, address=None):
+        return 
+    
+    async def async_forward(self, data='hello', address = None, **kwargs):
+        address = self.resolve_address(address=address, **kwargs)
         async with websockets.connect(address) as websocket:
             await websocket.send(data)
             response = await websocket.recv()
         return response
     
-    def forward(self, data='hello', address = None):
-        return asyncio.get_event_loop().run_until_complete(self.async_forward(data=data, address=address))
+    def forward(self, 
+                fn:str = 'fn', 
+                args:list = [], 
+                kwargs:dict = {}, 
+                address:str = None,
+                timeout:int = 10,
+                **extra_kwargs):
+        
+        data = {
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs,
+            **extra_kwargs
+        }
+        data = json.dumps(data)
+        loop = asyncio.get_event_loop()
+        future = self.async_forward(data=data, address=address)
+        future = asyncio.wait_for(future, timeout=timeout)
+        result = loop.run_until_complete(future)
+        return result
+    
 
     @staticmethod
     async def recv(address):
@@ -42,3 +65,4 @@ class WSClient(c.Module):
         async with websockets.connect(address) as websocket:
             chunk = await websocket.recv(address)
             chunks.append(chunk)
+        return chunks

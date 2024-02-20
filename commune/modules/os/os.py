@@ -3,8 +3,6 @@ import os
 import commune as c
 from typing import Dict, List, Optional, Union
 
-
-
 class OsModule(c.Module):
     @staticmethod
     def check_pid(pid):        
@@ -190,30 +188,33 @@ class OsModule(c.Module):
         return torch.cuda.device_count()
     
     
+    def add_rsa_key(self, b=2048, t='rsa'):
+        return c.cmd(f"ssh-keygen -b {b} -t {t}")
+    
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
-                    verbose:bool = True, 
+                    *args,
+                    verbose:bool = False , 
                     env:Dict[str, str] = {}, 
                     sudo:bool = False,
                     password: bool = None,
-                    color: str = 'white',
                     bash : bool = False,
+                    return_process: bool = False,
+                    generator: bool =  False,
+                    color : str = 'white',
                     **kwargs) -> 'subprocess.Popen':
+        
         '''
         Runs  a command in the shell.
         
         '''
-        if isinstance(command, list):
-            kwargs = c.locals2kwargs(locals())
-            for idx,cmd in enumerate(command):
-                assert isinstance(cmd, str), f'command must be a string, not {type(cmd)}'
-                kwargs['command'] = cmd
-                response = cls.cmd(**kwargs)
-            return response
-
         import subprocess
         import shlex
+        
+        if len(args) > 0:
+            command = ' '.join([command] + list(args))
+
         
         def kill_process(process):
             import signal
@@ -231,33 +232,50 @@ class OsModule(c.Module):
             
         if bash:
             command = f'bash -c "{command}"'
+
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.STDOUT,
                                     env={**os.environ, **env}, **kwargs)
         
-        new_line = b''
-        stdout_text = ''
-        line_count_idx = 0
-        try:
-            for ch in iter(lambda: process.stdout.read(1), b""):
-                if  ch == b'\n':
-                    stdout_text += (new_line + ch).decode()
-                    line_count_idx += 1
-                    if verbose:
-                        c.print(new_line.decode(), color='cyan')
-                    new_line = b''
-                    continue
-                new_line += ch
-        except Exception as e:
-            c.print(e)
-            kill_process(process)
-        finally:
-             kill_process(process)
-        
-       
+        if return_process:
+            return process
 
-        return stdout_text
+        def stream_output(process):
+            pipe = process.stdout
+            for ch in iter(lambda: pipe.read(1), b""):
+                # if the the terminal is stuck and needs to enter
+
+                process.poll()  
+
+
+                try:
+                    yield ch.decode()
+                except Exception as e:
+                    pass       
+            kill_process(process)
+
+
+
+        if generator:
+            return stream_output(process)
+
+        else:
+            text = ''
+            new_line = ''
+            
+            for ch in stream_output(process):
+                
+                text += ch
+                # only for verbose
+                if verbose:
+                    new_line += ch
+
+                    if ch == '\n':
+                        c.print(new_line[:-1], color=color)
+                        new_line = ''
+
+        return text
 
 
     @staticmethod
@@ -357,9 +375,11 @@ class OsModule(c.Module):
 
         gpu_info_map = {}
 
+        skip_keys =  ['ratio', 'total', 'name']
+
         for gpu_id, gpu_info in gpu_info.items():
             for key, value in gpu_info.items():
-                if key in ['ratio', 'total']:
+                if key in skip_keys:
                     continue
                 gpu_info[key] = cls.format_data_size(value, fmt=fmt)
             gpu_info_map[gpu_id] = gpu_info
@@ -434,3 +454,8 @@ class OsModule(c.Module):
                     largest_folder = folder_path
 
         return largest_folder, largest_size
+    
+
+    @classmethod
+    def getcwd(*args,  **kwargs):
+        return os.getcwd(*args, **kwargs)

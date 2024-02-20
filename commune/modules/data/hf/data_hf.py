@@ -209,6 +209,21 @@ class DataHF(c.Module):
 
     @classmethod
     def serve_category(cls, fleet:str = 'qa', remote:bool=True, tag=None,  **kwargs):
+        '''
+        ### Documentation
+        
+        #### Function: `serve_category`
+        
+        **Description:**
+        
+        This class method is responsible for serving a category of services defined in a fleet. It launches each service on a separate port, avoiding any conflicts with already used ports.
+        
+        **Parameters:**
+        
+        - `fleet`: A string representing the fleet name. Default value is `'qa'`.
+        - `remote`: A boolean indicating whether the service is to be served remotely or not. Default value is `True`.
+        - `tag`: An optional parameter
+        '''
         fleet = cls.getc(f'fleet.{fleet}')
 
         avoid_ports = []
@@ -219,6 +234,16 @@ class DataHF(c.Module):
 
     @classmethod
     def fleet(cls, path:str = 'truthful_qa', n:int=5, remote:bool=True, tag=None,  **kwargs):
+        '''
+        ## Fleet Class Method
+        
+        ### Description
+        The `fleet` method is a class method responsible for starting multiple instances of a service on different ports. This method is useful when you want to run several instances of the same service simultaneously, possibly for load balancing or high availability purposes.
+        
+        ### Parameters
+        - `path` (str): The path to the service that needs to be served. Defaults to 'truthful_qa'.
+        - `n` (int): The number of instances to be started. Defaults
+        '''
 
         avoid_ports = []
         for i in range(n):

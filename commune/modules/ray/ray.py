@@ -238,15 +238,19 @@ class Ray(c.Module):
         
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
         ray_context = {}
-        if cls.is_initialized():
+        is_initialized = cls.is_initialized()
+        c.print(f'RAY is_initialized: {is_initialized}')
+
+
+        if  is_initialized:
              ray_context =  cls.ray_runtime_context()
         else: 
             ray_context = ray.init(**init_kwargs)
-            
+        c.print(f'CONNECTED TO RAY: {ray_context}')
         return ray_context
     
     @classmethod
-    def create_actor(cls,
+    def serve(cls,
                  module : str = None,
                  name:str = None,
                  tag:str = None,
@@ -300,7 +304,7 @@ class Ray(c.Module):
         # create the actor if it doesnt exisst
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
         
-        actor = cls.get_actor(name, virtual=virtual)
+        # actor = cls.get_actor(name, virtual=virtual)
 
         return actor
 

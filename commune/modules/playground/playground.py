@@ -1,43 +1,25 @@
 import commune as c
+import streamlit as st
 
 class Playground(c.Module):
-    def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
-
-    def call(self, x:int = 1, y:int = 2) -> int:
-        c.print(self.config)
-        c.print(self.config, 'This is the config, it is a Munch object')
-        return x + y
-    
 
     @classmethod
-    def dashboard(cls, network=None):
-        # c.nest_asyncio()
-    
-        import streamlit as st
-        update = False
-        if network == None:
-            cols = st.columns([1,1])
-            network = cols[0].selectbox('network', ['local', 'remote', 'subspace'], 0, key='playground.net')
-            update = cols[1].button('Update', key='playground.update')
+    def dashboard(cls, module:c.Module = None,  network=None):
+        
+        if module == None:
+            update = False
+            if network == None:
+                network = st.selectbox('network', ['local', 'remote', 'subspace'], 0, key='playground.net')
+                update = st.button('Update', key='playground.update')
+            else:
+                network = network
+            namespace = c.namespace(network=network, update=update)
+            servers = list(namespace.keys())
+            module = st.selectbox('Select Module', servers, 0, key='playground.module')
+            server = c.connect(module, network=network)
         else:
-            network = network
-    
-        namespace = c.namespace(network=network, update=update)
+            server = c.connect(module) 
 
-        servers = list(namespace.keys())
-  
-        server_name = st.selectbox('Select Server',servers, 0, key=f'serve.module.playground')
-        st.write(f'**{server_name}**')
-        st.write(f'**{server_name}**')
-       
-        cls.module_dashboard(module=server_name, network=network)
-    @classmethod
-    def module_dashboard(cls, module:c.Module, network):
-        import streamlit as st
-        c.load_style()
-
-        server = c.connect(module, network=network)
         info_path = f'infos/{module}'
         if not c.exists(info_path) :
             server_info = server.info()

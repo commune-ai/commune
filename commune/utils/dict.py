@@ -303,6 +303,8 @@ def dict_put(input_dict,keys: Union[str, list], value: Any ):
     """
     if isinstance(keys, str):
         keys = keys.split('.')
+    elif not type(keys) in [list, tuple]:
+        keys = str(keys)
     key = keys[0]
     if len(keys) == 1:
         if  isinstance(input_dict,dict):

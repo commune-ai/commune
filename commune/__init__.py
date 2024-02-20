@@ -1,3 +1,4 @@
+import warnings
 
 
 from .module import Module
@@ -5,11 +6,9 @@ from .module import Module
 Block = Lego = Module
 from .module.config import Config
 from .modules.cli import cli
+# from .modules.subspace import subspace
 # from .model import Model
 config = Config
-import warnings
-warnings.filterwarnings("ignore")
-
 
 
 # set the module functions as globals

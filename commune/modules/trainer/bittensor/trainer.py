@@ -985,7 +985,7 @@ class CortexTrainer(commune.Module):
 
 if __name__ == '__main__':
 
-    # st.set_page_config(layout="wide")
+    # c.set_page_config(layout="wide")
     self = CortexTrainer(load=True, batch_size = 32, sequence_length=16, num_workers=1)
     self.cache_sample()
     # st.write(self.sample(synapses='TextCausalLMNext', timeout=4))

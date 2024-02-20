@@ -51,10 +51,12 @@ class ModelImageupscaler(c.Module):
     def upscale(self, image, model):
         model_path = f"models/modelx4.ort"
         img = self.convert_pil_to_cv2(image)
+        print("-------------------")
         if img.ndim == 2:
             img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
 
         if img.shape[2] == 4:
+            print("----------1---------")
             alpha = img[:, :, 3]  # GRAY
             alpha = cv2.cvtColor(alpha, cv2.COLOR_GRAY2BGR)  # BGR
             alpha_output = self.post_process(self.inference(model_path, self.pre_process(alpha)))  # BGR
@@ -66,6 +68,7 @@ class ModelImageupscaler(c.Module):
             image_output[:, :, 3] = alpha_output
 
         elif img.shape[2] == 3:
+            print("----------2---------")
             image_output = self.post_process(self.inference(model_path, self.pre_process(img)))  # BGR
 
         return image_output
@@ -77,7 +80,7 @@ class ModelImageupscaler(c.Module):
         gr.Interface(
             fn=self.upscale,
             inputs=[
-                gr.inputs.Image(type="pil", label="Input Image"),
+                gr.Image(type="pil", label="Input Image"),
             ],
             outputs="image",
             title="Image Upscaler",

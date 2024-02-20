@@ -5,36 +5,31 @@ import json
 
 
 class Agent(c.Module):
+    tools = ['module.cmd']
+
     description = """
-    You have a set of tools, and you should call them if you need to 
-    if you call a tool, store the response in the answer field, and you will be fed 
-    the response in the next step. So dont worry if you dont know.
-
-    call_tools: {tool:str, kwargs:dict} -> answer
-
-    Notes:
-    ALWAYS FILL THE ANSWER AND RETURN THE JSON
-    YOU HAVE N TRIES, HAVE AN ANSWER BY N
-    JUST RESPOND IN THE ANSWER, CALL_TOOLS
+    Use the tools to solve the problem. 
+    USE MEMORY TO SOLVE THE PROBLEM
+    store it in any way you like in the history,
+    and use it in the next step
+    IF YOU NEED TO USE A TOOL, USE THE TOOL TO SOLVE THE PROBLEM
+    please file in the 
+    WHEN YOU ARE DONE, PLEASE FILE IN THE ANSWER, AND FINISH THE PROMPT
+    PLEASE SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1, 1 BEING THE MOST CONFIDENT
 
     """
 
-    tools = [
-            'module.ls', 
-            'module.fns', 
-            'module.cmd' ,
-            'module.servers', 
-            'module.modules', 
-            'module.module', 
-            'module.ip', 
-            'key.keys', 
-            'module.block', 
-            'module.fn_code', 
-            'module.fn_info',
-            'web.google_search',
-            'module.namespace',
-            'module.hardware'
-            ]
+
+    prompt = {
+        'description': description,
+        'prompt': 'This is the prompt',
+        'tools': tools,
+        'history': 'USE MEMORY TO SOLVE THE PROBLEM IN KNOWLEDGE TUPLES (HEAD, RELEATION, PAIR)(dict)',
+        'thoughts': 'WRITE YOUR THOUGHTS HERE IN KNOWLEDGE TUPLES (dict)',
+        'quit': 'INCLUDE THE FINISHED PROMPT HERE (bool)',
+        'answer': 'INCLUDE THE ANSWER HERE',
+        'confidence': 'SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1',
+    }
 
     def __init__(self,
                 name='agent',
@@ -107,13 +102,13 @@ class Agent(c.Module):
                 'input': text,
                 'history': history,
                 'tools': tools,
-                'purpose': """ ANSWER THE FOLLOWING""",
                 'confidence': 0,
                 'call_tool': {'tool': None, 'kwargs': None},
                 'answer': None
             }
             output = self.model.generate(json.dumps(prompt), max_tokens=512)
-            c.print(output)
+            if 'data' in output:
+                output = output['data']
             output = json.loads(output)
             prompt.update(output)
             if 'call_tool' in output:

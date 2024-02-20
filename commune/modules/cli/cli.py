@@ -10,16 +10,17 @@ class CLI(c.Module):
     # 
     def __init__(
             self,
-            config: c.Config = None,
-            module_overrides: dict = ['network', 'key'],
+            module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer'],
+            new_event_loop: bool = True,
+
 
         ) :
-        self.protected_modules = ['module', 'key']
-        c.new_event_loop(True)
+        self.protected_modules = module_overrides
         self.module = c.Module()
         args, kwargs = self.parse_args()
-        
         module_list = c.modules()
+        if new_event_loop:
+            c.new_event_loop(True)
 
         fn = None
         module = None
@@ -27,17 +28,25 @@ class CLI(c.Module):
             result = c.schema()
         elif len(args)> 0:
             functions = list(set(self.module.functions()  + self.module.get_attributes()))
+
             args[0] = self.resolve_shortcut(args[0])
             
             # is it a fucntion, assume it is for the module
 
             module_list = c.modules()
+
+
+            if '/' in args[0]:
+                args = args[0].split('/') + args[1:]
+                
+                
             if args[0] in functions and args[0] not in module_overrides and args[0] not in self.protected_modules:
                 # is a function
                 module = c.Module
                 fn = args.pop(0)
             elif args[0] in module_list:
                 # is a module
+        
                 module = args.pop(0)
                 module = c.module(module)
             
@@ -77,10 +86,9 @@ class CLI(c.Module):
                 
             else:
                 fn = module
-                
-            
             if callable(fn):
                 result = fn(*args, **kwargs)
+            
                 
         else:
             raise Exception ('No module, function or server found for {args[0]}')

@@ -1,7 +1,5 @@
 import commune as c
 
-
-
 class Executor(c.Module):
     modes = ['thread', 'process']
     

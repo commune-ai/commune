@@ -59,7 +59,7 @@ class Dashboard(c.Module):
         
     def transfer_dashboard(self):
         cols = st.columns(2)
-        amount = cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
+        amount =  cols[0].number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
         to_address = cols[1].text_input('dest (s) : use , for multiple transfers', '')
         multi_transfer = False
 
@@ -172,19 +172,7 @@ class Dashboard(c.Module):
             response = c.stake_many(**kwargs)
             st.write(response)
 
-    def wallet_dashboard(self):
-        # st.write(self.key_info)
-        # turn key_info into a dataframe
-        # st.write(self.key_info)
-        my_ticket = self.key.ticket()
 
-        self.my_info_dashboard(expander=False) 
-        mode = st.selectbox('Mode', ['Stake', 'Unstake', 'Register', 'Transfer'], 0)
-        mode = mode.lower()
-        fn = getattr(self, f'{mode}_dashboard')
-        fn()
-        with st.expander('My Ticket', expanded=False):
-            st.code(my_ticket)
         
 
     def staking_plot(self):
@@ -327,40 +315,6 @@ class Dashboard(c.Module):
                 else:
                     st.error(response['message'])
 
-    
-    def my_info_dashboard(self, expander = True):
-        st.write('My Public Address')
-        st.code(self.key.ss58_address)
-        # pie map of stake
-        cols = st.columns([2,2,2])
-
-        with st.sidebar:
-            self.select_network()
-
-        modules = self.modules
-
-        values = list(self.key_info['stake_to'].values())
-        labels = list(self.key_info['stake_to'].keys())
-        sorted_labels_and_values = sorted(zip(labels, values), key=lambda x: x[1], reverse=True)
-        labels = [l for l,v in sorted_labels_and_values]
-        values = [v for l,v in sorted_labels_and_values]
-
-        my_modules = [m for m in modules if m['name'] in labels]
-        self.key_info['daily_reward'] = sum([m['emission'] for m in my_modules]) * self.state['epochs_per_day']
-        cols[0].metric('Balance', int(self.key_info['balance']))
-        cols[1].metric('Stake', int(self.key_info['stake']))
-        cols[2].metric('Daily Rewards',  int(self.key_info['daily_reward']))   
-        
-        
-        for m in my_modules:
-            m.pop('stake_from', None)
-        
-        
-        
-        df = pd.DataFrame(my_modules)
-
-
-
 
     def plot_dashboard(self, df):
         
@@ -411,204 +365,30 @@ class Dashboard(c.Module):
     @classmethod
     def dashboard(cls, *args, **kwargs):
         
-        
-        
+    
         self = cls(*args, **kwargs)
 
         fns = cls.fns()
         fns = ['_'.join(f.split('_')[:-1]).replace('_',' ').lower() for f in fns if f.endswith('_dashboard')]
         fns = ['wallet' , 'explorer']
-        module_dashboards = ["server", "tokenomics", "dashboard", "chat", 'remote', 'server']
-        options = ['wallet', 'chat', 'tokenomics', 'remote', 'server']
+        options = c.modules()
         page = st.sidebar.selectbox('Select Page', options, 0, key='page')
 
         st.sidebar.markdown('---')
         st.sidebar.markdown(f'**{page}**')
-        if page in module_dashboards:
-            
-            module = page.lower()
-            module = c.module(page)
-            fn = getattr(module, 'dashboard')
-            fn_annotation = fn.__annotations__
-            if 'key' in fn_annotation:
-                fn(key=self.key)
-            else:
-                fn()
+        module = page.lower()
+        module = c.module(page)
+        fn_name = 'dashboard'
+        fn = getattr(module, fn_name)
+        schema = module.schema().get(fn_name)
+        if 'key' in schema['input']:
+            fn(key=self.key)
         else:
-            fn_name = page.lower().replace(' ', '_') + '_dashboard'
-            getattr(self, fn_name)()
+            fn()
 
         # if tokenomics:
         #     c.module('subspace.tokenomics').dashboard()
 
-
-
-    def select_network(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
-        
-        if _self != None:
-            self = _self
-
-        self.key = c.get_key()
-        @st.cache_data(ttl=60*60*24, show_spinner=False)
-        def get_networks():
-            chains = c.chains()
-            return chains
-        self.networks = get_networks()
-        self.network = st.selectbox('Select Network', self.networks, 0, key='network')
-
-
-        @st.cache_data(show_spinner=False)
-        def get_state(network):
-            subspace = c.module('subspace')()
-            state =  subspace.state_dict(update=update, network=network)
-            state['total_balance'] = sum(state['balances'].values())/1e9
-            state['key2address'] = c.key2address()
-            state['lag'] = c.lag()
-            state['block_time'] = 8
-
-            return state
-        
-
-        self.state =  get_state(self.network)
-
-
-        self.subnets = self.state['subnets']
-        keys = c.keys()
-        subnets = self.subnets
-
-        name2subnet = {s['name']:s for s in subnets}
-        name2idx = {s['name']:i for i,s in enumerate(subnets)}
-        subnet_names = list(name2subnet.keys())
-        subnet_name = st.selectbox('Select Subnet', subnet_names, 0, key='subnet.sidebar')
-        self.netuid = name2idx[subnet_name]
-        self.subnet = name2subnet[subnet_name]
-        
-        self.modules = self.state['modules'][self.netuid]
-        self.state ['epochs_per_day'] = ( 24* 60 * 60 ) / (self.subnet["tempo"] * self.state['block_time'])
-        self.name2module = {m['name']: m for m in self.modules}
-        self.name2key = {k['name']: k['key'] for k in self.modules}
-        self.key2name = {k['key']: k['name'] for k in self.modules}
-        self.name2address = {k['name']: k['address'] for k in self.modules}
-        self.key2module = {k['key']:k for k in self.modules}
-
-        self.keys  = list(self.state['key2address'].keys())  
-        self.key2index = {k:i for i,k in enumerate(self.keys)}
-
-        self.namespace = {m['name']: m['address'] for m in self.modules}
-
-        for i, m in enumerate(self.modules):
-            self.modules[i]['stake'] = m['stake']/1e9
-            self.modules[i]['emission'] = m['emission']/1e9
-        balances = self.state['balances']
-
-        self.name2key = {k['name']: k['key'] for k in self.modules}
-        self.key2name = {k['key']: k['name'] for k in self.modules}
-        self.name2address = {k['name']: k['address'] for k in self.modules}
-        self.address2name = {k['address']: k['name'] for k in self.modules} 
-        # st.write(self.state['stake_to'])
-
-    
-
-
-        stake_to = self.state['stake_to'][self.netuid].get(self.key.ss58_address, {})
-        self.key_info['balance']  = self.state['balances'].get(self.key.ss58_address,0)/1e9
-        self.key_info['stake_to'] = {k:v/1e9 for k,v in stake_to}
-        # sort by highest to lowest
-        self.key_info['stake_to'] = {k:v for k,v in sorted(self.key_info['stake_to'].items(), key=lambda x: x[1], reverse=True)}
-        self.key_info['stake'] = sum([v for _, v in stake_to])
-        # convert keys to names 
-        for k in ['stake_to']:
-            self.key_info[k] = {self.key2name[k]: v for k,v in self.key_info[k].items() if k in self.key2name}
-    
-
-        self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
-        stake_to = self.key_info['stake_to']
-        df_stake_to = pd.DataFrame(stake_to.items(), columns=['module', 'stake'])
-        df_stake_to.sort_values('stake', inplace=True, ascending=False)
-        # st.write('address')
-        # st.code(self.key_info['ss58_address'])
-        # st.write('balance')
-        # st.code(self.key_info['balance'])
-        # st.write('stake')
-        # st.code(self.key_info['stake'])
-
-
-
-
-
-    # def archive_dashboard(self):
-    #     # self.register_dashboard(expanded=False)
-    #     netuid = 0 
-    #     archive_history = c.archive_history(lookback_hours=24, n=100, update=True)
-    #     df = c.df(archive_history[1:])
-    #     df['block'] = df['block'].astype(int)
-
-
-    #     df['dt'] = pd.to_datetime(df['dt'])
-    #     df.sort_values('block', inplace=True)
-    #     df.reset_index(inplace=True)
-    #     st.write(df)
-    #     # df= df[df['market_cap'] < 1e9]
-
-
-    #     fig = px.line(df, x='block', y='market_cap', title='Archive History')
-
-    #     block2path= {b:df['path'][i] for i,b in enumerate(df['block'])}
-    #     blocks = list(block2path.keys())
-    #     paths = list(block2path.values())
-    #     block = st.selectbox('Block', blocks, index=0)
-    #     path = block2path[block]
-    #     state = c.get(path)
-    #     modules = state['modules'][netuid]
-    #     for i in range(len(modules)):
-    #         for k in ['stake_to', 'stake_from', 'key', 'address']:
-    #             del modules[i][k]
-    #         for k in ['emission', 'stake', 'balance']:
-    #             modules[i][k] = modules[i][k]/1e9
-    #     df = pd.DataFrame(modules)
-
-    #     st.write(df)
-    #     subnet_df = pd.DataFrame(state['subnets'])
-    #     st.write(subnet_df)
-    #     # st.write(state)f
-
-    #     st.write(fig)
-    #     # options = ['emission', 'incentive', 'dividends', 'stake']
-    #     # y = st.selectbox('Select Columns', options, 0)
-    #     # # filter by stake > 1000
-
-    #     # df = df[df['stake'] > 10**9]
-    #     # histogram = px.histogram(df, x=y, title='My Modules')
-
-    #     # st.write(histogram)
-
-    # def 
-    #     with st.expander('Modules', expanded=False):
-    #         import pandas as pd
-    #         # search  for all of the modules with yaml files. Format of the file
-    #         search = st.text_input('Search', '')
-    #         df = None
-    #         self.modules = self.state['modules'][self.netuid]
-
-        
-    #         self.searched_modules = [m for m in self.modules if search in m['name'] or search == '']
-    #         df = pd.DataFrame(self.searched_modules)
-    #         if len(df) == 0:
-    #             st.error(f'{search} does not exist {c.emoji("laughing")}')
-    #             return
-    #         else:
-    #             st.success(f'{c.emoji("dank")} {len(df)} modules found with {search} in the name {c.emoji("dank")}')
-    #             del df['stake_from']
-    #             st.write(df)
-    #             # with st.expander('Historam'):
-    #             #     key = st.selectbox('Select Key', ['incentive',  'dividends', 'emission'], 0)
-                    
-    #             #     self.st.run(df)
-    #             #     fig = px.histogram(
-    #             #         x = df[key].to_list(),
-    #             #     )
-
-    #             #     st.plotly_chart(fig)
 
 
 Dashboard.run(__name__)
