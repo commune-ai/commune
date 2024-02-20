@@ -1,13 +1,40 @@
+# Workers are created as daemon threads. This is done to allow the interpreter
+# to exit when there are still idle threads in a ThreadPoolExecutor's thread
+# pool (i.e. shutdown() was not called). However, allowing workers to die with
+# the interpreter has two undesirable properties:
+#   - The workers would still be running during interpreter shutdown,
+#     meaning that they would fail in unpredictable ways.
+#   - The workers could be killed while evaluating a work item, which could
+#     be bad if the callable being evaluated has external side-effects e.g.
+#     writing to a file.
+#
+# To work around this problem, an exit handler is installed which tells the
+# workers to exit when their work queues are empty and then waits until the
+# threads finish.
 
-import commune as c
-from concurrent.futures._base import Future
 import time
-import gc
+from concurrent.futures._base import Future
+import commune as c
+
+
+
 
 class Task(c.Module):
-    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10, priority:int=1, path=None, **extra_kwargs):
+    def __init__(self, 
+                 fn:str,
+                args:list, 
+                kwargs:dict, 
+                timeout:int=10, 
+                priority:int=1, 
+                path=None,
+                save:bool = False,
+                **extra_kwargs):
+        
+        self.path = path
         self.future = Future()
         self.fn = fn # the function to run
+        if self.fn == None:
+            return None
         self.start_time = time.time() # the time the task was created
         self.args = args # the arguments of the task
         self.kwargs = kwargs # the arguments of the task
@@ -16,21 +43,19 @@ class Task(c.Module):
         self.path = path # the path to store the state of the task
         self.status = 'pending' # pending, running, done
         self.data = None # the result of the task
-
+        self.fn_name = fn.__name__ # the name of the function
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.extra_kwargs = extra_kwargs
         self.__dict__.update(extra_kwargs)
+        # save the task state
+        self.save = save
+        if self.save:
+            self.save_state()
 
-        # store the state of the task if a path is given
-        if self.path:
-            self.save()
+
     @property
     def lifetime(self) -> float:
         return time.time() - self.start_time
-
-    @property
-    def save(self):
-        self.put(self.path, self.state)
 
     @property
     def state(self) -> dict:
@@ -43,11 +68,21 @@ class Task(c.Module):
             'priority': self.lifetime,
             'status': self.status,
             'data': self.data, 
-            **{k: self.__dict__[k] for k,v in self.extra_kwargs.items()}
+            **self.extra_kwargs
         }
-
     
-
+    @property
+    def save_state(self):
+        self.paths = {f'{status}/{self.fn_name}_utc_{self.start_time}' for status in ['pending', 'complete']}
+        if self.status == 'pending':
+            return self.put(self.path[self.status], self.state)
+        elif self.status in ['complete', 'failed']:
+            if c.exists(self.paths['pending']):
+                c.rm(self.paths['pending'])
+            return self.put(self.paths[self.status], self.state)
+        else:
+            raise ValueError(f"Task status must be pending or complete, not {self.status}")
+    
     def run(self):
         """Run the given work item"""
         # Checks if future is canceled or if work item is stale
@@ -56,27 +91,21 @@ class Task(c.Module):
         ):
             self.future.set_exception(TimeoutError('Task timed out'))
 
-        self.status = 'running'
         try:
             data = self.fn(*self.args, **self.kwargs)
-            self.future.set_result(data)
-            self.status = 'done'
+            self.status = 'complete'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
-            self.future.set_exception(e)
-            self.status = 'failed'
             data = c.detailed_error(e)
+            self.status = 'failed'
 
-   
+        self.future.set_result(data)
         # store the result of the task
+        
         self.data = data       
 
-        # store the state of the task 
-        if self.path:
-            self.save()
-
-        # set the result of the future
-        
+        if self.save:
+            self.save_state()
 
     def result(self) -> object:
         return self.future.result()
@@ -109,3 +138,4 @@ class Task(c.Module):
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
     
+

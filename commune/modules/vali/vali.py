@@ -1,251 +1,193 @@
 import torch
 import traceback
 import commune as c
+import concurrent
 
 
 class Vali(c.Module):
     
     last_sync_time = 0
 
-    def __init__(self, config=None,  **kwargs):
+    def __init__(self,config=None,**kwargs):
         self.init_vali(config=config, **kwargs)
 
-    def init_vali(self, config=None, **kwargs):
+
+    def init_vali(self,config=None, **kwargs):
+
         config = self.set_config(config=config, kwargs=kwargs)
+        c.print(config)
+        self.config = c.dict2munch({**Vali.config(), **config})
+        c.print(f'Vali config: {self.config}', color='cyan')
         # merge the config with the default config
         self.count = 0
-
         # we want to make sure that the config is a munch
-        self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
-        self.sync()
-        self.process = c.module('process')
-        self.ip = c.ip()
-        if self.config.refresh_stats:
-            self.refresh_stats(network=self.config.network, tag=self.tag)
-        if self.config.start == False:
-            return
-        self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers, save_outputs=False)
-        c.thread(self.run)
-        c.thread(self.vote_loop)
- 
-    @property
-    def sync_staleness(self):
-        return int(c.time() - self.last_sync_time) 
+        self.sync_network()
 
-    def vote_loop(self):
-        while True:
-            c.sleep(1)
-            if self.vote_staleness > self.config.vote_interval:
-                try:
-                    self.vote()
-                except Exception as e:
-                    c.print(f'Error voting {e}', color='red')
-                    c.print(traceback.format_exc(), color='red')
-                    c.sleep(1)
-                    continue
+        if 'subspace' in self.config.network:
+            if '.' in self.config.network:
+                chain = self.config.network.split('.')[-1]
+            else: 
+                chain = 'main'
+            self.subspace = c.module('subspace')(network=chain)
+
+        c.print(f'Vali config: {self.config}', color='cyan')
+        if self.config.start:
+            c.sleep(10)
+            self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
+            # launch a thread to run the vali
+            c.thread(self.run)
 
 
-    def sync(self, network:str=None, netuid:int=None, update: bool = True):
+    def subnet2modules(self, network:str='main'):
+        subnet2modules = {}
+        self.resolve_network(network)
+
+        for netuid in self.netuids():
+            subnet2modules[netuid] = self.modules(netuid=netuid)
+
+        return subnet2modules
+
+
+    def sync_network(self, network:str=None, search:str=None,  netuid:int=None, update: bool = False):
         
-        try:
-            if network == None:
-                network = self.config.network
-            if netuid == None:
-                netuid = self.config.netuid
-            self.subspace = c.module('subspace')(network=network, netuid=netuid)
+        self.namespace = c.namespace(search=self.config.search, network=self.config.network, netuid=self.config.netuid, update=update)
+        self.n  = len(self.namespace)    
+        self.addresses = [self.namespace.values()]     
+        self.names = list(self.namespace.keys())
+        self.address2name = {v: k for k, v in self.namespace.items()}    
 
-            self.modules = self.subspace.modules(update=False, netuid=netuid)
-            self.n  = len(self.modules)
+        self.last_sync_time = c.time()
+        return {'namespace': self.namespace}
 
-            if self.config.module_prefix != None:
-                self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
-                
-            self.subnet = self.subspace.subnet(netuid=netuid)
-
-            if self.config.vote_interval == None: 
-                self.config['vote_interval'] = self.subspace.seconds_per_epoch()
-
-            self.last_sync_time = c.time()
-            self.block = self.subspace.block
-
-            c.print('Syncing...', color='cyan')
-        except Exception as e:
-            c.print(f'Error syncing {e}', color='red')
-            c.print(traceback.format_exc(), color='red')
-            return {'success': False, 'message': f'Error syncing {e}'}
-
-        return {'modules': self.modules, 'subnet': self.subnet}
-
-    def score_module(self, module, **kwargs):
-
+    def score_module(self, module):
         '''
         params:
             module: module client
             kwargs : the key word arguments
         
         '''
-
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
-        assert 'address' in info, f'Response must have an error key, got {info.keys()}'
+        assert 'address' in info, f'Response must have an error key, got {info}'
         return {'success': True, 'w': 1}
 
 
-    def eval_module(self, module:dict):
+    def eval_module(self, module:str):
         """
-        The following evaluates a module server, from the dictionary
+        The following evaluates a module server
         """
-        
-        epoch = self.count // self.n
-        prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
-        is_my_module = bool(self.ip in module['address'])
         # load the module stats (if it exists)
-        module_stats = self.load_module_info( module['name'], default=module)
 
-        # update the module state with the module stats
-        module_stats.update(module)
+        my_info = self.info()
         
-        staleness = c.time() - module_stats.get('timestamp', 0)
-        if staleness < self.config.max_staleness:
+        module_info = self.load_module_info( module, {})
+        if module in self.namespace:
+            module_name = module
+            module_address = self.namespace[module]
+        else:
+            module_address = module
+            module_name = self.address2name.get(module_address, module_address)
+        
+        # emoji = c.emoji('hi')
+        # c.print(f'Evaluating  {module_name}:{module_address} -->', color='cyan')
+
+        if module_address == my_info['address']:
+            return {'error': f'Cannot evaluate self {module_address}'}
+
+        start_timestamp = c.time()
+
+        seconds_since_called = c.time() - module_info.get('timestamp', 0)
+        
+        # TEST IF THE MODULE IS WAS TESTED TOO RECENTLY
+        if seconds_since_called < self.config.max_staleness:
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
-            return {'error': f'{module["name"]} is too new as we pinged it {staleness}(s) ago'}
+            r = {'error': f'{module_name} is too new as we pinged it {seconds_since_called}(s) ago'}
+            return r
 
         try:
-            # this is where we connect to the client
-            module_client = c.connect(module['address'], key=self.key, virtual=self.config.virtual_module)
-            response = self.score_module(module_client, info=module, **module)
-        except Exception as e:
-            if is_my_module:
-                c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
-            response = {'error': c.detailed_error(e), 'w': 0}
-        
-        c.print(response, color='green')
-        if is_my_module or response["w"] > 0 or self.config.verbose:
-            c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
-        
-        self.count += 1
+            # check the info of the module
+            module = c.connect(module_address, key=self.key, virtual=True)
 
+            if len(module_info) == 0:
+                module_info = module.info(timeout=5)
+            # this is where we connect to the client
+            response = self.score_module(module)
+            response['msg'] = f'{c.emoji("check")}{module_name} --> w:{response["w"]} {c.emoji("check")} '
+        except Exception as e:
+            response = {'error': c.detailed_error(e), 'w': 0, 
+                        'msg': f'{c.emoji("cross")} {module_name} --> {e} {c.emoji("cross")}'  
+                        }
+
+        end_timestamp = c.time()        
         w = response['w']
         response['timestamp'] = c.time()
         # we only want to save the module stats if the module was successful
-        module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-        module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_stats['timestamp'] = response['timestamp']
-        # add the history of this module
-        module_stats['history'] = module_stats.get('history', []) + [response]
-        module_stats['history'] = module_stats['history'][-self.config.max_history:]
-        self.save_module_stats(module['name'], module_stats)
+        module_info['count'] = module_info.get('count', 0) + 1 # update the count of times this module was hit
+        module_info['w'] = module_info.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
+        module_info['history'] = (module_info.get('history', []) + [{'response': response, 'w': w}])[:self.config.max_history]
+        module_info['timestamp'] = response['timestamp']
+        module_info['start_timestamp'] = start_timestamp
+        module_info['end_timestamp'] = end_timestamp
+        module_info['latency'] = end_timestamp - start_timestamp
+        emoji = c.emoji('checkmark') if response['w'] > 0 else c.emoji('cross')
+        c.print(f'{emoji} {module_name}:{module_address} --> {w} {emoji}', color='cyan')
+        self.save_module_info(module_name, module_info)
+        self.count += 1
 
-        return module_stats
+        return module_info
 
     @classmethod
-    def networks(cls):
-        return [f.split('/')[-1] for f in cls.ls('stats')]
-
-    @classmethod
-    def resolve_stats_path(cls, network:str, tag:str=None):
+    def resolve_storage_path(cls, network:str, tag:str=None):
         if tag == None:
             tag = 'base'
-        return f'stats/{network}/{tag}'
+        return f'{tag}.{network}'
+        
     def refresh_stats(self, network='main', tag=None):
         tag = self.tag if tag == None else tag
-        path = self.resolve_stats_path(network=network, tag=tag)
+        path = self.resolve_storage_path(network=network, tag=tag)
         return self.rm(path)
+    
+    def resolve_tag(self, tag:str=None):
+        return self.tag if tag == None else tag
 
-    @classmethod
-    def stats(cls,
-             tag=None, 
-             network='main',
-             df:bool=True, 
-             keys: bool =['name', 'w', 'count', 'staleness', 'address'], 
-             topk=30
-             ):
-        stats = cls.load_stats( network=network, keys=keys, tag=tag)
-
-        if df:
-            if len(stats) == 0:
-                return c.df({'module': [], 'w': []})
-            stats = c.df(stats)
-            stats.sort_values(['w'], ascending=False, inplace=True)
-            
+    def vote(self, tag=None):
 
 
-        stats = stats[:topk]
-
-        return stats
-
-
-
-    @classmethod
-    def votes(cls, network='main', tag=None, base_score=0.01):
-        stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
-        votes = {
-            'uids': [v['uid'] for v in stats],  # get all uids where w > 0
-            'weights': [v['w'] + base_score for v in stats],  # get all weights where w > 0
-            'timestamp': c.time()
-        }
-        assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-
-        return votes
-
-    def vote(self):
         c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
 
         if stake < self.config.min_stake:
             result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
-            c.print(result, color='red')
             return result
-
-        votes = self.votes(network=self.config.network, tag=self.tag)
-
-        if len(votes['uids']) == 0:
-            c.print(f'No modules to vote on', color='red')
-            return {'success': False, 'message': 'No modules to vote on'}
-
-        # get topk
-        if len(votes['weights']) == 0:
-            return {'success': False, 'message': 'No modules to vote on'}
-
-        uids = c.copy(votes['uids'])
-        new_votes = {'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
-        for i in range(len(votes['uids'])):
-            if votes['uids'][i] < self.n :
-                new_votes['uids'] += [votes['uids'][i]]
-                new_votes['weights'] += [votes['weights'][i]]
         
-        votes = new_votes
 
+        tag = tag or self.tag
+        module_infos = self.module_infos(network=self.config.network, keys=['name','uid', 'w', 'ss58_address'], tag=tag)
+        votes = {
+            'keys' : [],            # get all names where w > 0
+            'weights' : [],  # get all weights where w > 0
+            'uids': [],
+            'timestamp' : c.time()
+        }
 
+        key2uid = self.subspace.key2uid()
+        for info in module_infos:
+            if 'ss58_address' in info and info['w'] > 0:
+                votes['keys'] += [info['ss58_address']]
+                votes['weights'] += [info['w']]
+                votes['uids'] += [key2uid.get(info['ss58_address'], 0)]
 
-        topk = self.subnet['max_allowed_weights']
-        topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
-        votes['weights'] = [votes['weights'][i] for i in topk_indices]
-        votes['uids'] = [votes['uids'][i] for i in topk_indices]
+        assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
-        # normalize vote
-        votes['weights'] = torch.tensor(votes['weights'])
-        votes['weights'] = (votes['weights'] / votes['weights'].sum())
-        votes['weights'] = votes['weights'].tolist()
-        c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
+        self.subspace.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+                        weights=votes['weights'], 
+                        key=self.key, 
+                        network='main', 
+                        netuid=self.config.netuid)
 
-
-        try:
-            self.subspace.vote(uids=votes['uids'],
-                            weights=votes['weights'], 
-                            key=self.key, 
-                            network=self.config.network, 
-                            wait_for_inclusion=True,
-                            wait_for_finalization=False,
-                            netuid=self.config.netuid)
-
-            self.save_votes(votes)
-
-        except Exception as e:
-            response =  c.detailed_error(e)
-            c.print(response, color='red')
+        self.save_votes(votes)
 
         return {'success': True, 'message': 'Voted', 'votes': votes }
 
@@ -264,11 +206,12 @@ class Vali(c.Module):
         assert 'uids' in votes, f'Weights must have a uids key, got {votes.keys()}'
         assert 'weights' in votes, f'Weights must have a weights key, got {votes.keys()}'
         assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
+        storage_path = self.resolve_storage_path(network=self.config.network, tag=self.tag)
         self.put(f'votes/{self.config.network}/{self.tag}', votes)
 
     @classmethod
     def tags(cls, network='main', mode='stats'):
-        return list(cls.tag2path(network=network, mode=mode).keys())
+        return list([p.split('/')[-1].split('.')[0] for p in cls.ls()])
 
     @classmethod
     def paths(cls, network='main', mode='stats'):
@@ -287,9 +230,9 @@ class Vali(c.Module):
                 c.mv(path, new_path)
 
     @classmethod
-    def saved_module_paths(cls, network:str='main', tag:str=None):
-        tag = 'base' if tag == None else tag
-        paths = cls.ls(f'stats/{network}/{tag}')
+    def saved_module_paths(cls, network:str='subspace ', tag:str=None):
+        path = cls.resolve_storage_path(network=network, tag=tag)
+        paths = cls.ls(path)
         return paths
 
     @classmethod
@@ -299,41 +242,37 @@ class Vali(c.Module):
         return modules
         
     @classmethod
-    def load_stats(cls,
+    def module_infos(cls,
                      tag=None,
-                      network:str='main', 
+                      network:str='subspace', 
                     batch_size:int=20 , 
-                    max_staleness:int= 2000,
+                    max_staleness:int= 1000000,
                     keys:str=None):
 
         paths = cls.saved_module_paths(network=network, tag=tag)   
+        c.print(f'Loading {len(paths)} module infos', color='cyan')
         jobs = [c.async_get_json(p) for p in paths]
-        module_stats = []
+        module_infos = []
+
+        # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
             results = c.gather(jobs_batch)
-
-
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
                 if s == None:
                     continue
-            
-
                 if 'timestamp' in s:
                     s['staleness'] = c.timestamp() - s['timestamp']
                 else:
                     s['staleness'] = 0
-            
                 if s['staleness'] > max_staleness:
                     continue
-
                 if keys  != None:
                     s = {k: s.get(k,None) for k in keys}
-                module_stats += [s]
-        return module_stats
-
-
-    get_stats = load_stats
+                module_infos += [s]
+        
+        return module_infos
+    
 
     def ls_stats(self):
         paths = self.ls(f'stats/{self.config.network}')
@@ -341,16 +280,16 @@ class Vali(c.Module):
 
     def load_module_info(self, k:str,default=None):
         default = default if default != None else {}
-        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{k}'
         return self.get_json(path, default=default)
 
 
     def get_history(self, k:str, default=None):
-        module_stats = self.load_module_info(k, default=default)
-        return module_stats.get('history', [])
+        module_infos = self.load_module_info(k, default=default)
+        return module_infos.get('history', [])
     
-    def save_module_stats(self,k:str, v):
-        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+    def save_module_info(self,k:str, v):
+        path = self.resolve_storage_path(network=self.config.network, tag=self.tag) + f'/{k}'
         self.put_json(path, v)
 
 
@@ -359,40 +298,65 @@ class Vali(c.Module):
         return int(c.time() - self.last_vote_time)
 
 
-    
-
     def run(self, vote=False):
-        c.sleep(self.config.sleep_time)
+
+
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
-
         c.new_event_loop()
-
         self.running = True
-
         futures = []
+        vote_futures = []
         while self.running:
 
-            if self.sync_staleness > self.config.sync_interval:
-                self.sync()
-            modules = c.shuffle(c.copy(self.modules))
+            if self.last_sync_time + self.config.sync_interval < c.time():
+                c.print(f'Syncing network {self.config.network}', color='cyan') 
+                self.sync_network()
+
+            modules = c.shuffle(c.copy(self.names))
+            c.print(len(modules))
             time_between_interval = c.time()
-            for i, module in enumerate(modules):
-                c.sleep(0.05)
-                self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+            module = c.choice(modules)
 
-                num_tasks = self.executor.num_tasks
+            # c.sleep(self.config.sleep_time)
+            # rocket ship emoji
+            c.print(f'{c.emoji("rocket")} {module} --> me {c.emoji("rocket")}', color='cyan')
+            future = self.executor.submit(fn=self.eval_module, kwargs={'module':module}, return_future=True)
+            futures.append(future)
 
-                if self.count % 10 == 0 and self.count > 0:
-                    stats =  {
-                    'total_modules': self.count,
-                    'lifetime': int(self.lifetime),
-                    'modules_per_second': int(self.modules_per_second()), 
-                    'vote_staleness': self.vote_staleness,
-                    'errors': self.errors,
-                    'vote_interval': self.config.vote_interval,
-                    'epochs': self.epochs,
-                     }
-                    c.print(f'STATS  --> {stats}\n', color='white')
+            if self.vote_staleness > self.config.vote_interval:
+                if not len(vote_futures) > 0 and 'subspace' in self.config.network:
+                    vote_futures = [self.executor.submit(fn=self.vote, kwargs={}, return_future=True, timeout=self.config.vote_timeout)]
+
+            if len(futures) >= self.config.max_futures:
+                try:
+                    for future in c.as_completed(futures, timeout=self.config.timeout):
+
+                        try:
+                            result = future.result()
+                        except Exception as e:
+                            result = {'error': c.detailed_error(e)}
+
+                        futures.remove(future)
+                        self.errors += 1
+                        break
+                except TimeoutError as e:
+                    e = c.print('TimeoutError', color='red')
+
+            
+      
+            if self.count % 10 == 0 and self.count > 0:
+                stats =  {
+                'total_modules': self.count,
+                'lifetime': int(self.lifetime),
+                'modules_per_second': int(self.modules_per_second()), 
+                'vote_staleness': self.vote_staleness,
+                'errors': self.errors,
+                'vote_interval': self.config.vote_interval,
+                'epochs': self.epochs,
+                    }
+                c.print(f'STATS  --> {stats}\n', color='white')
+
+
     @property
     def epochs(self):
         return self.count // self.n
@@ -407,11 +371,10 @@ class Vali(c.Module):
         self.running = False
         
     @classmethod
-    def check_valis(cls, network='main', max_staleness=300, return_all=True):
+    def check_valis(cls, network='main', interval:int = 1, max_staleness:int=300, return_all:bool=True, remote=False):
         # get the up to date vali stats
-        vali_stats = cls.vali_stats(network=network, df=False, return_all=return_all, update=True)
+        vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:
-            c.print(v)
             if 'serving' not in v:
                 continue
             if v['staleness'] > max_staleness:
@@ -425,6 +388,33 @@ class Vali(c.Module):
                     port = int(address.split(':')[-1])
                 c.serve(v['name'], port=port)
 
+            c.print(f'{interval} ', color='green')
+            c.sleep(interval)
+
+            
+
+    check_loop_name = 'vali::check_loop'
+    @classmethod
+    def check_loop(cls, interval=2, remote=True, **kwargs):
+        if remote:
+            kwargs['remote'] = False
+            cls.remote_fn('check_loop', name=cls.check_loop_name, kwargs=kwargs)
+            return {'success': True, 'message': 'Started check_vali_loop'}
+        while True:
+            c.print('Checking valis', color='cyan')
+            c.print(cls.all_stats())
+            cls.check_valis(**kwargs)
+            c.sleep(interval)
+
+    @classmethod
+    def check_loop_running(cls):
+        return c.pm2_exists(cls.check_loop_name)
+
+    @classmethod
+    def ensure_check_loop(self):
+        if self.check_loop_running() == False:
+            self.check_loop(remote=True)
+
     # @classmethod
     # def stake_spread(cls, modulenetwork='main'):
     #     subspace = c.module('subspace')(network=network)
@@ -432,7 +422,7 @@ class Vali(c.Module):
     #     return stake / total_stake
 
     @classmethod
-    def vali_stats(cls,     
+    def stats(cls,     
                     network='main', 
                     df:bool = True,
                     sortby:str=['name'], 
@@ -440,10 +430,11 @@ class Vali(c.Module):
                     cache_path:str = 'vali_stats',
                     return_all:bool=False):
         if return_all:
-            return cls.all_vali_stats(network=network, df=df)
+            return cls.all_stats(network=network, df=df)
         vali_stats = []
         if update == False:
             vali_stats = cls.get(cache_path, default=[])
+
 
         if len(vali_stats) == 0:
             module_path = cls.module_path()
@@ -453,35 +444,35 @@ class Vali(c.Module):
                 v = cls.get(path)
                 name = module_path + "::" +tag
                 vote_info = name2stats.get(name, {})
+
+                if vote_info.get('registered') == None:
+                    continue
                 if 'timestamp' in v:
                     vote_info['name'] = name
                     vote_info['n'] = len(v['uids'])
                     vote_info['timestamp'] = v['timestamp']
-                    vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
-
-                    
+                    vote_info['avg_w'] = sum(v['weights']) / (len(v['uids']) + 1e-8)
                     vali_stats += [vote_info]
             cls.put(cache_path, vali_stats)    
 
+        
         for v in vali_stats:
             v['staleness'] = int(c.time() - v['timestamp'])
+
             del v['timestamp']
 
 
         if df:
             vali_stats = c.df(vali_stats)
             # filter out NaN values for registered modules
-            vali_stats = vali_stats[vali_stats['registered'].notna()]
-            vali_stats.sort_values(sortby, ascending=False, inplace=True)
-
-        
-        
+            # include nans  for registered modules
+            if len(vali_stats) > 0:
+                vali_stats.sort_values(sortby, ascending=False, inplace=True)
+            
         return vali_stats
 
-    vstats = vali_stats
-
     @classmethod
-    def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=True, cache_path:str = 'vali_stats'):
+    def all_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=True, cache_path:str = 'vali_stats'):
         modules = c.modules('vali')
         all_vote_stats = []
         for m in modules:
@@ -489,7 +480,7 @@ class Vali(c.Module):
                 continue 
             try:
                 # WE ONLY WANT TO UPDATE THE STATS IF THE MODULE IS RUNNING
-                m_vote_stats = c.module(m).vali_stats(df=False, network=network, return_all=False, update=update)
+                m_vote_stats = c.module(m).stats(df=False, network=network, return_all=False, update=update)
                 c.print(f'Got vote stats for {m} (n={len(m_vote_stats)})')
                 if len(m_vote_stats) > 0:
                     all_vote_stats += m_vote_stats
@@ -501,11 +492,9 @@ class Vali(c.Module):
         if df == True:
             df =  c.df(all_vote_stats)
             # filter out NaN values for registered modules
-            df = df[df['registered'].notna()]
             df.sort_values(sortby, ascending=False, inplace=True)
             return df
         return all_vote_stats
-
 
     @property
     def lifetime(self):
@@ -521,5 +510,3 @@ class Vali(c.Module):
         kwargs['verbose'] = True
         self = cls(**kwargs )
         return self.run()
-
-

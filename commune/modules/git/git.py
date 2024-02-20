@@ -69,8 +69,21 @@ class Git(c.Module):
             cls.push()
 
     @classmethod
-    def repo_url(cls):
-        return c.cmd('git remote -v',cwd=c.libpath, verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
+    def repo_url(cls, libpath:str = None) -> str:
+        llibpath = cls.resolve_libpath(libpath)
+        return c.cmd('git remote -v',cwd=libpath, verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
     
-        
+    @classmethod
+    def commit_hash(cls, libpath:str = None):
+        llibpath = cls.resolve_libpath(libpath)
+        return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
+    def reset_hard(self, libpath:str = None):
+        libpath = self.resolve_libpath(libpath)
+        return c.cmd('git reset --hard', cwd=libpath, verbose=False)
+    
+    def resolve_libpath(self, libpath:str = None):
+        if libpath == None:
+            libpath = c.libpath
+        return libpath
+    

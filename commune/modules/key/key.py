@@ -78,6 +78,7 @@ class Keypair(c.Module):
                  derive_path: str = None,
                  mnemonic: str = None,
                  path:str = None,
+                 **kwargs
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -164,17 +165,22 @@ class Keypair(c.Module):
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
         
         if cls.key_exists(path) and not refresh :
-            return {'status': 'error', 'message': f'key already exists at {path}'}
+            c.print(f'key already exists at {path}', color='red')
+            return json.loads(cls.get(path))
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        kwargs['mnemonic'] = mnemonic
+        if mnemonic != None:
+            kwargs['mnemonic'] = mnemonic
         key = cls.gen(**kwargs)
         key.path = path
         key_json = key.to_json()
-        
+        c.print(key_json, mnemonic)
         cls.put(path, key_json)
-        
+
         return  json.loads(key_json)
+    
+
+    
     
     @classmethod
     def rename_key(self, new_path):
@@ -252,7 +258,7 @@ class Keypair(c.Module):
         if key_info['path'] == None:
             key_info['path'] = path.replace('.json', '').split('/')[-1]
 
-        cls.add_key(**key_info) /home/endless/commune/data/keys.json
+        cls.add_key(**key_info)
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
 
@@ -288,6 +294,7 @@ class Keypair(c.Module):
         if cls.key_exists(path) == False:
             if create_if_not_exists == True:
                 key = cls.add_key(path, **kwargs)
+                c.print(key)
                 c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
@@ -316,10 +323,10 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def get_keys(cls, prefix=None):
+    def get_keys(cls, search=None):
         keys = {}
         for key in cls.keys():
-            if str(key).startswith(str(prefix)) or prefix == None:
+            if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
                     keys.pop(key)
@@ -333,14 +340,27 @@ class Keypair(c.Module):
     def key2address(cls, prefix=None):
         key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
         return key2address
+    
     @classmethod
-    def address2key(cls, prefix:Optional[str]=None):
+    def address2key(cls, search:Optional[str]=None, update=False):
+        path = "address2key"
+
+        if not update:
+            address2key = cls.get(path, None)
+            if address2key != None:
+                return address2key
+
         address2key =  { v: k for k,v in cls.key2address().items()}
-        if prefix in address2key:
-            return address2key[prefix]
+        if search in address2key:
+            return address2key[search]
+        else:
+            if search != None:
+                address2key =  {k:v for k,v in address2key.items() if  search in v}
+        
+        cls.put(path, address2key)
+
         return address2key
     
-
     @classmethod
     def get_address(cls, key):
         return cls.key2address()[key]
@@ -479,7 +499,8 @@ class Keypair(c.Module):
     def gen(cls, 
             mnemonic:str = None,
             suri:str = None, 
-            private_key:str = None,
+            password : str = None,
+            private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
             json: bool = False,
             verbose:bool=False,
@@ -491,6 +512,7 @@ class Keypair(c.Module):
 
         if mnemonic == None:
             mnemonic = cls.generate_mnemonic()
+
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
 
@@ -505,9 +527,11 @@ class Keypair(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-        
+
         if json:
             return key.to_json()
+
+    
         
         return key
     
@@ -660,6 +684,7 @@ class Keypair(c.Module):
         Keypair
         """
 
+
         if type(seed_hex) is str:
             seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
 
@@ -682,10 +707,12 @@ class Keypair(c.Module):
             return kwargs 
         else:
             return cls(**kwargs)
-
+    @classmethod
+    def from_password(cls, password:str, **kwargs):
+        return cls.create_from_uri(password, **kwargs)
 
     @classmethod
-    def create_from_uri(
+    def from_uri(
             cls, 
             suri: str, 
             ss58_format: Optional[int] = 42, 
@@ -707,6 +734,7 @@ class Keypair(c.Module):
         Keypair
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
+        suri = str(suri)
         if not suri.startswith('//'):
             suri = '//' + suri
 
@@ -767,7 +795,8 @@ class Keypair(c.Module):
                 derived_keypair = Keypair(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
 
         return derived_keypair
-
+    create_from_uri = from_uri
+    from_mnem = from_mnemonic = create_from_mnemonic
     @classmethod
     def create_from_private_key(
             cls, private_key: Union[bytes, str], public_key: Union[bytes, str] = None, ss58_address: str = None,
@@ -792,6 +821,8 @@ class Keypair(c.Module):
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type
         )
+    from_private_key = create_from_private_key
+
 
     @classmethod
     def create_from_encrypted_json(cls, json_data: Union[str, dict], passphrase: str,
@@ -1010,7 +1041,12 @@ class Keypair(c.Module):
     
     
     def encrypt(self, data: Union[str, bytes], password: str = None, **kwargs) -> bytes:
-        return self.aes_key.encrypt(data, **kwargs)
+        if password != None:
+            aes_key = Keypair.from_password(password).aes_key
+        else:
+            aes_key = self.aes_key
+        
+        return aes_key.encrypt(data, **kwargs)
 
     def decrypt(self, data: Union[str, bytes]) -> bytes:
         return self.aes_key.decrypt(data)
@@ -1096,8 +1132,10 @@ class Keypair(c.Module):
 
     def test_signing(self):
         sig = self.sign('test')
+        c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
+        
 
     def test_encryption(self):
         for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
@@ -1130,6 +1168,18 @@ class Keypair(c.Module):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
     mems_path = c.repo_path + '/data/keymems.json'
+
+    def save(self, path=None):
+        if path == None:
+            path = self.path
+        c.print(f'saving key to {path}')
+        c.put_json(path, self.to_json())
+        return {'saved':path}
+    
+    def diplicate(self, new_path):
+        c.print(f'copying key from {self.path} to {new_path}')
+        c.cp(self.path, new_path)
+        return {'copied':new_path}
     
     @classmethod
     def savemems(cls, path=mems_path):
@@ -1234,7 +1284,7 @@ class Keypair(c.Module):
 
         
     @staticmethod
-    def is_valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
+    def valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1246,7 +1296,7 @@ class Keypair(c.Module):
         """
 
         try:
-            return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
+            return ss58.valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
         except Exception as e:
             return False
 
@@ -1257,7 +1307,7 @@ class Keypair(c.Module):
 
 
     @classmethod
-    def is_valid_ss58_address(cls, address: str ) -> bool:
+    def valid_ss58_address(cls, address: str ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
 
@@ -1322,12 +1372,13 @@ class Keypair(c.Module):
                 return cls.is_valid_ed25519_pubkey( address )
             else:
                 # Assume ss58 address
-                return cls.is_valid_ss58_address( address )
+                return cls.valid_ss58_address( address )
         elif isinstance( address, bytes ):
             # Check if ed25519
             return cls.is_valid_ed25519_pubkey( address )
         else:
             # Invalid address type
             return False
+
 
 

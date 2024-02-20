@@ -1,14 +1,13 @@
 import commune as c
 
 class DataFolder(c.Module):
-    def __init__(self, **kwargs):
-        config = self.set_config(kwargs=kwargs)
+    def __init__(self, folder_path: str = './', suffix: str = '.py'):
+        config = self.set_config(kwargs=locals())
         self.folder_path = self.resolve_path(config.folder_path)
         self.filepaths = sorted([f for f in self.walk(self.folder_path) if f.endswith('.py')])
 
     def random_idx(self):
         return self.random_int(0, len(self.filepaths)-1)
-
     
     def sample(self, idx=None, 
                input_chars:int = 500,
@@ -61,12 +60,15 @@ class DataFolder(c.Module):
 
 
     def test(self, n=100):
-        t = c.time()
-        for i in range(n):
-            sample = self.sample()
-            msg = {'samples_per_second': i / (c.time() - t)}
-            c.print(msg)
-            
+        sample = self.sample()
+        msg = {'samples_per_second': i / (c.time() - t)}
+        c.print(msg)
+
+    @classmethod
+    def validate(cls, *objs):
+        v = objs[0]
+
+
 
 
     prompt = '''

@@ -2,11 +2,7 @@ uvicorn
 fastapi
 substrate-interface
 torch
-datasets
-transformers
-diffusers
 safetensors
-accelerate
 #visual tools
 streamlit
 plotly
@@ -17,10 +13,8 @@ msgpack_numpy
 retry
 psutil
 munch
-ansible
 grpcio
 grpcio-tools
-openai
 scipy
 loguru
 rich
@@ -28,7 +22,24 @@ aiofiles
 aiohttp
 nest_asyncio
 
+
+# scraping
+# beautifulsoup4
+# httplib2
+# urllib3
 # ray
 # ray[default]
 # ray[tune]
-#logging
+# logging
+# ansible
+# Module for text2speech
+# fairseq2
+# huggingface_hub
+# torchaudio
+# datasets
+# transformers
+# diffusers
+# accelerate
+# openai
+# Module for captcha
+# capmonstercloudclient

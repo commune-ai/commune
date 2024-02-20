@@ -49,16 +49,12 @@ class CustomHTTPProvider(HTTPProvider):
                 "http://",
                 HTTPAdapter(pool_connections=25, pool_maxsize=25, pool_block=True),
             )
-            session.mount(
-                "https://",
-                HTTPAdapter(pool_connections=25, pool_maxsize=25, pool_block=True),
-            )
             self._session_cache[cache_key] = session
         return self._session_cache[cache_key]
 
 
-    def make_post_request(self, endpoint_uri, data, *args, **kwargs):
-        kwargs.setdefault("timeout", 10)
+    def make_post_request(self, endpoint_uri, data, *args, timeout:int=10, **kwargs):
+        kwargs.setdefault("timeout", timeout)
         session = self._get_session(endpoint_uri)
         response = session.post(endpoint_uri, data=data, *args, **kwargs)
         response.raise_for_status()
@@ -66,15 +62,12 @@ class CustomHTTPProvider(HTTPProvider):
         return response.content
 
 
-
-
-
 class EVMNetwork(c.Module):
     
 
-    def __init__(self, config=None, **kwargs):
-        self.set_config(config=config, kwargs=kwargs)
-        self.set_network(self.config.network)
+    def __init__(self, network:str = 'local.main'):
+        self.set_config(kwargs=locals())
+        self.set_network(network)
 
     @property
     def network(self):
@@ -87,7 +80,7 @@ class EVMNetwork(c.Module):
 
     @network.setter
     def network(self, network):
-        assert network in self.available_networks
+        assert network in self.networks, f'{network} is not here fam'
         self.config['network'] = network
 
     def set_network(self, network:str='local.main.ganache') -> 'Web3':
@@ -101,13 +94,10 @@ class EVMNetwork(c.Module):
 
     @property
     def networks_config(self):
-        return self.config['networks']
+        return c.load_yaml(self.dirpath() + '/networks.yaml')
 
     @property
     def networks(self):
-        return self.get_networks()
-
-    def get_networks(self):
         return list(self.networks_config.keys())
 
     @property
@@ -115,13 +105,7 @@ class EVMNetwork(c.Module):
         return self.get_available_networks()
 
 
-    def get_available_networks(self):
-        networks_config = self.networks_config
-        subnetworks = []
-        for network in self.networks:
-            for subnetwork in networks_config[network].keys():
-                subnetworks.append('.'.join([network,subnetwork]))
-        return subnetworks
+
     def get_url_options(self, network:str ) -> List[str]:
         assert len(network.split('.')) == 2
         network, subnetwork = network.split('.')
@@ -178,7 +162,7 @@ class EVMNetwork(c.Module):
             raise AssertionError(msg)
         
     @classmethod
-    def test_url(cls, url:str)
+    def test_url(cls, url:str):
         # Setup
         from web3 import Web3
 

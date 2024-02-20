@@ -10,7 +10,7 @@ timeout: 2
 tag: base
 run: True
 num_threads: 50
-module_prefix: model.openai
+search: model.openai
 parallel_jobs: 10
 start: True
 voting_interval: 50

@@ -11,6 +11,15 @@ import aiohttp
 import json
 
 
+from aiohttp.streams import StreamReader
+
+# Define a custom StreamReader with a higher limit
+class CustomStreamReader(StreamReader):
+    def __init__(self, *args, **kwargs):
+        # You can adjust the limit here to a value that fits your needs
+        # This example sets it to 1MB
+        super().__init__(*args, limit=1024*1024, **kwargs)
+
 
 class Client(c.Module):
 
@@ -58,15 +67,16 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'},
-         **extra_kwargs):
+        headers : dict ={'Content-Type': 'application/json'}):
 
         self.resolve_client(ip=ip, port=port)
 
         args = args if args else []
         kwargs = kwargs if kwargs else {}
 
+
         url = f"http://{self.address}/{fn}/"
+
 
         request_data =  { 
                         "args": args,
@@ -74,7 +84,7 @@ class Client(c.Module):
                         "ip": self.my_ip,
                         "timestamp": c.timestamp(),
                         }
-        
+
         # serialize this into a json string
         request_data = self.serializer.serialize( request_data)
 
@@ -82,6 +92,8 @@ class Client(c.Module):
         request = self.key.sign(request_data, return_json=True)
 
         result = '{}'
+
+
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
@@ -90,27 +102,40 @@ class Client(c.Module):
                     result = ''
                     async for line in response.content:
                         # remove the "data: " prefix
-                        event_data = line.decode('utf-8').strip()[len('HEYFBI'):]
-                        result += event_data
-                    result = json.loads(result)
+                        event_data = line.decode('utf-8').strip().replace("data: {", "{")
+                        if event_data == "":
+                            continue
+                        if isinstance(event_data, str):
+                            result += event_data
+
+                        
+                    result = self.process_output(json.loads(result))
+                    
+
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
+                    result = self.process_output(result)
                 elif response.content_type == 'text/plain':
                     # result = await asyncio.wait_for(response.text, timeout=timeout)
-                    c.print(response.text)
                     result = json.loads(result)
+                    result = self.process_output(result)
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
-        result = self.process_output(result)
         
+
         return result
+
 
     def process_output(self, result):
         ## handles 
-        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
-        result = self.serializer.deserialize(result['data'])['data']
-        return result 
+        if isinstance(result, str):
+            result = json.loads(result)
+        if 'data' in result:
+            result = self.serializer.deserialize(result['data'])
+            return result['data']
+        else:
+            return result
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)
@@ -118,6 +143,7 @@ class Client(c.Module):
             return forward_future
         else:
             return self.loop.run_until_complete(forward_future)
+        
         
     __call__ = forward
 

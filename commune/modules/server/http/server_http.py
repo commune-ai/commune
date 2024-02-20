@@ -15,18 +15,35 @@ class ServerHTTP(c.Module):
         name: str = None,
         network:str = 'local',
         port: Optional[int] = None,
-        sse: bool = True,
+        sse: bool = False,
         chunk_size: int = 42_000,
-        max_request_staleness: int = 60) -> 'Server':
+        max_request_staleness: int = 60, 
+        max_workers: int = None,
+        mode:str = 'thread',
+        verbose: bool = False,
+        timeout: int = 256,
+        access_module: str = 'server.access',
+        public: bool = False,
+        ) -> 'Server':
         
-        self.sse = sse
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
-        self.port = c.resolve_port(port)
+        self.port = int(port) if port != None else c.free_port()
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
         self.network = network
+        self.verbose = verbose
+
+        # executro 
+        self.sse = sse
+        if self.sse == False:
+            if max_workers != None:
+                self.max_workers = max_workers
+                self.mode = mode
+                self.executor = c.executor(max_workers=max_workers, mode=mode)
+        self.timeout = timeout
+        self.public = public
 
         if name == None:
             if hasattr(module, 'server_name'):
@@ -34,16 +51,22 @@ class ServerHTTP(c.Module):
             else:
                 name = module.__class__.__name__
         
-
         self.module = module 
-        c.print(self.module, type(self.module), module.key)
         self.key = module.key      
         # register the server
         self.name = name
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+
+        if not hasattr(module, 'access_module'):
+            self.access_module = c.module(access_module)(module=module)
+        else:
+            self.access_module = module.access_module
+
         self.set_api(ip=self.ip, port=self.port)
+
+
 
     def set_api(self, ip = None, port = None):
         ip = self.ip if ip == None else ip
@@ -73,21 +96,25 @@ class ServerHTTP(c.Module):
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
                 
-                result = self.forward(fn=fn, args=args, kwargs=kwargs)
+                input_kwargs = dict(fn=fn, args=args, kwargs=kwargs)
+                fn_name = f"{self.name}::{fn}"
+                c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+
+                result = self.forward(**input_kwargs)
+                # if the result is a future, we need to wait for it to finish
+                if isinstance(result, dict) and 'error' in result:
+                    success = False 
                 success = True
-
             except Exception as e:
-                result = c.detailed_error(e)
                 success = False
-
-            result = self.process_result(result)
+                result = c.detailed_error(e)
 
             if success:
-                c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:5]}... ✅\033 ')
+                c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
             else:
-                c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:5]}... 🚨\033')
-                c.print(result)
-
+                c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
+            result = self.process_result(result)
+            c.print(result)
             return result
         
         self.serve()
@@ -114,17 +141,15 @@ class ServerHTTP(c.Module):
         assert 'data' in input, f"Data not included"
         assert 'signature' in input, f"Data not signed"
         # you can verify the input with the server key class
-        assert self.key.verify(input), f"Data not signed with correct key"
-        # deserialize the data
+        if not self.public:
+            assert self.key.verify(input), f"Data not signed with correct key"
         input['data'] = self.serializer.deserialize(input['data'])
         # here we want to verify the data is signed with the correct key
         request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
-
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
-        # verify the input with the access module
-        input = self.module.access_module.verify(input)
+        self.access_module.verify(input)
 
         return input
 
@@ -136,7 +161,7 @@ class ServerHTTP(c.Module):
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:
-            # if we are not
+            # if we are not using sse, then we can do this with json
             if c.is_generator(result):
                 result = list(result)
             result = self.serializer.serialize({'data': result})
@@ -171,7 +196,7 @@ class ServerHTTP(c.Module):
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
             c.register_server(name=self.name, address = self.address, network=self.network)
-            c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
+            c.print(f'\033🚀 Registered {self.name} --> {self.ip}:{self.port} 🚀\033')
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:
             c.print(e, color='red')
@@ -190,9 +215,15 @@ class ServerHTTP(c.Module):
             response = obj(*args, **kwargs)
         else:
             response = obj
+
         return response
 
 
     def __del__(self):
         c.deregister_server(self.name)
+
+
+
+    def test(self):
+        c.serve('storage')
 
