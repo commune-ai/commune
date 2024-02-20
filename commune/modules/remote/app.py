@@ -157,7 +157,7 @@ class App(c.Module):
 
         with st.expander(f'Hosts (n={n})', expanded=False):
             host_names = st.multiselect('Host', host_names, host_names)
-        host_map = {k:host_map[k] for k in host_names}
+        self.host_map = {k:host_map[k] for k in host_names}
         self.host2ssh = self.remote.host2ssh(host_map=host_map)
 
 
@@ -185,7 +185,7 @@ class App(c.Module):
         
     
     def ssh_dashboard(self):
-        host_map = self.remote.hosts()
+        host_map = self.host_map
         host_names = list(host_map.keys())
 
            
@@ -201,7 +201,6 @@ class App(c.Module):
                 cwd = None
             for i in range(2):
                 cols[2].write('\n')
-            filter_bool = cols[2].checkbox('Filter', False)
 
             st.write('Print Formatting')
             expanded = True
@@ -271,7 +270,7 @@ class App(c.Module):
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
             
-            failed_hosts2ssh = {h:self.remote.host2ssh[h] for h in failed_hosts}
+            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
             with st.expander('Failed Hosts', expanded=False):
                 for host, ssh in failed_hosts2ssh.items():
                     st.write(host)
