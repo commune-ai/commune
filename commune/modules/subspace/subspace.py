@@ -1532,7 +1532,8 @@ class Subspace(c.Module):
                 modules.append(module)
             self.put(path, modules)
 
-
+        if 'stake_from' in features and 'stake' not in features:
+            features += ['stake']
         for i, module in enumerate(modules):
             modules[i] = self.format_module(modules[i], fmt=fmt, features=features)
         if search != None:
