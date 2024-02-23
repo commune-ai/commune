@@ -88,7 +88,7 @@ class ServerHTTP(c.Module):
                 address: the address of the caller
 
             signature: the signature of the request
-
+   
         """
         user_info = None
         try:
