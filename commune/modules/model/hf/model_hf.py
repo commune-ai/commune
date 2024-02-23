@@ -26,49 +26,18 @@ class ModelTransformer(Model):
                  load: bool = False,  # Assuming load is a boolean
                  quantize: str = None,
                  test:bool = True): # OPTIONS = ['int4', 'int8', None]
-        '''
-        ### Documentation for `__init__` Function
-        
-        #### Description:
-        The `__init__` function initializes an object instance with specified configurations and settings for the model.
-        
-        #### Parameters:
-        - `model` (str, default 'llama2.7b'): A string identifier for the model to be used.
-        - `tag` (str, default 'base'): The tag corresponding to the model.
-        - `device` (str, optional): The device on which the model should run. If `
-        '''
 
         # Here you would initial
         config = self.set_config(kwargs=locals())
         self.init_model()
         self.set_model(config)
 
-    
-    
     def forward(self,  
                 input_ids: Union[str, torch.Tensor], 
                 output_hidden_states: bool = False,
                 topk:int=None,
                 hidden_layer: int = -1, # -1 is the last hidden layer                     
                 **kwargs):
-        '''
-        ## Documentation
-        
-        ### Function: forward
-        ```python
-        def forward(self,  
-                    input_ids: Union[str, torch.Tensor], 
-                    output_hidden_states: bool = False,
-                    output_topk: bool = False,
-                    topk:int=None,
-                    hidden_layer: int = -1, # -1 is the last hidden layer
-                    max_length : int = 256,                        
-                    **kwargs):
-        ```
-        
-        #### Description
-        Executes a forward pass on the provided input_ids using the
-        '''
 
         sample = {}
         is_string =  isinstance(input_ids, str) or \
@@ -154,17 +123,13 @@ class ModelTransformer(Model):
         if config.quantize != None:
             c.ensure_lib('bitsandbytes')
             c.ensure_lib('scipy')
-
-
         if str(config.quantize) in ['int4', '4', '4bit']:
             config['load_in_4bit'] = True
         if str(config.quantize) in ['int8', '8', '8bit']:
             config['load_in_8bit'] = True
-
         else:
             config['load_in_4bit'] = False
             config['load_in_8bit'] = False
-
 
         # infer the device map
         if config.device_map == None:  
@@ -181,25 +146,15 @@ class ModelTransformer(Model):
 
         }
 
-
-        t = c.time()
-
-        c.print(f'LAUNCH PARAMS for {config.model} -> ',kwargs)
-
-
         self.model = AutoModelForCausalLM.from_pretrained(config.model,**kwargs) 
-
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
-        self.device = config.device = self.devices[0]
-        time_taken = c.time() - t       
+        self.device = config.device = self.devices[0]   
         self.set_optimizer(**config.optimizer)
 
-        c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
 
         self.set_tokenizer(config.model)
-        c.print('Tokenizer SET -> ', config.model)
 
 
         if config.test:

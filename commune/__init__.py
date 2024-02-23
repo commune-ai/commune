@@ -1,15 +1,13 @@
-import warnings
-
 
 from .module import Module
-# call it whatever you want, but it's the same thing
 Block = Lego = Module
+
+# call it whatever you want, but it's the same thing
 from .module.config import Config
+config = Config
 from .modules.cli import cli
 # from .modules.subspace import subspace
 # from .model import Model
-config = Config
-
 
 # set the module functions as globals
 for k,v in Module.__dict__.items():

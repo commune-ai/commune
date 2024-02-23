@@ -232,6 +232,16 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         return cls.get_module_path(simple=False)
+    
+
+    @classmethod
+    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/main/'):
+        
+        filepath = cls.filepath().replace(c.modules_path, '')
+        
+        return root + filepath
+
+
     pythonpath = pypath =  filepath
 
     @classmethod
@@ -280,11 +290,11 @@ class c:
     def class_name(cls, obj= None) -> str:
         obj = obj if obj != None else cls
         return obj.__name__
+    @classmethod
     def get_class_name(cls, obj = None) -> str:
         obj = obj if obj != None else cls
         if not cls.is_class(obj):
             obj = type(obj)
-        
         return obj.__name__
     
 
@@ -504,14 +514,7 @@ class c:
         return text.startswith(prefix)
 
     @classmethod
-    def put(cls, 
-            k, 
-            v, 
-            mode: bool = 'json',
-            key : str = None,
-            encrypt: bool = False,
-            verbose: bool = False
-            ):
+    def put(cls, k: str, v: Any,  mode: bool = 'json', key : str = None,encrypt: bool = False, verbose: bool = False):
         '''
         Puts a value in the config
         '''
@@ -520,6 +523,7 @@ class c:
             data = c.encrypt(v, key=key, return_dict=True)
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
+        
         # default json 
         getattr(cls,f'put_{mode}')(k, data)
 
@@ -1964,6 +1968,7 @@ class c:
     def timer(cls, *args, **kwargs):
         from commune.utils.time import Timer
         return Timer(*args, **kwargs)
+    
 
     @classmethod
     def timefn(cls, fn, *args, trials=1, **kwargs):
@@ -3109,10 +3114,16 @@ class c:
              namespace:bool = True,
              commit_hash:bool = True,
              hardware : bool = True,
+             update: bool = False,
+             max_age:int = 100,
              ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
         '''
+        if c.exists('info'):
+            info = c.get('info', default=None, max_age=max_age)
+            if info != None:
+                return info
         
         fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
@@ -3142,6 +3153,9 @@ class c:
             info['namespace'] = c.namespace(network='local')
         if commit_hash:
             info['commit_hash'] = c.commit_hash()
+
+        if update:
+            c.set('info', info)
         return info
         
     help = info
@@ -3460,7 +3474,7 @@ class c:
             if isinstance(module, str) and  '::' in module:
                 module, tag = module.split('::')
             name = cls.resolve_server_name(module=module, tag=tag)
-
+        
             if c.server_exists(name, network='local') and refresh == False:
                 c.print(f'Server already Exists ({name})')
                 address = c.get_address(name)
@@ -3475,7 +3489,7 @@ class c:
                 
                 name = serve_info['name']
                 address = serve_info['address']
-                module_key = c.get_key(name).ss58_address
+                module_key = c.get_key_address(name).ss58_address
 
         response =  subspace.register(name=name,
                                       address=address, 
@@ -3740,7 +3754,8 @@ class c:
         '''
         Wraps a python class as a module
         '''
-    
+
+        
         module_class =  c.get_module(module,**kwargs)
         
         return module_class
@@ -4791,10 +4806,19 @@ class c:
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
     
+    
+    @classmethod
+    def key_addresses(cls,*args, **kwargs ):
+        return list(c.module('key').address2key(*args, **kwargs ).keys())
+    
+
     @classmethod
     def get_key_for_address(cls, address:str):
          return c.module('key').get_key_for_address(address)
 
+    @classmethod
+    def get_key_address(cls, key):
+        return c.get_key(key).ss58_address
 
     @classmethod
     def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
@@ -4969,12 +4993,15 @@ class c:
         return type(x).__name__
                 
     @classmethod  
-    def keys(cls, search = None, *args, **kwargs):
+    def keys(cls, search = None, ss58=False,*args, **kwargs):
         if search == None:
             search = cls.module_path()
             if search == 'module':
                 search = None
-        return c.module('key').keys(search, *args, **kwargs)
+        keys = c.module('key').keys(search, *args, **kwargs)
+        if ss58:
+            keys = [c.get_key_address(k) for k in keys]
+        return keys
 
     @classmethod  
     def get_mem(cls, *args, **kwargs):
@@ -7924,7 +7951,6 @@ class c:
         return c.module('subspace')().n(*args, **kwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
-        t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
 
     @classmethod
@@ -8243,7 +8269,7 @@ class c:
             tag = str(tag)
             name = fn_name + tag_seperator + tag
         else:
-            name = fn_name + tag_seperator
+            name = fn_name
         cnt = 0
         while name in cls.thread_map:
             cnt += 1
@@ -8258,14 +8284,15 @@ class c:
     @classmethod
     def join_threads(cls, threads:[str, list]):
 
-        threads = self.thread_map
+        threads = cls.thread_map
         for t in threads.values():
             # throw error if thread is not in thread_map
             t.join()
+        return {'success': True, 'msg': 'all threads joined', 'threads': threads}
 
     @classmethod
     def threads(cls, *args, **kwargs):
-        return list(cls.thread_map(*args, **kwargs).keys())
+        return list(cls.thread_map.keys())
 
 
     @classmethod
@@ -8374,110 +8401,16 @@ class c:
 
     @classmethod
     def emoji(cls,  name:str):
-        emojis = []
-        for k,v in c.emojis.items():
-            if name in k:
-                emojis += [v]
-   
-        return c.choice(emojis)
-        
-    emojis = {'dank': '🔥',
-            'error': '💥',
-            'white': '🕊️',
-            'cool': '😎',
-            'success': '✨',
-            'sad': '😢',
-            'time': '🕒',
-            'count': '🔢',
-            'output': '📤',
-            'input': '📥',
-            'party': '🥳',
-            'fireworks': '🎆',
-            'explosion': '💣',
-            'alien': '👽',
-            'rocket': '🚀',
-            'money': '💰',
-            'victory': '✌️',
-            'unicorn': '🦄',
-            'rainbow': '🌈',
-            'music': '🎵',
-            'pizza': '🍕',
-            'taco': '🌮',
-            'sunglasses': '😎',
-            'flame': '🔥',
-            'diamond': '💎',
-            'savage': '😈',
-            'laughing': '😂',
-            'ninja': '🥷',
-            'skull': '💀',
-            'thumbs_up': '👍',
-            'thumbs_down': '👎',
-            'crown': '👑',
-            'cyber_eye': '👁️‍🗨️',
-            'data_stream': '🌐', 
-            'brain': '🧠',
-            'robot': '🤖',
-            'lightning': '⚡',
-            'heart': '❤️',
-            'heartbreak': '💔',
-            'heartpulse': '💗',
-            'green_heart': '💚',
-            'blue_heart': '💙',
-            'purple_heart': '💜',
-            'yellow_heart': '💛',
-            'orange_heart': '🧡',
-            'error': '💥',
-            'cross': '❌',
-            'check': '✅',
-            'wrong': '❌',
-            'right': '✅',
-            'correct': '✅',
-            'incorrect': '❌',
-            'checkmark': '✅',
-            'check_mark': '✅',
-            'checkered_flag': '🏁',
-            'warning': '⚠️',
-            'warning_sign': f'⚠️',
-            'question': '❓',
-            'happy': '😀',
-            'sad': '😢',
-            'angry': '😠',
-            'angry_face': '😠',
-            'angry_face_with_horns': '👿',
-            'devil': '😈',
-            'red_circle': '🔴',
-            'green_circle': '🟢',
-            'blue_circle': '🔵',
-            'yellow_circle': '🟡',
-            'orange_circle': '🟠',
-            'purple_circle': '🟣',
-            'black_circle': '⚫',
-            'white_circle': '⚪',
-            'brown_circle': '🟤',
-            'red_square': '🟥',
-            'green_square': '🟩',
-            'blue_square': '🟦',
-            'yellow_square': '🟨',
-            'orange_square': '🟧',
-            'purple_square': '🟪',
-            'black_square': '⬛',
-            'white_square': '⬜',
-            'brown_square': '🟫',
-
-            
-    }
+        return c.module('emoji').emoji(name)
 
 
-    @classmethod
-    def git_path(cls):
-        file_path = cls.dirpath()
-    
     
     
     @staticmethod
     def tqdm(*args, **kwargs):
         from tqdm import tqdm
         return tqdm(*args, **kwargs)
+    progress = tqdm
     
     # PEER LAND
     @classmethod
@@ -8917,6 +8850,7 @@ class c:
     
     ########
     
+
     @classmethod
     def plot_dashboard(cls, df, key='dashboard', x='name', y='emission', select_columns=True):
         import plotly.express as px
@@ -9059,7 +8993,6 @@ class c:
     def host2ssh(cls, *args, **kwarg):
         return c.module('remote').host2ssh(*args, **kwarg)
         
-
 
 
         

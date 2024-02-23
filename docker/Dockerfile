@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.0.0-devel-ubuntu22.04
+FROM ubuntu:22.04
 WORKDIR /commune
 RUN rm -f /etc/apt/sources.list.d/*.list
 ARG DEBIAN_FRONTEND=noninteractive
@@ -13,7 +13,7 @@ COPY ./requirements.txt /commune/requirements.txt
 COPY ./setup.py /commune/setup.py
 COPY ./README.md /commune/README.md
 COPY ./bin /commune/bin
-RUN pip3 install -e .
+RUN pip install -e ./
 # INTSALL NPM PACKAGES
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2
