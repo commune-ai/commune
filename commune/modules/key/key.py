@@ -67,6 +67,7 @@ class MnemonicLanguageCode:
 
 
 class Keypair(c.Module):
+    mems_path = c.repo_path + '/data/keymems.json'
     keys_path = c.data_path + '/keys.json'
     def __init__(self, 
                  ss58_address: str = None, 
@@ -95,7 +96,12 @@ class Keypair(c.Module):
         """
 
         # If no arguments are provided, generate a random keypair
-        if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
+        if ss58_address == None \
+            and public_key == None \
+            and private_key == None \
+            and seed_hex == None \
+            and mnemonic == None:
+
             key = self.gen()
             seed_hex = key.__dict__.get('seed_hex', seed_hex)
             private_key = key.__dict__.get('private_key', private_key)
@@ -119,7 +125,11 @@ class Keypair(c.Module):
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
 
+
+    
+
         if private_key:
+
             if type(private_key) == str:
                 private_key = c.str2bytes(private_key)
 
@@ -264,23 +274,50 @@ class Keypair(c.Module):
 
     @classmethod
     def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
-        c.print(f'loading keys from {path}', color='green', verbose=verbose)
-        key_info_map = c.get_json(path)
-        for key_path ,key_info in key_info_map.items():
-            cls.add_key( **key_info,refresh=refresh)
-            c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
-            if key_info['path'] == None:
-                key_info['path'] = key_path 
-            assert cls.get_key(key_info['path']).mnemonic == key_info['mnemonic'], f'mnemonic does not match for key {key_info["path"]}'
-        keys = list(key_info_map.keys())
-        return {'status': 'success', 'message': f'keys loaded from {path}', 'keys': keys}
+        return cls.load_mems(path, verbose=verbose, refresh=refresh, **kwargs)
+
 
     @classmethod
-    def save_keys(cls, search=None, path=keys_path, verbose:bool = False,  **kwargs):
-        key_info_map = cls.key_info_map(search)
-        cls.put_json(path, key_info_map)
-        return {'status': 'success', 'message': f'keys saved to {path}'}
+    def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
+
+        return cls.save_mems(path, verbose=verbose, **kwargs)
         
+
+    @classmethod
+    def save_keys(cls, path=mems_path):
+        c.print(f'saving mems to {path}')
+        mems = cls.mems()
+        c.put_json(path, mems)
+        return {'saved_mems':list(mems.keys()), 'path':path}
+    
+    savemems = savekeys = save_keys 
+
+    @classmethod
+    def load_keys(cls, path=mems_path, refresh=False, **kwargs):
+        mems = c.load_json(path)
+        for k,mem in mems.items():
+            try:
+                cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
+            except Exception as e:
+                c.print(f'failed to load mem {k} due to {e}', color='red')
+        return {'loaded_mems':list(mems.keys()), 'path':path}
+    loadkeys = loadmems = load_keys
+    
+
+    @classmethod
+    def mems(cls, search=None):
+        mems = {}
+        for key in cls.keys():
+            try:
+                mems[key] = cls.getmem(key)
+            except Exception as e:
+                c.print(f'failed to get mem for {key} due to {e}', color='red')
+            
+
+        if search:
+            mems = {k:v for k,v in mems.items() if search in k or search in v}
+        return mems
+
     
 
     @classmethod
@@ -551,7 +588,8 @@ class Keypair(c.Module):
                 state_dict[k] = v.hex() 
                 if password != None:
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
-        state_dict['ss58_address'] = self.ss58_address
+        if '_ss58_address' in state_dict:
+            state_dict['ss58_address'] = state_dict.pop('_ss58_address')
         state_dict = json.dumps(state_dict)
         
         return state_dict
@@ -562,10 +600,12 @@ class Keypair(c.Module):
             obj = json.loads(obj)
         if obj == None:
            return None 
+        
         for k,v in obj.items():
             if c.is_encrypted(obj[k]) and password != None:
                 obj[k] = cls.decrypt(data=obj[k], password=password)
-            
+        if 'ss58_address' in obj:
+            obj['_ss58_address'] = obj.pop('ss58_address')
         return  cls(**obj)
     
     @classmethod
@@ -1307,41 +1347,6 @@ class Keypair(c.Module):
         return {'copied':new_path}
     
     
-    mems_path = c.repo_path + '/data/keymems.json'
-
-    @classmethod
-    def savemems(cls, path=mems_path):
-        c.print(f'saving mems to {path}')
-        mems = cls.mems()
-        c.put_json(path, mems)
-        return {'saved_mems':list(mems.keys()), 'path':path}
-    
-
-
-
-    @classmethod
-    def loadmems(cls, path=mems_path, refresh=False, **kwargs):
-        mems = c.load_json(path)
-        for k,mem in mems.items():
-            try:
-                cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
-            except Exception as e:
-                c.print(f'failed to load mem {k} due to {e}', color='red')
-        return {'loaded_mems':list(mems.keys()), 'path':path}
-
-    @classmethod
-    def mems(cls, search=None):
-        mems = {}
-        for key in cls.keys():
-            try:
-                mems[key] = cls.getmem(key)
-            except Exception as e:
-                c.print(f'failed to get mem for {key} due to {e}', color='red')
-            
-
-        if search:
-            mems = {k:v for k,v in mems.items() if search in k or search in v}
-        return mems
 
     def __repr__(self):
         return self.__str__()
