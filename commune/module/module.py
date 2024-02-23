@@ -3840,9 +3840,11 @@ class c:
         
     # JUPYTER NOTEBOOKS
     @classmethod
-    def jupyter(cls):
+    def enable_jupyter(cls):
         cls.nest_asyncio()
-    enable_jupyter = jupyter
+    
+    jupyter = enable_jupyter
+    
         
     @classmethod
     def int_to_ip(cls, *args, **kwargs):
@@ -5031,22 +5033,15 @@ class c:
         return c.module('key').add_key(key, *args, **kwargs)
     
     @classmethod
-    def loadmems(self, *args, **kwargs):
-        return c.module('key').loadmems(*args, **kwargs)
-
-    def savemems(self, *args, **kwargs):
-        return c.module('key').savemems(*args, **kwargs)
-    
-    
-    @classmethod
     def save_keys(cls, *args,  **kwargs):
-        c.print('saving keys')
         return c.module('key').save_keys(*args, **kwargs)
+    savemems = savekeys = save_keys
 
     @classmethod
     def load_keys(cls, *args,  **kwargs):
         return c.module('key').load_keys(*args, **kwargs)
-    
+    loadmems = loadkeys = load_keys
+
     @classmethod
     def load_key(cls, *args,  **kwargs):
         return c.module('key').load_key(*args, **kwargs)
