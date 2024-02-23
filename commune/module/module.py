@@ -3489,7 +3489,7 @@ class c:
                 
                 name = serve_info['name']
                 address = serve_info['address']
-                module_key = c.get_key_address(name).ss58_address
+                module_key = c.get_key_address(name)
 
         response =  subspace.register(name=name,
                                       address=address, 
