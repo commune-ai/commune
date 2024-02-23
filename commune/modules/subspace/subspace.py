@@ -2389,7 +2389,7 @@ class Subspace(c.Module):
         netuid = self.subnet2netuid(subnet)
         
         if stake == None:
-            min_stake = self.min_registration_stake(netuid=netuid, network=network)
+            min_stake = self.min_register_stake(netuid=netuid, network=network)
             stake = min_stake + existential_balance
 
         stake = self.to_nanos(stake)
