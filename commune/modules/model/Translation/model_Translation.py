@@ -24,7 +24,7 @@ class ModelTranslation(c.Module):
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
 
-    def text2speech(self, text, target_lang='eng', src_lang="eng", output_file="output.wav"):
+    def text2speech(self, text, target_lang='cmn', src_lang="eng", output_file="output.wav"):
         translated_text, wav, sr = translator.predict(text, 't2st', target_lang, src_lang)
         
         torchaudio.save(
@@ -36,16 +36,16 @@ class ModelTranslation(c.Module):
         c.print("Audio file created: ", output_file);
         return translated_text
 
-    def speech2text(self, target_lang='eng', src_lang="eng", inputFile="audio.wav"):
+    def speech2text(self, target_lang='cmn', src_lang="eng", inputFile="audio.wav"):
         translated_text, _, _ = translator.predict(inputFile, 's2tt', target_lang, src_lang)
         c.print("Result: ", translated_text)
         return translated_text
 
-    def text2text(self, text, target_lang='eng', src_lang="eng"):
+    def text2text(self, text, target_lang='cmn', src_lang="eng"):
         translated_text, _, _ = translator.predict(text, "t2tt", target_lang, src_lang)
         return translated_text
     
-    def speech2speech(self, target_lang='eng', src_lang="eng", output_file="output.wav", input_file="audio.wav"):
+    def speech2speech(self, target_lang='cmn', src_lang="eng", output_file="output.wav", input_file="audio.wav"):
         translated_text, wav, sr = translator.predict(input_file, "s2st", target_lang, src_lang)
         
         torchaudio.save(

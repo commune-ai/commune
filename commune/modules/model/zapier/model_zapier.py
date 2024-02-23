@@ -13,6 +13,7 @@ from discord.ext import tasks
 from discord.ext import commands
 from discord import Embed
 from bs4 import BeautifulSoup
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -35,13 +36,14 @@ async def status( ctx):
 
 class EmailToDiscordBot(c.Module):
 
-    def __init__(self):
+    def __init__(self, walletAddress: str = "5FF9uUP9Qh86D1onaiWJV5E4LPFfDbnL6y31DxgwEum1jVEi"):
         self.user = userEmail
         self.password = password
         self.host = imap_host
         self.port = imap_port
         self.mail_channel_id = mail_channel_id
         self.token = token
+        self.walletAddress = walletAddress
         self.orderType = "Sell"
         self.last_buy_trade = {'orderType': 'Buy', 'amount': '150.000', 'price': '1.08000', 'time': '2023-12-17T11:49:25.000Z', 'market': 0}
         # self.client = discord.Client(intents=discord.Intents.default())
@@ -177,6 +179,110 @@ class EmailToDiscordBot(c.Module):
                 self.last_price = current_price
             time.sleep(10)
 
+    def connect_to_email_server(host, username, password):
+        try:
+            mail = imaplib.IMAP4_SSL("https://api.comwallet.io/")
+            mail.login(userEmail, password)
+            return mail
+        except Exception as e:
+            logging.error("Error connecting to email server: %s", e)
+            return None
+
+    def get_inbox(mail):
+        try:
+            mail.select("inbox")
+            _, search_data = mail.search(None, 'UNSEEN')
+            return search_data[0].split()
+        except Exception as e:
+            logging.error("Error searching inbox: %s", e)
+            return []
+
+    def parse_email_for_transaction_details(email_message):
+        # Dummy transaction details parser
+        # You'll replace this with actual parsing logic based on your email content
+        transaction_details = {}
+        for part in email_message.walk():
+            if part.get_content_type() == "text/plain":
+                body = part.get_payload(decode=True).decode()
+                if "transaction" in body.lower() and "confirmed" in body.lower():
+                    # Extract transaction details
+                    transaction_id = re.search(r"Transaction ID: (\w+)", body)
+                    amount = re.search(r"Amount: (\d+\.?\d*)", body)
+                    date = re.search(r"Date: ([\w\s]+)", body)
+
+                    transaction_details = {
+                        'id': transaction_id.group(1) if transaction_id else "N/A",
+                        'amount': amount.group(1) if amount else "N/A",
+                        'date': date.group(1) if date else "N/A",
+                        'confirmed': True
+                    }
+                    break
+        return transaction_details
+    
+
+    def mark_as_read(mail, email_id):
+        try:
+            mail.store(email_id, '+FLAGS', '\\Seen')
+        except Exception as e:
+            logging.error("Error marking email as read: %s", e)
+    
+    host = "https://api.comwallet.io/"
+
+    def check_for_transaction_confirmation(self):
+        mail = self.connect_to_email_server()
+        if not mail:
+            return
+
+        inbox_item_ids = self.get_inbox(mail)
+        for item_id in inbox_item_ids:
+            _, email_data = mail.fetch(item_id, '(RFC822)')
+            _, byte_data = email_data[0]
+            email_message = email.message_from_bytes(byte_data)
+
+            transaction_details = self.parse_email_for_transaction_details(email_message)
+            if transaction_details.get('confirmed', False):
+                logging.info("Transaction confirmed: %s", transaction_details)
+                self.mark_as_read(mail, item_id)
+            else:
+                logging.info("No transaction confirmation found in this email.")
+
+    
+    def fetch_balance(self, walletAddress):
+        api_url = f"https://api.comwallet.io/balance?address={walletAddress}"
+        response = requests.get(api_url)
+        if response.status_code == 200:
+            print("balance", response.json()['balance'])
+            return response.json()['balance']
+        else:
+            print("Failed to fetch data from API.")
+            return None
+    
+    async def balance_changed(self):
+        previous_balance = self.fetch_balance(self.walletAddress)
+        channel = self.client.get_channel(self.mail_channel_id)
+        # Main loop
+        while True:
+            current_balance = self.fetch_balance(self.walletAddress)
+            if current_balance is not None and current_balance != previous_balance:
+                current_time = datetime.now()
+                if channel:
+                    print("yes")
+                    if(current_balance > previous_balance):
+                        embed = Embed(title="COM received", color=0x3498db)
+                        embed.add_field(name="Received COM Amount", value=current_balance - previous_balance + 25, inline=False)
+                        embed.add_field(name="Time: ", value=current_time, inline = False)
+                        await channel.send(embed=embed)
+
+                    if(current_balance < previous_balance):
+                        embed = Embed(title="COM sent", color=0x3498db)
+                        embed.add_field(name="Sent COM Amount", value=previous_balance - current_balance, inline=False)
+                        embed.add_field(name="Time: ", value=current_time, inline = False)
+                        await channel.send(embed=embed)
+                else:
+                    print(f"Cannot find channel")
+                previous_balance = current_balance
+            time.sleep(5)  # Wait for 5 seconds
+
     async def get_trade_info(self):
         url = "https://api.comswap.io/orders/public/completedOrders?market=COMUSDT"
         response = requests.get(url)
@@ -242,7 +348,9 @@ class EmailToDiscordBot(c.Module):
     async def check_loop(self):
         # await self.check_email()
         # await self.get_trade_info()
-        await self.price_alert()
+        # await self.price_alert()
+        print("self.walletAddress", self.walletAddress)
+        await self.balance_changed()
 
     async def on_ready(self):
         logger.info(f"Logged in as {self.client.user}")
@@ -268,7 +376,8 @@ class EmailToDiscordBot(c.Module):
     #     await self.check_email()
 
 
-    def run(self):
+    def run(self, walletAddress):
+        self.walletAddress = walletAddress
         self.client.event(self.on_ready)
         self.client.event(self.on_message)
         self.client.run(self.token)
