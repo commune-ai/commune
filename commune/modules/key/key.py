@@ -253,9 +253,9 @@ class Keypair(c.Module):
     add = add_key
     
     @classmethod
-    def key_info(cls, *args, create_if_not_exists=False, **kwargs):
+    def key_info(cls, path='module', create_if_not_exists=False, **kwargs):
         kwargs['json'] = True
-        return cls.get_key(*args, create_if_not_exists=create_if_not_exists, **kwargs)
+        return cls.get_key(path, create_if_not_exists=create_if_not_exists, **kwargs)
     
     @classmethod
     def key_info_map(cls, *args, **kwargs):
