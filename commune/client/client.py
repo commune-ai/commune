@@ -7,6 +7,9 @@ import commune as c
 import aiohttp
 import json
 
+import rust # import rust module
+
+
 
 from aiohttp.streams import StreamReader
 
@@ -89,6 +92,9 @@ class Client(c.module('client.http')):
         
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
+
+            result = rust.fetch_data(url, json=request, headers=headers)  # fetch_data in rust module
+
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
                     STREAM_PREFIX = 'data: '
