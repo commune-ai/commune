@@ -398,7 +398,7 @@ class Wallet(c.Module):
         
         self.modules = self.state['modules']
 
-
+        st.write(self.modules)
         self.state ['epochs_per_day'] = ( 24* 60 * 60 ) / (self.subnet["tempo"] * self.state['block_time'])
         self.name2module = {m['name']: m for m in self.modules}
         self.name2key = {k['name']: k['key'] for k in self.modules}

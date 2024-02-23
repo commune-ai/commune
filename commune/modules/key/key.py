@@ -349,7 +349,7 @@ class Keypair(c.Module):
         if search != None:
             key2address =  {k:v for k,v in key2address.items() if  search in k}
         return key2address
-    
+
     @classmethod
     def address2key(cls, search:Optional[str]=None, update:bool=False):
         address2key =  { v: k for k,v in cls.key2address(update=update).items()}
@@ -418,6 +418,11 @@ class Keypair(c.Module):
             if key in addresses:
                 key_exists = True
         return key_exists
+    
+
+    @classmethod
+    def get_key_address(cls, key): 
+        return cls.get_key(key).ss58_address
     
     
     @classmethod
@@ -546,7 +551,7 @@ class Keypair(c.Module):
                 state_dict[k] = v.hex() 
                 if password != None:
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
-                    
+        state_dict['ss58_address'] = self.ss58_address
         state_dict = json.dumps(state_dict)
         
         return state_dict

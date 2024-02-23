@@ -316,52 +316,6 @@ class Dashboard(c.Module):
                     st.error(response['message'])
 
 
-    def plot_dashboard(self, df):
-        
-        cols = list(df.columns)
-        # bar_chart based on x and y
-
-        if len(df) == 0:
-            st.error('You are not staked to any modules')
-            return 
-        col2idx = {c:i for i,c in enumerate(cols)}
-        defult_x_col = col2idx['name']
-        default_y_col = col2idx['emission']
-
-        plot_kwargs = {}
-
-        st_cols = st.columns([1,3])
-
-        with st_cols[0]:
-            plot_type = st.selectbox('Select Plot Type', ['pie', 'bar', 'line', 'scatter', 'histogram', 'treemap'], 0, key='info.plot')
-
-            if plot_type in [ 'bar', 'line', 'scatter']:
-                plot_kwargs['x'] = st.selectbox('Select X', cols, defult_x_col)
-                plot_kwargs['y'] = st.selectbox('Select Y', cols, default_y_col)
-            elif plot_type in ['histogram']:
-                plot_kwargs['x'] = st.selectbox('Select Value', cols, defult_x_col)
-            elif plot_type in ['pie']:
-                plot_kwargs['names'] = st.selectbox('Select Names', cols, defult_x_col)
-                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
-            elif plot_type in ['treemap']:
-                plot_kwargs['path'] = st.multiselect('Select Path', cols, ["name"])
-                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
-
-
-            sort_type = st.selectbox('Sort Type', cols , 0)
-
-            if sort_type in cols:
-                ascending = st.checkbox('Ascending', False)
-                df = df.sort_values(sort_type, ascending=ascending)
-
-        with st_cols[1]:
-            plot_fn = getattr(px, plot_type)
-            plot_kwargs_title =  " ".join([f"{k.lower()}:{v}" for k,v in plot_kwargs.items()])
-            title = f'My Modules {plot_type} for ({plot_kwargs_title})'
-            fig = plot_fn(df, **plot_kwargs, title=title)    
-            st.plotly_chart(fig)
-        # st.write(kwargs)
-
     @classmethod
     def dashboard(cls, *args, **kwargs):
         

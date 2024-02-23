@@ -795,7 +795,7 @@ class Remote(c.Module):
             return results
     @classmethod
     def dashboard(cls):
-        c.module('remote.app').app()
+        c.module('remote.app').dashboard()
 
 
         

@@ -80,3 +80,11 @@ class Plotly(c.Module):
         return fig.show()
 
         # Show the
+    
+    def histogram(self, chart="scatter") -> int:
+        import plotly.express as px
+        df = px.data.iris()
+        plot = getattr(px, chart)
+        fig = plot(df, x="sepal_width", y="sepal_length")
+        fig.show()
+        # Show the

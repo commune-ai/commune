@@ -14,13 +14,12 @@ class App(c.Module):
             cls = c.module(module)
         c.new_event_loop()
         import streamlit as st
-
         c.load_style()
         st.title('Remote Dashboard')
         self = cls()
         self.sidebar()
         mode = ['ssh', 'peer']
-        mode = st.radio('Mode', mode, index=1)
+        mode = st.selectbox('Mode', mode, index=0)
         getattr(self, f'{mode}_dashboard')()
 
 
@@ -29,12 +28,9 @@ class App(c.Module):
         import streamlit as st
         import pandas as pd
 
-        with st.sidebar:
-            cols = st.columns(2)
-            search = cols[0].text_input('Search', 'module')
-            peer2info = self.remote.peer2info()
-
-            st.write(list(peer2info.values())[0])
+        cols = st.columns(2)
+        search = cols[0].text_input('Search', 'module')
+        peer2info = self.remote.peer2info()
 
         peer_info_df = []
         for peer, info in peer2info.items():
@@ -227,11 +223,12 @@ class App(c.Module):
                 host2future[host] = future
 
             futures = list(host2future.values())
-            num_jobs = len(futures )
             hosts = list(host2future.keys())
             cols = st.columns(num_columns)
             failed_hosts = []
             col_idx = 0
+
+            errors = []
 
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
@@ -243,7 +240,6 @@ class App(c.Module):
                     host2future.pop(host)
                     result = result['result']
                     is_error = c.is_error(result)
-                    emoji = c.emoji('cross') if is_error else c.emoji('check_mark')
                     msg = result['error'] if is_error else result.strip()
 
                     # get the colkumne
@@ -254,15 +250,18 @@ class App(c.Module):
 
                     # if the column is full, add a new column
                     with col:
-                        with st.expander(f'{host} -> {emoji}', expanded=expanded):
-                            msg = fn_code(msg)
-                            if is_error:
-                                st.write('ERROR')
+                        msg = fn_code(msg)
+                        emoji =  c.emoji("cross") if is_error else c.emoji("check")
+                        title = f'{emoji} :: {host} :: {emoji}'
+                        if is_error:
+                            failed_hosts += [host]
+                            errors += [msg]
+                            with st.expander(title, expanded=expanded):
                                 st.error(msg)
-                                failed_hosts += [host]
-                            else:
+                        else:
+                            with st.expander(title, expanded=expanded):
                                 st.code(msg)
-                    
+                
 
             except Exception as e:
                 pending_hosts = list(host2future.keys())
@@ -270,12 +269,11 @@ class App(c.Module):
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
             
-            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
+            failed_hosts2ssh = {h:self.remote.host2ssh[h] for h in failed_hosts}
             with st.expander('Failed Hosts', expanded=False):
                 for host, ssh in failed_hosts2ssh.items():
                     st.write(host)
-                    st.code(ssh)
-    
+                    st.write(ssh)
 
     def sidebar(self, **kwargs):
         with st.sidebar:
