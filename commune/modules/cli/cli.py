@@ -37,7 +37,7 @@ class CLI(c.Module):
 
             module_list = c.modules()
 
-
+            # handle module/function
             if '/' in args[0]:
                 args = args[0].split('/') + args[1:]
                 
