@@ -11,12 +11,15 @@ class CLI(c.Module):
             self,
             module_overrides: dict = ['network', 'key', 'auth', 'namespace', 'serializer'],
             new_event_loop: bool = True,
+            save: bool = True
 
 
         ) :
         self.protected_modules = module_overrides
         self.module = c.Module()
-        args, kwargs = self.parse_args()
+        input = self.argv()
+        args, kwargs = self.parse_args(input)
+        
         module_list = c.modules()
         if new_event_loop:
             c.new_event_loop(True)
@@ -24,7 +27,7 @@ class CLI(c.Module):
         fn = None
         module = None
         if len(args) == 0:
-            result = c.schema()
+            output = c.schema()
         elif len(args)> 0:
             functions = list(set(self.module.functions()  + self.module.get_attributes()))
 
@@ -72,31 +75,49 @@ class CLI(c.Module):
                 
                 
                 # if c.is_property(fn):
-                #     result = getattr(module(), fn.__name__)
+                #     output = getattr(module(), fn.__name__)
                 
                 if callable(fn) :
                     if c.classify_fn(fn) == 'self':
                         module_inst = module()
                         fn = getattr(module_inst, fn_name)
                 elif c.is_property(fn):
-                    result =  getattr(module(), fn_name)
+                    output =  getattr(module(), fn_name)
                 else: 
-                    result = fn    
+                    output = fn    
                 
             else:
                 fn = module
             if callable(fn):
-                result = fn(*args, **kwargs)
+                output = fn(*args, **kwargs)
             
                 
         else:
             raise Exception ('No module, function or server found for {args[0]}')
 
-        if isinstance(result, type(None)):
-            c.print(result)
+        if save:
+            try:
+                self.put(f'cli_history/{int(c.time())}', {'input': input, 'output': output})
+            except Exception as e:
+                pass
+
+        if isinstance(output, type(None)):
+            c.print(output)
         else:
-            if c.is_generator(result):
-                for i in result:
+            if c.is_generator(output):
+                for i in output:
                     c.print(i)
             else:
-                c.print(result)
+                c.print(output)
+    @classmethod
+    def history(cls):
+        return cls.ls('cli_history')
+    
+    @classmethod
+    def clear(cls):
+        return cls.rm('cli_history')
+    
+
+
+
+        

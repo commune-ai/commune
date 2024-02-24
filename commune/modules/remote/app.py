@@ -269,11 +269,11 @@ class App(c.Module):
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
             
-            failed_hosts2ssh = {h:self.remote.host2ssh[h] for h in failed_hosts}
+            failed_hosts2ssh = {h:self.host2ssh[h] for h in failed_hosts}
             with st.expander('Failed Hosts', expanded=False):
                 for host, ssh in failed_hosts2ssh.items():
                     st.write(host)
-                    st.write(ssh)
+                    st.code(ssh)
 
     def sidebar(self, **kwargs):
         with st.sidebar:

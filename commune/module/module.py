@@ -5291,7 +5291,7 @@ class c:
             module = cls.module_path()
         server_names = []
         if stake == None:
-            stake = subspace.min_stake()
+            stake = subspace.min_register_stake(netuid=netuid)
             c.print('No stake provided, using min stake, which is {}'.format(stake), color='yellow')
         if multithread:
             executor = c.module('executor')(max_workers=n)

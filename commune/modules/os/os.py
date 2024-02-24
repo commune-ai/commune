@@ -203,6 +203,7 @@ class OsModule(c.Module):
                     return_process: bool = False,
                     generator: bool =  False,
                     color : str = 'white',
+                    inputs : List[str] = [],
                     **kwargs) -> 'subprocess.Popen':
         
         '''
@@ -245,8 +246,7 @@ class OsModule(c.Module):
             pipe = process.stdout
             for ch in iter(lambda: pipe.read(1), b""):
                 # if the the terminal is stuck and needs to enter
-
-                process.poll()  
+                process.poll() 
 
 
                 try:

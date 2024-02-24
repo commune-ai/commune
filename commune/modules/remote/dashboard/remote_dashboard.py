@@ -223,19 +223,10 @@ class RemoteDashboard(Remote):
     def ssh_dashboard(self):
         import streamlit as st
         host_map = self.host_map
-
         host_names = list(host_map.keys())
-        
-
-
-                        
-        # progress bar
-
-        
-
+    
         # add splace to cols[2] vertically
         
-
         with st.expander('params', False):
             cols = st.columns([4,4,2])
             cwd = cols[0].text_input('cwd', '/')
