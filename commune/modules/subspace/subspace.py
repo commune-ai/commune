@@ -1394,22 +1394,17 @@ class Subspace(c.Module):
                 key2future[key] = c.submit(get_module, dict(key=key, netuid=netuid, network=network, fmt=fmt, **kwargs))
             future2key = {v:k for k,v in key2future.items()}
             futures = list(key2future.values())
-            try:
-                for future in c.as_completed(futures, timeout=timeout):
-                    result = future.result()
-                    key = future2key[future]
-                    if 'key' in result and 'name' in result:
-                        c.print(f"Got module {result['name']} {c.emoji('checkmark')}")
-                        key2module[result['key']] = result
-                        progress_bar.update(1)
-                    else:
-                        c.print(f"Error fetching module {c.emoji('warning')}, {result}")
-                    
-                    key2future.pop(key)
-                    future2key.pop(future)
-            except Exception as e:
-                c.print(e)
-                pass
+            for future in c.as_completed(futures, timeout=timeout):
+                result = future.result()
+                key = future2key[future]
+                if 'key' in result and 'name' in result:
+                    c.print(f"Got module {result['name']} {c.emoji('checkmark')}")
+                    key2module[result['key']] = result
+                    progress_bar.update(1)
+                else:
+                    c.print(f"Error fetching module {c.emoji('warning')}, {result}")
+                break
+
             
         modules = list(key2module.values())
         return modules
@@ -1490,6 +1485,13 @@ class Subspace(c.Module):
                        'delegation_fee',
                        'trust', 
                        'regblock']
+    lite_module_features = ['key', 
+                            'name',
+                            'emission',
+                            'incentive', 
+                            'dividends', 
+                            'last_update', 
+                            'stake_from']
     feature2key = {
         'key': 'keys',
         'address': 'addresses',
@@ -1506,12 +1508,17 @@ class Subspace(c.Module):
                 update: bool = False,
                 sortby = 'emission',
                 page_size = 100,
+                lite: bool = False,
                 page = 0,
                 **kwargs
                 ) -> Dict[str, 'ModuleInfo']:
         if search == 'all':
             netuid = search
             search = None
+        
+        features = self.lite_module_features if lite else features
+
+
 
         t1 = c.time()
         state = {}
@@ -1630,7 +1637,7 @@ class Subspace(c.Module):
               update=False, 
              network : str = 'main', 
              **kwargs) -> List[str]:
-        keys =  self.query_map('Keys', netuid=netuid, update=update, network=network, **kwargs)
+        keys =  list(self.query_map('Keys', netuid=netuid, update=update, network=network, **kwargs).values())
         return keys
 
     def uid2key(self, uid=None, 
@@ -1640,16 +1647,11 @@ class Subspace(c.Module):
              return_dict = True,
              **kwargs):
         netuid = self.resolve_netuid(netuid)
-        uid2key = {uid:k for uid,k in enumerate(self.query_map('Keys', update=update, network=network, **kwargs)[netuid])}
+        uid2key =  self.query_map('Keys',  netuid=netuid, update=update, network=network, **kwargs)
         # sort by uid
         if uid != None:
             return uid2key[uid]
-        uids = list(uid2key.keys())
-        uid2key = {uid: uid2key[uid] for uid in sorted(uids)}
-        if return_dict:
-            return uid2key
-        else:
-            return list(uid2key.values())
+        return uid2key
     
 
     def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, **kwargs):
@@ -1671,11 +1673,11 @@ class Subspace(c.Module):
               update=False,
                 **kwargs) -> List[str]:
         names = self.query_map('Name', update=update, netuid=netuid,**kwargs)
-        return names 
+        return list(names.values())
 
     def addresses(self, netuid: int = 0, update=False, **kwargs) -> List[str]:
         addresses = self.query_map('Address',netuid=netuid, update=update, **kwargs)
-        return addresses
+        return list(addresses.values())
 
     def namespace(self, search=None, netuid: int = 0, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
         namespace = {}  
@@ -3424,12 +3426,11 @@ class Subspace(c.Module):
         return sum(self.key2value(search=search, fmt=fmt, **kwargs).values())
 
 
-    def my_stake(self, search=None, netuid = 0, network = None, fmt=fmt,  decimals=2, block=None, update=False):
-        mystaketo = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block, update=update)
+    def my_stake(self, search=None, netuid = 0, network = None, fmt=fmt,  block=None, update=False):
+        mystaketo = self.my_stake_to(netuid=netuid, network=network, fmt=fmt,block=block, update=update)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
-            key2stake[key] = c.round_decimals(stake, decimals=decimals)
         if search != None:
             key2stake = {k:v for k,v in key2stake.items() if search in k}
         return key2stake

@@ -30,7 +30,7 @@ class ThreadPoolExecutor(c.Module):
     def __init__(
         self,
         max_workers: int =None,
-        maxsize : int =30 ,
+        maxsize : int =200 ,
         thread_name_prefix : str ="",
     ):
         """Initializes a new ThreadPoolExecutor instance.

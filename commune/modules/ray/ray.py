@@ -154,17 +154,36 @@ class Ray(c.Module):
     
 
     @classmethod
-    def actors(cls, state='ALIVE', names_only:bool = True,detail:bool=True, *args, **kwargs):
-        
+    def actors(cls, *args, **kwargs):
         ray = cls.env()
-        from ray.experimental.state.api import list_actors
-              
-        kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
-        kwargs['detail'] = detail
+        actors =  cls.list_actors(*args, **kwargs)
+        actors = [a['name'] for a in actors] 
+        return actors
     
-        actor_info_list =  list_actors(*args, **kwargs)
-        return actor_info_list
+    @classmethod
+    def list_actors(cls, *args, **kwargs):
+        from ray.util.state import list_actors
+        return list_actors(*args, **kwargs)
+    @classmethod
+    def actor2id(cls, actor_name:str = None):
+        actors = cls.list_actors()
+        actor2id =  {a['name']:a['actor_id'] for a in actors}
+        if actor_name:
+            return actor2id[actor_name]
+        return actor2id
     
+    def id2actor(cls, actor_id:str = None):
+        actors = cls.list_actors()
+        id2actor =  {a['actor_id']:a['name'] for a in actors}
+        if actor_id:
+            return id2actor[actor_id]
+        return id2actor
+    
+    
+
+
+    
+
 
     @classmethod
     def is_initialized(cls):
@@ -215,17 +234,29 @@ class Ray(c.Module):
             actor_map[actor_name] = actor
         return actor_map
     
+    @classmethod
+    def resolve_actor_id(cls, actor_id:str, **kwargs):
+        actor2id = cls.actor2id(**kwargs)
+        if actor_id in actor2id:
+            actor_id = actor2id[actor_id]
+        return actor_id
+    
+    @classmethod
+    def get_logs(cls, actor_id:str, **kwargs):
+        from ray.util.state import get_log
+        actor_id = cls.resolve_actor_id(actor_id)
+        return get_log(actor_id=actor_id, **kwargs)
 
     @classmethod
-    def get_actor(cls ,actor_name:str, virtual:bool=True):
+    def get_actor(cls ,actor_name:str, virtual:bool=False):
         '''
         Gets the ray actor
         '''
         ray  = cls.env()
         actor =  ray.get_actor(actor_name)
         # actor = Module.add_actor_metadata(actor)
-        if virtual:
-            actor = cls.virtual_actor(actor=actor)
+        # if virtual:
+        #     actor = cls.virtual_actor(actor=actor)
         return actor
     
 
@@ -253,7 +284,6 @@ class Ray(c.Module):
     def serve(cls,
                  module : str = None,
                  name:str = None,
-                 tag:str = None,
                  kwargs: dict = None,
                  args:list =None,
                  cpus:int = 1.0,
@@ -267,7 +297,7 @@ class Ray(c.Module):
         cls.init()
 
         if isinstance(module, str):
-            name = name if name != None else module
+            name = module or 'module'
             module = c.module(module)
 
         name = name if name != None else module.__name__
@@ -304,7 +334,7 @@ class Ray(c.Module):
         # create the actor if it doesnt exisst
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
         
-        # actor = cls.get_actor(name, virtual=virtual)
+        actor = cls.get_actor(name, virtual=virtual)
 
         return actor
 
@@ -356,14 +386,17 @@ class Ray(c.Module):
         ray  = cls.env()
         actor =  ray.get_actor(actor_name, **kwargs)
         # actor = Module.add_actor_metadata(actor)
-        if virtual:
-            actor = cls.virtual_actor(actor=actor)
+        # if virtual:
+        #     actor = cls.virtual_actor(actor=actor)
         return actor
 
     @classmethod    
-    def call(self, module, fn, *args, **kwargs):
-        return getattr(module, fn)(*args, **kwargs)
-    
+    def call(cls, module, fn = None, *args, **kwargs):
+        if '/' in module:
+            module, fn = module.split('/')
+            args = [fn] + list(args)
+        
+        return cls.get_actor(module).remote(fn)(*args, **kwargs)
     get_actor = get_actor
 
     @classmethod

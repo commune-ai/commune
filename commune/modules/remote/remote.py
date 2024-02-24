@@ -2,6 +2,7 @@ import commune as c
 import streamlit as st
 from typing import *
 import json
+import paramiko
 
 class Remote(c.Module):
     filetype = 'yaml'
@@ -9,7 +10,7 @@ class Remote(c.Module):
     host_url = 'https://raw.githubusercontent.com/communeai/commune/main/hosts.yaml'
     executable_path='commune/bin/c'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=True, sudo=False, key=None, timeout=10,  **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=10,  **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -28,11 +29,12 @@ class Remote(c.Module):
         if cwd != None:
             command = f'cd {cwd} && {command}'
 
-        import paramiko
+        
         hosts = cls.hosts()
         host_name = host
         if host_name == None:
-            host = list(hosts.keys())[0]
+            host = c.choice(list(hosts.keys()))
+            host_name = host
         if host_name not in hosts:
             raise Exception(f'Host {host_name} not found')
         host = hosts[host_name]
@@ -75,13 +77,12 @@ class Remote(c.Module):
             if len(outputs['error']) == 0:
                 outputs = outputs['output']
     
-            stdin.close()
-            stdout.close()
-            stderr.close()
-            client.close()
+            # stdin.close()
+            # stdout.close()
+            # stderr.close()
+            # client.close()
         except Exception as e:
             c.print(e)
-            pass
         return outputs
 
     @classmethod
@@ -224,7 +225,13 @@ class Remote(c.Module):
         # Test Remote
         c.print(self.ssh_cmd('ls'))
     @classmethod
-    def cmd(cls, *commands, search=None, hosts:Union[list, dict, str] = None, cwd=None, host:str=None,  timeout=5 , verbose:bool = True, num_trials=1, **kwargs):
+    def cmd(cls, *commands, 
+            search=None, 
+            hosts:Union[list, dict, str] = None, 
+            cwd=None,
+              host:str=None,  
+              timeout=5 , 
+              verbose:bool = True,**kwargs):
         output = {}
         if hosts == None:
             hosts = cls.hosts()
@@ -240,13 +247,28 @@ class Remote(c.Module):
         assert isinstance(hosts, dict), f'Hosts must be a dict, got {type(hosts)}'
 
         results = {}
+        errors = {}
+        host2future = {}
         for host in hosts:
-            result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
-            results[host] = result_future
+            host2future[host] = c.submit(cls.ssh_cmd, 
+                                            args=commands, 
+                                            kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs),
+                                            return_future=True
+                                            )
+        future2host = {v:k for k,v in host2future.items()}
 
-        result_values = c.wait(list(results.values()), timeout=timeout)
-        results =  dict(zip(results.keys(), result_values))
-        results =  {k:v for k,v in results.items()}
+
+        try:
+            for future in c.as_completed(list(host2future.values()), timeout=timeout):
+                result = future.result()
+                host = future2host[future]
+                if not c.is_error(result):
+                    results[host] = result
+                else:
+                    errors[host]= result
+        except Exception as e:
+            c.print(e)
+
 
         if all([v == None for v in results.values()]):
             raise Exception(f'all results are None')
@@ -697,7 +719,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def add_peers(cls, add_admins:bool=False, timeout=20, update=True, network='remote'):
+    def add_peers(cls, add_admins:bool=False, timeout=20, update=False, network='remote'):
         """
         Adds servers to the network by running `c add_peers` on each server.
         
@@ -796,6 +818,29 @@ class Remote(c.Module):
     @classmethod
     def dashboard(cls):
         c.module('remote.app').dashboard()
+
+    def save_ssh_config(self, path="~/.ssh/config"):
+        ssh_config = self.ssh_config()
+        return c.put_text(path, ssh_config) 
+
+    def ssh_config(self):
+        """
+        Host {name}
+          HostName 0.0.0.0.0
+          User fam
+          Port 8888
+        """
+        host_map = self.host_map()
+        toml_text = ''
+        for k,v in host_map.items():
+            toml_text += f'Host {k}\n'
+            toml_text += f'  HostName {v["host"]}\n'
+            toml_text += f'  User {v["user"]}\n'
+            toml_text += f'  Port {v["port"]}\n'
+        
+        return toml_text
+
+
 
 
         

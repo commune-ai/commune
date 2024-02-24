@@ -291,6 +291,7 @@ class Vali(c.Module):
         # if the module is stale, we can just return the module info
         seconds_since_called = c.time() - module_info.get('timestamp', 0)
 
+
         if seconds_since_called < self.config.max_staleness:
             return {'w': module_info.get('w', 0),
                      'module': module_name,
@@ -338,9 +339,14 @@ class Vali(c.Module):
         self.count += 1
         self.last_evaluation_time = c.time()
 
-        response =  {'w': w, 
-                     'module': module_name, 'address': module_address, 'timestamp': c.time(), 'path': path }
+        response =  {'w': w,
+                     'module': module_name, 
+                     'address': module_address, 
+                     'timestamp': c.time(), 
+                     'path': path }
+        
         return response
+    
 
     @classmethod
     def resolve_storage_path(cls, network:str = 'subspace', tag:str=None):
