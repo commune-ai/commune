@@ -1,11 +1,20 @@
+# api
 uvicorn
 fastapi
+
+# blockahin
 substrate-interface
+
+# ml
 torch
 safetensors
+# transformers
+
+# visual
 streamlit
 plotly
 gradio
+
 sse-starlette
 #misc
 msgpack_numpy
@@ -22,6 +31,7 @@ aiohttp
 nest_asyncio
 openai
 
+# ray
 # scraping
 # beautifulsoup4
 # httplib2

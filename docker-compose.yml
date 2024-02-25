@@ -3,11 +3,16 @@ version: "3.2"
 services:
 
   commune:
+    
     network_mode: host
     # image: commune:latest
     container_name: commune
     build: ./
     shm_size: '100gb' # for the shared memory size
+
+    # expose ports for the frontend
+
+      
   
     volumes:
 
@@ -27,7 +32,7 @@ services:
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
-      # - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
+      - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
       
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE

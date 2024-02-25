@@ -647,3 +647,7 @@ class ModelTransformer(Model):
         module = c.import_object(module)
         params = self.parameters()
         self.optimizer = module(params,**kwargs) 
+
+    @classmethod
+    def install(cls):
+        return c.cmd('pip install -r requirements.txt', cwd=cls.dirpath())

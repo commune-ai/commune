@@ -4,7 +4,7 @@ import streamlit as st
 import json
 
 class Storage(c.Module):
-    whitelist: List = ['put', 'get', 'hash_item', 'items']
+    whitelist: List = ['put', 'get', 'hash', 'items']
     replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
@@ -19,7 +19,7 @@ class Storage(c.Module):
                 **kwargs):
         
         config = self.set_config(kwargs=locals()) 
-
+        
         self.network = config.network
         self.max_shard_size = config.max_shard_size
         self.max_replicas = config.max_replicas 
@@ -30,28 +30,20 @@ class Storage(c.Module):
             self.match_replica_prefix = match_replica_prefix
             c.thread(self.validate_loop)
 
-    def resolve_tag(self, tag=None):
-        tag = tag if tag != None else self.tag
-        return tag
-
-    def store_dir(self, tag=None) -> str:
-        tag = self.resolve_tag(tag)
-        if tag == None:
-            tag = 'base'
-        path = self.resolve_path(f'{tag}/store')
+    @property
+    def store_dir(self) -> str:
+        path = self.resolve_path(f'{self.tag}')
         if not c.exists(path):
             c.mkdir(path)
         return path
 
     def resolve_item_path(self, key: str, tag=None) -> str:
-        store_dir = self.store_dir(tag=tag)
-
-        if not key.startswith(store_dir):
-            key = f'{store_dir}/{key}'
+        store_dir = self.store_dir
+        key = key if  key.startswith(store_dir) else f'{store_dir}/{key}' 
         return key
     
     def files(self, tag=None) -> List:
-        return sorted(c.ls(self.store_dir(tag=tag)))
+        return sorted(c.ls(self.store_dir))
     
     def item2info(self, search=None):
         files = self.files()
@@ -87,34 +79,34 @@ class Storage(c.Module):
         return key
 
     def put_metadata(self, k:str, metadata:Dict, tag=None):
-        assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
-        k = self.resolve_item_path(k, tag=tag)
+        assert self.item_exists(k), f'Key {k} does not exist with {tag}'
+        k = self.resolve_item_path(k)
         path = k + '/metadata.json'
         return self.put_json(path, metadata)
 
     def get_metadata(self, k, tag=None):
-        k = self.resolve_item_path(k, tag=tag)
+        k = self.resolve_item_path(k)
         path = k + '/metadata.json'
         return c.get_json(path, default={})  
     
     def get_replicas(self, k:str, tag:str=None) -> List[str]:
-        metadata = self.get_metadata(k, tag=tag)
+        metadata = self.get_metadata(k)
         return metadata.get('replicas', [])
     
-    def put_metadata(self, k, metadata:Dict, tag=None):
-        assert self.item_exists(k, tag=tag), f'Key {k} does not exist with {tag}'
-        k = self.resolve_item_path(k, tag=tag)
+    def put_metadata(self, k, metadata:Dict):
+        assert self.item_exists(k), f'Key {k} does not exist with {tag}'
+        k = self.resolve_item_path(k)
         path = k + '/metadata.json'
         return self.put_json(path, metadata)
     
-    def refresh_store(self, tag=None):
-        tag = self.resolve_tag(tag)
-        path = self.store_dir(tag=tag)
-        return c.rm(path)
+    def refresh_store(self):
+        path = self.store_dir
+        if c.exists(path):
+            return c.rm(path)
 
     def put(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
         timestamp = c.timestamp()
-        k = self.resolve_item_path(k, tag=tag)    
+        k = self.resolve_item_path(k)    
         path = {
             'data': k +'/data.json',
             'metadata': k + '/metadata.json'
@@ -143,7 +135,7 @@ class Storage(c.Module):
                 # split it along the bytes
                 shard = data[i*self.max_shard_size:(i+1)*self.max_shard_size]
                 assert len(shard) <= self.max_shard_size, f'Shard must be less than {self.max_shard_size} bytes, got {len(shard)}'
-                self.put(k=shard_path, v=shard, encrypt=encrypt, tag=tag, serialize=False)
+                self.put(k=shard_path, v=shard, encrypt=encrypt, serialize=False)
                 shards += [shard_path]
 
         else:
@@ -182,7 +174,7 @@ class Storage(c.Module):
     
 
     def get(self,k:str, deserialize:bool= True, include_metadata=False, tag=None) -> Any:
-        k = self.resolve_item_path(k, tag=tag)
+        k = self.resolve_item_path(k)
         metadata = self.get_json(k+'/metadata.json', {})
 
         shards = metadata.get('shards', [])
@@ -221,33 +213,29 @@ class Storage(c.Module):
         """
         Hash a string
         """
-        if data == None:
-            assert k != None, 'Must provide k or obj'
-            data = self.get(k, deserialize=False, tag=tag)
-        if seed != None:
-            data = str(data) + seed_sep + str(seed)
+        self.get_text(k)
         return self.hash(data, seed=seed)
 
     def item_exists(self, k, tag=None) -> bool:
-        path = self.resolve_item_path(k, tag=tag)
+        path = self.resolve_item_path(k)
         return c.exists(path)
     has = exists = item_exists
 
     def rm(self, k , tag=None) -> bool:
-        assert self.exists(k, tag=tag), f'Key {k} does not exist with {tag}'
-        path = self.resolve_item_path(k, tag=tag)
+        assert self.exists(k), f'Key {k} does not exist with {tag}'
+        path = self.resolve_item_path(k)
         return c.rm(path)
     
 
-    def item_paths(self, tag=None):
-        sore_dir = self.store_dir(tag=tag)
+    def item_paths(self):
+        sore_dir = self.store_dir
         return [x for x in c.ls(sore_dir)]
 
-    def items(self, search=None, include_replicas:bool=True, tag=None) -> List:
+    def items(self, search=None, include_replicas:bool=True) -> List:
         """
         List the item names
         """
-        path = self.store_dir(tag=tag)
+        path = self.store_dir
 
 
         items = [x.split('/')[-1] for x in c.ls(path)]
@@ -260,12 +248,12 @@ class Storage(c.Module):
 
         return items
     
-    def replica_items(self, tag:str=None) -> List:
-        return [x for x in self.items(tag=tag) if x.startswith(self.replica_prefix)]
+    def replica_items(self) -> List:
+        return [x for x in self.items() if x.startswith(self.replica_prefix)]
         
 
-    def refresh(self, tag:str=None) -> None:
-        path = self.store_dir(tag=tag)
+    def refresh(self) -> None:
+        path = self.store_dir
         return c.rm(path)
     
     def validate(self, item_key:str = None):
@@ -354,13 +342,13 @@ class Storage(c.Module):
         return {'success': True, 'metadata': metadata, 'msg': f'Validated {item_key}'}
    
 
-    def validate_loop(self, tag=None, interval=0.1, vote_inteval=1, init_timeout = 1):
+    def validate_loop(self, interval=0.1, vote_inteval=1, init_timeout = 1):
         c.sleep(init_timeout)
         import time
         tag = self.tag if tag == None else tag
         while True:
             try:
-                items = self.items(tag=tag)
+                items = self.items()
                 if len(items) == 0:
                     c.print('No items to validate', color='red')
                     time.sleep(1.0)
@@ -405,15 +393,14 @@ class Storage(c.Module):
         return {'success': True, 'msg': 'its all done fam'}
 
 
-    def get_shards(self, k:str, tag=None, metadata=None) -> List:
-        metadata = self.get_metadata(k, tag=tag) if metadata == None else metadata
-        store_dir = self.store_dir(tag=tag) 
+    def get_shards(self, k:str, metadata=None) -> List:
+        metadata = self.get_metadata(k) if metadata == None else metadata
+        store_dir = self.store_dir 
         shards = metadata.get('shards', [])
         return [x.replace(store_dir, '') for x in shards]
 
 
-    def put_dummies(self, tag=None):
-        tag = self.resolve_tag(tag)
+    def put_dummies(self):
         for i in range(10):
             k = f'test{i}'
             self.put(k, {'dummy': i})
@@ -424,6 +411,140 @@ class Storage(c.Module):
     @classmethod
     def dashboard(cls):
         st.write('Storage')
+
+
+
+    @classmethod
+    def dashboard(cls, module:c.Module = None,  network=None):
+        
+        if module == None:
+            update = False
+            network = st.selectbox('network', ['local', 'remote', 'subspace'], 0, key='playground.net')
+            namespace = c.namespace(network=network, update=update)
+            servers = list(namespace.keys())
+            module = st.selectbox('Select Module', servers, 0, key='playground.module')
+            server = c.connect(module, network=network)
+        else:
+            server = c.connect(module) 
+
+        info_path = f'infos/{module}'
+        if not c.exists(info_path) :
+            server_info = server.info()
+            c.put(info_path, server_info)
+        server_info = c.get(info_path, {})
+        server_name = server_info['name']
+        server_schema = server_info['schema']
+        server_address = server_info['address']
+        server_functions = list(server_schema.keys())
+        fn = st.selectbox('Select Function', server_functions, 0)
+
+        fn_path = f'{server_name}/{fn}'
+
+
+
+
+
+        
+        st.write(f'**address** {server_address}')
+        with st.expander(f'{fn_path} playground', expanded=True):
+            kwargs = c.function2streamlit(fn=fn, fn_schema=server_schema[fn], salt='sidebar')
+            cols = st.columns([3,1])
+            timeout = cols[1].number_input('Timeout', 1, 100, 10, 1, key=f'timeout.{fn_path}')
+            cols[0].write('\n')
+            cols[0].write('\n')
+
+        call = st.button(f'Call {fn_path}')
+
+        if call:
+            success = False
+            latency = 0
+            try:
+                t1 = c.time()
+                response = getattr(server, fn)(**kwargs, timeout=timeout)
+                t2 = c.time()
+                latency = t2 - t1
+                success = True
+            except Exception as e:
+                e = c.detailed_error(e)
+                response = {'success': False, 'message': e}
+            emoji = '✅' if success else '❌'
+            latency = str(latency).split('.')[0] + '.'+str(latency).split('.')[1][:2]
+            st.write(f'Reponse Status ({latency}s) : {emoji}')
+            st.code(response)
+    
+
+    @classmethod
+    def module2streamlit(cls, 
+                           module = None,
+                           fn:str = '__init__',
+                           fn_schema = None, 
+                           extra_defaults:dict=None,
+                           cols:list=None,
+                           skip_keys = ['self', 'cls'],
+                           salt = None,
+                            mode = 'pm2'):
+        import streamlit as st
+        
+        key_prefix = f'{module}.{fn}'
+        if salt != None:
+            key_prefix = f'{key_prefix}.{salt}'
+        if module == None:
+            module = cls
+            
+        elif isinstance(module, str):
+            module = c.module(module)
+        extra_defaults = {} if extra_defaults is None else extra_defaults
+        kwargs = {}
+
+        if fn_schema == None:
+
+            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            if fn == '__init__':
+                config = module.config(to_munch=False)
+                extra_defaults = config
+            fn_schema['default'].pop('self', None)
+            fn_schema['default'].pop('cls', None)
+            fn_schema['default'].update(extra_defaults)
+            fn_schema['default'].pop('config', None)
+            fn_schema['default'].pop('kwargs', None)
+            
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        if len(cols) == 0:
+            return kwargs
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
+            
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if fn_key in skip_keys:
+                continue
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            col_idx = col_idx % (len(cols))
+            if type(v) in [float, int] or c.is_number(v):
+                kwargs[k] = cols[col_idx].number_input(fn_key, v, key=f'{key_prefix}.{k}')
+            elif v in ['True', 'False']:
+                kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')
+            else:
+                kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
+        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        
+        return kwargs
+    
+    
 
 
 Storage.run(__name__)

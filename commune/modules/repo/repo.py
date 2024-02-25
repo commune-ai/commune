@@ -148,8 +148,8 @@ class Repo(c.Module):
 
         return {'success': True, 'path': path, 'repo_path': repo_path}
     
-    def repos(self):
-        return list(self.repo2path().keys())
+    def repos(self, *args, **kwargs):
+        return list(self.repo2path(*args, **kwargs).keys())
     def repo_manager(self):
         with st.expander('Add Repo'):
             cols = st.columns(2)
@@ -175,14 +175,6 @@ class Repo(c.Module):
     
 
         
-
-    def repo2hash(self, repo):
-        repo2path = self.repo2path()
-        futures = []
-        for repo in self.repos():
-            futures += [c.asubmit(c.cmd, f'git pull', cwd=repo2path[repo])]
-        return c.wait(futures)
-    
     def pull_many(self, *repos, timeout=20):
         futures = []
         for repo in repos:
