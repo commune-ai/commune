@@ -30,8 +30,8 @@ class Storage(c.Module):
             c.thread(self.validate_loop)
 
 
-    def resolve_item_path(self, k:str, tag=None) -> str:
-        return self.store_dir(tag=tag) + '/' + k
+    def resolve_item_path(self, k:str) -> str:
+        return self.store_dir() + '/' + k
 
     def item2info(self, search=None):
         files = self.files()
@@ -155,40 +155,23 @@ class Storage(c.Module):
 
         return items
     
-    def replica_items(self, tag:str=None) -> List:
-        return [x for x in self.items(tag=tag) if x.startswith(self.replica_prefix)]
+    def replica_items(self) -> List:
+        return [x for x in self.items() if x.startswith(self.replica_prefix)]
         
     
 
-    def refresh(self, tag:str=None) -> None:
-        path = self.store_dir(tag=tag)
+    def refresh(self) -> None:
+        path = self.store_dir()
         return c.rm(path)
-    
-    def replicate(self, item_key:str = None, network:str = None):
-        items = self.items()
-        if len(items) == 0:
-            return {'success': False, 'msg': 'No items to validate'}
-        item_key = item_key or c.choice(items)
-        item_data = self.get(item_key)
-        replicas = item_data.get('replicas', [])
-        if len(replicas) < self.max_replicas:
-            peer = c.choice(self.peers())
-            client = c.module(peer)
-            response = client.put(item_key, item_data)
- 
-        item_data['replicas'] = replicas + [peer]
-        self.put_json(item_key, item_data)
 
-        return response
-   
 
-    def validate_loop(self, tag=None, interval=0.1, vote_inteval=1, init_timeout = 1):
+    def validate_loop(self, interval=0.1, vote_inteval=1, init_timeout = 1):
         c.sleep(init_timeout)
         import time
         tag = self.tag if tag == None else tag
         while True:
             try:
-                items = self.items(tag=tag)
+                items = self.items()
                 if len(items) == 0:
                     c.print('No items to validate', color='red')
                     time.sleep(1.0)

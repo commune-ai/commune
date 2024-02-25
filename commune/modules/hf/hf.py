@@ -2,13 +2,9 @@
 import os, sys
 import pandas as pd
 from typing import Union, List
-import plotly.express as px
-from huggingface_hub import HfApi, hf_hub_download
-from transformers import AutoModel, AutoTokenizer
 import commune as c
 import streamlit as st
 import torch
-from safetensors.torch import save_file, load_file
 
 
 
@@ -17,15 +13,20 @@ class Huggingface(c.Module):
     shortcuts = cfg['shortcuts']
     def __init__(self, config:dict=None):
         self.set_config(config)
+
+    def set_hf_api(self):
+        from huggingface_hub import HfApi
         self.hf_api = HfApi(self.config.get('hub'))
  
     @classmethod
     def get_tokenizer(cls, model:str=None, *args, **kwargs):
         model = cls.resolve_model(model)
+        from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(model, *args, **kwargs)
 
     def get_model(self, model_name_or_path:str=None, *args, **kwargs):
         model = self.resolve_model(model)
+        from transformers import AutoModel
         return AutoModel.from_pretrained(model_name_or_path, *args, **kwargs)
  
  
@@ -110,6 +111,7 @@ class Huggingface(c.Module):
         return {k:int(v) for k,v in count_dict.items()}
 
     def streamlit_main(self):
+        import plotly.express as px
         pipeline_tags_count = module.pipeline_tags_count
         fig = px.pie(names=list(pipeline_tags_count.keys()),  values=list(pipeline_tags_count.values()))
         fig.update_traces(textposition='inside')
@@ -237,6 +239,7 @@ class Huggingface(c.Module):
         
     @classmethod
     def load_torch(cls, path):
+        from safetensors.torch import save_file, load_file
         ext = os.path.splitext(path)[-1]
         if 'safetensors' in ext:
             torch_data = load_file(path)

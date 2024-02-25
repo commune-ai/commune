@@ -1045,16 +1045,18 @@ class c:
 
     
     @classmethod
-    def modules(cls, search=None, **kwargs)-> List[str]:
+    def modules(cls, search=None, mode='local', **kwargs)-> List[str]:
         '''
         List of module paths with respect to module.py file
         
         Assumes the module root directory is the directory containing module.py
         '''
-        module_list = list(cls.module_tree().keys())
-        if search != None:
-            module_list = [m for m in module_list if search in m]
-    
+        if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
+            module_list = c.module('subspace')().modules(search=search, **kwargs)
+        else:
+            module_list = list(cls.module_tree().keys())
+            if search != None:
+                module_list = [m for m in module_list if search in m]
         return module_list
 
 
@@ -2372,6 +2374,13 @@ class c:
         if return_future:
             return future
         return c.gather(future)
+    
+    @classmethod
+    def reoslve_client(cls, module, network='local', **kwargs):
+        if not c.server_exists(module):
+            c.serve(module,wait_for_server=True, network=network)
+        return c.connect(module, network=network **kwargs)
+    
 
     @classmethod
     async def async_connect(cls, 
@@ -8432,9 +8441,6 @@ class c:
         return c.shuffle(peers)[:n]
 
 
-    @classmethod
-    def play(cls):
-        c.module('music').play()
 
     @classmethod
     def type(cls,x ):
@@ -8622,6 +8628,7 @@ class c:
             if fn == '__init__':
                 config = module.config(to_munch=False)
                 extra_defaults = config
+            st.write(fn_schema)
             fn_schema['default'].pop('self', None)
             fn_schema['default'].pop('cls', None)
             fn_schema['default'].update(extra_defaults)

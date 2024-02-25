@@ -37,9 +37,9 @@ class Docker(c.Module):
         return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
     
     @classmethod
-    def build(cls, path , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
-
-        path = cls.resolve_docker_path(path)
+    def build(cls, path = None , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
+        path = c.resolve_path(path)
+        
         if tag is None:
             tag = path.split('/')[-2]
 
@@ -173,7 +173,7 @@ class Docker(c.Module):
 
 
     @classmethod
-    def run(cls, 
+    def deploy(cls, 
                     image : str,
                     cmd : str  = 'ls',
                     volumes:List[str] = None,
@@ -290,12 +290,7 @@ class Docker(c.Module):
     
 
 
-    @classmethod
-    def dockerfiles(cls, path = None):
-       if path is None:
-           path = c.libpath + '/'
-       return [l for l in c.walk(path) if l.endswith('Dockerfile')]
-    
+
     @classmethod
     def name2dockerfile(cls, path = None):
        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in cls.dockerfiles(path)}
@@ -436,3 +431,41 @@ class Docker(c.Module):
     @classmethod
     def logout(self, image:str):
         c.cmd(f'docker logout {image}', verbose=True)
+
+    @classmethod
+    def dockerfiles(cls, path = None):
+        if path is None:
+            path = c.libpath + '/'
+        dockerfiles = []
+        for l in c.walk(path):
+            if l.endswith('Dockerfile'):
+                c.print(l)
+                dockerfiles.append(l)
+        return dockerfiles
+    
+
+    def name2dockerfile(self, path = None):
+        if path is None:
+            path = self.libpath + '/'
+        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
+    
+
+    @classmethod
+    def dashboard(cls):
+        self = cls()
+        import streamlit as st
+        containers = self.psdf()
+        name2dockerfile = self.name2dockerfile()
+        names = list(name2dockerfile.keys())
+        name = st.selectbox('Dockerfile', names)
+        dockerfile = name2dockerfile[name]
+        dockerfile_text = c.get_text(dockerfile)
+        st.code(dockerfile_text)
+
+
+
+
+
+
+
+Docker.run(__name__)
