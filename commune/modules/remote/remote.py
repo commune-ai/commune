@@ -10,7 +10,14 @@ class Remote(c.Module):
     host_url = 'https://raw.githubusercontent.com/communeai/commune/main/hosts.yaml'
     executable_path='commune/bin/c'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=10,  **kwargs ):
+    def ssh_cmd(cls, *cmd_args, 
+                host:str= None,  
+                cwd:str=None, 
+                verbose=False, 
+                sudo=False, 
+                key=None, 
+                timeout=10,  
+                **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -612,6 +619,9 @@ class Remote(c.Module):
             return True
 
         return {k:v for k,v in host_map.items() if filter_host(k)}
+
+    def pwds(self, search=None):
+        return {k:v['pwd'] for k,v in self.hosts(search=search).items()}
 
 
 
