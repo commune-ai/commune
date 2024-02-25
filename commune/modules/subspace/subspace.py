@@ -1361,6 +1361,7 @@ class Subspace(c.Module):
                     method='subspace_getModuleInfo',
                     format_keys = ['emission', 'stake'],
                     timeit = False,
+                    lite = True,
                     **kwargs) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode='http')
 
@@ -1378,14 +1379,19 @@ class Subspace(c.Module):
         # convert list of u8 into a string Vector<u8> to a string
         module['name'] = self.vec82str(module['name'])
         module['address'] = self.vec82str(module['address'])
-
-        module['stake'] = sum([v for k,v in module['stake_from'] ])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        for k in ['emission', 'stake']:
-            module[k] = self.format_amount(module[k], fmt=fmt)
+        module['stake_from'] = [[k,self.format_amount(v, fmt=fmt)] for k,v in module['stake_from']]
+        module['stake'] = sum([v for k,v in module['stake_from'] ])
+        module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
 
+        if lite :
+            features = self.lite_module_features + ['stake']
+            module = {f: module[f] for f in features}
+
+
+        
 
         return module
     
@@ -1396,7 +1402,6 @@ class Subspace(c.Module):
 
     def get_modules(self, keys:list = None,
                      network='main',
-                       update=False,
                           timeout=5,
                          netuid=0, fmt='j',
                            **kwargs) -> List['ModuleInfo']:
@@ -1417,12 +1422,14 @@ class Subspace(c.Module):
         for future in  c.as_completed(futures, timeout=timeout):
             progress_bar.update(1)
             module = future.result()
+            c.print(module)
             key = future2key[future]
             if isinstance(module, dict) and 'name' in module:
                 results.append(module)
             else:
                 c.print(f'Error querying module for key {key}')
-        
+
+
         return results
     
     def my_modules(self, **kwargs):
@@ -2149,31 +2156,6 @@ class Subspace(c.Module):
             return df_stats
 
 
-
-    def myx_modules(self,
-                   search:str=None,  
-                   netuid:int=0, 
-                   network=network, 
-                   df:bool = True, 
-                   timeout=30,
-                   batch_size=30,
-                   update = False,
-                   fmt = 'j',
-                   modules:List[int] = None, 
-                   feature = None,
-                   **kwargs):
-        path = 'my_modules'
-
-        modules = []
-        my_keys = list(c.key2address().values())
-        modules = self.modules(fmt=fmt, netuid=netuid, update=update, network=network, search=search)
-        modules = [m for m in modules if m['key'] in my_keys]
-        if feature != None:
-            modules = [m[feature] for m in modules]
-        
-        return modules
-    
-
     @classmethod
     def status(cls):
         return c.status(cwd=cls.libpath)
@@ -2217,10 +2199,6 @@ class Subspace(c.Module):
 
         path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
 
-        def fn_query(*args, **kwargs):
-            self = Subspace(mode=mode)
-            return self.query_map(*args,**kwargs)
-        
         
         def get_feature(feature, **kwargs):
             self = Subspace(mode=mode)
@@ -2232,11 +2210,10 @@ class Subspace(c.Module):
         feature2params['balances'] = [get_feature, dict(feature='balances', update=update, block=block, timeout=timeout)]
         feature2params['subnets'] = [get_feature, dict(feature='subnet_params', update=update, block=block, netuid=netuid, timeout=timeout)]
         feature2params['global'] = [get_feature, dict(feature='global_params', update=update, block=block, timeout=timeout)]
-        
+        feature2params['modules'] = [get_feature, dict(feature='modules', update=update, block=block, timeout=timeout)]
+    
         feature2result = {}
-        state_dict = {'block': block, 
-                      'block_hash': self.block_hash(block), 
-                      'modules': self.modules(update=update, network=network, netuid=netuid, block=block, timeout=timeout)}
+        state_dict = {'block': block,'block_hash': self.block_hash(block)}
         while len(feature2params) > 0:
             
             for feature, (fn, kwargs) in feature2params.items():
