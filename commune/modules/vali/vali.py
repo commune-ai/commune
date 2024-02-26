@@ -27,7 +27,8 @@ class Vali(c.Module):
 
         # we want to make sure that the config is a munch
         self.start_time = c.time()
-        self.sync_network()
+
+        self.sync()
         #
         if self.config.start:
             c.thread(self.run_loop)
@@ -128,17 +129,14 @@ class Vali(c.Module):
         
         self.running = True
         last_print = 0
-
         self.executor  = c.module('executor.thread')(max_workers=self.config.num_threads)
-
 
         while self.running:
             results = []
             futures = []
-            df_rows = []
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
-                self.sync_network()
+                self.sync()
                 
             module_addresses = c.shuffle(c.copy(self.module_addresses))
             batch_size = self.config.batch_size 
@@ -153,19 +151,14 @@ class Vali(c.Module):
                     
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                            try:
-                                result = ready_future.result()
-                            except Exception as e:
-                                result = {'success': False, 'error': c.detailed_error(e)}
+                            result = ready_future.result()
                             futures.remove(ready_future)
                             results.append(result)
                             break
                     except Exception as e:
                         e = c.detailed_error(e)
                         c.print(f'Error {e}', color='red')
-                        
-    
-
+                
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
                         'lifetime': self.lifetime,
@@ -174,14 +167,14 @@ class Vali(c.Module):
                         'errors': self.errors,
                         'successes': self.successes,
                             }
-                    df_rows += [stats]
-                    df = c.df(df_rows[-1:])
                     results = []
-                    c.print(df)
+                    c.print(c.df([stats]))
                     last_print = c.time()
+                
 
 
-    def sync_network(self, 
+
+    def sync(self, 
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
@@ -272,7 +265,7 @@ class Vali(c.Module):
         """
         # load the module stats (if it exists)
         if network != None:
-            self.sync_network(network=network)
+            self.sync(network=network)
 
         namespace = self.namespace
         # RESOLVE THE MODULE ADDRESS
@@ -508,7 +501,7 @@ class Vali(c.Module):
         module_infos = []
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
-            results = c.gather(jobs_batch)
+            results = c.wait(jobs_batch, timeout=self.config.timeout)
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
 

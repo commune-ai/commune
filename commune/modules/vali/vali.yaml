@@ -37,9 +37,9 @@ refresh_stats: False
 # score
 connect_score: 0.1 
 latency_score_weight: 0.2
-alpha: 0.5
+alpha: 0.5 # the ma average
+vote_tag : null 
 
-vote_tag : null
 # workers
 mode: thread
 num_workers: 1

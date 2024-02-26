@@ -31,22 +31,18 @@ class CLI(c.Module):
             # is it a fucntion, assume it is for the module
             module_list = c.modules()
             # handle module/function
+            is_fn = args[0] in functions
+
             if '/' in args[0]:
                 args = args[0].split('/') + args[1:]
-        
-            args[0] = self.resolve_shortcut(args[0])
+                is_fn = False
 
-            is_fn = args[0] in functions
-            is_module = args[0] in module_list
-
-
+            is_module = bool(not is_fn)
             if is_fn:
                 # is a function
                 module = c.Module
                 fn = args.pop(0)
             elif is_module:
-                # is a module
-        
                 module = args.pop(0)
                 module = c.module(module)
             

@@ -1,14 +1,13 @@
 
 from retry import retry
 from typing import *
-from .balance import Balance
 import json
 import os
 import commune as c
 import requests 
 
-U32_MAX = 4294967295
-U16_MAX = 65535
+U32_MAX = 2**32 - 1
+U16_MAX = 2**16 - 1
 
 class Subspace(c.Module):
     """
@@ -217,7 +216,7 @@ class Subspace(c.Module):
         self,
         block: Optional[int] = None,
         fmt = 'nano'
-    ) -> Optional[Balance]:
+    ) -> Optional['Balance']:
         """ Returns the existential deposit for the chain. """
         result = self.query_constant(
             module_name='Balances',
@@ -829,24 +828,11 @@ class Subspace(c.Module):
         return self.query_constant( "UnitEmission", block=block,network=network)
 
     def subnet_state(self,  netuid='all',  network='main', block=None, update=False, fmt='j', **kwargs):
-        
-        if netuid == 'all':
-            netuids = self.netuids(network=network)
-            subnet_states = []
-            for netuid in netuids:
-                subnet_state = self.subnet_state(network=network, block=block, update=update, netuid=netuid, fmt=fmt, **kwargs)
-                subnet_states.append(subnet_state)
-            return subnet_states
-        
-        netuid= self.resolve_netuid(netuid)
-        subnet_state = self.subnet_params(network=network, block=block, update=update, **kwargs)
-        subnet_state['emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs)
-        subnet_state['daily_emission'] = self.subnet_emission(network=network, block=block, update=update, **kwargs) * self.blocks_per_day()
-        subnet_state['n'] = self.n(netuid=netuid)
 
-        for k in ['min_stake', 'max_stake', 'emission', 'daily_emission']:
-            subnet_state[k] = self.format_amount(subnet_state[k], fmt=fmt)
-
+        subnet_state = {
+            'params': self.subnet_params(netuid=netuid, network=network, block=block, update=update, fmt=fmt, **kwargs),
+            'modules': self.modules(netuid=netuid, network=network, block=block, update=update, fmt=fmt, **kwargs),
+        }
         return subnet_state
 
         
@@ -1157,7 +1143,7 @@ class Subspace(c.Module):
         )
         return accounts
     
-    def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False , **kwargs) -> Dict[str, Balance]:
+    def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False , **kwargs) -> Dict[str, 'Balance']:
         accounts = self.accounts(network=network, update=update, block=block)
         balances =  {k:v['data']['free'] for k,v in accounts.items()}
         balances = {k: self.format_amount(v, fmt=fmt) for k,v in balances.items()}
@@ -1598,7 +1584,7 @@ class Subspace(c.Module):
             if len(modules) == 0:
                 for uid, key in enumerate(state['key'][netuid]):
                     module = { 'uid': uid, 'key': key}
-                    for f in features:
+                    for  f in features:
                         if f in ['name', 'address', 'emission', 'incentive', 
                                  'dividends', 'last_update', 'regblock']:
                             module[f] = state[f][netuid][uid]
