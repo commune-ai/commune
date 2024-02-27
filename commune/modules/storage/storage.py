@@ -260,7 +260,7 @@ class Storage(c.Module):
         items = self.items()
         if len(items) == 0:
             return {'success': False, 'msg': 'No items to validate'}
-        item_key = c.choice(items) if item_key == None else item_key
+        item_key = item_key or c.choice(items)
         item_data = self.get(item_key)
         metadata = self.get_metadata(item_key)
 

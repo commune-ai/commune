@@ -485,10 +485,12 @@ class Vali(c.Module):
                     network:str='subspace', 
                     batch_size:int=100 , # batch size for 
                     max_staleness:int= 3600,
+                    timeout:int=10,
                     update = True,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos'
                     ):
+        
         
         if not update:
             path = cls.resolve_storage_path(network=network, tag=tag) + f'/{path}'
@@ -501,7 +503,7 @@ class Vali(c.Module):
         module_infos = []
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
-            results = c.wait(jobs_batch, timeout=self.config.timeout)
+            results = c.wait(jobs_batch, timeout=timeout)
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
 

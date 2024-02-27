@@ -249,8 +249,6 @@ class Subspace(c.Module):
                     stake_from_total[staker_key] = stake_from_total.get(staker_key, 0) + stake
         return stake_from_total   
 
-     
-    
     
     def delegation_fee(self, netuid = 0, block=None, network=None, update=False, fmt='j'):
         delegation_fee = self.query_map('DelegationFee', netuid=netuid, block=block ,update=update, network=network)
@@ -2518,12 +2516,10 @@ class Subspace(c.Module):
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
         module_info = self.get_module(module)
-        c.print(module_info,  module)
+
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
         
-        c.print(module_info)
-
         if name == None:
             name = module
     
@@ -2532,11 +2528,9 @@ class Subspace(c.Module):
             address = namespace_local.get(name,  f'{c.ip()}:{c.free_port()}'  )
             address = address.replace(c.default_ip, c.ip())
         # Validate that the module is already registered with the same address
-        if name == module_info['name'] and address == module_info['address']:
-            c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
-            return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
-        
         # ENSURE DELEGATE FEE IS BETWEEN 0 AND 100
+        assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
+
 
         params = {
             'netuid': netuid, # defaults to module.netuid
@@ -3294,8 +3288,6 @@ class Subspace(c.Module):
                     self.register(name=m)
             except Exception as e:
                 c.print(e, color='red')
-
-        
     reg_servers = register_servers
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
