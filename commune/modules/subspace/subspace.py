@@ -3523,7 +3523,10 @@ class Subspace(c.Module):
         return self.check_servers(search='vali', **kwargs)
     
     
-    def check_servers(self, search='vali',update:bool=False,  min_lag=100):
+    def check_servers(self, search='vali',update:bool=False,  min_lag=100, remote=False, **kwargs):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            return self.remote_fn('check_servers', kwargs=kwargs)
         cols = ['name', 'serving', 'address', 'last_update', 'stake', 'dividends']
         module_stats = self.stats(search=search, netuid=0, cols=cols, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
