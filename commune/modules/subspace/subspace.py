@@ -1167,8 +1167,7 @@ class Subspace(c.Module):
 
 
     def subnets(self, **kwargs) -> Dict[int, str]:
-        subnets = [s['name'] for s in self.subnet_params(netuid='all', **kwargs)]
-        return subnets
+        return self.subnet_names(**kwargs)
     
     def num_subnets(self, **kwargs) -> int:
         return len(self.subnets(**kwargs))
@@ -1184,8 +1183,10 @@ class Subspace(c.Module):
 
     def subnet2netuid(self, subnet=None, network=network, update=False,  **kwargs ) -> Dict[str, str]:
         subnet2netuid =  {v:k for k,v in self.netuid2subnet(network=network, update=update, **kwargs).items()}
+        
         if subnet != None:
-            return subnet2netuid[subnet]
+            return subnet2netuid[subnet] if subnet in subnet2netuid else len(subnet2netuid)
+
         return subnet2netuid
     
     def netuid2subnet(self, netuid=None, network=network, update=False, block=None, **kwargs ) -> Dict[str, str]:
@@ -2354,8 +2355,9 @@ class Subspace(c.Module):
     #### Register ####
     ##################
     def min_register_stake(self, netuid: int = 0, network: str = network, fmt='j', **kwargs) -> float:
-        stake =  self.min_stake(netuid=netuid, network=network, update=True, fmt=fmt) + self.min_burn(network=network, update=True, fmt=fmt)
-        return stake
+        min_burn = self.min_burn( network=network, fmt=fmt)
+        min_stake = self.min_stake(netuid=netuid, network=network, fmt=fmt)
+        return min_stake + min_burn
     def register(
         self,
         name: str , # defaults to module.tage
@@ -2376,17 +2378,20 @@ class Subspace(c.Module):
         
         network =self.resolve_network(network)
         key = self.resolve_key(key)
+        
         if address == None:
             address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         if module_key == None:
             module_key = c.get_key(name).ss58_address
 
         # Validate address.
-        netuid = self.subnet2netuid(subnet)
+            
         
-        if stake == None:
+        if stake == None :
+            netuid = self.subnet2netuid(subnet)
             min_stake = self.min_register_stake(netuid=netuid, network=network)
             stake = min_stake + existential_balance
+            
 
         stake = self.to_nanos(stake)
 
