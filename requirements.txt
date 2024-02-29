@@ -35,7 +35,7 @@ openai
 # scraping
 # beautifulsoup4
 # httplib2
-# urllib3
+urllib3<2
 # ray
 # ray[default]
 # ray[tune]
