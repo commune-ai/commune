@@ -1666,7 +1666,7 @@ class c:
 
     module_cache = {}
     @classmethod
-    def get_module(cls, path:str, cache=True, timeit=True, catch_exception=True) -> str:
+    def get_module(cls, path:str, cache=True, timeit=True, catch_exception=False, verbose=False) -> str:
         if catch_exception: 
             try:
                 return cls.get_module(path, cache=cache, timeit=timeit, catch_exception=False)
@@ -1674,17 +1674,17 @@ class c:
                 # sometimes you need to update the module tree
                 cls.tree(update=True)
         path = path or 'module'
-        if timeit:
-            return c.get_module(path, cache=cache, timeit=False)
        
         if not isinstance(path, str):
             return path
         if cache:
             if path in c.module_cache:
                 return c.module_cache[path]
-
+        t1 = c.time()
         # convert the simple to path
         path = c.simple2path(path)
+        t2 = c.time()
+        c.print(f'Converted {path} to {t2-t1} seconds', color='green', verbose=verbose)
 
         # convert the path to object path
         try:
@@ -1695,7 +1695,10 @@ class c:
             path = c.path2objectpath(path, search=None)
         
         # import the object
+        
         module = c.import_object(path)
+        t2 = c.time()
+        c.print(f'Imported {path} in {t2-t1} seconds', color='green', verbose=verbose)
         c.module_cache[path] = module
         return module
 
@@ -1720,13 +1723,14 @@ class c:
                 update:bool = True,
                 path = 'local_module_tree',
                 **kwargs) -> List[str]:
-        
+        module_tree = {}
+    
         if not update:
-            # this is to cache the module tree for faster access
-            if cls.tree_cache == None:
-                cls.tree_cache = c.get(path, None)
-
-        module_tree = cls.tree_cache
+            if cls.tree_cache != {}:
+                module_tree = cls.tree_cache
+            else:
+                module_tree =  c.get(path, {})
+                cls.tree_cache = module_tree
         
         if len(module_tree) == 0:
             for tree_path in cls.trees():
@@ -1734,9 +1738,10 @@ class c:
                 python_paths = c.get_module_python_paths(path=tree_path)
                 # add the modules to the module tree
                 module_tree.update({c.path2simple(f): f for f in python_paths})
-            # to use functions like c. we need to replace it with module lol
-            if cls.root_module_class in module_tree:
-                module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+                # to use functions like c. we need to replace it with module lol
+                if cls.root_module_class in module_tree:
+                    module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
+                
                 c.put(path, module_tree)
 
         # cache the module tree
@@ -1833,7 +1838,8 @@ class c:
             if path in shortcuts:
                 path = shortcuts[path]
             else:
-                raise Exception(f'Could not find {path} in {len(list(tree.keys()))} modules')
+                modules = c.modules(path)
+                raise Exception(f'Could not find {path} in {modules} modules')
         return tree[path]
     
 
@@ -1874,18 +1880,22 @@ class c:
         
     
     @classmethod
-    def get_module_python_paths(cls, path = None) -> List[str]:
+    def get_module_python_paths(cls, 
+                                path : str= None, 
+                                search:str=None,
+                                end_line=200, 
+                                ) -> List[str]:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
-
+        search_glob = c.libpath+'/**/*.py' 
         path = path if path else c.root_path
         modules = []
 
         # find all of the python files
-        for f in glob(c.libpath+'/**/*.py', recursive=True):
+        for f in glob(search_glob, recursive=True):
 
-            initial_text = c.readlines(f, end_line=200)
+            initial_text = c.readlines(f, end_line=end_line)
 
             commune_in_file = 'import commune as c' in initial_text 
             is_commune_root = 'class c:' in initial_text
@@ -2942,8 +2952,6 @@ class c:
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
 
-
-            
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
@@ -3764,7 +3772,6 @@ class c:
         Wraps a python class as a module
         '''
 
-        
         module_class =  c.get_module(module,**kwargs)
         
         return module_class
@@ -8956,13 +8963,11 @@ class c:
         cls.put(path, state)
         return state
         
-
-
     @classmethod
     def eval(cls, module):
         '''
         Docs:
-        
+        c
         ### eval(cls, module)
         
         This class method evaluates a given module by invoking its 'vali' method and passing the 'module' parameter. 
@@ -8985,7 +8990,6 @@ class c:
     @classmethod
     def comment(self,fn:str='module/ls'):
         return c.module('coder').comment(fn)
-    
 
     def imported_modules(self, module=None):
         # get the text
@@ -8994,11 +8998,7 @@ class c:
     @classmethod
     def host2ssh(cls, *args, **kwarg):
         return c.module('remote').host2ssh(*args, **kwarg)
-        
-
-
-        
-
+    
 Module = c
 Module.run(__name__)
     

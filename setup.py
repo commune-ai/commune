@@ -31,7 +31,8 @@ setup(
         'Topic :: Software Development :: Build Tools',
 
         # Pick your license as you wish
-        'License :: IDGAF License, Do What You Want',
+        'License :: IDGAF License, Do What You Want, I wont sue you',
+        'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
