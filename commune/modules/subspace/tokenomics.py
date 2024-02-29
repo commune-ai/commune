@@ -204,10 +204,7 @@ class SubspaceDashboard(c.Module):
 
 
         fig = px.line(df, x=x, y=y, title='Emission Schedule')
-        # add vertical lines for halving
-
-
-
+        # add vertical lines for halvingc
         # add a lien for the total supply
         # ensure the scales are side by side
 

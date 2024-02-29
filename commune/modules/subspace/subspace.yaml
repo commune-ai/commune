@@ -35,17 +35,19 @@ url_search: onfinality
 urls:
   commies:
     http:
-      - https://commune-api-node-0.communeai.net/
-      - https://commune-api-node-1.communeai.net/
-      - https://commune-api-node-2.communeai.net/
+    - https://commune-api-node-1.communeai.net/
+    - https://commune-api-node-2.communeai.net/
+    - https://commune-api-node-3.communeai.net/
+    - https://commune-api-node-4.communeai.net/
     ws:
-      - wss://commune-api-node-0.communeai.net/
-      - wss://commune-api-node-1.communeai.net/
-      - wss://commune-api-node-2.communeai.net/
+    - wss://commune-api-node-1.communeai.net/
+    - wss://commune-api-node-2.communeai.net/
+    - wss://commune-api-node-3.communeai.net/
+    - wss://commune-api-node-4.communeai.net/
+  comstats:
+    http: https://api.comstats.io
+    ws: wss://api.com
   local: null
   onfinality:
     http: https://commune.api.onfinality.io/public-http
     ws: wss://commune.api.onfinality.io/public-ws
-  comstats:
-    http: https://api.comstats.io
-    ws: wss://api.com

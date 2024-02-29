@@ -30,25 +30,3 @@ aiofiles
 aiohttp
 nest_asyncio
 openai
-
-# ray
-# scraping
-# beautifulsoup4
-# httplib2
-# urllib3
-# ray
-# ray[default]
-# ray[tune]
-# logging
-# ansible
-# Module for text2speech
-# fairseq2
-# huggingface_hub
-# torchaudio
-# datasets
-# transformers
-# diffusers
-# accelerate
-# openai
-# Module for captcha
-# capmonstercloudclient
