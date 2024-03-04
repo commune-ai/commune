@@ -896,6 +896,7 @@ class Subspace(c.Module):
                 'trust_ratio': 'TrustRatio',
                 'vote_threshold': 'VoteThresholdSubnet',
                 'vote_mode': 'VoteModeSubnet',
+                'max_weight_age': 'MaxWeightAge',
                 'self_vote': 'SelfVote',
                 'name': 'SubnetNames',
                 'max_stake': 'MaxStake',
@@ -1214,7 +1215,6 @@ class Subspace(c.Module):
             if netuid == 0: 
                 return netuid
             # If the netuid is an integer, ensure it is valid.
-            assert netuid in self.netuids(), f"Netuid {netuid} not found in {self.netuids()} for chain {self.chain}"
             
         assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
