@@ -13,7 +13,7 @@ with open('requirements.txt') as requirements_file:
 
 setup(
     name='commune',
-    version='4.20.69',
+    version='0.0.1',
     description='commune',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -36,4 +36,6 @@ setup(
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
-    ], python_requires='>=3.8')
+    ], 
+    python_requires='>=3.8')
+x

@@ -17,41 +17,7 @@ logo_path = __file__.replace('dashboard.py', 'commune_logo.png')
 
 class Wallet(c.Module):
 
-    def select_key(self):
-        keys = c.keys()
-        key2index = {k:i for i,k in enumerate(keys)}
-        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
-        self.key_info = {
-            'ss58_address': self.key.ss58_address,
-        }
 
-        return self.key
-
-    @classmethod
-    def get_state(cls, network='main', netuid='all', update=True, path='state'):
-        t1 = c.time()
-        if not update:
-            state = cls.get(path, default=None)
-            if state != None:
-                return state
-            
-        subspace = c.module('subspace')(network=network)
-
-        state = {
-            'subnets': subspace.subnet_params(netuid=netuid, network=network),
-            'modules': subspace.modules(netuid=netuid),
-            'balances': subspace.balances(),
-            'stake_to': subspace.stake_to(netuid=netuid),
-        }
-
-        state['total_balance'] = sum(state['balances'].values())/1e9
-        state['key2address'] = c.key2address()
-        state['lag'] = c.lag()
-        state['block_time'] = 8
-        c.print(f'get_state took {c.time() - t1:.2f} seconds')
-        cls.put(path, state)
-        return state
-        
 
     def transfer_dashboard(self):
         cols = st.columns(2)
@@ -102,7 +68,7 @@ class Wallet(c.Module):
         st.write(df)
         playground = st.checkbox('Playground')
         if playground:
-            xself.playground()
+            self.playground()
 
     def stake_dashboard(self):
         
@@ -198,7 +164,6 @@ class Wallet(c.Module):
 
         with cols[1]:
             stake_button = st.button('REMOVE STAKE')
-            stake = self.key_info['stake']
             modules = st.multiselect('Modules', staked_modules, default_staked_modules, key='modules.unstake')
             total_amount = sum([self.key_info['stake_to'][m] for m in modules])
             unstake_ratio = st.slider('Unstake Ratio', 0.0, 1.0, 0.5, 0.01, key='unstake.ratio')
@@ -265,7 +230,8 @@ class Wallet(c.Module):
             # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
             # fn = st.selectbox('Select Function', fn2index['__init__'], key=f'fn.{prefix}')
             with st.expander('INIT KWARGS', expanded=True):
-                kwargs = self.function2streamlit(module=module, fn='__init__', salt='register')
+                st.write(module)
+                kwargs = self.function2streamlit(module=module, fn='__init__')
             n = st.slider('Replicas', 1, 30, 1, 1, key=f'n.{prefix}.register')
 
             register = st.form_submit_button('Register')
@@ -324,10 +290,8 @@ class Wallet(c.Module):
         values = [v for l,v in sorted_labels_and_values]
 
         my_modules = [m for m in modules if m['name'] in labels]
-        self.key_info['daily_reward'] = sum([m['emission'] for m in my_modules]) * self.state['epochs_per_day']
 
         my_info_df = pd.DataFrame(self.key_info)
-        st.write(self.key_info)
         for m in my_modules:
             m.pop('stake_from', None)
         
@@ -338,7 +302,6 @@ class Wallet(c.Module):
 
     @classmethod
     def dashboard(cls, key = None):
-        c.new_event_loop()
         self = cls()
         self.st = c.module('streamlit')()
     
@@ -346,16 +309,16 @@ class Wallet(c.Module):
         self.logo_url = "https://github.com/commune-ai/commune/blob/librevo/commune/modules/dashboard/commune_logo.gif?raw=true"
         st.markdown(f"![Alt Text]({self.logo_url}), width=10, height=10")
         with st.sidebar:
-            if key == None:
-                key = self.select_key()
             self.select_network()
+    
+            self.select_key()
 
         fns = self.fns()
         dash_fns = [f for f in fns if f.endswith('_dashboard')]
         options = [f.replace('_dashboard', '') for f in dash_fns]
 
 
-        self.my_info(expander=False) 
+        # self.my_info(expander=False) 
 
 
         tabs = st.tabs(options)
@@ -365,23 +328,25 @@ class Wallet(c.Module):
             with tab:
                 getattr(self, dash_fn)()
 
+    def select_key(self):
+        keys = c.keys()
+        key2index = {k:i for i,k in enumerate(keys)}
+        self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+        ss58_address = self.key.ss58_address
+
+        return self.key
+
 
     def select_network(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
         
-        if _self != None:
-            self = _self
+        self = _self or self
         
         import streamlit as st
         
-        @st.cache_data(ttl=60*60*24, show_spinner=False)
-        def get_networks():
-            chains = c.chains()
-            return chains
-        
         subspace = c.module('subspace')()
+        networks = ['main', 'test']
         
-        self.networks = get_networks()
-        self.network = st.selectbox('Select Network', self.networks, 0, key='network')
+        self.network = st.selectbox('Select Network', networks, 0, key='network')
         update = st.button('Update')
 
         subnets = subspace.subnet_params(netuid='all', network=self.network, update=update)
@@ -393,47 +358,6 @@ class Wallet(c.Module):
         self.netuid = netuid
         self.subnet = name2subnet[subnet_name]
         self.subnets = subnets
-
-        self.state =  st.cache_data(show_spinner=False)(self.get_state)(network=self.network, netuid=netuid)
-        
-        self.modules = self.state['modules']
-
-        st.write(self.modules)
-        self.state ['epochs_per_day'] = ( 24* 60 * 60 ) / (self.subnet["tempo"] * self.state['block_time'])
-        self.name2module = {m['name']: m for m in self.modules}
-        self.name2key = {k['name']: k['key'] for k in self.modules}
-        self.key2name = {k['key']: k['name'] for k in self.modules}
-        self.name2address = {k['name']: k['address'] for k in self.modules}
-        self.key2module = {k['key']:k for k in self.modules}
-
-        self.keys  = list(self.state['key2address'].keys())  
-        self.key2index = {k:i for i,k in enumerate(self.keys)}
-
         self.namespace = {m['name']: m['address'] for m in self.modules}
-
-        for i, m in enumerate(self.modules):
-            self.modules[i]['stake'] = m['stake']/1e9
-            self.modules[i]['emission'] = m['emission']/1e9
-
-        self.name2key = {k['name']: k['key'] for k in self.modules}
-        self.key2name = {k['key']: k['name'] for k in self.modules}
-        self.name2address = {k['name']: k['address'] for k in self.modules}
-        self.address2name = {k['address']: k['name'] for k in self.modules} 
-
-        stake_to = self.state['stake_to'].get(self.key.ss58_address, {})
-        self.key_info['balance']  = self.state['balances'].get(self.key.ss58_address,0)/1e9
-        self.key_info['stake_to'] = {k:v/1e9 for k,v in stake_to}
-        self.key_info['stake_to'] = {k:v for k,v in sorted(self.key_info['stake_to'].items(), key=lambda x: x[1], reverse=True)}
-        self.key_info['stake'] = sum([v for _, v in stake_to])
-        # convert keys to names 
-        for k in ['stake_to']:
-            self.key_info[k] = {self.key2name[k]: v for k,v in self.key_info[k].items() if k in self.key2name}
-    
-        self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
-        stake_to = self.key_info['stake_to']
-        df_stake_to = pd.DataFrame(stake_to.items(), columns=['module', 'stake'])
-        df_stake_to.sort_values('stake', inplace=True, ascending=False)
-
-
 
 Wallet.run(__name__)

@@ -2,6 +2,4 @@ import argparse
 import commune as c
 
 
-subspace = c.module('module')
-
-
+c.print(c.module('sandbox'))
