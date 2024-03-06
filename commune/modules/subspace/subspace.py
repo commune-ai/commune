@@ -992,11 +992,11 @@ class Subspace(c.Module):
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
-        name2key = self.name2key(netuid=netuid)
-        if key in name2key:
-            key = name2key[key]
         if not c.valid_ss58_address(key):
-            return False
+            name2key = self.name2key(netuid=netuid)
+            if key in name2key:
+                key = name2key[key]
+        assert c.valid_ss58_address(key), f"Invalid key {key}"
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
 
@@ -1355,10 +1355,10 @@ class Subspace(c.Module):
 
         if isinstance(module, str):
             module_key = self.resolve_key_ss58(module)
-
+        module_key = module
+        c.print(module_key)
         t1 = c.timestamp()
         json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
-        latency = c.timestamp() - t1
         module = requests.post(url,  json=json).json()
         module = {**module['result']['stats'], **module['result']['params']}
         # convert list of u8 into a string Vector<u8> to a string
@@ -1370,6 +1370,7 @@ class Subspace(c.Module):
         module['stake'] = sum([v for k,v in module['stake_from'] ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
+        # assert module['key'] == module_key, f"Module key {module['key']} does not match requested key {module_key}"
 
         if lite :
             features = self.lite_module_features + ['stake']
@@ -1500,7 +1501,7 @@ class Subspace(c.Module):
                             'incentive', 
                             'dividends', 
                             'last_update', 
-                            'stake_from']
+                            'stake_from', 'delegation_fee']
     feature2key = {
         'key': 'keys',
         'address': 'addresses',
@@ -2909,9 +2910,11 @@ class Subspace(c.Module):
         assert module_key in stake_to, f"Module {module_key} not found in SubNetwork {netuid}"
         if amount == None:
             amount = stake_to[module_key]
+        else:
+            amount = int(self.to_nanos(amount))
         # convert to nanos
         params={
-            'amount': int(self.to_nanos(amount)),
+            'amount': amount ,
             'netuid': netuid,
             'module_key': module_key
             }
@@ -3052,20 +3055,23 @@ class Subspace(c.Module):
                 amounts = [stake_to[m] for m in module_keys]
 
         else:
-            stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='j') # name to amount
-            name2key = self.name2key(netuid=netuid, update=True)
+            name2key = {}
 
             module_keys = []
             for i, module in enumerate(modules):
                 if c.valid_ss58_address(module):
                     module_keys += [module]
                 else:
+                    if name2key == {}:
+                        name2key = self.name2key(netuid=netuid, update=True)
                     assert module in name2key, f"Invalid module {module} not found in SubNetwork {netuid}"
                     module_keys += [name2key[module]]
                 
             # RESOLVE AMOUNTS
             if amounts == None:
+                stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amounts
                 amounts = [stake_to[m] for m in module_keys]
+                
 
             if isinstance(amounts, (float, int)): 
                 amounts = [amounts] * len(module_keys)
@@ -3080,7 +3086,7 @@ class Subspace(c.Module):
             "module_keys": module_keys,
             "amounts": amounts
         }
-
+        c.print(params)
         response = self.compose_call('remove_stake_multiple', params=params, key=key)
 
         return response
