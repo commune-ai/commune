@@ -485,8 +485,7 @@ class c:
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
         key = c.get_key(key)
         text = cls.get_text(path)
-        c.print("text")
-        r = key.decrypt(text, password=password, **kwargs)
+        r = key.decrypt(text, password=password,key=key, **kwargs)
         return cls.put_text(path, r)
 
 
@@ -514,13 +513,14 @@ class c:
         return text.startswith(prefix)
 
     @classmethod
-    def put(cls, k: str, v: Any,  mode: bool = 'json', key : str = None,encrypt: bool = False, verbose: bool = False):
+    def put(cls, k: str, v: Any,  mode: bool = 'json', encrypt: bool = False, verbose: bool = False, password: str = None, **kwargs) -> Any:
         '''
         Puts a value in the config
         '''
+        encrypt = encrypt or password != None
         
-        if encrypt:
-            data = c.encrypt(v, key=key, return_dict=True)
+        if encrypt or password != None:
+            v = c.encrypt(v, password=password)
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
         
@@ -541,6 +541,7 @@ class c:
             cache :bool = False,
             full :bool = False,
             key: 'Key' = None,
+            password : str = None,
             **kwargs) -> Any:
         
         '''
@@ -552,25 +553,20 @@ class c:
             if k in cls.cache:
                 return cls.cache[k]
 
- 
-
-        verbose = kwargs.get('verbose', False)
         data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
             
-        if data == None: 
-            data = default
-        encrypted = c.is_encrypted(data)
-   
-        if encrypted:
-            data = cls.decrypt(data, key=key)
+
+        if password != None:
+            data['data'] = c.decrypt(data['data'], password=password)
+
+        data = data or default
         if isinstance(data, dict):
             if max_age != None:
                 timestamp = data.get('timestamp', None)
                 if timestamp != None:
-                    age = c.timestamp() - timestamp
+                    age = int(c.time() - timestamp)
                     if age > max_age:
-                        if verbose:
-                            c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
+                        c.print(f'{key} is too old ({age} > {max_age})', color='red')
                         return default
         else:
             data = default
