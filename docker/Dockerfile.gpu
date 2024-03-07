@@ -33,7 +33,8 @@ RUN python3 -m venv $POETRY_VENV \
 ENV PATH="${PATH}:${POETRY_VENV}/bin"
 
 # Install dependencies
-COPY poetry.lock pyproject.toml ./
+COPY ./poetry.lock /commune/poetry.lock 
+COPY ./pyproject.toml /commune/pyproject.toml
 RUN poetry install
 
 
