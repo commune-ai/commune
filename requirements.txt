@@ -7,8 +7,8 @@ fastapi
 substrate-interface
 
 # ml
-torch
-safetensors
+#torch
+#safetensors
 # transformers
 
 # visual
@@ -30,4 +30,4 @@ rich
 aiofiles
 aiohttp
 nest_asyncio
-openai
+#openai
