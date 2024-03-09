@@ -2,18 +2,12 @@
 # network
 network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
-tag: null
-start: True
 verbose: False
 batch_size: 32
 sync_interval: 100
-sleep_interval: 10
+sleep_interval: 5
 search: null
 max_staleness: 500
-virtual_module: False
-run_mode : thread
-run_loop: True
-run_loop_sleep: 8
 
 # score
 alpha: 0.5
@@ -27,11 +21,7 @@ min_count_before_vote: 100
 voting_networks: ['subspace', 'bittensor']
 
 # stats
-history_features: ['w', 'timestamp', 'latency']
 max_history: 10
-refresh_stats: False
-max_history: 10
-
 
 # score
 connect_score: 0.1 
@@ -43,21 +33,17 @@ vote_tag : null
 # workers
 mode: thread
 num_workers: 1
-num_threads: 32
+threads_per_worker: 32
 timeout: 10
 sleep_time: 0.05
 refresh : True
 start: True
 is_main_worker: True
-max_vote_delay_before_worker_restart: 20
-max_restart_lag: 20
 min_num_weights: 10
 debug: False
 print_interval: 5
+clone_suffix : clone
 
-
-
-check_loop: True
 
 
 

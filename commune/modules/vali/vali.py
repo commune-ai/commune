@@ -28,9 +28,8 @@ class Vali(c.Module):
         self.start_time = c.time()
 
         self.sync()
-        #
-        if self.config.start:
-            c.thread(self.run_loop)
+
+        c.thread(self.run_loop)
 
 
     @property
@@ -54,17 +53,12 @@ class Vali(c.Module):
     
     def run_loop(self):
 
-        if self.config.vote_tag == None:
-            self.start_workers(num_workers=self.config.num_workers, 
-                                refresh=self.config.refresh, 
-                                mode=self.config.mode)
-            steps = 0
-            c.print(f'Vali loop started', color='cyan')
+        self.start_workers()
+
         while True:
             if self.should_vote:
                 response = self.vote()
                 c.print(f'Voted {response}', color='cyan')
-            steps += 1
             c.sleep(self.config.sleep_interval)
 
 
@@ -83,40 +77,29 @@ class Vali(c.Module):
     def worker_name_prefix(self):
         return f'{self.server_name}/{self.worker_fn}'
 
-    def start_workers(self, 
-                      num_workers:int=1, 
-                      refresh=True, 
-                      mode='process'):
+    def start_workers(self):
         responses = []
+        config = self.config
 
-        config= c.copy(self.config)
-        config.start = False
-        config.num_workers = 0
-        config = c.munch2dict(config)
-        if mode == 'process':
 
-        # we don't want the workers to start more workers
+        workers = self.config.workers
+        mode = self.config.mode
+        config.workers = 0 # we don't want to start the workers
+        config = c.munch2dict(config) # we want to convert the config to a dict
+        clone_suffix = self.config.clone_suffix
 
-            for i in range(num_workers):
-                name = f'{self.worker_name_prefix}_{i}'
-                if not refresh and c.pm2_exists(name):
-                    c.print(f'Worker {name} already exists, skipping', color='yellow')
-                    continue
-                r = self.remote_fn(fn=self.worker_fn, 
-                                name = name,
-                                refresh=refresh,
-                                kwargs={'config': config})
-                c.print(f'Started worker {i} {r}', color='cyan')
-                responses.append(r)
-
-            return responses
-        
-        elif mode == 'thread':
-            for i in range(num_workers):
+        for i in range(workers):
+            c.print(f'Started worker {i} {worker}', color='cyan')
+            if mode == 'thread':
                 worker = c.thread(self.worker, kwargs=dict(config=config))
-                c.print(f'Started worker {i} {worker}', color='cyan')
+                responses.append(worker)        
+            elif mode == 'server':
+                worker = self.serve(kwargs=dict(config=config), key=self.key, name = self.server_name + f'{clone_suffix}{i}')
                 responses.append(worker)
-            return responses
+        
+        return responses
+        
+
         
     @classmethod
     def worker(cls, *args, **kwargs):
@@ -127,7 +110,7 @@ class Vali(c.Module):
         
         self.running = True
         last_print = 0
-        self.executor  = c.module('executor.thread')(max_workers=self.config.num_threads)
+        self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
 
         
         while self.running:
@@ -332,9 +315,6 @@ class Vali(c.Module):
 
         return path
         
-    def refresh_stats(self, network='subspace', tag=None):
-        path = self.storage_path
-        return self.rm(path)
     
     def resolve_tag(self, tag:str=None):
         return tag or self.config.vote_tag or self.tag
@@ -491,7 +471,7 @@ class Vali(c.Module):
 
     @classmethod
     def test(cls, **kwargs):
-        kwargs['num_workers'] = 0
+        kwargs['workers'] = 0
         kwargs['vote'] = False
         kwargs['verbose'] = True
         self = cls(**kwargs )
@@ -558,12 +538,10 @@ class Vali(c.Module):
 
     @classmethod
     def test(cls, **kwargs):
-        kwargs['num_workers'] = 0
-        kwargs['start'] = False
+        kwargs['workers'] = 0
         kwargs['verbose'] = True
         kwargs['network'] = 'local'
         kwargs['timeout'] = 1
-
         # test_search
         self = cls(**kwargs )
 
