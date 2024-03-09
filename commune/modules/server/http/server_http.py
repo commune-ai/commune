@@ -291,7 +291,8 @@ class ServerHTTP(c.Module):
                 key=None, 
                 history_path='history',
                 features=[ 'module', 'fn', 'seconds_ago', 'latency', 'address'], 
-                to_list=False
+                to_list=False,
+                **kwargs
                 ):
         key = c.get_key(key)
         history_path = cls.history_paths(key=key, history_path=history_path)

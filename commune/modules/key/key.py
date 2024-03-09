@@ -371,9 +371,8 @@ class Keypair(c.Module):
                 
         return keys
         
-        
     @classmethod
-    def key2address(cls, search=None, update:bool=False):
+    def key2address(cls, search=None, update:bool=True, cache = True):
         path = 'key2address'
         key2address = []
         if not update:

@@ -66,6 +66,7 @@ class c:
         if 'tag' in self.config:
             tag = self.config['tag']
         return tag
+    
     @tag.setter
     def tag(self, value):
         if not hasattr(self, 'config') or not isinstance(self.config, dict):
@@ -6273,12 +6274,15 @@ class c:
     def wait(cls, futures:list, timeout:int = 30, generator:bool=False, return_dict:bool = True) -> list:
         import concurrent.futures
 
+
         is_singleton = bool(not isinstance(futures, list))
 
         futures = [futures] if is_singleton else futures
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
             
+        if len(futures) == 0:
+            return []
         if c.is_coroutine(futures[0]):
             return c.gather(futures, timeout=timeout)
         
