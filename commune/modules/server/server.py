@@ -29,8 +29,12 @@ class Server(c.Module):
         module.tag = tag
         module.server_name = server_name
         module.key = server_name
-
         address = c.get_address(server_name, network=network)
+
+        if hasattr(module, 'info'):
+            self.info = module.info()
+
+
 
 
         if address != None and ':' in address:
