@@ -32,7 +32,7 @@ vote_tag : null
 
 # workers
 mode: thread
-num_workers: 1
+workers: 1
 threads_per_worker: 32
 timeout: 10
 sleep_time: 0.05

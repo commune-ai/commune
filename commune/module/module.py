@@ -2932,9 +2932,9 @@ class c:
               tag_seperator:str='::',
               max_workers:int = None,
               mode:str = "thread",
-              universe = False,
               public: bool = False,
               mnemonic = None,
+              key = None,
               **extra_kwargs
               ):
         kwargs = kwargs or {}
@@ -2946,6 +2946,7 @@ class c:
 
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
 
@@ -3030,7 +3031,8 @@ class c:
                                           network=network, 
                                           max_workers=max_workers, 
                                           mode=mode, 
-                                          public=public)
+                                          public=public, 
+                                          key=key)
 
         return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
