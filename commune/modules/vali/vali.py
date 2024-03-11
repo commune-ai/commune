@@ -24,18 +24,13 @@ class Vali(c.Module):
 
         # merge the config with the default config
         self.config = c.dict2munch({**Vali.config(), **config})
-
         # we want to make sure that the config is a munch
-        self.start_time = c.time()
-
         self.sync()
-
         c.thread(self.run_loop)
 
 
     def run_info(self):
         info ={
-            'lifetime': self.lifetime,
             'vote_staleness': self.vote_staleness,
             'errors': self.errors,
             'vote_interval': self.config.vote_interval,
@@ -143,7 +138,6 @@ class Vali(c.Module):
                 
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
-                        'lifetime': self.lifetime,
                         'pending': len(futures),
                         'sent': self.requests,
                         'errors': self.errors,
@@ -259,11 +253,7 @@ class Vali(c.Module):
         # if the module is stale, we can just return the module info
         info = self.get_module_info(module)
         seconds_since_called = c.time() - info['timestamp']
-
         module = c.connect(info['address'], key=self.key)
-
-
-
         self.requests += 1
 
         try:
@@ -455,10 +445,6 @@ class Vali(c.Module):
     def stop(self):
         self.running = False
 
-    @property
-    def lifetime(self):
-        return c.time() - self.start_time
-
     @classmethod
     def test(cls, **kwargs):
         kwargs['workers'] = 0
@@ -525,6 +511,9 @@ class Vali(c.Module):
 
     def random_module(self):
         return c.choice(list(self.namespace.keys()))
+    
+
+    
 
     @classmethod
     def test(cls, **kwargs):
