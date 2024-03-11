@@ -31,8 +31,6 @@ class Server(c.Module):
         module.key = server_name
         address = c.get_address(server_name, network=network)
 
-        if hasattr(module, 'info'):
-            self.info = module.info()
 
 
 
