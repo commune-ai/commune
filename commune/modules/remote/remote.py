@@ -852,7 +852,27 @@ class Remote(c.Module):
 
 
 
+    @classmethod
+    def add_host_from_ssh_string(cls, ssh_string: str, name: str = None):
+        """
+        Adds a host using an SSH connection string format that includes the password using the -pwd flag.
 
-        
+        :param ssh_string: SSH connection string, e.g., "user@host:port -p ssh_port -pwd password"
+        :param name: Optional name for the host; if not provided, a name will be generated
+        """
+        # Regular expression to parse the SSH connection string including the password specified by -pwd flag
+        pattern = r'(?P<user>[^@]+)@(?P<host>[^:]+):(?P<port>\d+).*?-p\s*(?P<ssh_port>\d+).*?-pwd\s*(?P<pwd>[^\s]+)'
+        match = re.match(pattern, ssh_string)
+        if not match:
+            raise ValueError("SSH string format is invalid. Expected format: 'user@host:port -p ssh_port -pwd password'")
+
+        user = match.group('user')
+        pwd = match.group('pwd')
+        host = match.group('host')
+        # The port in the SSH string is not used for SSH connections in this context, so it's ignored
+        ssh_port = int(match.group('ssh_port'))
+
+        # Use the existing add_host method to add the host
+        return cls.add_host(host=host, port=ssh_port, user=user, pwd=pwd, name=name)
 
 Remote.run(__name__)
