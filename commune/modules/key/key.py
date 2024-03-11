@@ -545,8 +545,7 @@ class Keypair(c.Module):
         yo rody, this is a class method you can gen keys whenever fam
         '''
         mnemonic = kwargs.pop('m', mnemonic)
-        if mnemonic == None:
-            mnemonic = cls.generate_mnemonic()
+
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
         crypto_type = cls.resolve_crypto_type(crypto_type)
@@ -835,7 +834,7 @@ class Keypair(c.Module):
     @classmethod
     def create_from_private_key(
             cls, private_key: Union[bytes, str], public_key: Union[bytes, str] = None, ss58_address: str = None,
-            ss58_format: int = None, crypto_type: int = KeypairType.SR25519
+            ss58_format: int = 42, crypto_type: int = KeypairType.SR25519
     ) -> 'Keypair':
         """
         Creates Keypair for specified public/private keys
@@ -1533,6 +1532,11 @@ class Keypair(c.Module):
             ticket = self.ticket(**kwargs)
         data = ticket.split(self.seperator)[0]
         return self.verify(ticket, **kwargs)
+    
+
+    def to_mnemonic(self, password=None):
+        from mnemonic import Mnemonic
+        return Mnemonic('english').to_mnemonic(self.private_key)
     
 
     def ticket_staleness(self, ticket):

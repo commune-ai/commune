@@ -484,6 +484,7 @@ class Subspace(c.Module):
             if c.valid_ss58_address(key):
                 return key
             else:
+
                 if c.key_exists( key ):
                     key = c.get_key( key )
                     key_address = key.ss58_address
@@ -498,6 +499,7 @@ class Subspace(c.Module):
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_address
+        
         return key_address
 
     def subnet2modules(self, network:str='main', **kwargs):
@@ -1354,20 +1356,13 @@ class Subspace(c.Module):
                     network='main',
                     fmt='j',
                     method='subspace_getModuleInfo',
-                    format_keys = ['emission', 'stake'],
-                    timeit = False,
-                    lite = True,
-                    **kwargs) -> 'ModuleInfo':
+                    lite = True) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode='http')
 
         if isinstance(module, int):
             module = self.uid2key(uid=module)
-
         if isinstance(module, str):
             module_key = self.resolve_key_ss58(module)
-        module_key = module
-        c.print(module_key)
-        t1 = c.timestamp()
         json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
         module = requests.post(url,  json=json).json()
         module = {**module['result']['stats'], **module['result']['params']}
@@ -1380,8 +1375,6 @@ class Subspace(c.Module):
         module['stake'] = sum([v for k,v in module['stake_from'] ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
-        # assert module['key'] == module_key, f"Module key {module['key']} does not match requested key {module_key}"
-
         if lite :
             features = self.lite_module_features + ['stake']
             module = {f: module[f] for f in features}

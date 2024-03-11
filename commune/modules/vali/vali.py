@@ -12,6 +12,7 @@ class Vali(c.Module):
     requests = 0
     successes = 0
     epochs = 0
+    last_success = c.time()
     n = 1
 
     def __init__(self,config:dict=None,**kwargs):
@@ -39,7 +40,8 @@ class Vali(c.Module):
             'errors': self.errors,
             'vote_interval': self.config.vote_interval,
             'epochs': self.epochs,
-            'workers': self.workers()
+            'workers': self.workers(),
+            'last_success': c.time() - self.last_success,
         }
         return info
 
@@ -111,33 +113,33 @@ class Vali(c.Module):
         last_print = 0
         self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
         
+        futures = []
+
         while self.running:
-            results = []
-            futures = []
             if self.last_sync_time + self.config.sync_interval < c.time():
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync()
                 
-            progress = c.tqdm(total=self.n, desc='Evaluating modules', position=0, leave=True)
+            
             module_addresses = c.shuffle(list(self.namespace.values()))
-
+            batch_size = min(batch_size, len(module_addresses))
+            
             # select a module
             for  i, module_address in enumerate(module_addresses):
                 # if the futures are less than the batch, we can submit a new future
-                progress.update(1)
                 if len(futures) < batch_size:
                     future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
-                    
+                
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
                             ready_future.result()
                             futures.remove(ready_future)
+
                             break
                     except Exception as e:
-                        e = c.detailed_error(e)
-                        c.print(f'Error {e}', color='red')
+                        c.print(e)
                 
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
@@ -148,7 +150,6 @@ class Vali(c.Module):
                         'successes': self.successes,
                         'network': self.network,
                             }
-                    results = []
                     c.print(c.df([stats]))
                     last_print = c.time()
                 
@@ -268,6 +269,7 @@ class Vali(c.Module):
         try:
 
             if seconds_since_called < self.config.max_staleness:
+
                 return {'w': info.get('w', 0),
                         'module': info['name'],
                         'address': info['address'],
@@ -289,6 +291,8 @@ class Vali(c.Module):
             e = c.detailed_error(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} --> {e} {c.emoji("cross")}', 'error': e}  
             self.errors += 1  
+
+        c.print(response)
         
         info['latency'] = c.time() - info['timestamp']
         # UPDATE W with alpha
