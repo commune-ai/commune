@@ -1,0 +1,33 @@
+# api
+setuptools
+uvicorn
+fastapi
+
+# blockahin
+substrate-interface
+
+# ml
+torch
+safetensors
+# transformers
+
+# visual
+streamlit
+plotly
+gradio
+
+sse-starlette
+#misc
+msgpack_numpy
+retry
+psutil
+munch
+grpcio
+grpcio-tools
+scipy
+loguru
+rich
+aiofiles
+aiohttp
+nest_asyncio
+openai
