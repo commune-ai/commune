@@ -19,6 +19,22 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 
 # Install
 
+### Setting Up With setup.py
+
+Install setuptools:
+If you haven't already installed setuptools, you can do so using pip:
+
+```bash
+pip install setuptools
+```
+
+Install Your Package:
+
+```bash
+python setup.py install
+```
+
+
 ### Setting Up Commune With Docker
 
 Install Docker: If you don't have Docker installed on your system, download and install it from the official Docker website: [https://www.docker.com/get-started](https://www.docker.com/get-started).
