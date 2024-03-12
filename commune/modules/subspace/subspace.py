@@ -370,7 +370,7 @@ class Subspace(c.Module):
                   update: bool = True,
                   max_age = None, # max age in seconds
                   new_connection=False,
-                  mode = 'http',
+                  mode = 'ws',
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
@@ -388,8 +388,11 @@ class Subspace(c.Module):
         path = f'query/{network}/{module}.{name}'
         # resolving the params
         params = params or []
-        if netuid != None and netuid != 'all':
+
+        is_single_subnet = bool(netuid != 'all' and netuid != None)
+        if is_single_subnet:
             params = [netuid] + params
+
         if not isinstance(params, list):
             params = [params]
         if len(params) > 0 :
@@ -601,13 +604,31 @@ class Subspace(c.Module):
 
         if netuid == 'all':
             netuids = self.netuids()
-            stake_to = []
-            for netuid in netuids:
-                stake_to += [c.submit(self.get_stake_to, kwargs=dict(key=key, 
-                                                                     module_key=module_key, 
-                                                                     block=block, 
-                                                                     netuid=netuid, fmt=fmt, update=update, **kwargs), timeout=timeout)]
-            stake_to = c.wait(stake_to, timeout=timeout)
+            stake_to = [[] for _ in netuids]
+            c.print(f'Getting stake to for all netuids {netuids}')
+
+            while len(netuids) > 0:
+                future2netuid = {}
+                for netuid in netuids:
+                    f = c.submit(self.get_stake_to, kwargs=dict(key=key, 
+                                                                        module_key=module_key, 
+                                                                        block=block, 
+                                                                        netuid=netuid, fmt=fmt, update=update, **kwargs), timeout=timeout)
+                    future2netuid[f] = netuid
+
+                futures = list(future2netuid.keys())
+
+                for ready in c.as_completed(futures, timeout=timeout):
+                    netuid = future2netuid[ready]
+                    result = ready.result()
+                    if not c.is_error(result):
+                        stake_to[netuid] = result
+                        netuids.remove(netuid)
+                        c.print(netuids)
+    
+                c.print(netuids)
+                    
+            
             return stake_to
         
         key_address = self.resolve_key_ss58( key )
@@ -622,6 +643,24 @@ class Subspace(c.Module):
             module_names = self.get_modules(keys, netuid=netuid, **kwargs)
 
             stake_to = {self.get_module() : v for k,v in stake_to.items()}
+        return stake_to
+    
+    
+    def get_stake_total( self, 
+                     key: str = None, 
+                     module_key=None,
+                     netuid:int = 'all' ,
+                       block: Optional[int] = None, 
+                       timeout=20,
+                       names = False,
+                        fmt='j' , network=None, update=True,
+                         **kwargs) -> Optional['Balance']:
+        stake_to = self.get_stake_to(key=key, module_key=module_key, netuid=netuid, block=block, timeout=timeout, names=names, fmt=fmt, network=network, update=update, **kwargs)
+        if netuid == 'all':
+            return sum([sum(list(x.values())) for x in stake_to])
+        else:
+            return sum(stake_to.values())
+    
         return stake_to
     
     get_staketo = get_stake_to

@@ -3,7 +3,7 @@
 network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
-batch_size: 32
+batch_size: 8
 sync_interval: 100
 sleep_interval: 5
 search: null
@@ -34,7 +34,7 @@ vote_tag : null
 mode: thread
 workers: 1
 threads_per_worker: 32
-timeout: 10
+timeout: 8
 sleep_time: 0.05
 refresh : True
 start: True
