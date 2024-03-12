@@ -26,7 +26,7 @@ class Vali(c.Module):
         self.config = c.dict2munch({**Vali.config(), **config})
         # we want to make sure that the config is a munch
         self.sync()
-        c.thread(self.run_loop)
+        c.thread(self.start)
 
 
     def run_info(self):
@@ -47,17 +47,6 @@ class Vali(c.Module):
         should_vote = is_voting_network and is_stale
         return should_vote
     
-    def run_loop(self):
-
-        self.start_workers()
-
-        while True:
-            if self.should_vote:
-                response = self.vote()
-                c.print(f'Voted {response}', color='cyan')
-            c.print(self.run_info())
-            c.sleep(self.config.sleep_interval)
-
 
     
     def workers(self):
@@ -98,7 +87,8 @@ class Vali(c.Module):
             responses.append(worker)
         
         return responses
-        
+    
+
 
         
     def worker(self):
@@ -106,8 +96,7 @@ class Vali(c.Module):
         batch_size = self.config.batch_size 
         self.running = True
         last_print = 0
-        self.executor  = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
-        
+        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
         futures = []
 
         while self.running:
@@ -115,7 +104,6 @@ class Vali(c.Module):
                 c.print(f'Syncing network {self.config.network}', color='cyan') 
                 self.sync()
                 
-            
             module_addresses = c.shuffle(list(self.namespace.values()))
             batch_size = min(batch_size, len(module_addresses))
             
@@ -126,16 +114,19 @@ class Vali(c.Module):
                     future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
-                
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                            ready_future.result()
+                            result = ready_future.result()
+                            c.print(result)
                             futures.remove(ready_future)
-
                             break
                     except Exception as e:
-                        c.print(e)
-                
+                        self.errors += 1
+                        futures = []
+                        continue
+
+                    
+                    
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
                         'pending': len(futures),
@@ -234,7 +225,6 @@ class Vali(c.Module):
             module_name = module
 
         info = self.load_module_info( module_name, {})
-        info['timestamp'] = info.get('timestamp', 0)
         info['address'] = module_address
         info['name'] = module_name
         info['schema'] = info.get('schema', None)
@@ -252,9 +242,10 @@ class Vali(c.Module):
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
         info = self.get_module_info(module)
-        seconds_since_called = c.time() - info['timestamp']
+        seconds_since_called = c.time() - info.get('timestamp', 0)
         module = c.connect(info['address'], key=self.key)
         self.requests += 1
+        info['timestamp'] = c.time()
 
         try:
 
@@ -279,12 +270,13 @@ class Vali(c.Module):
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
-            response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} --> {e} {c.emoji("cross")}', 'error': e}  
+            response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}'}  
             self.errors += 1  
 
-        c.print(response)
+
         
         info['latency'] = c.time() - info['timestamp']
+
         # UPDATE W with alpha
         alpha = self.config.alpha # the weight of the new w
         w_old = info.get('w', 0) # the old weight
@@ -295,7 +287,7 @@ class Vali(c.Module):
 
         self.count += 1
 
-        return response
+        return {'w': info['w'], 'module': info['name'], 'address': info['address'], 'latency': info['latency']}
         
     @property
     def storage_path(self):
@@ -313,16 +305,14 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return tag or self.config.vote_tag or self.tag
     
-    def vote_stats(self, votes = None, tag=None):
-        votes = votes or self.load_votes()
-        tag = self.resolve_tag(tag)
+    def vote_stats(self, votes = None):
+        votes = votes or self.votes()
         info = {
             'num_uids': len(votes['uids']),
             'avg_weight': c.mean(votes['weights']),
             'stdev_weight': c.stdev(votes['weights']),
             'timestamp': votes['timestamp'],
             'lag': c.time() - votes['timestamp'],
-            'tag': tag,
         }
         return info
     
@@ -364,6 +354,20 @@ class Vali(c.Module):
         return paths
 
 
+    def start(self):
+
+        self.start_workers()
+
+        while True:
+            if self.should_vote:
+                response = self.vote()
+                c.print(f'Voted {response}', color='cyan')
+            c.print(self.run_info())
+            c.sleep(self.config.sleep_interval)
+
+    run_loop = start
+
+
     def vote(self):
 
         votes =self.votes() 
@@ -395,6 +399,13 @@ class Vali(c.Module):
         df =  c.df(cls.module_infos(*args, **kwargs))
         df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
         return df
+    
+    @classmethod
+    def leaderboard(cls, **kwargs):
+        self = cls(workers=0)
+        return c.df(self.module_infos(**kwargs))
+        
+    
         
     def module_infos(self,
                     batch_size:int=100 , # batch size for 
@@ -402,8 +413,15 @@ class Vali(c.Module):
                     timeout:int=10,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos',
+                    update = False,
                     **kwargs
                     ):
+        
+        if not update:
+            modules_info = self.get_json(path, default=[])
+            if len(modules_info) > 0:
+                return modules_info
+            
         
         paths = self.module_paths
         jobs = [c.async_get_json(p) for p in paths]
@@ -413,9 +431,15 @@ class Vali(c.Module):
             results = c.wait(jobs_batch, timeout=timeout)
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
-                s['staleness'] = c.time() - s.get('timestamp', 0)
+            
                 if isinstance(s, dict) and 'ss58_address' in s:
-                    module_infos += [s]
+                    s['staleness'] = c.time() - s.get('timestamp', 0)
+                    module_infos += [{k: s.get(k, None) for k in keys}]
+
+        if update:
+            self.put_json(path, module_infos)
+
+                
         return module_infos
 
 
@@ -460,8 +484,9 @@ class Vali(c.Module):
         workers = self.workers()
         futures = []
         for w in workers:
-            c.print(f'Stopping worker {w}', color='cyan')
-            futures += [c.submit(c.kill, args=[w])]
+            if self.mode: 
+                c.print(f'Stopping worker {w}', color='cyan')
+                futures += [c.submit(c.kill, args=[w])]
         return c.wait(futures, timeout=10)
         
 
