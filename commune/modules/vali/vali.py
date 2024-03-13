@@ -5,15 +5,15 @@ import concurrent
 
 class Vali(c.Module):
     
-    worker_fn = 'worker'
     last_sync_time = 0
+    last_vote_time = 0
     errors = 0
     count = 0
     requests = 0
     successes = 0
     epochs = 0
-    last_success = c.time()
     n = 1
+    whitelist = []
 
     def __init__(self,config:dict=None,**kwargs):
         self.init_vali(config=config, **kwargs)
@@ -26,7 +26,8 @@ class Vali(c.Module):
         self.config = c.dict2munch({**Vali.config(), **config})
         # we want to make sure that the config is a munch
         self.sync()
-        c.thread(self.start)
+        if self.config.start:
+            c.thread(self.start)
 
 
     def run_info(self):
@@ -36,16 +37,8 @@ class Vali(c.Module):
             'vote_interval': self.config.vote_interval,
             'epochs': self.epochs,
             'workers': self.workers(),
-            'last_success': c.time() - self.last_success,
         }
         return info
-
-    @property
-    def should_vote(self) -> bool:
-        is_voting_network = 'subspace' in self.config.network or 'bittensor' in self.config.network
-        is_stale = self.vote_staleness > self.config.vote_interval
-        should_vote = is_voting_network and is_stale
-        return should_vote
     
 
     
@@ -67,27 +60,23 @@ class Vali(c.Module):
 
     @property
     def worker_name_prefix(self):
-        return f'{self.server_name}/{self.worker_fn}'
+        return f'{self.server_name}/{self.config.worker_fn_name}'
 
-    def start_workers(self):
-        responses = []
+
+
+
+    def start_worker(self):
         config = self.config
-
-
         config = c.munch2dict(config) # we want to convert the config to a dict
 
-        for i in range(self.config.workers):
-            c.print(f'Started worker {i}', color='cyan')
-            if self.config.mode == 'thread':
-                worker = c.thread(self.worker)
-            elif self.config.mode == 'server':
-                server_name = self.server_name + f'_{self.config.clone_suffix}{i}'
-                worker = self.serve(kwargs=dict(config=config, workers=1, mode='thread'), key=self.key.path, server_name = server_name)
-                c.print(worker)
-            responses.append(worker)
-        
-        return responses
-    
+        if self.config.mode == 'thread':
+            worker = c.thread(self.worker)
+        elif self.config.mode == 'server':
+            server_name = self.server_name + f'_{self.config.clone_suffix}{i}'
+            worker = self.serve(kwargs=dict(config=config, workers=1, mode='thread'), key=self.key.path, server_name = server_name)
+        else:
+            raise Exception(f'Invalid mode {self.config.mode}')
+        c.print(f'Started worker {worker}', color='cyan')
 
 
         
@@ -96,7 +85,7 @@ class Vali(c.Module):
         batch_size = self.config.batch_size 
         self.running = True
         last_print = 0
-        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
+        executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
         futures = []
 
         while self.running:
@@ -111,18 +100,28 @@ class Vali(c.Module):
             for  i, module_address in enumerate(module_addresses):
                 # if the futures are less than the batch, we can submit a new future
                 if len(futures) < batch_size:
-                    future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
+                    future = executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                            result = ready_future.result()
-                            c.print(result)
+                            try:
+                                result = ready_future.result()
+                            except Exception as e:
+                                result = c.detailed_error(e)
+
+                            if c.is_error(result):
+                                self.errors += 1
+                            else:
+    
+                                c.print(result, verbose=self.config.verbose)
+                                self.successes += 1
                             futures.remove(ready_future)
-                            break
+                            continue
                     except Exception as e:
                         self.errors += 1
-                        futures = []
+
+                            
                         continue
 
                     
@@ -242,25 +241,24 @@ class Vali(c.Module):
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
         info = self.get_module_info(module)
-        seconds_since_called = c.time() - info.get('timestamp', 0)
         module = c.connect(info['address'], key=self.key)
         self.requests += 1
-        info['timestamp'] = c.time()
+
+        seconds_since_called = c.time() - info.get('timestamp', 0)
+        if seconds_since_called < self.config.max_staleness:
+            return {'w': info.get('w', 0),
+                    'module': info['name'],
+                    'address': info['address'],
+                        'timestamp': c.time(), 
+                        'msg': f'Module is not stale, {int(seconds_since_called)} < {self.config.max_staleness}'}
+        else:
+            module_info = module.info(timeout=self.config.timeout)
+            assert 'address' in info and 'name' in info
+            # we want to make sure that the module info has a timestamp
+            info.update(module_info)
+            info['timestamp'] = c.time()
 
         try:
-
-            if seconds_since_called < self.config.max_staleness:
-
-                return {'w': info.get('w', 0),
-                        'module': info['name'],
-                        'address': info['address'],
-                            'timestamp': c.time(), 
-                            'msg': f'Module is not stale, {int(seconds_since_called)} < {self.config.max_staleness}'}
-            else:
-                module_info = module.info(timeout=self.config.timeout)
-                assert 'address' in info and 'name' in info
-                # we want to make sure that the module info has a timestamp
-                info.update(module_info)
 
             # we want to make sure that the module info has a timestamp
             response = self.score_module(module)
@@ -271,21 +269,12 @@ class Vali(c.Module):
         except Exception as e:
             e = c.detailed_error(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}'}  
-            self.errors += 1  
-
-
         
         info['latency'] = c.time() - info['timestamp']
-
-        # UPDATE W with alpha
-        alpha = self.config.alpha # the weight of the new w
-        w_old = info.get('w', 0) # the old weight
-        w = response['w'] # the new weight
-        info['w'] = w * alpha + w_old * (1 - alpha)
+        info['w'] = response['w']  * self.config.alpha + info['w'] * (1 - self.config.alpha)
         path = f'{self.storage_path}/{info["name"]}'
         self.put_json(path, info)
 
-        self.count += 1
 
         return {'w': info['w'], 'module': info['name'], 'address': info['address'], 'latency': info['latency']}
         
@@ -347,28 +336,17 @@ class Vali(c.Module):
         assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
         self.put(self.votes_path, votes)
 
-    @property
-    def module_paths(self):
-        paths = self.ls(self.storage_path)
-        paths = list(filter(lambda x: x.endswith('.json'), paths))
-        return paths
 
 
-    def start(self):
-
-        self.start_workers()
-
-        while True:
-            if self.should_vote:
-                response = self.vote()
-                c.print(f'Voted {response}', color='cyan')
-            c.print(self.run_info())
-            c.sleep(self.config.sleep_interval)
-
-    run_loop = start
 
 
-    def vote(self):
+    def vote(self, async_vote:bool=False, save:bool = True, **kwargs):
+        
+
+        self.last_vote_time = c.time()
+
+        if async_vote:
+            return c.submit(self.vote, **kwargs)
 
         votes =self.votes() 
 
@@ -380,12 +358,13 @@ class Vali(c.Module):
                         key=self.key, 
                         network=self.config.network, 
                         netuid=self.config.netuid)
-        
-        self.save_votes(votes)
+        if save:
+            self.save_votes(votes)
         
         return {'success': True, 
                 'message': 'Voted', 
                 'num_uids': len(votes['uids']),
+                'timestamp': self.last_vote_time,
                 'avg_weight': c.mean(votes['weights']),
                 'stdev_weight': c.stdev(votes['weights']),
                 'r': r}
@@ -400,16 +379,14 @@ class Vali(c.Module):
         df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
         return df
     
-    @classmethod
-    def leaderboard(cls, **kwargs):
-        self = cls(workers=0)
-        return c.df(self.module_infos(**kwargs))
-        
-    
-        
+    @property
+    def module_paths(self):
+        paths = self.ls(self.storage_path)
+        paths = list(filter(lambda x: x.endswith('.json'), paths))
+        return paths
+
     def module_infos(self,
                     batch_size:int=100 , # batch size for 
-                    max_staleness:int= 3600,
                     timeout:int=10,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos',
@@ -422,7 +399,6 @@ class Vali(c.Module):
             if len(modules_info) > 0:
                 return modules_info
             
-        
         paths = self.module_paths
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
@@ -437,11 +413,8 @@ class Vali(c.Module):
                     module_infos += [{k: s.get(k, None) for k in keys}]
 
         if update:
-            self.put_json(path, module_infos)
-
-                
+            self.put_json(path, module_infos)       
         return module_infos
-
 
     def load_module_info(self, k:str,default=None):
         default = default if default != None else {}
@@ -452,15 +425,10 @@ class Vali(c.Module):
         path = self.storage_path + f'/{k}'
         self.put_json(path, v)
 
-
     def get_history(self, k:str, default=None):
         module_infos = self.load_module_info(k, default=default)
         return module_infos.get('history', [])
     
-    @property
-    def last_vote_time(self):
-        votes = self.load_votes()
-        return votes.get('timestamp', 0)
     
     @property
     def vote_staleness(self) -> int:
@@ -477,7 +445,6 @@ class Vali(c.Module):
         self = cls(**kwargs )
         return self.run()
 
-
     def __del__(self):
         self.stop()
         c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
@@ -489,7 +456,6 @@ class Vali(c.Module):
                 futures += [c.submit(c.kill, args=[w])]
         return c.wait(futures, timeout=10)
         
-
     @classmethod
     def dashboard(cls):
         import streamlit as st
@@ -536,20 +502,39 @@ class Vali(c.Module):
 
     def random_module(self):
         return c.choice(list(self.namespace.keys()))
-    
-
-    
 
     @classmethod
-    def test(cls, **kwargs):
-        kwargs['workers'] = 0
-        kwargs['verbose'] = True
-        kwargs['network'] = 'local'
-        kwargs['timeout'] = 1
-        # test_search
-        self = cls(**kwargs )
-
+    def test_eval_module(cls, network='local', verbose=False, timeout=1, workers=10, start=False,  **kwargs):
+        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start  **kwargs)
         return self.eval_module(self.random_module())
+
+
+
+    def start(self):
+        # start the workers
+        for i in range(self.config.worker_count):
+            self.start_worker()
+        c.thread(self.vote_loop)
+
+    @property
+    def should_vote(self) -> bool:
+        is_voting_network = 'subspace' in self.config.network or 'bittensor' in self.config.network
+        is_stale = self.vote_staleness > self.config.vote_interval
+        should_vote = is_voting_network and is_stale
+        return should_vote
+    
+    def vote_loop(self):
+
+        while True:
+            if self.should_vote:
+                futures = [c.submit(self.vote)]
+
+            if len(futures) > 0:
+                for ready_future in c.as_completed(futures, timeout=self.config.vote_interval):
+                    ready_future.result()
+                    futures.remove(ready_future)
+            c.print(self.run_info())
+            c.sleep(self.config.sleep_interval)
 
         
 

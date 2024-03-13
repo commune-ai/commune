@@ -965,17 +965,6 @@ class c:
         cwd = os.path.dirname(module_filepath)
         c.cmd(cmd, verbose=True, cwd=cwd)
 
-
-
-    @staticmethod
-    def stside(fn):
-        import streamlit as st
-        
-        def wrapper(*args, **kwargs):
-            with st.sidebar:
-                return fn(*args, **kwargs)
-        
-        return wrapper
         
     @staticmethod
     def st_load_css(*args, **kwargs):
@@ -8304,9 +8293,11 @@ class c:
         return {'success': True, 'msg': 'all threads joined', 'threads': threads}
 
     @classmethod
-    def threads(cls, *args, **kwargs):
-        return list(cls.thread_map.keys())
-
+    def threads(cls, search:str=None, **kwargs):
+        threads = list(cls.thread_map.keys())
+        if search != None:
+            threads = [t for t in threads if search in t]
+        return threads
 
     @classmethod
     def thread_count(cls):
