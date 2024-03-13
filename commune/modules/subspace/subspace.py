@@ -1395,7 +1395,7 @@ class Subspace(c.Module):
                     network='main',
                     fmt='j',
                     method='subspace_getModuleInfo',
-                    lite = True) -> 'ModuleInfo':
+                    lite = True, **kwargs ) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode='http')
 
         if isinstance(module, int):
@@ -1451,7 +1451,7 @@ class Subspace(c.Module):
 
 
         if include_uids:
-            name2uid = self.key2uid(netuid=netuid, update=True)
+            name2uid = self.key2uid(netuid=netuid)
 
         for future in  c.as_completed(futures, timeout=timeout):
             progress_bar.update(1)
@@ -1733,8 +1733,8 @@ class Subspace(c.Module):
         return uid2key
     
 
-    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, **kwargs):
-        key2uid =  {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
+    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, **kwargs):
+        key2uid =  {v:k for k,v in self.uid2key(network=network, netuid=netuid, update=update, **kwargs).items()}
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
             return key2uid[key_ss58]
