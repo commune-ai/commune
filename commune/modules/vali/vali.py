@@ -140,7 +140,7 @@ class Vali(c.Module):
 
 
 
-    def sync(self, 
+    def set_network(self, 
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
@@ -190,6 +190,7 @@ class Vali(c.Module):
                 'timestamp': self.last_sync_time,
                 'msg': 'Synced network'
                 }
+    sync = set_network
         
     def score_module(self, module: 'c.Module'):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
@@ -437,22 +438,17 @@ class Vali(c.Module):
     def stop(self):
         self.running = False
 
-    @classmethod
-    def test(cls, **kwargs):
-        kwargs['workers'] = 0
-        kwargs['vote'] = False
-        kwargs['verbose'] = True
-        self = cls(**kwargs )
-        return self.run()
-
     def __del__(self):
         self.stop()
         c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
         workers = self.workers()
         futures = []
         for w in workers:
-            if self.mode: 
+            if self.config.mode == 'thread': 
                 c.print(f'Stopping worker {w}', color='cyan')
+                futures += [c.submit(c.kill, args=[w])]
+            elif self.config.mode == 'server':
+                c.print(f'Stopping server {w}', color='cyan')
                 futures += [c.submit(c.kill, args=[w])]
         return c.wait(futures, timeout=10)
         
@@ -505,9 +501,18 @@ class Vali(c.Module):
 
     @classmethod
     def test_eval_module(cls, network='local', verbose=False, timeout=1, workers=10, start=False,  **kwargs):
-        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start  **kwargs)
+        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start,  **kwargs)
         return self.eval_module(self.random_module())
 
+
+    @classmethod
+    def test_network(cls, network='subspace', search='vali'):
+        self = cls(network=network, search=search, start=False)
+        self.sync()
+        if len(self.namespace) > 0:
+            for module_name in self.namespace:
+                assert search in module_name
+        return {'success': True, 'msg': f'Found {len(self.namespace)} modules in {network} {search}'}
 
 
     def start(self):

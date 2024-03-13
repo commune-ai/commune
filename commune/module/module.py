@@ -4543,18 +4543,37 @@ class c:
     def log(cls, *args, **kwargs):
         console = cls.resolve_console()
         return cls.console.log(*args, **kwargs)
+    
+    @classmethod
+    def test_fns(cls):
+        return [f for f in dir(cls) if f.startswith('test_')]
+    
+
        
     @classmethod
     def test(cls,
-              modules=['server', 'key', 'namespace', 'executor'],
+              modules=['server', 
+                       'key', 
+                       'namespace', 
+                       'executor', 
+                       'vali'],
               timeout=40):
         futures = []
-        for module_name in modules:
-            module = c.module(module_name)
-            assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-            futures.append(c.submit(module.test))
-        results = c.wait(futures, timeout=timeout)
-        results = dict(zip(modules, results))
+        results = []
+        if cls.module_path() == 'module':
+            for module_name in modules:
+                module = c.module(module_name)
+                assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
+                futures.append(c.submit(module.test))
+            results = c.wait(futures, timeout=timeout)
+            results = dict(zip(modules, results))
+        else:
+            module_fns = c.fns()
+            fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
+            c.print(f'Running {len(fns)} tests')
+            for fn in fns:
+                results += [c.submit(fn)]
+            results = c.wait(results, timeout=timeout)
         return results
         
 
