@@ -3,15 +3,17 @@
 network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
-batch_size: 8
+batch_size: 64
 sync_interval: 100
 sleep_interval: 5
 search: null
 max_staleness: 500
+vote: True
 
 # score
 alpha: 0.5
 
+worker_fn_name: worker
 # voting 
 vote: True
 min_stake: 1
@@ -32,7 +34,7 @@ vote_tag : null
 
 # workers
 mode: thread
-workers: 1
+worker_count: 4
 threads_per_worker: 32
 timeout: 8
 sleep_time: 0.05
@@ -41,7 +43,7 @@ start: True
 is_main_worker: True
 min_num_weights: 10
 debug: False
-print_interval: 5
+print_interval: 2
 clone_suffix : clone
 
 
