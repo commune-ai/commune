@@ -974,6 +974,9 @@ class c:
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
     @classmethod
+    def rpwd(cls, *args, **kwargs):
+        return c.module('remote')().pwd(*args, **kwargs)
+    @classmethod
     def cmd(cls, command:Union[str, list],
             *args,
                         verbose:bool = True, 

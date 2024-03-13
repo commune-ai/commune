@@ -874,5 +874,11 @@ class Remote(c.Module):
 
         # Use the existing add_host method to add the host
         return cls.add_host(host=host, port=ssh_port, user=user, pwd=pwd, name=name)
+    
+    def pwd(self, host):
+        hosts = self.hosts(search=host)
+        if host not in hosts:
+            return {k:v['pwd'] for k,v in hosts.items()}
+        return self.hosts()[host]['pwd']
 
 Remote.run(__name__)
