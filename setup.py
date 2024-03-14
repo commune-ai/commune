@@ -27,7 +27,6 @@ def read_requirements(path):
         return processed_requirements
 
 requirements = read_requirements("requirements.txt")
-
 setup(
     name='commune',
     version='0.0.1',
@@ -52,5 +51,5 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
     ],
-    python_requires='>=3.11',
+    python_requires='>=3.10',
 )
