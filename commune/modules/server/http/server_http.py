@@ -1,9 +1,9 @@
 
 from typing import Dict, List, Optional, Union
 import commune as c
-import torch 
-import traceback
-import json 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
 
 class ServerHTTP(c.Module):
     def __init__(
@@ -180,9 +180,6 @@ class ServerHTTP(c.Module):
     def set_api(self, ip:str = '0.0.0.0', port:int = 8888):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
-        from fastapi import FastAPI
-        from fastapi.middleware.cors import CORSMiddleware
-        import uvicorn
         
         self.app = FastAPI()
         self.app.add_middleware(
