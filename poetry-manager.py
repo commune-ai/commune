@@ -36,6 +36,13 @@ class PoetryEnvManager:
         envs = subprocess.run(['poetry', 'env', 'list'], capture_output=True, text=True).stdout
         print(envs)
 
+    def destroy_environment(self):
+        if os.path.exists(self.env_dir):
+            shutil.rmtree(self.env_dir)
+            print("Environment destroyed successfully.")
+        else:
+            print('No exist virtual environment.')
+
 
 if __name__ == "__main__":
 
@@ -49,3 +56,4 @@ if __name__ == "__main__":
     env_manager.create_virtual_environment()
     env_manager.list_environments()
     env_manager.create_environment()
+    env_manager.destroy_environment()
