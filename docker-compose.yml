@@ -11,8 +11,6 @@ services:
     shm_size: '100gb' # for the shared memory size
 
     # expose ports for the frontend
-
-      
   
     volumes:
 
@@ -50,6 +48,6 @@ services:
     #           count: all
     #           capabilities: [gpu]
 
-    command: bash -c "cd /commune; chmod +x /commune/scripts/*;/commune/scripts/startup.sh;"
+    command: bash -c "cd /commune; chmod +x /commune/scripts/*; /commune/scripts/startup.sh;"
 
   

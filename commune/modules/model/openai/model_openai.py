@@ -70,6 +70,8 @@ class UsageTracker:
 
 
 class OpenAILLM(c.Module):
+
+    libs = ['openai', 'transformers']
     
     prompt = """{x}"""
 

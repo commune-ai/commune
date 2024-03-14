@@ -3,26 +3,27 @@ import commune as c
 
 class ValiWatchdog(c.Module):
 
-    def __init__(self, sleep=60, max_tries=100):
+    def __init__(self, sleep=60, max_tries=100, num_loops=5):
 
         self.sleep = sleep
         self.max_tries = max_tries
-        c.thread(self.loop)
+        for i in range(num_loops):
+            c.thread(self.loop)
 
+    def loop(self, cache_exceptions=False):
+        if cache_exceptions:
+            try:
+                self.loop(cache_exceptions=cache_exceptions)
+            except Exception as e:
 
-
-    def loop(self):
-        try:
+                self.loop(cache_exceptions=cache_exceptions)
             subspace = c.module('subspace')()
-            while True:
-                c.print( f'Checking servers {c.time()}')
-                c.thread(c.module('subspace')().check_servers)
-                c.print('Sleeping {} seconds...')
-                c.sleep(self.sleep)
-        except Exception as e:
-            c.print(f'Error in watchdog: {e}, retrying.. {self.max_tries} tries left.')
-            self.max_tries = self.max_tries - 1
-            assert self.max_tries > 0, 'Max tries reached'
-            self.loop()
+            
+        while True:
+            c.print( f'Checking servers {c.time()}')
+            subspace.check_servers()
+            c.print('Sleeping {} seconds...')
+            c.sleep(self.sleep)
+
 
     

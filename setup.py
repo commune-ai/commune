@@ -1,19 +1,17 @@
 import re
 from setuptools import setup, find_packages
-from pkg_resources import parse_requirements
 from os import path
 from io import open
+
 here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
-    
 
 def read_requirements(path):
     with open(path, "r") as f:
         requirements = f.read().splitlines()
         processed_requirements = []
-
         for req in requirements:
             # For git or other VCS links
             if req.startswith("git+") or "@" in req:
@@ -28,9 +26,7 @@ def read_requirements(path):
                 processed_requirements.append(req)
         return processed_requirements
 
-
 requirements = read_requirements("requirements.txt")
-
 
 setup(
     name='commune',
@@ -50,12 +46,11 @@ setup(
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
-
-        # Pick your license as you wish
         'License :: IDGAF License, Do What You Want, I wont sue you',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
-    ], 
-    python_requires='>=3.11')
+    ],
+    python_requires='>=3.11',
+)
