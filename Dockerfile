@@ -53,7 +53,7 @@ WORKDIR /workspace
 # WORKDIR /workspace/commune
 
 # install python libraries for commune
-RUN pip install -r requirements.txt
+RUN pip install -r requirements_full.txt
 
 # Work around for bug that added a "x" at the end of the setup.py file
 #RUN sed -i '$ d' setup.py

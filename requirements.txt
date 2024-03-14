@@ -1,33 +1,61 @@
-# api
-setuptools
-uvicorn
-fastapi
-
-# blockahin
-substrate-interface
-
-# ml
-#torch
-#safetensors
-# transformers
-
-# visual
-streamlit
-plotly
-gradio
-
-sse-starlette
-#misc
-msgpack_numpy
-retry
-psutil
+# Bare Minimum
+aiofiles
+numpy
+PyYAML
 munch
-grpcio
-grpcio-tools
-scipy
+pandas
+urllib3
 loguru
 rich
-aiofiles
-aiohttp
 nest_asyncio
-#openai
+
+# required for "c balance"
+retry
+tqdn
+scalecodec
+
+
+# required for "c test"
+streamlit
+
+# blockchain
+substrate-interface
+
+
+
+# # api
+# setuptools
+# uvicorn
+# fastapi
+
+
+
+# # ml
+# #torch
+# #safetensors
+# # transformers
+
+# # visual
+# #streamlit
+# #plotly
+# #gradio
+
+# sse-starlette
+# #misc
+# msgpack_numpy
+# retry
+# psutil
+# munch
+# grpcio
+# grpcio-tools
+# scipy
+# loguru
+# rich
+# aiofiles
+# aiohttp
+# nest_asyncio
+
+#SLOW ME DOWN FOREVER
+# openai
+# torch
+# safetensors
