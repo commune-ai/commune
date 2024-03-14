@@ -21,6 +21,7 @@ class Access(c.Module):
         
         config = self.set_config(kwargs=locals())
         self.user_module = c.module("user")()
+        self.address2key = c.address2key()
     
         if module == None:
             module = c.module('module')()
@@ -98,11 +99,22 @@ class Access(c.Module):
 
         
         """
-
+        fn = input['fn']
         address = input['address']
         if c.is_admin(address):
             return {'success': True, 'msg': f'admin {address}', 'passed': True}
-        fn = input['fn']
+        
+
+        whitelist =  list(set(self.module.whitelist + c.helper_functions))
+        blacklist =  self.module.blacklist
+
+        assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"
+        assert fn not in blacklist, f"Function {fn} is blacklisted" 
+
+        if address in self.address2key:
+            return {'success': True, 'msg': f'address {address} is in the whitelist', 'passed': True}
+        
+
 
         current_time = c.time()
 
@@ -123,14 +135,14 @@ class Access(c.Module):
 
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
-        whitelist =  self.module.whitelist
-        blacklist =  self.module.blacklist
+  
 
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
         fn2info = self.state['fn_info'].get(fn,{'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
         stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
         total_stake_score = stake + stake_from
         rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
+
 
         # STEP 3: CHECK THE MAX RATE
         max_rate = fn2info.get('max_rate', self.config.max_rate)
@@ -146,8 +158,7 @@ class Access(c.Module):
             user_info['rate'] = 0
 
         try:
-            assert fn in whitelist or fn in c.helper_functions, f"Function {fn} not in whitelist={whitelist}"
-            assert fn not in blacklist, f"Function {fn} is blacklisted" 
+
             assert user_info['rate'] <= rate_limit
             user_info['passed'] = True
         except Exception as e:

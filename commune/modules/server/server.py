@@ -29,8 +29,10 @@ class Server(c.Module):
         module.tag = tag
         module.server_name = server_name
         module.key = server_name
-
         address = c.get_address(server_name, network=network)
+
+
+
 
 
         if address != None and ':' in address:
@@ -315,8 +317,8 @@ class Server(c.Module):
         serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return server_name in serve_kwargs
     
-    def history(self, server=None, mode='http'):
-        return c.module(f'server.{mode}').history(server, n=100)
+    def history(self, server=None, mode='http', **kwargs):
+        return c.module(f'server.{mode}').history(server, **kwargs)
     
     def history_dashboard(self):
 
@@ -324,6 +326,8 @@ class Server(c.Module):
         history = []
         import os
         for h in history_paths:
+            if len(h.split('/')) < 3:
+                continue
             row =  {
                     'module': h.split('/')[-2],
                     **c.get(h, {})
@@ -334,6 +338,10 @@ class Server(c.Module):
         
         df = pd.DataFrame(history)
         address2key = {v:k for k,v in self.namespace.items()}
+
+        if len(df) == 0:
+            st.write('No History')
+            return
         modules = list(df['module'].unique())
         
         module = st.multiselect('Select Module', modules, modules)
@@ -401,8 +409,6 @@ class Server(c.Module):
         with tabs[2]:
             self.history_dashboard()
 
-        with tabs[3]:
-            self.playground_dashboard()
         # for i, page in enumerate(pages):
         #     with tabs[i]:
         #         getattr(self, f'{page}_dashboard')()
