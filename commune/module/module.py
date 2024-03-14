@@ -66,6 +66,7 @@ class c:
         if 'tag' in self.config:
             tag = self.config['tag']
         return tag
+    
     @tag.setter
     def tag(self, value):
         if not hasattr(self, 'config') or not isinstance(self.config, dict):
@@ -964,17 +965,6 @@ class c:
         cwd = os.path.dirname(module_filepath)
         c.cmd(cmd, verbose=True, cwd=cwd)
 
-
-
-    @staticmethod
-    def stside(fn):
-        import streamlit as st
-        
-        def wrapper(*args, **kwargs):
-            with st.sidebar:
-                return fn(*args, **kwargs)
-        
-        return wrapper
         
     @staticmethod
     def st_load_css(*args, **kwargs):
@@ -983,6 +973,9 @@ class c:
     @classmethod
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
+    @classmethod
+    def rpwd(cls, *args, **kwargs):
+        return c.module('remote')().pwd(*args, **kwargs)
     @classmethod
     def cmd(cls, command:Union[str, list],
             *args,
@@ -2931,9 +2924,9 @@ class c:
               tag_seperator:str='::',
               max_workers:int = None,
               mode:str = "thread",
-              universe = False,
               public: bool = False,
               mnemonic = None,
+              key = None,
               **extra_kwargs
               ):
         kwargs = kwargs or {}
@@ -2945,6 +2938,7 @@ class c:
 
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
 
@@ -3029,7 +3023,8 @@ class c:
                                           network=network, 
                                           max_workers=max_workers, 
                                           mode=mode, 
-                                          public=public)
+                                          public=public, 
+                                          key=key)
 
         return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
@@ -4551,18 +4546,37 @@ class c:
     def log(cls, *args, **kwargs):
         console = cls.resolve_console()
         return cls.console.log(*args, **kwargs)
+    
+    @classmethod
+    def test_fns(cls):
+        return [f for f in dir(cls) if f.startswith('test_')]
+    
+
        
     @classmethod
     def test(cls,
-              modules=['server', 'key', 'namespace', 'executor'],
+              modules=['server', 
+                       'key', 
+                       'namespace', 
+                       'executor', 
+                       'vali'],
               timeout=40):
         futures = []
-        for module_name in modules:
-            module = c.module(module_name)
-            assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-            futures.append(c.submit(module.test))
-        results = c.wait(futures, timeout=timeout)
-        results = dict(zip(modules, results))
+        results = []
+        if cls.module_path() == 'module':
+            for module_name in modules:
+                module = c.module(module_name)
+                assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
+                futures.append(c.submit(module.test))
+            results = c.wait(futures, timeout=timeout)
+            results = dict(zip(modules, results))
+        else:
+            module_fns = c.fns()
+            fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
+            c.print(f'Running {len(fns)} tests')
+            for fn in fns:
+                results += [c.submit(fn)]
+            results = c.wait(results, timeout=timeout)
         return results
         
 
@@ -6273,12 +6287,15 @@ class c:
     def wait(cls, futures:list, timeout:int = 30, generator:bool=False, return_dict:bool = True) -> list:
         import concurrent.futures
 
+
         is_singleton = bool(not isinstance(futures, list))
 
         futures = [futures] if is_singleton else futures
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
             
+        if len(futures) == 0:
+            return []
         if c.is_coroutine(futures[0]):
             return c.gather(futures, timeout=timeout)
         
@@ -8298,9 +8315,11 @@ class c:
         return {'success': True, 'msg': 'all threads joined', 'threads': threads}
 
     @classmethod
-    def threads(cls, *args, **kwargs):
-        return list(cls.thread_map.keys())
-
+    def threads(cls, search:str=None, **kwargs):
+        threads = list(cls.thread_map.keys())
+        if search != None:
+            threads = [t for t in threads if search in t]
+        return threads
 
     @classmethod
     def thread_count(cls):

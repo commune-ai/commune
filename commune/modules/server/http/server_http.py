@@ -16,8 +16,7 @@ class ServerHTTP(c.Module):
         sse: bool = True,
         chunk_size: int = 1000,
         max_request_staleness: int = 60, 
-        max_workers: int = None,
-        mode:str = 'thread',
+        key = None,
         verbose: bool = False,
         timeout: int = 256,
         access_module: str = 'server.access',
@@ -27,6 +26,7 @@ class ServerHTTP(c.Module):
         history_path:str = None , 
         nest_asyncio = True,
         new_loop = True,
+        **kwargs
         
         ) -> 'Server':
 
@@ -53,18 +53,28 @@ class ServerHTTP(c.Module):
             else:
                 name = module.__class__.__name__
         self.name = name
-        self.key = module.key      
+
+
+        self.schema = {}
+        if hasattr(module, 'schema'):
+            self.schema = module.schema()
+
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
         self.module = module 
+        self.set_key(key)
         self.access_module = c.module(access_module)(module=self.module)  
         self.set_history_path(history_path)
         self.set_api(ip=self.ip, port=self.port)
 
 
-
-
+    def set_key(self, key):
+        self.key = key
+        if self.key == None:
+            self.key = c.get_key(self.name)
+        if isinstance(self.key, str):
+            self.key = c.get_key(self.key)  
 
 
     def set_address(self,ip='0.0.0.0', port:int=None):
@@ -291,7 +301,8 @@ class ServerHTTP(c.Module):
                 key=None, 
                 history_path='history',
                 features=[ 'module', 'fn', 'seconds_ago', 'latency', 'address'], 
-                to_list=False
+                to_list=False,
+                **kwargs
                 ):
         key = c.get_key(key)
         history_path = cls.history_paths(key=key, history_path=history_path)
