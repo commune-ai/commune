@@ -172,15 +172,12 @@ class Keypair(c.Module):
         self.mnemonic = mnemonic
 
     @classmethod
-    def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
+    def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
         
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}', color='red')
             return json.loads(cls.get(path))
-        if mnemonic != None:
-            kwargs['mnemonic'] = mnemonic
-            c.print(c.num_words(kwargs['mnemonic']))
-        key = cls.gen(**kwargs)
+        key = cls.gen(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key.path = path
         key_json = key.to_json()
         if password != None:
@@ -371,9 +368,8 @@ class Keypair(c.Module):
                 
         return keys
         
-        
     @classmethod
-    def key2address(cls, search=None, update:bool=False):
+    def key2address(cls, search=None, update:bool=True, cache = True):
         path = 'key2address'
         key2address = []
         if not update:
@@ -540,7 +536,6 @@ class Keypair(c.Module):
     def gen(cls, 
             mnemonic:str = None,
             suri:str = None, 
-            password : str = None,
             private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
             json: bool = False,
@@ -551,14 +546,9 @@ class Keypair(c.Module):
         '''
         mnemonic = kwargs.pop('m', mnemonic)
 
-        if mnemonic == None:
-            mnemonic = cls.generate_mnemonic()
-
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
-
         crypto_type = cls.resolve_crypto_type(crypto_type)
-
         if suri:
             key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
@@ -844,7 +834,7 @@ class Keypair(c.Module):
     @classmethod
     def create_from_private_key(
             cls, private_key: Union[bytes, str], public_key: Union[bytes, str] = None, ss58_address: str = None,
-            ss58_format: int = None, crypto_type: int = KeypairType.SR25519
+            ss58_format: int = 42, crypto_type: int = KeypairType.SR25519
     ) -> 'Keypair':
         """
         Creates Keypair for specified public/private keys
@@ -1542,6 +1532,11 @@ class Keypair(c.Module):
             ticket = self.ticket(**kwargs)
         data = ticket.split(self.seperator)[0]
         return self.verify(ticket, **kwargs)
+    
+
+    def to_mnemonic(self, password=None):
+        from mnemonic import Mnemonic
+        return Mnemonic('english').to_mnemonic(self.private_key)
     
 
     def ticket_staleness(self, ticket):

@@ -4,16 +4,17 @@ services:
 
   commune:
     network_mode: host
-    # image: commune:latest
     container_name: commune
     build: ./
     shm_size: '100gb' # for the shared memory size
-  
+    environment:
+      - RAY_PORT=6378
+
     volumes:
 
       # COMMUNE VOLUME MOUNTS
       - ./commune:/commune/commune
-      - ./subspace/pallets:/commune/subspace/pallets
+      - ./subspace:/commune/subspace
       - ./frontend:/commune/frontend
 
 
@@ -24,10 +25,12 @@ services:
       - ./requirements.txt:/commune/requirements.txt
       - ./README.md:/commune/README.md
       - ./scripts:/commune/scripts
+      - ./poetry.lock:/commune/poetry.lock
+      - ./pyproject.toml:/commune/pyproject.toml
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
-      # - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
+      - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
       
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
@@ -35,13 +38,13 @@ services:
       - ~/.bittensor:/root/.bittensor
 
 
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     command: bash -c "cd /commune; chmod +x /commune/scripts/*;/commune/scripts/startup.sh;"
 
