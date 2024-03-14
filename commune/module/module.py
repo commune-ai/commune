@@ -66,6 +66,7 @@ class c:
         if 'tag' in self.config:
             tag = self.config['tag']
         return tag
+    
     @tag.setter
     def tag(self, value):
         if not hasattr(self, 'config') or not isinstance(self.config, dict):
@@ -148,6 +149,47 @@ class c:
         if return_future:
             return futures
         return c.gather(futures, timeout=timeout)
+    
+    
+    @classmethod
+    def call_search(cls, search : str, 
+                fn:str = None, *args,
+                timeout : int = 10,
+                network:str = 'local',
+                key:str = None,
+                kwargs = None,
+                return_future:bool = False,
+                **extra_kwargs) -> None:
+        namespace = c.namespace(search, network=network)
+
+        future2module = {}
+
+        for module, address in namespace.items():
+            future = c.submit(c.call,
+                              args = args,
+                               kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
+                                         'network': network, 'key': key, 
+                                         'kwargs': kwargs, 'return_future': return_future, 
+                                         **extra_kwargs} )
+            future2module[future] = module
+        futures = list(future2module.keys())
+        result = {}
+        progress_bar = c.tqdm(len(futures))
+        for future in c.as_completed(futures):
+            module = future2module.pop(future)
+            futures.remove(future)
+            progress_bar.update(1)
+            result[module] = future.result()
+
+        return result
+            
+        
+            
+        
+        
+        return c.call(namespace, fn, *args, timeout=timeout, network=network, key=key, kwargs=kwargs, return_future=return_future, **extra_kwargs)
+
+    
     
     @classmethod
     async def async_call(cls,
@@ -964,17 +1006,6 @@ class c:
         cwd = os.path.dirname(module_filepath)
         c.cmd(cmd, verbose=True, cwd=cwd)
 
-
-
-    @staticmethod
-    def stside(fn):
-        import streamlit as st
-        
-        def wrapper(*args, **kwargs):
-            with st.sidebar:
-                return fn(*args, **kwargs)
-        
-        return wrapper
         
     @staticmethod
     def st_load_css(*args, **kwargs):
@@ -983,6 +1014,9 @@ class c:
     @classmethod
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
+    @classmethod
+    def rpwd(cls, *args, **kwargs):
+        return c.module('remote')().pwd(*args, **kwargs)
     @classmethod
     def cmd(cls, command:Union[str, list],
             *args,
@@ -2931,9 +2965,9 @@ class c:
               tag_seperator:str='::',
               max_workers:int = None,
               mode:str = "thread",
-              universe = False,
               public: bool = False,
               mnemonic = None,
+              key = None,
               **extra_kwargs
               ):
         kwargs = kwargs or {}
@@ -2945,6 +2979,7 @@ class c:
 
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
 
@@ -3029,7 +3064,8 @@ class c:
                                           network=network, 
                                           max_workers=max_workers, 
                                           mode=mode, 
-                                          public=public)
+                                          public=public, 
+                                          key=key)
 
         return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
@@ -3879,7 +3915,7 @@ class c:
     
     
     @classmethod
-    def libs(cls):
+    def pip_libs(cls):
         return list(cls.lib2version().values())
     
     @classmethod
@@ -3892,26 +3928,17 @@ class c:
 
     required_libs = []
     @classmethod
-    def ensure_libs(cls, *libs, verbose:bool=False):
-        assert len(libs) > 0, 'No libraries specified'
-        if len(libs) == 1:
-            if isinstance(libs[0], list):
-                libs = libs[0]
-        elif len(libs) == 0:
-            raise Exception('No libraries specified')
-        elif len(libs) > 1:
-            libs = list(libs)
-        else:
-            raise Exception('No libraries specified, WTF WAS THIS')
-
-            
-        if libs == None:
-            libs = cls.required_libs
-        r = []
+    def ensure_libs(cls, libs: List[str] = None, verbose:bool=False):
+        if hasattr(cls, 'libs'):
+            libs = cls.libs
+        results = []
         for lib in libs:
-            r.append(cls.ensure_lib(lib, verbose=verbose))
-            c.print(r[-1])
-        return r
+            results.append(cls.ensure_lib(lib, verbose=verbose))
+        return results
+    
+    @classmethod
+    def install(cls, libs: List[str] = None, verbose:bool=False):
+        return cls.ensure_libs(libs, verbose=verbose)
     
     @classmethod
     def ensure_env(cls):
@@ -3940,15 +3967,11 @@ class c:
                 cmd += ' --upgrade'
         return cls.cmd(cmd, verbose=verbose)
 
-    def install(self, lib:str = None, verbose:bool=True, upgrade=True):
-        return self.pip_install(lib, verbose=verbose)
-
-    
 
 
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
-        return bool(lib in cls.libs())
+        return bool(lib in cls.pip_libs())
     
     
     @classmethod
@@ -4551,18 +4574,37 @@ class c:
     def log(cls, *args, **kwargs):
         console = cls.resolve_console()
         return cls.console.log(*args, **kwargs)
+    
+    @classmethod
+    def test_fns(cls):
+        return [f for f in dir(cls) if f.startswith('test_')]
+    
+
        
     @classmethod
     def test(cls,
-              modules=['server', 'key', 'namespace', 'executor'],
+              modules=['server', 
+                       'key', 
+                       'namespace', 
+                       'executor', 
+                       'vali'],
               timeout=40):
         futures = []
-        for module_name in modules:
-            module = c.module(module_name)
-            assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-            futures.append(c.submit(module.test))
-        results = c.wait(futures, timeout=timeout)
-        results = dict(zip(modules, results))
+        results = []
+        if cls.module_path() == 'module':
+            for module_name in modules:
+                module = c.module(module_name)
+                assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
+                futures.append(c.submit(module.test))
+            results = c.wait(futures, timeout=timeout)
+            results = dict(zip(modules, results))
+        else:
+            module_fns = c.fns()
+            fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
+            c.print(f'Running {len(fns)} tests')
+            for fn in fns:
+                results += [c.submit(fn)]
+            results = c.wait(results, timeout=timeout)
         return results
         
 
@@ -5188,22 +5230,24 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=False, timeout=20, remote=False,  **kwargs):
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20, remote=False,  **kwargs):
 
         c.update()
         if tag == None:
             tag = ''
 
         if parallel:
-            executor = c.module('executor')(max_workers=max_workers, mode='thread')
             futures = []
             for i in range(n):
                 server_kwargs={'tag':tag + str(i), **kwargs}
-                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout)
+                future = c.submit(cls.serve, kwargs=server_kwargs, timeout=timeout, max_workers=max_workers)
                 futures = futures + [future]
-            
-            results =  c.wait(futures, timeout=timeout)
-            for result in results:
+
+            results = []
+            for future in  c.as_completed(futures, timeout=timeout):
+                result = future.result()
+                c.print(result)
+                results += [result]
                 c.register_server(name=result['name'], address=result['address'])
 
         else:
@@ -6273,12 +6317,15 @@ class c:
     def wait(cls, futures:list, timeout:int = 30, generator:bool=False, return_dict:bool = True) -> list:
         import concurrent.futures
 
+
         is_singleton = bool(not isinstance(futures, list))
 
         futures = [futures] if is_singleton else futures
         # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
         #     return c.gather(futures, timeout=timeout)
             
+        if len(futures) == 0:
+            return []
         if c.is_coroutine(futures[0]):
             return c.gather(futures, timeout=timeout)
         
@@ -8298,9 +8345,11 @@ class c:
         return {'success': True, 'msg': 'all threads joined', 'threads': threads}
 
     @classmethod
-    def threads(cls, *args, **kwargs):
-        return list(cls.thread_map.keys())
-
+    def threads(cls, search:str=None, **kwargs):
+        threads = list(cls.thread_map.keys())
+        if search != None:
+            threads = [t for t in threads if search in t]
+        return threads
 
     @classmethod
     def thread_count(cls):

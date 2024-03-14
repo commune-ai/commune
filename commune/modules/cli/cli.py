@@ -1,6 +1,6 @@
 
 import commune as c
-
+from munch import Munch
 
 class CLI(c.Module):
     """
@@ -93,8 +93,12 @@ class CLI(c.Module):
  
         if c.is_generator(output):
             for i in output:
+                if isinstance(c, Munch):
+                    i = i.toDict()
                 c.print(i)
         else:
+            if isinstance(output, Munch):
+                output = output.toDict()
             c.print(output)
 
     def save_history(self, input, output):
@@ -104,14 +108,17 @@ class CLI(c.Module):
             pass
         return {'input': input, 'output': output}
     @classmethod
-    def history(cls):
+    def history_paths(cls):
         return cls.ls('cli_history')
+    
+    def history(self):
+        history_paths = self.history_paths()
+        historys = [c.get_json(path) for path in history_paths]
+        return historys
     
     @classmethod
     def clear(cls):
         return cls.rm('cli_history')
-    
-
 
 
         

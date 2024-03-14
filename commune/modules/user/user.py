@@ -75,6 +75,8 @@ class User(c.Module):
     @classmethod
     def num_roles(cls, role:str):
         return len([k for k,v in cls.users().items() if v['role'] == role])
+    
+    @classmethod
     def rm_user(cls, address):
         users = cls.get('users', {})
         users.pop(address)
@@ -125,7 +127,6 @@ class User(c.Module):
             if add_user:
                 response = getattr(cls, f'rm_user')(add_user_address)
                 st.write(response)
-
 
 
 User.run(__name__)
