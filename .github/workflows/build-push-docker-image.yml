@@ -137,8 +137,7 @@ jobs:
       #     password: ${{ secrets.aws_secret_key }}
       
       - name: Login to GHCR
-        if: inputs.push && env.registry_host == 'ghcr.io'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
