@@ -30,8 +30,9 @@ jobs:
         run: |
           sudo pip install -e .
 
-      - name: Commune Tests - c sync
-        run: c sync
+      # This takes WAY too long (at least on GitHub provided runners)
+      # - name: Commune Tests - c sync
+      #   run: c sync
 
       - name: Commune Tests - c balance
         run: c balance
