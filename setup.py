@@ -8,28 +8,8 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
     
-
-def read_requirements(path):
-    with open(path, "r") as f:
-        requirements = f.read().splitlines()
-        processed_requirements = []
-
-        for req in requirements:
-            # For git or other VCS links
-            if req.startswith("git+") or "@" in req:
-                pkg_name = re.search(r"(#egg=)([\w\-_]+)", req)
-                if pkg_name:
-                    processed_requirements.append(pkg_name.group(2))
-                else:
-                    # You may decide to raise an exception here,
-                    # if you want to ensure every VCS link has an #egg=<package_name> at the end
-                    continue
-            else:
-                processed_requirements.append(req)
-        return processed_requirements
-
-
-requirements = read_requirements("requirements.txt")
+with open('requirements.txt') as requirements_file:
+    install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
 
 
 setup(
@@ -44,7 +24,7 @@ setup(
     include_package_data=True,
     author_email='',
     license='MIT',
-    install_requires=requirements,
+    install_requires=install_requires,
     scripts=['bin/c'],
     classifiers=[
         'Development Status :: 3 - Alpha',
@@ -58,4 +38,4 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
     ], 
-    python_requires='>=3.11')
+    python_requires='>=3.8')

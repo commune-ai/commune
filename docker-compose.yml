@@ -29,8 +29,6 @@ services:
       - ./requirements.txt:/commune/requirements.txt
       - ./README.md:/commune/README.md
       - ./scripts:/commune/scripts
-      - ./poetry.lock:/commune/poetry.lock
-      - ./pyproject.toml:/commune/pyproject.toml
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
