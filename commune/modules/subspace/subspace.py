@@ -96,8 +96,7 @@ class Subspace(c.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
-                verbose:bool=True,
-                max_trials:int = 10,
+                trials:int = 10,
                 cache:bool = True,
                 mode = 'http',):
         
@@ -133,7 +132,7 @@ class Subspace(c.Module):
                 return self.url2substrate[url]
 
 
-        while max_trials > 0:
+        while trials > 0:
             try:
                 url = self.resolve_url(url, mode=mode, network=network)
 
@@ -149,8 +148,8 @@ class Subspace(c.Module):
                             auto_reconnect=auto_reconnect)
                 break
             except Exception as e:
-                max_trials = max_trials - 1
-                if max_trials > 0:
+                trials = trials - 1
+                if trials > 0:
                     raise e
         
         if cache:
@@ -165,10 +164,13 @@ class Subspace(c.Module):
     def set_network(self, 
                 network:str = 'main',
                 mode = 'http',
+                trials = 10,
                 url : str = None, **kwargs):
-        self.substrate = self.get_substrate(network=network, url=url, mode=mode , **kwargs)
+               
+        self.substrate = self.get_substrate(network=network, url=url, mode=mode, trials=trials , **kwargs)
         response =  {'network': self.network, 'url': self.url}
         c.print(response)
+        
         return response
 
     def __repr__(self) -> str:
@@ -3749,7 +3751,7 @@ class Subspace(c.Module):
         c.print('testing url -> ', url, color='yellow' )
 
         try:
-            self.set_network(url=url, max_trials=1)
+            self.set_network(url=url, trials=1)
             success = isinstance(self.block, int)
         except Exception as e:
             c.print(c.detailed_error(e))

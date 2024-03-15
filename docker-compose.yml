@@ -35,7 +35,7 @@ services:
       
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
-      - ~/.commune:/root/.commune
+      - ~/.commune:/root/.commune # MOUNT THE COMMUNE CONFIGURATION FILE
 
 
     # deploy:
