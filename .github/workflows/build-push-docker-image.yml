@@ -110,9 +110,13 @@ jobs:
       - name: Set registry_host
         env:
           image_registry: ${{ inputs.image_registry }}
+          image_name: ${{inputs.image_name}}
         run: |
+          echo "Grab just the docker registry host"
           registry_host="${image_registry%%/*}"
           echo "registry_host=${registry_host}" | tee -a $GITHUB_ENV
+          echo "Converting the GitHub org to lower case (required for GHCR)"
+          echo "image_name=$(echo $image_name | tr '[:upper:]' '[:lower:]')" | tee -a $GITHUB_ENV
 
       - name: debug
         run: |
