@@ -4,6 +4,10 @@ on:
   pull_request:
     branches:
       - main
+  pull_request_review:
+    types: [submitted]
+
+
   push:
     branches:
       - main
@@ -11,7 +15,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  Variables:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{steps.vars.outputs.image_tag}}
+      microservice: ${{needs.variables.outputs.microservice}}
+      microservice_path: ./
+      context_dir: "."
+      microservice_env: dev
+      image_registry: ghcr.io/commune-ai
+
+    steps:
+      - name: Create Timestamp Variable for image tag
+        id: vars
+        #Edit variables down here for values
+        run: |
+          echo "image_tag=$(date +'%Y-%m-%d--%H-%M-%S')" >> $GITHUB_OUTPUT
+
   Commune_Tests:
+    needs: Variables
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -65,6 +87,15 @@ jobs:
       - name: Commune Tests - c port_range
         run: c port_range        
 
-# PLEASE PLEASE PLEASE ADD TESTS HERE
+  # PLEASE PLEASE PLEASE ADD TESTS HERE
 
-# Add create a docker image (to test building docker image for/with Commune)
+  Create-Docker-Image:
+    needs: [Commune_Tests]
+    uses: ./.github/workflows/build-push-docker-image.yml
+    with:
+      image_tag: ${{ needs.variables.outputs.image_tag }}
+      microservice: ${{needs.variables.outputs.microservice}}
+      microservice_path: ${{needs.variables.outputs.microservice_path}}
+      context_dir: ${{needs.variables.outputs.microservice_path}}
+      microservice_env: ${{needs.variables.outputs.microservice_env}}
+      image_registry: ${{needs.variables.outputs.image_registry}}
