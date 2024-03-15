@@ -27,7 +27,6 @@ services:
       - ./requirements.txt:/commune/requirements.txt
       - ./README.md:/commune/README.md
       - ./scripts:/commune/scripts
-      - ./poetry.lock:/commune/poetry.lock
       - ./pyproject.toml:/commune/pyproject.toml
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
@@ -37,7 +36,6 @@ services:
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
       - ~/.commune:/root/.commune
-      - ~/.bittensor:/root/.bittensor
 
 
     # deploy:
