@@ -92,6 +92,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: ${{ inputs.branch }}
+          submodules: 'true'
 
       - name: Set registry_host
         env:
@@ -122,23 +123,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Interestingly, below the variables for inputs cannot be called directly. (even tried: ${{github.event.inputs.image_tag}})
-      # Instead, saving them as env vars first and then using them as env vars below works.
-      # - name: Build image and push to GitHub Container Registry (with retry)
-      #   uses: Wandalen/wretry.action@v1.0.36
-      #   with:
-      #     action: docker/build-push-action@v3
-      #     with: |
-      #       build-args: ${{ env.build_args }}
-      #       context: ${{ env.context_dir }}
-      #       file: ${{ env.microservice_path }}/${{ env.docker_file }}
-      #       no-cache: true
-      #       pull: true
-      #       push: ${{ env.push }}
-      #       tags: ${{ env.image_name }}:${{ env.image_tag }}
-      #     attempt_limit: 3
-      #     attempt_delay: 30000
 
       - name: Build image and push to registry
         uses: docker/build-push-action@v5
