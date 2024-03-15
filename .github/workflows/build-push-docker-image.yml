@@ -134,4 +134,4 @@ jobs:
           no-cache: true
           pull: true
           push: ${{ env.push }}
-          tags: ${{ env.image_name }}:${{ env.image_tag }}
+          tags: "${{ env.image_name }}:${{ env.image_tag }}"
