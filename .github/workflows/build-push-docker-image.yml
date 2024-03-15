@@ -73,6 +73,19 @@ on:
     #     description: AWS secret access key for CLI commands
 
 jobs:
+  Debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug information
+        run: |
+          echo "=== Variables ==="
+          echo "Variable: ${{ inputs.build_args }}"
+          echo "Variable: ${{ inputs.context_dir }}"
+          echo "Variable: ${{ inputs.docker_file }}"
+          echo "Variable: ${{ inputs.image_prefix }}"
+          echo "Variable: ${{ inputs.microservice }}"
+          echo "Variable: ${{ inputs.microservice_env }}"
+  
   build_push_docker_image:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -100,6 +113,13 @@ jobs:
         run: |
           registry_host="${image_registry%%/*}"
           echo "registry_host=${registry_host}" | tee -a $GITHUB_ENV
+
+      - name: debug
+        run: |
+          echo "=== Variables ==="
+          echo image_name: ${{env.image_name}}
+          echo image_tag: ${{env.image_tag}}
+          echo complete image name: ${{ env.image_name }}:${{ env.image_tag }}
 
       - name: Install Docker via Buildx
         id: buildx
