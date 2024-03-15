@@ -24,7 +24,7 @@ gradio
 grpcio
 grpcio-tools
 plotly
-
+streamlit
 
 
 
