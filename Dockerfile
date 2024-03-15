@@ -1,19 +1,50 @@
-FROM ubuntu:22.04
+# Use the specified base image
+FROM linuxserver/code-server:latest
+
+# Allow statements and log messages to immediately appear in the Knative logs
+ENV PYTHONUNBUFFERED True
+
+# Install nano, python3, and pip
+RUN apt-get update && \
+    apt-get install -y nano python3 python-is-python3 python3-pip iputils-ping git git-lfs openssh-server
+
+USER root
+
+RUN ssh-keygen -A
+
+RUN (crontab -l 2>/dev/null; echo "@reboot /usr/sbin/sshd -D") | crontab -
+
+RUN (crontab -l 2>/dev/null; echo "@reboot /etc/init.d/ssh start") | crontab -
+
+RUN usermod -s /bin/bash abc
+RUN usermod -s /bin/bash root
+
+### For Docker in Docker ###
+# Install prerequisites
+RUN apt-get install -y \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    software-properties-common
+
+RUN pip install -q nvidia-smi
+
+# Set the working directory to /workspace
 WORKDIR /commune
-RUN rm -f /etc/apt/sources.list.d/*.list
-ARG DEBIAN_FRONTEND=noninteractive
-# INSTALL APT PACKAGES (NOT PYTHON)
-RUN apt update
-RUN apt upgrade -y
-RUN apt install -y curl sudo git htop netcat wget unzip tmux apt-utils cmake build-essential protobuf-compiler
-#  INSTALL PYTHON PACKAGES
-RUN apt install -y python3-dev python3-pip
-COPY ./commune /commune/commune
-COPY ./requirements.txt /commune/requirements.txt
-COPY ./setup.py /commune/setup.py
-COPY ./README.md /commune/README.md
-COPY ./bin /commune/bin
-RUN pip install -e ./
-# INTSALL NPM PACKAGES
-RUN apt-get install -y nodejs npm
-RUN npm install -g pm2
+
+# install python libraries for commune
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
+
+RUN apt-get install build-essential software-properties-common
+RUN apt-get install nodejs npm -y
+RUN npm install pm2 -g
+
+# Copy the contents of the local directory "../" to the /workspace directory in the container
+COPY ./ /commune
+# install Commune
+RUN pip install -e .
+
+
+# Clean up
+#BREAKS WAY TOO MUCH IN CODE SERVER## RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*

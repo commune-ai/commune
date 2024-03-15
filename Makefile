@@ -8,6 +8,9 @@ SUBTENSOR=0.0.0.0:9944
 
 PYTHON=python3
 
+start:
+	chmod +x ./start.sh ; ./start.sh
+
 build:
 	docker-compose build
 
@@ -16,9 +19,7 @@ down:
 stop:
 	make down
 up:
-	docker-compose up -d
-start:
-	make start
+
 restart:
 	make down && make up
 logs:
@@ -29,8 +30,6 @@ subspace:
 
 enter: 
 	make bash arg=$(COMMUNE)
-restart:
-	make down && make up
 
 prune_volumes:	
 	docker system prune --all --volumes
