@@ -23,8 +23,7 @@ jobs:
       microservice_path: ./
       context_dir: "."
       microservice_env: dev
-      #image_registry: ghcr.io/${{ github.repository_owner }}
-      image_registry: ghcr.io/commune-ai
+      image_registry: ghcr.io/${{ github.repository_owner }}
 
     steps:
       - name: Create Timestamp Variable for image tag
@@ -73,8 +72,17 @@ jobs:
       # - name: Commune Tests - c sync
       #   run: c sync
 
-      - name: Commune Tests - c balance
-        run: c balance
+      # Interestingly, below the variables for inputs cannot be called directly. (even tried: ${{github.event.inputs.image_tag}})
+      # Instead, saving them as env vars first and then using them as env vars below works.
+      - name: Initial test (with retry because RPC issues)
+        uses: Wandalen/wretry.action@master
+        with:
+          command: c balance
+          attempt_limit: 3
+          attempt_delay: 10000
+
+      # - name: Commune Tests - c balance
+      #   run: c balance
 
       - name: Commune Tests - c demo serve tag=latest
         run: c demo serve tag=latest
