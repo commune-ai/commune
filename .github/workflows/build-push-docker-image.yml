@@ -32,7 +32,7 @@ on:
       image_registry:
         required: false
         type: string
-        default: ghcr.io/agent-artificial
+        default: ghcr.io/${{ github.repository_owner }}
         description: Docker/OCI registry to host the image (hostname and optional path)
       image_tag:
         required: true
