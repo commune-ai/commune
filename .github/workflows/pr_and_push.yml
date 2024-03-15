@@ -23,7 +23,7 @@ jobs:
       microservice_path: ./
       context_dir: "."
       microservice_env: dev
-      image_registry: ghcr.io/commune-ai
+      image_registry: ghcr.io/${{ github.repository_owner }}
 
     steps:
       - name: Create Timestamp Variable for image tag
