@@ -32,6 +32,20 @@ jobs:
         run: |
           echo "image_tag=$(date +'%Y-%m-%d--%H-%M-%S')" >> $GITHUB_OUTPUT
 
+  Debug:
+    needs: Variables
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug information
+        run: |
+          echo "=== Variables ==="
+          echo "Time Var: ${{ needs.variables.outputs.image_tag }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice_path }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice_env }}"
+          echo "Variable: ${{ needs.variables.outputs.context_dir }}"
+          echo "Variable: ${{ needs.variables.outputs.image_registry }}"
+
   Commune_Tests:
     needs: Variables
     runs-on: ubuntu-latest
