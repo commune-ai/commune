@@ -7,6 +7,8 @@ class Vali(c.Module):
     
     last_sync_time = 0
     last_vote_time = 0
+    last_sent = 0
+    last_success = 0
     errors = 0
     count = 0
     requests = 0
@@ -60,27 +62,47 @@ class Vali(c.Module):
 
     @property
     def worker_name_prefix(self):
-        return f'{self.server_name}/{self.config.worker_fn_name}'
+        return f'{self.server_name}'
 
 
 
+    def add_worker(self):
+        num_workers = len(self.workers())
+        id = num_workers
+        return self.start_worker(id=id)
+    
 
-    def start_worker(self):
+    def restart_worker(self, id = 0):
+        if self.config.mode == 'thread':
+            return self.start_worker(id=id)
+        
+
+
+
+    def start_worker(self, id = 0):
         config = self.config
         config = c.munch2dict(config) # we want to convert the config to a dict
-
+        worker_name = self.worker_name(id)
         if self.config.mode == 'thread':
-            worker = c.thread(self.worker)
+            worker = c.thread(self.worker, args=[id], name=worker_name)
         elif self.config.mode == 'server':
-            server_name = self.server_name + f'_{self.config.clone_suffix}{i}'
-            worker = self.serve(kwargs=dict(config=config, workers=1, mode='thread'), key=self.key.path, server_name = server_name)
+            server_name = self.server_name + "::" + worker_name
+            server_kwargs = {**config, 'workers': 1, 'mode': 'thread'}
+            worker = self.serve(kwargs=server_kwargs, 
+                                 key=self.key.path, 
+                                 server_name = server_name)
         else:
             raise Exception(f'Invalid mode {self.config.mode}')
         c.print(f'Started worker {worker}', color='cyan')
 
+        return {'success': True, 'msg': f'Started worker {worker}', 'worker': worker}
+
+    def worker_name(self, id = 0):
+        return f'{self.config.worker_fn_name}::{id}'
 
         
-    def worker(self):
+    def worker(self, id = 0):
+        worker_name = self.worker_name(id)
 
         batch_size = self.config.batch_size 
         self.running = True
@@ -100,6 +122,7 @@ class Vali(c.Module):
             for  i, module_address in enumerate(module_addresses):
                 # if the futures are less than the batch, we can submit a new future
                 if len(futures) < batch_size:
+                    self.last_sent = c.time()
                     future = executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
                     futures.append(future)
                 else:
@@ -107,6 +130,7 @@ class Vali(c.Module):
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
                             try:
                                 result = ready_future.result()
+                                self.last_success = c.time()
                             except Exception as e:
                                 result = c.detailed_error(e)
 
@@ -133,12 +157,22 @@ class Vali(c.Module):
                         'errors': self.errors,
                         'successes': self.successes,
                         'network': self.network,
+                        'last_sent': c.time() - self.last_sent,
+                        'last_success': c.time() - self.last_success,
+                        'worker_name': worker_name,
                             }
+                    self.put(f'clone_stats/{worker_name}', stats)
                     c.print(c.df([stats]))
                     last_print = c.time()
                 
 
 
+    def clone_stats(self):
+        workers = self.workers()
+        stats = {}
+        for w in workers:
+            stats[w] = self.get(f'clone_stats/{w}', default={})
+        return stats
 
     def set_network(self, 
                      network:str=None, 
@@ -518,7 +552,7 @@ class Vali(c.Module):
     def start(self):
         # start the workers
         for i in range(self.config.worker_count):
-            self.start_worker()
+            self.start_worker(i)
         c.thread(self.vote_loop)
 
     @property

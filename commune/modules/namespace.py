@@ -408,7 +408,6 @@ class Namespace(c.Module):
 
     @classmethod
     def dashboard(cls):
-        import streamlit as st
         return cls.namespace()
     
 

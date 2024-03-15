@@ -1430,7 +1430,7 @@ class Subspace(c.Module):
 
     def get_modules(self, keys:list = None,
                      network='main',
-                          timeout=5,
+                          timeout=20,
                          netuid=0, fmt='j',
                          include_uids = True,
                            **kwargs) -> List['ModuleInfo']:
@@ -1456,7 +1456,6 @@ class Subspace(c.Module):
         for future in  c.as_completed(futures, timeout=timeout):
             progress_bar.update(1)
             module = future.result()
-            c.print(module)
             key = future2key[future]
             if isinstance(module, dict) and 'name' in module:
                 results.append(module)

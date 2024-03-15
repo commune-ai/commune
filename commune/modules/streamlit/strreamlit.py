@@ -508,3 +508,206 @@ class StreamlitModule(c.Module):
         except Exception as e:
             c.print(e)
         
+
+    def select_key(self):
+        import streamlit as st
+        keys = c.keys()
+        key2index = {k:i for i,k in enumerate(keys)}
+        with st.form('key.form'):
+            self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
+            key_address = self.key.ss58_address
+            st.write('address')
+            st.code(key_address)
+        return self.key
+    
+
+    @classmethod
+    def plot_dashboard(cls, df, key='dashboard', x='name', y='emission', select_columns=True):
+        import plotly.express as px
+        import streamlit as st
+        cols = list(df.columns)
+        if select_columns:
+            cols = st.multiselect('Select Columns', cols, cols, key=key+'multi')
+        # bar_chart based on x and y
+
+        if len(df) == 0:
+            st.error('You are not staked to any modules')
+            return 
+        col2idx = {c:i for i,c in enumerate(cols)}
+        defult_x_col = col2idx.get(x, 0)
+        default_y_col = col2idx.get(y, 1)
+
+        plot_kwargs = {}
+
+        st_cols = st.columns([1,3])
+
+        with st_cols[0]:
+            plot_type = st.selectbox('Select Plot Type', ['pie', 'bar', 'line', 'scatter', 'histogram', 'treemap'], 0, key='info.plot')
+
+            if plot_type in [ 'bar', 'line', 'scatter']:
+                plot_kwargs['x'] = st.selectbox('Select X', cols, defult_x_col)
+                plot_kwargs['y'] = st.selectbox('Select Y', cols, default_y_col)
+            elif plot_type in ['histogram']:
+                plot_kwargs['x'] = st.selectbox('Select Value', cols, defult_x_col)
+            elif plot_type in ['pie']:
+                plot_kwargs['names'] = st.selectbox('Select Names', cols, defult_x_col)
+                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
+            elif plot_type in ['treemap']:
+                plot_kwargs['path'] = st.multiselect('Select Path', cols, ["name"])
+                plot_kwargs['values'] = st.selectbox('Select Values', cols, default_y_col)
+
+
+            sort_type = st.selectbox('Sort Type', cols , 0)
+
+            if sort_type in cols:
+                ascending = st.checkbox('Ascending', False)
+                df = df.sort_values(sort_type, ascending=ascending)
+
+        with st_cols[1]:
+            plot_fn = getattr(px, plot_type)
+            plot_kwargs_title =  " ".join([f"{k.lower()}:{v}" for k,v in plot_kwargs.items()])
+            title = f'My Modules {plot_type} for ({plot_kwargs_title})'
+            fig = plot_fn(df, **plot_kwargs, title=title)    
+            st.plotly_chart(fig)
+        # st.write(kwargs)
+            
+    @classmethod
+    def stwrite(self, *args, **kwargs):
+        import streamlit as st
+        st.write(*args, **kwargs)
+        
+         
+      
+    @classmethod
+    def function2streamlit(cls, 
+                           module = None,
+                           fn:str = '__init__',
+                           fn_schema = None, 
+                           extra_defaults:dict=None,
+                           cols:list=None,
+                           skip_keys = ['self', 'cls'],
+                           salt = None,
+                            mode = 'pm2'):
+        import streamlit as st
+        
+        key_prefix = f'{module}.{fn}'
+        if salt != None:
+            key_prefix = f'{key_prefix}.{salt}'
+        if module == None:
+            module = cls
+            
+        elif isinstance(module, str):
+            module = c.module(module)
+        extra_defaults = {} if extra_defaults is None else extra_defaults
+        kwargs = {}
+
+        if fn_schema == None:
+
+            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
+            if fn == '__init__':
+                config = module.config(to_munch=False)
+                extra_defaults = config
+            st.write(fn_schema)
+            fn_schema['default'].pop('self', None)
+            fn_schema['default'].pop('cls', None)
+            fn_schema['default'].update(extra_defaults)
+            fn_schema['default'].pop('config', None)
+            fn_schema['default'].pop('kwargs', None)
+            
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        if len(cols) == 0:
+            return kwargs
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
+            
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if fn_key in skip_keys:
+                continue
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            col_idx = col_idx % (len(cols))
+            if type(v) in [float, int] or c.is_number(v):
+                kwargs[k] = cols[col_idx].number_input(fn_key, v, key=f'{key_prefix}.{k}')
+            elif v in ['True', 'False']:
+                kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')
+            else:
+                kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
+        kwargs = cls.process_kwargs(kwargs, fn_schema)       
+        
+        return kwargs
+    
+    
+
+    def load_state(self, update:bool=False, netuid=0, network='main', state=None, _self = None):
+        
+        if _self != None:
+            self = _self
+        
+        import streamlit as st
+        
+        self.key = c.get_key()
+
+        t = c.timer()
+        @st.cache_data(ttl=60*60*24, show_spinner=False)
+        def get_state():
+            subspace = c.module('subspace')()
+            state =  subspace.state_dict(update=update, version=1)
+            return state
+        
+        if state == None:
+            state = get_state()
+        self.state =  state
+
+
+
+        self.netuid = 0
+        self.subnets = self.state['subnets']
+        self.modules = self.state['modules'][self.netuid]
+        self.name2key = {k['name']: k['key'] for k in self.modules}
+        self.key2name = {k['key']: k['name'] for k in self.modules}
+
+        self.namespace = c.namespace()
+
+        self.keys  = c.keys()
+        self.key2index = {k:i for i,k in enumerate(self.keys)}
+
+        self.namespace = {m['name']: m['address'] for m in self.modules}
+        self.module_names = [m['name'] for m in self.modules]
+        self.block = self.state['block']
+        for i, m in enumerate(self.modules):
+            self.modules[i]['stake'] = self.modules[i]['stake']/1e9
+            self.modules[i]['emission'] = self.modules[i]['emission']/1e9
+
+        self.key_info = {
+            'ss58_address': self.key.ss58_address,
+            'balance': self.state['balances'].get(self.key.ss58_address,0),
+            'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
+            'stake': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),
+        }
+
+        self.key_info['balance']  = self.key_info['balance']/1e9
+        self.key_info['stake_to'] = {k:v/1e9 for k,v in self.key_info['stake_to']}
+        self.key_info['stake'] = sum([v for k,v in self.key_info['stake_to'].items()])
+        # convert keys to names 
+        for k in ['stake_to']:
+            self.key_info[k] = {self.key2name.get(k, k): v for k,v in self.key_info[k].items()}
+
+        self.subnet_info = self.state['subnets'][0]
+        balances = self.state['balances']
+        self.total_balance = sum(balances.values())/1e9
+
+

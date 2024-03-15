@@ -8,8 +8,8 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
     
-with open('requirements.txt') as requirements_file:
-    install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
+# with open('requirements.txt') as requirements_file:
+#     install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
 
 setup(
     name='commune',
@@ -23,7 +23,7 @@ setup(
     include_package_data=True,
     author_email='',
     license='MIT',
-    install_requires=install_requires,
+    # install_requires=install_requires,
     scripts=['bin/c'],
     classifiers=[
         'Development Status :: 3 - Alpha',
