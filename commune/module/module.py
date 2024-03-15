@@ -7782,6 +7782,7 @@ class c:
 
     @classmethod
     def balance(cls, *args, **kwargs):
+        sys.exit(1)
         return c.module('subspace')().balance(*args, **kwargs)
 
         
