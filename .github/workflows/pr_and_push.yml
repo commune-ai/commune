@@ -18,17 +18,17 @@ jobs:
 
       - name: Install Prerequisites
         run: |
-          apt-get update
-          apt-get install curl nano python3 python3-dev python-is-python3 build-essential cargo libstd-rust-dev -y
-          python -m pip install --upgrade pip
-          pip install setuptools wheel
-          pip install -r requirements.txt
-          apt-get install -y nodejs npm
-          npm install -g pm2
+          sudo apt-get update
+          sudo apt-get install curl nano python3 python3-dev python-is-python3 build-essential cargo libstd-rust-dev -y
+          sudo python -m pip install --upgrade pip
+          sudo pip install setuptools wheel
+          sudo pip install -r requirements.txt
+          sudo apt-get install -y nodejs npm
+          sudo npm install -g pm2
 
       - name: Install Commune
         run: |
-          pip install -e .
+          sudo pip install -e .
 
       - name: Commune Tests - c sync
         run: c sync
@@ -66,3 +66,4 @@ jobs:
 
 # PLEASE PLEASE PLEASE ADD TESTS HERE
 
+# Add create a docker image (to test building docker image for/with Commune)
