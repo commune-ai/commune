@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{steps.vars.outputs.image_tag}}
-      microservice: ${{needs.variables.outputs.microservice}}
+      microservice: commune
       microservice_path: ./
       context_dir: "."
       microservice_env: dev
@@ -106,7 +106,7 @@ jobs:
   # PLEASE PLEASE PLEASE ADD TESTS HERE
 
   Create-Docker-Image:
-    needs: [Commune_Tests]
+    needs: [Commune_Tests, Variables]
     uses: ./.github/workflows/build-push-docker-image.yml
     with:
       image_tag: ${{ needs.variables.outputs.image_tag }}
