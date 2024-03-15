@@ -13,7 +13,6 @@ USER root
 RUN ssh-keygen -A
 
 RUN (crontab -l 2>/dev/null; echo "@reboot /usr/sbin/sshd -D") | crontab -
-
 RUN (crontab -l 2>/dev/null; echo "@reboot /etc/init.d/ssh start") | crontab -
 
 RUN usermod -s /bin/bash abc
@@ -32,10 +31,7 @@ RUN pip install -q nvidia-smi
 # Set the working directory to /workspace
 WORKDIR /commune
 
-# install python libraries for commune
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-
+# install npm and pm2 (for process management)
 RUN apt-get install build-essential software-properties-common
 RUN apt-get install nodejs npm -y
 RUN npm install pm2 -g
@@ -43,8 +39,8 @@ RUN npm install pm2 -g
 # Copy the contents of the local directory "../" to the /workspace directory in the container
 COPY ./ /commune
 # install Commune
+
+# install python libraries for commune
+COPY requirements.txt requirements.txt
+RUN pip install -r requirements.txt
 RUN pip install -e .
-
-
-# Clean up
-#BREAKS WAY TOO MUCH IN CODE SERVER## RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
