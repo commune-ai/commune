@@ -118,8 +118,8 @@ jobs:
           registry_host="${image_registry%%/*}"
           echo "registry_host=${registry_host}" | tee -a $GITHUB_ENV
           echo "Converting the GitHub org to lower case (required for GHCR)"
-          echo "image_registry=$(echo $image_registry | tr '[:upper:]' '[:lower:]')"
-          echo "image_name: ${image_registry}/${image_prefix}${microservice}-${microservice_env}" | tee -a $GITHUB_ENV
+          echo "image_registry=$(echo $image_registry | tr '[:upper:]' '[:lower:]')" | tee -a $GITHUB_ENV
+          echo "image_name=${image_registry}/${image_prefix}${microservice}-${microservice_env}" | tee -a $GITHUB_ENV
 
       - name: debug
         run: |
