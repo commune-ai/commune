@@ -37,10 +37,10 @@ RUN apt-get install nodejs npm -y
 RUN npm install pm2 -g
 
 # Copy the contents of the local directory "../" to the /workspace directory in the container
-COPY ./ /commune
 # install Commune
 
 # install python libraries for commune
 COPY requirements.txt requirements.txt
 RUN pip install -r requirements.txt
+COPY ./ /commune
 RUN pip install -e .

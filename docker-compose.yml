@@ -3,8 +3,6 @@ version: "3.2"
 services:
 
   commune:
-    
-    network_mode: host
     # image: commune:latest
     container_name: commune
     build: ./
@@ -14,30 +12,23 @@ services:
   
     volumes:
 
-      # COMMUNE VOLUME MOUNTS
-      - ./commune:/commune/commune
-      - ./subspace/pallets:/commune/subspace/pallets
-      - ./frontend:/commune/frontend
-
-
-      # LOCAL COMMUNE MOUNTS AND FILES
-      - ./Makefile:/commune/Makefile 
-      - ./setup.py:/commune/setup.py
-      - ./commune.sh:/commune/commune.sh
-      - ./requirements.txt:/commune/requirements.txt
-      - ./README.md:/commune/README.md
+      - ./commune:/commune/commune # MOUNT THE CODE BASE
+      - ./data:/commune/data # MOUNT THE DATA FOLDER
+      - ~/.commune:/config/.commune # MOUNT THE LOCAL STORAGE (~ IS /config/ in the container) 
       - ./scripts:/commune/scripts
-      - ./pyproject.toml:/commune/pyproject.toml
+
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
       - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
       
-      # FILE SYSTEM MOUNTS
-      - /tmp:/tmp # MOUNT THE TEMPORARY FILE
-      - ~/.commune:/root/.commune # MOUNT THE COMMUNE CONFIGURATION FILE
 
 
+    ports:
+      - 50050-50250:50050-50250 # change the port to the port you want to expose (c port_range)
+    
+    
+    # FOR GPU ONLY
     # deploy:
     #   resources:
     #     reservations:

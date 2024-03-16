@@ -1,4 +1,3 @@
-import torch
 import traceback
 import commune as c
 import concurrent
