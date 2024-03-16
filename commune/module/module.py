@@ -2137,8 +2137,6 @@ class c:
     @classmethod
     def cache_path(cls):
         path = os.path.expanduser(f'~/.{cls.library_name}')
-        if path.startswith('/config/'): # HOTFIX FOR 
-            path = path.replace('/config/', '/root/')
         return path
 
     @classmethod
@@ -5613,11 +5611,9 @@ class c:
         # update local namespace
         c.ip(update=True)
         if namespace:
-            r = namespace = c.namespace(network=network, update=True)
-            responses.append(r)
+            responses.append(c.namespace(network=network, update=True))
         if subspace:
-            r = c.module('subspace').sync()
-            responses.append(r)
+            responses.append(c.module('subspace').sync())
 
         return {'success': True, 'responses': responses}
     
@@ -8319,7 +8315,7 @@ class c:
                 cnt += 1
                 if tag == None:
                     tag = ''
-                name = fn_name + tag_seperator + tag + str(cnt)
+                name = name + tag_seperator + tag + str(cnt)
         t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
 
 

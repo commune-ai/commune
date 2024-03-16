@@ -156,8 +156,7 @@ class Vali(c.Module):
                         'errors': self.errors,
                         'successes': self.successes,
                         'network': self.network,
-                        'last_sent': c.time() - self.last_sent,
-                        'last_success': c.time() - self.last_success,
+                        'last_success': c.round(c.time() - self.last_success,2),
                         'worker_name': worker_name,
                             }
                     self.put(f'clone_stats/{worker_name}', stats)
