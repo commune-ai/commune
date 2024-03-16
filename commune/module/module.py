@@ -2136,7 +2136,10 @@ class c:
 
     @classmethod
     def cache_path(cls):
-        return os.path.expanduser(f'~/.{cls.library_name}')
+        path = os.path.expanduser(f'~/.{cls.library_name}')
+        if path.startswith('/config/'): # HOTFIX FOR 
+            path = path.replace('/config/', '/root/')
+        return path
 
     @classmethod
     def tilde_path(cls):
@@ -8291,8 +8294,10 @@ class c:
                     kwargs:dict = None, 
                     daemon:bool = True, 
                     name = None,
+                    tag = None,
                     start:bool = True,
-                    tag_seperator:str='::'):
+                    tag_seperator:str='::', 
+                    **extra_kwargs):
 
         if isinstance(fn, str):
             fn = c.get_fn(fn)
@@ -8308,14 +8313,14 @@ class c:
         import threading
 
         if name == None:
-            fn_name = fn.__name__
+            name = fn.__name__
             cnt = 0
             while name in cls.thread_map:
                 cnt += 1
                 if tag == None:
                     tag = ''
                 name = fn_name + tag_seperator + tag + str(cnt)
-        t = threading.Thread(target=fn, args=args, kwargs=kwargs)
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
 
 
         # set the time it starts
@@ -8324,6 +8329,7 @@ class c:
         if start:
             t.start()
         cls.thread_map[name] = t
+        c.print(f'created thread {name}')
         return t
 
     @classmethod
