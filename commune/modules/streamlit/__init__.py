@@ -1,2 +1,2 @@
-from .strreamlit import StreamlitModule
+from .streamlit import StreamlitModule
 from .utils import *
