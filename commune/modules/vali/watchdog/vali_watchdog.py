@@ -9,21 +9,21 @@ class ValiWatchdog(c.Module):
         self.max_tries = max_tries
         for i in range(num_loops):
             c.thread(self.loop)
-
     def loop(self, cache_exceptions=False):
-        if cache_exceptions:
-            try:
-                self.loop(cache_exceptions=cache_exceptions)
-            except Exception as e:
-
-                self.loop(cache_exceptions=cache_exceptions)
-            subspace = c.module('subspace')()
+        subspace = c.module('subspace')()
             
         while True:
-            c.print( f'Checking servers {c.time()}')
-            subspace.check_servers()
-            c.print('Sleeping {} seconds...')
-            c.sleep(self.sleep)
+            try:
+                c.print( f'Checking servers {c.time()}')
+                subspace.check_servers()
+                c.print('Sleeping {} seconds...')
+                c.sleep(self.sleep)
+            except Exception as e:
+                c.print(f'Error: {e}')
+                c.sleep(self.sleep)
+                if not cache_exceptions:
+                    raise e
+            
 
 
     

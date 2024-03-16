@@ -2,13 +2,13 @@ version: "3.8"
 
 services:
   commune-node:
-    container_name: commune-node
-    image: ghcr.io/agicommies/subspace:dd5a1e5
+    container_name: subspace-node
+    build: ./
     volumes:
-      - ${COMMUNE_NODE_DIR}:/node-data
+      - ./:/subspace
     ports:
       - 30333:30333 # P2P
       - 9944:9944 # RPC
     restart: always
-    command: ["bash", "/node-data/node-start.sh", "--sync=full", "--pruning=archive"]
+    command: ["bash", "/subspace/node-start.sh"]
     # command: ["bash", "/node-data/node-start.sh", "--sync=warp"]
