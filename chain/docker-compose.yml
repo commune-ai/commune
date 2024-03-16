@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  commune-node:
+    container_name: commune-node
+    image: ghcr.io/agicommies/subspace:dd5a1e5
+    volumes:
+      - ${COMMUNE_NODE_DIR}:/node-data
+    ports:
+      - 30333:30333 # P2P
+      - 9944:9944 # RPC
+    restart: always
+    command: ["bash", "/node-data/node-start.sh", "--sync=full", "--pruning=archive"]
+    # command: ["bash", "/node-data/node-start.sh", "--sync=warp"]
