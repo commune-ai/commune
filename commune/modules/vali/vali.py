@@ -376,7 +376,6 @@ class Vali(c.Module):
     def vote(self, async_vote:bool=False, save:bool = True, **kwargs):
         
 
-        self.last_vote_time = c.time()
 
         if async_vote:
             return c.submit(self.vote, **kwargs)
@@ -391,8 +390,11 @@ class Vali(c.Module):
                         key=self.key, 
                         network=self.config.network, 
                         netuid=self.config.netuid)
+        
         if save:
             self.save_votes(votes)
+
+        self.last_vote_time = c.time()
         
         return {'success': True, 
                 'message': 'Voted', 
@@ -423,12 +425,12 @@ class Vali(c.Module):
                     timeout:int=10,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos',
-                    update = False,
+                    update = True,
                     **kwargs
                     ):
         
         if not update:
-            modules_info = self.get_json(path, default=[])
+            modules_info = self.get(path, default=[])
             if len(modules_info) > 0:
                 return modules_info
             
@@ -440,13 +442,12 @@ class Vali(c.Module):
             results = c.wait(jobs_batch, timeout=timeout)
             # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
-            
                 if isinstance(s, dict) and 'ss58_address' in s:
                     s['staleness'] = c.time() - s.get('timestamp', 0)
                     module_infos += [{k: s.get(k, None) for k in keys}]
 
         if update:
-            self.put_json(path, module_infos)       
+            self.put(path, module_infos)       
         return module_infos
 
     def load_module_info(self, k:str,default=None):
@@ -563,15 +564,19 @@ class Vali(c.Module):
     def vote_loop(self):
 
         while True:
-            if self.should_vote:
-                futures = [c.submit(self.vote)]
+            try:
+                if self.should_vote:
+                    futures = [c.submit(self.vote)]
 
-            if len(futures) > 0:
-                for ready_future in c.as_completed(futures, timeout=self.config.vote_interval):
-                    ready_future.result()
-                    futures.remove(ready_future)
-            c.print(self.run_info())
+                if len(futures) > 0:
+                    for ready_future in c.as_completed(futures, timeout=self.config.vote_interval):
+                        c.print(ready_future.result())
+                        futures.remove(ready_future)
+                c.print(self.run_info())
+            except Exception as e:
+                c.print(c.detailed_error(e))
             c.sleep(self.config.sleep_interval)
+
 
         
 

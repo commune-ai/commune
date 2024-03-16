@@ -3597,7 +3597,6 @@ class Subspace(c.Module):
                 response = f"{module} is already serving or has a lag of {lag} blocks but less than {min_lag} blocks"
             response_batch[module] = response
 
-            c.print(response)
         return response_batch
 
 

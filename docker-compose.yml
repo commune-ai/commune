@@ -25,7 +25,7 @@ services:
 
 
     ports:
-      - 50050-50250:50050-50250 # change the port to the port you want to expose (c port_range)
+      - 50050-50150:50050-50150 # change the port to the port you want to expose (c port_range)
     
     
     # FOR GPU ONLY
