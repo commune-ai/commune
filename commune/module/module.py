@@ -1557,11 +1557,6 @@ class c:
 
         simple_path = '.'.join(simple_chunk)
 
-
-        # remove the modules prefix
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
-
         # remove any files to compress the name even further for
         if len(simple_path.split('.')) > 2:
             
@@ -1745,16 +1740,16 @@ class c:
         return False
     
 
-
-
-    tree_cache = {}
     @classmethod
-    def build_tree(cls, search=None, 
-                update:bool = True,
-                path = 'local_module_tree',
-                **kwargs) -> List[str]:
+    def tree(cls, search=None, 
+                update:bool = False,
+                path = 'local_module_tree'
+                ) -> List[str]:
         module_tree = {}
-    
+
+        if not hasattr(cls, 'tree_cache'):
+            cls.tree_cache = {}
+
         if not update:
             if cls.tree_cache != {}:
                 module_tree = cls.tree_cache
@@ -1778,19 +1773,6 @@ class c:
         if search != None:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
         return module_tree
-    
-    @classmethod
-    def tree(cls, search=None, 
-                mode='path', 
-                update:bool = False,
-                path = 'local_module_tree',
-                **kwargs) -> List[str]:
-        return cls.build_tree(search=search, 
-                              mode=mode, 
-                              update=update, 
-                              path=path, 
-                              **kwargs)
-
     
     tree_folders_path = 'module_tree_folders'
 
@@ -2402,7 +2384,7 @@ class c:
                 module:str, 
                 network : str = None,
                 namespace = None,
-                mode = server_mode,
+                mode = 'http',
                 virtual:bool = True, 
                 verbose: bool = False, 
                 prefix_match: bool = False,
@@ -2428,7 +2410,7 @@ class c:
                 module:str, 
                 network : str = None,
                 namespace = None,
-                mode = server_mode,
+                mode = 'http',
                 virtual:bool = False, 
                 prefix_match: bool = False,
                 key = None,
@@ -2962,10 +2944,9 @@ class c:
               refresh:bool = True, # refreshes the server's key
               wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
-              server_mode:str = server_mode,
+              mode:str = 'http',
               tag_seperator:str='::',
               max_workers:int = None,
-              mode:str = "thread",
               public: bool = False,
               mnemonic = None,
               key = None,
@@ -3027,7 +3008,7 @@ class c:
         if module_class.is_arg_key_valid('server_name'):
             kwargs['server_name'] = server_name
 
-        # this automatically adds 
+        # start the class
         self = module_class(**kwargs)
 
         self.server_name = server_name
@@ -3044,7 +3025,6 @@ class c:
         if address != None and ':' in address:
             port = address.split(':')[-1]   
 
-
         if c.server_exists(server_name, network=network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
 
@@ -3059,12 +3039,11 @@ class c:
         setattr(self, 'whitelist', whitelist)
         setattr(self, 'blacklist', blacklist)
 
-        c.module(f'server.{server_mode}')(module=self, 
+        c.module(f'server.{mode}')(module=self, 
                                           name=server_name, 
                                           port=port, 
                                           network=network, 
                                           max_workers=max_workers, 
-                                          mode=mode, 
                                           public=public, 
                                           key=key)
 
