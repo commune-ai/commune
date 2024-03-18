@@ -102,7 +102,7 @@ class Access(c.Module):
         fn = input['fn']
         address = input['address']
         if c.is_admin(address):
-            return {'success': True, 'msg': f'admin {address}', 'passed': True}
+            return {'success': True, 'msg': f'is verified admin'}
         
 
         whitelist =  list(set(self.module.whitelist + c.helper_functions))
@@ -112,7 +112,7 @@ class Access(c.Module):
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
 
         if address in self.address2key:
-            return {'success': True, 'msg': f'address {address} is in the whitelist', 'passed': True}
+            return {'success': True, 'msg': f'address {address} is in the whitelist'}
         
 
 
@@ -158,12 +158,11 @@ class Access(c.Module):
             user_info['rate'] = 0
 
         try:
-
             assert user_info['rate'] <= rate_limit
-            user_info['passed'] = True
+            user_info['success'] = True
         except Exception as e:
             user_info['error'] = c.detailed_error(e)
-            user_info['passed'] = False
+            user_info['success'] = False
        
         # update the user info
         user_info['rate_limit'] = rate_limit

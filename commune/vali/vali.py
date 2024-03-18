@@ -107,9 +107,7 @@ class Vali(c.Module):
         futures = []
 
         while self.running:
-            if self.last_sync_time + self.config.sync_interval < c.time():
-                c.print(f'Syncing network {self.config.network}', color='cyan') 
-                self.sync()
+            self.sync(update=1)
                 
             module_addresses = c.shuffle(list(self.namespace.values()))
             batch_size = min(batch_size, len(module_addresses))
@@ -178,6 +176,7 @@ class Vali(c.Module):
         network = network or self.config.network
         search =  search or self.config.search
         netuid = netuid or self.config.netuid
+        fn = fn or self.config.fn
         
         # this is only for 
         if 'subspace' in network:
@@ -213,7 +212,7 @@ class Vali(c.Module):
         self.network = self.config.network = network
         self.netuid = self.config.netuid = netuid
         self.search = self.config.search = search
-        self.fn = self.config.search = search
+        self.fn = self.config.fn = fn or self.config.fn
         
         r = {
                 'search': search,
@@ -567,13 +566,9 @@ class Vali(c.Module):
 
         while True:
             if self.should_vote:
-                futures = [c.submit(self.vote)]
-
-            if len(futures) > 0:
-                for ready_future in c.as_completed(futures, timeout=self.config.vote_interval):
-                    ready_future.result()
-                    futures.remove(ready_future)
+                self.vote()
             c.print(self.run_info())
+
             c.sleep(self.config.sleep_interval)
 
         

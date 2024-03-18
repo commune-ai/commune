@@ -8,6 +8,7 @@ sleep_interval: 5
 search: null
 max_staleness: 500
 vote: True
+fn : null
 
 # score
 alpha: 0.5
