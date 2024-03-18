@@ -124,6 +124,7 @@ jobs:
       - name: debug
         run: |
           echo "=== Variables ==="
+          echo registry_host: ${{env.registry_host}}
           echo image_name: ${{env.image_name}}
           echo image_tag: ${{env.image_tag}}
           echo complete image name: ${{ env.image_name }}:${{ env.image_tag }}
@@ -160,4 +161,4 @@ jobs:
           no-cache: true
           pull: true
           push: ${{ env.push }}
-          tags: "${{ env.image_name }}:${{ env.image_tag }}"
+          tags: "${{ env.image_name }}:${{ env.image_tag }},${{ env.image_name }}:latest"
