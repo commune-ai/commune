@@ -58,17 +58,6 @@ class Thread(c.Module):
             # throw error if thread is not in thread_map
             t.join()
 
-    @classmethod
-    def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
-        args = args or []
-        kwargs = kwargs or {}
-        threads = []
-        if tag == None:
-            tag = ''
-        for i in range(n):
-            t = cls.thread(fn=fn, tag=tag+str(i), *args, **kwargs)
-        return cls.thread_map
-
 
     @classmethod
     def threads(cls, *args, **kwargs):

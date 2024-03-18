@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  commune-node:
+    container_name: subspace-node
+    build: ./
+    volumes:
+      - ./:/subspace
+    ports:
+      - 30333:30333 # P2P
+      - 9944:9944 # RPC
+    restart: always
+    command: ["bash", "/subspace/node-start.sh"]
+    # command: ["bash", "/node-data/node-start.sh", "--sync=warp"]
