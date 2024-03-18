@@ -360,7 +360,7 @@ class Subspace(c.Module):
     
     
 
-
+    @retry(tries=10, delay=1, backoff=2, max_delay=10)
     def query_map(self, name: str = 'StakeFrom', 
                   params: list = None,
                   block: Optional[int] = None, 

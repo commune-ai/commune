@@ -1826,9 +1826,13 @@ class c:
         
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
+
+        tree_path = os.path.expanduser(tree_path)
         path = cls.tree_folders_path
         tree_folder = c.get(path, [])
+
         tree_folder += [tree_path]
+        tree_folder = list(set(tree_folder))
         assert os.path.isdir(tree_path)
         assert isinstance(tree_folder, list)
         c.put(path, tree_folder, **kwargs)
@@ -2656,7 +2660,7 @@ class c:
             
         return False
     @classmethod
-    def is_root_module(cls, obj=None) -> bool:
+    def is_root(cls, obj=None) -> bool:
         
         if obj is None:
             obj = cls
@@ -2666,7 +2670,7 @@ class c:
                 return True
             
         return False
-    is_root = is_module_root = is_root_module
+    is_module_root = is_root_module = is_root
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio

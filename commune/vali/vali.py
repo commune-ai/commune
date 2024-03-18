@@ -152,6 +152,7 @@ class Vali(c.Module):
                         'successes': self.successes,
                         'network': self.network,
                         'last_success': c.round(c.time() - self.last_success,2),
+                        'last_sent': c.round(c.time() - self.last_sent,2),
                         'worker_name': worker_name,
                             }
                     self.put(f'clone_stats/{worker_name}', stats)
@@ -171,6 +172,7 @@ class Vali(c.Module):
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
+                     fn : str = None,
                      update: bool = False):
         
         network = network or self.config.network
@@ -204,7 +206,6 @@ class Vali(c.Module):
                                     network=network, 
                                     netuid=netuid, 
                                     update=update)
-        c.print(self.namespace)
         self.n  = len(self.namespace)    
         self.address2name = {v: k for k, v in self.namespace.items()}    
         self.last_sync_time = c.time()
@@ -212,14 +213,17 @@ class Vali(c.Module):
         self.network = self.config.network = network
         self.netuid = self.config.netuid = netuid
         self.search = self.config.search = search
+        self.fn = self.config.search = search
         
-        return {
+        r = {
+                'search': search,
                 'network': network, 
                 'netuid': netuid, 
                 'n': self.n, 
-                'timestamp': self.last_sync_time,
                 'msg': 'Synced network'
                 }
+        c.print(r)
+        return r
     sync = set_network
         
     def score_module(self, module: 'c.Module'):
@@ -292,10 +296,12 @@ class Vali(c.Module):
         try:
 
             # we want to make sure that the module info has a timestamp
+            c.print(module)
             response = self.score_module(module)
             response = self.check_response(response)
             info.update(response)
-            response['msg'] =  f'{c.emoji("checkmark")}{info["name"]} --> w:{response["w"]} {c.emoji("checkmark")} '
+            c.print(response)
+            
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
@@ -304,11 +310,11 @@ class Vali(c.Module):
         
         info['latency'] = c.time() - info['timestamp']
         info['w'] = response['w']  * self.config.alpha + info['w'] * (1 - self.config.alpha)
-        path = f'{self.storage_path}/{info["name"]}'
+        path = f'{self.storage_path()}/{info["name"]}'
         self.put_json(path, info)
         return {'w': info['w'], 'module': info['name'], 'address': info['address'], 'latency': info['latency']}
         
-    @property
+
     def storage_path(self):
         network = self.network
         if 'subspace' in network:
@@ -354,7 +360,7 @@ class Vali(c.Module):
     
     @property
     def votes_path(self):
-        return self.storage_path + f'/votes'
+        return self.storage_path() + f'/votes'
 
     def load_votes(self) -> dict:
         return self.get(self.votes_path, default={'uids': [], 'weights': [], 'timestamp': 0, 'block': 0})
@@ -411,7 +417,7 @@ class Vali(c.Module):
     
     @property
     def module_paths(self):
-        paths = self.ls(self.storage_path)
+        paths = self.ls(self.storage_path())
         paths = list(filter(lambda x: x.endswith('.json'), paths))
         return paths
 
@@ -448,11 +454,11 @@ class Vali(c.Module):
 
     def load_module_info(self, k:str,default=None):
         default = default if default != None else {}
-        path = self.storage_path + f'/{k}'
+        path = self.storage_path() + f'/{k}'
         return self.get_json(path, default=default)
     
     def save_module_info(self, k:str, v:dict):
-        path = self.storage_path + f'/{k}'
+        path = self.storage_path() + f'/{k}'
         self.put_json(path, v)
 
     def get_history(self, k:str, default=None):
