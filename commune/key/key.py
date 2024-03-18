@@ -1041,10 +1041,8 @@ class Keypair(c.Module):
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
-            c.print(signature)
             signature = bytes.fromhex(signature)
-
-
+            
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
 

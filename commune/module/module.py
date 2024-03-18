@@ -1520,7 +1520,7 @@ class c:
                 return True
         return False
     @classmethod
-    def path2simple(cls, path:str, compress:bool = True,) -> str:
+    def path2simple(cls, path:str) -> str:
 
         # does the config exist
 

@@ -58,6 +58,8 @@ class Server(c.Module):
         self.schema = {}
         if hasattr(module, 'schema'):
             self.schema = module.schema()
+        else:
+            self.schema = c.get_schema(module)
 
         module.ip = self.ip
         module.port = self.port
@@ -122,7 +124,7 @@ class Server(c.Module):
             
             # verify the access module
             user_info = self.access_module.verify(input)
-            if not user_info['passed']:
+            if not user_info['success']:
                 return user_info
             assert 'args' in input['data'], f"args not in input data"
 
@@ -132,7 +134,10 @@ class Server(c.Module):
 
             fn_name = f"{self.name}::{fn}"
 
-            c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+            info = {
+                'fn': fn_name,
+                'address': input['address'],
+            }
             
             fn_obj = getattr(self.module, fn)
             
@@ -141,13 +146,14 @@ class Server(c.Module):
             else:
                 result = fn_obj
 
+            success = True
+
             # if the result is a future, we need to wait for it to finish
         except Exception as e:
             result = c.detailed_error(e)
         if isinstance(result, dict) and 'error' in result:
             success = False 
-        success = True
-
+        
 
         if success:
             c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
@@ -156,21 +162,29 @@ class Server(c.Module):
         
 
         result = self.process_result(result)
+    
+        output = {
+        'module': self.name,
+        'fn': fn,
+        'address': input['address'],
+        'args': input['data']['args'],
+        'kwargs': input['data']['kwargs'],
         
 
+        }
+
+        c.print(output)
         if self.save_history:
 
-            output = {
-            'module': self.name,
-            'fn': fn,
-            'timestamp': input['data']['timestamp'],
-            'address': input['address'],
-            'args': input['data']['args'],
-            'kwargs': input['data']['kwargs'],
-            'result': None if self.sse else result,
-            'user': user_info,
+            output.update(
+                {
+                    'success': success,
+                    'user': user_info,
+                    'timestamp': input['data']['timestamp'],
+                    'result': result,
+                }
+            )
 
-            }
             output.update(output.pop('data', {}))
             output['latency'] = c.time() - output['timestamp']
             self.add_history(output)
