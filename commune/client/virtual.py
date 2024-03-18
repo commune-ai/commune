@@ -22,7 +22,7 @@ class VirtualClient:
             return loop.run_until_complete(future)
             
     def __str__(self):
-        return f'<VirtualClient(name={self.module_client.server_name}, address={self.module_client.address})>'
+        return f'<VirtualClient({self.module_client.address})>'
 
     def __repr__(self):
         return self.__str__()
