@@ -1,7 +1,6 @@
 
 import commune as c
 from typing import Dict , Any, List
-import streamlit as st
 import json
 import os
 
@@ -98,6 +97,7 @@ class User(c.Module):
         
     @classmethod
     def dashboard(cls):
+        import streamlit as st
         st.write('### Users')
         self = cls()
         users = self.users()

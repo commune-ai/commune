@@ -11,7 +11,7 @@ nest_asyncio
 
 # required for "c balance"
 retry
-tqdn
+tqdm
 scalecodec
 
 
