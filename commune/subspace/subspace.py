@@ -5,6 +5,7 @@ import json
 import os
 import commune as c
 import requests 
+
 from substrateinterface import SubstrateInterface
 
 U32_MAX = 2**32 - 1
@@ -50,7 +51,8 @@ class Subspace(c.Module):
         self, 
         **kwargs,
     ):
-        config = self.set_config(kwargs=kwargs)
+        self.set_config(kwargs=kwargs)
+
     connection_mode = 'ws'
 
     def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
@@ -949,7 +951,6 @@ class Subspace(c.Module):
                 'vote_threshold': 'VoteThresholdSubnet',
                 'vote_mode': 'VoteModeSubnet',
                 'max_weight_age': 'MaxWeightAge',
-                'self_vote': 'SelfVote',
                 'name': 'SubnetNames',
                 'max_stake': 'MaxStake',
             }
@@ -1011,6 +1012,7 @@ class Subspace(c.Module):
                 for netuid in range(num_subnets):
                     subnets_param_row = {}
                     for k in subnet_params.keys():
+                        c.print(k, subnet_params[k], netuid)
                         subnets_param_row[k] = subnet_params[k][netuid]
                     subnets_param_rows.append(subnets_param_row)
                 subnet_params = subnets_param_rows    
@@ -1252,7 +1254,7 @@ class Subspace(c.Module):
 
     subnet_namespace = subnet2netuid
 
-    def resolve_netuid(self, netuid: int = None, network=network) -> int:
+    def resolve_netuid(self, netuid: int = None, network=network, update=False) -> int:
         '''
         Resolves a netuid to a subnet name.
         '''
@@ -1262,8 +1264,9 @@ class Subspace(c.Module):
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
-            c.print(netuid)
-            netuid = int(self.subnet_namespace(network=network).get(netuid))
+            subnet_namespace = self.subnet_namespace(network=network, update=update)
+            assert netuid in subnet_namespace, f"Subnet {netuid} not found in {subnet_namespace}"
+            netuid = int(self.subnet_namespace(network=network).get(netuid, 0))
         elif isinstance(netuid, int):
             if netuid == 0: 
                 return netuid
@@ -1638,6 +1641,8 @@ class Subspace(c.Module):
             modules = [] if update else self.get(path, [])
             
             if len(modules) == 0:
+                c.print(state.keys())
+                c.print(state)
                 for uid, key in enumerate(state['key'][netuid]):
                     module = { 'uid': uid, 'key': key}
                     for  f in features:
@@ -1770,12 +1775,13 @@ class Subspace(c.Module):
                 addresses[k] = list(v.values())
         return addresses
 
-    def namespace(self, search=None, netuid: int = 0, update:bool = False, timeout=10, local=False, **kwargs) -> Dict[str, str]:
+    def namespace(self, search=None, netuid: int = 0, update:bool = False, timeout=30, local=False, max_age=1000, **kwargs) -> Dict[str, str]:
         namespace = {}  
 
-        names = self.names(netuid=netuid, update=update, **kwargs)
-        addresses = self.addresses(netuid=netuid, update=update, **kwargs)
-        namespace = {n: a for n, a in zip(names, addresses)}
+        futures = [c.submit(self.names, kwargs=dict(netuid=netuid, update=update, max_age=max_age,**kwargs), timeout=timeout), 
+            c.submit(self.addresses, kwargs=dict(netuid=netuid, update=update, max_age=max_age, **kwargs))]
+        names, addresses = c.wait(futures, timeout=timeout)
+        namespace = {k:v for k,v in zip(names, addresses)}
 
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
@@ -2648,14 +2654,15 @@ class Subspace(c.Module):
         params = {**subnet_params, **params}
         for k in ['name', 'vote_mode']:
             params[k] = params[k].encode('utf-8')
+
+
         params['netuid'] = netuid
 
-        response = self.compose_call(fn='update_subnet',
+
+        return self.compose_call(fn='update_subnet',
                                      params=params, 
                                      key=key, 
                                      nonce=nonce)
-
-        return response
 
 
     #################
@@ -3780,7 +3787,6 @@ class Subspace(c.Module):
         import streamlit as st
         return st.write(self.get_module())
     
-
 
     
 

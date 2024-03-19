@@ -35,7 +35,7 @@ vote_tag : null
 # workers
 mode: thread
 batch_size: 32 # the batch size for the worker
-worker_count: 2 # the number of workers
+workers: 2 # the number of workers
 threads_per_worker: 32
 timeout: 8
 sleep_time: 0.05
@@ -44,7 +44,7 @@ start: True
 is_main_worker: True
 min_num_weights: 10
 debug: False
-print_interval: 2
+print_interval: 10
 clone_suffix : clone
 
 

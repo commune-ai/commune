@@ -111,10 +111,20 @@ class CLI(c.Module):
     def history_paths(cls):
         return cls.ls('cli_history')
     
-    def history(self):
-        history_paths = self.history_paths()
-        historys = [c.get_json(path) for path in history_paths]
-        return historys
+    @classmethod
+    def history(cls):
+        history_paths = cls.history_paths()
+        historys = [c.get_json(s) for s in history_paths]
+        return historys[:10]
+    
+    @classmethod
+    def num_points(cls):
+        return len(cls.history_paths())
+    
+    @classmethod
+    def n_history(cls):
+        return len(cls.history_paths())
+
     
     @classmethod
     def clear(cls):

@@ -608,7 +608,7 @@ class c:
                 if timestamp != None:
                     age = int(c.time() - timestamp)
                     if age > max_age:
-                        c.print(f'{key} is too old ({age} > {max_age})', color='red')
+                        c.print(f'{k} is too old ({age} > {max_age})', color='red')
                         return default
         else:
             data = default
@@ -3143,16 +3143,25 @@ class c:
             yield i
         
     def info(self , 
+             module = None,
              schema: bool = True,
              namespace:bool = True,
              commit_hash:bool = True,
              hardware : bool = True,
              update: bool = False,
              max_age:int = 100,
+             
              ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
         '''
+        if module == None:
+            if isinstance(module, str):
+                module = c.module(module)()
+            c.print(module)
+            self = module     
+
+
         if c.exists('info'):
             info = c.get('info', default=None, max_age=max_age)
             if info != None:
@@ -4582,13 +4591,20 @@ class c:
                 futures.append(c.submit(module.test))
             results = c.wait(futures, timeout=timeout)
             results = dict(zip(modules, results))
+            for module_name, result in results.items():
+                if c.is_success(result):
+                    results[module_name] = 'success'
+                else  :
+                    results[module_name] = 'failure'
         else:
             module_fns = c.fns()
             fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
             c.print(f'Running {len(fns)} tests')
             for fn in fns:
                 results += [c.submit(fn)]
+            
             results = c.wait(results, timeout=timeout)
+
         return results
         
 
@@ -5306,6 +5322,12 @@ class c:
             module = module(*init_args, **init_kwargs)
 
         future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+
+        if not hasattr(cls, 'futures'):
+            cls.futures = []
+        
+        cls.futures.append(future)
+            
         
         if return_future:
             return future
@@ -5864,6 +5886,11 @@ class c:
         if c.has_module(module) and overwrite==False:
             return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
         
+
+        class_name = module[0].upper() + module[1:] # capitalize first letter
+        class_name = ''.join([m.capitalize() for m in module.split('_')])
+
+
         # add it to the root
         module_path = os.path.join(c.modules_path, module)
         
@@ -5892,6 +5919,7 @@ class c:
         if code == None:
             base_module = c.module(base)
             code = base_module.code()
+            code = code.replace('Demo', class_name)
 
             
         module = module.replace('/','_') # replace / with _ for the class name
@@ -6589,9 +6617,17 @@ class c:
     @classmethod
     def make_pull(cls):
         return cls.cmd('make pull')
+    
+    def is_fn_self(self, fn):
+        fn = self.resolve_fn(fn)
+        c.print(dir(fn))
+        return hasattr(fn, '__self__') and fn.__self__ == self
 
     @staticmethod
-    def retry(fn, trials:int = 3, verbose:bool = True): 
+    def retry(fn, trials:int = 3, verbose:bool = True):
+        # if fn is a self method, then it will be a bound method, and we need to get the function
+        if hasattr(fn, '__self__'):
+            fn = fn.__func__
         def wrapper(*args, **kwargs):
             for i in range(trials):
                 try:
