@@ -2897,6 +2897,10 @@ class c:
         return c.module("subspace")().subnet_params(*args, **kwargs)
     
     @classmethod
+    def global_params(cls, *args, **kwargs):
+        return c.module("subspace")().global_params(*args, **kwargs)
+    
+    @classmethod
     def subnet_names(cls, *args, **kwargs):
         return c.module("subspace")().subnet_names(*args, **kwargs)
     
@@ -3536,6 +3540,8 @@ class c:
                 name = serve_info['name']
                 address = serve_info['address']
                 module_key = module_key or c.get_key_address(name)
+        else:
+            name = cls.resolve_server_name(module=module, tag=tag, tag_seperator='::')
 
         response =  subspace.register(name=name,
                                       address=address, 

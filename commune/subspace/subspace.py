@@ -2858,8 +2858,7 @@ class Subspace(c.Module):
             key: str = None,  # defaults to first key
             netuid:int = None,
             network:str = None,
-            existential_deposit: float = 1.0,
-            update=False,
+            existential_deposit: float = 0,
             **kwargs
         ) -> bool:
         """
@@ -2881,23 +2880,28 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
         
-        name2key = self.name2key(netuid=netuid, update=update)
         
         if module == None:
             module_key = list(name2key.values())[0]
 
         else:
-            
-            if module in name2key:
-                module_key = name2key[module]
-            else:
+            key2name = self.key2name(netuid=netuid, update=False)
+
+            if module in key2name:
                 module_key = module
+            else:
+                name2key = self.name2key(netuid=netuid, update=False)
+                if module in name2key:
+                    module_key = name2key[module]
+                else:
+                    module_key = module
 
         # Flag to indicate if we are using the wallet's own hotkey.
         
         if amount == None:
             amount = self.get_balance( key.ss58_address , fmt='nano') - existential_deposit*10**9
         else:
+            c.print(amount)
             amount = int(self.to_nanos(amount - existential_deposit))
         assert amount > 0, f"Amount must be greater than 0 and greater than existential deposit {existential_deposit}"
         
@@ -3251,17 +3255,24 @@ class Subspace(c.Module):
         key: 'c.key' = None,
         network = None,
         update=False,
-        n = 10,
     ) -> bool:
         import torch
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
+        module_info = self.get_module(key.ss58_address, netuid=netuid)
         
         subnet = self.subnet( netuid = netuid )
         min_allowed_weights = subnet['min_allowed_weights']
+        global_params = self.global_params( network=network, update=update, fmt='j')
         max_allowed_weights = subnet['max_allowed_weights']
-
+        
+        stake = module_info['stake']
+        min_weight_stake = global_params['min_weight_stake']/1e9
+        min_stake = min_weight_stake * min_allowed_weights
+        assert stake > min_stake, f"Stake {stake} < min_stake {min_stake} for subnet {netuid}"
+        max_num_votes = stake // min_weight_stake
+        n = int(min(max_num_votes, max_allowed_weights))
         # checking if the "uids" are passed as names -> strings
         if uids != None and all(isinstance(item, str) for item in uids):
             names2uid = self.names2uids(names=uids, netuid=netuid)
@@ -3282,6 +3293,9 @@ class Subspace(c.Module):
         if weights is None:
             weights = [1 for _ in uids]
 
+
+        
+
   
         if len(uids) < min_allowed_weights:
             n = self.n(netuid=netuid)
@@ -3293,9 +3307,12 @@ class Subspace(c.Module):
                     weights.append(1)
 
         uid2weight = {uid: weight for uid, weight in zip(uids, weights)}
-
-        uids = list(uid2weight.keys())
-        weights = weights[:len(uids)]
+        # sort the uids and weights
+        uid2weight = {k: v for k, v in dict(sorted(uid2weight.items(), key=lambda item: item[1], reverse=True)).items()}
+        
+        c.print(n)
+        uids = list(uid2weight.keys())[:n]
+        weights = list(uid2weight.values())[:n]
 
         c.print(f'Voting for {len(uids)} uids in network {netuid} with {len(weights)} weights')
 
