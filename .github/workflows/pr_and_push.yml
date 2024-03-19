@@ -72,17 +72,17 @@ jobs:
       # - name: Commune Tests - c sync
       #   run: c sync
 
-      # Interestingly, below the variables for inputs cannot be called directly. (even tried: ${{github.event.inputs.image_tag}})
-      # Instead, saving them as env vars first and then using them as env vars below works.
-      - name: Initial test (with retry because RPC issues)
-        uses: Wandalen/wretry.action@master
-        with:
-          command: c balance
-          attempt_limit: 3
-          attempt_delay: 10000
+      # # Interestingly, below the variables for inputs cannot be called directly. (even tried: ${{github.event.inputs.image_tag}})
+      # # Instead, saving them as env vars first and then using them as env vars below works.
+      # - name: Initial test (with retry because RPC issues)
+      #   uses: Wandalen/wretry.action@master
+      #   with:
+      #     command: c balance
+      #     attempt_limit: 3
+      #     attempt_delay: 10000
 
-      # - name: Commune Tests - c balance
-      #   run: c balance
+      - name: Commune Tests - c balance
+        run: c balance
 
       - name: Commune Tests - c demo serve tag=latest
         run: c demo serve tag=latest
@@ -91,15 +91,26 @@ jobs:
         run: c root_key        
 
       - name: Commune Tests - c stats
-        run: c stats  
+        run: c stats
+
+      - name: Commune Tests - c subnet_params netuid=all update=True
+        run: c subnet_params netuid=all update=True
+
+      - name: Commune Tests - c namespace network=subspace
+        run: c namespace network=subspace
+      
+      - name: Commune Tests - c global_params
+        run: c global_params
 
       - name: Commune Tests - c modules
-        run: c modules  
+        run: c modules
 
-      # just hangs
-      # - name: Commune Tests - c logs model.openai::whadup --lines 1
-      #   run: c logs model.openai::whadup --lines 1
-        
+      - name: Commune Tests - c serve model.openai::whadup wait_for_server=True
+        run: c serve model.openai::whadup wait_for_server=True
+
+      - name: Commune Tests - c logs model.openai::whadup lines=1 mode=local
+        run: c logs model.openai::whadup lines=1 mode=local
+
       - name: Commune Tests - c data.text.realfake test
         run: c data.text.realfake test
 
