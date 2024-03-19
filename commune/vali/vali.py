@@ -579,8 +579,16 @@ class Vali(c.Module):
 
     @property
     def block_staleness(self):
-        return self.subspace.block - self.module_info['last_update']
-    
+        for trials in range(20):
+
+            try:
+                return self.subspace.block - self.last_block
+            except Exception as e:
+                # TODO: keeps the vote loop working instead of killing the thread
+                # "how stale is your vote"
+                print("failed to get block staleness - retrying")
+                continue
+
 
     
     def vote_loop(self):
