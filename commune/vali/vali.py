@@ -24,7 +24,7 @@ class Vali(c.Module):
         self.config = c.dict2munch({**Vali.config(), **config})
         # we want to make sure that the config is a munch
         self.sync()
-        if self.config.start:
+        if self.config.workers > 0:    
             c.thread(self.start)
 
 
@@ -75,18 +75,19 @@ class Vali(c.Module):
 
 
 
-    def start_worker(self, id = 0):
+    def start_worker(self, id = 0, **kwargs):
         config = self.config
         config = c.munch2dict(config) # we want to convert the config to a dict
         worker_name = self.worker_name(id)
+        kwargs={'config': config, 'id': id, 'workers':0, **kwargs}
         if self.config.mode == 'thread':
-            worker = c.thread(self.worker, args=[id], name=worker_name)
+            worker = c.thread(self.worker, kwargs=kwargs, name=worker_name)
+        elif self.config.mode == 'process':
+            worker = c.process(self.worker, kwargs=kwargs, name=worker_name)
         elif self.config.mode == 'server':
-            server_name = self.server_name + "::" + worker_name
-            server_kwargs = {**config, 'workers': 1, 'mode': 'thread'}
-            worker = self.serve(kwargs=server_kwargs, 
+            worker = self.serve(kwargs=kwargs, 
                                  key=self.key.path, 
-                                 server_name = server_name)
+                                 server_name = worker_name or self.server_name)
         else:
             raise Exception(f'Invalid mode {self.config.mode}')
         c.print(f'Started worker {worker}', color='cyan')
@@ -96,8 +97,12 @@ class Vali(c.Module):
     def worker_name(self, id = 0):
         return f'{self.config.worker_fn_name}::{id}'
 
-        
-    def worker(self, id = 0):
+
+    @classmethod        
+    def worker(cls, config = None, id = 0, **kwargs):
+        color = c.random_color()
+
+        self = cls(config=config, **kwargs)
         worker_name = self.worker_name(id)
 
         batch_size = self.config.batch_size 
@@ -107,13 +112,16 @@ class Vali(c.Module):
         futures = []
 
         while self.running:
-            self.sync(update=1)
-                
+            
+            self.sync()
+
             module_addresses = c.shuffle(list(self.namespace.values()))
             batch_size = min(batch_size, len(module_addresses))
             
             # select a module
             for  i, module_address in enumerate(module_addresses):
+                
+
                 # if the futures are less than the batch, we can submit a new future
                 if len(futures) < batch_size:
                     self.last_sent = c.time()
@@ -144,17 +152,18 @@ class Vali(c.Module):
                     
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
-                        'pending': len(futures),
+                        'successes': self.successes,
                         'sent': self.requests,
                         'errors': self.errors,
-                        'successes': self.successes,
                         'network': self.network,
+                        'pending': len(futures),
+
                         'last_success': c.round(c.time() - self.last_success,2),
                         'last_sent': c.round(c.time() - self.last_sent,2),
                         'worker_name': worker_name,
                             }
                     self.put(f'clone_stats/{worker_name}', stats)
-                    c.print(c.df([stats]))
+                    c.print(stats, color=color)
                     last_print = c.time()
                 
 
@@ -199,7 +208,6 @@ class Vali(c.Module):
             self.name2key = {}
 
         # name2address / namespace
-        c.print(search, network, netuid)
 
         self.namespace = c.module('namespace').namespace(search=search, 
                                     network=network, 
@@ -274,8 +282,11 @@ class Vali(c.Module):
         
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
+
         info = self.get_module_info(module)
+
         module = c.connect(info['address'], key=self.key)
+
         self.requests += 1
 
         seconds_since_called = c.time() - info.get('timestamp', 0)
@@ -293,18 +304,13 @@ class Vali(c.Module):
             info['timestamp'] = c.time()
 
         try:
-
             # we want to make sure that the module info has a timestamp
-            c.print(module)
             response = self.score_module(module)
             response = self.check_response(response)
-            info.update(response)
-            c.print(response)
-            
+            info.update(response)            
             self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
-            c.print(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}'}  
         
         info['latency'] = c.time() - info['timestamp']
@@ -419,13 +425,18 @@ class Vali(c.Module):
         paths = self.ls(self.storage_path())
         paths = list(filter(lambda x: x.endswith('.json'), paths))
         return paths
+    
 
+    @property
+    def module_info(self):
+        return self.subspace.get_module(self.key.ss58_address, netuid=self.netuid)
+    
     def module_infos(self,
                     batch_size:int=100 , # batch size for 
                     timeout:int=10,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos',
-                    update = False,
+                    update = True,
                     **kwargs
                     ):
         
@@ -551,7 +562,7 @@ class Vali(c.Module):
 
     def start(self):
         # start the workers
-        for i in range(self.config.worker_count):
+        for i in range(self.config.workers):
             self.start_worker(i)
         c.thread(self.vote_loop)
 
@@ -566,9 +577,13 @@ class Vali(c.Module):
 
         while True:
             if self.should_vote:
-                self.vote()
-            c.print(self.run_info())
-
+                try:
+                    self.vote()
+                except Exception as e:
+                    c.print(c.detailed_error(e))
+            run_info = self.run_info()
+            df = c.df([run_info])
+            c.print(color='cyan')
             c.sleep(self.config.sleep_interval)
 
         

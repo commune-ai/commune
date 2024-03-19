@@ -31,7 +31,7 @@ supported_schemas:
 - Ed25519
 token_decimals: 9
 url: null
-url_search: comstats, commies, onfinality
+url_search: onfinality
 urls:
   commies:
     http:

@@ -116,6 +116,8 @@ to get the info
 c call model.openai/info
 ```
 
+The
+
 
 ```bash
 {
@@ -221,4 +223,7 @@ dbbc6b1cf2d267366053ef26589f09dc730ef271ad3d18acc9ab4e83538a',
     'commit_hash': '9c3cdf050a29b973d2380675d59286504afad84b'
 }
 ```
+
+
+
 

@@ -5,6 +5,7 @@ import asyncio
 
 
 class VirtualClient:
+    def __init__(self, module: str ='ReactAgentModule'):
         if isinstance(module, str):
             self.module_client = c.connect(module)
             self.loop = self.module_client.loop

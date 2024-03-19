@@ -1,6 +1,20 @@
 import commune as c
 from typing import *
 
+
+def retry(fn, trials:int = 3, timeout:int = 10, **kwargs):
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if  trials > 0:
+                return retry(fn(*args, trials=trials-1 , timeout=timeout, **kwargs))
+            else:
+                raise e
+            c.print(f'Error in {fn.__name__} {e}', color='red')
+            return {'success': False, 'msg': f'Error in {fn.__name__} {e}'}
+    return wrapper
+
 # THIS IS WHAT THE INTERNET IS, A BUNCH OF NAMESPACES, AND A BUNCH OF SERVERS, AND A BUNCH OF MODULES.
 # THIS IS THE INTERNET OF INTERNETS.
 class Namespace(c.Module):

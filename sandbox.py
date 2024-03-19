@@ -1,4 +1,4 @@
 import argparse
 import commune as c
 
-c.print(c.namespace())
+c.print(c.servers())

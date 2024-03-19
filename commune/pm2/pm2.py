@@ -239,7 +239,6 @@ class PM2(c.Module):
         
         module = c.module()
         # build command to run pm2
-        
         command = f" pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
 
         if not autorestart:
@@ -253,11 +252,8 @@ class PM2(c.Module):
                 env['CUDA_VISIBLE_DEVICES']=str(device)
             if isinstance(device, list):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-                
         if refresh:
             cls.kill(name)  
-
         cwd = cwd or module.dirpath()
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
-    
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
