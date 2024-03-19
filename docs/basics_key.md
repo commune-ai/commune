@@ -15,6 +15,11 @@ import commune as c
 
 To start, let's list all the available keys using the `keys()` function:
 
+
+```bash
+c keys
+```
+or
 ```python
 c.keys()
 ```
@@ -29,6 +34,12 @@ To add a new key, use the `add_key()` function:
 
 ```python
 c.add_key('fam')
+```
+
+or 
+    
+```bash
+c add_key fam
 ```
 
 ### Removing a Key

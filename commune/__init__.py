@@ -5,7 +5,7 @@ Block = Lego = Module
 # call it whatever you want, but it's the same thing
 from .module.config import Config
 config = Config
-from .modules.cli import cli
+from .cli import cli
 # from .modules.subspace import subspace
 # from .model import Model
 
