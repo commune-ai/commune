@@ -1,0 +1,53 @@
+block_time: 8
+chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
+connection_mode: ws
+frontend:
+  telemetry:
+    feed: ws://165.22.186.112:50094/feed
+    frontend: http://165.22.186.112:50107
+    shard: ws://165.22.186.112:50090/submit 0
+key: null
+local: true
+loop: false
+mode: main
+netuid: 0
+network: main
+retry_params:
+  backoff: 2
+  delay: 2
+  max_delay: 4
+  tries: 2
+save_interval: 1800
+subnet: commune
+subnet_params:
+- name
+- tempo
+- immunity_period
+- min_allowed_weights
+- max_allowed_uids
+- founder
+supported_schemas:
+- Sr25519
+- Ed25519
+token_decimals: 9
+url: null
+url_search: onfinality
+urls:
+  commies:
+    http:
+    - https://commune-api-node-1.communeai.net/
+    - https://commune-api-node-2.communeai.net/
+    - https://commune-api-node-3.communeai.net/
+    - https://commune-api-node-4.communeai.net/
+    ws:
+    - wss://commune-api-node-1.communeai.net/
+    - wss://commune-api-node-2.communeai.net/
+    - wss://commune-api-node-3.communeai.net/
+    - wss://commune-api-node-4.communeai.net/
+  comstats:
+    http: https://api.comstats.io
+    ws: wss://api.com
+  local: null
+  onfinality:
+    http: https://commune.api.onfinality.io/public-http
+    ws: wss://commune.api.onfinality.io/public-ws
