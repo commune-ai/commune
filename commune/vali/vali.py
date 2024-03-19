@@ -158,7 +158,7 @@ class Vali(c.Module):
                         'errors': self.errors,
                         'network': self.network,
                         'pending': len(futures),
-                        'vote_staleness': self.vote_staleness,
+                        'vote_staleness': self.block_staleness,
                         'last_success': c.round(c.time() - self.last_success,2),
                         'last_sent': c.round(c.time() - self.last_sent,2),
                         'worker_name': worker_name,
