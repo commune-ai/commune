@@ -94,8 +94,8 @@ class Access(c.Module):
                     }
         c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
         response = {'success': True, 'msg': f'synced {self.state_path}', 
-                    'until_sync': self.config.sync_interval - time_since_sync,
-                    'time_since_sync': time_since_sync}
+                    'until_sync': int(self.config.sync_interval - time_since_sync),
+                    'time_since_sync': int(time_since_sync)}
         c.print(response)
         return response
 

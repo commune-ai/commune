@@ -30,7 +30,7 @@ class Vali(c.Module):
 
     def run_info(self):
         info ={
-            'vote_block_staleness': self.block_staleness,
+            'vote_staleness': self.vote_staleness,
             'errors': self.errors,
             'vote_interval': self.config.vote_interval,
             'epochs': self.epochs,
@@ -158,7 +158,7 @@ class Vali(c.Module):
                         'errors': self.errors,
                         'network': self.network,
                         'pending': len(futures),
-                        'vote_staleness': self.block_staleness,
+                        'vote_staleness': self.vote_staleness,
                         'last_success': c.round(c.time() - self.last_success,2),
                         'last_sent': c.round(c.time() - self.last_sent,2),
                         'worker_name': worker_name,
@@ -478,9 +478,6 @@ class Vali(c.Module):
         return module_infos.get('history', [])
     
     
-    @property
-    def vote_staleness(self) -> int:
-        return int(c.time() - self.last_vote_time)
     
     def stop(self):
         self.running = False
@@ -578,7 +575,7 @@ class Vali(c.Module):
     
 
     @property
-    def block_staleness(self):
+    def vote_staleness(self):
         return self.subspace.block - self.module_info['last_update']
     
 
