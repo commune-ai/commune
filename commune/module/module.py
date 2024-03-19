@@ -3536,7 +3536,8 @@ class c:
                 name = serve_info['name']
                 address = serve_info['address']
                 module_key = module_key or c.get_key_address(name)
-
+        else:
+            name = module
         response =  subspace.register(name=name,
                                       address=address, 
                                       subnet=subnet, 
