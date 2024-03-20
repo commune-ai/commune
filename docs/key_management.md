@@ -112,24 +112,24 @@ To get the balance for a key, use the `get_balance()` function:
 ```python
 c.get_balance('fam')  # Replace 'fam' with the key name
 ```
+or 
+```bash
+c get_balance fam
+```
 
 ### Stake
 
 To get the stake for a key, use the `get_stake()` function:
 
+```bash
+c get_stake fam # Replace 'fam' with the key name or the address
+```
+
 ```python
 c.get_stake('fam')  # Replace 'fam' with the key name
 ```
 
+### Get Registered Keys
 
 
 
-
-## Conclusion
-
-In this tutorial, you learned how to use the `commune` Python package to manage keys, balances, stakes, and key statistics. Feel free to explore further and adapt these concepts to your specific use cases.
-
-Remember to refer to the official documentation of the `commune` package for more detailed information and additional features.
-```
-
-Feel free to adjust the formatting or wording to better match your preferred style or context!

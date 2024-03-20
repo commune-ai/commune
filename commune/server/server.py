@@ -55,11 +55,10 @@ class Server(c.Module):
         self.name = name
 
 
-        self.schema = {}
         if hasattr(module, 'schema'):
             self.schema = module.schema()
         else:
-            self.schema = c.get_schema(module)
+            self.schema = c.schema(module)
 
         module.ip = self.ip
         module.port = self.port
@@ -78,6 +77,8 @@ class Server(c.Module):
             self.key = c.get_key(self.name)
         if isinstance(self.key, str):
             self.key = c.get_key(self.key)  
+        self.module.key = self.key
+        c.print(f'🔑 Key: {self.key} 🔑\033')
 
 
     def set_address(self,ip='0.0.0.0', port:int=None):
@@ -276,12 +277,22 @@ class Server(c.Module):
 
 
     @classmethod
-    def test(cls):
+    def test_serving(cls):
         module_name = 'storage::test'
         module = c.serve(module_name, wait_for_server=True)
         module = c.connect(module_name)
         module.put("hey",1)
         c.kill(module_name)
+
+    @classmethod
+    def test_serving_with_different_key(cls):
+        module_name = 'storage::test'
+        module = c.serve(module_name, wait_for_server=True)
+        module = c.connect(module_name)
+        module.put("hey",1)
+        c.kill(module_name)
+
+
 
 
 

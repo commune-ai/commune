@@ -10,11 +10,9 @@ To register a validator with a specific tag, use the following CLI command:
 
 INPUT
 ```bash
-c serve model.openai::whatdp
+c serve model.openai::whadup # 
 c register model.openai::whadup subnet=commune
 ```
-
-
 
 ```python 
 c.module('model.openai').register(tag='whadup', subnet=commune)

@@ -385,9 +385,22 @@ class Vali(c.Module):
 
     def vote(self, async_vote:bool=False, 
              save:bool = True,
+             cache_exceptions:bool=True,
                **kwargs):
+        
+        
+        if cache_exceptions:
+            try:
+                return self.vote(async_vote=async_vote, save=save, cache_exceptions=False, **kwargs)
+            except Exception as e:
+                return c.detailed_error(e)
 
-
+        if not self.should_vote:
+            return {'success': False, 
+                    'msg': 'Not voting', 
+                    'network': self.network,
+                    'vote_staleness': self.vote_staleness, 
+                    'vote_interval': self.config.vote_interval}
         if async_vote:
             return c.submit(self.vote, **kwargs)
 
@@ -588,12 +601,8 @@ class Vali(c.Module):
     def vote_loop(self):
 
         while True:
-                try:
-                    
-                    c.print(self.vote())
-        
-                except Exception as e:
-                    c.print(c.detailed_error(e))
+            r = self.vote(cache_exceptions=True)
+
             run_info = self.run_info()
             c.print(run_info, color='cyan')
             c.sleep(self.config.sleep_interval)

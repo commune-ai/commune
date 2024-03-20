@@ -2988,9 +2988,7 @@ class c:
             else:
                 port = c.free_port()
 
-
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-
         if remote:
 
             # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
@@ -3033,7 +3031,7 @@ class c:
             tag = None
 
         self.tag = tag
-        self.key = server_name
+
         
         address = c.get_address(server_name, network=network)
         if address != None and ':' in address:
@@ -3053,7 +3051,7 @@ class c:
         setattr(self, 'whitelist', whitelist)
         setattr(self, 'blacklist', blacklist)
 
-        c.module(f'server.{mode}')(module=self, 
+        c.module(f'server')(module=self, 
                                           name=server_name, 
                                           port=port, 
                                           network=network, 

@@ -467,10 +467,10 @@ class Keypair(c.Module):
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
         return {'deleted':[key]}
+    
     @property
     def crypto_type_name(self):
         return self.crypto_type2name(self.crypto_type)
-        
         
     @classmethod
     def rm_keys(cls, rm_keys, verbose:bool=False):
@@ -488,6 +488,7 @@ class Keypair(c.Module):
     @classmethod
     def rm_all_keys(cls):
         return cls.rm_keys(cls.keys())
+    
     crypto_types = ['ED25519', 'SR25519', 'ECDSA']
 
     @classmethod
@@ -523,15 +524,6 @@ class Keypair(c.Module):
         return crypto_type
     
     @classmethod
-    def gen_n(cls, n=10, **kwargs):
-        keys = []
-        for i in range(n):
-            keys.append(cls.gen(**kwargs))
-            
-        return keys
-        
-    
-    @classmethod
     def gen(cls, 
             mnemonic:str = None,
             suri:str = None, 
@@ -557,11 +549,8 @@ class Keypair(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-
         if json:
             return key.to_json()
-
-    
         
         return key
     

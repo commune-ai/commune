@@ -171,6 +171,7 @@ class Client(c.Module):
         
 
 
+
     @classmethod
     def rm_key_history(cls, key=None, history_path='history'):
         key = c.get_key(key)
