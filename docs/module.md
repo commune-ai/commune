@@ -13,20 +13,12 @@ In this tutorial, we'll explore how to use the `commune` library for module mana
 
 You can use the following steps to find and work with modules using the `commune` library.
 
-### List All Modules
-You can list all available modules using the following code:
+## New Module Creation
+To create a new module, you can use the `commune` command line tool:
 
-```python
-import commune as c
-modules_list = c.modules()[:10]
-c.print(modules_list)
+```bash
+c new_module agi
 ```
-
-To Serve a module
-```python
-c.serve('model.openai')
-```
-
 
 ### Searching for a Specific Module
 To search for a specific module, you can use the `c.modules()` function with a search query:

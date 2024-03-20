@@ -7,17 +7,6 @@ import commune as c
 import aiohttp
 import json
 
-
-from aiohttp.streams import StreamReader
-
-# Define a custom StreamReader with a higher limit
-class CustomStreamReader(StreamReader):
-    def __init__(self, *args, **kwargs):
-        # You can adjust the limit here to a value that fits your needs
-        # This example sets it to 1MB
-        super().__init__(*args, limit=1024*1024, **kwargs)
-
-
 class Client(c.Module):
 
     def __init__( 

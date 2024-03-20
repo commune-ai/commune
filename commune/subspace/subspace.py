@@ -390,7 +390,6 @@ class Subspace(c.Module):
                   module='SubspaceModule',
                   update: bool = True,
                   max_age = None, # max age in seconds
-                  new_connection=False,
                   mode = 'ws',
                   **kwargs
                   ) -> Optional[object]:
@@ -404,8 +403,7 @@ class Subspace(c.Module):
         if name  == 'Account':
             module = 'System'
 
-        network = self.resolve_network(network, new_connection=new_connection, mode=mode)
-
+        network = self.resolve_network(network, new_connection=False, mode=mode)
         path = f'query/{network}/{module}.{name}'
         # resolving the params
         params = params or []
