@@ -24,13 +24,14 @@ class Vali(c.Module):
         self.config = c.dict2munch({**Vali.config(), **config})
         # we want to make sure that the config is a munch
         self.sync()
+
         if self.config.workers > 0:    
             c.thread(self.start)
 
 
     def run_info(self):
         info ={
-            'vote_block_staleness': self.block_staleness,
+            'vote_staleness': self.vote_staleness,
             'errors': self.errors,
             'vote_interval': self.config.vote_interval,
             'epochs': self.epochs,
@@ -382,8 +383,9 @@ class Vali(c.Module):
 
 
 
-    def vote(self, async_vote:bool=False, save:bool = True, **kwargs):
-        
+    def vote(self, async_vote:bool=False, 
+             save:bool = True,
+               **kwargs):
 
 
         if async_vote:
@@ -478,9 +480,6 @@ class Vali(c.Module):
         return module_infos.get('history', [])
     
     
-    @property
-    def vote_staleness(self) -> int:
-        return int(c.time() - self.last_vote_time)
     
     def stop(self):
         self.running = False
@@ -578,38 +577,26 @@ class Vali(c.Module):
     
 
     @property
-    def block_staleness(self):
-        for trials in range(20):
-
-            try:
-                return self.subspace.block - self.last_block
-            except Exception as e:
-                # TODO: keeps the vote loop working instead of killing the thread
-                # "how stale is your vote"
-                print("failed to get block staleness - retrying - commune/vali/vali.py:Vali.block_staleness")
-                continue
-
+    def vote_staleness(self):
+        if 'subspace' in self.config.network:
+            return self.subspace.block - self.module_info['last_update']
+        return 0
+        
+    
 
     
     def vote_loop(self):
 
         while True:
                 try:
-                    if self.should_vote:
-                        run_info = self.run_info()
-                        df = c.df([run_info])
-                        c.print(color='cyan')
-                        
-                        r = self.vote()
-                    c.sleep(self.config.sleep_interval)
-                except Exception as e:
-                    r = c.detailed_error(e)
-                    c.print(c.detailed_error(e))
-
-
-
-
+                    
+                    c.print(self.vote())
         
+                except Exception as e:
+                    c.print(c.detailed_error(e))
+            run_info = self.run_info()
+            c.print(run_info, color='cyan')
+            c.sleep(self.config.sleep_interval)
 
         
 Vali.run(__name__)

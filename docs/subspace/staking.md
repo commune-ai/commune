@@ -63,50 +63,27 @@ Result
 
 
 
-## Check Stats
-
-To check the stats of a module, you can use the following command
-
-```
-c stats
-```
-
-![Alt text](image.png)
-
-If you want to sync the stats with the network, you can use the following.
-
-```
-c stats
-```
-
-
-
-## Transfer Tokens
-
-To tranfer 100 tokens to a module, you can use the following command
-
-```
-c transfer 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 100 
-```
-
-
 ## Stake Tokens
 
 To stake on a module, you can use the following commands:
 
 ```
-c stake module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S amount=100
-```
-You can also use the name of th emodule
-```
-c stake module=model.openai amount=100
+c stake 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 100
 ```
 
-or if you want to use the full amount then you can just leave the amount as blank 
+## Unstake Tokens
+
+The following unstakes 100 tokens from the module with the address 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S
+
 ```
-c stake module=model.openai
+c unstake 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 10
 ```
 
+
+Unstake 100 tokens from the module with the name model.openai
+```
+c unstake module=model.openai amount=100
+```
 ### Stake Many
 
 To stake multiple modules at once do the following
@@ -121,23 +98,6 @@ or if you want to specify the same amount, just do the amounts as an integer
 c stake_many modules modules=[model1,model2] amounts=10
 ```
 
-
-
-
-
-## Unstake Tokens
-
-The following unstakes 100 tokens from the module with the address 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S
-
-```
-c unstake  module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S amount=10
-```
-
-
-Unstake 100 tokens from the module with the name model.openai
-```
-c unstake module=model.openai amount=100
-```
 
 ### Unstake Many
 

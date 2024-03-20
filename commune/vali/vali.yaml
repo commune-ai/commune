@@ -17,7 +17,7 @@ worker_fn_name: worker
 # voting 
 vote: True
 min_stake: 1
-vote_interval: 200
+vote_interval: 10
 vote_timeout: 50
 min_count_before_vote: 100
 voting_networks: ['subspace', 'bittensor']
