@@ -11,16 +11,54 @@ To register a validator with a specific tag, use the following CLI command:
 ```bash
 c vali register tag=whadup subnet=commune
 or 
-c serve vali::whadup netuid=0 subnet=commune
-c register vali::whadup subnet=commune
+c serve vali::whadup # defaults to (netuid=0 subnet=commune key=vali::whadup)
+c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
 ```
 
-```python 
-vali = c.module('vali')
-v.serve(tag='whadup', subnet=commune)
-v.register(tag='whadup', subnet=commune)
+If you want to register with another key 
+   
+```bash
+c vali register tag=sup subnet=commune key=vali::whadup
 ```
 
+
+To check the status of the validator, use the following command:
+
+```bash
+c call vali/module_info
+# or
+c s/get_module vali # or the module name
+```
+
+```python
+```
+
+
+```bash
+{
+    'key': '5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi',
+    'name': 'vali',
+    'address': '135.180.26.167:50141',
+    'emission': 6.440794074,
+    'incentive': 0.0,
+    'dividends': 0.005676356145571069,
+    'last_update': 377547,
+    'stake_from': [
+        ['5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi', 48.812576334],
+        ['5CaWWhTk4D7fphZvjFHKyuaCerqe7uJm3EGNrynGzKczSBNP', 592.049591244],
+        ['5ESGbQnTo9RnHEdDpuCYcYDXAAVwHST6dZZ4b5c9JbVr2T3B', 107.994213725],
+        ['5EZtFXi8nT6cy55oqCsnsd2Za59PLBVSP9BSjzQEAgh3Pz8M', 0.188784108],
+        ['5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC', 403642.241103174],
+        ['5EU6rPCkVbPkDJrDhgTmqzu5fpXXKjAdahUYjxKXWZ2U6Q8C', 2.27846803],
+        ['5F4sToiPYnbWkg795ryvY5iAVrgDKrpPZv53gaYWEVHHeuKC', 0.002085575],
+        ['5CPRaN54kf2cdFauG76kFepE4PeYTc2ttkF4VzF2GCxGaehb', 22322.431257368]
+    ],
+    'delegation_fee': 50,
+    'stake': 426715.998079558
+}
+
+
+```
 This creates a key with "vali::whadup". 
 
 You can also serve it and register it with the following commands:
@@ -45,12 +83,15 @@ vali.get_key('whadup')
 <Keypair (address=5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi, path=vali, crypto_type: SR25519)>
 ```
 
-### Step 2: Staking Your Validator
+or 
+   
+```bash
+c get_key vali::whadup
+```
 
-Ensure that you have staked your validator by following these steps:
 
 
-### Step 2: Staking Your Validator
+### Staking Your Validator
 
 Ensure that you have staked your validator by following these steps:
 
