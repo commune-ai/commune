@@ -18,20 +18,39 @@ You can list all available modules using the following code:
 
 ```python
 import commune as c
-
 modules_list = c.modules()[:10]
 c.print(modules_list)
 ```
+
+To Serve a module
+```python
+c.serve('model.openai')
+```
+
 
 ### Searching for a Specific Module
 To search for a specific module, you can use the `c.modules()` function with a search query:
 
 ```python
-search_queries = ['model.llama', 'data', 'demo', 'hf']
-for query in search_queries:
-    c.print(f'Searching for {query}')
-    c.print(c.modules(query))
+c.modules('model.openai')
 ```
+OUTPUT
+```python
+['model.openai']
+```
+
+### Viewing Module Info
+You can view the information of a specific module using the `info()` method:
+
+```python
+model_openai = c.module('model.openai')
+c.print(model_openai.info(*args, **kwargs))
+```
+or 
+```bash
+c.print(c.call('model.openai/info', *args, **kwargs))
+```
+
 
 ---
 
@@ -54,6 +73,22 @@ You can view the configuration of a module using the `config()` method:
 ```python
 demo.config()
 ```
+
+OUTPUT
+```python
+{
+    'name': 'demo',
+    'version': '0.1.0',
+    'description': 'A demo module for testing purposes',
+    'author': 'John Doe',
+    'email': '
+    'license': 'MIT',
+
+}
+```
+
+This is the yaml file if the module has a config file stored in the same directory as the module, otherwise it will be the key word arguments of the __init__ method of the module.
+
 
 ### Listing Module Functions
 To list the functions of a module, use the `fns()` method:
@@ -81,51 +116,6 @@ function_schema = demo.schema(function_name)
 c.print(function_schema)
 ```
 ---
-
-## Serving
-
-You can serve a module to make its functions accessible via a server.
-
-### Serving a Module
-You can serve a module using the `serve()` method, optionally providing a tag for versioning:
-
-```python
-demo.serve(tag='tag1')
-```
-
-### Viewing Available Servers
-You can view the available servers using the `servers()` method:
-
-```python
-c.print(c.servers())
-```
-
-### Viewing Server Logs
-To view the logs of a served module, you can use the `logs()` method:
-
-```python
-logs = c.logs('demo::tag1', mode='local')
-c.print(logs)
-```
-
-### Connecting to a Served Module
-You can connect to a served module using the `connect()` method:
-
-```python
-demo_client = c.connect('demo::tag1')
-demo_client.info()
-```
-
-### Restarting and Killing a Served Module
-You can restart or kill a served module using the `restart()` and `kill()` methods:
-
-```python
-c.restart('demo::tag1')  # Restart the module
-c.kill('demo::tag1')     # Kill the module
-```
-
----
-
 
 This concludes our tutorial on module management using the `commune` library. You've learned how to find modules, manage their functions, serve them, and interact with served modules. This library can greatly simplify the process of managing and deploying code modules in your projects.
 ```

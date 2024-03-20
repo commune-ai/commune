@@ -4,22 +4,18 @@ A subnet is a collection of modules. To register a subnet, you need to specify t
 The following registers a storage subnet
 
 ```bash
-c storage register tag=first subnet=storage
-
+c vali register tag=first subnet=storage
 ```
-
-Now you created a subnet, congrats, to add modules to that subnet, just do the following
-
+or 
+    
 ```bash
-c storage register tag=second subnet=storage
-```
+c register vali::first name=storage
+ ```
 
-If you dont have a validator, register the validator 
-```bash
-c vali register subnet=storage
-```
 
-To create a custom vali, create a module that has a score function
+To create a custom vali, create a module that has a score function.
+The score function should return 1 if the module is successful, and 0 if it is not.
+You can also create a custom vali that has a score function that returns a score between 0 and 1.
 
 ```python
 import commune as c
@@ -46,6 +42,12 @@ class MyVali(Vali):
 ```
 
 ## Subnet Parameters
+
+To get the subnet parametes
+
+```bash 
+c subnet_params netuid=10
+```
 
 When you register a subnet, the default parameters are as such.
 
@@ -98,7 +100,8 @@ self_vote
 name
 - the name of your subnet
     
-
+max_stake
+- the maximum amount of stake a module can have
 
 ```bash
 {
@@ -115,22 +118,26 @@ name
     'vote_threshold': 50,
     'vote_mode': 'authority',
     'self_vote': True,
-    'name': 'subspace'
+    'name': 'subspace',
+    'max_stake': 1000000000000000
 }
 
 ```
 
 
-# Updating a Subnet
+# Updating a Subnet (Authority)
 As the authority you can redifine any parameter within special global boundaries (see global docs).
 
 As an Authority
 
 The following allows an authority to make a change to the network, you dont even need to specify the key, as it checks if you have the key on your system.
 ```bash
-c update_subnet name=wadup tempo=10 key=authoritykey
+c update_subnet name=wadup tempo=10 key=authoritykey netuid=10
 ```
 
+
+
+# Updating a Subnet (Authority)
 
 As a democratic system
 

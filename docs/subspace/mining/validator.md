@@ -30,8 +30,6 @@ You can also serve it and register it with the following commands:
    c register vali::whadup
 ```
 
-
-
 to get the validator key is to use the following command:
 
 ```bash
@@ -43,6 +41,13 @@ c get_key vali::whadup
 vali = c.module('vali')
 vali.get_key('whadup')
 ```
+```
+<Keypair (address=5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi, path=vali, crypto_type: SR25519)>
+```
+
+### Step 2: Staking Your Validator
+
+Ensure that you have staked your validator by following these steps:
 
 
 ### Step 2: Staking Your Validator
@@ -52,7 +57,18 @@ Ensure that you have staked your validator by following these steps:
 1. Stake your validator with another key using the CLI command:
 
    ```bash
-   c stake {validator_key} 20
+   c stake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200 
+   ```
+   or 
+   ```python
+   c.stake("5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi", 200)
+   ```
+   
+   NOTE: The default key is the module key, so you don't need to specify it. If you want to use a different key, you can specify it, as shown in the example above.
+
+   ```bash
+   # sends 200 tokens to the validator
+   c stake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200 key=vali::whadup
    ```
 
    The default amount to be staked is your entire balance. If you don't have a balance, you'll need to unstake.
@@ -60,6 +76,6 @@ Ensure that you have staked your validator by following these steps:
 2. If needed, you can unstake by using the following command:
 
    ```bash
-   c unstake module=vali amount=10
+   c unstake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200
    ```
 

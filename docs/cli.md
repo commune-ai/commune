@@ -2,18 +2,47 @@
 
 We have a pythonic cli for commune, which is a wrapper around the `c.Module` library. This is a simple way to interact with the commune library. This does not need to be formated like argparse, and is more like a pythonic cli, where you can test out the functions and modules.
 
+
+How the cli works
+
+```bash
+c {module_name}/{function_name} {kwargs}
+```or 
+```bash
+c {module_name} {function_name} {kwargs} {flags}
+```
+
+or if the module you are calling is the main module, you can use the following command:
+```bash
+c {function_name} {kwargs} 
+```
+
+For example, the following command:
+
+```
+c ls
+```
+
+is the same as 
+
+```python
+import commune as c
+c.ls()
+```
+
 To make a new module
 
 ```python
 c.new_module("agi")
 ```
 
-This will create a new module called `model.agi` in the `modules` directory.
+This will create a new module called `agi` in the `modules` directory. 
+This will be located in 
 
 to get the config of the model.agi module, you can use the following command:
 
 ```bash
-c model.agi config
+c agi config
 ```
 if you dont have a config or yaml file, the key word arguments will be used as the config.
 
@@ -21,7 +50,7 @@ This is the same as the following python code:
 ```python
 
 import commune as c
-c.module("model.agi").config()
+c.module("agi").config()
 ```
 
 
