@@ -594,16 +594,19 @@ class Vali(c.Module):
     def vote_loop(self):
 
         while True:
-            if self.should_vote:
                 try:
-                    r = self.vote()
+                    if self.should_vote:
+                        run_info = self.run_info()
+                        df = c.df([run_info])
+                        c.print(color='cyan')
+                        
+                        r = self.vote()
+                    c.sleep(self.config.sleep_interval)
                 except Exception as e:
                     r = c.detailed_error(e)
                     c.print(c.detailed_error(e))
-            run_info = self.run_info()
-            df = c.df([run_info])
-            c.print(color='cyan')
-            c.sleep(self.config.sleep_interval)
+
+
 
 
         
