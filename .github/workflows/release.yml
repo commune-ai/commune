@@ -69,8 +69,11 @@ jobs:
       - name: Commune Tests - c balance
         run: c balance
 
-      - name: Commune Tests - c demo serve tag=latest
-        run: c demo serve tag=latest
+      - name: Commune Tests - c serve demo tag=latest
+        run: c serve demo tag=latest
+
+      - name: Commune Tests - c logs demo lines=1 mode=local
+        run: c logs demo lines=1 mode=local
 
       - name: Commune Tests - c root_key
         run: c root_key        
@@ -90,12 +93,6 @@ jobs:
 
       - name: Commune Tests - c modules
         run: c modules
-
-      - name: Commune Tests - c serve model.openai::whadup wait_for_server=True
-        run: c serve model.openai::whadup wait_for_server=True
-
-      - name: Commune Tests - c logs model.openai::whadup lines=1 mode=local
-        run: c logs model.openai::whadup lines=1 mode=local
 
       - name: Commune Tests - c data.text.realfake test
         run: c data.text.realfake test
