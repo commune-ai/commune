@@ -1,0 +1,120 @@
+name: New Release Pipeline
+
+on:
+  push:
+    tags:
+      - "v*"      
+
+  workflow_dispatch:
+
+jobs:
+  Variables:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{steps.vars.outputs.image_tag}}
+      microservice: commune
+      microservice_path: ./
+      context_dir: "."
+      microservice_env: release
+      image_registry: ghcr.io/${{ github.repository_owner }}
+
+    steps:
+      - name: Create Timestamp Variable for image tag
+        id: vars
+        #Edit variables down here for values
+        run: |
+          echo "image_tag=$(date +'%Y-%m-%d--%H-%M-%S')" >> $GITHUB_OUTPUT
+
+  Debug:
+    needs: Variables
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug information
+        run: |
+          echo "=== Variables ==="
+          echo "Time Var: ${{ needs.variables.outputs.image_tag }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice_path }}"
+          echo "Variable: ${{ needs.variables.outputs.microservice_env }}"
+          echo "Variable: ${{ needs.variables.outputs.context_dir }}"
+          echo "Variable: ${{ needs.variables.outputs.image_registry }}"
+
+  Commune_Tests:
+    needs: Variables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        # with:
+        #   submodules: 'true'
+
+      - name: Install Prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install curl nano python3 python3-dev python-is-python3 build-essential cargo libstd-rust-dev -y
+          sudo python -m pip install --upgrade pip
+          sudo pip install setuptools wheel
+          sudo pip install -r requirements.txt
+          sudo apt-get install -y nodejs npm
+          sudo npm install -g pm2
+
+      - name: Install Commune
+        run: |
+          sudo pip install -e .
+
+      # This takes WAY too long (at least on GitHub provided runners)
+      # - name: Commune Tests - c sync
+      #   run: c sync
+
+
+      - name: Commune Tests - c balance
+        run: c balance
+
+      - name: Commune Tests - c serve demo tag=latest
+        run: c serve demo tag=latest
+
+      - name: Commune Tests - c logs demo lines=1 mode=local
+        run: c logs demo lines=1 mode=local
+
+      - name: Commune Tests - c root_key
+        run: c root_key        
+
+      - name: Commune Tests - c stats
+        run: c stats
+
+      - name: Commune Tests - c subnet_params netuid=all update=True
+        run: c subnet_params netuid=all update=True
+
+      - name: Commune Tests - c namespace network=subspace
+        run: c namespace network=subspace
+      
+      # TODO: This broke see here for error: https://github.com/Agent-Artificial/commune/actions/runs/8351758971/job/22860686705        
+      # - name: Commune Tests - c global_params
+      #   run: c global_params
+
+      - name: Commune Tests - c modules
+        run: c modules
+
+      - name: Commune Tests - c data.text.realfake test
+        run: c data.text.realfake test
+
+      - name: Commune Tests - c call data.text.realfake::whadup sample
+        run: c call data.text.realfake::whadup sample
+        
+      - name: Commune Tests - c call data.text.truthqa::whadup sample
+        run: c call data.text.truthqa::whadup sample
+
+      - name: Commune Tests - c port_range
+        run: c port_range    
+
+  # PLEASE PLEASE PLEASE ADD TESTS HERE
+
+  Create-Docker-Image:
+    needs: [Commune_Tests, Variables]
+    uses: ./.github/workflows/build-push-docker-image.yml
+    with:
+      image_tag: ${{ needs.variables.outputs.image_tag }}
+      microservice: ${{needs.variables.outputs.microservice}}
+      microservice_path: ${{needs.variables.outputs.microservice_path}}
+      context_dir: ${{needs.variables.outputs.microservice_path}}
+      microservice_env: ${{needs.variables.outputs.microservice_env}}
+      image_registry: ${{needs.variables.outputs.image_registry}}

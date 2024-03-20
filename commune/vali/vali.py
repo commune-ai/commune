@@ -588,7 +588,6 @@ class Vali(c.Module):
     def vote_loop(self):
 
         while True:
-            if self.should_vote:
                 try:
                     
                     c.print(self.vote())
