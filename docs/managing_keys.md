@@ -3,14 +3,6 @@
 
 In this tutorial, we'll explore the usage of the `commune` Python package for managing keys, balances, stakes, and key statistics.
 
-## Getting Started
-
-First, you need to import the `commune` module:
-
-```python
-import commune as c
-```
-
 ## Listing Keys
 
 To start, let's list all the available keys using the `keys()` function:
@@ -24,6 +16,20 @@ or
 c.keys()
 ```
 
+```
+[
+   'model.openrouter::replica.1',
+    'model.openrouter::replica.2',
+    'model.openrouter::replica.3',
+    'model.openrouter::replica.4',
+    'model.openrouter::replica.5',
+    'model.openrouter::replica.6',
+    'model.openrouter::replica.7',
+    'model.openrouter::replica.8',
+    'model.openrouter::replica.9'
+]
+```
+
 ## Adding and Removing Keys
 
 You can add and remove keys with the following steps:
@@ -35,12 +41,37 @@ To add a new key, use the `add_key()` function:
 ```python
 c.add_key('fam')
 ```
-
 or 
     
 ```bash
 c add_key fam
 ```
+
+## Getting Key Info
+
+You can also retrieve key info using the `key_info()` function:
+
+```python
+c.key_info('fam')  # Replace 'fam' with the key name
+
+```
+{
+    'crypto_type': 1,
+    'seed_hex': '6a363df4c2b7eaeb0b13efedbd37308d2bda3be8bc8aa758ecc00eb3089f7b97',
+    'derive_path': None,
+    'path': 'fam',
+    'ss58_format': 42,
+    'public_key': '38199493328ca2224364c77204ee61008a9cab5a8246906201357ef056b82142',
+    'ss58_address': '5DLG8wM2beoHcveKEXxuh2NRgh55vRRx8b1PE4Ch3ZE8fndL',
+    'private_key': 
+'d8e1c3d46f813eafac0d44481737e87b06241ba9cb5d6f760f8d62df48be450d2a84dcdfe506f218bc6646fe8
+9daa1c1d1fd7af3a64ea0f3e8a73cc766743aa1',
+    'mnemonic': 'typical piece chair oven lift trap case current tomorrow wrap motor 
+light'
+}
+```
+
+
 
 ### Removing a Key
 
@@ -90,13 +121,9 @@ To get the stake for a key, use the `get_stake()` function:
 c.get_stake('fam')  # Replace 'fam' with the key name
 ```
 
-## Retrieving Key Statistics
 
-You can also retrieve key statistics for each subnet associated with a key:
 
-```python
-c.key_stats('fam')  # Replace 'fam' with the key name
-```
+
 
 ## Conclusion
 
