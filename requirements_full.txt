@@ -1,0 +1,61 @@
+# Bare Minimum
+aiofiles
+numpy
+PyYAML
+munch
+pandas
+urllib3
+loguru
+rich
+nest_asyncio
+
+# required for "c balance"
+retry
+tqdm
+scalecodec
+
+
+# required for "c test"
+streamlit
+
+# blockchain
+substrate-interface
+
+
+
+# # api
+setuptools
+uvicorn
+fastapi
+
+
+
+# # ml
+torch
+safetensors
+transformers
+
+# # visual
+streamlit
+plotly
+gradio
+
+sse-starlette
+#misc
+msgpack_numpy
+retry
+psutil
+munch
+grpcio
+grpcio-tools
+scipy
+loguru
+rich
+aiofiles
+aiohttp
+nest_asyncio
+
+#SLOW ME DOWN FOREVER
+openai
+torch
+safetensors

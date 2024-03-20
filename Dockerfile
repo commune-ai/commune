@@ -1,46 +1,34 @@
-# Use the specified base image
-FROM linuxserver/code-server:latest
+#FROM ubuntu:22.04
 
-# Allow statements and log messages to immediately appear in the Knative logs
+#probably better:
+FROM python:3.12-slim-bookworm
+
+
 ENV PYTHONUNBUFFERED True
+ARG DEBIAN_FRONTEND=noninteractive
 
-# Install nano, python3, and pip
-RUN apt-get update && \
-    apt-get install -y nano python3 python-is-python3 python3-pip iputils-ping git git-lfs openssh-server
+COPY . /commune
 
-USER root
-
-RUN ssh-keygen -A
-
-RUN (crontab -l 2>/dev/null; echo "@reboot /usr/sbin/sshd -D") | crontab -
-RUN (crontab -l 2>/dev/null; echo "@reboot /etc/init.d/ssh start") | crontab -
-
-RUN usermod -s /bin/bash abc
-RUN usermod -s /bin/bash root
-
-### For Docker in Docker ###
-# Install prerequisites
-RUN apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    software-properties-common
-
-RUN pip install -q nvidia-smi
-
-# Set the working directory to /workspace
 WORKDIR /commune
 
-# install npm and pm2 (for process management)
-RUN apt-get install build-essential software-properties-common
-RUN apt-get install nodejs npm -y
-RUN npm install pm2 -g
+RUN usermod -s /bin/bash root
 
-# Copy the contents of the local directory "../" to the /workspace directory in the container
-# install Commune
+#RUN apt-get update && apt-get upgrade -y
+RUN apt-get update
+RUN apt-get install curl nano python3 python3-dev python-is-python3 build-essential cargo libstd-rust-dev -y
+RUN python -m pip install --upgrade pip
+RUN pip install setuptools wheel 
 
-# install python libraries for commune
-COPY requirements.txt requirements.txt
+#RUN apt-get update && \
+#    apt-get install -y curl nano python3 python3-dev python3-pip build-essential cmake apt-utils protobuf-compiler
+
+#RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
 RUN pip install -r requirements.txt
-COPY ./ /commune
+
 RUN pip install -e .
+
+RUN apt-get install -y nodejs npm
+RUN npm install -g pm2
+
+CMD [ "pm2-runtime", "start", "pm2_placeholder.py" ]
