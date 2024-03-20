@@ -601,11 +601,14 @@ class Vali(c.Module):
     def vote_loop(self):
 
         while True:
-            r = self.vote(cache_exceptions=True)
-
-            run_info = self.run_info()
-            c.print(run_info, color='cyan')
-            c.sleep(self.config.sleep_interval)
+            try:
+                r = self.vote(cache_exceptions=True)
+                c.print(r)
+                run_info = self.run_info()
+                c.print(run_info, color='cyan')
+                c.sleep(self.config.sleep_interval)
+            except Exception as e:
+                c.print(c.detailed_error(e))
 
         
 Vali.run(__name__)
