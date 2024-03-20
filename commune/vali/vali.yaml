@@ -17,9 +17,8 @@ worker_fn_name: worker
 # voting 
 vote: True
 min_stake: 1
-vote_interval: 10
-vote_timeout: 50
-min_count_before_vote: 100
+vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
+vote_timeout: 50 # the timeout for the vote (in blocks)
 voting_networks: ['subspace', 'bittensor']
 
 # stats
@@ -30,7 +29,6 @@ connect_score: 0.1
 latency_score_weight: 0.2
 alpha: 0.5 # the ma average
 vote_tag : null 
-
 
 # workers
 mode: thread
@@ -46,9 +44,6 @@ min_num_weights: 10
 debug: False
 print_interval: 10
 clone_suffix : clone
-
-
-
 
 
 
