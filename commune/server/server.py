@@ -54,7 +54,6 @@ class Server(c.Module):
                 name = module.__class__.__name__
         self.name = name
 
-
         if hasattr(module, 'schema'):
             self.schema = module.schema()
         else:
@@ -65,19 +64,20 @@ class Server(c.Module):
         module.address  = self.address
         
         self.module = module 
-        self.set_key(key)
         self.access_module = c.module(access_module)(module=self.module)  
         self.set_history_path(history_path)
+        self.set_key(key)
+
         self.set_api(ip=self.ip, port=self.port)
 
 
+
     def set_key(self, key):
-        self.key = key
-        if self.key == None:
-            self.key = c.get_key(self.name)
-        if isinstance(self.key, str):
-            self.key = c.get_key(self.key)  
-        self.module.key = self.key
+        if key == None:
+            key = c.get_key(self.name)
+        if isinstance(key, str):
+            key = c.get_key(key)  
+        self.key = self.module.key = key
         c.print(f'🔑 Key: {self.key} 🔑\033')
 
 
