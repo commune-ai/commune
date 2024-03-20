@@ -586,7 +586,7 @@ class Vali(c.Module):
             except Exception as e:
                 # TODO: keeps the vote loop working instead of killing the thread
                 # "how stale is your vote"
-                print("failed to get block staleness - retrying")
+                print("failed to get block staleness - retrying - commune/vali/vali.py:Vali.block_staleness")
                 continue
 
 
