@@ -24,6 +24,7 @@ class Vali(c.Module):
         self.config = c.dict2munch({**Vali.config(), **config})
         # we want to make sure that the config is a munch
         self.sync()
+
         if self.config.workers > 0:    
             c.thread(self.start)
 
@@ -382,8 +383,9 @@ class Vali(c.Module):
 
 
 
-    def vote(self, async_vote:bool=False, save:bool = True, **kwargs):
-        
+    def vote(self, async_vote:bool=False, 
+             save:bool = True,
+               **kwargs):
 
 
         if async_vote:
@@ -576,7 +578,10 @@ class Vali(c.Module):
 
     @property
     def vote_staleness(self):
-        return self.subspace.block - self.module_info['last_update']
+        if 'subspace' in self.config.network:
+            return self.subspace.block - self.module_info['last_update']
+        return 0
+        
     
 
     
@@ -585,17 +590,14 @@ class Vali(c.Module):
         while True:
             if self.should_vote:
                 try:
-                    r = self.vote()
+                    
+                    c.print(self.vote())
+        
                 except Exception as e:
-                    r = c.detailed_error(e)
                     c.print(c.detailed_error(e))
             run_info = self.run_info()
-            df = c.df([run_info])
-            c.print(color='cyan')
+            c.print(run_info, color='cyan')
             c.sleep(self.config.sleep_interval)
-
-
-        
 
         
 Vali.run(__name__)

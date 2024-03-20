@@ -19,6 +19,11 @@ class Test(c.Module):
         assert len(stats) == n
 
 
+
+    def test_global_params(self):
+        global_params = c.global_params()
+
+
         
 
 
