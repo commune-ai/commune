@@ -8,13 +8,6 @@ To setup commune clone the repo and run the following commands
 git clone https://github.com/commune-ai/commune.git
 ```
 
-2. **Pull the Submodules**: Navigate to the cloned Commune repository and pull the submodules:
-
-```bash
-cd commune
-make pull # or git submodule update --init --recursive --force
-```
-
 # Now you have two paths, you can either run commune with docker or without docker
 
 Please note that running commune outside of docker will require you to install the dependencies yourself.
@@ -95,7 +88,6 @@ Note: Make sure to follow the official Commune documentation for detailed instru
 # check the port range
 c port_range
 ```
-
 
 ```bash
 c set_port_range 8000 9000 # set the port range to 8000-9000

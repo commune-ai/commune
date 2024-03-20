@@ -183,11 +183,13 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         cls.put(path, key_json)
+        cls.update_keys()
         return  json.loads(key_json)
     
     
-
-    
+    @classmethod
+    def update_keys(cls, **kwargs):
+        return cls.key2address(update=True,**kwargs)
     
     @classmethod
     def rename_key(self, new_path):
@@ -369,7 +371,7 @@ class Keypair(c.Module):
         return keys
         
     @classmethod
-    def key2address(cls, search=None, update:bool=True, cache = True):
+    def key2address(cls, search=None, update:bool=False):
         path = 'key2address'
         key2address = []
         if not update:
@@ -387,10 +389,6 @@ class Keypair(c.Module):
         address2key =  { v: k for k,v in cls.key2address(update=update).items()}
         if search != None :
             return address2key.get(search, None)
-        else:
-            if search != None:
-                address2key =  {k:v for k,v in address2key.items() if  search in v}
-
         return address2key
     
     @classmethod
@@ -465,6 +463,7 @@ class Keypair(c.Module):
         if key not in keys:
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
+        cls.update_keys()
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
         return {'deleted':[key]}

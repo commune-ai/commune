@@ -250,10 +250,9 @@ class Subspace(c.Module):
         stake_from_tuples = self.stake_from(netuid=netuid,
                                              block=block,
                                                update=update, 
-                                               network=network, 
+                                            network=network, 
                                                tuples = True,
                                                fmt=fmt, max_age=max_age, **kwargs)
-        
 
         address2key = c.address2key()
         stake_from_total = {}
@@ -1799,17 +1798,6 @@ class Subspace(c.Module):
             namespace = {k:v for k,v in namespace.items() if ip in str(v)}
 
         return namespace
-
-    
-    def registered_keys(self, netuid = 0, **kwargs):
-        keys = self.keys(netuid=netuid, **kwargs)
-        address2key = c.address2key()
-        registered_keys = []
-        for k_addr in keys:
-            if k_addr in address2key:
-                registered_keys += [address2key[k_addr]]
-        return registered_keys
-
 
     
     def weights(self,  netuid = 0,  network = 'main', update=False, **kwargs) -> list:
@@ -3434,18 +3422,7 @@ class Subspace(c.Module):
             my_balances = {k:v for k,v in my_balances.items() if v > min_value}
         return my_balances
     
-    def launcher_key(self, search=None, min_value=1000, **kwargs):
-        
-        my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
-        key_address =  c.choice(list(my_balances.keys()))
-        key_name = c.address2key(key_address)
-        return key_name
-    
-    def launcher_keys(self, search=None, min_value=1000, n=1000, **kwargs):
-        my_balances = self.my_balances(search=search, min_value=min_value, **kwargs)
-        key_addresses = list(my_balances.keys())[:n]
-        address2key = c.address2key()
-        return [address2key[k] for k in key_addresses]
+
 
     def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=50):
         key = self.resolve_key(key)
