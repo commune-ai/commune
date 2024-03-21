@@ -28,7 +28,7 @@ class c:
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
     datapath = os.path.join(libpath, 'data') # the path to the data folder
-    modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
+    modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') # the current working directory from the process starts 
@@ -1452,7 +1452,7 @@ class c:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
             return port
         elif mode == 'bash':
-            c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
+            c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
         return {'success': True, 'msg': f'killed port {port}'}
 
     @classmethod

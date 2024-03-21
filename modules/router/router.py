@@ -1,5 +1,4 @@
 import commune as c
-Thread = c.module('thread')
 import asyncio
 import gc
 

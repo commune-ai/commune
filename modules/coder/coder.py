@@ -5,7 +5,7 @@ class Coder(c.Module):
     def comment(self,
              fn='coder/call', 
              model = 'model.openai',
-             timeout=20,
+             timeout=40,
              **model_params):
         '''
         ### Function Documentation

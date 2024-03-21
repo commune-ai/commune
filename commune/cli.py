@@ -108,14 +108,14 @@ class cli(c.Module):
             pass
         return {'input': input, 'output': output}
     @classmethod
-    def history_paths(cls):
-        return cls.ls('cli_history')
+    def history_paths(cls, n=10):
+        return cls.ls('cli_history')[:n]
     
     @classmethod
-    def history(cls):
-        history_paths = cls.history_paths()
+    def history(cls, n=10):
+        history_paths = cls.history_paths(n=n)
         historys = [c.get_json(s) for s in history_paths]
-        return historys[:10]
+        return historys
     
     @classmethod
     def num_points(cls):

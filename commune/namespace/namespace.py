@@ -169,7 +169,7 @@ class Namespace(c.Module):
         it will register itself with the namespace_local dictionary.
         '''
 
-        namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
+        namespace = cls.get_namespace(network=network, update=False) 
 
         addresses = c.copy(list(namespace.values()))
         namespace = {}
@@ -177,7 +177,6 @@ class Namespace(c.Module):
         if network == 'local':
             if full_scan == True or len(addresses) == 0 and network == 'local':
                 addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-        import asyncio
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]

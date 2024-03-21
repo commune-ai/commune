@@ -67,6 +67,45 @@ class Client(c.Module):
         generator: bool = False,
         headers : dict ={'Content-Type': 'application/json'},
         ):
+        '''
+        # Documentation for `async_forward` function
+        
+        ## Overview
+        
+        The `async_forward` function is an asynchronous method designed to forward a request to a specified server function (fn) and handle the server's response. It supports forwarding of both regular and generator-based requests and handles different content types including JSON, event streams, and plain text.
+        
+        ## Parameters
+        
+        - `fn`: A string representing the name of the server function to which the request will be forwarded.
+        - `args`: An optional list of arguments to be passed to the server function.
+        - `kwargs`: An optional dictionary of keyword arguments to be passed to the server function.
+        - `ip`: An optional string representing the IP address of the server. If provided, it will override the default server IP address.
+        - `port`: An optional integer representing the port number of the server. If provided, it will override the default server port.
+        - `timeout`: An optional integer representing the timeout duration in seconds for the request. Default is 10 seconds.
+        - `generator`: An optional boolean flag indicating whether the request expects a generator response. Default is False.
+        - `headers`: An optional dictionary representing the HTTP headers to be sent with the request. Default is `{'Content-Type': 'application/json'}`.
+        
+        ## Functionality
+        
+        1. The function first resolves the client using the provided `ip` and `port`.
+        2. It then constructs the request URL and payload, signing the request if needed.
+        3. An asynchronous client session is initiated, and the request is posted to the server.
+        4. The function handles the server's response based on its content type:
+           - For text/event-stream: Processes the event stream and returns the accumulated result.
+           - For application/json: Processes and returns the JSON response.
+           - For text/plain: Processes and returns the plain text response.
+        5. The result is deserialized if necessary, and if `save_history` is True, the request details are saved to a history path.
+        6. Finally, the result is returned.
+        
+        ## Return Value
+        
+        The function returns the processed server response as a deserialized object (usually a dictionary or a string), depending on the content type of the server's response.
+        
+        ## Exceptions
+        
+        - Raises a `ValueError` if the response content type is not one of the supported types.
+        - May raise other exceptions related to network errors, timeouts, or deserialization errors.
+        '''
         self.resolve_client(ip=ip, port=port)
         args = args if args else []
         kwargs = kwargs if kwargs else {}

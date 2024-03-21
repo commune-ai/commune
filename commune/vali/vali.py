@@ -237,6 +237,7 @@ class Vali(c.Module):
         
     def score_module(self, module: 'c.Module'):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
+
         return {'success': True, 'w': 1}
 
     def check_response(self, response:dict):
