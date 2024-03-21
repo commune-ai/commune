@@ -1,0 +1,50 @@
+
+# network
+network: subspace
+netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
+verbose: False
+sync_interval: 100
+sleep_interval: 5
+search: null
+max_staleness: 500
+vote: True
+fn : null
+
+# score
+alpha: 0.5
+
+worker_fn_name: worker
+# voting 
+vote: True
+min_stake: 1
+vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
+vote_timeout: 50 # the timeout for the vote (in blocks)
+voting_networks: ['subspace', 'bittensor']
+
+# stats
+max_history: 10
+
+# score
+connect_score: 0.1 
+latency_score_weight: 0.2
+alpha: 0.5 # the ma average
+vote_tag : null 
+
+# workers
+mode: thread
+batch_size: 32 # the batch size for the worker
+workers: 2 # the number of workers
+threads_per_worker: 32
+timeout: 8
+sleep_time: 0.05
+refresh : True
+start: True
+is_main_worker: True
+min_num_weights: 10
+debug: False
+print_interval: 10
+clone_suffix : clone
+
+
+
+

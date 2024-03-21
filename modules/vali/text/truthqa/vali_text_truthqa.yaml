@@ -1,0 +1,13 @@
+netuid: 0
+network: subspace # global or local network
+alpha: 0.9
+timeout: 2
+tag: null
+target: 'answers'
+search: model
+start: True
+dataset : data.text.truthqa
+verbose: True
+base_score: 0.1
+
+

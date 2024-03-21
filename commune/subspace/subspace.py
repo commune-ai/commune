@@ -245,6 +245,7 @@ class Subspace(c.Module):
     def wasm_file_path(self):
         wasm_file_path = self.libpath + '/target/release/wbuild/node-subspace-runtime/node_subspace_runtime.compact.compressed.wasm'
         return wasm_file_path
+    
 
     def my_stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j', max_age=1000 , **kwargs):
         stake_from_tuples = self.stake_from(netuid=netuid,
@@ -492,8 +493,16 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, **kwargs) -> int:
-        stakes =  self.query_map('Stake', update=update, **kwargs)[netuid]
+    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, max_age=360, **kwargs) -> int:
+        stakes =  self.query_map('Stake', netuid=netuid, update=update, max_age=max_age, **kwargs)
+        c.print(netuid)
+        if netuid == 'all':
+            subnet2stakes = c.copy(stakes)
+            stakes = {}
+            for netuid, subnet_stakes in subnet2stakes.items():
+                for k,v in subnet_stakes.items():
+                    stakes[k] = stakes.get(k, 0) + v
+        
         return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
 
     """ Returns the stake under a coldkey - hotkey pairing """
@@ -1872,16 +1881,23 @@ class Subspace(c.Module):
                     block=None, 
                     update=False,
                     network=network,
+                    total = False,
                     fmt='nano', **kwargs) -> List[Dict[str, Union[str, int]]]:
         
         stake_from = self.query_map('StakeFrom', netuid=netuid, block=block, update=update, network=network, **kwargs)
         format_tuples = lambda x: [[_k, self.format_amount(_v, fmt=fmt)] for _k,_v in x]
         if netuid == 'all':
             stake_from = {netuid: {k: format_tuples(v) for k,v in stake_from[netuid].items()} for netuid in stake_from}
+            if total:
+                stake = {}
+                for netuid, subnet_stake_from in stake_from.items():
+                    for k, v in subnet_stake_from.items():
+                        stake[k] = stake.get(k, 0) + v
+                return stake
         else:
             stake_from = {k: format_tuples(v) for k,v in stake_from.items()}
+
     
-        return stake_from
         return stake_from
     
 

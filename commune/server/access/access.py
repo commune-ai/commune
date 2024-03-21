@@ -20,16 +20,10 @@ class Access(c.Module):
                 max_age = 1000, # max age of the state in seconds
                 **kwargs):
         
-        config = self.set_config(kwargs=locals())
+        self.set_config(kwargs=locals())
         self.user_module = c.module("user")()
         self.address2key = c.address2key()
-    
-        if module == None:
-            module = c.module('module')()
-        if isinstance(module, str):
-            module = c.module(module)()
-
-        self.module = module
+        self.set_module(module)
         self.state_path = state_path
         if refresh:
             self.rm_state()
@@ -38,22 +32,13 @@ class Access(c.Module):
         
         c.thread(self.sync_loop_thread)
 
-    def default_state(self):
-        state = {
-            'sync_time': 0,
-            'stakes': {},
-            'stake_from': {},
-            'whitelist': self.module.whitelist,
-            'blacklist': self.module.blacklist,
-            'fn2weight': {}, # dict(fn, weight),
-            'fn_info': {fn: {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate} for fn in self.module.fns()},
-            'role2rate': self.config.role2rate, # dict(role, rate),
-            'timescale': 'min', # 'sec', 'min', 'hour', 'day
-            'user_info': {}, # dict(address, dict(rate, timestamp, ...)))
-        }
 
-
-        return state
+    def set_module(self, module: c.Module):
+        module = module or c.module('module')()
+        if isinstance(module, str):
+            module = c.module(module)()
+        self.module = module
+        return {'success': True, 'msg': f'set module to {module}'}
 
     
     def rm_state(self):
@@ -63,15 +48,16 @@ class Access(c.Module):
         self.put(self.state_path, self.state)
         return {'success': True, 'msg': f'saved {self.state_path}'}
     
-
-
     def sync_loop_thread(self):
         while True:
-            self.sync_network()
-            c.sleep(self.config.sync_interval)
+            try:
+                self.sync_network()
+                c.sleep(self.config.sync_interval)
+            except Exception as e:
+                c.print(c.detailed_error(e))
 
 
-    def sync_network(self, update=False):
+    def sync_network(self, update=False, cache_exceptions=True):
         state = self.get(self.state_path, {})
         if len(self.state) == 0:
             self.get
@@ -81,8 +67,7 @@ class Access(c.Module):
 
         if time_since_sync > self.config.sync_interval or update:
             self.subspace = c.module('subspace')(network=self.config.chain)
-            self.stakes = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=False)
-            state['stake_from'] = self.subspace.my_stake_from(netuid=self.config.netuid, update=False, max_age=self.config.max_age)
+            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False)
             state['sync_time'] = c.time()
 
 
@@ -121,8 +106,6 @@ class Access(c.Module):
         if address in self.address2key:
             return {'success': True, 'msg': f'address {address} is in the whitelist'}
         
-
-
         current_time = c.time()
 
         # sync of the state is not up to date 
@@ -136,18 +119,18 @@ class Access(c.Module):
         rate_limit = role2rate.get(role, 0)
 
         # stake rate limit
-        stake = self.stakes.get(address, 0)
+        stake = self.state.get('stake_from', {}).get(address, 0)
         # we want to also know if the user has been staked from
         stake_from = self.state.get('stake_from', {}).get(address, 0)
-
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
-  
+        total_stake_score = stake 
 
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
-        fn2info = self.state['fn_info'].get(fn,{'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
+        default_fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
+        fn2info = self.state['fn_info'].get(fn,default_fn_info)
         stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
-        total_stake_score = stake + stake_from
+        
         rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
 
 
@@ -163,7 +146,6 @@ class Access(c.Module):
         # if the time since the last call is greater than the seconds in the period, reset the requests
         if time_since_called > period:
             user_info['rate'] = 0
-
         try:
             assert user_info['rate'] <= rate_limit
             user_info['success'] = True

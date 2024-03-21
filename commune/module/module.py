@@ -151,6 +151,45 @@ class c:
             return futures
         return c.gather(futures, timeout=timeout)
     
+    @classmethod
+    async def async_call(cls,
+                module : str, 
+                fn : str = None,
+                *args,
+                timeout : int = 10,
+                prefix_match:bool = False,
+                network:str = None,
+                key:str = None,
+                kwargs = None,
+                verbose = False,
+                default_fn = 'info',
+                **extra_kwargs
+                ) -> None:
+        
+        if '://' in module:
+            module = module.split('://')[-1]
+  
+        if '/' in module:
+            # adjust the split
+            if fn != None:
+                args = [fn] + list(args)
+            module , fn = module.split('/')
+        else:
+            if fn == None:
+                fn = default_fn
+
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)  
+        try:
+            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
+            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
+            result = await asyncio.wait_for(future, timeout=timeout)
+        except Exception as e:
+            result = c.detailed_error(e)
+        
+        return result
+
+    
     
     @classmethod
     def call_search(cls, 
@@ -190,51 +229,10 @@ class c:
         return result
             
         
-            
         
-        
-        return c.call(namespace, fn, *args, timeout=timeout, network=network, key=key, kwargs=kwargs, return_future=return_future, **extra_kwargs)
+    
+    
 
-    
-    
-    @classmethod
-    async def async_call(cls,
-                module : str, 
-                fn : str = None,
-                *args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = None,
-                key:str = None,
-                kwargs = None,
-                verbose = False,
-                default_fn = 'info',
-                **extra_kwargs
-                ) -> None:
-        
-        if '://' in module:
-            module = module.split('://')[-1]
-  
-        if '/' in module:
-            # adjust the split
-            if fn != None:
-                args = [fn] + list(args)
-            module , fn = module.split('/')
-        else:
-            if fn == None:
-                fn = default_fn
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)  
-        try:
-            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
-            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
-            result = await asyncio.wait_for(future, timeout=timeout)
-        except Exception as e:
-            result = c.detailed_error(e)
-        
-        return result
-
-    
 
 
 
@@ -1568,6 +1566,9 @@ class c:
             
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
+
+        if simple_path.startswith('modules.'):
+            simple_path = simple_path.replace('modules.', '')
         
         return simple_path
     
@@ -2434,8 +2435,7 @@ class c:
             module = module.split('://')[-1]
 
         network = c.resolve_network(network)
-        key = cls.get_key(key)
-
+        key = c.get_key(key)
 
         # we dont want to load the namespace if we have the address
         is_address = c.is_address(module)
@@ -8827,7 +8827,7 @@ class c:
         return c.module('vali')().eval(module)
     @classmethod
     def comment(self,fn:str='module/ls'):
-        return c.module('coder').comment(fn)
+        return c.module('coder')().comment(fn)
 
     def imported_modules(self, module=None):
         # get the text
