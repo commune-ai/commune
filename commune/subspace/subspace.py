@@ -5,7 +5,6 @@ import json
 import os
 import commune as c
 import requests 
-
 from substrateinterface import SubstrateInterface
 
 U32_MAX = 2**32 - 1
@@ -1888,12 +1887,12 @@ class Subspace(c.Module):
         format_tuples = lambda x: [[_k, self.format_amount(_v, fmt=fmt)] for _k,_v in x]
         if netuid == 'all':
             stake_from = {netuid: {k: format_tuples(v) for k,v in stake_from[netuid].items()} for netuid in stake_from}
-            if total:
-                stake = {}
-                for netuid, subnet_stake_from in stake_from.items():
-                    for k, v in subnet_stake_from.items():
-                        stake[k] = stake.get(k, 0) + v
-                return stake
+            # if total:
+            #     stake = {}
+            #     for netuid, subnet_stake_from in stake_from.items():
+            #         for k, v in subnet_stake_from.items():
+            #             stake[k] = stake.get(k, 0) + v
+            #     return stake
         else:
             stake_from = {k: format_tuples(v) for k,v in stake_from.items()}
 
@@ -2523,12 +2522,12 @@ class Subspace(c.Module):
     send = transfer
 
     ##################
-    #### Transfer ####
+    #### profit share ####
     ##################
     def add_profit_shares(
         self,
-        keys: List[str], 
-        shares: List[float] = None , 
+        keys: List[str], # the keys to add profit shares to
+        shares: List[float] = None , # the shares to add to the keys
         key: str = None,
         network : str = None,
     ) -> bool:
@@ -2579,16 +2578,13 @@ class Subspace(c.Module):
     def update_module(
         self,
         module: str, # the module you want to change
-        # params from here
-        name: str = None,
-        address: str = None,
-        delegation_fee: float = None,
-        netuid: int = None,
-        network : str = network,
-        nonce = None,
-        tip: int = 0,
-
-
+        name: str = None, # the name of the new module
+        address: str = None, # the address of the new module
+        delegation_fee: float = None, # the delegation fee of the new module
+        netuid: int = None, # the netuid of the new module
+        network : str = "main", # the network of the new module
+        nonce = None, # the nonce of the new module
+        tip: int = 0, # the tip of the new module
     ) -> bool:
         self.resolve_network(network)
         key = self.resolve_key(module)
@@ -2719,10 +2715,7 @@ class Subspace(c.Module):
                                      key=key, 
                                      nonce=nonce)
 
-
         return response
-
-
 
     #################
     #### Serving ####
@@ -2984,10 +2977,6 @@ class Subspace(c.Module):
         response = self.compose_call(fn='remove_stake',params=params, key=key, **kwargs)
 
         return response
-            
-    
-    
-    
 
     def stake_many( self, 
                         modules:List[str] = None,
@@ -2997,6 +2986,7 @@ class Subspace(c.Module):
                         min_balance = 100_000_000_000,
                         n:str = 100,
                         network: str = None) -> Optional['Balance']:
+        
         network = self.resolve_network( network )
         netuid = self.resolve_netuid( netuid )
         key = self.resolve_key( key )
@@ -3009,6 +2999,7 @@ class Subspace(c.Module):
 
         assert len(modules) > 0, f"No modules found with name {modules}"
         module_keys = modules
+        
         if amounts == None:
             balance = self.get_balance(key=key, fmt='nanos') - min_balance
             amounts = [(balance // len(modules))] * len(modules) 
@@ -3016,7 +3007,6 @@ class Subspace(c.Module):
         else:
             if isinstance(amounts, (float, int)): 
                 amounts = [amounts] * len(modules)
-
             for i, amount in enumerate(amounts):
                 amounts[i] = self.to_nanos(amount)
 
@@ -3032,15 +3022,12 @@ class Subspace(c.Module):
 
         return response
                     
-
-
     def transfer_multiple( self, 
                         destinations:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
                         netuid:int = 0,
                         n:str = 10,
-                        local:bool = False,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
@@ -3099,7 +3086,6 @@ class Subspace(c.Module):
 
     transfer_many = transfer_multiple
 
-
     def unstake_many( self, 
                         modules:Union[List[str], str] = None,
                         amounts:Union[List[str], float, int] = None,
@@ -3135,7 +3121,6 @@ class Subspace(c.Module):
                 stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amounts
                 amounts = [stake_to[m] for m in module_keys]
                 
-
             if isinstance(amounts, (float, int)): 
                 amounts = [amounts] * len(module_keys)
 
@@ -3154,7 +3139,6 @@ class Subspace(c.Module):
 
         return response
                     
-
     def unstake2key( self,
                     modules = 'all',
                     netuid = 0,
@@ -3167,12 +3151,7 @@ class Subspace(c.Module):
             for m in modules:
                 assert m in self.my_modules_names(), f"Module {m} not found in your modules"
             modules = [m for m in self.my_modules() if m['name'] in modules or m['key'] in modules]
-
         c.print(f'Unstaking {len(modules)} modules')
-
-        
-
-
 
     def unstake_all( self, 
                         key: str = 'model.openai', 
@@ -3185,8 +3164,6 @@ class Subspace(c.Module):
         key = self.resolve_key( key )
     
         key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
-        
-
 
         params = {
             "netuid": netuid,
@@ -3203,16 +3180,12 @@ class Subspace(c.Module):
         else: 
             c.print(f'No modules found to unstake')
             total_stake = self.get_balance(key)
-
         total_stake = total_stake - existential_deposit
         to = c.get_key(to)
         c.print(f'Transfering {total_stake} to ')
         response['transfer'] = self.transfer(dest=to, amount=total_stake, key=key)
-        
         return response
-                    
 
-    
 
     def my_servers(self, search=None,  **kwargs):
         servers = [m['name'] for m in self.my_modules(**kwargs)]
@@ -3235,14 +3208,17 @@ class Subspace(c.Module):
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
     
-    def staked_modules(self, key = None, netuid = 0, network = 'main', **kwargs):
+    def staked_modules(self, search = None, key = None, netuid = 0, network = 'main', **kwargs):
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
         staked_modules = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, network=network, **kwargs)
         keys = list(staked_modules.keys())
         modules = self.get_modules(keys)
+        if search != None:
+            modules = [m for m in modules if search in m['name']]
         return modules
 
+    staked = staked_modules
     
     
     
@@ -3498,12 +3474,6 @@ class Subspace(c.Module):
     def stake_top_modules(self,netuid=netuid, feature='dividends', **kwargs):
         top_module_keys = self.top_module_keys(k='dividends')
         self.stake_many(modules=top_module_keys, netuid=netuid, **kwargs)
-    
-    def rank_my_modules(self,search=None, k='stake', n=10, **kwargs):
-        modules = self.my_modules(search=search, **kwargs)
-        ranked_modules = self.rank_modules(modules=modules, search=search, k=k, n=n, **kwargs)
-        return modules[:n]
-
 
     mys =  mystake = key2stake =  my_stake
 

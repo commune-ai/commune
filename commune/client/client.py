@@ -81,8 +81,7 @@ class Client(c.Module):
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
 
-        
-        
+    
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:

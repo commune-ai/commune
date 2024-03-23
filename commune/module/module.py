@@ -1683,7 +1683,7 @@ class c:
         if len(python_classes) == 0:
             return None
         object_name = python_classes[-1]
-        path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
+        path = path.replace(c.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         return path
 
@@ -1748,11 +1748,37 @@ class c:
     
 
     @classmethod
+    def timefn(cls, fn, *args, trials=1, **kwargs):
+        if trials > 1:
+            responses = []
+            for i in range(trials):
+                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
+            return responses
+        if isinstance(fn, str):
+            if '/' in fn:
+                module, fn = fn.split('/')
+                module = c.module(module)
+            else:
+                module = cls
+            if module.classify_fn(fn) == 'self':
+                module = cls()
+            fn = getattr(module, fn)
+        
+        t1 = c.time()
+        result = fn(*args, **kwargs)
+        t2 = c.time()
+
+        return {'time': t2 - t1}
+
+    @classmethod
     def tree(cls, search=None, 
                 update:bool = False,
+                verbose:bool = False,
                 path = 'local_module_tree'
                 ) -> List[str]:
         module_tree = {}
+
+        t1 = c.time()
 
         if not hasattr(cls, 'tree_cache'):
             cls.tree_cache = {}
@@ -1779,9 +1805,14 @@ class c:
         # cache the module tree
         if search != None:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
+
+        latency = c.time() - t1
+        c.print(f'Loaded module tree in {latency} seconds', color='green', verbose=verbose)
         return module_tree
     
     tree_folders_path = 'module_tree_folders'
+
+    
 
 
     def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
@@ -2005,30 +2036,15 @@ class c:
         return Timer(*args, **kwargs)
     
 
-    @classmethod
-    def timefn(cls, fn, *args, trials=1, **kwargs):
-        if trials > 1:
-            responses = []
-            for i in range(trials):
-                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
-            return responses
-        if isinstance(fn, str):
-            if '/' in fn:
-                module, fn = fn.split('/')
-                module = c.module(module)
-            else:
-                module = cls
-            if module.classify_fn(fn) == 'self':
-                module = cls()
-            fn = getattr(module, fn)
-        
-        t1 = c.time()
-        result = fn(*args, **kwargs)
-        t2 = c.time()
 
-        return {'time': t2 - t1}
-
-
+    def timefn(cls, fn, *args,  **kwargs):
+        def wrapper(*args, **kwargs):
+            t1 = c.time()
+            result = fn(*args, **kwargs)
+            t2 = c.time()
+            c.print(f'{fn.__name__} took {t2-t1} seconds')
+            return result
+        return wrapper
 
     @classmethod
     def timeit(cls, fn, *args, include_result=False, **kwargs):
@@ -3664,32 +3680,32 @@ class c:
         return (process.memory_info().rss // 1024) / scale
 
     @classmethod
-    def argparse(cls, verbose: bool = False):
-        import argparse
-        parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-        args = parser.parse_args()
-        if verbose:
-            c.print('Argparse Args: ',args, color='cyan')
-        args.kwargs = json.loads(args.kwargs.replace("'",'"'))
-        args.params = json.loads(args.params.replace("'",'"'))
-        args.inputs = json.loads(args.input.replace("'",'"'))
+    def argparse(cls, verbose: bool = False, version=1):
+        if version == 1:
+            parser = argparse.ArgumentParser(description='Argparse for the module')
+            parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
+            parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+            args = parser.parse_args()
+            if verbose:
+                c.print('Argparse Args: ',args, color='cyan')
+            args.kwargs = json.loads(args.kwargs.replace("'",'"'))
+            args.params = json.loads(args.params.replace("'",'"'))
+            args.inputs = json.loads(args.input.replace("'",'"'))
 
-        # if you pass in the params, it will override the kwargs
-        if len(args.params) > len(args.kwargs):
-            args.kwargs = args.params
-        args.args = json.loads(args.args.replace("'",'"'))
+            # if you pass in the params, it will override the kwargs
+            if len(args.params) > len(args.kwargs):
+                args.kwargs = args.params
+            args.args = json.loads(args.args.replace("'",'"'))
 
         return args
 
     @classmethod
-    def run(cls, name:str = None, verbose:bool = False) -> Any: 
+    def run(cls, name:str = None, verbose:bool = False, version=1) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
-            args = cls.argparse()
+            args = cls.argparse(version=version)
 
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
@@ -4581,40 +4597,7 @@ class c:
         return [f for f in dir(cls) if f.startswith('test_')]
     
 
-       
-    @classmethod
-    def test(cls,
-              modules=['server', 
-                       'key', 
-                       'namespace', 
-                       'executor', 
-                       'vali'],
-              timeout=40):
-        futures = []
-        results = []
-        if cls.module_path() == 'module':
-            for module_name in modules:
-                module = c.module(module_name)
-                assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-                futures.append(c.submit(module.test))
-            results = c.wait(futures, timeout=timeout)
-            results = dict(zip(modules, results))
-            for module_name, result in results.items():
-                if c.is_success(result):
-                    results[module_name] = 'success'
-                else  :
-                    results[module_name] = 'failure'
-        else:
-            module_fns = c.fns()
-            fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
-            c.print(f'Running {len(fns)} tests')
-            for fn in fns:
-                results += [c.submit(fn)]
-            
-            results = c.wait(results, timeout=timeout)
-
-        return results
-        
+ 
 
     ### TIME LAND ###
     
