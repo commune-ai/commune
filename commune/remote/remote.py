@@ -560,7 +560,6 @@ class Remote(c.Module):
         path = cls.search_terms_path
         return  cls.put(path, {'include': '', 'avoid': ''})
 
-
     @classmethod
     def avoid(cls, *terms):
         terms = ','.join(terms)
@@ -623,8 +622,6 @@ class Remote(c.Module):
     def pwds(self, search=None):
         return {k:v['pwd'] for k,v in self.hosts(search=search).items()}
 
-
-
     @classmethod
     def host2ssh(cls, search = None, host_map=None):
         host_map = host_map or cls.host_map(search=search)
@@ -634,8 +631,6 @@ class Remote(c.Module):
             host2ssh[k] = f'sshpass -p {v["pwd"]} ssh {v["user"]}@{v["host"]} -p {v["port"]}'
         return host2ssh
     
-
-
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)
@@ -646,7 +641,6 @@ class Remote(c.Module):
         infos = c.infos(network=network)
         return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     
- 
     def check_peers(self, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():
@@ -654,7 +648,6 @@ class Remote(c.Module):
         results = c.wait(futures, timeout=timeout)
         return results
     
-
     def sync(self, timeout=40,  max_staleness=360):
         futures = []
         namespace = c.namespace('module', network='remote')
@@ -686,7 +679,6 @@ class Remote(c.Module):
     def peerpath2name(self, path:str):
         return path.split('/')[-1].replace('.json', '')
     
-
     def peer2info(self):
         peer_infos = {}
         for path in self.ls('peers'):
@@ -696,7 +688,6 @@ class Remote(c.Module):
             peer_infos[peer_name] = info
         return peer_infos
     
-
     def peer2lag(self, max_staleness=1000):
         peer2timestamp = self.peer2timestamp()
         time = c.time()
@@ -725,8 +716,6 @@ class Remote(c.Module):
             info = cls.get(path, {})
             peer2namespace[path] = info.get('namespace', {})
         return peer2namespace
-
-
 
     @classmethod
     def add_peers(cls, add_admins:bool=False, timeout=20, update=False, network='remote'):
@@ -760,15 +749,11 @@ class Remote(c.Module):
 
         return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
  
-
-
-
     def peer_info(self, peer):
         host2ip = self.host2ip()
         peer = host2ip.get(peer, peer)
         return self.get(f'peers/{peer}', {})
     
-
     @classmethod
     def call(cls, fn:str='info' , *args, 
              search:str='module', 
@@ -798,13 +783,9 @@ class Remote(c.Module):
                 return list(futures.values())[0]
             return futures
         else:
-
-    
-            
             num_futures = len(futures)
             results = {}
             import tqdm 
-
 
             progress_bar = tqdm.tqdm(total=num_futures)
             error_progress = tqdm.tqdm(total=num_futures)
@@ -826,21 +807,21 @@ class Remote(c.Module):
         
             return results
     @classmethod
-    def dashboard(cls):
-        c.module('remote.app').dashboard()
+    def app(cls):
+        return c.module('remote.app').app()
 
     def save_ssh_config(self, path="~/.ssh/config"):
         ssh_config = self.ssh_config()
         return c.put_text(path, ssh_config) 
 
-    def ssh_config(self):
+    def ssh_config(self, search=None):
         """
         Host {name}
           HostName 0.0.0.0.0
           User fam
           Port 8888
         """
-        host_map = self.host_map()
+        host_map = self.host_map(search=search)
         toml_text = ''
         for k,v in host_map.items():
             toml_text += f'Host {k}\n'

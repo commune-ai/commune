@@ -28,7 +28,6 @@ class Vali(c.Module):
         if self.config.workers > 0:    
             c.thread(self.start)
 
-
     def run_info(self):
         info ={
             'vote_staleness': self.vote_staleness,
@@ -39,8 +38,6 @@ class Vali(c.Module):
         }
         return info
     
-
-    
     def workers(self):
         if self.config.mode == 'server':
             return c.servers(search=self.server_name)
@@ -49,32 +46,19 @@ class Vali(c.Module):
         else:
             return []
         
-    
     def worker2logs(self):
         workers = self.workers()
         worker2logs = {}
         for w in workers:
             worker2logs[w] = c.logs(w, lines=100)
 
-
     @property
     def worker_name_prefix(self):
         return f'{self.server_name}'
 
-
-
-    def add_worker(self):
-        num_workers = len(self.workers())
-        id = num_workers
-        return self.start_worker(id=id)
-    
-
     def restart_worker(self, id = 0):
         if self.config.mode == 'thread':
             return self.start_worker(id=id)
-        
-
-
 
     def start_worker(self, id = 0, **kwargs):
         config = self.config
@@ -98,14 +82,11 @@ class Vali(c.Module):
     def worker_name(self, id = 0):
         return f'{self.config.worker_fn_name}::{id}'
 
-
     @classmethod        
     def worker(cls, config = None, id = 0, **kwargs):
         color = c.random_color()
-
         self = cls(config=config, **kwargs)
         worker_name = self.worker_name(id)
-
         batch_size = self.config.batch_size 
         self.running = True
         last_print = 0
@@ -133,7 +114,6 @@ class Vali(c.Module):
                     try:
                         for ready_future in c.as_completed(futures, timeout=self.config.timeout):
                             result = ready_future.result()
-
                             if c.is_error(result):
                                 self.errors += 1
                             else:
@@ -147,11 +127,8 @@ class Vali(c.Module):
                         self.errors += 1
                         result = c.detailed_error(e)
                         c.print(result, verbose=self.config.verbose or self.config.debug)
-
                         continue
-
-                    
-                    
+     
                 if c.time() - last_print > self.config.print_interval:
                     stats =  {
                         'successes': self.successes,
@@ -168,8 +145,6 @@ class Vali(c.Module):
                     c.print(stats, color=color)
                     last_print = c.time()
                 
-
-
     def clone_stats(self):
         workers = self.workers()
         stats = {}
@@ -217,22 +192,20 @@ class Vali(c.Module):
                                     update=update)
         self.n  = len(self.namespace)    
         self.address2name = {v: k for k, v in self.namespace.items()}    
-        self.last_sync_time = c.time()
 
         self.network = self.config.network = network
         self.netuid = self.config.netuid = netuid
         self.search = self.config.search = search
         self.fn = self.config.fn = fn or self.config.fn
+        self.last_sync_time = c.time()
         
-        r = {
+        return {
                 'search': search,
                 'network': network, 
                 'netuid': netuid, 
                 'n': self.n, 
                 'msg': 'Synced network'
                 }
-        c.print(r)
-        return r
     sync = set_network
         
     def score_module(self, module: 'c.Module'):
@@ -398,7 +371,7 @@ class Vali(c.Module):
 
         if not self.should_vote:
             return {'success': False, 
-                    'msg': 'Not voting', 
+                    'msg': 'Should not vote', 
                     'network': self.network,
                     'vote_staleness': self.vote_staleness, 
                     'vote_interval': self.config.vote_interval}
@@ -429,9 +402,8 @@ class Vali(c.Module):
                 'stdev_weight': c.stdev(votes['weights']),
                 'r': r}
     
-    @classmethod
-    def num_module_infos(cls, tag=None, network='subspace', **kwargs):
-        return len(cls.module_infos(network=network,tag=tag, **kwargs))
+    def num_module_infos(self, tag=None, network='subspace', **kwargs):
+        return len(self.module_infos(network=network,tag=tag, **kwargs))
 
     @classmethod
     def leaderboard(cls, *args, **kwargs): 
@@ -455,7 +427,9 @@ class Vali(c.Module):
                     timeout:int=10,
                     keys = ['name', 'w', 'staleness', 'timestamp', 'address', 'ss58_address'],
                     path = 'cache/module_infos',
+                    max_staleness = 1000,
                     update = True,
+                    sort_by = 'staleness',
                     **kwargs
                     ):
         
@@ -474,7 +448,13 @@ class Vali(c.Module):
             for s in results:
                 if isinstance(s, dict) and 'ss58_address' in s:
                     s['staleness'] = c.time() - s.get('timestamp', 0)
+                    if s['staleness'] > max_staleness:
+                        continue
                     module_infos += [{k: s.get(k, None) for k in keys}]
+
+        if sort_by != None:
+            module_infos = sorted(module_infos, key=lambda x: x[sort_by])
+
 
         if update:
             self.put(path, module_infos)       

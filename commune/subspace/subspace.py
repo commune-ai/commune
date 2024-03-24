@@ -445,26 +445,25 @@ class Subspace(c.Module):
                 if hasattr(v, 'value'):
                     v = v.value
                     c.dict_put(new_qmap, k, v)
-        else:
+
+            if isinstance(new_qmap, dict) and len(new_qmap) > 0:
+                k = list(new_qmap.keys())[0]    
+                v = list(new_qmap.values())[0]
+                if c.is_digit(k):
+                    new_qmap = {int(k): v for k,v in new_qmap.items()}
+                new_qmap = dict(sorted(new_qmap.items(), key=lambda x: x[0]))
+                if isinstance(v, dict):
+                    for k,v in new_qmap.items():
+                        _k = list(v.keys())[0]
+                        if c.is_digit(_k):
+                            new_qmap[k] = dict(sorted(new_qmap[k].items(), key=lambda x: x[0]))
+                            new_qmap[k] = {int(_k): _v for _k, _v in v.items()}
+                
+
+            self.put(path, new_qmap)
+        
+        else: 
             new_qmap = value
-
-        # this is a double
-        if isinstance(new_qmap, dict) and len(new_qmap) > 0:
-
-            k = list(new_qmap.keys())[0]    
-            v = list(new_qmap.values())[0]
-
-            if c.is_digit(k):
-                new_qmap = {int(k): v for k,v in new_qmap.items()}
-            new_qmap = dict(sorted(new_qmap.items(), key=lambda x: x[0]))
-            if isinstance(v, dict):
-                for k,v in new_qmap.items():
-                    _k = list(v.keys())[0]
-                    if c.is_digit(_k):
-                        new_qmap[k] = dict(sorted(new_qmap[k].items(), key=lambda x: x[0]))
-                        new_qmap[k] = {int(_k): _v for _k, _v in v.items()}
-
-        self.put(path, new_qmap)
 
         return new_qmap
     
@@ -973,7 +972,6 @@ class Subspace(c.Module):
         path = f'cache/{network}.subnet_params.json'
         subnet_params = None if update else self.get(path, None) 
     
-        
         features = list(name2feature.keys())
         block = block or self.block
 
@@ -1001,8 +999,7 @@ class Subspace(c.Module):
                         subnet_params[feature] = results[i]
                         progress.update(1)
 
-                        
-            
+                    
             self.put(path, subnet_params)
 
 
@@ -3032,11 +3029,6 @@ class Subspace(c.Module):
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
-
-        # name2key = self.name2key(netuid=netuid)
-
-
-        
         key2address = c.key2address()
         name2key = self.name2key(netuid=netuid)
 
@@ -3061,8 +3053,6 @@ class Subspace(c.Module):
 
         assert len(destinations) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
         assert all([c.valid_ss58_address(d) for d in destinations]), f"Invalid destination address {destinations}"
-
-
 
         total_amount = sum(amounts)
         assert total_amount < balance, f'The total amount is {total_amount} > {balance}'
@@ -3580,10 +3570,8 @@ class Subspace(c.Module):
         return response_batch
 
 
-
-
     def compose_call(self,
-                     fn:str, 
+                    fn:str, 
                     params:dict = None, 
                     key:str = None,
                     tip: int = 0, # tip can
@@ -3593,7 +3581,6 @@ class Subspace(c.Module):
                     process_events : bool = True,
                     color: str = 'yellow',
                     verbose: bool = True,
-                    save_history : bool = True,
                     sudo:bool  = False,
                     nonce: int = None,
                     remote_module: str = None,
@@ -3674,18 +3661,14 @@ class Subspace(c.Module):
         else:
             response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
         
-
         tx_state['end_time'] = c.datetime()
         tx_state['status'] = 'completed'
         tx_state['response'] = response
-
         # remo 
         self.rm(paths['pending'])
         self.put_json(paths['complete'], tx_state)
-
         return response
             
-
     def tx_history(self, key:str=None, mode='complete',network=network, **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
         assert mode in ['pending', 'complete']
@@ -3700,7 +3683,6 @@ class Subspace(c.Module):
 
     def clean_tx_history(self):
         return self.ls(f'tx_history')
-
         
     def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending', network=network, **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
@@ -3708,7 +3690,6 @@ class Subspace(c.Module):
         pending_path = f'history/{network}/{key_ss58}/{mode}'
         return pending_path
     
-
     def resolve_key(self, key = None):
         if key == None:
             key = self.config.key
@@ -3747,18 +3728,6 @@ class Subspace(c.Module):
         for vali in top_valis:
             key = name2key[vali]
 
-    @classmethod
-    def pull(cls, rpull:bool = False):
-        if len(cls.ls(cls.libpath)) < 5:
-            c.rm(cls.libpath)
-        c.pull(cwd=cls.libpath)
-        if rpull:
-            cls.rpull()
-
-    def dashboard(self, **kwargs):
-        import streamlit as st
-        return st.write(self.get_module())
-    
 
     
 

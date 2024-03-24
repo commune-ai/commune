@@ -171,12 +171,15 @@ class PM2(c.Module):
                   refresh: bool = True,
                   verbose:bool = True,
                   force : bool = True,
+                  current_dir: str = True,
                   interpreter : str = None,
                   **kwargs):
+        
         if cls.exists(name) and refresh:
             cls.kill(name, verbose=verbose)
             
         cmd = f'pm2 start {path} --name {name}'
+
         if force:
             cmd += ' -f'
             
@@ -185,16 +188,19 @@ class PM2(c.Module):
             
         if cmd_kwargs != None:
             cmd += f' -- '
+
             if isinstance(cmd_kwargs, dict):
                 for k, v in cmd_kwargs.items():
                     cmd += f'--{k} {v}'
             elif isinstance(cmd_kwargs, str):
                 cmd += f'{cmd_kwargs}'
                 
-
         c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
-            
-        return c.cmd(cmd, verbose=verbose,**kwargs)
+
+        if current_dir:
+            kwargs['cwd'] = c.dirpath(path)
+
+        return c.cmd(cmd, verbose=verbose, **kwargs)
         
     @classmethod
     def launch(cls, 
@@ -226,20 +232,22 @@ class PM2(c.Module):
             'module': module,
             'fn': fn,
             'args': args,
-            'kwargs': kwargs
-            
+            'kwargs': kwargs 
         }
+
+
         kwargs_str = json.dumps(kwargs).replace('"', "'")
 
         name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
-
 
         if refresh:
             cls.kill(name)
         
         module = c.module()
         # build command to run pm2
-        command = f" pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
+        filepath = c.filepath()
+        cwd = cwd or module.dirpath()
+        command = f"pm2 start {filepath} --name {name} --interpreter {interpreter}"
 
         if not autorestart:
             command += ' --no-autorestart'
@@ -254,6 +262,9 @@ class PM2(c.Module):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
         if refresh:
             cls.kill(name)  
+        
         cwd = cwd or module.dirpath()
+        c.print(cwd)
+        
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}

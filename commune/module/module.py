@@ -31,7 +31,6 @@ class c:
     modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
-    pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
     helper_functions = ['info',
                         'schema',
@@ -75,6 +74,11 @@ class c:
         self.config['tag'] = value
         return value
         
+
+    def pwd(self):
+        pwd = os.getenv('PWD') # the current wor king directory from the process starts 
+        return pwd
+
 
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
@@ -944,73 +948,18 @@ class c:
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
     
-    @classmethod
-    def dash(cls, *args, **kwargs):
-        return cls.st(*args, **kwargs)
 
     @classmethod
-    def st(cls,
-           fn='dashboard', 
-           module:str = None, 
+    def start_app(cls,
+           module:str = 'module', 
+           fn='app', 
            port=8501, 
            public:bool = False, 
-           remote:bool = False, 
-           kwargs=None):
-        if module == None: 
-            module = cls.module_path()
-
-        kwargs = kwargs or {}
-        if public:
-            port = c.free_port()
-
-        while c.port_used(port):
-            c.print(f'Port {port} is already in use', color='red')
-            port = port + 1
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())
-            remote_kwargs['remote'] = False
-            c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
-            url = f'http://{c.ip()}:{port}'
-
-            return {'success': True, 
-                    'msg': f'running {module} on {port}', 
-                    'url': url}
-        module_path = module
-        module = c.module(module_path)
-        module_filepath = module.filepath()
-        # add port to the command
-        cmd = f'streamlit run {module_filepath} --server.port {port}'
-        
-        if kwargs == None:
-            kwargs = {}
-
-        kwargs_str = json.dumps(kwargs)
-        kwargs_str = kwargs_str.replace('"', "'")
-
-        cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
-
-        module2dashboard = c.get('module2dashboard', {})
-        if module_path in module2dashboard:
-            try:
-                module_port = module2dashboard[module_path]['port']
-                c.print(f'Killing {module_path} on port {module_port}')
-                c.kill_port(module_port)
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-
-        module2dashboard[module_path] = {
-            'port': port,
-            'fn': fn,
-            'kwargs': kwargs,
-            'cmd': cmd
-        }
-        
-        c.put('module2dashboard', module2dashboard)
-
-        cwd = os.path.dirname(module_filepath)
-        c.cmd(cmd, verbose=True, cwd=cwd)
-
-        
+           remote:bool = False):
+        kwargs = c.locals2kwargs(locals())
+        return c.module('app')().start(**kwargs)
+    app = start_app
+ 
     @staticmethod
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
@@ -1030,6 +979,7 @@ class c:
                         password: bool = None,
                         color: str = 'white',
                         bash : bool = False,
+                        cwd : str = None,
                         **kwargs):
         return c.module('os').cmd( 
                         command,
@@ -1437,7 +1387,7 @@ class c:
 
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
-        
+   
         if not c.port_used(port):
             return {'success': True, 'msg': f'port {port} is not in use'}
         if mode == 'python':
@@ -1528,8 +1478,6 @@ class c:
 
         # does the config exist
 
-   
-
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
 
         if cls.path_config_exists(path):
@@ -1537,9 +1485,7 @@ class c:
 
         simple_path = simple_path.replace('.py', '')
         
-        
         simple_path = simple_path.replace('/', '.')[1:]
-
 
         # compress nae
         chunks = simple_path.split('.')
@@ -1571,8 +1517,6 @@ class c:
             simple_path = simple_path.replace('modules.', '')
         
         return simple_path
-    
-
 
     @classmethod
     def path2localpath(cls, path:str) -> str:
@@ -1593,15 +1537,6 @@ class c:
     def simple2config(cls, path:str, to_munch=False)-> dict:
         return cls.load_config(cls.simple2config_path(path), to_munch=to_munch)
     
-    
-    @classmethod
-    def import_path(cls):
-        return cls.path2objectpath(cls.module_file())
-    
-    @classmethod
-    def object_path(cls):
-        return cls.path2objectpath(cls.module_path(simple=False))
-
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
 
@@ -1620,15 +1555,6 @@ class c:
 
         return ['.'.join(object_path.split('.')[:-1]+[c]) for c in classes]
 
-    
-    @classmethod
-    def object_module_path(cls):
-        return '.'.join(cls.object_path().split('.')[:-1])
-    
-    
-    @classmethod
-    def __object_name__(cls):
-        return '.'.join(cls.object_path().split('.')[:-1])
 
 
     @classmethod
@@ -1668,7 +1594,6 @@ class c:
         # return the class names
         return class_names
     
-    
 
     @classmethod
     def path2objectpath(cls, path:str, search=['c.Module']) -> str:
@@ -1676,10 +1601,7 @@ class c:
 
         if path.endswith('module/module.py'):
             return 'commune.Module'
-        
         python_classes = cls.find_python_classes(path, search=search)
-        
-            
         if len(python_classes) == 0:
             return None
         object_name = python_classes[-1]
@@ -1687,10 +1609,6 @@ class c:
         path = path + object_name
         return path
 
-    @classmethod
-    def path2object(cls, path:str) -> str:
-        path = cls.path2objectpath(path)
-        return c.import_object(path)
     
     @classmethod
     def url2text(cls, *args, **kwargs):
@@ -1719,14 +1637,7 @@ class c:
         c.print(f'Converted {path} to {t2-t1} seconds', color='green', verbose=verbose)
 
         # convert the path to object path
-        try:
-            path = c.path2objectpath(path, search=None)
-        except Exception as e:
-            c.print(f'Error: {e}', color='red')
-            c.update()
-            path = c.path2objectpath(path, search=None)
-        
-        # import the object
+        path = c.path2objectpath(path, search=None)
         
         module = c.import_object(path)
         t2 = c.time()
@@ -2092,25 +2003,13 @@ class c:
 
     
     @classmethod
-    def locals2kwargs(cls,
-                      locals_dict:dict,
-                      seperate_args:bool=False,
-                      merge_kwargs :bool = True) -> dict:
-        kwargs = {}
-        locals_dict = locals_dict if locals_dict != None else {}
+    def locals2kwargs(cls,locals_dict:dict) -> dict:
+        locals_dict = locals_dict or {}
+        kwargs = locals_dict.pop('kwargs', {}) or {}
         assert isinstance(locals_dict, dict)
         kwargs.update(locals_dict)
-        if merge_kwargs:
-            kwargs.update(locals_dict.get('kwargs', {}))
-        
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
-
-        if seperate_args:
-            args = locals_dict.pop('args', [])
-            assert isinstance(args, list), f'args must be a list, got {type(args)}'
-            return args, kwargs
-
         assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
         return kwargs
@@ -2191,14 +2090,6 @@ class c:
         path = cls.resolve_path(path=path, extension='pt', root=root)
         torch.save(data, path)
         return path
-    
-    
-    @classmethod
-    def get_torch(cls,path:str, root:bool = False, **kwargs):
-        import torch
-        path = cls.resolve_path(path=path, extension='pt', root=root)
-        return torch.load(path)
-    
     
     def init_nn(self):
         import torch
@@ -2966,57 +2857,50 @@ class c:
     @classmethod
     def serve(cls, 
               module:Any = None ,
+              kwargs:dict = None,  # kwargs for the module
               tag:str=None,
               network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
-              kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
               wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
-              mode:str = 'http',
               tag_seperator:str='::',
               max_workers:int = None,
               public: bool = False,
-              mnemonic = None,
+              mnemonic = None, # mnemonic for the server
               key = None,
               **extra_kwargs
               ):
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
         module = module or cls.module_path()
-
+        # RESOLVE THE SERVER NAME
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
-
-        # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-        
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
-
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
             address = c.get_address(server_name, network=network)
-            if address != None :
-                port = int(address.split(':')[-1])
-            else:
-                port = c.free_port()
+            port = int(address.split(':')[-1]) if address else c.free_port()
 
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
         if remote:
 
             # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs = c.locals2kwargs(locals(), merge_kwargs=False)
+            remote_kwargs = c.locals2kwargs(locals())
             
             # SET THIS TO FALSE TO AVOID RECURSION
             remote_kwargs['remote'] = False 
 
+
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
+            cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
 
@@ -3486,12 +3370,10 @@ class c:
         args = args or []
 
         # if module is not specified, use the current module
-        if module == None:
-            module = cls 
-        elif isinstance(module, str):
+        module = module or cls 
+        if isinstance(module, str):
             module = c.module(module) 
-
-
+            
         # resolve the name
         if name == None:
             # if the module has a module_path function, use that as the name
@@ -3519,7 +3401,6 @@ class c:
         
 
         assert fn != None, 'fn must be specified for pm2 launch'
-    
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
 
@@ -3714,11 +3595,11 @@ class c:
                 fn_type = cls.classify_fn(fn)
 
                 if fn_type == 'self':
-                    self = cls(*args.args, **args.kwargs)
+                    module = cls(*args.args, **args.kwargs)
+                else:
+                    module = cls
 
-                    return
-
-                return getattr(cls, args.function)(*args.args, **args.kwargs)     
+                return getattr(module, args.function)(*args.args, **args.kwargs)     
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -3984,12 +3865,9 @@ class c:
                 cmd += ' --upgrade'
         return cls.cmd(cmd, verbose=verbose)
 
-
-
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
         return bool(lib in cls.pip_libs())
-    
     
     @classmethod
     def lib2version(cls, lib:str = None) -> dict:
@@ -4018,8 +3896,6 @@ class c:
             ip = c.default_ip
         return ip
     
-
-    
     @classmethod
     def ip(cls, update:bool = False, **kwargs) -> str:
         if not update:
@@ -4033,6 +3909,7 @@ class c:
         if update:
             c.put('ip', ip)
         return ip
+    
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
         if mode == 'queue':
@@ -4334,6 +4211,13 @@ class c:
             return list(unique_devices)[0]
         return next(model.parameters()).device
     
+
+
+    def resolve_fn(cls, module , fn):
+        module = c.module(module)
+        return getattr(c.module(module), fn)
+    
+    
             
     @classmethod
     def model_shortcuts(cls, **kwargs):
@@ -4596,8 +4480,20 @@ class c:
     def test_fns(cls):
         return [f for f in dir(cls) if f.startswith('test_')]
     
+    @classmethod
+    def test(cls, module = None):
+        if cls.path() == 'module':
+            return c.module('test')().test()
+        module = module or cls
+        results = {}
+        for fn in module.test_fns():
+            test_fn = getattr(module, fn)
+            if c.classify_fn(test_fn) == 'self':
+                test_fn = getattr(module(), fn)
+            results[fn] = test_fn()
+        return results
+            
 
- 
 
     ### TIME LAND ###
     
@@ -4693,6 +4589,8 @@ class c:
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
                 args.append(cls.determine_type(arg))
+
+        c.print(args, kwargs)
         return args, kwargs
 
     # BYTES LAND
@@ -6215,8 +6113,7 @@ class c:
 
 
         
-            
-        response = cls.launch(fn=fn, 
+        return cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
                     refresh=refresh,
@@ -8699,12 +8596,6 @@ class c:
     @classmethod
     def sid(cls):
         return c.module('subspace.chain')().id()
-
-
-    @classmethod
-    def dashboard(cls):
-        c.module('dashboard').dashboard()
-    app = dashboard
 
     @classmethod
     def ticket(self, key=None):

@@ -55,5 +55,6 @@ class KeyDashboard(c.Module):
 
         return self.key
 
+
 KeyDashboard.run(__name__)
 

@@ -303,7 +303,7 @@ class EVMAccount(c.Module, Account):
         return account
 
 if __name__ == '__main__':
-    EVMAccount.test_hash()
+    EVMAccount.run()
 
 
 

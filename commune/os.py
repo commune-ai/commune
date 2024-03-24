@@ -31,8 +31,6 @@ class OsModule(c.Module):
         
         return process
 
-
-
     @staticmethod
     def path_exists(path:str):
         return os.path.exists(path)
@@ -204,6 +202,7 @@ class OsModule(c.Module):
                     generator: bool =  False,
                     color : str = 'white',
                     inputs : List[str] = [],
+                    cwd : str = None,
                     **kwargs) -> 'subprocess.Popen':
         
         '''
@@ -234,9 +233,16 @@ class OsModule(c.Module):
         if bash:
             command = f'bash -c "{command}"'
 
+
+        # if cwd != None:
+        #     command = f'cd {cwd} && {command}'
+
+        c.print(f'Running command: {command}', color='yellow')
+
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.STDOUT,
+                                    cwd = cwd,
                                     env={**os.environ, **env}, **kwargs)
         
         if return_process:

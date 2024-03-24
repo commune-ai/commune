@@ -2,6 +2,7 @@ import commune as c
 import streamlit as st
 from typing import *
 import json
+import pandas as pd
 
 class App(c.Module):
     def __init__(self, **kwargs):
@@ -9,11 +10,10 @@ class App(c.Module):
         self.remote = c.module('remote')()
 
     @classmethod
-    def dashboard(cls, module: str = None, **kwargs):
+    def app(cls, module: str = None, **kwargs):
         if module:
             cls = c.module(module)
         c.new_event_loop()
-        import streamlit as st
         c.load_style()
         st.title('Remote Dashboard')
         self = cls()
@@ -25,8 +25,6 @@ class App(c.Module):
 
 
     def peer_dashboard(self):
-        import streamlit as st
-        import pandas as pd
 
         cols = st.columns(2)
         search = cols[0].text_input('Search', 'module')
