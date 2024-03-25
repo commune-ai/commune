@@ -139,8 +139,6 @@ class App(c.Module):
 
 
                     stats = host2stats[host]
-                    stats['latency'] = c.time() - stats['latency']
-
   
 
                     # if the column is full, add a new column
