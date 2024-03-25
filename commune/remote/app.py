@@ -67,16 +67,20 @@ class App(c.Module):
             if rm_host:
                 self.remote.rm_host(rm_host_name)
 
-    def host2ssh_search(self):
+    def host2ssh_search(self, expander=True):
+        if expander:
+            with st.expander('Host2ssh', expanded=False):
+                self.host2ssh_search(expander=False)
+                return
         search =  st.text_input("Filter")
-        with st.expander('host2ssh'):
-            host2ssh = self.host2ssh
-            for host, ssh in host2ssh.items():
-                st.write(host)
-                st.code(ssh)
+        host2ssh = self.host2ssh
+        for host, ssh in host2ssh.items():
+            if search != None and search not in host:
+                continue
+            st.write(host)
+            st.code(ssh)
     
     def ssh_dashboard(self):
-
 
         host_map = self.host_map
         host_names = list(host_map.keys())
@@ -97,11 +101,15 @@ class App(c.Module):
 
         run_button = st.button('Run')
         host2future = {}
+
+        host2stats = self.get('host2stats', {})
         
         if run_button:
             for host in host_names:
                 future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
+                host2stats[host] = host2stats.get(host, {'success': 0, 'error': 0 })
+
 
             futures = list(host2future.values())
             hosts = list(host2future.keys())
@@ -113,6 +121,7 @@ class App(c.Module):
 
             try:
                 for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+
 
                     host = hosts[result['idx']]
                     if host == None:
@@ -129,26 +138,44 @@ class App(c.Module):
                     col_idx += 1
 
 
+                    stats = host2stats[host]
+                    stats['latency'] = c.time() - stats['latency']
+
+  
+
                     # if the column is full, add a new column
                     with col:
                         msg = fn_code(msg)
                         emoji =  c.emoji("cross") if is_error else c.emoji("check")
                         title = f'{emoji} :: {host} :: {emoji}'
+            
                         if is_error:
                             failed_hosts += [host]
                             errors += [msg]
+                            stats['error'] += 1
                         else:
+                            stats['success'] += 1
                             with st.expander(title, expanded=expanded):
                                 st.code(msg)
-                
+                    
+                    host2stats[host] = stats
+            
+
 
             except Exception as e:
                 pending_hosts = list(host2future.keys())
                 st.error(c.detailed_error(e))
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
+                for host in pending_hosts:
+                    stats = host2stats[host]
+                    stats['error'] += 1
+                    host2stats[host] = stats
                 errors += [c.detailed_error(e)] * len(pending_hosts)
             
+
+            self.put('host2stats', host2stats)
+
             with st.expander('Failed Hosts', expanded=False):
                 selected_failed_hosts = st.multiselect('Failed Hosts', failed_hosts, failed_hosts)
                 delete_failed = st.button('Delete Failed')
@@ -159,6 +186,14 @@ class App(c.Module):
         
                     st.write(f'**{host}**')
                     st.code(error)
+
+
+    def host_stats_page(self):
+        host2stats = self.get('host2stats', {})
+        host2stats = {k:v for k,v in host2stats.items() if v['success'] + v['error'] > 0}
+        df = pd.DataFrame(host2stats).T
+        st.write(df)
+
 
     def ssh_params(self):
 
@@ -192,9 +227,10 @@ class App(c.Module):
 
 
         self.filter_hosts_dashboard()
-        self.manage_hosts_dashboard()
+        self.host2ssh_search()
         self.ssh_params()
-
+        self.manage_hosts_dashboard()
+        self.host_stats_page()
         
 
 

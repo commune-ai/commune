@@ -532,7 +532,7 @@ class c:
 
     def test_file(self, k='test_a', v=1):
         c.put(k,v)
-        assert self.exists(k)
+        assert self.exists(k), f'file does not exist ({k})'
         self.encrypt_file(k)
         c.print(self.get_text(k))
         self.decrypt_file(k)

@@ -330,7 +330,6 @@ class Server(c.Module):
         now = c.timestamp()
         df['seconds_ago'] = df['timestamp'].apply(lambda x: now - x)
         df = df[features]
-        
         if to_list:
             return df.to_dict('records')
 

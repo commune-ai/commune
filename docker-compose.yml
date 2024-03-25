@@ -1,16 +1,16 @@
 ---
 version: "2.1"
 services:
-  code-server:
+  commune:
     build:
-      context: .
+      context: ./
       dockerfile: Dockerfile-code-server
     container_name: commune
     shm_size: '1gb' # for the shared memory size
     volumes:
       - ~/.commune:/config/.commune
       - ~/.commune:/root/.commune
-      - ./:/workspace
+      - ./:/commune
       #- /var/run/docker.sock:/var/run/docker.sock #Nuclear option
     ports:
       - 10000:8443

@@ -303,12 +303,6 @@ def construct_class_by_name(*args, class_name: str = None, **kwargs) -> Any:
     return call_func_by_name(*args, func_name=class_name, **kwargs)
 
 
-def get_module_dir_by_obj_name(obj_name: str) -> str:
-    """Get the directory path of the module containing the given object name."""
-    module, _ = get_module_from_obj_name(obj_name)
-    return os.path.dirname(inspect.getfile(module))
-
-
 def is_top_level_function(obj: Any) -> bool:
     """Determine whether the given object is a top-level function, i.e., defined at module scope using 'def'."""
     return callable(obj) and obj.__name__ in sys.modules[obj.__module__].__dict__
