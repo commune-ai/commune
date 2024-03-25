@@ -19,7 +19,7 @@ class c:
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
-    git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
+    giturl = git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
     homepath = home_path = os.path.expanduser('~') # the home path
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
@@ -232,12 +232,6 @@ class c:
 
         return result
             
-        
-        
-    
-    
-
-
 
 
     def getattr(self, k:str)-> Any:
@@ -271,11 +265,7 @@ class c:
             module_path = cls.path2simple(module_path)
         return module_path
     
-    @classmethod
-    def get_module_dirpath(cls, obj=None,  simple:bool=False) -> str:
-        return  os.path.dirname(c.get_module_path(obj=obj, simple=simple))
-    get_module_dir = get_module_dirpath
-    
+
     @classmethod
     def filepath(cls) -> str:
         '''
@@ -579,8 +569,10 @@ class c:
 
         if verbose:
             c.print(f'put {k} = {v}')
+
+        data_size = c.sizeof(v)
     
-        return data
+        return {'k': k, 'data_size': data_size, 'encrypted': encrypt, 'timestamp': c.timestamp()}
     
     @classmethod
     def get(cls,
@@ -958,6 +950,7 @@ class c:
            remote:bool = False):
         kwargs = c.locals2kwargs(locals())
         return c.module('app')().start(**kwargs)
+    
     app = start_app
  
     @staticmethod
@@ -1020,11 +1013,11 @@ class c:
 
 
     @classmethod
-    def module_exists(cls, module:str) -> bool:
+    def module_exists(cls, module:str, **kwargs) -> bool:
         '''
         Returns true if the module exists
         '''
-        return module in c.modules()
+        return module in c.modules(**kwargs)
 
 
     
@@ -1429,41 +1422,23 @@ class c:
             
     
     @classmethod
-    def kill_all(cls, network='local'):
+    def kill_all(cls, network='local', timeout=20, verbose=True):
         futures = []
         for s in c.servers(network=network):
             futures += [c.submit(c.kill, args=[s], return_future=True)]
 
-        results = c.wait(futures)
+        results_list = []
+        for f in c.as_completed(futures, timeout=timeout):
+            result = f.result()
+            c.print(result, verbose=verbose)
+            results_list += [result]
+
         c.update_namespace(network=network)
 
         return {'namespace': c.namespace(network=network)}
 
-            
-    @classmethod
-    def restart_peers(cls, timeout=20):
-        futures = []
-        for p in cls.peers():
-            futures += [c.submit(c.restart_server, args=[p], return_future=True, timeout=timeout)]
-
-        results = c.wait(futures,timeout=timeout)
-        return results
-
-
-
-    @classmethod
-    def restart_all_servers(cls, verbose: bool = True):
-        '''
-        Kill all of the servers
-        '''
-        for module in cls.servers():
-            if verbose:
-                c.print(f'Restarting {module}', color='red')
-            cls.server_restart(module)
-    @classmethod
-    def restart_all(cls):
-        cls.restart_all_servers()
-
+        
+    
     @classmethod
     def path_config_exists(cls, path:str) -> bool:
         '''
@@ -1517,25 +1492,6 @@ class c:
             simple_path = simple_path.replace('modules.', '')
         
         return simple_path
-
-    @classmethod
-    def path2localpath(cls, path:str) -> str:
-        local_path = path.replace(cls.repo_path, cls.root_dir)
-        return local_path
-    @classmethod
-    def path2config(cls, path:str, to_munch=False)-> dict:
-        path = cls.path2config_path(path=path)
-        return cls.load_config(path, to_munch=to_munch)
-    
-    @classmethod
-    def path2config_path(cls, path:str):
-        return path.replace('.py', '.yaml')
-    @classmethod
-    def simple2config_path(cls,  path:str):
-        return cls.path2config_path(cls.simple2path(path))
-    @classmethod
-    def simple2config(cls, path:str, to_munch=False)-> dict:
-        return cls.load_config(cls.simple2config_path(path), to_munch=to_munch)
     
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
@@ -5164,13 +5120,14 @@ class c:
     executor_cache = {}
     @classmethod
     def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
-        
         if cache:
             if mode in cls.executor_cache:
                 return cls.executor_cache[mode]
         executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
         cls.executor_cache[mode] = executor
         return executor
+    
+
     @classmethod
     def submit(cls, 
                 fn, 
@@ -5233,64 +5190,14 @@ class c:
             return futures
         return c.wait(futures)
 
-    @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=True, **kwargs):
-        subspace = c.module('subspace')()
-        if tag == None:
-            tag = ''
-        if module == None:
-            module = cls.module_path()
-        server_names = []
-        if stake == None:
-            stake = subspace.min_register_stake(netuid=netuid)
-            c.print('No stake provided, using min stake, which is {}'.format(stake), color='yellow')
-        if multithread:
-            executor = c.module('executor')(max_workers=n)
-            futures = []
-            for i in range(n):
-                server_name = module +"::" + tag + str(i)
-                if c.is_registered(server_name):
-                    c.print(f'Server {server_name} already exists, skipping', color='yellow')
-                    continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
-                futures = futures + [future]
-            return c.wait(futures, timeout=timeout)
-        else:
-            for i in range(n):
-                
-                try:
-                    server_name = module +"::" + tag + str(i)
 
-                    if c.is_registered(server_name):
-                        c.print(f'Server {server_name} already exists, skipping', color='yellow')
-                        continue
-                    r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
-                except Exception as e:
-                    c.print(e)
-                    r = {'success':False, 'error':c.detailed_error(e)}
-                c.print(r)
-                server_names.append(r)
-            return {'servers':server_names}
-
-    @classmethod
-    def servefleet(cls,module = None, tag:str=None, n:int=2, refresh=False, **kwargs):
-        subspace = c.module('subspace')()
-        if tag == None:
-            tag = ''
-        server_names = []
-        for i in range(n):
-            r = cls.serve(module=module, tag=tag+str(i), refresh=refresh,  **kwargs)
-            server_names.append(r)
-        return {'servers':server_names}
-    
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
-        return c.module('module.client')(*args, **kwargs)
+        return c.module('client')(*args, **kwargs)
     
     @classmethod
     def serialize(cls, x, **kwargs):
-        serializer = c.serializer()
-        return serializer.serialize(x, **kwargs)
+        return c.serializer().serialize(x, **kwargs)
 
     @classmethod
     def serializer(cls, *args, **kwargs):
@@ -5299,30 +5206,16 @@ class c:
     @classmethod
     def deserialize(cls, x, **kwargs):
         return c.serializer().deserialize(x, **kwargs)
-
-    @classmethod
-    def proto2json(cls, data):
-        from google.protobuf.json_format import MessageToJson
-        return MessageToJson(data)
-
+    
     @classmethod
     def process(cls, *args, **kwargs):
         return c.module('process').process(*args, **kwargs)
-
-    @classmethod
-    def json2proto(cls, data):
-        from google.protobuf.json_format import JsonToMessage
-        return JsonToMessage(data)
-    
 
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
     
-    @classmethod
-    def launchpad(cls):
-        return c.import_object('commune.launchpad.Launchpad')()
     @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null' or x == 'None':
@@ -6795,8 +6688,11 @@ class c:
         return c.get_self_methods(self)
 
     @classmethod
-    def classify_fns(cls, obj= None):
+    def classify_fns(cls, obj= None, mode=None):
         method_type_map = {}
+        obj = obj or c.module(obj)
+        if isinstance(obj, str):
+            obj = c.module(obj)
         for attr_name in dir(obj):
             method_type = None
             try:
@@ -6807,7 +6703,8 @@ class c:
             if method_type not in method_type_map:
                 method_type_map[method_type] = []
             method_type_map[method_type].append(attr_name)
-        
+        if mode != None:
+            method_type_map = method_type_map[mode]
         return method_type_map
 
 
@@ -7099,21 +6996,6 @@ class c:
         if obj == None:
             obj = cls
         return callable(getattr(obj, fn_name, None))
-
-    @staticmethod
-    def try_fn_n_times(fn, kwargs:Dict, try_count_limit: int = 10):
-        '''
-        try a function n times
-        '''
-        try_count = 0
-        return_output = None
-        while try_count < try_count_limit:
-            try:
-                return_output = fn(**kwargs)
-                break
-            except RuntimeError:
-                try_count += 1
-        return return_output
     
     
     @classmethod
@@ -7122,12 +7004,9 @@ class c:
         return json.loads(json_string.replace("'", '"'))
     
     @classmethod
-    def bro(cls, x):
-        return x
-
-    @classmethod
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
+   
     @classmethod
     def my_stake(cls, *args, **kwargs):
         return c.module('subspace')().my_stake(*args, **kwargs)
@@ -7166,7 +7045,6 @@ class c:
     @staticmethod
     def sizeof( obj):
         import sys
-        type_str = c.type_str(obj)
         sizeof = 0
         if isinstance(obj, dict):
             for k,v in obj.items():
@@ -7356,141 +7234,6 @@ class c:
         new_code = '\n'.join(lines)
         cls.put_text(cls.filepath(), new_code)
         return {'success': True, 'msg': f'Added line {idx} to {text}'}
-    
-    @classmethod
-    def add_lines(cls, idx=0, n=1 ):
-        for i in range(n):
-            cls.add_line(idx=idx)
-
-    @classmethod
-    def add_lines2(cls, idx=0, n=1 ):
-        """
-        jhey
-        """
-        for i in range(n):
-            cls.add_line(idx=idx)
-
-    @classmethod
-    def rm_docs(cls, fn:str='rm_docs'):
-        """
-        sup
-        """
-
-        doc_info = cls.fn_docs(fn, include_quotes=True, return_dict=True)
-        
-        doc_idx_bounds = doc_info['idx_bounds']
-
-        if doc_idx_bounds == None:
-            return None
-
-        fn_info = cls.fn_info(fn)
-
-        fn_code = fn_info['code']
-        
-        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0] - 2]
-       
-        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]:]
-        
-        new_fn_code = '\n'.join(before_comment_code + after_comment_code)
-        
-        return c.add_fn_code(fn=fn, code=new_fn_code)
-    
-    def rm_fn(self, fn:str='rm_fn'):
-        return self.add_fn_code(fn, code='')
-    
-    @classmethod
-    def add_fn_code(cls, fn:str='test_fn', code:str = None):
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_line"]
-        end_line = fn_info["end_line"]
-        fn_code = fn_info['code']
-        module_code = cls.code()
-        lines = module_code.split('\n')
-        if code == None:
-            code = ''
-        new_lines = lines[:start_line] + [code] + lines[end_line:]
-
-
-        new_code = '\n'.join(new_lines)
-        return c.put_text(cls.filepath(), new_code)
-
-
-    def test_fn2(self):
-        """
-          het 
-        """
-        print("fam")
-
-    @classmethod 
-    def fn_docs(cls, fn:str='test_fn2', include_quotes=False, return_dict=False):
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-    
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"]
-        '''
-        sup
-        '''
-        end_line = fn_info["end_line"]
-        code = cls.code()
-        lines = code.split('\n')
-        comment_idx_bounds = []
-
-        for i, line in enumerate(lines[start_line:end_line]):
-
-            comment_bounds = ['"""', "'''"]
-            for comment_bound in comment_bounds:
-                if  comment_bound in line:
-                    comment_idx_bounds.append(i)
-            if len(comment_idx_bounds) == 2:
-                break
-
-        if len(comment_idx_bounds) == 0:
-            return {
-                'idx_bounds': None,
-                'text': None,
-            }
-        
-
-        start_line_shift = -1 if include_quotes else 0
-        end_line_shift = 1 if include_quotes else 0
-        idx_bounds = [start_line+comment_idx_bounds[0] + start_line_shift, start_line+comment_idx_bounds[1]+ end_line_shift + 1]
-        comment_text = '\n'.join(lines[idx_bounds[0]:idx_bounds[1]])
-
-        if return_dict:
-            return {
-            'idx_bounds': comment_idx_bounds,
-            'text': comment_text,
-            }
-        return comment_text
-
-    @classmethod
-    def add_docs(cls, fn='add_docs', comment="This is a document"):
-        '''
-        This is a document
-        '''
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-
-        
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"] + 1
-        tab_space = "        "
-        cls.add_line(idx=start_line, text=tab_space+"'''")
-        for i, line in enumerate(comment.split('\n')):
-            cls.add_line(idx=start_line+i+1, text=tab_space + line)
-        cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
-        
-        
-
 
     @classmethod
     def get_line(cls, idx):
@@ -7503,19 +7246,8 @@ class c:
         c.print(len(line))
         return line
 
-    @classmethod
-    def is_empty_line(cls, idx):
-        line = cls.get_line(idx)
-        return len(line.strip()) == 0
 
 
-    @classmethod
-    def get_code_line(cls, idx:int = 0, code:str = None ):
-        if code == None:
-            code = cls.code() # get the code
-        lines = code.split('\n')
-        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
-        return lines[idx]
     
     tokenizer_cache = {}
     @classmethod
@@ -8432,14 +8164,11 @@ class c:
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
     
-
-
     @classmethod
     def set_api_keys(cls, api_keys:str):
         api_keys = list(set(api_keys))
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
-
 
     @classmethod
     def rm_api_key(cls, api_key:str):
@@ -8452,7 +8181,6 @@ class c:
 
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
-
 
     @classmethod
     def get_api_key(cls, module=None):

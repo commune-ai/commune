@@ -937,6 +937,18 @@ class Subspace(c.Module):
 
             storage += x
         return storage
+    
+    def my_subnets(self, key=None, block=None, update=False, **kwargs):
+        address2key = c.address2key()
+        subnet_params_list = self.subnet_params(block=block, update=update, netuid='all', **kwargs)
+        subnet2netuid = {}
+        for netuid, subnet_params in enumerate(subnet_params_list):
+            if subnet_params['founder'] in address2key:
+                subnet2netuid[subnet_params['name']] = netuid
+        return subnet2netuid
+                
+
+
 
     
     def subnet_params(self, 
@@ -1022,7 +1034,6 @@ class Subspace(c.Module):
                 for netuid in range(num_subnets):
                     subnets_param_row = {}
                     for k in subnet_params.keys():
-                        c.print(k, subnet_params[k], netuid)
                         subnets_param_row[k] = subnet_params[k][netuid]
                     subnets_param_rows.append(subnets_param_row)
                 subnet_params = subnets_param_rows    
@@ -1546,6 +1557,7 @@ class Subspace(c.Module):
         if isinstance(module['stake_from'], dict):
             module['stake_from'] = [[k, self.format_amount(v, fmt=fmt)]  for k, v in module['stake_from'].items()]
         module['stake_from']= [[k, self.format_amount(v, fmt=fmt)]  for k, v in module['stake_from']]
+        c.print(module)
         if features != None:
             module = {f:module[f] for f in features}
         return module

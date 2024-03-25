@@ -87,6 +87,7 @@ class Vali(c.Module):
         color = c.random_color()
         self = cls(config=config, **kwargs)
         worker_name = self.worker_name(id)
+        stats_path = f'clone_stats/{worker_name}'
         batch_size = self.config.batch_size 
         self.running = True
         last_print = 0
@@ -120,7 +121,6 @@ class Vali(c.Module):
                                 self.successes += 1
                                 self.last_success = c.time()
                             c.print(result, verbose=self.config.verbose or self.config.debug)
-
                             futures.remove(ready_future)
                             break
                     except Exception as e:
@@ -130,6 +130,7 @@ class Vali(c.Module):
                         continue
      
                 if c.time() - last_print > self.config.print_interval:
+                    
                     stats =  {
                         'successes': self.successes,
                         'sent': self.requests,
@@ -141,7 +142,9 @@ class Vali(c.Module):
                         'last_sent': c.round(c.time() - self.last_sent,2),
                         'worker_name': worker_name,
                             }
-                    self.put(f'clone_stats/{worker_name}', stats)
+                    
+
+                    self.put(stats_path, stats)
                     c.print(stats, color=color)
                     last_print = c.time()
                 
@@ -284,7 +287,6 @@ class Vali(c.Module):
             response = self.score_module(module)
             response = self.check_response(response)
             info.update(response)            
-            self.successes += 1
         except Exception as e:
             e = c.detailed_error(e)
             response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}'}  
@@ -351,7 +353,7 @@ class Vali(c.Module):
         assert 'uids' in votes, f'Weights must have a uids key, got {votes.keys()}'
         assert 'weights' in votes, f'Weights must have a weights key, got {votes.keys()}'
         assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
-        self.put(self.votes_path, votes)
+        return self.put(self.votes_path, votes)
 
 
 
@@ -361,7 +363,6 @@ class Vali(c.Module):
              save:bool = True,
              cache_exceptions:bool=True,
                **kwargs):
-        
         
         if cache_exceptions:
             try:
@@ -375,6 +376,7 @@ class Vali(c.Module):
                     'network': self.network,
                     'vote_staleness': self.vote_staleness, 
                     'vote_interval': self.config.vote_interval}
+        
         if async_vote:
             return c.submit(self.vote, **kwargs)
 
@@ -400,6 +402,7 @@ class Vali(c.Module):
                 'timestamp': self.last_vote_time,
                 'avg_weight': c.mean(votes['weights']),
                 'stdev_weight': c.stdev(votes['weights']),
+                'saved': save,
                 'r': r}
     
     def num_module_infos(self, tag=None, network='subspace', **kwargs):
@@ -575,9 +578,7 @@ class Vali(c.Module):
         if 'subspace' in self.config.network:
             return self.subspace.block - self.module_info['last_update']
         return 0
-        
     
-
     
     def vote_loop(self):
 

@@ -1529,6 +1529,10 @@ class Keypair(c.Module):
         
         return self.verify(ticket, **kwargs)
     
+    def app(self):
+        c.module('key.app').app()
+        
 
     
+Keypair.run(__name__)
 
