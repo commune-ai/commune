@@ -379,7 +379,6 @@ class Subspace(c.Module):
     
     
 
-    @retry(tries=10, delay=1, backoff=2, max_delay=10)
     def query_map(self, name: str = 'StakeFrom', 
                   params: list = None,
                   block: Optional[int] = None, 
@@ -394,7 +393,6 @@ class Subspace(c.Module):
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
-
         # if all lowercase then we want to capitalize the first letter
         if name[0].islower():
             _splits = name.split('_')
@@ -403,6 +401,7 @@ class Subspace(c.Module):
         if name  == 'Account':
             module = 'System'
 
+        c.print(module)
         network = self.resolve_network(network, new_connection=False, mode=mode)
         path = f'query/{network}/{module}.{name}'
         # resolving the params
@@ -411,6 +410,7 @@ class Subspace(c.Module):
         is_single_subnet = bool(netuid != 'all' and netuid != None)
         if is_single_subnet:
             params = [netuid] + params
+
 
         if not isinstance(params, list):
             params = [params]
@@ -423,6 +423,7 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             # if the value is a tuple then we want to convert it to a list
             block = block or self.block
+
             substrate = self.get_substrate(network=network, mode=mode)
             qmap =  substrate.query_map(
                 module=module,
@@ -445,27 +446,23 @@ class Subspace(c.Module):
                 if hasattr(v, 'value'):
                     v = v.value
                     c.dict_put(new_qmap, k, v)
-
-            if isinstance(new_qmap, dict) and len(new_qmap) > 0:
-                k = list(new_qmap.keys())[0]    
-                v = list(new_qmap.values())[0]
-                if c.is_digit(k):
-                    new_qmap = {int(k): v for k,v in new_qmap.items()}
-                new_qmap = dict(sorted(new_qmap.items(), key=lambda x: x[0]))
-                if isinstance(v, dict):
-                    for k,v in new_qmap.items():
-                        _k = list(v.keys())[0]
-                        if c.is_digit(_k):
-                            new_qmap[k] = dict(sorted(new_qmap[k].items(), key=lambda x: x[0]))
-                            new_qmap[k] = {int(_k): _v for _k, _v in v.items()}
-                
-
             self.put(path, new_qmap)
         
         else: 
             new_qmap = value
 
-        return new_qmap
+        def convert_dict_k_digit_to_int(d):
+            for k,v in c.copy(d).items():
+                if c.is_digit(k):
+                    d[int(k)] = d.pop(k)
+                    if isinstance(v, dict):
+                        d[int(k)] = convert_dict_k_digit_to_int(v)
+            return d
+                    
+
+        new_map = convert_dict_k_digit_to_int(new_qmap)
+
+        return new_map
     
     def runtime_spec_version(self, network:str = 'main'):
         # Get the runtime version
@@ -1425,7 +1422,7 @@ class Subspace(c.Module):
         url = self.resolve_url(network=network, mode='http')
 
         if isinstance(module, int):
-            module = self.uid2key(uid=module)
+            module = self.uid2key(uid=module, netuid=netuid)
         if isinstance(module, str):
             module_key = self.resolve_key_ss58(module)
         json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
@@ -1444,6 +1441,8 @@ class Subspace(c.Module):
             features = self.lite_module_features + ['stake']
             module = {f: module[f] for f in features}
 
+        assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
+
 
         
 
@@ -1457,12 +1456,25 @@ class Subspace(c.Module):
     def get_modules(self, keys:list = None,
                      network='main',
                           timeout=20,
-                         netuid=0, fmt='j',
-                         include_uids = True,
+                         netuid=0, 
+                         fmt='j',
+                         include_uids = False,
+                         update = False,
                            **kwargs) -> List['ModuleInfo']:
-
+        netuid = self.resolve_netuid(netuid)
+        
+        if netuid == 'all':
+            futures = []
+            for netuid in self.netuids():
+                future = c.submit(self.get_modules, kwargs=dict(keys=keys, netuid=netuid,   **kwargs))
+                futures.append(future)
+            results = c.wait(futures, timeout=timeout)
+            return results
+        
+        if len(keys) == 0:
+            return []
         if keys == None:
-            keys = self.my_keys()
+            keys = self.my_keys(update=update, netuid=netuid)
         key2module = {}
         futures = []
         key2future = {}
@@ -1486,6 +1498,7 @@ class Subspace(c.Module):
             if isinstance(module, dict) and 'name' in module:
                 results.append(module)
             else:
+                c.print(module)
                 c.print(f'Error querying module for key {key}')
 
         if include_uids:
@@ -1494,8 +1507,18 @@ class Subspace(c.Module):
 
         return results
     
-    def my_modules(self, **kwargs):
-        return self.get_modules(keys=self.my_keys(), **kwargs)
+    def my_modules(self, netuid=0, timeout=10, **kwargs):
+        keys = self.my_keys(netuid=netuid)
+        if netuid == 'all':
+            modules = {}
+            all_keys = keys 
+            for netuid, keys in enumerate(all_keys):
+                modules[netuid]= c.submit(self.get_modules, kwargs=dict(keys=keys, netuid=netuid, **kwargs))
+            
+            modules = dict(zip(modules.keys(), c.wait(list(modules.values()), timeout=timeout)))
+            modules = {k: v for k,v in modules.items() if len(v) > 0 }
+            return modules
+        return self.get_modules(keys=keys, netuid=netuid, **kwargs)
         
     @property
     def null_module(self):
@@ -1546,6 +1569,18 @@ class Subspace(c.Module):
         self = cls()
         return getattr(self, feature)(**kwargs)
 
+    default_module ={
+            'key': '5C5Yq15Gq8HmD6PmqEYd4VprQDnK3fp5BCwsvGfmCPDGQbjZ',
+            'name': 'default_module',
+            'address': '0.0.0.0:8888',
+            'emission': 0,
+            'incentive': 0,
+            'dividends': 0,
+            'last_update': 0,
+            'stake_from': [],
+            'delegation_fee': 20,
+            'stake': 0
+        }
 
     def format_module(self, module: 'ModuleInfo', fmt:str='j', features=None) -> 'ModuleInfo':
         if 'stake_from' in features and 'stake' not in features:
@@ -1559,7 +1594,7 @@ class Subspace(c.Module):
         module['stake_from']= [[k, self.format_amount(v, fmt=fmt)]  for k, v in module['stake_from']]
         c.print(module)
         if features != None:
-            module = {f:module[f] for f in features}
+            module = {f:module.get(f, self.default_module[f]) for f in features}
         return module
     
     module_features = ['key', 
@@ -1744,7 +1779,12 @@ class Subspace(c.Module):
               update=False, 
              network : str = 'main', 
              **kwargs) -> List[str]:
-        keys =  list(self.query_map('Keys', netuid=netuid, update=update, network=network, **kwargs).values())
+        keys =  self.query_map('Keys', netuid=netuid, update=update, network=network, **kwargs)
+        if netuid == 'all':
+            keys = [list(k.values()) for k in keys.values()]
+        else:
+            keys = list(keys.values())
+        
         return keys
 
     def uid2key(self, uid=None, 
@@ -2191,14 +2231,30 @@ class Subspace(c.Module):
               sort_cols = ['name', 'serving',  'emission', 'stake'],
               fmt : str = 'j',
               include_total : bool = True,
+              modules = None,
+              servers = None,
               **kwargs
               ):
 
-        modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt, **kwargs)
+            
+        
+        if netuid == 'all':
+            all_modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt)
+            servers = c.servers(network='local')
+            stats = {}
+            for netuid, modules in all_modules.items():
+                stats[netuid] = self.stats(modules=modules, netuid=netuid, servers=servers)
+
+                c.print(stats[netuid])
+            return stats
+            
+
+        modules = modules or self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt)
+
         stats = []
 
         local_key_addresses = list(c.key2address().values())
-        servers = c.servers(network='local')
+        servers = servers or c.servers(network='local')
         for i, m in enumerate(modules):
             if m['key'] not in local_key_addresses :
                 continue
@@ -2212,8 +2268,6 @@ class Subspace(c.Module):
         df_stats =  c.df(stats)
         if len(stats) > 0:
             df_stats = df_stats[cols]
-            if 'last_update' in cols:
-                df_stats['last_update'] = df_stats['last_update'].apply(lambda x: x)
             if 'emission' in cols:
                 epochs_per_day = self.epochs_per_day(netuid=netuid, network=network)
                 df_stats['emission'] = df_stats['emission'] * epochs_per_day
@@ -3224,8 +3278,17 @@ class Subspace(c.Module):
     
     
     
-    def my_keys(self, *args, **kwargs):
-        return list(self.my_key2uid(*args, **kwargs).keys())
+    def my_keys(self, *args, netuid=0, **kwargs):
+        keys = self.keys(*args, netuid=netuid, **kwargs)
+        key2address = c.key2address()
+        addresses = list(key2address.values())
+        if netuid == 'all':
+            my_keys = []
+            for netuid_keys in keys:
+                my_keys += [[k for k in netuid_keys if k in addresses]]
+        else:
+            my_keys = [k for k in keys if k in addresses]
+        return my_keys
 
     def vote(
         self,

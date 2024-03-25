@@ -405,8 +405,8 @@ class Vali(c.Module):
                 'saved': save,
                 'r': r}
     
-    def num_module_infos(self, tag=None, network='subspace', **kwargs):
-        return len(self.module_infos(network=network,tag=tag, **kwargs))
+    def num_module_infos(self, **kwargs):
+        return len(self.module_infos(**kwargs))
 
     @classmethod
     def leaderboard(cls, *args, **kwargs): 

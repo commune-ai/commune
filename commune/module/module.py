@@ -3343,7 +3343,6 @@ class c:
  
         c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
 
-
         launch_kwargs = dict(
                 module=module, 
                 fn = fn,
@@ -3355,46 +3354,41 @@ class c:
                 **extra_launch_kwargs
         )
         
-
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
 
     @classmethod
     def register(cls,  
-                 module = None,
+                 module = 'vali::commune',
                  tag:str = None,
                  key : str = None,
+                 name = None,
                  stake : int = None,
                  subnet:str = 'commune',
                  refresh:bool =False,
                  address = None,
                  wait_for_server:bool = False,
-                 ensure_server = False,
+                 ensure_server = True,
                  module_key = None,
                  **kwargs ):
-        subspace = c.module('subspace')()
-        
+        name = name or cls.resolve_server_name(module=module, tag=tag)
+        if '::' in name:
+            module, tag = name.split('::')
+            
         # resolve module name and tag if they are in the server_name
-        if ensure_server:
-            if c.server_exists(name, network='local') and refresh == False:
-                address = c.get_address(name)
-            else:
-                module = cls.resolve_module(module)
-                serve_info =  module.serve(
-                                    server_name=name, 
-                                    wait_for_server=wait_for_server, 
-                                    refresh=refresh, 
-                                    tag=tag,
-                                    **kwargs)
-                
-                name = serve_info['name']
-                address = serve_info['address']
-                module_key = module_key or c.get_key_address(name)
+        if c.server_exists(module) and refresh == False:
+            address = c.get_address(module)
         else:
-            name = cls.resolve_server_name(module=module, tag=tag, tag_seperator='::')
+            serve_info =  c.serve(module,
+                                wait_for_server=wait_for_server, 
+                                refresh=refresh,
+                                **kwargs)
+            address = serve_info['address']
 
-        response =  subspace.register(name=name,
+        module_key = module_key or c.get_key_address(name)
+
+        response =  c.module('subspace')().register(name=name,
                                       address=address, 
                                       subnet=subnet, 
                                       key=key, 
