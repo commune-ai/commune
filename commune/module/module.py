@@ -438,7 +438,6 @@ class c:
     fncode = fn_code
     @classmethod
     def sandbox(cls):
-        
         c.cmd(f'python3 {c.libpath}/sandbox.py')
     sand = sandbox
 
@@ -664,12 +663,6 @@ class c:
                            'years': 31536000}
         
         return seconds / scale2factor[scale]
-
-    
-    @staticmethod
-    def too_old(self, timestamp:int, max_age:int):
-        return c.time() - timestamp > max_age
-    
     
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
@@ -685,12 +678,9 @@ class c:
 
         return {'success': True, 'msg': f'config({k} = {v})'}
    
-    
     def setc(self, k, v, password=None) -> Munch:
         return setattr(self.config, k, v)
    
-   
-
     @classmethod
     def rmc(cls, k, password=None) -> Munch:
         '''
@@ -703,12 +693,6 @@ class c:
     delc = rmc
     setc = putc
 
-
-
-    @classmethod
-    def frontend(cls):
-        return c.compose('frontend')
-      
     @classmethod
     def popc(cls, key:str):
         config = cls.config()
@@ -778,6 +762,7 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
+                   search:str = None,
                    to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
@@ -813,6 +798,9 @@ class c:
         #  add the config after in case the config has a config attribute lol
         if to_munch:
             config = cls.dict2munch(config)
+
+        if search != None:
+            config = {k:v for k,v in config.items() if search in k}
         
         return config
  
@@ -963,6 +951,7 @@ class c:
     @classmethod
     def rpwd(cls, *args, **kwargs):
         return c.module('remote')().pwd(*args, **kwargs)
+    pw = rpwd
     @classmethod
     def cmd(cls, command:Union[str, list],
             *args,
@@ -1663,7 +1652,10 @@ class c:
                 # get modules from each tree
                 python_paths = c.get_module_python_paths(path=tree_path)
                 # add the modules to the module tree
-                module_tree.update({c.path2simple(f): f for f in python_paths})
+                new_tree = {c.path2simple(f): f for f in python_paths}
+                for k,v in new_tree.items():
+                    if k not in module_tree:
+                        module_tree[k] = v
                 # to use functions like c. we need to replace it with module lol
                 if cls.root_module_class in module_tree:
                     module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
@@ -1701,7 +1693,7 @@ class c:
         path = cls.tree_folders_path
         trees =   c.get(path, [])
         if c.libpath not in trees:
-            trees += [c.libpath]
+            trees += [c.libpath + '/commune' , c.libpath + '/modules']
         return trees
     
 
@@ -2277,13 +2269,7 @@ class c:
         if return_future:
             return future
         return c.gather(future)
-    
-    @classmethod
-    def reoslve_client(cls, module, network='local', **kwargs):
-        if not c.server_exists(module):
-            c.serve(module,wait_for_server=True, network=network)
-        return c.connect(module, network=network **kwargs)
-    
+
 
     @classmethod
     async def async_connect(cls, 
@@ -2644,6 +2630,8 @@ class c:
     def attributes(self):
         return list(self.__dict__.keys())
 
+    
+
     @classmethod
     def get_attributes(cls, search = None, obj=None):
         if obj is None:
@@ -2653,7 +2641,7 @@ class c:
         # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
         attrs =  dir(obj)
         if search is not None:
-            attrs = [a for a in attrs if search in a]
+            attrs = [a for a in attrs if search in a and callable(a)]
         return attrs
 
     
@@ -4934,9 +4922,10 @@ class c:
 
         return iso_date
     
-    @classmethod
-    def verify(cls, auth, module='subspace', **kwargs ) -> bool:    
-        return c.module(module)(**kwargs).verify(auth)
+    def verify(self, auth, key=None, **kwargs ) -> bool:  
+        key = self.resolve_key(key)
+        c.print(auth)
+        return key.verify(auth, **kwargs)
         
     
     @classmethod
@@ -6655,9 +6644,9 @@ class c:
         for i in range(n):
             cls.serve(tag=str(i), **kwargs)
         
-
-    def self_methods(self):
-        return c.get_self_methods(self)
+    @classmethod
+    def self_methods(cls):
+        return c.classify_fns(cls)['self']
 
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
@@ -8312,7 +8301,7 @@ class c:
     
     @classmethod
     def init_args(cls):
-        return list(cls.init_kwargs().keys())
+        return list(cls.config().keys())
 
     @classmethod
     def soup(cls, *args, **kwargs):
@@ -8403,13 +8392,13 @@ class c:
     def comment(self,fn:str='module/ls'):
         return c.module('coder')().comment(fn)
 
-    def imported_modules(self, module=None):
-        # get the text
-        text = c.module(module).get_text(module)
-
     @classmethod
     def host2ssh(cls, *args, **kwarg):
         return c.module('remote').host2ssh(*args, **kwarg)
+
+    @classmethod
+    def imported_modules(self, module:str = None):
+        return c.module('code').imported_modules(module=module)
     
 Module = c
 Module.run(__name__)

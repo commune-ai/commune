@@ -1,9 +1,6 @@
-import argparse
 import commune as c
-futures = []
-n = 30
-for i in range(n):
-    c.print(i)
-    futures += [c.submit(c.register, dict(module=f'agi::{i}'))]
 
-c.wait(futures)
+
+m = c.m()()
+data = m.sign('hello', return_str=1)
+c.print(m.verify(data))

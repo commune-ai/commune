@@ -194,12 +194,10 @@ class Coder(c.Module):
             }
         return comment_text
 
-    
     @classmethod
     def add_lines(cls, idx=0, n=1 ):
         for i in range(n):
             cls.add_line(idx=idx)
-
 
     @classmethod
     def add_docs(cls, fn='add_docs', comment="This is a document"):
@@ -222,13 +220,10 @@ class Coder(c.Module):
             cls.add_line(idx=start_line+i+1, text=tab_space + line)
         cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
         
-       
-
     @classmethod
     def is_empty_line(cls, idx):
         line = cls.get_line(idx)
         return len(line.strip()) == 0
-
 
     @classmethod
     def get_code_line(cls, module=None, idx:int = 0, code:str = None ):
@@ -239,3 +234,21 @@ class Coder(c.Module):
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
         return lines[idx]
+    
+    @classmethod
+    def imported_modules(cls, module=None):
+        # get the text
+        text = c.module(module or cls.path()).code()
+        imported_modules = []
+        module2line = {}
+        for i,line in enumerate(text.split('\n')):
+            if 'c.module(' in line:
+                imported_module= line.split('c.module(')[1].split(')')[0]
+                imported_module = imported_module.replace("'",'').replace('"','')
+                module2line[imported_module] = i
+
+        # sort the modules by line number
+        modules = c.modules()
+        module2line = {k: v for k, v in sorted(module2line.items(), key=lambda item: item[1]) if k in modules}
+
+        return module2line

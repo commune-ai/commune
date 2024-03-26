@@ -388,7 +388,7 @@ class Subspace(c.Module):
                   max_results=100000,
                   module='SubspaceModule',
                   update: bool = True,
-                  max_age = None, # max age in seconds
+                  max_age = 3600, # max age in seconds
                   mode = 'ws',
                   **kwargs
                   ) -> Optional[object]:
@@ -435,7 +435,7 @@ class Subspace(c.Module):
             )
 
             new_qmap = {} 
-            progress_bar = c.progress(qmap, desc=f'Querying {name} map')
+            progress_bar = c.progress(qmap, desc=f'Querying {name} map with params {params}')
             for (k,v) in qmap:
                 progress_bar.update(1)
                 if not isinstance(k, tuple):
@@ -485,10 +485,9 @@ class Subspace(c.Module):
 
     ##########################
     #### Account functions ###
-    ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_staleness = 100,network=None, update=False, max_age=360, **kwargs) -> int:
+    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_age = 100,network=None, update=False, **kwargs) -> int:
         stakes =  self.query_map('Stake', netuid=netuid, update=update, max_age=max_age, **kwargs)
         c.print(netuid)
         if netuid == 'all':
@@ -588,17 +587,9 @@ class Subspace(c.Module):
 
 
     def key_info(self, key:str = None, netuid='all', timeout=10, update=False, **kwargs):
-        key = self.resolve_key_ss58(key)
-        stake_to = self.stake_to(update=update, netuid=netuid, **kwargs)
-        key2address = c.key2address()
-        my_stake_to = {}
-        if netuid == 'all':
-            for i,stake_to_dict in enumerate(stake_to):
-                if key in stake_to_dict:
-                    my_stake_to[i] = stake_to_dict[key]
         key_info = {
             'balance': c.get_balance(key=key, **kwargs),
-            'stake_to': my_stake_to,
+            'stake_to': c.get_stake_to(key=key, netuid=netuid, **kwargs),
         }
         return key_info
 
@@ -954,6 +945,7 @@ class Subspace(c.Module):
                     block : Optional[int] = None,
                     update = False,
                     timeout = 30,
+                    max_age = 1000,
                     fmt:str='j', 
                     rows:bool = True
                     ) -> list:
@@ -979,26 +971,23 @@ class Subspace(c.Module):
 
         network = self.resolve_network(network)
         path = f'cache/{network}.subnet_params.json'
-        subnet_params = None if update else self.get(path, None) 
+        subnet_params = None if update else self.get(path, None, max_age=max_age) 
     
         features = list(name2feature.keys())
         block = block or self.block
 
         if subnet_params == None:
-            def query(**kwargs ):
-                return self.query_map(**kwargs)
-            
             subnet_params = {}
             n = len(features)
             progress = c.tqdm(total=n, desc=f'Querying {n} features')
+
             while True:
                 
                 features_left = [f for f in features if f not in subnet_params]
                 if len(features_left) == 0:
                     c.print(f'All features queried, {c.emoji("checkmark")}')
                     break
-
-                name2job = {k:c.submit(query, dict(name=v, update=update, block=block)) for k, v in name2feature.items()}
+                name2job = {k:c.submit(self.query_map, dict(name=v, update=update, block=block)) for k, v in name2feature.items()}
                 jobs = list(name2job.values())
                 results = c.wait(jobs, timeout=timeout)
                 for i, feature in enumerate(features_left):

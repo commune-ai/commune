@@ -70,17 +70,19 @@ class Namespace(c.Module):
         return address
 
     @classmethod
-    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False, subnet=None, **kwargs) -> dict:
+    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False, netuid=None, subnet=None, **kwargs) -> dict:
         if network == None: 
             network = cls.network
+        if subnet != None:
+            netuid = subnet
 
         if 'subspace' in network:
             if '.' in network:
-                network, subnet = network.split('.')
+                network, netuid = network.split('.')
             else: 
-                if subnet == None:
-                    subnet = 0
-            kwargs['netuid'] = subnet
+                if netuid == None:
+                    netuid = 0
+            kwargs['netuid'] = netuid
             return c.module(network)().namespace(update=update, **kwargs)
         else:
             if update:

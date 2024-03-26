@@ -10,14 +10,15 @@ class Access(c.Module):
                 module : Union[c.Module, str] = None, # the module or any python object
                 chain: str =  'main', # mainnet
                 netuid: int = 0, # subnet id
-                sync_interval: int =  30, #  1000 seconds per sync with the network
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100.0,  # 1 call per every N tokens staked per timescale
                 max_rate: int =  1000.0, # 1 call per every N tokens staked per timescale
                 role2rate: dict =  {}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
                 refresh: bool = False,
-                max_age = 1000, # max age of the state in seconds
+                max_age = 10, # max age of the state in seconds
+                sync_interval: int =  60, #  1000 seconds per sync with the network
+
                 **kwargs):
         
         self.set_config(kwargs=locals())
@@ -67,7 +68,7 @@ class Access(c.Module):
 
         if time_since_sync > self.config.sync_interval or update:
             self.subspace = c.module('subspace')(network=self.config.chain)
-            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False)
+            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
             state['sync_time'] = c.time()
 
 

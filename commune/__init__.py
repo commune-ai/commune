@@ -12,3 +12,6 @@ for k,v in Module.__dict__.items():
 for f in Module.get_class_methods() + Module.get_static_methods():
     globals()[f] = getattr(Module, f)
     
+for f in Module.get_self_methods():
+    globals()[f] = lambda *args, **kwargs: getattr(Module(), f)(*args, **kwargs)
+    

@@ -412,7 +412,7 @@ class Peer(c.Module):
         c.cmd(ssh)
 
     
-    def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
+    def loop(self, timeout=40, interval=30, max_age=360, remote=True, batch_size=10):
         if remote:
             return self.remote_fn('loop',kwargs = locals())
         while True:
@@ -824,7 +824,7 @@ class Peer(c.Module):
         return results
     
 
-    def sync(self, timeout=40,  max_staleness=360):
+    def sync(self, timeout=40,  max_age=360):
         futures = []
         namespace = c.namespace('module', network='remote')
         paths = []
@@ -866,11 +866,11 @@ class Peer(c.Module):
         return peer_infos
     
 
-    def peer2lag(self, max_staleness=1000):
+    def peer2lag(self, max_age=1000):
         peer2timestamp = self.peer2timestamp()
         time = c.time()
         ip2host = self.ip2host()
-        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
+        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_age}
 
     def peer2timestamp(self):
         peer2info = self.peer2info()

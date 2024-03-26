@@ -237,8 +237,6 @@ class OsModule(c.Module):
         # if cwd != None:
         #     command = f'cd {cwd} && {command}'
 
-        c.print(f'Running command: {command}', color='yellow')
-
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.STDOUT,

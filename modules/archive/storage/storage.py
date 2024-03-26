@@ -72,7 +72,7 @@ class Storage(commune.Module):
     def get(self,
             k, 
             key:str = None,
-            max_staleness: int = 1000) -> Any:
+            max_age: int = 1000) -> Any:
         key = self.resolve_key(key)
 
         item = self.storage[k]
@@ -87,7 +87,7 @@ class Storage(commune.Module):
         
         # check staleness
         staleness = commune.time() - item['data']['time']
-        assert staleness < max_staleness
+        assert staleness < max_age
 
         return item['data']['data']
 

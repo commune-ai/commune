@@ -60,7 +60,7 @@ class Insurance(commune.Module):
             path: str = None,
             key:str = None,
             item: Dict = None,
-            max_staleness: int = 1000) -> Any:
+            max_age: int = 1000) -> Any:
         key = self.resolve_key(key)
         
         if item == None:
@@ -84,7 +84,7 @@ class Insurance(commune.Module):
         
         # check staleness
         staleness = commune.time() - item['data']['last_time_saved']
-        # assert staleness < max_staleness
+        # assert staleness < max_age
         
         
 

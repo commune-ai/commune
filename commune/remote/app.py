@@ -1,8 +1,11 @@
 import commune as c
 import streamlit as st
+import toml
 from typing import *
 import json
 import pandas as pd
+
+
 
 class App(c.Module):
     def __init__(self, **kwargs):
@@ -15,12 +18,9 @@ class App(c.Module):
             cls = c.module(module)
         c.new_event_loop()
         c.load_style()
-        st.title('Remote Dashboard')
         self = cls()
         self.sidebar()
-        mode = ['ssh', 'peer']
-        mode = st.selectbox('Mode', mode, index=0)
-        getattr(self, f'{mode}_dashboard')()
+        getattr(self, f'ssh_dashboard')()
 
 
 
@@ -98,13 +98,17 @@ class App(c.Module):
             fn_code = f'x'
         fn_code = f'lambda x: {fn_code}'
         fn_code = eval(fn_code)                               
+        cols = st.columns(2)
+        run_button = cols[0].button('Run')
 
-        run_button = st.button('Run')
+        # make this a stop button red
+
+        stop_button = cols[1].button('Stop')
         host2future = {}
 
         host2stats = self.get('host2stats', {})
         
-        if run_button:
+        if run_button and not stop_button:
             for host in host_names:
                 future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
                 host2future[host] = future
@@ -219,10 +223,12 @@ class App(c.Module):
 
 
     def sidebar(self, sidebar=True, **kwargs):
+
         if sidebar:
             with st.sidebar:
                 return self.sidebar(sidebar=False, **kwargs)
 
+        st.title('Remote Dashboard')
 
         self.filter_hosts_dashboard()
         self.host2ssh_search()
