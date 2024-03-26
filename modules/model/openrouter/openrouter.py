@@ -9,7 +9,7 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "openai/gpt-3.5-turbo-16k",
+                model: str = "anthropic/claude-2",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
@@ -42,7 +42,7 @@ class OpenRouterModule(c.Module):
         
 
 
-    def generate(self, content: str, text_only:bool = True, model=None, history=None, trials=1, api_key=None ):
+    def forward(self, content: str, text_only:bool = True, model=None, history=None, trials=1, api_key=None ):
 
 
         # trials 
@@ -117,7 +117,7 @@ class OpenRouterModule(c.Module):
 
         return response
     
-    prompt = generate
+    prompt = generate = forward
 
     def set_api_key(self, api_key:str):
         api_key = os.getenv(api_key, None)

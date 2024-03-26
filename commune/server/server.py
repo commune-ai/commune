@@ -100,7 +100,7 @@ class Server(c.Module):
                 args: the positional arguments to pass to the function
                 timestamp: the timestamp of the request
                 address: the address of the caller
-
+            hash: the hash of the request (optional)
             signature: the signature of the request
    
         """
@@ -117,6 +117,7 @@ class Server(c.Module):
                                  'kwargs': input['kwargs'], 
                                  'timestamp': input['timestamp'], 
                                  'address': input['address']}
+                
             input['data'] = self.serializer.deserialize(input['data'])
             # here we want to verify the data is signed with the correct key
             request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
@@ -157,9 +158,9 @@ class Server(c.Module):
         
 
         if success:
-            c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
+            c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:4]}... ✅\033 ', color='green')
         else:
-            c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
+            c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:4]}... 🚨\033', color='red')
         
 
         result = self.process_result(result)
@@ -173,8 +174,6 @@ class Server(c.Module):
         
 
         }
-
-        c.print(output)
         if self.save_history:
 
             output.update(

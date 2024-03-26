@@ -116,7 +116,6 @@ class Storage(commune.Module):
         for obj in object_list:
             self.put('test', obj)
             assert self.get('test') == obj
-            
         
     @classmethod
     def sandbox(cls):

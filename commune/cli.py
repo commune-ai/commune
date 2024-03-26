@@ -75,12 +75,11 @@ class cli(c.Module):
     def process_output(self, output, save=True, verbose=True):
         if save:
             self.save_history(input, output)
- 
         if c.is_generator(output):
-            for i in output:
+            for output_item in output:
                 if isinstance(c, Munch):
-                    i = i.toDict()
-                c.print(i,  verbose=verbose)
+                    output_item = output_item.toDict()
+                c.print(output_item,  verbose=verbose)
         else:
             if isinstance(output, Munch):
                 output = output.toDict()
@@ -117,3 +116,68 @@ class cli(c.Module):
 
 
         
+    @classmethod
+    def parse_args(cls, argv = None):
+        if argv is None:
+            argv = cls.argv()
+
+        args = []
+        kwargs = {}
+        parsing_kwargs = False
+        for arg in argv:
+            # TODO fix exception with  "="
+            # if any([arg.startswith(_) for _ in ['"', "'"]]):
+            #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+            #     args.append(cls.determine_type(arg))
+            if '=' in arg:
+                parsing_kwargs = True
+                key, value = arg.split('=', 1)
+                # use determine_type to convert the value to its actual type
+                
+                kwargs[key] = cls.determine_type(value)
+            else:
+                assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                args.append(cls.determine_type(arg))
+
+        return args, kwargs
+
+    @classmethod
+    def determine_type(cls, x):
+        if x.lower() == 'null' or x == 'None':
+            return None
+        elif x.lower() in ['true', 'false']:
+            return bool(x.lower() == 'true')
+        elif x.startswith('[') and x.endswith(']'):
+            # this is a list
+            try:
+                
+                list_items = x[1:-1].split(',')
+                # try to convert each item to its actual type
+                x =  [cls.determine_type(item.strip()) for item in list_items]
+                if len(x) == 1 and x[0] == '':
+                    x = []
+                return x
+       
+            except:
+                # if conversion fails, return as string
+                return x
+        elif x.startswith('{') and x.endswith('}'):
+            # this is a dictionary
+            if len(x) == 2:
+                return {}
+            try:
+                dict_items = x[1:-1].split(',')
+                # try to convert each item to a key-value pair
+                return {key.strip(): cls.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+            except:
+                # if conversion fails, return as string
+                return x
+        else:
+            # try to convert to int or float, otherwise return as string
+            try:
+                return int(x)
+            except ValueError:
+                try:
+                    return float(x)
+                except ValueError:
+                    return x

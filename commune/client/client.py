@@ -7,6 +7,9 @@ import commune as c
 import aiohttp
 import json
 
+STREAM_PREFIX = 'data: '
+BYTES_PER_MB = 1e6
+
 class Client(c.Module):
 
     def __init__( 
@@ -86,8 +89,6 @@ class Client(c.Module):
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
-                    STREAM_PREFIX = 'data: '
-                    BYTES_PER_MB = 1e6
                     if self.debug:
                         progress_bar = c.tqdm(desc='MB per Second', position=0)
 
@@ -156,9 +157,6 @@ class Client(c.Module):
     def all_history(cls, key=None, history_path='history'):
         key = c.get_key(key)
         return cls.glob(history_path)
-        
-
-
     @classmethod
     def rm_key_history(cls, key=None, history_path='history'):
         key = c.get_key(key)

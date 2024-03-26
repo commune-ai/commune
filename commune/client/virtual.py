@@ -33,7 +33,7 @@ class VirtualClient:
         if key in self.protected_attributes :
             return getattr(self, key)
         else:
-            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
+            return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
         
 
 

@@ -1573,6 +1573,7 @@ class c:
     module_cache = {}
     @classmethod
     def get_module(cls, path:str, cache=True, timeit=True, catch_exception=False, verbose=False) -> str:
+        t1 = c.time()
         if catch_exception: 
             try:
                 return cls.get_module(path, cache=cache, timeit=timeit, catch_exception=False)
@@ -1674,12 +1675,15 @@ class c:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
 
         latency = c.time() - t1
-        c.print(f'Loaded module tree in {latency} seconds', color='green', verbose=verbose)
+        c.print(f'Loaded module tree in {latency} seconds', 
+                color='green', 
+                verbose=verbose)
+        
+
         return module_tree
     
     tree_folders_path = 'module_tree_folders'
 
-    
 
 
     def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
@@ -1809,8 +1813,10 @@ class c:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
-        search_glob = c.libpath+'/**/*.py' 
-        path = path if path else c.root_path
+
+        path = path or c.libpath
+
+        search_glob = path +'/**/*.py' 
         modules = []
 
         # find all of the python files
@@ -3369,7 +3375,6 @@ class c:
                  refresh:bool =False,
                  address = None,
                  wait_for_server:bool = False,
-                 ensure_server = True,
                  module_key = None,
                  **kwargs ):
         name = name or cls.resolve_server_name(module=module, tag=tag)
@@ -3377,7 +3382,7 @@ class c:
             module, tag = name.split('::')
             
         # resolve module name and tag if they are in the server_name
-        if c.server_exists(module) and refresh == False:
+        if c.server_exists(module) and not refresh :
             address = c.get_address(module)
         else:
             serve_info =  c.serve(module,
@@ -3386,14 +3391,12 @@ class c:
                                 **kwargs)
             address = serve_info['address']
 
-        module_key = module_key or c.get_key_address(name)
-
         response =  c.module('subspace')().register(name=name,
                                       address=address, 
                                       subnet=subnet, 
                                       key=key, 
                                       stake=stake, 
-                                      module_key=module_key)
+                                      module_key= module_key or c.get_key_address(name))
         return response
 
     @classmethod
@@ -4517,31 +4520,6 @@ class c:
         else:
             return args[1:]
 
-    @classmethod
-    def parse_args(cls, argv = None):
-        if argv is None:
-            argv = cls.argv()
-
-        args = []
-        kwargs = {}
-        parsing_kwargs = False
-        for arg in argv:
-            # TODO fix exception with  "="
-            # if any([arg.startswith(_) for _ in ['"', "'"]]):
-            #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-            #     args.append(cls.determine_type(arg))
-            if '=' in arg:
-                parsing_kwargs = True
-                key, value = arg.split('=', 1)
-                # use determine_type to convert the value to its actual type
-                
-                kwargs[key] = cls.determine_type(value)
-            else:
-                assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                args.append(cls.determine_type(arg))
-
-        c.print(args, kwargs)
-        return args, kwargs
 
     # BYTES LAND
     

@@ -370,18 +370,27 @@ class Keypair(c.Module):
                 
         return keys
         
+
     @classmethod
-    def key2address(cls, search=None, update:bool=False):
+    def key2address(cls, search=None, update:bool=False, cache=True):
         path = 'key2address'
         key2address = []
+        cache_path =  f'cache_{path}'
+        if hasattr(cls, cache_path):
+            return getattr(cls, cache_path)
+
+
         if not update:
             key2address =  cls.get(path, key2address)
-        
         if len(key2address) == 0:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         if search != None:
             key2address =  {k:v for k,v in key2address.items() if  search in k}
+
+        if cache:
+            setattr(cls, cache_path, key2address)
+        
         return key2address
 
     @classmethod

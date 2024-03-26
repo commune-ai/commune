@@ -1279,12 +1279,9 @@ class Subspace(c.Module):
         if netuid == None or  netuid == 'all':
             # If the netuid is not specified, use the default.
             return 0
-
+              
         if isinstance(netuid, str):
-            # If the netuid is a subnet name, resolve it to a netuid.
-            subnet_namespace = self.subnet_namespace(network=network, update=update)
-            assert netuid in subnet_namespace, f"Subnet {netuid} not found in {subnet_namespace}"
-            netuid = int(self.subnet_namespace(network=network).get(netuid, 0))
+            netuid = self.subnet2netuid(netuid)
         elif isinstance(netuid, int):
             if netuid == 0: 
                 return netuid
@@ -2237,16 +2234,21 @@ class Subspace(c.Module):
               ):
 
             
+        if isinstance(netuid, str):
+            netuid = self.subnet2netuid(netuid)
+
         
         if netuid == 'all':
             all_modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt)
             servers = c.servers(network='local')
             stats = {}
+            netuid2subnet = self.netuid2subnet(update=update)
             for netuid, modules in all_modules.items():
+                subnet_name = netuid2subnet[netuid]
                 stats[netuid] = self.stats(modules=modules, netuid=netuid, servers=servers)
 
+                c.print(f'\n {subnet_name.upper()} :: (netuid:{netuid}) \n')
                 c.print(stats[netuid])
-            return stats
             
 
         modules = modules or self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt)
@@ -2264,6 +2266,7 @@ class Subspace(c.Module):
                 m[k] = c.round(m[k], sig=4)
 
             m['serving'] = bool(m['name'] in servers)
+            m['stake'] = int(m['stake'])
             stats.append(m)
         df_stats =  c.df(stats)
         if len(stats) > 0:
@@ -3279,6 +3282,7 @@ class Subspace(c.Module):
     
     
     def my_keys(self, *args, netuid=0, **kwargs):
+        netuid = self.resolve_netuid(netuid)
         keys = self.keys(*args, netuid=netuid, **kwargs)
         key2address = c.key2address()
         addresses = list(key2address.values())
