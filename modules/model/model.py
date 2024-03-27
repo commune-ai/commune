@@ -121,7 +121,6 @@ class Model( nn.Module, c.Module):
     def cuda_is_available(cls) -> bool:
         return torch.cuda.is_available()
         
-    
 
     def save(self, 
              tag:str = None,  
@@ -354,20 +353,6 @@ class Model( nn.Module, c.Module):
         return c.resolve_device(device=device)
 
 
-
-        
-    def num_params(self, trainable:bool = True) -> int:
-        total_params = 0
-        
-        for name, param in self.named_parameters():
-            if trainable:
-                if param.requires_grad:
-                    total_params += param.numel()
-            else:
-                total_params += param.numel()
-                
-        return total_params
-    
     @classmethod
     def base_model(cls):
         return cls.module('model.hf')
@@ -415,4 +400,121 @@ class Model( nn.Module, c.Module):
                 trainable_params += param.numel()
 
         return trainable_params
+    
+    @classmethod
+    def init_empty_weights(cls, *args, **kwargs):
+        from accelerate import init_empty_weights
+        return init_empty_weights(*args, **kwargs)
+        
+        
 
+    @classmethod
+    def get_model_size(cls, 
+                       model: 'nn.Module',
+                       model_inflation_ratio: float = 1.0, 
+                       fmt = 'b',
+                       keys:List[str]=None):
+        
+        # get the size of the model by initializing an empty model
+        model = c.resolve_model(model)
+            
+        params = {}
+        size_in_bytes = 0 
+        for name, param in model.state_dict().items():
+            if keys != None and name not in keys:
+                continue
+            
+            size_in_bytes += cls.get_tensor_size(param)
+          
+        return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
+
+    model_size = get_model_size
+
+
+    
+    @classmethod
+    def get_empty_model(cls, model,
+                        verbose: bool = False,
+                        trust_remote_code:bool=True,
+                        init_device:str = 'meta',
+                        **kwargs):
+        model = c.model_shortcuts().get(model, model)
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
+        
+        kwargs['trust_remote_code'] = trust_remote_code
+        model = c.model_shortcuts().get(model, model)
+
+        if isinstance(model, str):
+            if verbose:
+                c.print(f'loading config model from {model}...')
+
+            config = AutoConfig.from_pretrained(model, **kwargs)
+            config.init_device=init_device
+            config_dict = config.to_dict()
+            with init_empty_weights():
+                model = AutoModelForCausalLM.from_config(config,  **kwargs)
+                
+                
+        return model
+
+
+    @classmethod
+    def model_gpu_memory(cls, model:str, num_shard = 2):
+        model_size = cls.get_model_size(model)
+        size_per_shard = model_size/num_shard
+        free_gpu_memory = cls.free_gpu_memory()
+        model_gpu_memory = {}
+        for i in range(num_shard):
+            for gpu_id in c.copy(list(free_gpu_memory.keys())):
+                gpu_memory  = free_gpu_memory[gpu_id]
+                if gpu_memory > size_per_shard:
+                    model_gpu_memory[gpu_id] = size_per_shard 
+                    free_gpu_memory.pop(gpu_id)
+                    break
+        return model_gpu_memory
+    
+
+        
+    @classmethod
+    def params_size_map(cls, 
+                       model: str,
+                       block_prefix:str = 'layers',
+                       fmt= 'b',
+                       keys:List[str]=None):
+        
+        
+        
+        # get the size of the model by initializing an empty model
+        model = c.resolve_model(model)
+        
+        params = {}
+        
+        for name, param in model.state_dict().items():
+            params_size = c.format_data_size(cls.get_tensor_size(param), fmt=fmt)
+            if name.startswith(block_prefix):
+                
+                idx = name.replace(block_prefix+'.','').split('.')[0]
+                block_name = f'{block_prefix}.{idx}'
+                if block_name not in params:
+                    params[block_name] = 0
+                params[block_name] += params_size
+            else:
+                params[name] = params_size
+                        
+        return params
+
+
+ 
+    def num_params(self, trainable:bool = True) -> int:
+        total_params = 0
+        
+        for name, param in self.named_parameters():
+            if trainable:
+                if param.requires_grad:
+                    total_params += param.numel()
+            else:
+                total_params += param.numel()
+                
+        return total_params
+    

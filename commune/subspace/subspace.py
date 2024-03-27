@@ -401,7 +401,6 @@ class Subspace(c.Module):
         if name  == 'Account':
             module = 'System'
 
-        c.print(module)
         network = self.resolve_network(network, new_connection=False, mode=mode)
         path = f'query/{network}/{module}.{name}'
         # resolving the params
@@ -1301,16 +1300,18 @@ class Subspace(c.Module):
 
     
         
-    def name2key(self, search:str=None, network=network, netuid: int = 0, update=False ) -> Dict[str, str]:
+    def name2key(self, search:str=None, network=network, netuid: int = 0, update=False, **kwargs ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         self.resolve_network(network)
-        names = self.names(netuid=netuid, update=update)
-        keys = self.keys(netuid=netuid, update=update)
+        names = self.names(netuid=netuid, update=update, **kwargs)
+        keys = self.keys(netuid=netuid, update=update, **kwargs)
         name2key = dict(zip(names, keys))
         if search != None:
             name2key = {k:v for k,v in name2key.items() if search in k}
             if len(name2key) == 1:
                 return list(name2key.values())[0]
+            else:
+                assert len(name2key) > 0, f"No keys found for search {search}"
         return name2key
 
 
@@ -2226,6 +2227,10 @@ class Subspace(c.Module):
         if isinstance(netuid, str):
             netuid = self.subnet2netuid(netuid)
 
+        if search == 'all':
+            netuid = search
+            search = None
+
         
         if netuid == 'all':
             all_modules = self.my_modules(netuid=netuid, update=update, network=network, fmt=fmt)
@@ -2754,6 +2759,7 @@ class Subspace(c.Module):
         key: str = None,
         network = 'main',
         nonce = None,
+        netuid = 0,
         **params,
 
     ) -> bool:
@@ -2778,7 +2784,8 @@ class Subspace(c.Module):
     def update_global(
         self,
         key: str = None,
-        network = 'main',
+        network : str = 'main',
+        sudo:  bool = True,
         **params,
     ) -> bool:
 
@@ -2790,14 +2797,11 @@ class Subspace(c.Module):
         for k,v in params.items():
             if isinstance(v, str):
                 params[k] = v.encode('utf-8')
-
         # this is a sudo call
-        response = self.compose_call(fn='update_global',
+        return self.compose_call(fn='update_global',
                                      params=params, 
                                      key=key, 
-                                     sudo=True)
-
-        return response
+                                     sudo=sudo)
 
 
 
@@ -2998,31 +3002,27 @@ class Subspace(c.Module):
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
         # get most stake from the module
+
         stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=key)
 
-        module_key = None
-        if module == None:
-            # find the largest staked module
-            max_stake = 0
-            for k,v in stake_to.items():
-                if v > max_stake:
-                    max_stake = v
-                    module_key = k            
+        if  c.valid_ss58_address(module):
+            module_key = module
         else:
-            key2name = self.key2name(netuid=netuid)
-            name2key = {key2name[k]:k for k,v in key2name.items()}
-            if module in name2key:
-                module_key = name2key[module]
-            else:
-                module_key = module
+            module_key = self.name2key(module, netuid=netuid)
+            assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         
-        # we expected to switch the module to the module key
-        assert c.valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         assert module_key in stake_to, f"Module {module_key} not found in SubNetwork {netuid}"
-        if amount == None:
-            amount = stake_to[module_key]
-        else:
-            amount = int(self.to_nanos(amount))
+
+        if module == None and amount != None:
+            # find the largest staked module
+            for k,v in stake_to.items():
+                if v > amount:
+                    module_key = k      
+                    break      
+
+
+        amount = int(self.to_nanos(amount)) if amount else stake_to[module_key]
+
         # convert to nanos
         params={
             'amount': amount ,
@@ -3796,6 +3796,13 @@ class Subspace(c.Module):
         for vali in top_valis:
             key = name2key[vali]
 
+
+
+    @classmethod
+    def test(cls):
+        self = cls()
+        self.test_endpoint()
+        return self
 
     
 

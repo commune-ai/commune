@@ -1,6 +1,7 @@
 import inspect
 import os
 import concurrent
+import threading
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
@@ -56,7 +57,6 @@ class c:
     def init(cls, *args, **kwargs):
         return cls(*args, **kwargs)
 
-
     default_tag = 'base'
     @property
     def tag(self):
@@ -74,11 +74,9 @@ class c:
         self.config['tag'] = value
         return value
         
-
     def pwd(self):
         pwd = os.getenv('PWD') # the current wor king directory from the process starts 
         return pwd
-
 
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
@@ -4141,25 +4139,7 @@ class c:
             tensor = torch.rand(1)
         tensor_size =  tensor.nelement() * tensor.element_size()
         return c.format_data_size(tensor_size, fmt=fmt)
-    @classmethod 
-    def get_model_device(cls, model, fast_and_lazy:bool = True) -> 'torch.device':
-        if fast_and_lazy:
-            return next(model.parameters()).device
-        else:
-            unique_devices = set()
-            for p in model.parameters():
-                unique_devices.add(p.device)
-            return list(unique_devices)[0]
-        return next(model.parameters()).device
-    
 
-
-    def resolve_fn(cls, module , fn):
-        module = c.module(module)
-        return getattr(c.module(module), fn)
-    
-    
-            
     @classmethod
     def model_shortcuts(cls, **kwargs):
         return  c.module('hf').getc('shortcuts')
@@ -4189,116 +4169,17 @@ class c:
     @staticmethod
     def get_trainable_params(model:'nn.Module')->List[str]:
         return c.module('model').get_trainable_params(model)
-    @classmethod
-    def model_gpu_memory(cls, model:str, num_shard = 2):
-        model_size = cls.get_model_size(model)
-        size_per_shard = model_size/num_shard
-        free_gpu_memory = cls.free_gpu_memory()
-        model_gpu_memory = {}
-        for i in range(num_shard):
-            for gpu_id in c.copy(list(free_gpu_memory.keys())):
-                gpu_memory  = free_gpu_memory[gpu_id]
-                if gpu_memory > size_per_shard:
-                    model_gpu_memory[gpu_id] = size_per_shard 
-                    free_gpu_memory.pop(gpu_id)
-                    break
-        return model_gpu_memory
+
 
     @classmethod
     def model_gpus(cls, model, num_shard=2):
         return list(cls.model_gpu_memory(model,num_shard).keys())     
-
-    
-    @classmethod
-    def get_empty_model(cls, model,
-                        verbose: bool = False,
-                        trust_remote_code:bool=True,
-                        init_device:str = 'meta',
-                        **kwargs):
-        model = c.model_shortcuts().get(model, model)
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
-        
-        kwargs['trust_remote_code'] = trust_remote_code
-        model = c.model_shortcuts().get(model, model)
-
-        if isinstance(model, str):
-            if verbose:
-                c.print(f'loading config model from {model}...')
-
-            config = AutoConfig.from_pretrained(model, **kwargs)
-            config.init_device=init_device
-            config_dict = config.to_dict()
-            with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(config,  **kwargs)
-                
-                
-        return model
-    
-    @classmethod
-    def init_empty_weights(cls, *args, **kwargs):
-        from accelerate import init_empty_weights
-
-        return init_empty_weights(*args, **kwargs)
-        
-        
-    @classmethod
-    def get_model_size(cls, 
-                       model: 'nn.Module',
-                       model_inflation_ratio: float = 1.0, 
-                       fmt = 'b',
-                       keys:List[str]=None):
-        
-        # get the size of the model by initializing an empty model
-        model = c.resolve_model(model)
-            
-        params = {}
-        size_in_bytes = 0 
-        for name, param in model.state_dict().items():
-            if keys != None and name not in keys:
-                continue
-            
-            size_in_bytes += cls.get_tensor_size(param)
-          
-        return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
-
-    model_size = get_model_size
-
 
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
             model = c.get_empty_model(model)
         return model
-        
-    @classmethod
-    def params_size_map(cls, 
-                       model: str,
-                       block_prefix:str = 'layers',
-                       fmt= 'b',
-                       keys:List[str]=None):
-        
-        
-        
-        # get the size of the model by initializing an empty model
-        model = c.resolve_model(model)
-        
-        params = {}
-        size_in_bytes = 0 
-        
-        for name, param in model.state_dict().items():
-            params_size = c.format_data_size(cls.get_tensor_size(param), fmt=fmt)
-            if name.startswith(block_prefix):
-                
-                idx = name.replace(block_prefix+'.','').split('.')[0]
-                block_name = f'{block_prefix}.{idx}'
-                if block_name not in params:
-                    params[block_name] = 0
-                params[block_name] += params_size
-            else:
-                params[name] = params_size
-                        
-        return params
 
 
     def num_params(self)->int:
@@ -4911,17 +4792,6 @@ class c:
         signature =  key.sign(data, **kwargs)
         return signature
     
-
-    def timestamp_to_iso(timestamp):
-        import datetime
-        # Convert timestamp to datetime object
-        dt = datetime.datetime.fromtimestamp(timestamp)
-
-        # Format datetime object as ISO date string
-        iso_date = dt.date().isoformat()
-
-        return iso_date
-    
     def verify(self, auth, key=None, **kwargs ) -> bool:  
         key = self.resolve_key(key)
         c.print(auth)
@@ -4936,7 +4806,6 @@ class c:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
-
     @classmethod
     def is_encrypted(cls, data, prefix=encrypted_prefix):
         if isinstance(data, str):
@@ -4946,14 +4815,6 @@ class c:
             return bool(data.get('encrypted', False) == True)
         else:
             return False
-        
-        
-    
-    @classmethod
-    def rm_user(cls, user: str = None):
-        self.users.pop(user, None)  
-        
-    
     
     @classmethod
     def network(cls) -> str:
@@ -7407,7 +7268,7 @@ class c:
 
     @staticmethod
     def valid_ss58_address(address:str):
-        return c.module('key').valid_ss58_address(address)
+        return c.module('key').valid_ss58_address(str(address))
     is_valid_ss58_address = valid_ss58_address
 
     @classmethod
@@ -7690,10 +7551,7 @@ class c:
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
     
-    @classmethod
-    def model_menu(cls):
-        return c.model_shortcuts()
-    
+
     @classmethod
     def talk(cls , *args, module = 'model', num_jobs=1, timeout=6, **kwargs):
         jobs = []
@@ -7711,10 +7569,6 @@ class c:
 
         return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
-
-    def x(self, y=1):
-        c.print('fam', y)
-
     @classmethod
     def ask(cls, *args, **kwargs):
         return c.module('model.openai').generate(*args, **kwargs)
@@ -7724,19 +7578,18 @@ class c:
         return c.module('docker').containers()
 
     @staticmethod
-    def chunk(sequence:list = [0,2,3,4,5,6,67,],
-            chunk_size:int=None,
+    def chunk(sequence:list = [0,2,3,4,5,6,6,7],
+            chunk_size:int=4,
             num_chunks:int= None):
         assert chunk_size != None or num_chunks != None, 'must specify chunk_size or num_chunks'
         if chunk_size == None:
-            chunk_size = len(sequence) // num_chunks
-
+            chunk_size = len(sequence) / num_chunks
         if chunk_size > len(sequence):
             return [sequence]
         if num_chunks == None:
-            num_chunks = len(sequence) // chunk_size
-
-
+            num_chunks = int(len(sequence) / chunk_size)
+        if num_chunks == 0:
+            num_chunks = 1
         chunks = [[] for i in range(num_chunks)]
         for i, element in enumerate(sequence):
             idx = i % num_chunks
@@ -7752,16 +7605,16 @@ class c:
 
     def install_docker_gpus(self):
         self.chmod_scripts()
-        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+        c.cmd(f'{c.libpath}/scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
 
     def install_docker(self):
         self.chmod_scripts()
-        c.cmd('./scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
+        c.cmd(f'{c.libpath}/scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
 
     @classmethod
     def install_rust(cls, sudo=True) :
         cls.chmod_scripts()
-        c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+        c.cmd(f'{c.libpath}/scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
     @classmethod
     def install_npm(cls, sudo=False) :
@@ -7774,17 +7627,7 @@ class c:
     @classmethod
     def install_python(cls, sudo=True) :
         c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
-
-    # def remote_wrapper(cls, fn):
-
-    #     def wrapper(**kwargs):
-    #         remote = kwargs.pop('remote', False)
-    #         if remote:
-    #             return cls.remote_fn(fn, **kwargs)
-
-
        
-
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
@@ -7820,11 +7663,6 @@ class c:
     def ss58_decode(cls, data:Union[str, bytes],**kwargs):
         from scalecodec.utils.ss58 import ss58_decode
         return ss58_decode(data,  **kwargs)
-
-
-    @classmethod
-    def random_tmp_file_path(cls, prefix='randomtempfile_utc'):
-        return f"/tmp/{prefix}{c.time()}"
 
     @classmethod
     def name2compose(self, **kwargs):
@@ -7882,7 +7720,6 @@ class c:
     def hello(cls):
         c.print('hello')
 
-
     thread_map = {}
     @classmethod
     def thread(cls,fn: Union['callable', str],  
@@ -7894,7 +7731,7 @@ class c:
                     start:bool = True,
                     tag_seperator:str='::', 
                     **extra_kwargs):
-
+        
         if isinstance(fn, str):
             fn = c.get_fn(fn)
         if args == None:
@@ -7906,8 +7743,6 @@ class c:
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
-        import threading
-
         if name == None:
             name = fn.__name__
             cnt = 0
@@ -7916,16 +7751,15 @@ class c:
                 if tag == None:
                     tag = ''
                 name = name + tag_seperator + tag + str(cnt)
+        
         t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
 
-
         # set the time it starts
-        t.__dict__['start_time'] = c.time()
+        setattr(t, 'start_time', c.time())
         t.daemon = daemon
         if start:
             t.start()
         cls.thread_map[name] = t
-        c.print(f'created thread {name}')
         return t
 
     @classmethod
@@ -7946,7 +7780,6 @@ class c:
 
     @classmethod
     def thread_count(cls):
-        import threading
         return threading.active_count()
     @classmethod
     def resolve_key_address(cls, key):
@@ -8033,11 +7866,6 @@ class c:
         return os.getcwd()
 
     @classmethod
-    def kill_replicas(self, network:str=None, **kwargs):
-        for m in cls.replicas(network=network, **kwargs):
-            c.kill(m)
-
-    @classmethod
     def gc(cls):
         import gc
         gc.collect()
@@ -8052,9 +7880,14 @@ class c:
     def emoji(cls,  name:str):
         return c.module('emoji').emoji(name)
 
+    @classmethod
+    def emojis(cls, search = None):
+        
+        emojis =  c.module('emoji').emojis
+        if search != None:
+            emojis = {k:v for k,v in emojis.items() if search in k}
+        return 
 
-    
-    
     @staticmethod
     def tqdm(*args, **kwargs):
         from tqdm import tqdm
@@ -8296,7 +8129,6 @@ class c:
 
     @classmethod
     def active_thread_count(cls): 
-        import threading
         return threading.active_count()
     
     @classmethod

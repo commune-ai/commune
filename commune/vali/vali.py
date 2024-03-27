@@ -77,7 +77,7 @@ class Vali(c.Module):
         elif self.config.mode == 'server':
             worker = self.serve(kwargs=kwargs, 
                                  key=self.key.path, 
-                                 server_name = worker_name or self.server_name)
+                                 server_name = self.server_name + f'::{id}',)
         else:
             raise Exception(f'Invalid mode {self.config.mode}')
         
@@ -88,21 +88,22 @@ class Vali(c.Module):
     def worker_name(self, id = 0):
         return f'{self.config.worker_fn_name}::{id}'
 
-    @classmethod
-    def worker(self, *args, epochs=-1, **kwargs):
-        kwargs['workers'] = 0
-        self = Vali(*args, **kwargs)
-        if epochs == -1:
-            epochs = 1e10
+    def worker(self, 
+               epochs=1e9,
+               id=0):
         for epoch in range(int(epochs)): 
              c.print(f'Epoch {epoch}', color='cyan')
-             self.epoch(*args, stats_path=f"worker_results/{self.worker_name(id)}",  **kwargs)
+             self.epoch(stats_path=f"worker_results/{self.worker_name(id)}")
 
 
-    def epoch(self, stats_path = "worker_stats"):
-        
-        futures = []
+    @classmethod
+    def run_epoch(cls, *args, **kwargs):
+        self = cls(*args, workers=0, **kwargs)
+        return self.epoch()
+
+    def epoch(self, stats_path = "worker_stats/base"):
         module_addresses = c.shuffle(list(self.namespace.values()))
+        futures = []
         results = []
         # select a module
         self.last_sync_time = c.time()
@@ -128,9 +129,7 @@ class Vali(c.Module):
 
                 except Exception as e:
                     result = c.detailed_error(e)
-                    for future in futures:
-                        future.cancel()
-                        self.errors += 1
+                    # print the error
                     c.print(result, verbose=self.config.verbose or self.config.debug)
                     continue
 
@@ -141,7 +140,6 @@ class Vali(c.Module):
                     'sent': self.requests,
                     'errors': self.errors,
                     'network': self.network,
-                    'pending': len(futures),
                     'vote_staleness': self.vote_staleness,
                     'last_success': c.round(c.time() - self.last_success,2),
                     'last_sent': c.round(c.time() - self.last_sent,2),
@@ -151,7 +149,11 @@ class Vali(c.Module):
                 c.print(stats)
                 
                 self.last_print = c.time()
+
+
+        # wait for the remaining futures to complete
         if len(futures) > 0:
+            c.print(f'Waiting for {len(futures)} futures to complete before finishing epoch', color='cyan')
             for future in c.as_completed(futures, timeout=self.config.timeout):
                 result = future.result()
                 results += [result]

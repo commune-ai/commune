@@ -3,6 +3,7 @@ from typing import *
 
 
 class Access(c.Module):
+
     sync_time = 0
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
 
@@ -16,7 +17,7 @@ class Access(c.Module):
                 role2rate: dict =  {}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
                 refresh: bool = False,
-                max_age = 10, # max age of the state in seconds
+                max_age = 600, # max age of the state in seconds
                 sync_interval: int =  60, #  1000 seconds per sync with the network
 
                 **kwargs):
@@ -52,10 +53,11 @@ class Access(c.Module):
     def sync_loop_thread(self):
         while True:
             try:
-                self.sync_network()
-                c.sleep(self.config.sync_interval)
+                r = self.sync_network()
             except Exception as e:
-                c.print(c.detailed_error(e))
+                r = c.detailed_error(e)
+            c.print(r)
+            c.sleep(self.config.sync_interval)
 
 
     def sync_network(self, update=False, cache_exceptions=True):
@@ -71,26 +73,18 @@ class Access(c.Module):
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
             state['sync_time'] = c.time()
 
-
         self.state = state
         self.save_state()
-
-        response = {  
-
-                    }
         c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
         response = {'success': True, 'msg': f'synced {self.state_path}', 
                     'until_sync': int(self.config.sync_interval - time_since_sync),
                     'time_since_sync': int(time_since_sync)}
-        c.print(response)
         return response
 
     def verify(self, input:dict) -> dict:
         """
         input : dict 
             address:
-
-        
         """
         fn = input['fn']
         address = input['address']
