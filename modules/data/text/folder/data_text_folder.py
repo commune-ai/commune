@@ -10,7 +10,7 @@ class DataFolder(c.Module):
         return self.random_int(0, len(self.filepaths)-1)
     
     def sample(self, idx=None, 
-               input_chars:int = 500,
+               input_chars:int = 1000,
                output_chars: int = 500,
                start_index: int = None,
                 real_prob:float=0.5):

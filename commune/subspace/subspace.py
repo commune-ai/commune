@@ -1113,7 +1113,7 @@ class Subspace(c.Module):
         assert c.valid_ss58_address(key), f"Invalid key {key}"
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
-    is_reged = is_registered
+    is_reg = is_registered
 
     def get_uid( self, key: str, netuid: int = 0, block: Optional[int] = None, update=False, **kwargs) -> int:
         return self.query( 'Uids', block=block, params=[ netuid, key ] , update=update, **kwargs)  
@@ -2694,8 +2694,8 @@ class Subspace(c.Module):
     def update_module(
         self,
         module: str, # the module you want to change
-        name: str = None, # the name of the new module
         address: str = None, # the address of the new module
+        name: str = None, # the name of the new module
         delegation_fee: float = None, # the delegation fee of the new module
         netuid: int = None, # the netuid of the new module
         network : str = "main", # the network of the new module

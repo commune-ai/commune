@@ -1,56 +1,40 @@
- import commune as c
+import commune as c
 import json
 
 
 
 
 class Agent(c.Module):
-    tools = ['module.cmd']
-
-    description = """
-    Use the tools to solve the problem. 
-    USE MEMORY TO SOLVE THE PROBLEM
-    store it in any way you like in the history,
-    and use it in the next step
-    IF YOU NEED TO USE A TOOL, USE THE TOOL TO SOLVE THE PROBLEM
-    please file in the 
-    WHEN YOU ARE DONE, PLEASE FILE IN THE ANSWER, AND FINISH THE PROMPT
-    PLEASE SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1, 1 BEING THE MOST CONFIDENT
-
+    output_schema = """
+    json '''
+    {
+        "response": "str",
+        "call_tool": {
+            "tool": "str",
+            "kwargs": "dict",
+        }
+    }'''
     """
 
+    description = """to call a tool {tool} with kwargs {kwargs}, use the following format: {tool: 'module.fn', kwargs: {}}"""
 
-    prompt = {
-        'description': description,
-        'prompt': 'This is the prompt',
-        'tools': tools,
-        'history': 'USE MEMORY TO SOLVE THE PROBLEM IN KNOWLEDGE TUPLES (HEAD, RELEATION, PAIR)(dict)',
-        'thoughts': 'WRITE YOUR THOUGHTS HERE IN KNOWLEDGE TUPLES (dict)',
-        'quit': 'INCLUDE THE FINISHED PROMPT HERE (bool)',
-        'answer': 'INCLUDE THE ANSWER HERE',
-        'confidence': 'SCORE YOUR CONFIDENCE IN THE ANSWER FROM 0 TO 1',
-    }
 
     def __init__(self,
                 name='agent',
                 description : str = None, 
-                model : str = 'model.openai',
+                model : str = 'model.openrouter',
                 network : str = 'local',
-                tools:list = tools
+                tools:list = ['module.cmd']
                 ):
         self.name = name
         self.description = description if description != None else self.description
         self.set_model(model, network=network)
         self.set_tools(tools)
 
+    
 
     def set_model(self, model:str = 'model.openai ', network:str = 'local'):
-        self.model_namespace = c.namespace(search=model, netowrk=network)
-        assert len(self.model_namespace) > 0, f"no models found in {model}, please check the model path"
-        self.model_addresses = list(self.model_namespace.values())
-        self.model_names = list(self.model_namespace.keys())
-        self.network = network
-        self.model = c.connect(c.choice(self.model_addresses))
+        self.model = c.module(model)()
         return {"success": True, "message": f"set model to {self.model}"}
     
     
@@ -61,6 +45,15 @@ class Agent(c.Module):
             for t in tools:
                 self.rm_tool(t)
         return self.tools
+    _tools = {}
+    @property
+    def tools(self):
+        return self._tools
+    @tools.setter
+    def tools(self, tools):
+        self._tools = tools
+        return self.tools
+    
     
 
     def resolve_tools(self, tools):
@@ -75,41 +68,35 @@ class Agent(c.Module):
         return tools
     
 
-
-    
-
+    def talk(self, *text:str, **kwargs):
+        text = ' '.join(text)
+        return self.call(text, **kwargs)
     def call(self, 
              text:str,
              model=None, 
              history=None, 
-             tools=tools, 
+             max_tokens:int = 1000,
              n = 1,
              description:str = None) -> str:
         
 
+    
 
         if model != None:
             self.model = c.connect(model)
-        tools = self.resolve_tools(tools)
         history = history or []
         description = self.description if description == None else description
 
         for i in range(n):
             prompt = {
-                'step': i,
-                'max_steps': n, 
-                'description': description,
                 'input': text,
-                'history': history,
-                'tools': tools,
-                'confidence': 0,
-                'call_tool': {'tool': None, 'kwargs': None},
-                'answer': None
+                'tools': self.tools,
+                'description': description,
+
             }
-            output = self.model.generate(json.dumps(prompt), max_tokens=512)
-            if 'data' in output:
-                output = output['data']
-            output = json.loads(output)
+            output = self.model.generate(json.dumps(prompt), max_tokens=max_tokens)
+            output = json.loads(output.replace("'", '"'))
+
             prompt.update(output)
             if 'call_tool' in output:
                 tool = output['call_tool']['tool']
@@ -131,6 +118,8 @@ class Agent(c.Module):
                     
                     output['call_tool']['response'] = response
                     history.append(output['call_tool'])
+        
+        
         return output
     # prompt tooling 
     generate = call 
@@ -143,15 +132,11 @@ class Agent(c.Module):
     def prompt2agent(cls, prompt:str) -> 'Agent':
         cls.find_tools(prompt, topk=5)
 
-
-
-
     
 
 
     def set_tools(self, tools:list):
-        self.tools = {}
-        self.add_tools(tools)
+        self.tools = self.add_tools(tools)
         return self.tools
     
     def add_tools(self, tools:list):
@@ -171,7 +156,10 @@ class Agent(c.Module):
         return {t: self.get_tool(t, fn_seperator=fn_seperator) for t in tools}
     
     def add_tool(self, tool:str):
-        schema = self.schema(tool)
+        if '.' in tool:
+            module, tool = tool.split('.')
+        module = c.module(module)
+        schema = module.schema(tool)['default']
         self.tools[tool] = schema
         return self.tools
     
@@ -206,6 +194,9 @@ class Agent(c.Module):
         return {
             'prompt': prompt,
             'response': response['response'],
-            'success': True,
             }
+    
+    def aistr2json(self, s:str):
+        self.model.call("")
+        
     

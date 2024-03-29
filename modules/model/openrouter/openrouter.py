@@ -9,7 +9,7 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "anthropic/claude-2",
+                model: str = "openai/gpt-4-32k-0314",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
@@ -29,11 +29,9 @@ class OpenRouterModule(c.Module):
 
     def set_model(self, model:str):
         self.model_pool = self.models()
-
         if isinstance(model, str) and \
                         model not in self.model_pool:
             self.model_pool = [ m for m in self.model_pool if model in m['id']]
-            
         assert len(self.model_pool) > 0, f'No models found with {model}'
         if model == None:
             model = c.choice(self.model_pool)
@@ -42,7 +40,7 @@ class OpenRouterModule(c.Module):
         
 
 
-    def forward(self, content: str, text_only:bool = True, model=None, history=None, trials=1, api_key=None ):
+    def forward(self, content: str, text_only:bool = True, model=None, history=None, trials=1, max_tokens=10 ):
 
 
         # trials 
@@ -89,7 +87,6 @@ class OpenRouterModule(c.Module):
         latency = t2 - t1
         response = json.loads(response.text)
 
-        c.print(response)
 
         tokens_per_word = 2
         if 'choices' not in response:
