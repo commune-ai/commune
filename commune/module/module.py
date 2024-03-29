@@ -3094,13 +3094,13 @@ class c:
 
     @classmethod
     def schema(cls,
-                                search = None,
-                                module = None,
-                                fn = None,
-                                code : bool = False,
-                                docs: bool = True,
-                                include_parents:bool = False,
-                                defaults:bool = True, cache=False) -> 'Schema':
+                search = None,
+                module = None,
+                fn = None,
+                code : bool = False,
+                docs: bool = True,
+                include_parents:bool = False,
+                defaults:bool = True, cache=False) -> 'Schema':
         
         # if module is None, then we will use the cls
         if hasattr(cls, str(search)):
