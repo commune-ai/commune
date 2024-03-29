@@ -1401,7 +1401,7 @@ class Keypair(c.Module):
         return {k:v for k,v in duplicate_keys.items() if len(v) > 1}
 
     @classmethod
-    def clean(cls):
+    def clean_all_keys(cls):
         key2adress = c.key2address()
         for k,a in key2adress.items():
             if c.key_exists(a):

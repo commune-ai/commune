@@ -19,24 +19,14 @@ class Serializer(c.Module):
 
 
     
-    def serialize(self,x:dict, mode = 'str'):
-        x = c.copy(x)
-        x_type = type(x)
-        if x_type in [dict, list, set, tuple]:
-            k_list = []
-            if isinstance(x, dict):
-                k_list = list(x.keys())
-            elif isinstance(x, list):
-                k_list = list(range(len(x)))
-            elif type(x) in [tuple, set]: 
-                # convert to list, to format as json
-                x = list(x) 
-                k_list = list(range(len(x)))
-            for k in k_list:
-                x[k] = self.resolve_value(v=x[k])
-        else:
-            x = self.resolve_value(v=x)
-
+    def serialize(self,x:dict, mode = 'str', copy_value = True):
+        if copy_value:
+            x = c.copy(x)
+        x = self.resolve_value(x)
+        x = self.resolve_serialized_output(x, mode=mode)
+        return x
+    
+    def resolve_serialized_output(self, x, mode='str'):
         if mode == 'str':
             if isinstance(x, dict):
                 x = self.dict2str(x)
@@ -45,27 +35,39 @@ class Serializer(c.Module):
                 x = self.dict2bytes(x)
             elif isinstance(x, str):
                 x = self.str2bytes(x)
-        elif mode == 'dict' or mode == None:
+        elif mode == 'dict' or mode == None or mode == 'nothing':
             x = x
         else:
-            raise Exception(f'{mode} not supported') 
-        return x
+            raise Exception(f'{mode} not supported')
+        return x 
 
-    def resolve_value(self, v):
+    def resolve_value(self, x):
+
+        if type(x) in [dict, list, set, tuple]:
+            k_list = []
+            if isinstance(x, dict):
+                k_list = list(x.keys())
+            elif type(x) in [list, set, tuple]:
+                k_list = list(range(len(x)))
+                if type(x) in [set, tuple]:
+                    x = list(x) 
+            for k in k_list:
+                x[k] = self.resolve_value(x[k])
+            return x
         new_value = None
-        v_type = type(v)
+        v_type = type(x)
         if v_type in [dict, list, tuple, set]:
-            new_value = self.serialize(x=v, mode=None)
+            new_value = self.serialize(x, mode=None)
         else:
             # GET THE TYPE OF THE VALUE
-            str_v_type = self.get_type_str(data=v)
+            str_v_type = self.get_type_str(data=x)
             if hasattr(self, f'serialize_{str_v_type}'):
                 # SERIALIZE MODE ON
-                v = getattr(self, f'serialize_{str_v_type}')(data=v)
-                new_value = {'data': v, 'data_type': str_v_type,  'serialized': True}
+                x = getattr(self, f'serialize_{str_v_type}')(data=x)
+                new_value = {'data': x, 'data_type': str_v_type,  'serialized': True}
             else:
                 # SERIALIZE MODE OFF
-                new_value = v
+                new_value = x
 
         return new_value
         
@@ -222,13 +224,10 @@ class Serializer(c.Module):
         data = load(data)
         return data['data']
 
-
-
     def serialize_torch(self, data: torch.Tensor) -> 'DataBlock':     
         from safetensors.torch import save
         output = save({'data':data})  
         return self.bytes2str(output)
-
 
     def serialize_numpy(self, data: 'np.ndarray') -> 'np.ndarray':     
         data =  self.numpy2bytes(data)
@@ -304,12 +303,13 @@ class Serializer(c.Module):
     def test(cls, size=1):
         self = cls()
         stats = {}
-        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1000,500)] , 'bro2': [np.ones((100,1000))]}}
+        data = {'bro': {'fam': torch.randn(size,size), 'bro': [np.ones((2,1))]}}
 
         t = c.time()
         serialized_data = self.serialize(data)
         assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
         deserialized_data = self.deserialize(serialized_data)
+        c.print(deserialized_data, data)
     
         assert deserialized_data['bro']['fam'].shape == data['bro']['fam'].shape
         assert deserialized_data['bro']['bro'][0].shape == data['bro']['bro'][0].shape

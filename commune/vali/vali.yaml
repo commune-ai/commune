@@ -6,7 +6,8 @@ verbose: False
 sync_interval: 100
 sleep_interval: 5
 search: null
-max_age: 500
+max_age: 1000
+grace_period : 100
 vote: True
 fn : null
 
@@ -33,9 +34,9 @@ vote_tag : null
 # workers
 mode: thread
 batch_size: 32 # the batch size for the worker
-workers: 2 # the number of workers
+workers: 1 # the number of workers
 threads_per_worker: 32
-timeout: 2
+timeout: 3
 sleep_time: 0.05
 refresh : True
 start: True

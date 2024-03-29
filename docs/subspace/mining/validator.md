@@ -15,6 +15,12 @@ c serve vali::whadup # defaults to (netuid=0 subnet=commune key=vali::whadup)
 c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
 ```
 
+```python
+c.serve('vali::whadup')
+vali.register('vali::whadup')
+```
+
+
 If you want to register with another key 
    
 ```bash

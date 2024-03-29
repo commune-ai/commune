@@ -66,8 +66,9 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        generator: bool = False,
         headers : dict ={'Content-Type': 'application/json'},
+        debug = True,
+        **extra_kwargs
         ):
         self.resolve_client(ip=ip, port=port)
         args = args if args else []
@@ -82,23 +83,32 @@ class Client(c.Module):
         # serialize this into a json string
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
+        c.print(f"Requesting {fn} from {self.address}", color='green')
+        if debug:
+            c.print(request)
 
-    
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
-                if response.content_type == 'text/event-stream':
+                
+                if response.content_type == 'application/json':
+                    result = await asyncio.wait_for(response.json(), timeout=timeout)
+        
+                elif response.content_type == 'text/plain':
+                    result = await asyncio.wait_for(response.text(), timeout=timeout)
+                
+                elif response.content_type == 'text/event-stream':
                     if self.debug:
                         progress_bar = c.tqdm(desc='MB per Second', position=0)
-
                     result = {}
-                    
                     async for line in response.content:
-                        event_data = line.decode('utf-8')
                         
+                        event_data = line.decode('utf-8')
                         event_bytes  = len(event_data)
+                        
                         if self.debug :
                             progress_bar.update(event_bytes/(BYTES_PER_MB))
+                        
                         # remove the "data: " prefix
                         if event_data.startswith(STREAM_PREFIX):
                             event_data = event_data[len(STREAM_PREFIX):]
@@ -124,18 +134,9 @@ class Client(c.Module):
                         result.startswith('[') and result.endswith(']'):
                         result = ''.join(result)
                         result = json.loads(result)
-
-                elif response.content_type == 'application/json':
-                    # PROCESS JSON EVENTS
-                    result = await asyncio.wait_for(response.json(), timeout=timeout)
-                elif response.content_type == 'text/plain':
-                    # PROCESS TEXT EVENTS
-                    result = await asyncio.wait_for(response.text(), timeout=timeout)
                 else:
                     raise ValueError(f"Invalid response content type: {response.content_type}")
-        if isinstance(result, dict):
-            result = self.serializer.deserialize(result)
-        elif isinstance(result, str):
+        if type(result) in [str, dict]:
             result = self.serializer.deserialize(result)
         if isinstance(result, dict) and 'data' in result:
             result = result['data']

@@ -1,6 +1,8 @@
 import commune as c
 
 class Test(c.Module):
+
+
     @classmethod
     def test(cls):
         self = c.module('subspace.test')
@@ -21,7 +23,7 @@ class Test(c.Module):
         assert isinstance(self.names()[0], str)
         assert isinstance(self.addresses()[0], str)
 
-        assert isinstance(self.global
+        assert isinstance(self.global)
                           _params(), dict)
         assert isinstance(self.params
 

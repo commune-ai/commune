@@ -108,7 +108,9 @@ class Server(c.Module):
         try:
             input['fn'] = fn
             # you can verify the input with the server key class
-            if not self.public:
+            if self.public:
+                pass
+            else:
                 assert self.key.verify(input), f"Data not signed with correct key"
 
 
@@ -117,7 +119,6 @@ class Server(c.Module):
                                  'kwargs': input['kwargs'], 
                                  'timestamp': input['timestamp'], 
                                  'address': input['address']}
-                
             input['data'] = self.serializer.deserialize(input['data'])
             # here we want to verify the data is signed with the correct key
             request_staleness = c.timestamp() - input['data'].get('timestamp', 0)

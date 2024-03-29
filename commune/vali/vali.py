@@ -4,12 +4,12 @@ import commune as c
 class Vali(c.Module):
     last_print = 0
     last_sync_time = 0
-    last_vote_time = 0
     last_sent = 0
     last_success = 0
     errors = 0
     count = 0
     requests = 0
+    stale_requests = 0
     successes = 0
     epochs = 0
     n = 0    
@@ -23,11 +23,10 @@ class Vali(c.Module):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         self.config = c.dict2munch({**Vali.config(), **config})
-        c.print(self.config)
         # start the workers
         self.sync()
+        self.start_time = c.time()
         self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
-
         for i in range(self.config.workers):
             self.start_worker(i)
         c.thread(self.vote_loop)
@@ -37,11 +36,14 @@ class Vali(c.Module):
     def run_info(self):
         info ={
             'vote_staleness': self.vote_staleness,
-            'errors': self.errors,
             'vote_interval': self.config.vote_interval,
-            'epochs': self.epochs,
-            'workers': self.workers(),
-        }
+            'successes': self.successes,
+            'requests': self.requests,
+            'stale_requests': self.stale_requests,
+            'last_sent': c.round(c.time() - self.last_sent, 3),
+            'last_success': c.round(c.time() - self.last_success, 3),
+            'errors': self.errors,
+            }
         return info
     
     def workers(self):
@@ -92,80 +94,69 @@ class Vali(c.Module):
                epochs=1e9,
                id=0):
         for epoch in range(int(epochs)): 
-             c.print(f'Epoch {epoch}', color='cyan')
-             self.epoch(stats_path=f"worker_results/{self.worker_name(id)}")
-
+            c.print(f'Epoch {epoch}', color='cyan')
+            self.epoch()
 
     @classmethod
     def run_epoch(cls, *args, **kwargs):
         self = cls(*args, workers=0, **kwargs)
+        c.print('fam')
         return self.epoch()
+    
+    def age(self):
+        return c.time() - self.start_time
 
-    def epoch(self, stats_path = "worker_stats/base"):
+    def record_result(self, result):
+        """
+        The following records the result of the module evaluation
+        
+        """
+        if result.get('w', 0) == 0:
+            self.errors += 1
+        else:
+            self.successes += 1
+            self.last_success = c.time()
+
+        self.results += [result]
+        return result
+
+
+
+    def epoch(self, batch_size = None):
+        c.print('fam')
+
+        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
+        batch_size = batch_size or self.config.batch_size
+
         module_addresses = c.shuffle(list(self.namespace.values()))
-        futures = []
-        results = []
-        # select a module
-        self.last_sync_time = c.time()
-        for  i, module_address in enumerate(module_addresses):
+        self.futures = []
+        self.results = []
+        timeout = self.config.timeout
+        self.executor = c.module('executor.thread')(max_workers=batch_size)
+
+        for module_address in module_addresses:
             # if the futures are less than the batch, we can submit a new future
-            if len(futures) < self.config.batch_size:
-                self.last_sent = c.time()
-                future = self.executor.submit(self.eval_module, args=[module_address], timeout=self.config.timeout)
-                futures.append(future)
+            if len(self.futures) < batch_size:
+                self.futures.append(self.executor.submit(self.eval_module, args=[module_address], timeout=timeout))
             else:
                 try:
-                    for ready_future in c.as_completed(futures, timeout=self.config.timeout):
-                        result = ready_future.result()
-                        results += [result]
-                        if c.is_error(result):
-                            self.errors += 1
-                        else:
-                            self.successes += 1
-                            self.last_success = c.time()
-                        c.print(result, verbose=self.config.verbose or self.config.debug)
-                        futures.remove(ready_future)
+                    for future in c.as_completed(self.futures,timeout=timeout):
+                        self.process_future(future)
                         break
-
                 except Exception as e:
-                    result = c.detailed_error(e)
-                    # print the error
-                    c.print(result, verbose=self.config.verbose or self.config.debug)
-                    continue
-
-            if c.time() - self.last_print > self.config.print_interval:
-                
-                stats =  {
-                    'successes': self.successes,
-                    'sent': self.requests,
-                    'errors': self.errors,
-                    'network': self.network,
-                    'vote_staleness': self.vote_staleness,
-                    'last_success': c.round(c.time() - self.last_success,2),
-                    'last_sent': c.round(c.time() - self.last_sent,2),
-                        }
-                if stats_path:
-                    self.put(stats_path, stats)
-                c.print(stats)
-                
-                self.last_print = c.time()
-
+                    c.print(c.detailed_error(e))
 
         # wait for the remaining futures to complete
-        if len(futures) > 0:
-            c.print(f'Waiting for {len(futures)} futures to complete before finishing epoch', color='cyan')
-            for future in c.as_completed(futures, timeout=self.config.timeout):
-                result = future.result()
-                results += [result]
-                if c.is_error(result):
-                    self.errors += 1
-                else:
-                    self.successes += 1
-                    self.last_success = c.time()
-                c.print(result, verbose=self.config.verbose or self.config.debug)
-        return results
+        if len(self.futures) > 0:
+            try:
+                for future in c.as_completed(self.futures,timeout=timeout):
+                    self.process_future(future)
+            except Exception as e:
+                c.print(c.detailed_error(e))
+
+        return self.results
         
-            
+
 
     def clone_stats(self):
         workers = self.workers()
@@ -173,93 +164,123 @@ class Vali(c.Module):
         for w in workers:
             stats[w] = self.get(f'clone_stats/{w}', default={})
         return stats
+    
+    @property
+    def time_since_sync(self):
+        return c.time() - self.last_sync_time
 
-    def set_network(self, 
+    def is_voting_network(self):
+        return 'subspace' in self.config.network or 'bittensor' in self.config.network
+         
+
+    def sync(self, 
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
                      subnet: str = None,
                      fn : str = None,
-                     update: bool = False):
-        if c.time() - self.last_sync_time < self.config.sync_interval:
-            return {'msg': 'Synced network', 'timestamp': self.last_sync_time}
+                     max_age: int = 1000, **kwargs):
+        if self.config.sync_interval > self.time_since_sync:
+            return {'msg': 'Alredy Synced network Within Interval', 
+                    'last_sync_time': self.last_sync_time,
+                    'time_since_sync': self.time_since_sync, 
+                    'sync_interval': self.config.sync_interval,
+                    }
         # name2address / namespace
-        network = self.network = network or self.config.network
-        search = self.search = search or self.config.search
-        subnet = self.subnet = netuid = self.netuid = netuid or subnet or self.config.netuid
-        fn = fn or self.config.fn        
-        if 'subspace' in self.network:
-            self.subspace = c.module('subspace')(network=network, netuid=netuid, update=update)
+        network = self.network = self.config.network = network or self.config.network
+        search = self.search =  self.config.search = search or self.config.search
+        subnet = self.subnet = self.config.netuid =  netuid = self.netuid = netuid or subnet or self.config.netuid
+        fn = self.fn = self.config.fn  = fn or self.config.fn        
+        max_age = self.max_age = self.config.max_age = max_age or self.config.max_age
+
+        if 'subspace' in self.network :
+            # subspace network
+            self.subspace = c.module('subspace')(network=network, netuid=netuid)
+        if 'bittensor' in self.network:
+            # bittensor network
+            self.subtensor = c.module('bittensor')(network=network, netuid=netuid)
+
+
         self.namespace = c.module('namespace').namespace(search=search, 
                                     network=network, 
                                     netuid=netuid, 
-                                    update=update)
+                                    max_age=max_age)
     
         self.n  = len(self.namespace)    
+        self.name2address = self.namespace
         self.address2name = {v: k for k, v in self.namespace.items()}    
-        
         self.last_sync_time = c.time()
 
-        
         r = {
                 'search': search,
                 'network': network, 
                 'netuid': netuid, 
                 'n': self.n, 
                 }
+        c.print(r)
         return r
     
-    @property
-    def network_info(self):
-        return {
-                'search': self.search,
-                'network': self.network, 
-                'netuid': self.netuid, 
-                'n': self.n, 
-                }
-    def sync(self, *args, **kwargs):
-        return self.set_network(*args, **kwargs)
-        
     def score_module(self, module: 'c.Module'):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
 
-        return {'success': True, 'w': 1}
+        return {'w': 1}
 
-    def check_response(self, response:dict):
-        """
-        The following processes the response from the module
-        """
-        if type(response) in [int, float]:
-            response = {'w': response}
-        elif type(response) == bool:
-            response = {'w': int(response)}
-        else:
-            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
-            assert 'w' in response, f'Response must have a w key, got {response.keys()}'
-
-        return response
-    
         
     def get_module_info(self, module):
 
         # if the module is in the namespace, we can just return the module info
-        module_address = None
-        if module in self.namespace:
+        if module in self.name2address:
             module_name = module
-            module_address = self.namespace[module]
-        elif module in self.address2name:
-            module_name = self.address2name[module]
-            module_address = module
+            module_address = self.name2address[module]
         else:
-            module_name = module
+            module_name = self.address2name.get(module, module)
+            module_address = module
 
         info = self.load_module_info( module_name, {})
-        info['address'] = module_address
-        info['name'] = module_name
-        info['schema'] = info.get('schema', None)
+        if len(info) == 0:
+            info = c.connect(module_address).info(timeout=self.config.timeout)
+            info['timestamp'] = 0
 
+        assert 'address' in info and 'name' in info
         return info
     
+    def process_future(self, future):
+        """
+        The following processes the response
+        """
+        # check the response
+        self.futures.remove(future)
+        result = future.result()
+        if result.get('w', 0) == 0:
+            self.errors += 1
+        else:
+            self.successes += 1
+            self.last_success = c.time()
+
+        self.results += [result]
+        return result
+
+    
+    def process_response(self, response):
+        if type(response) in [int, float]:
+            # if the response is a number, we want to convert it to a dict
+            response = {'w': response}
+        elif type(response) == bool:
+            # if the response is a boolean, we want to convert it to a dict
+            response = {'w': int(response)}
+        elif type(response) == dict:
+            pass
+        else:
+            raise Exception(f'Response must be a number or a boolean, got {response}')
+        
+        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
+
+
+        return response
+    @property
+    def verbose(self):
+        return self.config.verbose or self.config.debug
+
 
     def eval_module(self, module:str):
         """
@@ -270,37 +291,41 @@ class Vali(c.Module):
         
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
-
-        info = self.get_module_info(module)
-        module = c.connect(info['address'], key=self.key)
         self.requests += 1
+        start_time = c.time()
+        info = self.get_module_info(module)
         seconds_since_called = c.time() - info.get('timestamp', 0)
         if seconds_since_called < self.config.max_age:
+            self.stale_requests += 1
             return {'w': info.get('w', 0),
                     'module': info['name'],
                     'address': info['address'],
                         'timestamp': c.time(), 
                         'msg': f'Module is not stale, {int(seconds_since_called)} < {self.config.max_age}'}
-        else:
-            module_info = module.info(timeout=self.config.timeout)
-            assert 'address' in info and 'name' in info
-            # we want to make sure that the module info has a timestamp
-            info.update(module_info)
-            info['timestamp'] = c.time()
+
 
         try:
-            # we want to make sure that the module info has a timestamp
+            module = c.connect(info['address'], key=self.key)
             response = self.score_module(module)
-            response = self.check_response(response)
-            info.update(response)            
+            response = self.process_response(response)
+            c.print(response, verbose=self.verbose)
         except Exception as e:
-            e = c.detailed_error(e)
-            response = { 'w': 0,'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}'}  
+            # give it 0
+            response = { 'w': 0,
+                        'msg': f'{c.emoji("cross")} {info["name"]} {c.emoji("cross")}', 
+                        'error': c.detailed_error(e)} 
         
-        info['latency'] = c.time() - info['timestamp']
-        info['w'] = response['w']  * self.config.alpha + info['w'] * (1 - self.config.alpha)
+        info.update(response)
+        if info['w'] == 0:
+            return info
+        
+        info['timestamp'] = start_time
+        info['latency'] = c.time() - start_time
+        info['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
+        info.update(response)            
         path = f'{self.storage_path()}/{info["name"]}'
         self.put_json(path, info)
+
         return {'w': info['w'], 'module': info['name'], 'address': info['address'], 'latency': info['latency']}
         
 
@@ -319,7 +344,7 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return tag or self.config.vote_tag or self.tag
     
-    def vote_stats(self, votes = None):
+    def vote_info(self, votes = None):
         votes = votes or self.votes()
         info = {
             'num_uids': len(votes['uids']),
@@ -365,10 +390,7 @@ class Vali(c.Module):
 
 
 
-    def vote(self, async_vote:bool=False, 
-             save:bool = True,
-             force = False,
-               **kwargs):
+    def vote(self, async_vote:bool=False, save:bool = True,**kwargs):
     
         if self.vote_staleness < self.config.vote_interval:
             return {'success': False, 'msg': 'Vote is too new', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
@@ -376,7 +398,8 @@ class Vali(c.Module):
             return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
 
         if async_vote:
-            return c.submit(self.vote, **kwargs)
+            future = c.submit(self.vote, **kwargs)
+            return future
 
         votes =self.votes() 
 
@@ -384,20 +407,19 @@ class Vali(c.Module):
             return {'success': False, 'msg': 'The votes are too low', 'votes': len(votes['uids']), 'min_num_weights': self.config.min_num_weights}
 
         r = c.vote(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
-                        weights=votes['weights'], 
-                        key=self.key, 
-                        network=self.config.network, 
-                        netuid=self.config.netuid)
+                    weights=votes['weights'], 
+                    key=self.key, 
+                    network=self.config.network, 
+                    netuid=self.config.netuid
+                    )
         
         if save:
             self.save_votes(votes)
 
-        self.last_vote_time = c.time()
         
         return {'success': True, 
                 'message': 'Voted', 
                 'num_uids': len(votes['uids']),
-                'timestamp': self.last_vote_time,
                 'avg_weight': c.mean(votes['weights']),
                 'stdev_weight': c.stdev(votes['weights']),
                 'saved': save,
@@ -417,6 +439,19 @@ class Vali(c.Module):
         paths = self.ls(self.storage_path())
         paths = list(filter(lambda x: x.endswith('.json'), paths))
         return paths
+    
+
+    @property
+    def network_info(self):
+        return {
+            'network': self.config.network,
+            'subnet': self.config.netuid,
+            'fn': self.config.fn,
+            'search': self.config.search,
+            'max_age': self.config.max_age,
+            'time_since_sync': c.time() - self.last_sync_time,
+            'n': self.n,
+        }
     
 
     @property
@@ -518,18 +553,21 @@ class Vali(c.Module):
 
     @property
     def vote_staleness(self):
-        if 'subspace' in self.config.network:
-            return self.subspace.block - self.module_info['last_update']
+        try:
+            if 'subspace' in self.config.network:
+                return self.subspace.block - self.module_info['last_update']
+        except Exception as e:
+            pass
         return 0
     
     
     def vote_loop(self):
 
         while True:
+            c.print(self.run_info())
             c.sleep(self.config.sleep_interval)
             try:
                 r = self.vote()
-                r['run_info'] = self.run_info()
             except Exception as e:
                 r = c.detailed_error(e)
             

@@ -9,3 +9,5 @@ class Demo(c.Module):
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
     
+    
+    

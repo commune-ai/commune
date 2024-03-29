@@ -1669,7 +1669,6 @@ class c:
                 color='green', 
                 verbose=verbose)
         
-
         return module_tree
     
     tree_folders_path = 'module_tree_folders'
@@ -1685,13 +1684,20 @@ class c:
                 new_d[k] = v
         
         return new_d
+    
+    @classmethod
+    def default_trees(cls):
+        return [c.libpath + '/commune' ,
+                 c.libpath + '/modules',
+                  c.libpath + '/my_modules'
+                   ]
             
     @classmethod
     def trees(cls):
         path = cls.tree_folders_path
         trees =   c.get(path, [])
         if c.libpath not in trees:
-            trees += [c.libpath + '/commune' , c.libpath + '/modules']
+            trees = cls.default_trees()
         return trees
     
 
@@ -1713,7 +1719,6 @@ class c:
                 code_lines[i] = line.replace(class_name, name)
                 break
         code = '\n'.join(code_lines)
-            
 
         module_path = repo_path + '/module.py'
 
@@ -7115,6 +7120,15 @@ class c:
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
 
+    
+    @classmethod
+    def staked(cls, *args, **kwargs):
+        return c.module('subspace')().staked(*args, **kwargs)
+
+    @classmethod
+    def transfer_stake(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_stake(*args, **kwargs)
+
     send = transfer
 
     @classmethod
@@ -7627,6 +7641,11 @@ class c:
     @classmethod
     def install_python(cls, sudo=True) :
         c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
+
+    def cancel(self, futures):
+        for f in futures:
+            f.cancel()
+        return {'success': True, 'msg': 'cancelled futures'}
        
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
@@ -8231,8 +8250,11 @@ class c:
     @classmethod
     def imported_modules(self, module:str = None):
         return c.module('code').imported_modules(module=module)
+
     
 Module = c
 Module.run(__name__)
     
+
+
 

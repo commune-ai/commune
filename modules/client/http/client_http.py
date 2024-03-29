@@ -91,7 +91,6 @@ class Client(c.Module):
         # serialize this into a json string
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
-
         
         
         # start a client session and send the request

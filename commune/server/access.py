@@ -5,11 +5,11 @@ from typing import *
 class Access(c.Module):
 
     sync_time = 0
-    timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
+    timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'minute': 60, 'second': 1}
 
     def __init__(self, 
                 module : Union[c.Module, str] = None, # the module or any python object
-                chain: str =  'main', # mainnet
+                network: str =  'main', # mainnet
                 netuid: int = 0, # subnet id
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100.0,  # 1 call per every N tokens staked per timescale
@@ -69,7 +69,7 @@ class Access(c.Module):
         time_since_sync = c.time() - state.get('sync_time', 0)
 
         if time_since_sync > self.config.sync_interval or update:
-            self.subspace = c.module('subspace')(network=self.config.chain)
+            self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
             state['sync_time'] = c.time()
 
