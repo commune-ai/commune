@@ -3363,6 +3363,7 @@ class c:
                  name = None,
                  stake : int = None,
                  subnet:str = 'commune',
+                 netuid = None,
                  refresh:bool =False,
                  address = None,
                  wait_for_server:bool = False,
@@ -3387,6 +3388,7 @@ class c:
                                       subnet=subnet, 
                                       key=key, 
                                       stake=stake, 
+                                      netuid = netuid,
                                       module_key= module_key or c.get_key_address(name))
         return response
 

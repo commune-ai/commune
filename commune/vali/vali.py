@@ -249,7 +249,8 @@ class Vali(c.Module):
         The following processes the response
         """
         # check the response
-        self.futures.remove(future)
+        if future in self.futures:
+            self.futures.remove(future)
         result = future.result()
         if result.get('w', 0) == 0:
             self.errors += 1

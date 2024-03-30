@@ -731,30 +731,21 @@ class Subspace(c.Module):
             value += sum(stake_to.values())
         return value    
 
-    
 
-    def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
-        stake_from = self.get_stake_from(key=key, block=block, netuid=netuid, fmt=fmt)
-        key2module = self.key2module(netuid=netuid)
-        return {key2module[k]['name'] : v for k,v in stake_from}
-    
 
     def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        state_from =  [(k, self.format_amount(v, fmt=fmt)) for k, v in self.query( 'StakeFrom', block=block, params=[netuid, key], update=update )]
+        stake_from = self.query( 'StakeFrom', params=[netuid, key], block=block,  update=update )
+        state_from =  [(k, self.format_amount(v, fmt=fmt)) for k, v in stake_from ]
  
-        if from_key is not None:
+        if from_key != None:
             from_key = self.resolve_key_ss58( from_key )
             state_from ={ k:v for k, v in state_from}.get(from_key, 0)
 
         return state_from
     
-    
-    def get_total_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
-        stake_from = self.get_stake_from(key=key, from_key=from_key, block=block, netuid=netuid, fmt=fmt, update=update)
-        return sum([v for k,v in stake_from])
-    
+
     get_stakefrom = get_stake_from 
 
 
@@ -1162,11 +1153,12 @@ class Subspace(c.Module):
                          timeout = 2,
                          update = False,
                          block : Optional[int] = None,
-                         fmt = 'nanos'
+                         fmt = 'nanos',
+                         max_age = 1000
                           ) -> Optional[float]:
         
         path = f'cache/{network}.global_params.json'
-        global_params = None if update else self.get(path, None)
+        global_params = None if update else self.get(path, None, max_age=max_age)
 
         if global_params == None:
             self.resolve_network(network)
@@ -1200,7 +1192,7 @@ class Subspace(c.Module):
                 global_params[k] = v.value
             
             self.put(path, global_params)
-        for k in ['min_stake', 'min_burn', 'unit_emission']:
+        for k in ['min_stake', 'min_burn', 'unit_emission', 'min_weight_stake']:
             global_params[k] = self.format_amount(global_params[k], fmt=fmt)
         return global_params
 
@@ -1299,10 +1291,8 @@ class Subspace(c.Module):
 
     def subnet2netuid(self, subnet=None, network=network, update=False,  **kwargs ) -> Dict[str, str]:
         subnet2netuid =  {v:k for k,v in self.netuid2subnet(network=network, update=update, **kwargs).items()}
-        
         if subnet != None:
             return subnet2netuid[subnet] if subnet in subnet2netuid else len(subnet2netuid)
-
         return subnet2netuid
     
     def netuid2subnet(self, netuid=None, network=network, update=False, block=None, **kwargs ) -> Dict[str, str]:
@@ -1511,8 +1501,8 @@ class Subspace(c.Module):
                           timeout=20,
                          netuid=0, 
                          fmt='j',
-                         include_uids = False,
                          update = False,
+                         batch_size = 64,
                            **kwargs) -> List['ModuleInfo']:
         netuid = self.resolve_netuid(netuid)
         
@@ -1523,41 +1513,37 @@ class Subspace(c.Module):
                 futures.append(future)
             results = c.wait(futures, timeout=timeout)
             return results
-        
+
+        if keys == None:
+            keys = self.keys(update=update, netuid=netuid)
+            
         if len(keys) == 0:
             return []
-        if keys == None:
-            keys = self.my_keys(update=update, netuid=netuid)
         key2module = {}
         futures = []
         key2future = {}
         progress_bar = c.tqdm(total=len(keys), desc=f'Querying {len(keys)} keys for modules')
-        c.print(len(key2module))
         future_keys = [k for k in keys if k not in key2module and k not in key2future]
-        for key in future_keys:
-            key2future[key] = c.submit(self.get_module, dict(module=key, netuid=netuid, network=network, fmt=fmt, **kwargs))
-        future2key = {v:k for k,v in key2future.items()}
-        futures = list(key2future.values())
+        batch_size = min(batch_size, len(future_keys))
+        
+        chunks = [future_keys[i:i + batch_size] for i in range(0, len(future_keys), batch_size)]
         results = []
+        for chunk in chunks:
+            for key in chunk:
+                key2future[key] = c.submit(self.get_module, dict(module=key, netuid=netuid, network=network, fmt=fmt, **kwargs))
+            future2key = {v:k for k,v in key2future.items()}
+            futures = list(key2future.values())
 
+            for future in  c.as_completed(futures, timeout=timeout):
+                module = future.result()
+                key = future2key[future]
+                if isinstance(module, dict) and 'name' in module:
+                    results.append(module)
+                    progress_bar.update(1)
 
-        if include_uids:
-            name2uid = self.key2uid(netuid=netuid)
-
-        for future in  c.as_completed(futures, timeout=timeout):
-            progress_bar.update(1)
-            module = future.result()
-            key = future2key[future]
-            if isinstance(module, dict) and 'name' in module:
-                results.append(module)
-            else:
-                c.print(module)
-                c.print(f'Error querying module for key {key}')
-
-        if include_uids:
-            for module in results:
-                module['uid'] = name2uid[module['key']]
-
+                else:
+                    c.print(module)
+                    c.print(f'Error querying module for key {key}')
         return results
     
     def my_modules(self, netuid=0, generator=False,  **kwargs):
@@ -1856,7 +1842,9 @@ class Subspace(c.Module):
     
 
     def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, **kwargs):
-        key2uid =  {v:k for k,v in self.uid2key(network=network, netuid=netuid, update=update, **kwargs).items()}
+        key2uid =  self.uid2key(network=network, netuid=netuid, update=update, **kwargs).items()
+        if key == 'all':
+            return key2uid
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
             return key2uid[key_ss58]
@@ -2558,6 +2546,7 @@ class Subspace(c.Module):
         address : str = 'NA',
         stake : float = 0,
         subnet: str = 'commune',
+        netuid = None,
         key : str  = None,
         module_key : str = None,
         network: str = network,
@@ -2565,22 +2554,23 @@ class Subspace(c.Module):
         wait_for_finalization: bool = True,
         nonce=None,
         fmt = 'nano',
+        max_age = 1000,
     **kwargs
     ) -> bool:
-        
+
         network =self.resolve_network(network)
         key = self.resolve_key(key)
         address = address or c.namespace(network='local').get(name, '0.0.0.0:8888')
         module_key = module_key or c.get_key(name).ss58_address
-
-        # Validate address.
+        netuid2subnet = self.netuid2subnet(max_age=max_age)
+        subnet2netuid = {v:k for k,v in netuid2subnet.items()}
+        
         if stake == None :
-            netuid = self.subnet2netuid(subnet)
+            if isinstance(subnet, str):
+                netuid = subnet2netuid[subnet]
             min_stake = self.min_register_stake(netuid=netuid, network=network)
             stake = min_stake + 1
-            
-
-        stake = self.to_nanos(stake)
+        stake = stake * 1e9
 
         params = { 
                     'network': subnet.encode('utf-8'),
@@ -3286,8 +3276,13 @@ class Subspace(c.Module):
 
     def my_key2uid(self, *args, network=None, netuid=0, update=False, **kwargs):
         key2uid = self.key2uid(*args, network=network, netuid=netuid, **kwargs)
+
         key2address = c.key2address(update=update )
         key_addresses = list(key2address.values())
+        if netuid == 'all':
+            for netuid, netuid_keys in key2uid.items():
+                key2uid[netuid] = {k: v for k,v in netuid_keys.items() if k in key_addresses}
+
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
     
@@ -3311,7 +3306,10 @@ class Subspace(c.Module):
                 m['stake_from'] = {k: int(v) for k,v in  m['stake_from']}.get(key.ss58_address, 0)
                 m['stake'] = c.round(m['stake'], 4)
             keys = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee']
+            if len(modules) == 0: 
+                return modules
             modules = c.df(modules)[keys]
+
             modules = modules.sort_values('stake_from', ascending=False)
             del modules['key']
         return modules
@@ -3876,7 +3874,6 @@ class Subspace(c.Module):
 
     def test_subnet_storage(self):
 
-
         all_subnet_params = self.subnet_params(netuid='all')
         for subnet_params in all_subnet_params: 
             assert isinstance(subnet_params, dict)
@@ -3885,7 +3882,8 @@ class Subspace(c.Module):
         return {'success': True, 'msg': 'All subnet params are dictionaries', 'n': len(all_subnet_params)}
     
     def test_module_storage(self):
-        modules = self.modules(netuid='all')
+        modules = self.get_modules(netuid=0)
+        return modules 
 
 
 
