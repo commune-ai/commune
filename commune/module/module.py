@@ -3848,7 +3848,7 @@ class c:
             ip = c.get('ip', None)
             if ip != None:
                 return ip
-        
+    
         ip =  cls.external_ip(**kwargs)
         if ip == None:
             ip = '0.0.0.0'

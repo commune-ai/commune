@@ -94,8 +94,11 @@ class Vali(c.Module):
                epochs=1e9,
                id=0):
         for epoch in range(int(epochs)): 
-            c.print(f'Epoch {epoch}', color='cyan')
-            self.epoch()
+            try:
+                self.epoch()
+            except Exception as e:
+                c.print(c.detailed_error(e))
+
 
     @classmethod
     def run_epoch(cls, *args, **kwargs):
@@ -292,6 +295,7 @@ class Vali(c.Module):
         
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
+        self.last_sent = c.time()
         self.requests += 1
         start_time = c.time()
         info = self.get_module_info(module)
