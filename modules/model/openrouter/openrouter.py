@@ -9,7 +9,7 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "openai/gpt-4-32k-0314",
+                model: str = "",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
@@ -28,51 +28,26 @@ class OpenRouterModule(c.Module):
         self.max_history = max_history
 
     def set_model(self, model:str):
-        self.model_pool = self.models()
-        if isinstance(model, str) and \
-                        model not in self.model_pool:
-            self.model_pool = [ m for m in self.model_pool if model in m['id']]
-        assert len(self.model_pool) > 0, f'No models found with {model}'
-        if model == None:
-            model = c.choice(self.model_pool)
-
+        self.model = model
         return {"status": "success", "model": model, "models": self.models}
         
 
 
-    def forward(self, content: str, text_only:bool = True, model=None, history=None, trials=1, max_tokens=10 ):
+    def forward(self, content: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
 
 
-        # trials 
-        while trials > 1:
-            try:
-                response = self.generate(content=content, text_only=text_only, history=history, trials=1)
-            except Exception as e:
-                e = c.detailed_error(e)
-                trials -= 1
-                c.print('{t} trials Left')
-                c.print(e)
-                continue
-            
-            return response
-
-        assert trials > 0
-
-            
-                
-
-        model = model or c.choice(self.model_pool)['id']
+        model = model or self.model
         history = history or []
 
         c.print(f"Generating response with {model}...", color='yellow')
 
         data = {
                 "model": model, 
-                "messages": history + [{"role": self.role, "content": content} ]
+                "messages": history + [{"role": self.role, "content": content} ],
+                'max_tokens': max_tokens,
+                **kwargs
             }
-        
 
-        t1 = c.time()
         response = requests.post(
             url=self.url,
             headers={
@@ -83,30 +58,11 @@ class OpenRouterModule(c.Module):
 
             data=json.dumps(data)
             )
-        t2 = c.time()
-        latency = t2 - t1
         response = json.loads(response.text)
 
-
-        tokens_per_word = 2
         if 'choices' not in response:
             return response
         output_text = response["choices"][0]["message"]["content"]
-        output_tokens = output_text * tokens_per_word
-
-    
-        path = f'state/{model}'
-        state = self.get(path, {})
-
-        state = {
-            'latency': latency,
-            'output_tokens': state.get('output_tokens', 0) + self.num_tokens(output_tokens),
-            'timestamp': t2,
-            'count': state.get('count', 0) + 1,
-            'data': [state.get('data', []) + [data]][:self.max_history],
-        }
-
-        self.put(path, state)
 
         if text_only:
             return output_text
@@ -128,7 +84,7 @@ class OpenRouterModule(c.Module):
     def test(self, text = 'Hello', model=None):
         t1 = c.time()
         if model == None:
-            model = c.choice(self.model_pool)['id']
+            model = self.model
         response = self.prompt(text, model=model, text_only=True)
         if isinstance(response, dict) and 'error' in response:
             return response
@@ -153,17 +109,11 @@ class OpenRouterModule(c.Module):
     
     
     @classmethod
-    def models(cls, search:str = None, update=False, path='model'):
-        if not update:
-            models =  cls.get(path, [])
-        if len(models) == 0:
-
-            c.print('Updating models...', color='yellow')
-            url = 'https://openrouter.ai/api/v1/models'
-            response = requests.get(url)
-            models = json.loads(response.text)['data']   
-
-            cls.put(path, models)
+    def models(cls, search:str = None):
+        c.print('Updating models...', color='yellow')
+        url = 'https://openrouter.ai/api/v1/models'
+        response = requests.get(url)
+        models = json.loads(response.text)['data']  
 
         if search != None:
             models =  [m for m in models if search in m['id']]

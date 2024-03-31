@@ -1559,34 +1559,28 @@ class c:
 
     module_cache = {}
     @classmethod
-    def get_module(cls, path:str, cache=True, timeit=True, catch_exception=False, verbose=False) -> str:
+    def get_module(cls, 
+                   path:str = 'module', 
+                   cache=True, 
+                   verbose=False) -> str:
         t1 = c.time()
-        if catch_exception: 
-            try:
-                return cls.get_module(path, cache=cache, timeit=timeit, catch_exception=False)
-            except Exception as e:
-                # sometimes you need to update the module tree
-                cls.tree(update=True)
         path = path or 'module'
-       
         if not isinstance(path, str):
             return path
         if cache:
             if path in c.module_cache:
                 return c.module_cache[path]
         t1 = c.time()
-        # convert the simple to path
-        path = c.simple2path(path)
+        if path == 'tree':
+            module = c.import_object('commune.tree.Tree')
+        else:
+            # convert the simple to path
+            path = c.simple2path(path)
+            path = c.path2objectpath(path, search=None)
+            module = c.import_object(path)
         t2 = c.time()
-        c.print(f'Converted {path} to {t2-t1} seconds', color='green', verbose=verbose)
-
-        # convert the path to object path
-        path = c.path2objectpath(path, search=None)
-        
-        module = c.import_object(path)
-        t2 = c.time()
-        c.print(f'Imported {path} in {t2-t1} seconds', color='green', verbose=verbose)
         c.module_cache[path] = module
+        c.print(f'Imported {path} in {t2-t1} seconds', color='green', verbose=verbose)
         return module
 
     @classmethod
@@ -1625,55 +1619,6 @@ class c:
 
         return {'time': t2 - t1}
 
-    @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
-                verbose:bool = False,
-                path = 'local_module_tree'
-                ) -> List[str]:
-        module_tree = {}
-
-        t1 = c.time()
-
-        if not hasattr(cls, 'tree_cache'):
-            cls.tree_cache = {}
-
-        if not update:
-            if cls.tree_cache != {}:
-                module_tree = cls.tree_cache
-            else:
-                module_tree =  c.get(path, {})
-                cls.tree_cache = module_tree
-        
-        if len(module_tree) == 0:
-            for tree_path in cls.trees():
-                # get modules from each tree
-                python_paths = c.get_module_python_paths(path=tree_path)
-                # add the modules to the module tree
-                new_tree = {c.path2simple(f): f for f in python_paths}
-                for k,v in new_tree.items():
-                    if k not in module_tree:
-                        module_tree[k] = v
-                # to use functions like c. we need to replace it with module lol
-                if cls.root_module_class in module_tree:
-                    module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
-                
-                c.put(path, module_tree)
-
-        # cache the module tree
-        if search != None:
-            module_tree = {k:v for k,v in module_tree.items() if search in k}
-
-        latency = c.time() - t1
-        c.print(f'Loaded module tree in {latency} seconds', 
-                color='green', 
-                verbose=verbose)
-        
-        return module_tree
-    
-    tree_folders_path = 'module_tree_folders'
-
-
 
     def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
         search = search.split(',')
@@ -1685,21 +1630,45 @@ class c:
         
         return new_d
     
+
+
+    @classmethod
+    def tree(cls, search=None, 
+                update:bool = False,
+                verbose:bool = False,
+                path = 'local_module_tree'
+                ) -> List[str]:
+        return c.module('tree').tree(search=search, 
+                                     update=update, verbose=verbose, path=path) 
+
+    @classmethod
+    def name2tree(cls, name=None) -> List[str]:
+        return c.module('tree').name2tree(name=name)
+
     @classmethod
     def default_trees(cls):
-        return [c.libpath + '/commune' ,
-                 c.libpath + '/modules',
-                  c.libpath + '/my_modules'
-                   ]
-            
+        return c.m('tree').default_trees()
+    @classmethod
+    def tree(cls, search=None, 
+                update:bool = False,
+                verbose:bool = False,
+                path = 'local_module_tree', **kwargs):
+        return c.m('tree').tree(search=search, 
+                                update = update,
+                                verbose = verbose,
+                                path = path, **kwargs)
+    
     @classmethod
     def trees(cls):
-        path = cls.tree_folders_path
-        trees =   c.get(path, [])
-        if c.libpath not in trees:
-            trees = cls.default_trees()
-        return trees
+        return c.m('tree').trees()
     
+    @classmethod
+    def add_tree(cls, path:str, **kwargs):
+        return c.m('tree').add_tree(path, **kwargs)
+    
+    @classmethod
+    def rm_tree(cls, path:str, **kwargs):
+        return c.m('tree').rm_tree(path, **kwargs)
 
     def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
         if not repo_path.startswith('/') and not repo_path.startswith('.') and not repo_path.startswith('~'):
@@ -1727,28 +1696,7 @@ class c:
 
         # build the tree
         c.build_tree(update=True)
-        
-    @classmethod
-    def add_tree(cls, tree_path:str, **kwargs):
 
-        tree_path = os.path.expanduser(tree_path)
-        path = cls.tree_folders_path
-        tree_folder = c.get(path, [])
-
-        tree_folder += [tree_path]
-        tree_folder = list(set(tree_folder))
-        assert os.path.isdir(tree_path)
-        assert isinstance(tree_folder, list)
-        c.put(path, tree_folder, **kwargs)
-        return {'module_tree_folders': tree_folder}
-    
-    @classmethod
-    def rm_tree(cls, tree_path:str, **kwargs):
-        path = cls.tree_folders_path
-        tree_folder = c.get(tree_path, [])
-        tree_folder = [f for f in tree_folder if f != tree_path ]
-        c.put(path, tree_folder)
-        return {'module_tree_folders': tree_folder}
 
     @classmethod
     def simple2path(cls, path:str, **kwargs) -> str:
@@ -5483,6 +5431,7 @@ class c:
                    repo : str = None,
                    base : str = 'base',
                    code : str = None,
+                   tree : bool = 'modules',
                    include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
@@ -5494,19 +5443,22 @@ class c:
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
         module = module.replace('.','/')
-        if c.has_module(module) and overwrite==False:
-            return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
-        
-
         class_name = module[0].upper() + module[1:] # capitalize first letter
         class_name = ''.join([m.capitalize() for m in module.split('_')])
 
 
         # add it to the root
-        module_path = os.path.join(c.modules_path, module)
+        name2tree = cls.name2tree()
+        modules_path = name2tree[tree]
+        module_path = os.path.join(modules_path, module)
         
-        if overwrite and c.module_exists(module_path): 
-            c.rm(module_path)
+        if c.module_exists(module_path): 
+            if overwrite:
+                c.rm(module_path)
+            else:
+                return {'success': False,
+                        'path': module_path,
+                         'msg': f' module {module} already exists, set overwrite=True to overwrite'}
 
         
         if repo != None:
@@ -6250,39 +6202,7 @@ class c:
 
         return wrapper
     
-    
-    @staticmethod
-    def encode_topk( forward_response_tensor: 'torch.Tensor' , topk:int=4096) -> 'torch.Tensor':
-        import torch
-        """ Returns topk tokens/probabilities given unnormalized logits as input. """
 
-        #import ipdb; ipdb.set_trace()
-
-        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
-        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
-
-        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
-        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
-
-        topk_values = probs.gather( index=topk_indices, dim=-1)
-        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
-        return encoded_probs  # [batch_size, sequence_len, topk + topk]
-
-    # @staticmethod
-    # def private_key_to_mnemonic(private_key):
-    #     # Convert the public key to a hex string
-    #     public_key_hex = substrate.keccak_256(private_key).hex()
-
-    #     # Convert the public key hex to a mnemonic
-    #     mnemonic = bip39.mnemonic_from_entropy(public_key_hex)
-
-    #     return mnemonic
-    
-    @classmethod
-    def docker_ps(cls, sudo=True):
-        return cls.cmd('docker ps', sudo=True)
-    dps = docker_ps
-    
     '''
     SSH LAND
     '''

@@ -13,7 +13,7 @@ Examples fdef
 
 
 """
-class Model( nn.Module, c.Module):
+class Model(nn.Module, c.Module):
 
     def __init__(self,
                  config = None,
@@ -517,4 +517,19 @@ class Model( nn.Module, c.Module):
                 total_params += param.numel()
                 
         return total_params
+    
+
+    @staticmethod
+    def encode_topk( forward_response_tensor: 'torch.Tensor' , topk:int=4096) -> 'torch.Tensor':
+        """ Returns topk tokens/probabilities given unnormalized logits as input. """
+        #import ipdb; ipdb.set_trace()
+        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
+        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
+
+        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
+
+        topk_values = probs.gather( index=topk_indices, dim=-1)
+        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
+        return encoded_probs  # [batch_size, sequence_len, topk + topk]
     

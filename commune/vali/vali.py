@@ -13,7 +13,7 @@ class Vali(c.Module):
     successes = 0
     epochs = 0
     n = 0    
-    whitelist = []
+    whitelist = ['eval_module', 'score_module']
 
     def __init__(self,config:dict=None,**kwargs):
         self.init_vali(config=config, **kwargs)
@@ -26,7 +26,6 @@ class Vali(c.Module):
         # start the workers
         self.sync()
         self.start_time = c.time()
-        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
         for i in range(self.config.workers):
             self.start_worker(i)
         c.thread(self.vote_loop)
@@ -43,6 +42,7 @@ class Vali(c.Module):
             'last_sent': c.round(c.time() - self.last_sent, 3),
             'last_success': c.round(c.time() - self.last_success, 3),
             'errors': self.errors,
+            'block': self.subspace.block,
             }
         return info
     
@@ -69,14 +69,13 @@ class Vali(c.Module):
             return self.start_worker(id=id)
 
     def start_worker(self, id = 0, **kwargs):
-        config = self.config
-        config = c.munch2dict(config) # we want to convert the config to a dict
         worker_name = self.worker_name(id)
         if self.config.mode == 'thread':
             worker = c.thread(self.worker, kwargs=kwargs, name=worker_name)
         elif self.config.mode == 'process':
             worker = c.process(self.worker, kwargs=kwargs, name=worker_name)
         elif self.config.mode == 'server':
+            kwargs['config'] = self.config
             worker = self.serve(kwargs=kwargs, 
                                  key=self.key.path, 
                                  server_name = self.server_name + f'::{id}',)
@@ -90,6 +89,10 @@ class Vali(c.Module):
     def worker_name(self, id = 0):
         return f'{self.config.worker_fn_name}::{id}'
 
+    def age(self):
+        return c.time() - self.start_time
+
+
     def worker(self, 
                epochs=1e9,
                id=0):
@@ -97,36 +100,16 @@ class Vali(c.Module):
             try:
                 self.epoch()
             except Exception as e:
+                c.print('Dawg, theres an error in the epoch')
                 c.print(c.detailed_error(e))
-
 
     @classmethod
     def run_epoch(cls, *args, **kwargs):
         self = cls(*args, workers=0, **kwargs)
-        c.print('fam')
         return self.epoch()
     
-    def age(self):
-        return c.time() - self.start_time
-
-    def record_result(self, result):
-        """
-        The following records the result of the module evaluation
-        
-        """
-        if result.get('w', 0) == 0:
-            self.errors += 1
-        else:
-            self.successes += 1
-            self.last_success = c.time()
-
-        self.results += [result]
-        return result
-
-
 
     def epoch(self, batch_size = None):
-        c.print('fam')
 
         self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker)
         batch_size = batch_size or self.config.batch_size
@@ -395,13 +378,13 @@ class Vali(c.Module):
 
 
 
-    def vote(self, async_vote:bool=False, save:bool = True,**kwargs):
+    def vote(self, async_vote:bool=False, save:bool = True, catch_exception=True, **kwargs):
+        if catch_exception:
+            try:
+                return self.vote(async_vote=async_vote, save=save, catch_exception=False, **kwargs)
+            except Exception as e:
+                return c.detailed_error(e)
     
-        if self.vote_staleness < self.config.vote_interval:
-            return {'success': False, 'msg': 'Vote is too new', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
-        if not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
-            return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
-
         if async_vote:
             future = c.submit(self.vote, **kwargs)
             return future
@@ -571,12 +554,16 @@ class Vali(c.Module):
         while True:
             c.print(self.run_info())
             c.sleep(self.config.sleep_interval)
-            try:
-                r = self.vote()
-            except Exception as e:
-                r = c.detailed_error(e)
-            
-            c.print(r)
+
+            if self.vote_staleness < self.config.vote_interval:
+                r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
+            elif not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
+                r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
+                c.print(r, color='red')
+            else:
+                c.print(f'Vali {self.config.network} {self.config.netuid} voting', color='cyan')
+                r = self.vote(catch_exception=True)
+                c.print(r)
 
 
         

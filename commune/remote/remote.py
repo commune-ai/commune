@@ -861,5 +861,8 @@ class Remote(c.Module):
         if host not in hosts:
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
+    
+
+
 
 Remote.run(__name__)
