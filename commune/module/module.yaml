@@ -17,5 +17,7 @@ shortcuts:
   sel: selenium
   store: storage
   tg: textgen
+  openrouter: model.openrouter
+  or: model.openrouter
 tag: null
 debug: false

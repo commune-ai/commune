@@ -70,11 +70,15 @@ class Namespace(c.Module):
         return address
 
     @classmethod
-    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False, netuid=None, subnet=None, **kwargs) -> dict:
-        if network == None: 
-            network = cls.network
-        if subnet != None:
-            netuid = subnet
+    def namespace(cls, search=None,
+                   network:str = 'local',
+                     update:bool = False, 
+                     public:bool = False, 
+                     netuid=0, 
+                     max_age:int = 1000, **kwargs) -> dict:
+        
+        path = network 
+        network = network or 'local'
 
         if 'subspace' in network:
             if '.' in network:
@@ -85,18 +89,20 @@ class Namespace(c.Module):
             kwargs['netuid'] = netuid
             return c.module(network)().namespace(update=update, **kwargs)
         else:
-            if update:
-                cls.update_namespace(network=network, full_scan=bool(network=='local'))
-            namespace = cls.get(network, {})
+            namespace = cls.get(path, {}, max_age=max_age)
+
+            if update or len(namespace) == 0:
+                namespace = cls.update_namespace(network=network)
+                c.put_namespace(path, namespace)
+
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 
-        namespace = {k:v for k,v in namespace.items() if 'Internal Server Error' not in k} 
+        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
 
         if public:
             ip = c.ip()
             namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
-
         return namespace
     
     
@@ -163,33 +169,26 @@ class Namespace(c.Module):
     def update_namespace(cls,
                         chunk_size:int=50, 
                         timeout:int = 10,
-                        full_scan:bool = True,
                         network:str = network)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
         it will register itself with the namespace_local dictionary.
         '''
+        c.print(f'Updating namespace ({network})', color='yellow')
 
-        namespace = cls.get_namespace(network=network, update=False) 
 
-        addresses = c.copy(list(namespace.values()))
         namespace = {}
 
-        if network == 'local':
-            if full_scan == True or len(addresses) == 0 and network == 'local':
-                addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
+        addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
             futures = []
-
             for address in addresses_chunk:
-
                 futures += [c.async_call(module=address, fn='server_name')]
-
             names_chunk = c.gather(futures, timeout=timeout)
-            
+
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
@@ -325,24 +324,7 @@ class Namespace(c.Module):
         else:
             return {'success': False, 'msg': f'{name} does not exist'}
 
-    @classmethod
-    def resolve_search(cls, search:str, namespace:dict):
-        if search != None:
-            
-            if ',' in search:
-                search = search.split(',')
-            else:
-                search = [search]
-            namespace = {k:v for k,v in namespace.items() if any([s in k for s in search])}
-        return namespace
     
-    
-    @classmethod
-    def namespace(cls, search=None, network:str = 'local', **kwargs):
-        namespace = cls.get_namespace(network=network, **kwargs)
-        namespace = cls.resolve_search(search, namespace)
-        return namespace
-
     @classmethod
     def servers(cls, search=None, network:str = 'local', **kwargs):
         namespace = cls.namespace(search=search, network=network)

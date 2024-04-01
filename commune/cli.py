@@ -98,7 +98,7 @@ class cli(c.Module):
     @classmethod
     def history(cls, n=10):
         history_paths = cls.history_paths(n=n)
-        historys = [c.get_json(s) for s in history_paths]
+        historys = [c.get(s) for s in history_paths]
         return historys
     
     @classmethod

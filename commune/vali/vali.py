@@ -42,7 +42,7 @@ class Vali(c.Module):
             'last_sent': c.round(c.time() - self.last_sent, 3),
             'last_success': c.round(c.time() - self.last_success, 3),
             'errors': self.errors,
-            'block': self.subspace.block,
+            'block': self.subspace.block if 'subspace' in self.config.network else 0,
             }
         return info
     
@@ -104,8 +104,8 @@ class Vali(c.Module):
                 c.print(c.detailed_error(e))
 
     @classmethod
-    def run_epoch(cls, *args, **kwargs):
-        self = cls(*args, workers=0, **kwargs)
+    def run_epoch(cls, network='local', **kwargs):
+        self = cls(workers=0, network=network, **kwargs)
         return self.epoch()
     
 
@@ -173,12 +173,13 @@ class Vali(c.Module):
                     'sync_interval': self.config.sync_interval,
                     }
         # name2address / namespace
-        network = self.network = self.config.network = network or self.config.network
-        search = self.search =  self.config.search = search or self.config.search
-        subnet = self.subnet = self.config.netuid =  netuid = self.netuid = netuid or subnet or self.config.netuid
-        fn = self.fn = self.config.fn  = fn or self.config.fn        
-        max_age = self.max_age = self.config.max_age = max_age or self.config.max_age
+        self.network = self.config.network = network or self.config.network
+        self.search =  self.config.search = search or self.config.search
+        self.subnet = self.config.netuid =  netuid = self.netuid = netuid or subnet or self.config.netuid
+        self.fn = self.config.fn  = fn or self.config.fn        
+        self.max_age = self.config.max_age = max_age or self.config.max_age
 
+        # RESOLVE THE VOTING NETWORKS
         if 'subspace' in self.network :
             # subspace network
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
@@ -318,7 +319,7 @@ class Vali(c.Module):
         
 
     def storage_path(self):
-        network = self.network
+        network = self.config.network
         if 'subspace' in network:
             network_str = f'{network}.{self.netuid}'
         else:

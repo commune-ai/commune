@@ -1,6 +1,7 @@
 import commune as c
 from typing import *
 import os
+from copy import deepcopy
 
 class Tree(c.Module):
     tree_folders_path = 'module_tree_folders'
@@ -18,28 +19,29 @@ class Tree(c.Module):
     def tree(cls, search=None, 
                 update:bool = False,
                 verbose:bool = False,
-                path = 'local_module_tree'
+                path = 'local_module_tree',
+                max_age = 60,
+                trees = None
                 ) -> List[str]:
         module_tree = {}
 
         t1 = c.time()
 
+        trees = trees or cls.trees()
         if not hasattr(cls, 'tree_cache'):
             cls.tree_cache = {}
 
-        if not update:
-            if cls.tree_cache != {}:
-                module_tree = cls.tree_cache
-            else:
-                module_tree =  c.get(path, {})
-                cls.tree_cache = module_tree
+
+        module_tree =  c.get(path, {}, max_age=max_age)
+        cls.tree_cache = module_tree
         
+
         if len(module_tree) == 0:
-            for tree_path in cls.trees():
+            for tree_path in cls.tree_paths():
                 # get modules from each tree
                 python_paths = c.get_module_python_paths(path=tree_path)
                 # add the modules to the module tree
-                new_tree = {c.path2simple(f): f for f in python_paths}
+                new_tree = {c.path2simple(f, trees=trees): f for f in python_paths}
                 for k,v in new_tree.items():
                     if k not in module_tree:
                         module_tree[k] = v
@@ -61,10 +63,10 @@ class Tree(c.Module):
         return module_tree
     
     @classmethod
-    def trees(cls):
+    def tree_paths(cls, update=False):
         path = cls.tree_folders_path
-        trees =   c.get(path, [])
-        if c.libpath not in trees:
+        trees =   [] if update else c.get(path, [])
+        if len(trees) == 0:
             trees = cls.default_trees()
         return trees
     
@@ -120,7 +122,7 @@ class Tree(c.Module):
                 cls.tree_cache = module_tree
         
         if len(module_tree) == 0:
-            for tree_path in cls.trees():
+            for tree_path in cls.tree_paths():
                 # get modules from each tree
                 python_paths = c.get_module_python_paths(path=tree_path)
                 # add the modules to the module tree
@@ -145,11 +147,68 @@ class Tree(c.Module):
         
         return module_tree
     
+    @classmethod
+    def trees(cls, search=None):
+        tree_paths = cls.tree_paths()
+        trees = [t.split('/')[-1] for t in tree_paths]
+        return trees
 
     @classmethod
-    def name2tree(cls, name : str = None) -> str:
-        trees = cls.trees()
-        name2tree = {t.split('/')[-1]: t for t in trees}
+    def tree2path(cls, name : str = None) -> str:
+        tree_paths = cls.tree_paths()
+        tree2path = {t.split('/')[-1]: t for t in tree_paths}
         if name != None:
-            return name2tree[name]
-        return name2tree
+            return tree2path[name]
+        return tree2path
+
+
+    @classmethod
+    def path2simple(cls, path:str, trees=None) -> str:
+
+        # does the config exist
+
+        simple_path =  path.split(deepcopy(cls.root_dir))[-1]
+
+        if cls.path_config_exists(path):
+            simple_path = os.path.dirname(simple_path)
+
+        simple_path = simple_path.replace('.py', '')
+        
+        simple_path = simple_path.replace('/', '.')[1:]
+
+        # compress nae
+        chunks = simple_path.split('.')
+        simple_chunk = []
+        for i, chunk in enumerate(chunks):
+            if len(simple_chunk)>0:
+
+                if simple_chunk[-1] == chunks[i]:
+                    continue
+                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
+                    continue
+            simple_chunk += [chunk]
+        
+        if '_' in simple_chunk[-1]:
+            filename_chunks = simple_chunk[-1].split('_')
+            # if all of the chunks are in the filename
+            if all([c in simple_chunk for c in filename_chunks]):
+                simple_chunk = simple_chunk[:-1]
+
+        simple_path = '.'.join(simple_chunk)
+
+        # remove any files to compress the name even further for
+        if len(simple_path.split('.')) > 2:
+            
+            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
+                simple_path = '.'.join(simple_path.split('.')[:-1])
+
+        if trees != None:
+            for tree in trees:
+                if simple_path.startswith(tree):
+                    simple_path = simple_path.replace(tree, '')
+                    
+        if simple_path.startswith('modules.'):
+            simple_path = simple_path.replace('modules.', '')
+        
+        return simple_path
+    

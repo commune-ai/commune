@@ -16,6 +16,14 @@ import warnings
 
 # AGI BEGINS 
 class c:
+    whitelist = ['info',
+                        'schema',
+                        'server_name',
+                        'is_admin',
+                        'namespace',
+                        'whitelist', 
+                        'blacklist',
+                        'fns'] # whitelist of helper functions to load
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
@@ -33,15 +41,6 @@ class c:
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     console = Console() # the consolve
-    helper_functions = ['info',
-                        'schema',
-                        'server_name',
-                        'is_admin',
-                        'namespace',
-                        'code',
-                        'whitelist', 
-                        'blacklist',
-                        'fns'] # whitelist of helper functions to load
     whitelist = []
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -135,9 +134,11 @@ class c:
                 network:str = None,
                 key:str = None,
                 kwargs = None,
+                params = None,
                 return_future:bool = False,
                 **extra_kwargs) -> None:
-
+    
+        kwargs = params or kwargs
         client_kwargs = { 
                           'network': network,
                           'prefix_match': prefix_match,
@@ -407,13 +408,13 @@ class c:
         '''
         Returns the code of a function
         '''
-
-        if seperator in fn:
-            module_path, fn = fn.split(seperator)
-            module = c.module(module_path)
-            fn = getattr(module, fn)
-        else:
-            fn = getattr(cls, fn)
+        if isinstance(fn, str):
+            if seperator in fn:
+                module_path, fn = fn.split(seperator)
+                module = c.module(module_path)
+                fn = getattr(module, fn)
+            else:
+                fn = getattr(cls, fn)
         
         
         code_text = inspect.getsource(fn)
@@ -1436,7 +1437,10 @@ class c:
                 return True
         return False
     @classmethod
-    def path2simple(cls, path:str) -> str:
+    def path2simple(cls, 
+                    path:str,
+                    trees = ['modules', 'my_modules']
+                    ) -> str:
 
         # does the config exist
 
@@ -1475,10 +1479,17 @@ class c:
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
 
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
+        
+        for tree in trees:
+            if simple_path.startswith(tree+'.'):
+                simple_path = simple_path.replace(tree+'.', '')
         
         return simple_path
+    
+    
+    @classmethod
+    def tree_names(cls):
+        return c.module('tree').tree_names()
     
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
@@ -1642,8 +1653,8 @@ class c:
                                      update=update, verbose=verbose, path=path) 
 
     @classmethod
-    def name2tree(cls, name=None) -> List[str]:
-        return c.module('tree').name2tree(name=name)
+    def tree2path(cls, name=None) -> List[str]:
+        return c.module('tree').tree2path(name=name)
 
     @classmethod
     def default_trees(cls):
@@ -1708,6 +1719,7 @@ class c:
             else:
                 modules = c.modules(path)
                 raise Exception(f'Could not find {path} in {modules} modules')
+
         return tree[path]
     
 
@@ -1806,6 +1818,9 @@ class c:
     def valid_module(cls,module,**kwargs ):
         modules = c.servers(module, **kwargs)
         return bool(len(modules) > 0)
+    @classmethod
+    def Vali(cls, *args, **kwargs):
+        return c.module('vali')
     
     @classmethod
     def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
@@ -2594,9 +2609,6 @@ class c:
         if search is not None:
             attrs = [a for a in attrs if search in a and callable(a)]
         return attrs
-
-    
-
     
     # NAMESPACE::MODULE
     namespace_module = 'module.namespace'
@@ -2665,7 +2677,8 @@ class c:
     def namespace(cls,
                   search:str = None,
                   network:str='local',
-                  update: bool = False, **kwargs):
+                  update: bool = False,
+                   **kwargs):
         namespace =  c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
@@ -2846,7 +2859,7 @@ class c:
         if len(whitelist) == 0 and module != 'module':
             whitelist = self.functions(include_parents=False)
             
-        whitelist = list(set(whitelist + c.helper_functions))
+        whitelist = list(set(whitelist + c.whitelist))
         blacklist = self.blacklist if hasattr(self, 'blacklist') else []
 
         setattr(self, 'whitelist', whitelist)
@@ -4263,6 +4276,8 @@ class c:
             return c.module('test')().test()
         module = module or cls
         results = {}
+        test_fns = module.test_fns()
+        c.print(f'test_fns: {test_fns}')
         for fn in module.test_fns():
             test_fn = getattr(module, fn)
             if c.classify_fn(test_fn) == 'self':
@@ -5448,8 +5463,8 @@ class c:
 
 
         # add it to the root
-        name2tree = cls.name2tree()
-        modules_path = name2tree[tree]
+        tree2path = cls.tree2path()
+        modules_path = tree2path[tree]
         module_path = os.path.join(modules_path, module)
         
         if c.module_exists(module_path): 
@@ -8172,6 +8187,22 @@ class c:
     @classmethod
     def imported_modules(self, module:str = None):
         return c.module('code').imported_modules(module=module)
+
+
+    def server2fn(self, *args, **kwargs ):
+        servers = c.servers(*args, **kwargs)
+        futures = []
+        server2fn = {}
+        for s in servers:
+            server2fn[s] = c.submit(f'{s}/schema', kwargs=dict(code=True))
+        futures = list(server2fn.values())
+        fns = c.wait(futures,timeout=10)
+        for s, f in zip(servers, fns):
+            server2fn[s] = f
+        return server2fn
+
+        
+
 
     
 Module = c

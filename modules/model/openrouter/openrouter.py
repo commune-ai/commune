@@ -33,7 +33,7 @@ class OpenRouterModule(c.Module):
         
 
 
-    def forward(self, content: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
+    def forward(self, text: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
 
 
         model = model or self.model
@@ -43,7 +43,7 @@ class OpenRouterModule(c.Module):
 
         data = {
                 "model": model, 
-                "messages": history + [{"role": self.role, "content": content} ],
+                "messages": history + [{"role": self.role, "content": text} ],
                 'max_tokens': max_tokens,
                 **kwargs
             }
@@ -109,7 +109,7 @@ class OpenRouterModule(c.Module):
     
     
     @classmethod
-    def models(cls, search:str = None):
+    def models(cls, search:str = None, names=True):
         c.print('Updating models...', color='yellow')
         url = 'https://openrouter.ai/api/v1/models'
         response = requests.get(url)
@@ -117,13 +117,39 @@ class OpenRouterModule(c.Module):
 
         if search != None:
             models =  [m for m in models if search in m['id']]
+        if names:
+            models = [m['id'] for m in models]
         return models
     
     @classmethod
-    def model_names(cls, search:str = None, update=False):
-        return [m['id'] for m in cls.models(search=search, update=update)]
+    def model_names(cls, search:str = None):
+        return [m['id'] for m in cls.models(search=search)]
     
 
     def num_tokens(self, text):
         return len(str(text).split(' '))
+    
 
+    def flocktalk(self, *text, 
+                  search=None,
+                   history=None, 
+                   max_tokens=4000, 
+                   timeout=10,
+                   **kwargs):
+        models = self.models(search=search)
+        future2model = {}
+        for model in models:
+            kwargs = dict(text=' '.join(text), model=model, history=history, max_tokens=max_tokens)
+            f = c.submit(self.forward,  kwargs=kwargs, timeout=timeout)
+            future2model[f] = model
+        model2response = {}
+        futures = list(future2model.keys())
+        try:
+            for f in c.as_completed(futures, timeout=timeout):
+                model = future2model[f]
+                model2response[model] = f.result()
+                c.print(f"{model}", color='yellow')
+                c.print(f"{model2response[model]}", color='green')
+        except Exception as e:
+            c.print(f"Error: {e}", color='red')
+        return model2response

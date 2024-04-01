@@ -1148,7 +1148,7 @@ class Subspace(c.Module):
                          update = False,
                          block : Optional[int] = None,
                          fmt = 'nanos',
-                         max_age = 1000
+                         max_age = 10000,
                           ) -> Optional[float]:
         
         path = f'cache/{network}.global_params.json'

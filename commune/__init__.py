@@ -1,6 +1,6 @@
 
 from .module import Module
-Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
+c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 from .cli import cli
 # from .modules.subspace import subspace
 # from .model import Model
@@ -15,3 +15,4 @@ for f in Module.get_class_methods() + Module.get_static_methods():
 for f in Module.get_self_methods():
     globals()[f] = lambda *args, **kwargs: getattr(Module(), f)(*args, **kwargs)
     
+globals()['cli'] = cli

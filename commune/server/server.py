@@ -340,7 +340,7 @@ class Server(c.Module):
         c.deregister_server(self.name)
 
     @classmethod
-    def test(cls) -> dict:
+    def test_basics(cls) -> dict:
         servers = c.servers()
         c.print(servers)
         tag = 'test'
