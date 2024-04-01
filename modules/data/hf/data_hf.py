@@ -20,9 +20,10 @@ class DataHF(c.Module):
                 path: str = 'super_glue',
                 name: str =  None,
                 streaming: bool= False,
-                split: str = None):
+                split: str = None, 
+                **kwargs):
         config = self.set_config(kwargs=locals())
-        self.set_dataset(path=config.path, name=config.name, split=config.split, streaming=config.streaming)
+        self.set_dataset(paths=config.path, name=config.name, split=config.split, streaming=config.streaming)
     
 
         

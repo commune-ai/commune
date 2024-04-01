@@ -57,7 +57,7 @@ class Client(c.Module):
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
     
-
+    count = 0
 
     async def async_forward(self,
         fn: str,
@@ -80,6 +80,8 @@ class Client(c.Module):
                         "ip": self.my_ip,
                         "timestamp": c.timestamp(),
                         }
+        self.count += 1
+        c.print(self.count)
         # serialize this into a json string
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)

@@ -43,6 +43,8 @@ class PM2(c.Module):
 
     @classmethod
     def kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
+        if name == 'all':
+            return cls.kill_all(verbose=verbose)
         list = cls.list()
         rm_list = []
         if name in list:

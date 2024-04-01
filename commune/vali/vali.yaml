@@ -3,7 +3,7 @@
 network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
-sync_interval: 100
+sync_interval: 10
 sleep_interval: 5
 search: null
 max_age: 1000

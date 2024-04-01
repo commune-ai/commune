@@ -1,26 +1,58 @@
 import commune as c
 from typing import *
 
-
-def retry(fn, trials:int = 3, timeout:int = 10, **kwargs):
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except Exception as e:
-            if  trials > 0:
-                return retry(fn(*args, trials=trials-1 , timeout=timeout, **kwargs))
-            else:
-                raise e
-            c.print(f'Error in {fn.__name__} {e}', color='red')
-            return {'success': False, 'msg': f'Error in {fn.__name__} {e}'}
-    return wrapper
-
 # THIS IS WHAT THE INTERNET IS, A BUNCH OF NAMESPACES, AND A BUNCH OF SERVERS, AND A BUNCH OF MODULES.
 # THIS IS THE INTERNET OF INTERNETS.
 class Namespace(c.Module):
 
+
+    remote_modules_path ='remote_modules'
+
     # the default
     network : str = 'local'
+
+
+
+    @classmethod
+    def namespace(cls, search=None,
+                   network:str = 'local',
+                     update:bool = False, 
+                     public:bool = False, 
+                     netuid=0, 
+                     max_age:int = 1000, **kwargs) -> dict:
+        
+        network = network or 'local'
+        path = network 
+
+        if 'subspace' in network:
+            if '.' in network:
+                network, netuid = network.split('.')
+            else: 
+                netuid = netuid or 0
+
+            if c.is_digit(netuid):
+                netuid = int(netuid)
+
+            return c.module(network)().namespace(search=search, 
+                                                 update=update, 
+                                                 max_age=max_age, 
+                                                 netuid=netuid,
+                                                 **kwargs)
+        else:
+            namespace = cls.get(path, {}, max_age=max_age)
+            if update or len(namespace) == 0:
+                namespace = cls.update_namespace(network=network)
+
+        if search != None:
+            namespace = {k:v for k,v in namespace.items() if search in k}
+
+        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
+
+        if public:
+            ip = c.ip()
+            namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
+        return namespace
+    
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:
@@ -48,18 +80,7 @@ class Namespace(c.Module):
     @classmethod
     def rm_server(self,  name:str, network=network):
         return self.deregister_server(name, network=network)
-
-    @classmethod
-    def empty_servers(cls,network=network):
-        cls.put_namespace(network, {})
-        c.print('hey')
-        return {'success': True, 'msg': f'Blocks {names} deregistered.'}
     
-    @classmethod
-    def empty_namespace(cls, network=network):
-        cls.put_namespace(network, {})
-        return {'success': True, 'msg': f'Namespace {network} emptied.'}
-
     @classmethod
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
         namespace = cls.get_namespace(network=network)
@@ -69,52 +90,13 @@ class Namespace(c.Module):
             
         return address
 
-    @classmethod
-    def namespace(cls, search=None,
-                   network:str = 'local',
-                     update:bool = False, 
-                     public:bool = False, 
-                     netuid=0, 
-                     max_age:int = 1000, **kwargs) -> dict:
-        
-        path = network 
-        network = network or 'local'
-
-        if 'subspace' in network:
-            if '.' in network:
-                network, netuid = network.split('.')
-            else: 
-                if netuid == None:
-                    netuid = 0
-            kwargs['netuid'] = netuid
-            return c.module(network)().namespace(update=update, **kwargs)
-        else:
-            namespace = cls.get(path, {}, max_age=max_age)
-
-            if update or len(namespace) == 0:
-                namespace = cls.update_namespace(network=network)
-                c.put_namespace(path, namespace)
-
-        if search != None:
-            namespace = {k:v for k,v in namespace.items() if search in k}
-
-        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
-
-        if public:
-            ip = c.ip()
-            namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
-        return namespace
-    
     
     @classmethod
-    def put_namespace(cls, network:str, namespace:dict = None) -> None:
-        if namespace == None:
-            namespace = cls.get_namespace(network=network)
+    def put_namespace(cls, network:str, namespace:dict) -> None:
         address2name = {v: k for k, v in namespace.items()}
         namespace = {v:k for k,v in address2name.items()}
         assert isinstance(namespace, dict), 'Namespace must be a dict.'
-        cls.put(network, namespace)
-        return {'success': False, 'msg': f'Namespace {network} updated.'}
+        return cls.put(network, namespace)        
     
     add_namespace = put_namespace
     
@@ -169,7 +151,7 @@ class Namespace(c.Module):
     def update_namespace(cls,
                         chunk_size:int=50, 
                         timeout:int = 10,
-                        network:str = network)-> dict:
+                        network:str = 'local')-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -193,28 +175,27 @@ class Namespace(c.Module):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
 
-        cls.put_namespace(network, namespace)
+        c.print(cls.put_namespace(network, namespace))
             
         return namespace
     
     @classmethod
     def migrate_namespace(cls, network:str='local'):
-        namespace = c.get_json('local_namespace', {})
-        c.put_namespace(network, namespace)
+        namespace = cls.get_json('local_namespace', {})
+        cls.put_namespace(network, namespace)
 
     @classmethod
     def merge_namespace(cls, from_network:str, to_network:str, module = None):
-        from_namespace = c.get_namespace(network=from_network)
+        from_namespace = cls.get_namespace(network=from_network)
         if module == None:
             module = c.module(from_network)
 
-        to_namespace = c.get_namespace(network=to_network)
+        to_namespace = cls.get_namespace(network=to_network)
         to_namespace.update(from_namespace)
-        c.put_namespace(to_network, to_namespace)
+        cls.put_namespace(to_network, to_namespace)
         return {'success': True, 'msg': f'Namespace {from_network} merged into {to_network}.'}
 
 
-    remote_modules_path ='remote_modules'
 
     @classmethod
     def readd_servers(cls, search=None,  network= 'local', timeout=10):
@@ -242,15 +223,15 @@ class Namespace(c.Module):
         if address not in addresses:
             return {'success': False, 'msg': f'{address} not in {addresses}'}
         namespace[name] = address
-        c.put_namespace(network, namespace)
+        cls.put_namespace(network, namespace)
 
         return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': cls.servers(network=network), 'network': network}
     
     
 
     @classmethod
-    def remote_servers(cls, network:str = 'local', **kwargs):
-        return c.namespace(network=network)
+    def remote_servers(cls, network:str = 'remote', **kwargs):
+        return cls.namespace(network=network)
     
     @classmethod
     def add_servers(cls, *servers, network:str='local', **kwargs):
@@ -316,7 +297,7 @@ class Namespace(c.Module):
             # reregister
             address = cls.get_address(name, network=network)
             cls.deregister_server(name, network=network)
-            remote_modules = c.get(cls.remote_modules_path, {})
+            remote_modules = cls.get(cls.remote_modules_path, {})
             remote_modules.pop(name, None)
             servers = cls.servers(network=network)
             assert cls.server_exists(name, network=network) == False, f'{name} still exists'

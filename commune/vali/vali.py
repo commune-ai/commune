@@ -20,9 +20,12 @@ class Vali(c.Module):
 
     def init_vali(self, config=None, **kwargs):
         # initialize the validator
+
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         self.config = c.dict2munch({**Vali.config(), **config})
+        c.print(self.config)
+
         # start the workers
         self.sync()
         self.start_time = c.time()
@@ -43,10 +46,13 @@ class Vali(c.Module):
             'last_success': c.round(c.time() - self.last_success, 3),
             'errors': self.errors,
             'block': self.subspace.block if 'subspace' in self.config.network else 0,
+            'network': self.config.network,
+            'subnet': self.config.netuid,
             }
         return info
     
     def workers(self):
+        c.print(self.config, 'FAM')
         if self.config.mode == 'server':
             return c.servers(search=self.server_name)
         elif self.config.mode == 'thread':
@@ -173,11 +179,11 @@ class Vali(c.Module):
                     'sync_interval': self.config.sync_interval,
                     }
         # name2address / namespace
-        self.network = self.config.network = network or self.config.network
-        self.search =  self.config.search = search or self.config.search
-        self.subnet = self.config.netuid =  netuid = self.netuid = netuid or subnet or self.config.netuid
-        self.fn = self.config.fn  = fn or self.config.fn        
-        self.max_age = self.config.max_age = max_age or self.config.max_age
+        network = self.network = self.config.network = network or self.config.network
+        search = self.search =  self.config.search = search or self.config.search
+        subnet = self.subnet = self.config.netuid =  self.netuid = netuid = netuid or subnet or self.config.netuid
+        fn = self.fn = self.config.fn  = fn or self.config.fn        
+        max_age = self.max_age = self.config.max_age = max_age or self.config.max_age
 
         # RESOLVE THE VOTING NETWORKS
         if 'subspace' in self.network :
@@ -214,7 +220,6 @@ class Vali(c.Module):
 
         
     def get_module_info(self, module):
-
         # if the module is in the namespace, we can just return the module info
         if module in self.name2address:
             module_name = module
@@ -244,7 +249,6 @@ class Vali(c.Module):
         else:
             self.successes += 1
             self.last_success = c.time()
-
         self.results += [result]
         return result
 
@@ -289,8 +293,8 @@ class Vali(c.Module):
             return {'w': info.get('w', 0),
                     'module': info['name'],
                     'address': info['address'],
-                        'timestamp': c.time(), 
-                        'msg': f'Module is not stale, {int(seconds_since_called)} < {self.config.max_age}'}
+                    'timestamp': c.time(), 
+                    'msg': f'Module is too new with grace period being {self.config.max_age} > {int(seconds_since_called)}'}
 
 
         try:
@@ -318,8 +322,8 @@ class Vali(c.Module):
         return {'w': info['w'], 'module': info['name'], 'address': info['address'], 'latency': info['latency']}
         
 
-    def storage_path(self):
-        network = self.config.network
+    def storage_path(self, network=None):
+        network = network or self.config.network
         if 'subspace' in network:
             network_str = f'{network}.{self.netuid}'
         else:
@@ -329,6 +333,7 @@ class Vali(c.Module):
 
         return path
         
+    
     
     def resolve_tag(self, tag:str=None):
         return tag or self.config.vote_tag or self.tag
@@ -345,7 +350,7 @@ class Vali(c.Module):
         return info
     
     def votes(self):
-        network = self.network
+        network = self.config.network
         module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'])
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid()
@@ -423,9 +428,8 @@ class Vali(c.Module):
         df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
         return df
     
-    @property
-    def module_paths(self):
-        paths = self.ls(self.storage_path())
+    def module_paths(self, network=None):
+        paths = self.ls(self.storage_path(network=network))
         paths = list(filter(lambda x: x.endswith('.json'), paths))
         return paths
     
@@ -450,26 +454,29 @@ class Vali(c.Module):
     def module_infos(self,
                     batch_size:int=100 , # batch size for 
                     timeout:int=10,
-                    keys = ['name', 'w', 'staleness', 'timestamp', 'latency', 'address', 'ss58_address'],
+                    keys = ['name', 'w', 
+                            'staleness', 'timestamp', 
+                            'latency', 'address', 
+                            'ss58_address'],
                     path = 'cache/module_infos',
                     max_age = 1000,
                     update = True,
+                    network = None,
                     sort_by = 'staleness',
                     **kwargs
                     ):
         
         if not update:
-            modules_info = self.get(path, default=[])
+            modules_info = self.get(path, default=[], max_age=max_age)
             if len(modules_info) > 0:
                 return modules_info
             
-        paths = self.module_paths
+        paths = self.module_paths(network=network)
         jobs = [c.async_get_json(p) for p in paths]
         module_infos = []
         # chunk the jobs into batches
         for jobs_batch in c.chunk(jobs, batch_size):
             results = c.wait(jobs_batch, timeout=timeout)
-            # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
                 if isinstance(s, dict) and 'ss58_address' in s:
                     s['staleness'] = c.time() - s.get('timestamp', 0)
@@ -479,8 +486,6 @@ class Vali(c.Module):
 
         if sort_by != None and len(module_infos) > 0:
             module_infos = sorted(module_infos, key=lambda x: x[sort_by] if sort_by in x else 0, reverse=True)
-
-
         if update:
             self.put(path, module_infos)       
         return module_infos

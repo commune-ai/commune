@@ -2,23 +2,8 @@ import commune as c
 from typing import List
 
 class DataTextTruthQa(c.Module):
-    def __init__(self, **kwargs):
-        config = self.set_config(config=kwargs)
-        self.dataset = c.module('data.hf')(**config)
-    def sample(self, **kwargs):
-        sample =  self.dataset.sample(**kwargs)
-        assert isinstance(sample, dict)
-        sample = {
-            'question': sample['question'],
-            'choices': c.shuffle(sample['incorrect_answers'] + sample['correct_answers']),
-            'answers': sample['correct_answers']
-        }
-
-
-
-        sample['answers'] = [i for i, choice in enumerate(sample['choices']) if choice in sample['answers']]
-        return sample
-
+   
+   
     def score_module(self, module:str, fn='sample', kwargs={'idx': 0}):
         reference_output = getattr(self.dataset, fn=fn)(**kwargs)
         if isinstance(module, str):
@@ -34,6 +19,21 @@ class DataTextTruthQa(c.Module):
             if output == reference_output:
                 w = 1
         return {'w': w, 'output': output, 'reference_output': reference_output}
+
+    def __init__(self, **kwargs):
+        config = self.set_config(config=kwargs)
+        self.dataset = c.module('data.hf')(**config)
+    def sample(self, **kwargs):
+        sample =  self.dataset.sample(**kwargs)
+        assert isinstance(sample, dict)
+        sample = {
+            'question': sample['question'],
+            'choices': c.shuffle(sample['incorrect_answers'] + sample['correct_answers']),
+            'answers': sample['correct_answers']
+        }
+
+        sample['answers'] = [i for i, choice in enumerate(sample['choices']) if choice in sample['answers']]
+        return sample
 
     def validate_replicas(self, replicas:List[str], fn='sample', kwargs={'idx': 0}):
         scores = {replica:self.validate(module=replica, fn=fn, kwargs=kwargs) for replica in replicas}

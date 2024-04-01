@@ -1,3 +1,3 @@
 import commune as c
 
-c.module('openrouter'))
+c.module('openrouter')

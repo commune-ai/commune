@@ -8,8 +8,6 @@ class ValiTextTruthfulQA(Vali):
         config = self.set_config(kwargs=kwargs)
         self.dataset = c.module(self.config.dataset)()
         self.init_vali(config)
-
-
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
         prompt = f'''

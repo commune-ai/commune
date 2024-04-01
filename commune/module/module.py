@@ -13,6 +13,8 @@ import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
+import nest_asyncio
+nest_asyncio.apply()
 
 # AGI BEGINS 
 class c:
@@ -135,62 +137,46 @@ class c:
                 key:str = None,
                 kwargs = None,
                 params = None,
-                return_future:bool = False,
-                **extra_kwargs) -> None:
-    
-        kwargs = params or kwargs
-        client_kwargs = { 
-                          'network': network,
-                          'prefix_match': prefix_match,
-                          'network': network,
-                          'key': key,
-                          'kwargs': kwargs,
-                          'timeout': timeout,
-                          **extra_kwargs}
-
-        
-        futures = c.async_call(module, fn, *args, **client_kwargs)
-        if return_future:
-            return futures
-        return c.gather(futures, timeout=timeout)
-    
-    @classmethod
-    async def async_call(cls,
-                module : str, 
-                fn : str = None,
-                *args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = None,
-                key:str = None,
-                kwargs = None,
-                verbose = False,
                 default_fn = 'info',
-                **extra_kwargs
-                ) -> None:
+                **extra_kwargs) -> None:
+          
         
-        if '://' in module:
-            module = module.split('://')[-1]
-  
         if '/' in module:
             # adjust the split
             if fn != None:
                 args = [fn] + list(args)
             module , fn = module.split('/')
-        else:
-            if fn == None:
-                fn = default_fn
 
+        module = c.connect(module,
+                           network=network,  
+                           prefix_match=prefix_match, 
+                           virtual=False, 
+                           key=key)
+
+        if params != None:
+            assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
+            if isinstance(params, list):
+                args = params
+            elif isinstance(params, dict):
+                kwargs = params  
         kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)  
-        try:
-            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
-            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
-            result = await asyncio.wait_for(future, timeout=timeout)
-        except Exception as e:
-            result = c.detailed_error(e)
-        
-        return result
+        kwargs.update(extra_kwargs) 
+        fn = fn or default_fn
+        return  asyncio.run(module.async_forward(fn=fn, args=args, kwargs=kwargs))
+
+    @classmethod
+    async def async_call(cls, *args,**kwargs):
+        return c.call(*args, **kwargs)
+
+    @classmethod
+    def fn2async(cls, fn:Callable, args=None, kwargs=None, **extra_kwargs):
+        args = args or []
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)
+        async def async_fn():
+            return fn(*args, **kwargs)
+        return async_fn()
+
 
     
     
@@ -1972,33 +1958,29 @@ class c:
         return os.path.expanduser('~')
 
     @classmethod
-    def get_json(cls, *args, **kwargs):
-        loop = c.get_event_loop()
-        return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
-    @classmethod
-    async def async_get_json(cls,
-                             path:str,
-                             default:Any=None,
-                             root: bool = False,
-                             verbose: bool = False,
-                             **kwargs):
+    def get_json(cls, 
+                path:str,
+                default:Any=None,
+                root: bool = False,
+                verbose: bool = False,**kwargs):
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
 
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
         try:
-            data = await async_get_json(path, default=default, **kwargs)
+            data = cls.get_text(path, **kwargs)
         except Exception as e:
-            if verbose:
-                c.print(f'Failed to load json from {path} with error {e}')
             return default
-    
+        if isinstance(data, str):
+            data = json.loads(data)
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
                 data = data['data']
-        
         return data
+    @classmethod
+    async def async_get_json(cls,*args, **kwargs):
+        return  cls.get_json(*args, **kwargs)
 
     load_json = get_json
 
@@ -2016,12 +1998,11 @@ class c:
         torch.nn.Module.__init__(self)
     
     @classmethod
-    def put_json(cls,*args,**kwargs) -> str:
-        loop = c.get_event_loop()
-        return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
+    async def async_put_json(cls,*args,**kwargs) -> str:
+        return cls.put_json(*args, **kwargs) 
     
     @classmethod
-    async def async_put_json(cls, 
+    def put_json(cls, 
                  path:str, 
                  data:Dict, 
                  meta = None,
@@ -2029,16 +2010,14 @@ class c:
                  verbose: bool = False,
 
                  **kwargs) -> str:
-        
-        from commune.utils.dict import async_put_json
         if meta != None:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
         # cls.lock_file(path)
         c.print(f'Putting json from {path}', color='green', verbose=verbose)
-
-        await async_put_json(path=path, data=data, **kwargs)
-        # cls.unlock_file(path)
+        if isinstance(data, dict):
+            data = json.dumps(data)
+        c.put_text(path, data)
         return path
     
     save_json = put_json
@@ -2220,43 +2199,24 @@ class c:
     @classmethod
     def connect(cls,
                 module:str, 
-                network : str = None,
+                network : str = 'local',
                 namespace = None,
                 mode = 'http',
                 virtual:bool = True, 
-                verbose: bool = False, 
                 prefix_match: bool = False,
+                possible_modes = ['http', 'https', 'ws', 'wss'],
                 key = None,
-                return_future:bool = False,):
-
-        kwargs = c.locals2kwargs(locals())
-        return_future = kwargs.pop('return_future', False)
-        future = cls.async_connect(**kwargs)
-        if return_future:
-            return future
-        return c.gather(future)
-
-
-    @classmethod
-    async def async_connect(cls, 
-                module:str, 
-                network : str = None,
-                namespace = None,
-                mode = 'http',
-                virtual:bool = False, 
-                prefix_match: bool = False,
-                key = None,
-                **kwargs ):
+                **kwargs):
 
         """
         Connects to a server by the name of the module
         :param module: name of the module
         """
+        network = network or 'local'
+        key = c.get_key(key)
+
         if '://' in module:
             module = module.split('://')[-1]
-
-        network = c.resolve_network(network)
-        key = c.get_key(key)
 
         # we dont want to load the namespace if we have the address
         is_address = c.is_address(module)
@@ -2264,28 +2224,31 @@ class c:
             address = module
         else:
             # using the namespace to reaolve the address
-            namespace = namespace if namespace != None else c.namespace(module, network=network)
-            modules = list(namespace.keys())
+            namespace = namespace or c.namespace(module, network=network)
             # if we want to match the prefix, then we will match the prefix
-            if prefix_match == True:
-                module = c.choice(modules)
-
+            if prefix_match:
+                module = c.choice(list(namespace.keys()))
             if module not in namespace:
                 raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
             address = namespace.get(module, None)
 
         if '://' in address:
+            mode = address.split('://')[0]
+            assert mode in possible_modes, f'Invalid mode {mode}'
             address = address.split('://')[-1]
         ip = ':'.join(address.split(':')[:-1])
         port = int(address.split(':')[-1])
 
-        # CONNECT TO THE MODULE
-        if 'None' in address:
-            raise Exception(f'Invalid address {address}')
+        return c.get_client(ip=ip, 
+                            port=port, 
+                            key=key, 
+                            mode=mode,
+                            virtual=virtual, 
+                            **kwargs)
 
-        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
-
-        return client
+    @classmethod
+    async def async_connect(cls, *args, **kwargs):
+        return c.connect(*args, **kwargs)
      
     @classmethod
     def root_address(cls, name:str='module',
@@ -2473,7 +2436,6 @@ class c:
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
-        conds.append('.' in address and c.is_number(address.split('.')[0]))
         return all(conds)
     
     @classmethod
@@ -3030,7 +2992,7 @@ class c:
     @classmethod
     def hardware(cls, fmt:str = 'gb', **kwargs):
         return c.module('os').hardware(fmt=fmt, **kwargs)
-    
+
     @classmethod
     def init_schema(cls):
         return cls.fn_schema('__init__')
@@ -5245,7 +5207,6 @@ class c:
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
-
         # get size
         text_size = len(text)*bits_per_character
     

@@ -182,7 +182,7 @@ class Server(c.Module):
                     'success': success,
                     'user': user_info,
                     'timestamp': input['data']['timestamp'],
-                    'result': result,
+                    'result': result if c.jsonable(result) else None,
                 }
             )
 
