@@ -356,7 +356,7 @@ class Vali(c.Module):
         votes =self.votes() 
         if len(votes['uids']) < self.config.min_num_weights:
             return {'success': False, 'msg': 'The votes are too low', 'votes': len(votes['uids']), 'min_num_weights': self.config.min_num_weights}
-        return self.subsapce.set_weights(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
+        return self.subspace.set_weights(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
                             weights=votes['weights'], 
                             key=self.key, 
                             network=self.config.network, 
