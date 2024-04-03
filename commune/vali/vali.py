@@ -2,17 +2,12 @@
 import commune as c
 
 class Vali(c.Module):
-    last_print = 0
     last_sync_time = 0
     last_sent = 0
     last_success = 0
     errors = 0
-    count = 0
     requests = 0
-    stale_requests = 0
-    epochs = 0
-    successes = 0
-    n = 0    
+    successes = 0  
     whitelist = ['eval_module', 'score_module']
 
     def __init__(self,config:dict=None,**kwargs):
@@ -36,7 +31,7 @@ class Vali(c.Module):
             'vote_interval': self.config.vote_interval,
             'successes': self.successes,
             'requests': self.requests,
-            'stale_requests': self.stale_requests,
+            'last_sent': c.round(c.time() - self.last_sent, 3),
             'last_success': c.round(c.time() - self.last_success, 3),
             'errors': self.errors,
             'network': self.config.network,
