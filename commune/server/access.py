@@ -92,7 +92,7 @@ class Access(c.Module):
             return {'success': True, 'msg': f'is verified admin'}
         
 
-        whitelist =  list(set(self.module.whitelist + c.helper_functions))
+        whitelist =  list(set(self.module.whitelist + c.whitelist))
         blacklist =  self.module.blacklist
 
         assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"

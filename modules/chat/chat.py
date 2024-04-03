@@ -33,15 +33,13 @@ class Chat(c.Module):
         return module, fn, salt, key
 
     @classmethod
-    def dashboard(cls, server:c.Module = None, key=None, network='local', salt=None, fn=None, kwargs=None, prefix_match=True):
+    def app(cls, server:c.Module = None, key=None, network='local', salt=None, fn=None, kwargs=None, prefix_match=True):
         c.new_event_loop()
 
         self = cls()
         import streamlit as st
         import random
         import time
-
-
 
         fn = 'generate'
         default_text = 'hey'
@@ -53,6 +51,7 @@ class Chat(c.Module):
                 self.key = c.get_key(key)
         key = self.key
         key_address = key.ss58_address
+        st.write(type(c.namespace))
         namespace = c.namespace(network=network)
         servers = list(namespace.keys())
         cols = st.columns(2)
@@ -84,7 +83,7 @@ class Chat(c.Module):
                 kwargs = self.get(chat_path, default={})
                 kwargs.update(default_kwargs)
                 # fn  = getattr(server, fn)
-                kwargs = self.function2streamlit(fn=fn, fn_schema=server_info['schema'][fn], salt='chat')
+                kwargs = c.function2streamlit(fn=fn, fn_schema=server_info['schema'][fn], salt='chat')
                 chat_button = st.form_submit_button('set parameters')
                 if chat_button:
                     response = self.put(chat_path, kwargs)

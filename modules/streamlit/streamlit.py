@@ -640,7 +640,7 @@ class StreamlitModule(c.Module):
             
 
             col_idx = col_idx % (len(cols))
-            if type(v) in [float, int] or c.is_number(v):
+            if type(v) in [float, int] or c.is_int(v):
                 kwargs[k] = cols[col_idx].number_input(fn_key, v, key=f'{key_prefix}.{k}')
             elif v in ['True', 'False']:
                 kwargs[k] = cols[col_idx].checkbox(fn_key, v, key=f'{key_prefix}.{k}')

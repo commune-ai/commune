@@ -1,5 +1,6 @@
 
 import commune as c
+from typing import *
 
 class Vali(c.Module):
     last_sync_time = 0
@@ -10,7 +11,9 @@ class Vali(c.Module):
     successes = 0  
     whitelist = ['eval_module', 'score_module']
 
-    def __init__(self,config:dict=None,**kwargs):
+    def __init__(self,
+                 config:dict=None,
+                 **kwargs):
         self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, **kwargs):
@@ -36,6 +39,7 @@ class Vali(c.Module):
             'errors': self.errors,
             'network': self.config.network,
             'subnet': self.config.netuid,
+            'fn': self.config.fn,
             }
         return info
     
@@ -103,8 +107,9 @@ class Vali(c.Module):
         return self.epoch()
     
 
-    def epoch(self, batch_size = None):
-        self.sync()
+    def epoch(self, batch_size = None, network=None, **kwargs):
+        if network != None:
+            self.sync(network=network)
         futures = []
         results = []
         batch_size = batch_size or self.config.batch_size
@@ -123,7 +128,7 @@ class Vali(c.Module):
                     for future in c.as_completed(futures,
                                                  timeout=self.config.timeout*2):
                         result = future.result()
-                        c.print(result, verbose=self.config.debug or self.config.debug)
+                        c.print(result, verbose=self.config.debug)
                         futures.remove(future)
                         results += [result]  
                         break
@@ -135,12 +140,12 @@ class Vali(c.Module):
             try:
                 for future in c.as_completed(futures,
                                                 timeout=self.config.timeout*2):
-                    result = future.result()
                     futures.remove(future)
+                    result = future.result()
                     results += [result]  
-                    c.print(result, verbose=self.config.debug or self.config.debug)
+                    c.print(result, verbose=self.config.debug)
             except Exception as e:
-                c.print(c.detailed_error(e))
+                c.print('ERROR',c.detailed_error(e))
         return results
         
     def clone_stats(self):
@@ -169,17 +174,18 @@ class Vali(c.Module):
 
         self.last_sync_time = c.time()
         # name2address / namespace
-        network = self.network = self.config.network = network or self.config.network
-        search = self.search =  self.config.search = search or self.config.search
-        subnet = self.subnet = self.config.netuid =  self.netuid = netuid = netuid or subnet or self.config.netuid
-        fn = self.fn = self.config.fn  = fn or self.config.fn        
-        max_age = self.max_age = self.config.max_age = max_age or self.config.max_age
+        network = network or self.config.network
+        search =  search or self.config.search
+        netuid =  netuid or self.config.netuid 
+        fn = fn or self.config.fn        
+        max_age = max_age or self.config.max_age
 
         response = {
-                'search': self.search,
-                'network': self.network, 
-                'netuid': self.netuid, 
-                'n': self.n, 
+                'search': search,
+                'network': network, 
+                'netuid': netuid, 
+                'n': self.n,
+                'fn': fn,
                 }
         
         if self.time_since_sync > self.config.sync_interval:
@@ -190,22 +196,27 @@ class Vali(c.Module):
                     **response
                     }
         # RESOLVE THE VOTING NETWORKS
-        if 'subspace' in self.network :
+        if 'subspace' in network :
             # subspace network
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
-        if 'bittensor' in self.network:
+            namespace = self.subspace.namespace(search=search, netuid=netuid, max_age=max_age)
+        if 'bittensor' in network:
             # bittensor network
             self.subtensor = c.module('bittensor')(network=network, netuid=netuid)
-
-
-        self.namespace = c.module('namespace').namespace(search=search, 
-                                    network=network, 
-                                    netuid=netuid, 
-                                    max_age=max_age)
+            namespace = self.subtensor.namespace(search=search, netuid=netuid, max_age=max_age)
+        if 'local' in network:
+            # local network
+            namespace = c.namespace(search=search, max_age=max_age)
     
+        self.namespace = namespace
         self.n  = len(self.namespace)    
         self.name2address = self.namespace
-        self.address2name = {v: k for k, v in self.namespace.items()}    
+        self.address2name = {v: k for k, v in self.namespace.items()}  
+
+        for k in ['search', 'network', 'netuid', 'n', 'fn', 'subnet']:
+            v = locals().get(k, None)
+            setattr(self, k, v)
+            self.config[k] = v
        
         return response
     
@@ -234,11 +245,12 @@ class Vali(c.Module):
         """
         # load the module stats (if it exists)
         if network != None:
-            c.print(self.sync(network=network))
+            self.sync(network=network)
 
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
         self.requests += 1
+        self.last_sent = c.time()
 
         if module in self.name2address:
             module_name = module
@@ -246,8 +258,11 @@ class Vali(c.Module):
         else:
             module_name = self.address2name.get(module, module)
             module_address = module
-  
+        
+        assert module_name in self.namespace, f'Module {module_name} not in namespace {self.namespace.keys()}'
+
         path = self.resolve_path(self.storage_path() + f'/{module_name}')
+
         try:
             start_time = c.time()
             module = c.connect(module_address, key=self.key)
@@ -347,15 +362,26 @@ class Vali(c.Module):
 
 
 
-    def set_weights(self, **kwargs):
-        votes =self.votes() 
-        if len(votes['uids']) < self.config.min_num_weights:
-            return {'success': False, 'msg': 'The votes are too low', 'votes': len(votes['uids']), 'min_num_weights': self.config.min_num_weights}
-        return self.subspace.set_weights(uids=votes['uids'], # passing names as uids, to avoid slot conflicts
-                            weights=votes['weights'], 
+    def set_weights(self, 
+                    uids:List[int]=None, 
+                    weights: List[float]=None, **kwargs):
+        if uids == None or weights == None:
+            votes =self.votes() 
+            weights = votes['weights']
+            uids = votes['uids']
+
+        if len(uids) < self.config.min_num_weights:
+            return {'success': False, 
+                    'msg': 'The votes are too low', 
+                    'votes': len(votes['uids']), 
+                    'min_num_weights': self.config.min_num_weights}
+        
+        return self.subspace.set_weights(uids=uids, # passing names as uids, to avoid slot conflicts
+                            weights=weights, 
                             key=self.key, 
                             network=self.config.network, 
-                            netuid=self.config.netuid
+                            netuid=self.config.netuid,
+                            **kwargs
                             )
     
     vote = set_weights
@@ -452,6 +478,10 @@ class Vali(c.Module):
         self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start,  **kwargs)
         return self.eval_module(self.random_module())
 
+    @classmethod
+    def test_run_epoch(cls, network='local', verbose=False, timeout=1, workers=2, start=False,  **kwargs):
+        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start,  **kwargs)
+        self = self.run_epoch('local')
 
     @classmethod
     def test_network(cls, network='subspace', search='vali'):
@@ -485,6 +515,7 @@ class Vali(c.Module):
         for i in range(self.config.workers):
             self.start_worker(i)
         while True:
+
             c.sleep(self.config.sleep_interval)
             try:
                 self.sync()
@@ -497,8 +528,8 @@ class Vali(c.Module):
                     r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
                 else:
                     r = self.vote()
-                c.print(r)
-
+                run_info.update(r)
+                c.print(run_info)
 
             except Exception as e:
                 c.print(c.detailed_error(e))

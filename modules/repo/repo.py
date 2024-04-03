@@ -8,12 +8,12 @@ class Repo(c.Module):
 
     def is_repo(self, path):
         # is a directory 
-        assert os.path.isdir(path)
-        # has a .git directory
-        assert os.path.isdir(os.path.join(path, '.git'))
-        # has a .git/config file
-        assert os.path.isfile(os.path.join(path, '.git/config'))
-        return True
+        cond = [
+            os.path.isdir(path), 
+            os.path.isdir(os.path.join(path, '.git')),
+            os.path.isfile(os.path.join(path, '.git/config'))
+        ]
+        return all(cond)
     
     def find_repo_paths(self, path = None, avoid_strings = ['.cargo']):
         if path == None:

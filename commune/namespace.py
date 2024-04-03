@@ -29,10 +29,8 @@ class Namespace(c.Module):
                 network, netuid = network.split('.')
             else: 
                 netuid = netuid or 0
-
-            if c.is_digit(netuid):
+            if c.is_int(netuid):
                 netuid = int(netuid)
-
             return c.module(network)().namespace(search=search, 
                                                  update=update, 
                                                  max_age=max_age, 

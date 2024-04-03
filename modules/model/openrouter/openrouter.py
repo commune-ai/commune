@@ -31,7 +31,10 @@ class OpenRouterModule(c.Module):
         self.model = model
         return {"status": "success", "model": model, "models": self.models}
         
-
+    def talk(self, *text:str, **kwargs):
+        text = ' '.join(text)
+        return self.forward(text, **kwargs)
+    ask = talk
 
     def forward(self, text: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
 

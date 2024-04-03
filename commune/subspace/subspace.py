@@ -442,14 +442,14 @@ class Subspace(c.Module):
             new_qmap = value
 
         def convert_dict_k_digit_to_int(d):
-            is_digit_bool = False
+            is_int_bool = False
             for k,v in c.copy(d).items():
-                if c.is_digit(k):
-                    is_digit_bool = True
+                if c.is_int(k):
+                    is_int_bool = True
                     d[int(k)] = d.pop(k)
                     if isinstance(v, dict):
                         d[int(k)] = convert_dict_k_digit_to_int(v)
-            if is_digit_bool:
+            if is_int_bool:
                 # sort the dictionary by key
                 d = dict(sorted(d.items()))
             
@@ -737,7 +737,7 @@ class Subspace(c.Module):
     ###########################
 
     @property
-    def block(self, network:str=None, trials=100) -> int:
+    def block(self, network:str=None) -> int:
         return self.get_block(network=network)
 
 
@@ -1356,9 +1356,17 @@ class Subspace(c.Module):
         return self.subnet(netuid=netuid, network=network)['emission']*self.epoch_time(netuid=netuid, network=network)
 
 
-    def get_block(self, network=None, block_hash=None): 
-        self.resolve_network(network)
-        return self.substrate.get_block( block_hash=block_hash)['header']['number']
+    def get_block(self, network='main', block_hash=None, max_age=8): 
+        network = network or 'main'
+        path = f'cache/{network}.block'
+        block = self.get(path, block_hash, max_age=max_age)
+        if block == None:
+            self.resolve_network(network)
+            block_header = self.substrate.get_block( block_hash=block_hash)['header']
+            block = block_header['number']
+            block_hash = block_header['hash']
+            self.put(path, block)
+        return block
 
     def block_hash(self, block = None, network='main'): 
         if block == None:
@@ -1493,10 +1501,11 @@ class Subspace(c.Module):
                 features : List[str] = module_features,
                 timeout = 100,
                 max_age=1000,
+                subnet = None,
                 vector_features =['dividends', 'incentive', 'trust', 'last_update', 'emission'],
                 **kwargs
                 ) -> Dict[str, 'ModuleInfo']:
-        
+    
 
         name2feature = {
             'emission': 'Emission',
@@ -1512,54 +1521,64 @@ class Subspace(c.Module):
 
 
 
-        netuid = self.resolve_netuid(netuid)
+        netuid = self.resolve_netuid(netuid or subnet)
         network = self.resolve_network(network)
         state = {}
-            
-        progress = c.tqdm(total=len(features), desc=f'Querying {len(features)} features')
-        future2key = {}
-        def query(name, **kwargs):
-            s = Subspace(network=network)
-            if name in vector_features:
-                fn =  s.query_vector
-            else:
-                fn = s.query_map
-            name = name2feature.get(name, name)
-            return fn(name=name, **kwargs)
-        
-        while not all([f in state for f in features ]):
-            c.print(f'Querying {len(features)} features')
-            for feature in features:
-                future = c.submit(query, kwargs=dict(name=feature, netuid=netuid, block=block, max_age=max_age))
-                future2key[future] = feature
+        path = f'query/{network}/SubspaceModule.Modules:{netuid}'
+        modules = self.get(path, None, max_age=max_age)
+        if modules == None:
 
-            for f in c.as_completed(list(future2key.keys()), timeout=timeout):
-                feature = future2key[f]
-                result = f.result()
-                if c.is_error(result):
-                    c.print(feature, result,  color='red')
-                    continue
-                progress.update(1)
-                state[feature] = f.result()
-
-            
-
-        uid2key = state['key']
-        uids = list(uid2key.keys())
-        modules = []
-        for uid in uids:
-            module = {}
-            for feature in features:
-                if uid in state[feature] or isinstance(state[feature], list):
-                    module[feature] = state[feature][uid]
+            progress = c.tqdm(total=len(features), desc=f'Querying {len(features)} features')
+            future2key = {}
+            def query(name, **kwargs):
+                if name in vector_features:
+                    fn = self.query_vector
                 else:
-                    uid_key = uid2key[uid]
-                    assert uid_key in state[feature], f"Key {uid_key} not found in {feature}"
-                    module[feature] = state[feature][uid_key]
-            if len(module) > 0:
-                module = self.format_module(module, fmt=fmt)
-                modules += [module]
-        
+                    fn = self.query_map
+                name = name2feature.get(name, name)
+                return fn(name=name, **kwargs)
+            key2future = {}
+
+            while not all([f in state for f in features ]):
+                c.print(f'Querying {len(features)} features')
+                for feature in features:
+                    if feature in state or feature in key2future:
+                        continue
+                    future = c.submit(query, kwargs=dict(name=feature, netuid=netuid, block=block, max_age=max_age))
+                    key2future[feature] = future
+                futures = list(key2future.values())
+                future2key = {v:k for k,v in key2future.items()}
+                for f in c.as_completed(futures, timeout=timeout):
+                    feature = future2key[f]
+                    key2future.pop(feature)
+                    result = f.result()
+                    if c.is_error(result):
+                        c.print('Failed: ', feature,  color='red')
+                        continue
+                    progress.update(1)
+                    state[feature] = f.result()
+                    break
+
+            uid2key = state['key']
+            uids = list(uid2key.keys())
+            modules = []
+            for uid in uids:
+                module = {}
+                for feature in features:
+                    if uid in state[feature] or isinstance(state[feature], list):
+                        module[feature] = state[feature][uid]
+                    else:
+                        uid_key = uid2key[uid]
+                        assert uid_key in state[feature], f"Key {uid_key} not found in {feature}"
+                        module[feature] = state[feature][uid_key]
+                modules.append(module)
+            self.put(path, modules)
+
+            
+        if len(modules) > 0:
+            for i in range(len(modules)):
+                modules[i] = self.format_module(modules[i], fmt=fmt)
+
         if search != None:
             modules = [m for m in modules if search in m['name']]
 
@@ -2146,23 +2165,6 @@ class Subspace(c.Module):
 
     def sync(self,*args, **kwargs):
         return  self.state_dict(*args, save=True, update=True, **kwargs)
-
-    @classmethod
-    def test(cls):
-        s = c.module('subspace')()
-        n = s.n()
-        assert isinstance(n, int)
-        assert n > 0
-
-        market_cap = s.mcap()
-        assert isinstance(market_cap, float), market_cap
-
-        name2key = s.name2key()
-        assert isinstance(name2key, dict)
-        assert len(name2key) == n
-
-        stats = s.stats(df=False)
-        assert isinstance(stats, list) 
 
     def check_storage(self, block_hash = None, network=network):
         self.resolve_network(network)
@@ -3516,6 +3518,12 @@ class Subspace(c.Module):
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
     
+    
+    def unstake2key(self, key=None):
+        key2stake = self.key2stake()
+        c.print(key2stake)
+
+
     def test_subnet_storage(self):
 
         all_subnet_params = self.subnet_params(netuid='all')
@@ -3534,9 +3542,23 @@ class Subspace(c.Module):
     def test_module_storage(self):
         modules = self.get_modules(netuid=0)
         return modules 
-    
-    def unstake2key(self, key=None):
-        key2stake = self.key2stake()
-        c.print(key2stake)
+
+    @classmethod
+    def test(cls):
+        s = c.module('subspace')()
+        n = s.n()
+        assert isinstance(n, int)
+        assert n > 0
+
+        market_cap = s.mcap()
+        assert isinstance(market_cap, float), market_cap
+
+        name2key = s.name2key()
+        assert isinstance(name2key, dict)
+        assert len(name2key) == n
+
+        stats = s.stats(df=False)
+        assert isinstance(stats, list) 
+
 
 Subspace.run(__name__)

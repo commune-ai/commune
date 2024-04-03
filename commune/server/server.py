@@ -43,7 +43,9 @@ class Server(c.Module):
         self.chunk_size = chunk_size
         self.timeout = timeout
         self.public = public
-        
+        if module == None:
+            module = 'module'
+
         if isinstance(module, str):
             module = c.module(module)()
 
@@ -282,7 +284,10 @@ class Server(c.Module):
         module = c.serve(module_name, wait_for_server=True)
         module = c.connect(module_name)
         module.put("hey",1)
+        assert module.get("hey") == 1, f"get failed {module.get('hey')}"
         c.kill(module_name)
+        return {'success': True, 'msg': 'server test passed'}
+
 
     @classmethod
     def test_serving_with_different_key(cls):

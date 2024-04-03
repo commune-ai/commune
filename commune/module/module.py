@@ -43,7 +43,6 @@ class c:
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     console = Console() # the consolve
-    whitelist = []
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
@@ -360,11 +359,11 @@ class c:
         return cls.dict2munch(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None, root:bool = False) -> Dict:
+    def load_yaml(cls, path:str=None) -> Dict:
         '''f
         Loads a yaml file
         '''
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
         
         from commune.utils.dict import load_yaml
         config = load_yaml(path)
@@ -427,11 +426,11 @@ class c:
     sand = sandbox
 
     @classmethod
-    def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
+    def save_yaml(cls, path:str,  data: dict) -> Dict:
         '''
         Loads a yaml file
         '''
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
             
         from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
@@ -469,7 +468,7 @@ class c:
     
     
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = False, root:bool = False) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
@@ -1091,7 +1090,7 @@ class c:
         return os.makedirs(*args, **kwargs)
 
     @classmethod
-    def resolve_path(cls, path:str = None, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
+    def resolve_path(cls, path:str = None, extension:Optional[str]= None, file_type:str = 'json'):
         '''
         ### Documentation for `resolve_path` class method
         
@@ -1124,7 +1123,7 @@ class c:
         file_path = MyClassName.resolve_path('data/subfolder/file', extension='txt')
         
         # Resolve a path in relation to the root temporary directory
-        root_file_path = MyClassName.resolve_path('configs/settings', root=True)
+        root_file_path = MyClassName.resolve_path('configs/settings'
         ```
         
         #### Notes:
@@ -1138,13 +1137,13 @@ class c:
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
-            path =  os.path.expanduser(path)
+            path =  os.path.abspath(path)
         elif path.startswith('./'):
             path = os.path.abspath(path)
         else:
             # if it is a relative path, then it is relative to the module path
             # ex: 'data' -> '.commune/path_module/data'
-            tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
+            tmp_dir = cls.tmp_dir()
 
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
@@ -1470,6 +1469,10 @@ class c:
             if simple_path.startswith(tree+'.'):
                 simple_path = simple_path.replace(tree+'.', '')
         
+
+        while simple_path.startswith('.'):
+            simple_path = simple_path[1:]
+
         return simple_path
     
     
@@ -1644,7 +1647,7 @@ class c:
 
     @classmethod
     def default_trees(cls):
-        return c.m('tree').default_trees()
+        return c.m('tree').default_trees
     @classmethod
     def tree(cls, search=None, 
                 update:bool = False,
@@ -1961,10 +1964,9 @@ class c:
     def get_json(cls, 
                 path:str,
                 default:Any=None,
-                root: bool = False,
                 verbose: bool = False,**kwargs):
         from commune.utils.dict import async_get_json
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
 
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
@@ -1991,9 +1993,9 @@ class c:
     data_path = repo_path + '/data'
 
     @classmethod
-    def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
+    def put_torch(cls, path:str, data:Dict,  **kwargs):
         import torch
-        path = cls.resolve_path(path=path, extension='pt', root=root)
+        path = cls.resolve_path(path=path, extension='pt')
         torch.save(data, path)
         return path
     
@@ -2010,13 +2012,12 @@ class c:
                  path:str, 
                  data:Dict, 
                  meta = None,
-                 root: bool = False,
                  verbose: bool = False,
 
                  **kwargs) -> str:
         if meta != None:
             data = {'data':data, 'meta':meta}
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
         # cls.lock_file(path)
         c.print(f'Putting json from {path}', color='green', verbose=verbose)
         if isinstance(data, dict):
@@ -2027,8 +2028,8 @@ class c:
     save_json = put_json
     
     @classmethod
-    def file_exists(cls, path:str, root:bool = False)-> bool:
-        path = cls.resolve_path(path=path, root=root)
+    def file_exists(cls, path:str)-> bool:
+        path = cls.resolve_path(path=path)
         exists =  os.path.exists(path)
         if not exists and not path.endswith('.json'):
             exists = os.path.exists(path + '.json')
@@ -2049,30 +2050,30 @@ class c:
 
 
     @classmethod
-    def rm_json(cls, path=None, root:bool = False):
+    def rm_json(cls, path=None):
         from commune.utils.dict import rm_json
 
         if path in ['all', '**']:
             return [cls.rm_json(f) for f in cls.glob(files_only=False)]
         
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
 
         return rm_json(path )
     
     @classmethod
-    def rmdir(cls, path, root:bool = False):
+    def rmdir(cls, path):
         import shutil
         return shutil.rmtree(path)
 
     @classmethod
-    def isdir(cls, path, root:bool = False):
-        path = cls.resolve_path(path=path, root=root)
+    def isdir(cls, path):
+        path = cls.resolve_path(path=path)
         return os.path.isdir(path)
         
 
     @classmethod
-    def isfile(cls, path, root: bool = False):
-        path = cls.resolve_path(path=path, root=root)
+    def isfile(cls, path):
+        path = cls.resolve_path(path=path)
         return os.path.isfile(path)
 
 
@@ -2091,10 +2092,10 @@ class c:
         
 
     @classmethod
-    def rm(cls, path, extension=None, root=False, mode = 'json'):
+    def rm(cls, path, extension=None, mode = 'json'):
         
         assert isinstance(path, str), f'path must be a string, got {type(path)}'
-        path = cls.resolve_path(path=path, extension=extension, root=root)
+        path = cls.resolve_path(path=path, extension=extension)
 
         # incase we want to remove the json file
         mode_suffix = f'.{mode}'
@@ -2126,15 +2127,11 @@ class c:
 
 
     @classmethod
-    def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
-        
-        path = cls.resolve_path(path, extension=None, root=root)
-        
+    def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
+        path = cls.resolve_path(path, extension=None)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
-            
         paths = glob(path, recursive=recursive)
-        
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -2143,19 +2140,10 @@ class c:
     def get_file_size(cls, path:str):
         path = cls.resolve_path(path)
         return os.path.getsize(path)
-         
-    @classmethod
-    def ls_json(cls, path:str = '', recursive:bool = True):
-        return [os.path.basename(p).replace('.json', '')for p in cls.ls(path, recursive=recursive)]
-    
-    # @classmethod
-    # def rm_storage(cls):
-        
 
     @classmethod
     def ls(cls, path:str = '', 
            recursive:bool = False,
-           root:bool = False,
            return_full_path:bool = True):
         """
         provides a list of files in the path 
@@ -2163,22 +2151,26 @@ class c:
         this path is relative to the module path if you dont specifcy ./ or ~/ or /
         which means its based on the module path
         """
-        path = cls.resolve_path(path, extension=None, root=root)
+        path = cls.resolve_path(path, extension=None)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
             return []
         if return_full_path:
-            ls_files = [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
+            ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
 
         ls_files = sorted(ls_files)
         return ls_files
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
-        if path.startswith('~'):
-            path = os.path.expanduser(path)
+        path = os.path.abspath(path)
         return os.listdir(path)
+
+    @classmethod
+    def abspath(cls, path:str) -> str:
+        return os.path.abspath(path)
+
 
     @classmethod
     def walk(cls, path:str, module:str=False) -> List[str]:
@@ -2442,7 +2434,7 @@ class c:
         conds = []
         conds.append(isinstance(address, str))
         conds.append(':' in address)
-        conds.append(cls.is_number(address.split(':')[-1]))
+        conds.append(cls.is_int(address.split(':')[-1]))
         return all(conds)
     
     @classmethod
@@ -4781,12 +4773,12 @@ class c:
         self.users.pop(key, None)
         
     @classmethod
-    def reserve_port(cls,port:int = None, var_path='reserved_ports' , root=True):
+    def reserve_port(cls,port:int = None, var_path='reserved_ports'):
         if port == None:
             port = cls.free_port()
-        reserved_ports =  cls.get(var_path, {}, root=root)
+        reserved_ports =  cls.get(var_path, {})
         reserved_ports[str(port)] = {'time': cls.time()}
-        c.put(var_path, reserved_ports, root=root)
+        c.put(var_path, reserved_ports)
         c.print(f'reserving {port}')
         return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
@@ -4795,14 +4787,14 @@ class c:
     
     @classmethod
     def reserved_ports(cls,  var_path='reserved_ports'):
-        return list(map(int, cls.get(var_path, {}, root=True).keys()))
+        return list(map(int, c.get(var_path, {}).keys()))
     resports = reserved_ports
 
     
     @classmethod
     def unreserve_port(cls,port:int, 
                        var_path='reserved_ports'):
-        reserved_ports =  cls.get(var_path, {}, root=True)
+        reserved_ports =  c.get(var_path, {})
         
         port_info = reserved_ports.pop(port,None)
         if port_info == None:
@@ -4810,7 +4802,7 @@ class c:
         
         output = {}
         if port_info != None:
-            c.put(var_path, reserved_ports, root=True)
+            c.put(var_path, reserved_ports)
             output['msg'] = 'port removed'
         else:
             output['msg'] =  f'port {port} doesnt exist, so your good'
@@ -4822,11 +4814,8 @@ class c:
     
     @classmethod
     def unreserve_ports(cls,*ports, 
-                       var_path='reserved_ports' ,
-                       verbose:bool = True, 
-                       root:bool = True):
-        output ={}
-        reserved_ports =  cls.get(var_path, {}, root=root)
+                       var_path='reserved_ports' ):
+        reserved_ports =  cls.get(var_path, {})
         if len(ports) == 0:
             # if zero then do all fam, tehe
             ports = list(reserved_ports.keys())
@@ -4834,7 +4823,7 @@ class c:
             ports = ports[0]
         ports = list(map(str, ports))
         reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-        cls.put(var_path, reserved_ports, root=root)
+        c.put(var_path, reserved_ports)
         return cls.reserved_ports()
     
     
@@ -5089,15 +5078,34 @@ class c:
                 return True
         return False
 
-    @staticmethod
-    def is_number(value):
-        try:
-            int(value)
-        except Exception:
-            return False
-        return True
+
     
-    is_digit = is_number
+    @classmethod
+    def is_int(cls, value) -> bool:
+        o = False
+        try :
+            int(value)
+            if '.' not in str(value):
+                o =  True
+        except:
+            pass
+        return o
+    
+        
+    @classmethod
+    def is_float(cls, value) -> bool:
+        o =  False
+        try :
+            float(value)
+            if '.' in str(value):
+                o = True
+        except:
+            pass
+
+        return o
+        
+    
+
     @classmethod
     def resolve_network(cls, network='local'):
 
@@ -5208,9 +5216,9 @@ class c:
         return file_contents
 
     @classmethod
-    def put_text(cls, path:str, text:str, root=False, key=None, bits_per_character=8) -> None:
+    def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
         if not isinstance(text, str):
             text = c.python2str(text)
         if key != None:
@@ -5224,9 +5232,9 @@ class c:
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
             
     @classmethod
-    def add_text(cls, path:str, text:str, root=False) -> None:
+    def add_text(cls, path:str, text:str) -> None:
         # Get the absolute path of the file
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
@@ -5236,11 +5244,10 @@ class c:
     def readlines(self, path:str,
                   start_line:int = 0,
                   end_line:int = 0, 
-                  root=False, 
                   resolve:bool = True) -> List[str]:
         # Get the absolute path of the file
         if resolve:
-            path = self.resolve_path(path, root=root)
+            path = self.resolve_path(path)
         # Read the contents of the file
         with open(path, 'r') as file:
             lines = file.readlines()
@@ -5663,9 +5670,9 @@ class c:
             
 
     @classmethod
-    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, root=True, **kwargs):
+    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, **kwargs):
         reserved_gpu_memory = {} if refresh else cls.reserved_gpus()
-        if type(gpu_memory) in [int, float, str]:
+        if type(gpu_mmory) in [int, float, str]:
             gpu_memory = cls.max_gpu_memory(gpu_memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
             memory = cls.resolve_memory(memory) 
@@ -5674,12 +5681,12 @@ class c:
                 reserved_gpu_memory[gpu] += memory
             else:
                 reserved_gpu_memory[gpu] = memory
-        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=root)
+        c.put('reserved_gpu_memory', reserved_gpu_memory)
         return reserved_gpu_memory
     
     @classmethod
     def reserved_gpus(cls,*args, **kwargs) -> Dict[str, int]:
-        reserved_gpus = cls.get('reserved_gpu_memory', {}, root=True)
+        reserved_gpus = c.get('reserved_gpu_memory', {})
         reserved_gpus = {k:int(v) for k,v in reserved_gpus.items() if v > 0} 
         reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items()}
         return reserved_gpus  
@@ -5700,7 +5707,7 @@ class c:
                 
         c.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
-        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
+        c.put('reserved_gpu_memory', reserved_gpu_memory)
         return cls.reserved_gpus()
 
     release_gpus = unleash_gpus =  unreserve_gpus
@@ -7029,6 +7036,9 @@ class c:
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
 
+    @classmethod
+    def is_repo(cls, path='.'):
+        return c.module('repo')().is_repo(path)
     
     @classmethod
     def staked(cls, *args, **kwargs):
@@ -7493,8 +7503,8 @@ class c:
         return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
     @classmethod
-    def ask(cls, *args, **kwargs):
-        return c.module('model.openai').generate(*args, **kwargs)
+    def talk(cls, *args, **kwargs):
+        return c.module('model.openrouter')().talk(*args, **kwargs)
 
     @classmethod
     def containers(cls):
@@ -7981,7 +7991,7 @@ class c:
                     assert k != 'NA', f'Key {k} not in default'
                 elif v in ['True', 'False']:
                     v = eval(v)
-                elif c.is_number(v):
+                elif c.is_int(v):
                     v = eval(v)
                 else:
                     v = v

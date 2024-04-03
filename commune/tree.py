@@ -5,7 +5,7 @@ from copy import deepcopy
 
 class Tree(c.Module):
     tree_folders_path = 'module_tree_folders'
-
+    default_trees = [c.libpath ]
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())
 
@@ -67,7 +67,7 @@ class Tree(c.Module):
         path = cls.tree_folders_path
         trees =   [] if update else c.get(path, [])
         if len(trees) == 0:
-            trees = cls.default_trees()
+            trees = cls.default_trees
         return trees
     
         
@@ -75,9 +75,10 @@ class Tree(c.Module):
     def add_tree(cls, tree_path:str, **kwargs):
 
         tree_path = os.path.expanduser(tree_path)
+
         path = cls.tree_folders_path
         tree_folder = c.get(path, [])
-
+        tree_folder += cls.default_trees
         tree_folder += [tree_path]
         tree_folder = list(set(tree_folder))
         assert os.path.isdir(tree_path)
@@ -93,12 +94,7 @@ class Tree(c.Module):
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
 
-    @classmethod
-    def default_trees(cls):
-        return [c.libpath + '/commune' ,
-                 c.libpath + '/modules',
-                  c.libpath + '/my_modules'
-                   ]
+
     
 
     @classmethod

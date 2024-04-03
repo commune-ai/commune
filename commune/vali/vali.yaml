@@ -5,14 +5,14 @@ netuid: 0 # optional if you have a voting network with subnets [bittensor, commu
 verbose: False
 sync_interval: 10
 sleep_interval: 5
-initial_sleep : 10
+initial_sleep : 1
 search: null
 max_age: 3600
 vote: True
 fn : null
 
 # score
-alpha: 0.5
+alpha: 0.0
 
 worker_fn_name: worker
 # voting 
