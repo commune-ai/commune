@@ -32,7 +32,7 @@ class OpenRouterModule(c.Module):
         return {"status": "success", "model": model, "models": self.models}
         
     def talk(self, *text:str, **kwargs):
-        text = ' '.join(text)
+        text = ' '.join(list(map(str, text)))
         return self.forward(text, **kwargs)
     ask = talk
 
@@ -156,3 +156,4 @@ class OpenRouterModule(c.Module):
         except Exception as e:
             c.print(f"Error: {e}", color='red')
         return model2response
+

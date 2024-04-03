@@ -98,6 +98,9 @@ class Access(c.Module):
         assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
 
+        if fn.startswith('__') or fn.startswith('_'):
+            return {'success': False, 'msg': f'Function {fn} is private'}
+
         if address in self.address2key:
             return {'success': True, 'msg': f'address {address} is in the whitelist'}
         

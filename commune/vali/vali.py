@@ -11,22 +11,22 @@ class Vali(c.Module):
     successes = 0  
     whitelist = ['eval_module', 'score_module']
 
+
     def __init__(self,
                  config:dict=None,
                  **kwargs):
-        self.init_vali(config=config, **kwargs)
+        self.init(config=config, **kwargs)
 
-    def init_vali(self, config=None, **kwargs):
+    def init(self, config=None, **kwargs):
         # initialize the validator
-
-        config = self.set_config(config=config, kwargs=kwargs)
+        self.config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
-        self.config = c.dict2munch({**Vali.config(), **config})
+        self.config = c.dict2munch({**Vali.config(), **self.config})
         self.sync()
-
         c.thread(self.run_loop)
+    init_vali = init
 
-
+    
 
     def run_info(self):
         info ={
@@ -39,7 +39,9 @@ class Vali(c.Module):
             'errors': self.errors,
             'network': self.config.network,
             'subnet': self.config.netuid,
+            'last_time_sync': c.round(c.time() - self.last_sync_time, 3),
             'fn': self.config.fn,
+            'search': self.config.search,
             }
         return info
     
@@ -108,8 +110,7 @@ class Vali(c.Module):
     
 
     def epoch(self, batch_size = None, network=None, **kwargs):
-        if network != None:
-            self.sync(network=network)
+        self.sync(network=network)
         futures = []
         results = []
         batch_size = batch_size or self.config.batch_size
@@ -134,8 +135,7 @@ class Vali(c.Module):
                         break
                 except Exception as e:
                     c.print(c.detailed_error(e))
-
-
+                    
         if len(futures) >= 0:
             try:
                 for future in c.as_completed(futures,
@@ -170,6 +170,18 @@ class Vali(c.Module):
                      subnet: str = None,
                      fn : str = None,
                      max_age: int = 1000, **kwargs):
+        
+        if self.time_since_sync < self.config.sync_interval and network == self.network:
+            return {'msg': 'Alredy Synced network Within Interval', 
+                    'last_sync_time': self.last_sync_time,
+                    'time_since_sync': self.time_since_sync, 
+                    'sync_interval': self.config.sync_interval,
+                    'network': self.config.network, 
+                    'subnet': self.config.netuid, 
+                    'n': self.n,
+                    'fn': self.config.fn,
+                    'search': self.config.search,
+                    }
         
 
         self.last_sync_time = c.time()
@@ -206,18 +218,19 @@ class Vali(c.Module):
             namespace = self.subtensor.namespace(search=search, netuid=netuid, max_age=max_age)
         if 'local' in network:
             # local network
-            namespace = c.namespace(search=search, max_age=max_age)
+            namespace = c.module('namespace').namespace(search=search, max_age=max_age)
     
         self.namespace = namespace
         self.n  = len(self.namespace)    
         self.name2address = self.namespace
         self.address2name = {v: k for k, v in self.namespace.items()}  
 
-        for k in ['search', 'network', 'netuid', 'n', 'fn', 'subnet']:
+        for k in ['search', 'network', 'netuid', 'fn', 'subnet']:
             v = locals().get(k, None)
             setattr(self, k, v)
             self.config[k] = v
        
+        c.print(f'Synced net:{self.config.network} subnet:{self.config.netuid} search:{self.config.search} {self.n} modules', color='cyan')
         return response
     
 
@@ -228,6 +241,19 @@ class Vali(c.Module):
     @property
     def verbose(self):
         return self.config.verbose or self.config.debug
+    
+
+    def process_response(self, response:dict):
+        if type(response) in [int, float, bool]:
+            # if the response is a number, we want to convert it to a dict
+            response = {'w': float(response)}
+        elif type(response) == dict:
+            response = response
+        else:
+            raise Exception(f'Response must be a number or a boolean, got {response}')
+        
+        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
+        return response
 
 
     def score_module(self, module: 'c.Module'):
@@ -235,68 +261,79 @@ class Vali(c.Module):
         ip = module.ls()
         assert isinstance(ip, dict), f"{module}, {ip}"
         return {'w': 1}
+    
 
-    def eval_module(self, module:str, 
+    def next_module(self):
+        return self.random_module()
+    
+
+    def eval_module(self, module:str = None, 
                     network=None, 
-                    verbose_keys = ['w', 'latency', 'name', 'address', 'ss58_address', 'path'],
+                    verbose = None,
+                    verbose_keys = ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness'],
                     **kwargs):
         """
         The following evaluates a module sver
         """
+        verbose = verbose or self.verbose
+
+
         # load the module stats (if it exists)
-        if network != None:
-            self.sync(network=network)
+        network = network or self.config.network
+        self.sync(network=network)
+        module = module or self.next_module()
 
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
         self.requests += 1
         self.last_sent = c.time()
 
+        info = {}
         if module in self.name2address:
-            module_name = module
-            module_address = self.name2address[module]
+            info['name'] = module
+            info['address'] = self.name2address[module]
         else:
-            module_name = self.address2name.get(module, module)
-            module_address = module
-        
-        assert module_name in self.namespace, f'Module {module_name} not in namespace {self.namespace.keys()}'
+            info['name'] = self.address2name.get(module, module)
+            info['address'] = module
+            
 
-        path = self.resolve_path(self.storage_path() + f'/{module_name}')
+        # CONNECT TO THE MODULE
+        module = c.connect(info['address'], key=self.key)
+    
+        path = self.resolve_path(self.storage_path() + f"/{info['name']}")
+        cached_info = self.get(path, {}, max_age=self.config.max_age)
+
+        if len(cached_info) > 0 :
+            info = cached_info
+        else:
+            info = module.info(timeout=self.config.timeout)
+
+        c.print(f'🚀 :: Eval Module {info["name"]} :: 🚀',  color='yellow', verbose=verbose)
+
+        assert 'address' in info and 'name' in info, f'Info must have a address key, got {info.keys()}'
+        info['staleness'] = c.time() - info.get('timestamp', 0)
+        info['path'] = path
 
         try:
             start_time = c.time()
-            module = c.connect(module_address, key=self.key)
-            info  = self.get(path, default={}, max_age=self.config.max_age)
-            if len(info) == 0:
-                info = module.info(timeout=self.config.timeout)
-            assert 'address' in info and 'name' in info
             response = self.score_module(module)
-            if type(response) in [int, float, bool]:
-                # if the response is a number, we want to convert it to a dict
-                response = {'w': float(response)}
-            elif type(response) == dict:
-                response = response
-            else:
-                raise Exception(f'Response must be a number or a boolean, got {response}')
-            assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
-            
+            response = self.process_response(response)
             response['timestamp'] = start_time
             response['latency'] = c.time() - response.get('timestamp', 0)
             response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
-            response['path'] = path
-
+            # merge the info with the response
             info.update(response)
             self.put(path, info)
             response =  {k:info[k] for k in verbose_keys}
+
             self.successes += 1
             self.last_success = c.time()
         except Exception as e:
             # give it 0
             self.errors += 1
-
             response =  c.detailed_error(e)
             response['w'] = 0
-
+            
         return response
         
 
@@ -348,20 +385,6 @@ class Vali(c.Module):
     def votes_path(self):
         return self.storage_path() + f'/votes'
 
-    def load_votes(self) -> dict:
-        return self.get(self.votes_path, default={'uids': [], 'weights': [], 'timestamp': 0, 'block': 0})
-
-    def save_votes(self, votes:dict):
-        assert isinstance(votes, dict), f'Weights must be a dict, got {type(votes)}'
-        assert 'uids' in votes, f'Weights must have a uids key, got {votes.keys()}'
-        assert 'weights' in votes, f'Weights must have a weights key, got {votes.keys()}'
-        assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
-        return self.put(self.votes_path, votes)
-
-
-
-
-
     def set_weights(self, 
                     uids:List[int]=None, 
                     weights: List[float]=None, **kwargs):
@@ -385,15 +408,12 @@ class Vali(c.Module):
                             )
     
     vote = set_weights
-
     
     def num_modules(self, **kwargs):
         return len(self.module_infos(**kwargs))
-    
 
-    @classmethod
-    def leaderboard(cls, *args, **kwargs): 
-        df =  c.df(cls.module_infos(*args, **kwargs))
+    def leaderboard(self, *args, **kwargs): 
+        df =  c.df(self.module_infos(*args, **kwargs))
         df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
         return df
     
@@ -406,14 +426,13 @@ class Vali(c.Module):
     def network_info(self):
         return {
             'network': self.config.network,
-            'subnet': self.config.netuid,
+            'netuid': self.config.netuid,
             'fn': self.config.fn,
             'search': self.config.search,
             'max_age': self.config.max_age,
             'time_since_sync': c.time() - self.last_sync_time,
             'n': self.n,
         }
-    
 
     def module_info(self, **kwargs):
         return self.subspace.get_module(self.key.ss58_address, netuid=self.netuid, **kwargs)
@@ -421,8 +440,7 @@ class Vali(c.Module):
     def module_infos(self,
                     keys = ['name', 'w', 
                             'staleness', 'timestamp', 
-                            'latency', 'address', 
-                            'ss58_address'],
+                            'latency', 'address'],
                     path = 'cache/module_infos',
                     max_age = 3600,
                     network = None,
@@ -433,12 +451,12 @@ class Vali(c.Module):
         module_infos = []
         # chunk the jobs into batches
         for path in paths:
-            r = self.get(path)
+            r = self.get(path, max_age=max_age)
             if isinstance(r, dict) and 'ss58_address' in r:
                 r['staleness'] = c.time() - r.get('timestamp', 0)
-                if r['staleness'] > max_age:
-                    continue
                 module_infos += [{k: r.get(k, None) for k in keys}]
+            else :
+                self.rm(path)
         if sort_by != None and len(module_infos) > 0:
             module_infos = sorted(module_infos, key=lambda x: x[sort_by] if sort_by in x else 0, reverse=True)
         self.put(path, module_infos)       
@@ -473,15 +491,6 @@ class Vali(c.Module):
     def random_module(self):
         return c.choice(list(self.namespace.keys()))
 
-    @classmethod
-    def test_eval_module(cls, network='local', verbose=False, timeout=1, workers=2, start=False,  **kwargs):
-        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start,  **kwargs)
-        return self.eval_module(self.random_module())
-
-    @classmethod
-    def test_run_epoch(cls, network='local', verbose=False, timeout=1, workers=2, start=False,  **kwargs):
-        self = cls(network=network, workers=workers, verbose=verbose, timeout=timeout, start=start,  **kwargs)
-        self = self.run_epoch('local')
 
     @classmethod
     def test_network(cls, network='subspace', search='vali'):

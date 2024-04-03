@@ -69,7 +69,7 @@ class Agent(c.Module):
     
 
     def talk(self, *text:str, **kwargs):
-        text = ' '.join(text)
+        text = ' '.join(list(map(str, text)))
         return self.call(text, **kwargs)
     def call(self, 
              text:str,

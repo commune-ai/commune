@@ -94,9 +94,10 @@ class c:
 
         if 'config' in kwargs:
             config = kwargs.pop('config')
-            
+
         # get the config
-        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
+        config =  self.config(config=config,kwargs=kwargs, to_munch=to_munch)
+
 
 
         # add the config attributes to the class (via munch -> dict -> class )
@@ -743,10 +744,9 @@ class c:
         return self.path_exists(path)
 
     @classmethod
-    def get_config(cls, 
+    def config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
-                   search:str = None,
                    to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
@@ -764,35 +764,30 @@ class c:
         elif isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
-        elif isinstance(config, dict):
+        
+        if isinstance(config, dict):
             config = {**default_config, **config}
         else:
             raise ValueError(f'config must be a dict, str or None, not {type(config)}')
-            
-        assert isinstance(config, dict), f'config must be a dict, not {config}'
-        
+                
         # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
         # for example  model.name=bert is the same as config[model][name]=bert
         # merge kwargs with itself (CAUTION THIS DOES NOT WORK IF KWARGS WAS MEANT TO BE A VARIABLE LOL)
-        kwargs = kwargs if kwargs != None else cls.init_kwargs()
-        kwargs.update(kwargs.pop('kwargs', {}))
-        for k,v in kwargs.items():
-            cls.dict_put(config,k,v )
-            
+
+        config = c.locals2kwargs(config)
+
+        if kwargs != None:
+            kwargs = c.locals2kwargs(kwargs)
+            for k,v in kwargs.items():
+                cls.dict_put(config,k,v )
         #  add the config after in case the config has a config attribute lol
         if to_munch:
             config = cls.dict2munch(config)
 
-        if search != None:
-            config = {k:v for k,v in config.items() if search in k}
-        
+
         return config
  
-    config = get_config
-
-    @classmethod
-    def cfg(cls, *args, **kwargs):
-        return cls.get_config(*args, **kwargs)
+    cfg = get_config = config
 
     @classmethod
     def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
@@ -1421,6 +1416,11 @@ class c:
             if os.path.exists(path.replace('.py', ext)):
                 return True
         return False
+
+
+
+    
+
     @classmethod
     def path2simple(cls, 
                     path:str,
@@ -5268,6 +5268,7 @@ class c:
             lines = lines[start_line:end_line]
         lines = '\n'.join(lines)
         return lines
+
     
     
     @classmethod
@@ -6393,10 +6394,7 @@ class c:
             tag = default_tag
         assert tag != None
         return tag
-    def resolve_tag_path(self, tag=None): 
-        tag = self.resolve_tag(tag)
-        return self.resolve_path(tag)
-    
+
     @classmethod
     def python2types(cls, d:dict)-> dict:
         return {k:str(type(v)).split("'")[1] for k,v in d.items()}
@@ -8182,6 +8180,14 @@ class c:
         for s, f in zip(servers, fns):
             server2fn[s] = f
         return server2fn
+
+
+    def docker_compose_file(self, *args, **kwargs):
+        x = c.load_yaml(f'{c.libpath}/docker-compose.yml', *args, **kwargs)
+        port_range = c.port_range()
+        x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
+        return x
+    
 
         
 

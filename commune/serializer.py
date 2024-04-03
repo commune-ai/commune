@@ -171,7 +171,6 @@ class Serializer(c.Module):
             data = data.decode('utf-8')
         if isinstance(data, str):
             data = json.loads(data)
-        assert isinstance(data, dict), f"data must be a dict, not {type(data)}"
         return data
     
     @classmethod

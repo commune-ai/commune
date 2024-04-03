@@ -1,7 +1,6 @@
 access_module:
   stake2rate: 100
 fam: bro
-ip: 162.157.13.236
 k: 2
 network: subspace
 shortcuts:
