@@ -134,6 +134,20 @@ def namespaces():
         return jsonify(namespaces_list)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+# returns list of modules being ACTIVELY served 
+@app.route('/modules/servers', methods=['GET'])
+def list_servers():
+    module_name = request.args.get('module_name')  
+    
+    try:
+        if module_name:
+            served_modules = c.servers(module_name)
+        else:
+            served_modules = c.servers()
+        return jsonify(served_modules)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # @app.route('/modules/info', methods=['GET'])
@@ -189,3 +203,5 @@ if __name__ == '__main__':
 # c modules.fintest active_thread_count
 
 # c namespace model.openai.free or c namespace 
+    
+# c servers & TODO: c server history (c servers gives list of modules being actively served)
