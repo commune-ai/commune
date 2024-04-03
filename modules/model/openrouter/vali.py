@@ -1,4 +1,4 @@
 import commune as c
 
 
-class ValiModule(c.Vali):
+class ValiModule(c.Vali):x

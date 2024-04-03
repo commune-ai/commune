@@ -362,9 +362,12 @@ class Keypair(c.Module):
         keys = {}
         for key in cls.keys():
             if str(search) in key or search == None:
-                keys[key] = cls.get_key(key)
-                if keys[key] == None:
-                    keys.pop(key)
+                try:
+                    keys[key] = cls.get_key(key)
+                    if keys[key] == None:
+                        keys.pop(key)
+                except Exception as e:
+                    c.print(f'failed to get key {key} due to {e}', color='red')
                 
 
                 

@@ -1973,7 +1973,11 @@ class c:
         except Exception as e:
             return default
         if isinstance(data, str):
-            data = json.loads(data)
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                c.print(e)
+                return default
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
                 data = data['data']
@@ -2207,6 +2211,8 @@ class c:
                 possible_modes = ['http', 'https', 'ws', 'wss'],
                 key = None,
                 **kwargs):
+        
+  
 
         """
         Connects to a server by the name of the module
@@ -2239,6 +2245,7 @@ class c:
         ip = ':'.join(address.split(':')[:-1])
         port = int(address.split(':')[-1])
 
+        
         return c.get_client(ip=ip, 
                             port=port, 
                             key=key, 
@@ -2677,6 +2684,10 @@ class c:
     
     @classmethod
     def subnet_params(cls, *args, **kwargs):
+        return c.module("subspace")().subnet_params(*args, **kwargs)
+
+    @classmethod
+    def my_subnet(cls, *args, **kwargs):
         return c.module("subspace")().subnet_params(*args, **kwargs)
     
     @classmethod
@@ -7044,9 +7055,9 @@ class c:
         return c.module('subspace')().update_module(*args, **kwargs)
     
     @classmethod
-    def vote(cls, *args, **kwargs):
+    def set_weights(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)
-
+    vote = set_weights
     @classmethod
     def set_weights(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)

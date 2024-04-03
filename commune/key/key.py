@@ -364,15 +364,14 @@ class Keypair(c.Module):
             if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
+                    c.print(f'failed to get key {key}', color='red')
                     keys.pop(key)
-                
-
                 
         return keys
         
 
     @classmethod
-    def key2address(cls, search=None, update:bool=False, cache=True):
+    def key2address(cls, search=None, max_age=1000, cache=True, **kwargs):
         path = 'key2address'
         key2address = []
         cache_path =  f'cache_{path}'
@@ -380,8 +379,8 @@ class Keypair(c.Module):
             return getattr(cls, cache_path)
 
 
-        if not update:
-            key2address =  cls.get(path, key2address)
+        key2address =  cls.get(path, key2address,max_age=max_age)
+
         if len(key2address) == 0:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)

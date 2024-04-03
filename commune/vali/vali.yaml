@@ -5,9 +5,9 @@ netuid: 0 # optional if you have a voting network with subnets [bittensor, commu
 verbose: False
 sync_interval: 10
 sleep_interval: 5
+initial_sleep : 10
 search: null
-max_age: 1000
-grace_period : 100
+max_age: 3600
 vote: True
 fn : null
 

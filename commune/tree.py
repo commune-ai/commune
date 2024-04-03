@@ -105,6 +105,7 @@ class Tree(c.Module):
     def tree(cls, search=None, 
                 update:bool = False,
                 verbose:bool = False,
+                tree = None,
                 path = 'local_module_tree'
                 ) -> List[str]:
         module_tree = {}
@@ -120,9 +121,17 @@ class Tree(c.Module):
             else:
                 module_tree =  c.get(path, {})
                 cls.tree_cache = module_tree
+
         
         if len(module_tree) == 0:
-            for tree_path in cls.tree_paths():
+    
+            tree2path = cls.tree2path()
+            c.print(tree2path, 'tree2path')
+            if tree != None:
+                tree_paths = [tree]
+            else:
+                tree_paths = cls.tree_paths()
+            for tree_path in tree_paths:
                 # get modules from each tree
                 python_paths = c.get_module_python_paths(path=tree_path)
                 # add the modules to the module tree

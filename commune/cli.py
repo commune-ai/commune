@@ -143,14 +143,12 @@ class cli(c.Module):
 
     @classmethod
     def determine_type(cls, x):
-        if x.lower() == 'null' or x == 'None':
+        if x.lower() in 'null' or x == 'None':
             return None
         elif x.lower() in ['true', 'false']:
             return bool(x.lower() == 'true')
         elif x.startswith('[') and x.endswith(']'):
-            # this is a list
             try:
-                
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
                 x =  [cls.determine_type(item.strip()) for item in list_items]

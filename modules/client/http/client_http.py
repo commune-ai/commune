@@ -54,18 +54,13 @@ class Client(c.Module):
     def set_client(self,
             ip: str =None,
             port: int = None ,
-            verbose: bool = False
             ):
         self.ip = ip if ip else c.default_ip
         self.port = port if port else c.free_port() 
-        if verbose:
-            c.print(f"Connecting to {self.ip}:{self.port}", color='green')
         self.address = f"{self.ip}:{self.port}"
+        self.address = self.address.replace(c.ip(), '0.0.0.0')
        
 
-    def resolve_client(self, ip: str = None, port: int = None) -> None:
-        if ip != None or port != None:
-            self.set_client(ip =ip,port = port)
     count = 0
     async def async_forward(self,
         fn: str,
@@ -77,7 +72,10 @@ class Client(c.Module):
         generator: bool = False,
         headers : dict ={'Content-Type': 'application/json'},
         ):
-        self.resolve_client(ip=ip, port=port)
+    
+        if ip != None or port != None:
+            self.set_client(ip =ip,port = port)
+
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
@@ -113,12 +111,16 @@ class Client(c.Module):
         if isinstance(result, dict) and 'data' in result:
             result = result['data']
 
+        self.address = self.address.replace(c.ip(), '0.0.0.0')
+
         input['fn'] = fn
         input['result'] = result
         input['module']  = self.address
         input['latency'] =  c.time() - input['timestamp']
-        # if self.save_history:
-        #     self.add_history(input)
+        
+        if self.save_history:
+            self.add_history(input)
+
         return result
     
     

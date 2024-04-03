@@ -81,13 +81,10 @@ class Client(c.Module):
                         "timestamp": c.timestamp(),
                         }
         self.count += 1
-        c.print(self.count)
         # serialize this into a json string
         request = self.serializer.serialize(input)
         request = self.key.sign(request, return_json=True)
         c.print(f"Requesting {fn} from {self.address}", color='green')
-        if debug:
-            c.print(request)
 
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
