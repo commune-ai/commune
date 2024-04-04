@@ -2,6 +2,7 @@
 from .module import Module
 c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 from .cli import cli
+
 # from .modules.subspace import subspace
 # from .model import Model
 

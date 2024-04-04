@@ -1,3 +1,3 @@
 import commune as c
 
-print(c.connect('module').ip(), 'ip')
+c.module('vali')().eval(c.add.Miner())

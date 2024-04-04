@@ -84,7 +84,10 @@ class Access(c.Module):
     def verify(self, input:dict) -> dict:
         """
         input : dict 
-            address:
+            fn : str
+            address : str
+
+        returns : dict
         """
         fn = input['fn']
         address = input['address']
@@ -97,6 +100,9 @@ class Access(c.Module):
 
         assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
+
+        if c.is_user(address):
+            return {'success': True, 'msg': f'is verified user'}
 
         if fn.startswith('__') or fn.startswith('_'):
             return {'success': False, 'msg': f'Function {fn} is private'}

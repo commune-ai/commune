@@ -537,7 +537,13 @@ class c:
         return text.startswith(prefix)
 
     @classmethod
-    def put(cls, k: str, v: Any,  mode: bool = 'json', encrypt: bool = False, verbose: bool = False, password: str = None, **kwargs) -> Any:
+    def put(cls, 
+            k: str, 
+            v: Any,  
+            mode: bool = 'json',
+            encrypt: bool = False, 
+            verbose: bool = False, 
+            password: str = None, **kwargs) -> Any:
         '''
         Puts a value in the config
         '''
@@ -1457,6 +1463,9 @@ class c:
                 simple_chunk = simple_chunk[:-1]
 
         simple_path = '.'.join(simple_chunk)
+
+        if simple_path.endswith('.module'):
+            simple_path = simple_path.replace('.module', '')
 
         # remove any files to compress the name even further for
         if len(simple_path.split('.')) > 2:
@@ -4829,8 +4838,10 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20, remote=False,  **kwargs):
-
+    def fleet(cls,module = None, n=2, tag=None, max_workers=10, parallel=True, timeout=20, remote=False,  **kwargs):
+        cls = module or cls
+        if isinstance(cls, str):
+            cls = c.module(module)
         c.update()
         if tag == None:
             tag = ''
@@ -5511,13 +5522,16 @@ class c:
     make_dir= mkdir
 
     @classmethod
-    def filepath2text(cls, path:str = None):
-        if path == None:
-            path = c.root_path
-        filepath2text = {}
-        for filepath in c.glob(path):
-            filepath2text[filepath] = c.get_text(filepath)
-        return filepath2text
+    def path2text(cls, path:str = None):
+        path = cls.resolve_path(path)
+        c.print(path)
+        path2text = {}
+        for filepath in c.glob(path + '/**'):
+            try:
+                path2text[filepath] = c.get_text(filepath)
+            except:
+                pass
+        return path2text.keys()
         
 
     @classmethod
@@ -7351,6 +7365,13 @@ class c:
     @classmethod
     def subnet(cls, *args, **kwargs):
         return c.module('subspace')().subnet(*args, **kwargs)
+    
+    
+    @classmethod
+    def my_subnets(cls, *args, **kwargs):
+        return c.module('subspace')().my_subnets(*args, **kwargs)
+    
+
 
     @classmethod
     def networth(cls, *args, **kwargs):
@@ -7483,26 +7504,15 @@ class c:
         return c.getc('shortcuts').get(name, name)
     
 
-    @classmethod
-    def talk(cls , *args, module = 'model', num_jobs=1, timeout=6, **kwargs):
-        jobs = []
-        for i in range(num_jobs):
-            model = c.connect(module, virtual=False)
-            c.print('Selecting: ', model)
-            job = model.async_forward(fn='talk', args=args, kwargs=kwargs)
-            jobs += [job]
-
-        results = c.gather(jobs, timeout=timeout)
-        for r in results:
-            if c.is_success(r):
-                if isinstance(r, str) and len(r) > 0:
-                    return r
-
-        return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
     @classmethod
     def talk(cls, *args, **kwargs):
         return c.module('model.openrouter')().talk(*args, **kwargs)
+
+    @classmethod
+    def yesno(self, prompt:str):
+        return c.module('model.openrouter')().talk(f"{prompt} give a yes or no response ONLY IN ONE WORD", max_tokens=10)
+    ask = a = talk
 
     @classmethod
     def containers(cls):
@@ -8133,29 +8143,16 @@ class c:
         return state
         
     @classmethod
-    def eval(cls, module):
-        '''
-        Docs:
-        c
-        ### eval(cls, module)
-        
-        This class method evaluates a given module by invoking its 'vali' method and passing the 'module' parameter. 
-        
-        #### Parameters:
-        - `module`: The module to be evaluated.
-        
-        #### Returns:
-        - The result of evaluating the module using the 'vali' method.
-        
-        #### Usage:
-        This method is intended to be used in a class that has a 'vali' method implemented. It can be called as follows:
-        
-        ```
-        result = ClassName.eval(some_module)
-        ```
-        Where `ClassName` is the name of the class with the `eval` class method, and `some_module` is the module to evaluate.
-        '''
-        return c.module('vali')().eval(module)
+    def eval(cls, module, vali=None,  **kwargs):
+        vali = c.module('vali')() if vali == None else c.module(vali)
+        return c.eval(module, **kwargs)
+    
+    @classmethod
+    def run_epoch(self, *args, vali=None, **kwargs):
+        vali = c.module('vali')() if vali == None else c.module(vali)
+        return vali.run_epoch(*args, **kwargs)
+
+
     @classmethod
     def comment(self,fn:str='module/ls'):
         return c.module('coder')().comment(fn)
@@ -8191,9 +8188,9 @@ class c:
 
         
 
-
     
 Module = c
+
 Module.run(__name__)
     
 

@@ -96,7 +96,7 @@ class User(c.Module):
         return df 
         
     @classmethod
-    def dashboard(cls):
+    def app(cls):
         import streamlit as st
         st.write('### Users')
         self = cls()

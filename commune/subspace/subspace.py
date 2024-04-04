@@ -664,11 +664,11 @@ class Subspace(c.Module):
                                                                 netuid=netuid, fmt=fmt,
                                                                 max_age=max_age,
                                                                   update=update, **kwargs)
-            stake_to = netuid2stake_to
+            key2stake_to = {}
             for netuid, stake_to in netuid2stake_to.items():
                 if key_address in stake_to:
-                    netuid2stake_to[netuid] = {k:v for k, v in stake_to[key_address]}
-            return netuid2stake_to
+                    key2stake_to[netuid] = {k:v for k, v in stake_to[key_address]}
+            return key2stake_to
         
 
         netuid = self.resolve_netuid( netuid )
@@ -1445,7 +1445,11 @@ class Subspace(c.Module):
         progress_bar = c.tqdm(total=len(keys), desc=f'Querying {len(keys)} keys for modules')
         modules = []
         for key in keys:
-            module = self.get_module(module=key, netuid=netuid, network=network, fmt=fmt, **kwargs)
+            try:
+                module = self.get_module(module=key, netuid=netuid, network=network, fmt=fmt, **kwargs)
+            except Exception as e:
+                c.print(e)
+                continue
             if isinstance(module, dict) and 'name' in module:
                 modules.append(module)
                 progress_bar.update(1)
@@ -2990,6 +2994,7 @@ class Subspace(c.Module):
                         df = True,
                         keys = None,
                         max_age = 1000,
+                        features = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee', 'vote_staleness'],
                         **kwargs):
         
         key = self.resolve_key(key)
@@ -2999,7 +3004,6 @@ class Subspace(c.Module):
             staked_modules = self.get_stake_to(key=key, 
                                                netuid=netuid, 
                                                names=False, 
-                                               update=True, 
                                                network=network,
                                                max_age=max_age,
                                                  **kwargs)
@@ -3010,6 +3014,7 @@ class Subspace(c.Module):
                     keys = list(netuid_staked_modules.keys())
                     if len(keys) == 0:
                         continue
+                    c.print(f'Getting staked modules for SubNetwork {netuid} with {len(keys)} modules')
                     staked_netuid = self.staked(search=search, 
                                                 key=key, 
                                                 netuid=netuid, 
@@ -3023,21 +3028,22 @@ class Subspace(c.Module):
             else: 
                 keys = list(staked_modules.keys())
                 
-
-
-
+        block = self.block
         modules = self.get_modules(keys)
         if search != None:
             modules = [m for m in modules if search in m['name']]
         if df:
-
+            
             for m in modules:
-                m['stake_from'] =  m['stake_from'].get(key.ss58_address, 0)
-                m['stake'] = c.round(m['stake'], 4)
-            keys = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee']
+                m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
+                m['stake'] = int(m['stake'])
+                m['vote_staleness'] =  max(block - m['last_update'], 0)
+            
+            modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
+
             if len(modules) == 0: 
                 return modules
-            modules = c.df(modules)[keys]
+            modules = c.df(modules)
 
             modules = modules.sort_values('stake_from', ascending=False)
             del modules['key']

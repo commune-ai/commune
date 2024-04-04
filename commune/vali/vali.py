@@ -17,16 +17,23 @@ class Vali(c.Module):
                  **kwargs):
         self.init(config=config, **kwargs)
 
-    def init(self, config=None, **kwargs):
+    def init(self, config=None, module=None, **kwargs):
+        if module != None:
+            assert hasattr(module, 'score_module'), f'Module must have a config attribute, got {module}'
+            self.score_module = module.score_module
+
         # initialize the validator
-        self.config = self.set_config(config=config, kwargs=kwargs)
+        config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
-        self.config = c.dict2munch({**Vali.config(), **self.config})
+        config = c.dict2munch({**Vali.config(), **config})
+        c.print(config, 'VALI CONFIG')
+
+        if hasattr(config, 'key'):
+            self.key = c.key(config.key)
+        self.config = config
         self.sync()
         c.thread(self.run_loop)
     init_vali = init
-
-    
 
     def run_info(self):
         info ={
@@ -42,6 +49,7 @@ class Vali(c.Module):
             'last_time_sync': c.round(c.time() - self.last_sync_time, 3),
             'fn': self.config.fn,
             'search': self.config.search,
+            'key': self.key.ss58_address,
             }
         return info
     
@@ -118,6 +126,7 @@ class Vali(c.Module):
         batch_size = min(batch_size, len(module_addresses)//2)
         self.executor = c.module('executor.thread')(max_workers=batch_size)
         batch_size = self.config.batch_size
+        self.address2last_update = {}
         while len(module_addresses) > 0:
             module_address = module_addresses.pop()
             # if the futures are less than the batch, we can submit a new future
@@ -129,7 +138,7 @@ class Vali(c.Module):
                     for future in c.as_completed(futures,
                                                  timeout=self.config.timeout*2):
                         result = future.result()
-                        c.print(result, verbose=self.config.debug)
+                        c.print(result, verbose=self.config.debug or self.config.verbose)
                         futures.remove(future)
                         results += [result]  
                         break
@@ -171,7 +180,7 @@ class Vali(c.Module):
                      fn : str = None,
                      max_age: int = 1000, **kwargs):
         
-        if self.time_since_sync < self.config.sync_interval and network == self.network:
+        if self.time_since_sync < self.config.sync_interval and (network == self.network and network != None):
             return {'msg': 'Alredy Synced network Within Interval', 
                     'last_sync_time': self.last_sync_time,
                     'time_since_sync': self.time_since_sync, 
@@ -230,7 +239,6 @@ class Vali(c.Module):
             setattr(self, k, v)
             self.config[k] = v
        
-        c.print(f'Synced net:{self.config.network} subnet:{self.config.netuid} search:{self.config.search} {self.n} modules', color='cyan')
         return response
     
 
@@ -271,17 +279,31 @@ class Vali(c.Module):
                     network=None, 
                     verbose = None,
                     verbose_keys = ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness'],
+                    catch_exception = True,
                     **kwargs):
+        
+
         """
         The following evaluates a module sver
         """
+        if catch_exception:
+            try:
+                kwargs = c.locals2kwargs(locals())
+                kwargs['catch_exception'] = False
+                return self.eval_module(**kwargs)
+            except Exception as e:
+            # give it 0
+                self.errors += 1
+                response =  c.detailed_error(e)
+                response['w'] = 0
+                return response
+
         verbose = verbose or self.verbose
-
-
         # load the module stats (if it exists)
         network = network or self.config.network
         self.sync(network=network)
         module = module or self.next_module()
+
 
         # load the module info and calculate the staleness of the module
         # if the module is stale, we can just return the module info
@@ -289,17 +311,19 @@ class Vali(c.Module):
         self.last_sent = c.time()
 
         info = {}
+
         if module in self.name2address:
             info['name'] = module
             info['address'] = self.name2address[module]
         else:
-            info['name'] = self.address2name.get(module, module)
+            assert module in self.address2name, f"{module} is not found in {self.network}"
+            info['name'] = self.address2name[module]
             info['address'] = module
             
-
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
-    
+        c.print(f'🚀 :: Connected to Module {info["name"]} :: 🚀',  color='yellow')
+
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
         cached_info = self.get(path, {}, max_age=self.config.max_age)
 
@@ -314,26 +338,20 @@ class Vali(c.Module):
         info['staleness'] = c.time() - info.get('timestamp', 0)
         info['path'] = path
 
-        try:
-            start_time = c.time()
-            response = self.score_module(module)
-            response = self.process_response(response)
-            response['timestamp'] = start_time
-            response['latency'] = c.time() - response.get('timestamp', 0)
-            response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
-            # merge the info with the response
-            info.update(response)
-            self.put(path, info)
-            response =  {k:info[k] for k in verbose_keys}
+        start_time = c.time()
+        response = self.score_module(module)
+        response = self.process_response(response)
+        response['timestamp'] = start_time
+        response['latency'] = c.time() - response.get('timestamp', 0)
+        response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
+        # merge the info with the response
+        info.update(response)
+        self.put(path, info)
+        response =  {k:info[k] for k in verbose_keys}
 
-            self.successes += 1
-            self.last_success = c.time()
-        except Exception as e:
-            # give it 0
-            self.errors += 1
-            response =  c.detailed_error(e)
-            response['w'] = 0
-            
+        self.successes += 1
+        self.last_success = c.time()
+
         return response
         
 
@@ -542,6 +560,9 @@ class Vali(c.Module):
 
             except Exception as e:
                 c.print(c.detailed_error(e))
+
+
+
 
 
 
