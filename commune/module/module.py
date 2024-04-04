@@ -73,8 +73,8 @@ class c:
             self.config = c.dict2munch({})
         self.config['tag'] = value
         return value
-        
-    def pwd(self):
+    @classmethod
+    def pwd(cls):
         pwd = os.getenv('PWD') # the current wor king directory from the process starts 
         return pwd
 
@@ -262,7 +262,7 @@ class c:
     @classmethod
     def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/main/'):
         
-        filepath = cls.filepath().replace(c.modules_path, '')
+        filepath = cls.filepath().replace(c.repo_path + '/', '')
         
         return root + filepath
 
@@ -5068,6 +5068,37 @@ class c:
     @classmethod
     def check_module(cls, module:str):
         return c.connect(module)
+
+    @classmethod
+    def is_pwd(cls, module:str = None):
+        if module != None:
+            module = c.module(module)
+        else:
+            module = cls
+        return module.dirpath() == c.pwd()
+
+    @classmethod
+    def server_many(cls, *modules, n=2, **kwargs):
+
+        if isinstance(modules[0], list):
+            modules = modules[0]
+        
+        futures = []
+        for module in modules:
+            future = c.submit(c.serve, kwargs={'module': module, **kwargs})
+            futures.append(future)
+            
+        results = []
+        for future in c.as_completed(futures):
+            result = future.result()
+            c.print(result)
+            results.append(result)
+        return results
+    
+    
+    @classmethod
+    def currnet_module(cls):
+        return c.module(cls.module_path())
     
     @classmethod
     def is_success(cls, x):
@@ -5524,14 +5555,13 @@ class c:
     @classmethod
     def path2text(cls, path:str = None):
         path = cls.resolve_path(path)
-        c.print(path)
         path2text = {}
         for filepath in c.glob(path + '/**'):
             try:
                 path2text[filepath] = c.get_text(filepath)
             except:
                 pass
-        return path2text.keys()
+        return path2text
         
 
     @classmethod

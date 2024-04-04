@@ -17,7 +17,6 @@ class Vali(Vali):
         assert result == 2, f"result: {result}"
         return 1
     
-
     def forward(self, x, y):
         return x + y
     
