@@ -258,12 +258,15 @@ class c:
         '''
         return cls.get_module_path(simple=False)
     
+    @classmethod
+    def gitbranch(cls) -> str:
+        return c.cmd('git branch').split('\n')[0].replace('* ', '')
 
     @classmethod
-    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/main/'):
-        
+    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/'):
+        branch = cls.gitbranch()
+        root = root + branch + '/'
         filepath = cls.filepath().replace(c.repo_path + '/', '')
-        
         return root + filepath
 
 
@@ -4245,7 +4248,7 @@ class c:
         return [f for f in dir(cls) if f.startswith('test_')]
     
     @classmethod
-    def test(cls, module = None):
+    def testnet(cls, module = None):
         if cls.path() == 'module':
             return c.module('test')().test()
         module = module or cls
