@@ -60,14 +60,28 @@ class Serializer(c.Module):
         else:
             # GET THE TYPE OF THE VALUE
             str_v_type = self.get_type_str(data=x)
+
             if hasattr(self, f'serialize_{str_v_type}'):
                 # SERIALIZE MODE ON
-                x = getattr(self, f'serialize_{str_v_type}')(data=x)
-                new_value = {'data': x, 'data_type': str_v_type,  'serialized': True}
+                c.print(f"Serializing {str_v_type}")
+                new_value = {'data':  getattr(self, f'serialize_{str_v_type}')(data=x), 
+                             'data_type': str_v_type,  
+                             'serialized': True}
             else:
                 new_value = {"success": False, "error": f"Type {str_v_type} not supported"}
 
         return new_value
+    
+    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
+        data = data.to_dict()
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        return data
+    
+    
+    def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
+        import pandas as pd
+        return pd.DataFrame.from_dict(data)
         
 
     def is_serialized(self, data):

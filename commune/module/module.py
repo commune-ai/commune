@@ -133,7 +133,7 @@ class c:
                 fn:str = None,*args,
                 timeout : int = 10,
                 prefix_match:bool = False,
-                network:str = None,
+                network:str = 'local',
                 key:str = None,
                 kwargs = None,
                 params = None,
@@ -1402,6 +1402,7 @@ class c:
     def kill_all(cls, network='local', timeout=20, verbose=True):
         futures = []
         for s in c.servers(network=network):
+            c.print(f'Killing {s}', color='red')
             futures += [c.submit(c.kill, args=[s], return_future=True)]
 
         results_list = []
@@ -1410,7 +1411,7 @@ class c:
             c.print(result, verbose=verbose)
             results_list += [result]
 
-        c.update_namespace(network=network)
+        c.namespace(network=network, update=True)
 
         return {'namespace': c.namespace(network=network)}
 
@@ -2229,12 +2230,13 @@ class c:
             module = module.split('://')[-1]
 
         # we dont want to load the namespace if we have the address
-        is_address = c.is_address(module)
-        if is_address:
+
+        if c.is_address(module):
             address = module
         else:
-            # using the namespace to reaolve the address
             namespace = namespace or c.namespace(module, network=network)
+            # using the namespace to reaolve the address
+            
             # if we want to match the prefix, then we will match the prefix
             if prefix_match:
                 module = c.choice(list(namespace.keys()))
@@ -2444,6 +2446,7 @@ class c:
         if '//:' in address:
             return True
         conds = []
+        conds.append(len(address.split('.')) > 1)
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_int(address.split(':')[-1]))
@@ -3185,12 +3188,8 @@ class c:
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        if len(servers) == 0:
-            servers = c.pm2ls(search)
 
-
-        if n == None:
-            n = len(servers)
+        n = n or len(servers)
 
         if n > 0 and n < 1:
             servers = servers[:int(len(servers)*n)]
@@ -3208,15 +3207,15 @@ class c:
         else:
             results = []
             for s in servers:
-                results.append(c.kill(s, **kwarsg))
+                results.append(c.kill(s, **kwargs))
 
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
     delete = kill_server = kill
     def destroy(self):
-        self.kill(self.server_name)
-        return path
+        return self.kill(self.server_name)
+        
     
     def self_destruct(self):
         c.kill(self.server_name)    

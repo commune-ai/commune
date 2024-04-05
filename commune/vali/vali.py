@@ -33,7 +33,40 @@ class Vali(c.Module):
         self.config = config
         self.sync()
         c.thread(self.run_loop)
+
     init_vali = init
+
+
+    
+    def run_loop(self):
+        c.sleep(self.config.initial_sleep)
+
+        # start the workers
+        
+        self.start_time = c.time()
+        for i in range(self.config.workers):
+            self.start_worker(i)
+        while True:
+
+            c.sleep(self.config.sleep_interval)
+            try:
+                self.sync()
+                run_info = self.run_info()
+                c.print(run_info)
+
+                if run_info['vote_staleness'] < self.config.vote_interval:
+                    r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
+                elif not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
+                    r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
+                else:
+                    r = self.vote()
+                run_info.update(r)
+                c.print(run_info)
+
+            except Exception as e:
+                c.print(c.detailed_error(e))
+
+
 
     def run_info(self):
         info ={
@@ -427,19 +460,6 @@ class Vali(c.Module):
     
     vote = set_weights
     
-    def num_modules(self, **kwargs):
-        return len(self.module_infos(**kwargs))
-
-    def leaderboard(self, *args, **kwargs): 
-        df =  c.df(self.module_infos(*args, **kwargs))
-        df.sort_values(by=['w', 'staleness'], ascending=False, inplace=True)
-        return df
-    
-    def module_paths(self, network=None):
-        paths = self.ls(self.storage_path(network=network))
-        return paths
-    
-
     @property
     def network_info(self):
         return {
@@ -462,6 +482,7 @@ class Vali(c.Module):
                     path = 'cache/module_infos',
                     max_age = 3600,
                     network = None,
+                    reverse = False,
                     sort_by = 'staleness',
                     **kwargs
                     ):
@@ -476,23 +497,30 @@ class Vali(c.Module):
             else :
                 self.rm(path)
         if sort_by != None and len(module_infos) > 0:
-            module_infos = sorted(module_infos, key=lambda x: x[sort_by] if sort_by in x else 0, reverse=True)
+            module_infos = sorted(module_infos, key=lambda x: x[sort_by] if sort_by in x else 0, reverse=reverse)
         self.put(path, module_infos)       
         return module_infos
 
 
+    def num_modules(self, **kwargs):
+        return len(self.leaderboard(**kwargs))
+
+    def leaderboard(self, *args, df=True, **kwargs): 
+        leaderboard =  self.module_infos(*args, df=df, **kwargs)
+        if df:
+            leaderboard = c.df(leaderboard)
+        return leaderboard
+    
+    def module_paths(self, network=None):
+        paths = self.ls(self.storage_path(network=network))
+        return paths
     
     def save_module_info(self, k:str, v:dict,):
         path = self.storage_path() + f'/{k}'
         self.put(path, v)
     
 
-    
-    def stop(self):
-        self.running = False
-
     def __del__(self):
-        self.stop()
         c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
         workers = self.workers()
         futures = []
@@ -520,9 +548,6 @@ class Vali(c.Module):
         c.kill(server_name)
         return {'success': True, 'msg': f'Found {len(self.namespace)} modules in {network} {search}'}
 
-
-    
-
     @property
     def vote_staleness(self):
         try:
@@ -532,35 +557,6 @@ class Vali(c.Module):
             pass
         return 0
     
-    
-    def run_loop(self):
-        c.sleep(self.config.initial_sleep)
-
-        # start the workers
-        
-        self.start_time = c.time()
-        for i in range(self.config.workers):
-            self.start_worker(i)
-        while True:
-
-            c.sleep(self.config.sleep_interval)
-            try:
-                self.sync()
-                run_info = self.run_info()
-                c.print(run_info)
-
-                if run_info['vote_staleness'] < self.config.vote_interval:
-                    r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
-                elif not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
-                    r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
-                else:
-                    r = self.vote()
-                run_info.update(r)
-                c.print(run_info)
-
-            except Exception as e:
-                c.print(c.detailed_error(e))
-
 
 
 
