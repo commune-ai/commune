@@ -1,0 +1,5 @@
+docker run -itd -v /home/ubuntu/eden/key:/root/.commune/key -p 50050-50149:50050-50149 --restart always --name eden-vali communeslim
+docker build -t communeslim .
+
+
+docker run -itd -v /home/ubuntu/eden/key:/root/.commune/key -p 51111-51119:51111-51119 --restart always --name gardenofeden-vali communeslim
