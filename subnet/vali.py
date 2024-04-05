@@ -4,8 +4,8 @@ Vali = c.module("vali")
 class Vali(Vali):
     def __init__(self, 
                  network='local', # the network is local
-                 search = 'miner',
                  netuid = 1,
+                 search = None,
                    **kwargs):
         # send locals() to init
         self.init(locals())

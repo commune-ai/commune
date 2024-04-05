@@ -31,4 +31,4 @@ RUN pip install -e .
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2
 
-CMD [ "pm2-runtime", "start", "pm2_placeholder.py" ]
+CMD [ "tail -f /dev/null" ]

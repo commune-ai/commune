@@ -19,13 +19,13 @@ nest_asyncio.apply()
 # AGI BEGINS 
 class c:
     whitelist = ['info',
-                        'schema',
-                        'server_name',
-                        'is_admin',
-                        'namespace',
-                        'whitelist', 
-                        'blacklist',
-                        'fns'] # whitelist of helper functions to load
+                'schema',
+                'server_name',
+                'is_admin',
+                'namespace',
+                'whitelist', 
+                'blacklist',
+                'fns'] # whitelist of helper functions to load
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
@@ -1403,7 +1403,7 @@ class c:
         futures = []
         for s in c.servers(network=network):
             c.print(f'Killing {s}', color='red')
-            futures += [c.submit(c.kill, args=[s], return_future=True)]
+            futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
 
         results_list = []
         for f in c.as_completed(futures, timeout=timeout):

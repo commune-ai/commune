@@ -75,7 +75,7 @@ class Serializer(c.Module):
     def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
         data = data.to_dict()
         if isinstance(data, bytes):
-            data = data.decode('utf-8')
+            data = self.byte(data)
         return data
     
     

@@ -4,7 +4,7 @@ services:
   commune:
     build:
       context: ./
-      dockerfile: Dockerfile-code-server
+      dockerfile: Dockerfile
     container_name: commune
     shm_size: '1gb' # for the shared memory size
     volumes:
@@ -13,5 +13,5 @@ services:
       - ./:/commune
       #- /var/run/docker.sock:/var/run/docker.sock #Nuclear option
     ports:
-      - 50150:5000
+      - 50050-50250:50050-50250
     restart: unless-stopped

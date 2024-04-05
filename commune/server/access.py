@@ -22,7 +22,7 @@ class Access(c.Module):
 
                 **kwargs):
         
-        self.set_config(kwargs=locals())
+        self.set_config(locals())
         self.user_module = c.module("user")()
         self.address2key = c.address2key()
         self.set_module(module)
@@ -32,7 +32,7 @@ class Access(c.Module):
         self.last_time_synced = c.time()
         self.state = {}
         
-        c.thread(self.sync_loop_thread)
+        c.thread(self.run_loop)
 
 
     def set_module(self, module: c.Module):
@@ -42,15 +42,7 @@ class Access(c.Module):
         self.module = module
         return {'success': True, 'msg': f'set module to {module}'}
 
-    
-    def rm_state(self):
-        self.put(self.state_path, {})
-        return {'success': True, 'msg': f'removed {self.state_path}'}
-    def save_state(self):
-        self.put(self.state_path, self.state)
-        return {'success': True, 'msg': f'saved {self.state_path}'}
-    
-    def sync_loop_thread(self):
+    def run_loop(self):
         while True:
             try:
                 r = self.sync_network()
@@ -59,26 +51,28 @@ class Access(c.Module):
             c.print(r)
             c.sleep(self.config.sync_interval)
 
-
-    def sync_network(self, update=False, cache_exceptions=True):
-        state = self.get(self.state_path, {})
-        if len(self.state) == 0:
-            self.get
-            update=True
-
+    def sync_network(self):
+        state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
         time_since_sync = c.time() - state.get('sync_time', 0)
 
-        if time_since_sync > self.config.sync_interval or update:
+        if time_since_sync > self.config.sync_interval:
             self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
             state['sync_time'] = c.time()
-
-        self.state = state
-        self.save_state()
-        c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
-        response = {'success': True, 'msg': f'synced {self.state_path}', 
-                    'until_sync': int(self.config.sync_interval - time_since_sync),
-                    'time_since_sync': int(time_since_sync)}
+            self.state = state
+            self.put(self.state_path, self.state)
+            
+            c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
+            
+            response = {'success': True, 
+                        'msg': f'synced {self.state_path}', 
+                        'until_sync': int(self.config.sync_interval - time_since_sync),
+                        'time_since_sync': int(time_since_sync)}
+        else:
+            response = {'success': True, 
+                        'msg': f'not syncing {self.state_path}', 
+                        'until_sync': int(self.config.sync_interval - time_since_sync),
+                        'time_since_sync': int(time_since_sync)}
         return response
 
     def verify(self, input:dict) -> dict:
@@ -254,6 +248,15 @@ class Access(c.Module):
 
         # stake_per_call_per_minute = st.slider('stake_per_call', 0, 100, 10)
         # call_weight = st.slider('call_weight', 0, 100, 10)
+
+
+    
+    def rm_state(self):
+        self.put(self.state_path, {})
+        return {'success': True, 'msg': f'removed {self.state_path}'}
+
+    
+
 
 if __name__ == '__main__':
     Access.run()

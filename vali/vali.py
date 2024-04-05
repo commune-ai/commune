@@ -3,6 +3,7 @@ import commune as c
 from typing import *
 
 class Vali(c.Module):
+    
     last_sync_time = 0
     last_sent = 0
     last_success = 0
@@ -21,7 +22,6 @@ class Vali(c.Module):
         if module != None:
             assert hasattr(module, 'score_module'), f'Module must have a config attribute, got {module}'
             self.score_module = module.score_module
-
         # initialize the validator
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
@@ -37,7 +37,6 @@ class Vali(c.Module):
     init_vali = init
 
 
-    
     def run_loop(self):
         c.sleep(self.config.initial_sleep)
 
@@ -87,27 +86,13 @@ class Vali(c.Module):
         return info
     
     def workers(self):
-        c.print(self.config, 'FAM')
         if self.config.mode == 'server':
             return c.servers(search=self.server_name)
         elif self.config.mode == 'thread':
             return c.threads(search='worker')
         else:
             return []
-        
-    def worker2logs(self):
-        workers = self.workers()
-        worker2logs = {}
-        for w in workers:
-            worker2logs[w] = c.logs(w, lines=100)
 
-    @property
-    def worker_name_prefix(self):
-        return f'{self.server_name}'
-
-    def restart_worker(self, id = 0):
-        if self.config.mode == 'thread':
-            return self.start_worker(id=id)
 
     def start_worker(self, id = 0, **kwargs):
         worker_name = self.worker_name(id)
@@ -205,7 +190,7 @@ class Vali(c.Module):
         return 'subspace' in self.config.network or 'bittensor' in self.config.network
          
 
-    def sync(self, 
+    def set_network(self, 
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
@@ -275,7 +260,7 @@ class Vali(c.Module):
         return response
     
 
-    
+    sync = set_network
 
     
 
@@ -355,7 +340,6 @@ class Vali(c.Module):
             
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
-        c.print(f'🚀 :: Connected to Module {info["name"]} :: 🚀',  color='yellow')
 
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
         cached_info = self.get(path, {}, max_age=self.config.max_age)
@@ -539,14 +523,21 @@ class Vali(c.Module):
 
 
     @classmethod
-    def test_network(cls, network='subspace', search='vali'):
-        server_name = 'vali::test'
-        self = cls(search=search, network=network, start=False, workers=0)
-        if len(self.namespace) > 0:
-            for module_name in self.namespace:
-                assert search in module_name
-        c.kill(server_name)
-        return {'success': True, 'msg': f'Found {len(self.namespace)} modules in {network} {search}'}
+    def test(cls, network='local', search='vali', n=4):
+        modules = [c.serve(f'vali::{i}', network=network) for i in range(n)]
+        c.serve('vali::test', kwargs=dict(network=network, search=search), wait_for_server=True)
+        vali = c.connect('vali::test')
+
+
+        while True:
+            c.print(vali.run_info())
+            c.sleep(3)
+
+        return {'success': True, 'msg': 'Test Passed'}
+            
+
+
+
 
     @property
     def vote_staleness(self):

@@ -10,7 +10,7 @@ import time
 import commune as c
 class AESKey(c.Module):
 
-    def __init__(self, key:str ): 
+    def __init__(self, key:str = 'dummy' ): 
         self.bs = AES.block_size
         self.key_phrase = hashlib.sha256(key.encode()).digest()
 
@@ -19,7 +19,6 @@ class AESKey(c.Module):
         data = self._pad(data)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
-        
         encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
         encrypted_data =  encrypted_bytes.decode() if return_string else encrypted_bytes
 
@@ -53,13 +52,13 @@ class AESKey(c.Module):
         ]
         import time
         for test_object in test_objects:
-            start_time = time.clock()
+            start_time = time.time()
             encrypted = self.encrypt(test_object)
             decrypted = self.decrypt(encrypted)
             assert decrypted == test_object, f'FAILED: {test_encrypt_decrypt} {test_object} FAILED'
             
             size_bytes = sys.getsizeof(test_object)
-            seconds =  time.clock() - start_time
+            seconds =  time.time() - start_time
             rate = size_bytes / seconds
 
         print('PASSED test_encrypt_decrypt')
@@ -71,15 +70,15 @@ class AESKey(c.Module):
         import streamlit as st
         self = cls(key=key)
         test_object = [1,2,3,5]*1000000
-        start_time = time.clock()
+        start_time = time.time()
         encrypted = self.encrypt(test_object)
-        seconds =  time.clock() - start_time        
+        seconds =  time.time() - start_time        
         size_bytes = sys.getsizeof(test_object)
         encrypt_rate = size_bytes / seconds
 
-        start_time = time.clock()
+        start_time = time.time()
         decrypted = self.decrypt(encrypted)
-        seconds =  time.clock() - start_time        
+        seconds =  time.time() - start_time        
         size_bytes = sys.getsizeof(test_object)
         decrypt_rate = size_bytes / seconds
 
@@ -93,6 +92,7 @@ class AESKey(c.Module):
     @classmethod
     def test(cls):
         import streamlit as st
+        self = cls()
         for attr in dir(cls):
             if attr[:len('test_')] == 'test_':
                 getattr(cls, attr)()
