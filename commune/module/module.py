@@ -1137,7 +1137,7 @@ class c:
 
         if path == None:
             return cls.tmp_dir()
-        
+
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
@@ -2234,7 +2234,7 @@ class c:
         if c.is_address(module):
             address = module
         else:
-            namespace = namespace or c.namespace(module, network=network)
+            namespace = namespace or c.namespace(module, network=network, update=False)
             # using the namespace to reaolve the address
             
             # if we want to match the prefix, then we will match the prefix
@@ -2446,7 +2446,7 @@ class c:
         if '//:' in address:
             return True
         conds = []
-        conds.append(len(address.split('.')) > 1)
+        conds.append(len(address.split('.')) >= 3)
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_int(address.split(':')[-1]))
@@ -4860,7 +4860,6 @@ class c:
                 result = future.result()
                 c.print(result)
                 results += [result]
-                c.register_server(name=result['name'], address=result['address'])
 
         else:
             results = []
@@ -5470,7 +5469,7 @@ class c:
                    repo : str = None,
                    base : str = 'base',
                    code : str = None,
-                   tree : bool = 'modules',
+                   tree : bool = 'commune',
                    include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
@@ -5485,9 +5484,9 @@ class c:
         class_name = module[0].upper() + module[1:] # capitalize first letter
         class_name = ''.join([m.capitalize() for m in module.split('_')])
 
-
         # add it to the root
         tree2path = cls.tree2path()
+        c.print(tree2path)
         modules_path = tree2path[tree]
         module_path = os.path.join(modules_path, module)
         

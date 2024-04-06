@@ -1,8 +1,8 @@
 import commune as c
 
 class Subnet(c.Module):
-    def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
+    def __init__(self, network = 'local'):
+        self.set_config(locals()) # send locals() to init
     
     def test(self, n=3):
         for i in range(n):

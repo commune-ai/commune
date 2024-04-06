@@ -32,7 +32,7 @@ class Test(c.Module):
 
 
     def test_global_params(self):
-        global_params = c.global_params()
+        global_params = c.global_params(fmt='dict')
 
 
         

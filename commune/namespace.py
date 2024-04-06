@@ -16,7 +16,7 @@ class Namespace(c.Module):
     @classmethod
     def namespace(cls, search=None,
                    network:str = 'local',
-                     update:bool = False, 
+                     update:bool = True, 
                      public:bool = False, 
                      netuid=0, 
                      max_age:int = 3600, **kwargs) -> dict:
@@ -161,18 +161,18 @@ class Namespace(c.Module):
         namespace = {}
 
         addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
             futures = []
             for address in addresses_chunk:
-                futures += [c.async_call(module=address, fn='server_name')]
-            names_chunk = c.gather(futures, timeout=timeout)
+                futures += [c.async_call(address+'/server_name')]
+            
 
-            for i in range(len(names_chunk)):
-                if isinstance(names_chunk[i], str):
-                    namespace[names_chunk[i]] = addresses_chunk[i]
-
+            names = c.wait(futures, timeout=timeout)
+            for name, address in zip(names, addresses_chunk):
+                if isinstance(name, str) and name != 'Error':
+                    namespace[name] = address
+    
         c.print(cls.put_namespace(network, namespace))
             
         return namespace

@@ -1114,7 +1114,7 @@ class Subspace(c.Module):
                          timeout = 2,
                          update = False,
                          block : Optional[int] = None,
-                         fmt = 'nanos',
+                         fmt = 'j',
                          max_age = 10000,
                           ) -> Optional[float]:
         
@@ -1413,6 +1413,8 @@ class Subspace(c.Module):
             module = {f: module[f] for f in features}
 
         assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
+
+
 
         return module
     
@@ -2009,7 +2011,7 @@ class Subspace(c.Module):
               network = network,
               df:bool=True, 
               update:bool = False ,  
-              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'last_update', 'serving'],
+              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'last_update', 'vote_staleness', 'serving'],
               sort_features = ['emission', 'stake'],
               fmt : str = 'j',
               modules = None,
@@ -2541,7 +2543,7 @@ class Subspace(c.Module):
 
         key = self.resolve_key(key)
         network = self.resolve_network(network)
-        global_params = self.global_params( )
+        global_params = self.global_params(fmt='nanos')
         global_params.update(params)
         params = global_params
         for k,v in params.items():
@@ -3030,14 +3032,17 @@ class Subspace(c.Module):
                 
         block = self.block
         modules = self.get_modules(keys)
+
+
+
+        for m in modules:
+            m['my_stake'] =  int(m['stake_from'].get(key.ss58_address, 0))
+            m['stake'] = int(m['stake'])
         if search != None:
             modules = [m for m in modules if search in m['name']]
+
+
         if df:
-            
-            for m in modules:
-                m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
-                m['stake'] = int(m['stake'])
-                m['vote_staleness'] =  max(block - m['last_update'], 0)
             
             modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
 
@@ -3541,7 +3546,7 @@ class Subspace(c.Module):
         return {'success': True, 'msg': 'All subnet params are dictionaries', 'n': len(all_subnet_params)}
     
     def test_global_storage(self):
-        global_params = self.global_params()
+        global_params = self.global_params(fmt='j')
         assert isinstance(global_params, dict)
         return global_params
     
@@ -3565,6 +3570,9 @@ class Subspace(c.Module):
 
         stats = s.stats(df=False)
         assert isinstance(stats, list) 
+
+
+    
 
 
 Subspace.run(__name__)

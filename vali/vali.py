@@ -3,7 +3,7 @@ import commune as c
 from typing import *
 
 class Vali(c.Module):
-    
+
     last_sync_time = 0
     last_sent = 0
     last_success = 0
@@ -11,7 +11,6 @@ class Vali(c.Module):
     requests = 0
     successes = 0  
     whitelist = ['eval_module', 'score_module']
-
 
     def __init__(self,
                  config:dict=None,
@@ -53,7 +52,7 @@ class Vali(c.Module):
                 run_info = self.run_info()
                 c.print(run_info)
 
-                if run_info['vote_staleness'] < self.config.vote_interval:
+                if run_info['vote']['staleness'] < self.config.vote_interval:
                     r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
                 elif not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
                     r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
@@ -66,24 +65,23 @@ class Vali(c.Module):
                 c.print(c.detailed_error(e))
 
 
-
-    def run_info(self):
-        info ={
-            'vote_staleness': self.vote_staleness,
-            'vote_interval': self.config.vote_interval,
-            'successes': self.successes,
+    def epoch_info(self):
+        info = {
             'requests': self.requests,
+            'errors': self.errors,
+            'successes': self.successes,
             'last_sent': c.round(c.time() - self.last_sent, 3),
             'last_success': c.round(c.time() - self.last_success, 3),
-            'errors': self.errors,
-            'network': self.config.network,
-            'subnet': self.config.netuid,
-            'last_time_sync': c.round(c.time() - self.last_sync_time, 3),
-            'fn': self.config.fn,
-            'search': self.config.search,
-            'key': self.key.ss58_address,
+            'batch_size': self.config.batch_size,
             }
         return info
+
+    def run_info(self):
+        return {
+            'network': self.network_info(),
+            'epoch': self.epoch_info(),
+            'vote': self.vote_info(),
+            }
     
     def workers(self):
         if self.config.mode == 'server':
@@ -175,15 +173,9 @@ class Vali(c.Module):
                 c.print('ERROR',c.detailed_error(e))
         return results
         
-    def clone_stats(self):
-        workers = self.workers()
-        stats = {}
-        for w in workers:
-            stats[w] = self.get(f'clone_stats/{w}', default={})
-        return stats
-    
     @property
-    def time_since_sync(self):
+    def sync_time(self):
+        # return the time since the last sync with the network
         return c.time() - self.last_sync_time
 
     def is_voting_network(self):
@@ -198,10 +190,9 @@ class Vali(c.Module):
                      fn : str = None,
                      max_age: int = 1000, **kwargs):
         
-        if self.time_since_sync < self.config.sync_interval and (network == self.network and network != None):
+        if self.sync_time < self.config.sync_interval and (network == self.network and network != None):
             return {'msg': 'Alredy Synced network Within Interval', 
-                    'last_sync_time': self.last_sync_time,
-                    'time_since_sync': self.time_since_sync, 
+                    'sync_time': self.sync_time, 
                     'sync_interval': self.config.sync_interval,
                     'network': self.config.network, 
                     'subnet': self.config.netuid, 
@@ -219,20 +210,12 @@ class Vali(c.Module):
         fn = fn or self.config.fn        
         max_age = max_age or self.config.max_age
 
-        response = {
-                'search': search,
-                'network': network, 
-                'netuid': netuid, 
-                'n': self.n,
-                'fn': fn,
-                }
         
-        if self.time_since_sync > self.config.sync_interval:
+        if self.sync_time > self.config.sync_interval:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'last_sync_time': self.last_sync_time,
-                    'time_since_sync': self.time_since_sync, 
+                    'sync_time': self.sync_time, 
                     'sync_interval': self.config.sync_interval,
-                    **response
                     }
         # RESOLVE THE VOTING NETWORKS
         if 'subspace' in network :
@@ -252,12 +235,15 @@ class Vali(c.Module):
         self.name2address = self.namespace
         self.address2name = {v: k for k, v in self.namespace.items()}  
 
-        for k in ['search', 'network', 'netuid', 'fn', 'subnet']:
-            v = locals().get(k, None)
-            setattr(self, k, v)
-            self.config[k] = v
+        self.network = network
+        self.netuid = netuid
+        self.fn = fn
+        self.search = search
+        self.max_age = max_age
+        self.subnet = subnet
+
        
-        return response
+        return self.network_info()
     
 
     sync = set_network
@@ -280,6 +266,11 @@ class Vali(c.Module):
         
         assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
         return response
+    
+
+    def set_score_fn(self, score_fn):
+        assert callable(score_fn), f'Score function must be callable, got {score_fn}'
+        self.score_module = score_fn
 
 
     def score_module(self, module: 'c.Module'):
@@ -292,6 +283,17 @@ class Vali(c.Module):
     def next_module(self):
         return self.random_module()
     
+    def network_info(self):
+        return {
+                'search': self.search,
+                'network': self.network, 
+                'subnet': self.subnet,
+                'netuid': self.netuid, 
+                'n': self.n,
+                'fn': self.fn,
+                'max_age': self.max_age,
+                'sync_time': self.sync_time,
+                }
 
     def eval_module(self, module:str = None, 
                     network=None, 
@@ -330,6 +332,7 @@ class Vali(c.Module):
 
         info = {}
 
+        # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
         if module in self.name2address:
             info['name'] = module
             info['address'] = self.name2address[module]
@@ -360,6 +363,7 @@ class Vali(c.Module):
         response = self.process_response(response)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
+        # merge the info with the response, alpha is the smoothing factor
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
         # merge the info with the response
         info.update(response)
@@ -381,6 +385,8 @@ class Vali(c.Module):
             
         path =  f'{network_str}'
 
+        storage_path = self.resolve_path(path)
+
         return path
         
     
@@ -388,14 +394,17 @@ class Vali(c.Module):
     def resolve_tag(self, tag:str=None):
         return tag or self.config.vote_tag or self.tag
     
-    def vote_info(self, votes = None):
-        votes = votes or self.votes()
+    def vote_info(self):
+        votes = self.votes()
+        if not self.is_voting_network():
+            return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
+
         info = {
             'num_uids': len(votes['uids']),
-            'avg_weight': c.mean(votes['weights']),
-            'stdev_weight': c.stdev(votes['weights']),
             'timestamp': votes['timestamp'],
-            'lag': c.time() - votes['timestamp'],
+            'staleness': self.vote_staleness,
+            'key': self.key.ss58_address,
+            'network': self.network,
         }
         return info
     
@@ -444,17 +453,8 @@ class Vali(c.Module):
     
     vote = set_weights
     
-    @property
-    def network_info(self):
-        return {
-            'network': self.config.network,
-            'netuid': self.config.netuid,
-            'fn': self.config.fn,
-            'search': self.config.search,
-            'max_age': self.config.max_age,
-            'time_since_sync': c.time() - self.last_sync_time,
-            'n': self.n,
-        }
+
+
 
     def module_info(self, **kwargs):
         return self.subspace.get_module(self.key.ss58_address, netuid=self.netuid, **kwargs)
@@ -468,6 +468,7 @@ class Vali(c.Module):
                     network = None,
                     reverse = False,
                     sort_by = 'staleness',
+                    df = False,
                     **kwargs
                     ):
         paths = self.module_paths(network=network)
@@ -482,7 +483,10 @@ class Vali(c.Module):
                 self.rm(path)
         if sort_by != None and len(module_infos) > 0:
             module_infos = sorted(module_infos, key=lambda x: x[sort_by] if sort_by in x else 0, reverse=reverse)
-        self.put(path, module_infos)       
+        self.put(path, module_infos) 
+        if df:
+            module_infos = c.df(module_infos) 
+            c.m('subspace')().serialize(module_infos)     
         return module_infos
 
 
@@ -490,10 +494,7 @@ class Vali(c.Module):
         return len(self.leaderboard(**kwargs))
 
     def leaderboard(self, *args, df=True, **kwargs): 
-        leaderboard =  self.module_infos(*args, df=df, **kwargs)
-        if df:
-            leaderboard = c.df(leaderboard)
-        return leaderboard
+        return self.module_infos(*args, df=df, **kwargs)
     
     def module_paths(self, network=None):
         paths = self.ls(self.storage_path(network=network))

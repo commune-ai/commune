@@ -73,15 +73,26 @@ class Serializer(c.Module):
         return new_value
     
     def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
-        data = data.to_dict()
+        data = data.to_json()
         if isinstance(data, bytes):
-            data = self.byte(data)
+            data = data.decode('utf-8')
         return data
     
     
     def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
         import pandas as pd
-        return pd.DataFrame.from_dict(data)
+        return pd.DataFrame.from_json(data)
+    
+
+    def test_pandas(self):
+        import pandas as pd
+        data = pd.DataFrame([{'a': [1,2,3], 'b': [4,5,6]}])
+        serialized = self.serialize(data)
+        c.print(serialized)
+        deserialized = self.deserialize(serialized)
+        c.print(deserialized)
+        assert data.to_json()==deserialized.to_json()
+        return {'success': True, 'data': data, 'deserialized': deserialized}
         
 
     def is_serialized(self, data):
@@ -136,14 +147,11 @@ class Serializer(c.Module):
     ################ BIG DICT LAND ############################
     """
 
-    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
-        data = data.to_dict()
-        data = self.dict2bytes(data=data)
-        return data
+
     
     def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
-        data = self.bytes2dict(data=data)
-        data = pd.DataFrame.from_dict(data)
+        import pandas as pd
+        data = pd.DataFrame.from_dict(json.loads(data))
         return data
     
     def serialize_dict(self, data: dict) -> str :
@@ -177,7 +185,11 @@ class Serializer(c.Module):
         return data_json_bytes
     
     def dict2str(self, data:dict) -> bytes:
-        data_json_str = json.dumps(data)
+        try:
+            data_json_str = json.dumps(data)
+        except Exception as e:
+            c.print(data)
+            raise e
         return data_json_str
     
     def str2dict(self, data:str) -> bytes:

@@ -11,10 +11,10 @@ class Vali(Vali):
         self.init(locals())
 
     def score_module(self, module):
-        if isinstance(module, str): 
-            module = c.connect(module)
-        result = module.forward(1, 1)
-        assert result == 2, f"result: {result}"
+        a = 1
+        b = 1
+        result = module.forward(a, b)
+        assert result == (a+b), f"result: {result}"
         return 1
     
 
