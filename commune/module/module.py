@@ -365,16 +365,21 @@ class c:
         return cls.dict2munch(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None) -> Dict:
+    def load_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
         '''f
         Loads a yaml file
         '''
+        import yaml
         path = cls.resolve_path(path)
+
+        try:
+            with open(path, 'r') as file:
+                data = yaml.safe_load(file)
+        except:
+            data = default
+
+        return data
         
-        from commune.utils.dict import load_yaml
-        config = load_yaml(path)
-        return config
-    
     get_yaml = load_yaml
 
 
