@@ -69,7 +69,7 @@ class Network(c.Module):
 
 
     @classmethod
-    def external_ip(cls,verbose: bool = False, default_ip='') -> str:
+    def external_ip(cls,verbose: bool = False, default_ip='0.0.0.0') -> str:
         r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
             Returns:
                 external_ip  (:obj:`str` `required`):
@@ -125,8 +125,9 @@ class Network(c.Module):
         except Exception as e:
             c.print(e, verbose=verbose)
 
-        if len(ip) == 0:
+        if len(ip) == 0 or ip == None:
             ip = default_ip
+        
         return ip
 
     @staticmethod

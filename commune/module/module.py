@@ -3751,6 +3751,7 @@ class c:
         if ip == None:
             ip =  cls.external_ip(**kwargs)
             c.put('ip', ip)
+            
         return ip
     
     @classmethod
