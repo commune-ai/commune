@@ -377,8 +377,7 @@ class Keypair(c.Module):
         cache_path =  f'cache_{path}'
         if hasattr(cls, cache_path):
             return getattr(cls, cache_path)
-
-
+        
         key2address =  cls.get(path, key2address,max_age=max_age)
 
         if len(key2address) == 0:
@@ -418,39 +417,25 @@ class Keypair(c.Module):
     def key_paths(cls):
         return cls.ls()
     
-
     @classmethod
     def key2path(cls) -> dict:
-        
-        key2path = {'.'.join(path.split('/')[-1].split('.')[:-1]):path for path in cls.key_paths()}
+        """
+        defines the path for each key
+        """
+        path2key_fn = lambda path: '.'.join(path.split('/')[-1].split('.')[:-1])
+        key2path = {path2key_fn(path):path for path in cls.key_paths()}
         return key2path
 
     @classmethod
-    def keys(cls, search : str = None, 
-             detail:bool=False, 
-             object:bool=False):
+    def keys(cls, search : str = None, **kwargs):
         keys = list(cls.key2path().keys())
         if search != None:
             keys = [key for key in keys if search in key]
-            
-        # sort keys
-        keys = sorted(keys)
-
-        assert not (detail and object) , 'detail and object cannot both be true'
-        if detail:
-            key_names = keys
-            keys = {key: cls.get_key(key).to_dict()  for key in key_names}
-            for key in key_names:
-                keys[key].path = key
-        if object:
-            keys = [cls.get_key(key)  for key in keys]
-
-            
         return keys
     
     @classmethod
-    def key_exists(cls, key):
-        key_exists =  key in cls.keys()
+    def key_exists(cls, key, **kwargs):
+        key_exists =  key in cls.keys(**kwargs)
         if not key_exists:
             addresses = list(cls.key2address().values())
             if key in addresses:
@@ -473,7 +458,7 @@ class Keypair(c.Module):
         c.rm(key2path[key])
         cls.update_keys()
         assert c.exists(key2path[key]) == False, 'key not deleted'
-        
+
         return {'deleted':[key]}
     
     @property
@@ -547,7 +532,9 @@ class Keypair(c.Module):
 
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
+
         crypto_type = cls.resolve_crypto_type(crypto_type)
+
         if suri:
             key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
@@ -987,8 +974,8 @@ class Keypair(c.Module):
     def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
-               crypto_type = None,
                seperator = "<DATA::SIGNATURE>",
+               **kwargs
                ) -> bool:
         
         """
@@ -1011,7 +998,6 @@ class Keypair(c.Module):
 
         if isinstance(data, dict):
 
-            crypto_type = int(data.pop('crypto_type'))
             signature = data.pop('signature')
             public_key = c.ss58_decode(data.pop('address'))
             if 'data' in data:
@@ -1020,7 +1006,6 @@ class Keypair(c.Module):
             if not isinstance(data, str):
                 data = c.python2str(data)
             
-                
         if public_key == None:
             public_key = self.public_key
 
@@ -1038,7 +1023,6 @@ class Keypair(c.Module):
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
-            
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
 
@@ -1101,7 +1085,7 @@ class Keypair(c.Module):
 
     def decrypt(self, data: Union[str, bytes], password=None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
-        data = aes_key.decrypt(data, **kwargs)
+        data = aes_key.decrypt(data)
         return data
 
     def encrypt_message(
@@ -1212,6 +1196,7 @@ class Keypair(c.Module):
             return False
         return data.startswith(cls.encrypted_prefix)
     
+    
     @classmethod
     def test_key_encryption(cls, password='1234'):
         path = 'test.enc'
@@ -1266,7 +1251,7 @@ class Keypair(c.Module):
 
     
     def test_encryption_file(self, filepath='tests/dummy', value='test'):
-
+        filepath = self.resolve_path(filepath)      
         c.put(filepath, value)
         decode = c.get(filepath)
         self.encrypt_file(filepath) # encrypt file
@@ -1276,7 +1261,10 @@ class Keypair(c.Module):
         assert decode == value, f'encryption failed, {decode} != {value}'
         c.rm(filepath)
         assert not c.exists(filepath), f'file {filepath} not deleted'
-        return {'success': True, 'msg': 'test_encryption_file passed'}
+        return {'success': True,
+                'filepath': filepath,
+                
+                'msg': 'test_encryption_file passed'}
     
     
     @classmethod
@@ -1533,7 +1521,7 @@ class Keypair(c.Module):
         return Mnemonic('english').to_mnemonic(self.private_key)
     
 
-    def ticket_staleness(self, ticket):
+    def ticket_staleness(self, ticket, **kwargs):
         
         return self.verify(ticket, **kwargs)
     

@@ -17,7 +17,7 @@ class Namespace(c.Module):
     def namespace(cls, search=None,
                    network:str = 'local',
                      update:bool = True, 
-                     public:bool = False, 
+                     public:bool = True, 
                      netuid=0, 
                      max_age:int = 3600, **kwargs) -> dict:
         
