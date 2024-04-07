@@ -164,7 +164,6 @@ class Namespace(c.Module):
         addresses = [ip+':'+str(p) for p in c.used_ports()]
         future2address = {}
         for address in addresses:
-            c.print(f'Updating {address}', color='yellow')
             f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
             future2address[f] = address
         futures = list(future2address.keys())

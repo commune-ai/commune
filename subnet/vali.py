@@ -1,14 +1,13 @@
 import commune as c
 
-Vali = c.module("vali")
-class Vali(Vali):
+class Vali(c.module("vali")):
     def __init__(self, 
                  network='local', # the network is local
                  netuid = 1,
                  search = None,
                    **kwargs):
         # send locals() to init
-        self.init(locals())
+        self.init_vali(locals())
 
     def score_module(self, module):
         a = 1

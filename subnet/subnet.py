@@ -2,7 +2,7 @@ import commune as c
 
 class Subnet(c.Module):
     def __init__(self, network = 'local'):
-        self.init(locals()) # send locals() to init
+        self.set_config(locals()) # send locals() to init
     
     def test(self, n=3):
         for i in range(n):

@@ -10,7 +10,7 @@ class cli(c.Module):
 
     def __init__(self, 
                  args = None,
-                module = None,
+                module = 'module',
                 new_event_loop: bool = True,
                 verbose = True,
                 save: bool = True):

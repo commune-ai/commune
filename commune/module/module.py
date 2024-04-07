@@ -561,6 +561,9 @@ class c:
         
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
+
+        if not c.jsonable(v):
+            v = c.serialize(v)    
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
         
@@ -1512,14 +1515,14 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str = None, search=['c.Module'], tree=None) -> str:
+    def path2objectpath(cls, path:str = None, tree=None) -> str:
         path = path or cls.filepath()
         tree = tree or 'commune'
         tree_path = cls.tree2path()[tree]
 
         if path.endswith('module/module.py'):
             return 'commune.Module'
-        python_classes = cls.find_python_classes(path, search=search)
+        python_classes = cls.find_python_classes(path)
         if len(python_classes) == 0:
             return None
         
@@ -1544,6 +1547,7 @@ class c:
         path = path or 'module'
         tree = tree or 'commune'
         module = None
+        c.print(f'Importing {path}', color='green', verbose=verbose)    
 
 
         if cache:
@@ -1553,11 +1557,16 @@ class c:
             else:
                 c.module_cache[tree] = {}
 
+
+        c.print(f'Importing {module}', color='green', verbose=verbose)
+
         if module == None:
             if path == 'tree':
                 module = c.import_object('commune.tree.Tree')
             else:
                 # convert the simple to path
+                c.print(f'FACKKKKKK {path}', color='green', verbose=verbose)
+
                 path = c.simple2path(path, tree=tree)
                 object_path = c.path2objectpath(path, tree=tree)
                 module = c.import_object(object_path)
@@ -2761,8 +2770,8 @@ class c:
             address = c.ip() + ':' + str(remote_kwargs['port'])
             return {'success':True, 'name': server_name, 'address':address, 'kwargs':kwargs}
         
-        
-        module_class = cls.resolve_module(module)
+        c.print(f'Serving {server_name} on port {port} {module}', color='green')
+        module_class = c.module(module)
         kwargs.update(extra_kwargs)
 
         if mnemonic != None:

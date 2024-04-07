@@ -1,2 +1,2 @@
 import commune as c
-c.print(c.module('miner', tree='bittensor').filepath())
+c.print(c.module('vali'))
