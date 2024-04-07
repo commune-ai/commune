@@ -37,11 +37,12 @@ class Namespace(c.Module):
                                                  netuid=netuid,
                                                  **kwargs)
         else:
-            namespace = cls.get(path, {}, max_age=max_age)
+            namespace = cls.get(path, None, max_age=max_age)
 
 
-            if update or len(namespace) == 0:
+            if update or len(namespace) == None:
                 namespace = cls.update_namespace(network=network)
+                cls.put(path, namespace)
                 
 
 
@@ -151,7 +152,7 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
-                        timeout:int = 2,
+                        timeout:int = 10,
                         network:str = 'local', 
                         verbose=False)-> dict:
         '''
@@ -167,17 +168,17 @@ class Namespace(c.Module):
             f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
             future2address[f] = address
         futures = list(future2address.keys())
-        try:
-            for f in c.as_completed(futures, timeout=timeout):
-                address = future2address[f]
-                try:
-                    name = f.result()
-                    namespace[name] = address
-                    c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
-                except Exception as e:
-                    c.print(f'Error {e} with {address}', color='red', verbose=verbose)
-        except Exception as e:
-            c.print(f'Error {e}', color='red')
+        c.print(f'Updating namespace {network} with {len(futures)} addresses')
+
+        for f in c.as_completed(futures, timeout=timeout):
+            address = future2address[f]
+            try:
+                name = f.result()
+                namespace[name] = address
+                c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
+            except Exception as e:
+                c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+
         cls.put_namespace(network, namespace)
             
         return namespace

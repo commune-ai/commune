@@ -52,12 +52,12 @@ class Vali(c.Module):
                 run_info = self.run_info()
                 c.print(run_info)
 
-                if run_info['vote']['staleness'] < self.config.vote_interval:
-                    r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
-                elif not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
+                r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
+                if not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
                     r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
                 else:
-                    r = self.vote()
+                    if self.vote_staleness > self.config.vote_interval:
+                        r = self.vote()
                 run_info.update(r)
                 c.print(run_info)
 
@@ -285,13 +285,12 @@ class Vali(c.Module):
     
     def network_info(self):
         return {
-                'search': self.search,
-                'network': self.network, 
-                'subnet': self.subnet,
-                'netuid': self.netuid, 
+                'search': self.config.search,
+                'network': self.config.network, 
+                'netuid': self.config.netuid, 
                 'n': self.n,
-                'fn': self.fn,
-                'max_age': self.max_age,
+                'fn': self.config.fn,
+                'max_age': self.config.max_age,
                 'sync_time': self.sync_time,
                 }
 
@@ -416,14 +415,14 @@ class Vali(c.Module):
         network = self.config.network
         module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'])
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
-        key2uid = self.subspace.key2uid()
+        key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
         for info in module_infos:
             ## valid modules have a weight greater than 0 and a valid ss58_address
             if 'ss58_address' in info and info['w'] >= 0:
                 if info['ss58_address'] in key2uid:
                     votes['keys'] += [info['ss58_address']]
                     votes['weights'] += [info['w']]
-                    votes['uids'] += [key2uid[info['ss58_address']]]
+                    votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
         return votes

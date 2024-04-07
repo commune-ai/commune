@@ -2196,6 +2196,9 @@ class c:
 
         if '://' in module:
             module = module.split('://')[-1]
+        
+        ip = c.ip()
+        module = module.replace(ip, c.default_ip)
 
         # we dont want to load the namespace if we have the address
 
