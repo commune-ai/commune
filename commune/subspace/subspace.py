@@ -3036,7 +3036,7 @@ class Subspace(c.Module):
 
 
         for m in modules:
-            m['my_stake'] =  int(m['stake_from'].get(key.ss58_address, 0))
+            m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
             m['stake'] = int(m['stake'])
         if search != None:
             modules = [m for m in modules if search in m['name']]

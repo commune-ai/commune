@@ -3733,22 +3733,14 @@ class c:
     
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
-        ip = c.module('network').get_external_ip(*args, **kwargs)
-        if ip == None or len(ip) == 0:
-            ip = c.default_ip
-        return ip
+        return c.module('network').external_ip(*args, **kwargs)
     
     @classmethod
-    def ip(cls, update:bool = False, **kwargs) -> str:
-        if not update:
-            ip = c.get('ip', None)
-            if ip != None:
-                return ip
-    
-        ip =  cls.external_ip(**kwargs)
+    def ip(cls,  max_age=100, update:bool = False, **kwargs) -> str:
+        t1 = c.time()
+        ip = c.get('ip', None, max_age=max_age, update=update)
         if ip == None:
-            ip = '0.0.0.0'
-        if update:
+            ip =  cls.external_ip(**kwargs)
             c.put('ip', ip)
         return ip
     
@@ -4847,16 +4839,17 @@ class c:
             if mode in cls.executor_cache:
                 return cls.executor_cache[mode]
         executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
-        cls.executor_cache[mode] = executor
+        if cache:
+            cls.executor_cache[mode] = executor
         return executor
     
 
     @classmethod
     def submit(cls, 
                 fn, 
-                kwargs: dict = {}, 
                 params = None,
-                args:list = [], 
+                kwargs: dict = None, 
+                args:list = None, 
                 timeout:int = 20, 
                 return_future:bool=True,
                 init_args : list = [],
@@ -4866,12 +4859,18 @@ class c:
                 mode:str='thread',
                 max_workers : int = 100,
                 ):
+        kwargs = {} if kwargs == None else kwargs
+        args = [] if args == None else args
         if params != None:
-            kwargs = {**kwargs, **params}
+            if isinstance(params, dict):
+                kwargs = {**kwargs, **params}
+            elif isinstance(params, list):
+                args = [*args, *params]
+            else:
+                raise ValueError('params must be a list or a dictionary')
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
-        
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)

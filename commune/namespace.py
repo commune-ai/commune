@@ -16,7 +16,7 @@ class Namespace(c.Module):
     @classmethod
     def namespace(cls, search=None,
                    network:str = 'local',
-                     update:bool = True, 
+                     update:bool = False, 
                      public:bool = True, 
                      netuid=0, 
                      max_age:int = 3600, **kwargs) -> dict:
@@ -38,8 +38,13 @@ class Namespace(c.Module):
                                                  **kwargs)
         else:
             namespace = cls.get(path, {}, max_age=max_age)
+
+
             if update or len(namespace) == 0:
                 namespace = cls.update_namespace(network=network)
+                
+
+
 
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
@@ -47,8 +52,7 @@ class Namespace(c.Module):
         namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
 
         if public:
-            ip = c.ip()
-            namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
+            namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
         return namespace
     
 
@@ -147,33 +151,35 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
-                        chunk_size:int=50, 
-                        timeout:int = 10,
-                        network:str = 'local')-> dict:
+                        timeout:int = 2,
+                        network:str = 'local', 
+                        verbose=False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
         it will register itself with the namespace_local dictionary.
         '''
-        c.print(f'Updating namespace ({network})', color='yellow')
-
-
         namespace = {}
-
-        addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-        for i in range(0, len(addresses), chunk_size):
-            addresses_chunk = addresses[i:i+chunk_size]
-            futures = []
-            for address in addresses_chunk:
-                futures += [c.async_call(address+'/server_name')]
-            
-
-            names = c.wait(futures, timeout=timeout)
-            for name, address in zip(names, addresses_chunk):
-                if isinstance(name, str) and name != 'Error':
+        ip = c.ip()
+        addresses = [ip+':'+str(p) for p in c.used_ports()]
+        future2address = {}
+        for address in addresses:
+            c.print(f'Updating {address}', color='yellow')
+            f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
+            future2address[f] = address
+        futures = list(future2address.keys())
+        try:
+            for f in c.as_completed(futures, timeout=timeout):
+                address = future2address[f]
+                try:
+                    name = f.result()
                     namespace[name] = address
-    
-        c.print(cls.put_namespace(network, namespace))
+                    c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
+                except Exception as e:
+                    c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+        except Exception as e:
+            c.print(f'Error {e}', color='red')
+        cls.put_namespace(network, namespace)
             
         return namespace
     

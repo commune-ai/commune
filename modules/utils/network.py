@@ -63,7 +63,7 @@ def ip__str__(ip_type:int, ip_str:str, port:int):
 class ExternalIPNotFound(Exception):
     """ Raised if we cannot attain your external ip from CURL/URLLIB/IPIFY/AWS """
 
-def get_external_ip() -> str:
+def external_ip() -> str:
     r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
         Returns:
             external_ip  (:obj:`str` `required`):

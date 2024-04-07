@@ -69,7 +69,7 @@ class Network(c.Module):
 
 
     @classmethod
-    def get_external_ip(cls,verbose: bool = False, default_ip='') -> str:
+    def external_ip(cls,verbose: bool = False, default_ip='') -> str:
         r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
             Returns:
                 external_ip  (:obj:`str` `required`):
