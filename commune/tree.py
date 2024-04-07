@@ -5,7 +5,9 @@ from copy import deepcopy
 
 class Tree(c.Module):
     tree_folders_path = 'module_tree_folders'
-    default_trees = [c.libpath ]
+    default_tree_path = c.libpath
+    default_tree = default_tree_path.split('/')[-1]
+    default_trees = [default_tree_path]
     def __init__(self, a=1, b=2):
         self.set_config(kwargs=locals())
 
@@ -14,59 +16,72 @@ class Tree(c.Module):
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
     
+    @classmethod
+    def simple2path(cls, path:str, tree=None, **kwargs) -> str:
+        tree = tree or c.pwd_tree()
+        if path not in tree:
+            shortcuts = c.shortcuts()
+            if path in shortcuts:
+                path = shortcuts[path]
+            else:
+                raise Exception(f'Could not find {path} module')
+        return tree[path]
+    
+    def path2tree(self, **kwargs) -> str:
+        trees = c.trees()
+        path2tree = {}
+        for tree in trees:
+            for module, path in self.tree(tree).items():
+                path2tree[path] = tree
+        return path2tree
+    
 
     @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
+    def tree(cls, tree = None,
+                search=None,
+                update = True,
                 verbose:bool = False,
-                path = 'local_module_tree',
-                max_age = 60,
-                trees = None
+                max_age = 100, **kwargs
                 ) -> List[str]:
-        module_tree = {}
-
-        t1 = c.time()
-
-        trees = trees or cls.trees()
-        if not hasattr(cls, 'tree_cache'):
-            cls.tree_cache = {}
-
-
-        module_tree =  c.get(path, {}, max_age=max_age)
-        cls.tree_cache = module_tree
         
+        tree = tree or 'commune'
+        module_tree = {}
+        path = cls.resolve_path(f'{tree}/tree')
+        max_age = max_age if update else None
+        module_tree =  c.get(path, {}, max_age=max_age)
 
         if len(module_tree) == 0:
-            for tree_path in cls.tree_paths():
-                # get modules from each tree
-                python_paths = c.get_module_python_paths(path=tree_path)
-                # add the modules to the module tree
-                new_tree = {c.path2simple(f, trees=trees): f for f in python_paths}
-                for k,v in new_tree.items():
-                    if k not in module_tree:
-                        module_tree[k] = v
-                # to use functions like c. we need to replace it with module lol
-                if cls.root_module_class in module_tree:
-                    module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
-                
-                c.put(path, module_tree)
+            tree2path = cls.tree2path()
+            if tree in tree2path:
+                tree_path = tree2path[tree]
+            else:
+                assert tree in tree2path, f'{tree} not in {tree2path}'
+            # get modules from each tree
+            python_paths = c.get_module_python_paths(path=tree_path)
+            # add the modules to the module tree
+            new_tree = {c.path2simple(f, tree=tree): f for f in python_paths}
+            for k,v in new_tree.items():
+                if k not in module_tree:
+                    module_tree[k] = v
+            # to use functions like c. we need to replace it with module lol
+            
+            if cls.root_module_class in module_tree:
+                module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
+            
+            c.put(path, module_tree)
 
         # cache the module tree
         if search != None:
             module_tree = {k:v for k,v in module_tree.items() if search in k}
 
-        latency = c.time() - t1
-        c.print(f'Loaded module tree in {latency} seconds', 
-                color='green', 
-                verbose=verbose)
-        
         return module_tree
     
     @classmethod
-    def tree_paths(cls, update=False):
+    def tree_paths(cls, update=False, **kwargs) -> List[str]:
         path = cls.tree_folders_path
-        trees =   [] if update else c.get(path, [])
+        trees =   [] if update else c.get(path, [], **kwargs)
         if len(trees) == 0:
+
             trees = cls.default_trees
         return trees
     
@@ -74,7 +89,7 @@ class Tree(c.Module):
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):
 
-        tree_path = os.path.expanduser(tree_path)
+        tree_path = os.path.abspath(tree_path)
 
         path = cls.tree_folders_path
         tree_folder = c.get(path, [])
@@ -98,81 +113,42 @@ class Tree(c.Module):
     
 
     @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
-                verbose:bool = False,
-                tree = None,
-                path = 'local_module_tree'
-                ) -> List[str]:
-        module_tree = {}
+    def pwd_tree(cls):
+        tree2path   =  c.tree2path()
+        pwd = c.pwd()
+        return {v:k for k,v in tree2path.items()}.get(pwd, None)
 
-        t1 = c.time()
-
-        if not hasattr(cls, 'tree_cache'):
-            cls.tree_cache = {}
-
-        if not update:
-            if cls.tree_cache != {}:
-                module_tree = cls.tree_cache
-            else:
-                module_tree =  c.get(path, {})
-                cls.tree_cache = module_tree
-
-        
-        if len(module_tree) == 0:
-    
-            tree2path = cls.tree2path()
-            c.print(tree2path, 'tree2path')
-            if tree != None:
-                tree_paths = [tree]
-            else:
-                tree_paths = cls.tree_paths()
-            for tree_path in tree_paths:
-                # get modules from each tree
-                python_paths = c.get_module_python_paths(path=tree_path)
-                # add the modules to the module tree
-                new_tree = {c.path2simple(f): f for f in python_paths}
-                for k,v in new_tree.items():
-                    if k not in module_tree:
-                        module_tree[k] = v
-                # to use functions like c. we need to replace it with module lol
-                if cls.root_module_class in module_tree:
-                    module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
-                
-                c.put(path, module_tree)
-
-        # cache the module tree
-        if search != None:
-            module_tree = {k:v for k,v in module_tree.items() if search in k}
-
-        latency = c.time() - t1
-        c.print(f'Loaded module tree in {latency} seconds', 
-                color='green', 
-                verbose=verbose)
-        
-        return module_tree
     
     @classmethod
-    def trees(cls, search=None):
+    def trees(cls):
         tree_paths = cls.tree_paths()
         trees = [t.split('/')[-1] for t in tree_paths]
         return trees
 
     @classmethod
-    def tree2path(cls, name : str = None) -> str:
-        tree_paths = cls.tree_paths()
+    def tree2path(cls, tree : str = None, **kwargs) -> str:
+        tree_paths = cls.tree_paths(**kwargs)
         tree2path = {t.split('/')[-1]: t for t in tree_paths}
-        if name != None:
-            return tree2path[name]
+        if tree != None:
+            return tree2path[tree]
         return tree2path
-
+    
 
     @classmethod
-    def path2simple(cls, path:str, trees=None) -> str:
+    def resolve_tree(cls, tree:str=None):
+        if tree == None:    
+            tree = cls.default_tree
+        return tree
 
-        # does the config exist
+    @classmethod
+    def path2simple(cls, path:str, tree=None) -> str:
 
-        simple_path =  path.split(deepcopy(cls.root_dir))[-1]
+        tree = cls.resolve_tree(tree)
+
+        path = os.path.abspath(path)
+        homepath = os.path.expanduser('~')
+        path = path.replace(homepath, '')
+        simple_path =  path.split(deepcopy(tree))[-1]
 
         if cls.path_config_exists(path):
             simple_path = os.path.dirname(simple_path)
@@ -207,13 +183,17 @@ class Tree(c.Module):
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
 
-        if trees != None:
-            for tree in trees:
-                if simple_path.startswith(tree):
-                    simple_path = simple_path.replace(tree, '')
-                    
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
+        if tree != None:
+            if simple_path.startswith(tree):
+                simple_path = simple_path.replace(tree, '')
+        if tree == 'commune':
+            if simple_path.startswith('modules.'):
+                simple_path = simple_path.replace('modules.', '')
         
         return simple_path
+
+
+
+
+
     

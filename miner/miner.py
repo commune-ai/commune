@@ -8,4 +8,6 @@ class Miner(c.Module):
         c.print(self.config)
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
-    
+
+c.print(Miner.run(__name__))
+

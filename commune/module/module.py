@@ -252,11 +252,13 @@ class c:
     
 
     @classmethod
-    def filepath(cls) -> str:
+    def filepath(cls, obj=None) -> str:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        return cls.get_module_path(simple=False)
+        obj = cls.resolve_module(obj)
+        module_path =  inspect.getfile(obj)
+        return module_path
     
     @classmethod
     def gitbranch(cls) -> str:
@@ -576,6 +578,7 @@ class c:
             cache :bool = False,
             full :bool = False,
             key: 'Key' = None,
+            update :bool = False,
             password : str = None,
             **kwargs) -> Any:
         
@@ -593,14 +596,16 @@ class c:
 
         if password != None:
             data['data'] = c.decrypt(data['data'], password=password)
-
         data = data or default
+        
         if isinstance(data, dict):
+            if update:
+                max_age = 0
             if max_age != None:
                 timestamp = data.get('timestamp', None)
                 if timestamp != None:
                     age = int(c.time() - timestamp)
-                    if age > max_age:
+                    if age > max_age: # if the age is greater than the max age
                         c.print(f'{k} is too old ({age} > {max_age})', color='red')
                         return default
         else:
@@ -999,16 +1004,11 @@ class c:
 
     
     @classmethod
-    def modules(cls, search=None, mode='local', **kwargs)-> List[str]:
-        '''
-        List of module paths with respect to module.py file
-        
-        Assumes the module root directory is the directory containing module.py
-        '''
+    def modules(cls, search=None, mode='local', tree='commune', **kwargs)-> List[str]:
         if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
             module_list = c.module('subspace')().modules(search=search, **kwargs)
         else:
-            module_list = list(cls.module_tree().keys())
+            module_list = list(c.tree(search=search, tree=tree, **kwargs).keys())
             if search != None:
                 module_list = [m for m in module_list if search in m]
         return module_list
@@ -1090,7 +1090,6 @@ class c:
     
     @classmethod
     def makedirs(cls, *args, **kwargs):
-        import os
         return os.makedirs(*args, **kwargs)
 
     @classmethod
@@ -1434,59 +1433,15 @@ class c:
     @classmethod
     def path2simple(cls, 
                     path:str,
-                    trees = ['modules', 'my_modules']
+                    tree = None,
                     ) -> str:
 
-        # does the config exist
+        return c.module('tree').path2simple(path=path, tree=tree)  
+    
 
-        simple_path =  path.split(deepcopy(cls.root_dir))[-1]
-
-        if cls.path_config_exists(path):
-            simple_path = os.path.dirname(simple_path)
-
-        simple_path = simple_path.replace('.py', '')
-        
-        simple_path = simple_path.replace('/', '.')[1:]
-
-        # compress nae
-        chunks = simple_path.split('.')
-        simple_chunk = []
-        for i, chunk in enumerate(chunks):
-            if len(simple_chunk)>0:
-
-                if simple_chunk[-1] == chunks[i]:
-                    continue
-                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
-                    continue
-            simple_chunk += [chunk]
-        
-        if '_' in simple_chunk[-1]:
-            filename_chunks = simple_chunk[-1].split('_')
-            # if all of the chunks are in the filename
-            if all([c in simple_chunk for c in filename_chunks]):
-                simple_chunk = simple_chunk[:-1]
-
-        simple_path = '.'.join(simple_chunk)
-
-        if simple_path.endswith('.module'):
-            simple_path = simple_path.replace('.module', '')
-
-        # remove any files to compress the name even further for
-        if len(simple_path.split('.')) > 2:
-            
-            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
-                simple_path = '.'.join(simple_path.split('.')[:-1])
-
-        
-        for tree in trees:
-            if simple_path.startswith(tree+'.'):
-                simple_path = simple_path.replace(tree+'.', '')
-        
-
-        while simple_path.startswith('.'):
-            simple_path = simple_path[1:]
-
-        return simple_path
+    @classmethod
+    def tree_paths(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').tree_paths(*args, **kwargs)  
     
     
     @classmethod
@@ -1552,16 +1507,19 @@ class c:
     
 
     @classmethod
-    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
-
+    def path2objectpath(cls, path:str = None, search=['c.Module'], tree=None) -> str:
+        path = path or cls.filepath()
+        tree = tree or 'commune'
+        tree_path = cls.tree2path()[tree]
 
         if path.endswith('module/module.py'):
             return 'commune.Module'
         python_classes = cls.find_python_classes(path, search=search)
         if len(python_classes) == 0:
             return None
+        
         object_name = python_classes[-1]
-        path = path.replace(c.repo_path+'/', '').replace('.py','.').replace('/', '.') 
+        path = path.replace(tree_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         return path
 
@@ -1575,25 +1533,34 @@ class c:
     def get_module(cls, 
                    path:str = 'module', 
                    cache=True, 
+                   tree = None,
                    verbose=False) -> str:
         t1 = c.time()
         path = path or 'module'
-        if not isinstance(path, str):
-            return path
+        tree = tree or 'commune'
+        module = None
+
+
         if cache:
-            if path in c.module_cache:
-                return c.module_cache[path]
-        t1 = c.time()
-        if path == 'tree':
-            module = c.import_object('commune.tree.Tree')
-        else:
-            # convert the simple to path
-            path = c.simple2path(path)
-            path = c.path2objectpath(path, search=None)
-            module = c.import_object(path)
-        t2 = c.time()
-        c.module_cache[path] = module
-        c.print(f'Imported {path} in {t2-t1} seconds', color='green', verbose=verbose)
+            if tree in c.module_cache:
+                if path in c.module_cache[tree]:
+                    module = c.module_cache[tree][path]
+            else:
+                c.module_cache[tree] = {}
+
+        if module == None:
+            if path == 'tree':
+                module = c.import_object('commune.tree.Tree')
+            else:
+                # convert the simple to path
+                path = c.simple2path(path, tree=tree)
+                object_path = c.path2objectpath(path, tree=tree)
+                module = c.import_object(object_path)
+            if cache:
+                c.module_cache[tree][path] = module
+                
+        latency = c.time() - t1
+        c.print(f'Imported {path} in {latency} seconds', color='green', verbose=verbose)
         return module
 
     @classmethod
@@ -1646,41 +1613,29 @@ class c:
 
 
     @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
-                verbose:bool = False,
-                path = 'local_module_tree'
-                ) -> List[str]:
-        return c.module('tree').tree(search=search, 
-                                     update=update, verbose=verbose, path=path) 
+    def tree(cls, *args,
+                **kwargs) -> List[str]:
+        return c.module('tree').tree(*args,  **kwargs) 
 
     @classmethod
-    def tree2path(cls, name=None) -> List[str]:
-        return c.module('tree').tree2path(name=name)
+    def tree2path(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').tree2path( *args, **kwargs)
 
     @classmethod
     def default_trees(cls):
         return c.m('tree').default_trees
-    @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
-                verbose:bool = False,
-                path = 'local_module_tree', **kwargs):
-        return c.m('tree').tree(search=search, 
-                                update = update,
-                                verbose = verbose,
-                                path = path, **kwargs)
+
     
     @classmethod
     def trees(cls):
         return c.m('tree').trees()
     
     @classmethod
-    def add_tree(cls, path:str, **kwargs):
+    def add_tree(cls, path:str = './', **kwargs):
         return c.m('tree').add_tree(path, **kwargs)
     
     @classmethod
-    def rm_tree(cls, path:str, **kwargs):
+    def rm_tree(cls, path:str = './', **kwargs):
         return c.m('tree').rm_tree(path, **kwargs)
 
     def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
@@ -2188,7 +2143,6 @@ class c:
     @classmethod
     def walk(cls, path:str, module:str=False) -> List[str]:
         
-        import os
         path_map = {}
         for root, dirs, files in os.walk(path):
             for f in files:
@@ -3438,7 +3392,7 @@ class c:
     @staticmethod
     def memory_usage(fmt='gb'):
         fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
-        import os, psutil
+        import psutil
         process = psutil.Process()
         scale = fmt2scale.get(fmt)
         return (process.memory_info().rss // 1024) / scale
@@ -3832,7 +3786,6 @@ class c:
         '''
         Pay attention to this function. It sets the environment variable
         '''
-        import os
         os.environ[key] = value
         return value 
 
@@ -3841,7 +3794,6 @@ class c:
         '''
         Pay attention to this function. It sets the environment variable
         '''
-        import os
         return  os.environ[key] 
 
     env = get_env
@@ -5071,6 +5023,17 @@ class c:
         return c.connect(module)
 
     @classmethod
+    def pwdtree(cls):
+        tree2path   =  c.tree2path()
+        pwd = c.pwd()
+        return {v:k for k,v in tree2path.items()}.get(pwd, None)
+    which_tree = pwdtree
+    
+    @classmethod
+    def istree(cls):
+        return cls.pwdtree() != None
+
+    @classmethod
     def is_pwd(cls, module:str = None):
         if module != None:
             module = c.module(module)
@@ -5206,7 +5169,7 @@ class c:
                ):
         responses = []
         if tree:
-            r = c.tree(update=True)
+            r = c.tree()
             responses.append(r)
 
         if module != None:
@@ -5546,7 +5509,11 @@ class c:
         
         c.module_tree(update=True)
 
-        return {'success': True, 'msg': f' created a new repo called {module}'}
+        return {'success': True, 
+                'path': module_path,
+                'module': module,
+                'class_name': class_name,
+                'msg': f' created a new repo called {module}'}
         
     
     add_module = new_module
@@ -6450,7 +6417,6 @@ class c:
     
     @staticmethod
     def get_files_code(directory):
-        import os
         code_dict = {}
 
         for root, dirs, files in os.walk(directory):
@@ -7904,7 +7870,6 @@ class c:
     ## API MANAGEMENT ##
     
     def set_api_key(self, api_key:str, cache:bool = True):
-        import os
         api_key = os.getenv(str(api_key), None)
         if api_key == None:
             api_key = self.get_api_key()

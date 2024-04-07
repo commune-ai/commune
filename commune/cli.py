@@ -26,7 +26,8 @@ class cli(c.Module):
             args = None,
             module : c.Module = None,
             new_event_loop: bool = True,
-            save: bool = True
+            save: bool = True,
+            tree = None
         ) :
         self.base_module = c.Module()
         input = args or self.argv()
@@ -55,7 +56,7 @@ class cli(c.Module):
         else:
             module = args.pop(0)
             if isinstance(module, str):
-                module = c.module(module)
+                module = c.module(module, tree=tree)
             fn = args.pop(0)
             
         fn_obj = getattr(module, fn)

@@ -377,17 +377,20 @@ class Vali(c.Module):
         
 
     def storage_path(self, network=None):
-        network = network or self.config.network
-        if 'subspace' in network:
-            network_str = f'{network}.{self.netuid}'
+        if self.config.get('path', None) != None:
+            path = self.config.path
         else:
-            network_str = network
-            
-        path =  f'{network_str}'
+            network = network or self.config.network
+            if 'subspace' in network:
+                network_str = f'{network}.{self.netuid}'
+            else:
+                network_str = network
+                
+            path =  f'{network_str}'
 
         storage_path = self.resolve_path(path)
 
-        return path
+        return storage_path
         
     
     
