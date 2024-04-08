@@ -35,8 +35,12 @@ c.new_module('agi')
 ```
 
 
-c agi/filepath or c agi filepath
+c agi/filepath 
 home/saltoshi/commune/modules/agi/agi.py
+
+
+
+
 
 
 

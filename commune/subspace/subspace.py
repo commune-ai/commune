@@ -633,7 +633,7 @@ class Subspace(c.Module):
                        block: Optional[int] = None, 
                        names = False,
                         fmt='j' , network=None, update=False,
-                        max_age = 1000,
+                        max_age = 60,
                          **kwargs) -> Optional['Balance']:
         
 
@@ -652,7 +652,7 @@ class Subspace(c.Module):
         
 
         netuid = self.resolve_netuid( netuid )
-        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update, network=network)
+        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update, network=network, max_age=max_age)
         stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to}
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
@@ -2712,30 +2712,34 @@ class Subspace(c.Module):
             response: dict
         
         """
-        if isinstance(module, int):
-            amount = module
-            module = None
+    
+        
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
         # get most stake from the module
 
-        stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=key)
+
+        if isinstance(module, int):
+            module = amount
+            amount = module
+
+        assert module != None or amount != None, f"Must provide a module or an amount"
+
+
 
         if c.valid_ss58_address(module):
             module_key = module
-        elif module == None and amount != None:
-            # find the largest staked module
-            for k,v in stake_to.items():
-                if v > amount:
-                    module_key = k      
-                    break
-        elif module != None and amount == None:
+        elif isinstance(module, str):
             module_key = self.name2key(netuid=netuid).get(module)
-            amount = int(self.to_nanos(amount)) if amount else stake_to[module_key]
         else: 
             raise Exception('Invalid input')
 
+        if amount == None:
+            stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=module_key)
+            amount = stake_to[module_key] - 100000
+        else:
+            amount = int(self.to_nanos(amount))
         # convert to nanos
         params={
             'amount': amount ,
@@ -2922,9 +2926,8 @@ class Subspace(c.Module):
         
         network = self.resolve_network( network )
         key = self.resolve_key( key )
-    
         key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
-
+        
         params = {
             "netuid": netuid,
             "module_keys": list(key_stake_to.keys()),
@@ -2941,9 +2944,7 @@ class Subspace(c.Module):
             c.print(f'No modules found to unstake')
             total_stake = self.get_balance(key)
         total_stake = total_stake - existential_deposit
-        to = c.get_key(to)
-        c.print(f'Transfering {total_stake} to ')
-        response['transfer'] = self.transfer(dest=to, amount=total_stake, key=key)
+        
         return response
 
 
@@ -3506,11 +3507,16 @@ class Subspace(c.Module):
             key = self.config.key
         if key == None:
             key = 'module'
+        
         if isinstance(key, str):
+            address2key = c.address2key()
+            key = address2key.get(key, None)
             if c.key_exists( key ):
                 key = c.get_key( key )
-            else:
+            if key == None:
                 raise ValueError(f"Key {key} not found in your keys, please make sure you have it")
+            key = c.get_key(key)
+
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
     

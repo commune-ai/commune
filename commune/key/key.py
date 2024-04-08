@@ -125,9 +125,6 @@ class Keypair(c.Module):
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
 
-
-    
-
         if private_key:
 
             if type(private_key) == str:
@@ -144,9 +141,6 @@ class Keypair(c.Module):
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
             
-            
-       
-        
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
 
@@ -212,7 +206,6 @@ class Keypair(c.Module):
         assert path1 != path2
         assert cls.key_exists(path1), f'key does not exist at {path1}'
         assert cls.key_exists(path2), f'key does not exist at {path2}'
-
 
         before  = {
             path1: cls.key2address(path1),
@@ -921,7 +914,6 @@ class Keypair(c.Module):
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
-             seperator:str = "<DATA::SIGNATURE>",
              return_str = False,
              ) -> bytes:
         """
@@ -936,6 +928,7 @@ class Keypair(c.Module):
         signature in bytes
 
         """
+        seperator = self.seperator
         if not isinstance(data, str):
             data = c.python2str(data)
         if type(data) is ScaleBytes:
@@ -975,9 +968,9 @@ class Keypair(c.Module):
     def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
-               seperator = "<DATA::SIGNATURE>",
                **kwargs
                ) -> bool:
+        
         
         """
         Verifies data with specified signature
@@ -992,8 +985,8 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
-        if isinstance(data, str) and seperator in data:
-            data, signature = data.split(seperator)
+        if isinstance(data, str) and self.seperator in data:
+            data, signature = data.split(self.seperator)
 
         data = c.copy(data)
 
@@ -1508,12 +1501,30 @@ class Keypair(c.Module):
         data = str(c.timestamp())
         return self.sign(data, return_str=True, **kwargs)
 
-    def verify_ticket(self, ticket=None, **kwargs):
-        if ticket == None:
-            ticket = self.ticket(**kwargs)
-        data = ticket.split(self.seperator)[0]
+    def verify_ticket(self, ticket=None, max_age=1, **kwargs):
+        if c.exists(ticket):
+            ticket = c.get_text(ticket)
+        data = int(ticket.split(self.seperator)[0])
+        age = c.timestamp() - data
+        if age > max_age:
+            raise ValueError(f'ticket is too old, {age} > {max_age}')
         return self.verify(ticket, **kwargs)
+
+    def is_ticket(self, ticket):
+        return self.seperator in ticket
+    ticket_path = (c.libpath + '/data/ticket.txt')
+    def save_ticket(self, path = None, **kwargs):
+        ticket = self.ticket(**kwargs)
+        path = path or self.ticket_path
+        return c.put_text(path, ticket)
     
+    def load_ticket(self, path = None, **kwargs):
+        path = path or self.ticket_path
+        return c.get_text(path)
+    
+    def ticket_exists(self, path = None):
+        path = path or self.ticket_path
+        return c.exists(path)
 
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic

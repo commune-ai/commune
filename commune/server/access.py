@@ -126,6 +126,7 @@ class Access(c.Module):
 
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
         default_fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
+        self.state['fn_info'] = self.state.get('fn_info', {})
         fn2info = self.state['fn_info'].get(fn,default_fn_info)
         stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
         
@@ -137,7 +138,9 @@ class Access(c.Module):
         rate_limit = min(rate_limit, max_rate) # cap the rate limit at the max rate
         
         # NOW LETS CHECK THE RATE LIMIT
-        user_info = self.state.get('user_info', {}).get(address, {})
+        self.state['user_info'] = self.state.get('user_info', {})
+        user_info = self.state['user_info'].get(address, {})
+
         # check if the user has exceeded the rate limit
         time_since_called = current_time - user_info.get('timestamp', 0)
         period = self.timescale_map[self.config.timescale]

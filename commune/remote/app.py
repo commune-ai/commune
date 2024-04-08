@@ -143,6 +143,8 @@ class App(c.Module):
 
 
                     stats = host2stats[host]
+                    
+
   
 
                     # if the column is full, add a new column
@@ -155,10 +157,14 @@ class App(c.Module):
                             failed_hosts += [host]
                             errors += [msg]
                             stats['error'] += 1
+                            
                         else:
+                            stats['last_success'] = c.time()
                             stats['success'] += 1
                             with st.expander(title, expanded=expanded):
                                 st.code(msg)
+
+                    
                     
                     host2stats[host] = stats
             
@@ -169,6 +175,7 @@ class App(c.Module):
                 st.error(c.detailed_error(e))
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
+
                 for host in pending_hosts:
                     stats = host2stats[host]
                     stats['error'] += 1

@@ -7122,7 +7122,7 @@ class c:
         return c.module('subspace')().my_stake_from(*args, **kwargs)
     
     @classmethod
-    def my_stake_to(self, *args, **kwargs):
+    def my_stake_to(cls, *args, **kwargs):
         return c.module('subspace')().my_stake_to(*args, **kwargs)
     
 
@@ -7379,6 +7379,10 @@ class c:
     @classmethod
     def subnet(cls, *args, **kwargs):
         return c.module('subspace')().subnet(*args, **kwargs)
+
+    @classmethod
+    def netuids(cls, *args, **kwargs):
+        return c.module('subspace')().netuids(*args, **kwargs)
     
     
     @classmethod
@@ -8082,6 +8086,20 @@ class c:
     def ticket(self, key=None):
         key = c.get_key(key)
         return key.ticket()
+    
+    def save_ticket(self, key=None, **kwargs):
+        key = c.get_key(key)
+        return key.save_ticket(**kwargs)
+
+    def load_ticket(self, key=None, **kwargs):
+        key = c.get_key(key)
+        return key.load_ticket(**kwargs)
+
+    @classmethod
+    def verify_ticket(cls, *args, **kwargs):
+
+        return c.get_key().verify_ticket(*args, **kwargs)
+    
     @classmethod
     def load_style(cls):
         return c.module('streamlit').load_style()
