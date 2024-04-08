@@ -191,10 +191,10 @@ class Tree(c.Module):
 
 
 
-        for x in ['.miner']:
-            if simple_path.endswith(x):
-                c.print(x)
-                simple_path = simple_path[:-len(x)]
+        # for x in ['.miner']:
+        #     if simple_path.endswith(x):
+        #         c.print(x)
+        #         simple_path = simple_path[:-len(x)]
         
         return simple_path
 

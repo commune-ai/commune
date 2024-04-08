@@ -603,7 +603,7 @@ class c:
             
 
         if password != None:
-            data['data'] = c.decrypt(data['data'], password=password)
+            data['data'] = c.decrypt(data['data'], password=password, key=key)
         data = data or default
         
         if isinstance(data, dict):
@@ -631,9 +631,6 @@ class c:
         return data
     
 
-    @classmethod
-    def obj_age(cls, item:dict) -> int:
-        return c.timestamp() - int(cls.get_json(item).get('timestamp', 0))
 
     @classmethod
     def get_many(cls,
