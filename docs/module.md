@@ -20,8 +20,44 @@ To create a new module, you can use the `commune` command line tool:
 c new_module agi
 ```
 
+```python
+c.new_module('agi')
+```
+
+```bash
+{
+    'success': True,
+    'path': '/Users/salvivona/commune/agi',
+    'module': 'agi',
+    'class_name': 'Agi',
+    'msg': ' created a new repo called agi'
+}
+```
+
+
+c agi/filepath or c agi filepath
+home/saltoshi/commune/modules/agi/agi.py
+
+
+
+c agi filepath
+
+
+
+
+
+
+
 ### Searching for a Specific Module
 To search for a specific module, you can use the `c.modules()` function with a search query:
+
+```bash
+
+c modules model.openai
+```
+
+```python
+```
 
 ```python
 c.modules('model.openai')

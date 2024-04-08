@@ -31,13 +31,15 @@ class History(c.Module):
     def get_file_timestamp(self, file):
         return int(file.split('/')[-1].split('.')[0])
 
-    def history_paths(self, n=10, reverse=False):
+    def history_paths(self, search=None, n=1000, reverse=False):
         paths =  self.ls(self.folder_path)
         sorted_paths = sorted(paths, reverse=reverse)
+        if search:
+            sorted_paths = [p for p in sorted_paths if search in p] 
         return sorted_paths[:n]
     
-    def history(self, n=5, reverse=True, idx=None):
-        history_paths = self.history_paths(n=n, reverse=reverse)
+    def history(self, search=None, n=100, reverse=True, idx=None):
+        history_paths = self.history_paths(n=n, reverse=reverse, search=search)
         history = [c.get(s) for s in history_paths]
         if idx:
             return history[idx]

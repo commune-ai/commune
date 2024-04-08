@@ -48,35 +48,15 @@ class Subspace(c.Module):
                             'last_update', 
                             'stake_from', 
                             'delegation_fee']
-    
-    
     cost = 1
-
     block_time = 8 # (seconds)
-    fmt = 'j'
-    git_url = 'https://github.com/commune-ai/subspace.git'
     default_config = c.get_config('subspace', to_munch=False)
-    token_decimals = default_config['token_decimals']
+    token_decimals = 9
     network = default_config['network']
     chain = network
     libpath = chain_path = c.libpath + '/subspace'
-    spec_path = f"{chain_path}/specs"
-    netuid = default_config['netuid']
+    netuid = 0
     local = default_config['local']
-    
-    features = ['Keys', 
-                'StakeTo',
-                'Name', 
-                'Address',
-                'Weights',
-                'Emission', 
-                'Incentive', 
-                'Dividends', 
-                'LastUpdate',
-                'ProfitShares',
-                'Proposals', 
-                'Voter2Info',
-                ]
 
     def __init__( 
         self, 
@@ -791,9 +771,6 @@ class Subspace(c.Module):
         block = int(latest_archive_path.split(f'.block-')[-1].split('-time')[0])
         return block
 
-
-        
-
     @classmethod
     def time2archive(cls, network=network):
         paths = cls.ls_archives(network=network)
@@ -907,6 +884,9 @@ class Subspace(c.Module):
             'modules': self.modules(netuid=netuid, network=network, block=block, update=update, fmt=fmt, **kwargs),
         }
         return subnet_state
+
+
+
 
 
     def total_stake(self, network=network, block: Optional[int] = None, netuid:int='all', fmt='j', update=False) -> 'Balance':
@@ -1123,20 +1103,22 @@ class Subspace(c.Module):
         global_params = None if update else self.get(path, None, max_age=max_age)
         if global_params == None:
             self.resolve_network(network)
-            global_params = {}
-            global_params['burn_rate'] =  'BurnRate' 
-            global_params['max_name_length'] =  'MaxNameLength'
-            global_params['max_allowed_modules'] =  'MaxAllowedModules' 
-            global_params['max_allowed_subnets'] =  'MaxAllowedSubnets'
-            global_params['max_proposals'] =  'MaxProposals'
-            global_params['max_registrations_per_block'] =  'MaxRegistrationsPerBlock' 
-            global_params['min_burn'] =  'MinBurn' 
-            global_params['min_stake'] =  'MinStakeGlobal' 
-            global_params['min_weight_stake'] =  'MinWeightStake'       
-            global_params['unit_emission'] =  'UnitEmission' 
-            global_params['tx_rate_limit'] =  'TxRateLimit' 
-            global_params['vote_threshold'] =  'GlobalVoteThreshold' 
-            global_params['vote_mode'] =  'VoteModeGlobal' 
+
+            global_params = {
+                'burn_rate':  'BurnRate',
+                'max_name_length':  'MaxNameLength',
+                'max_allowed_modules':  'MaxAllowedModules',
+                'max_allowed_subnets':  'MaxAllowedSubnets',
+                'max_proposals':  'MaxProposals',
+                'max_registrations_per_block':  'MaxRegistrationsPerBlock',
+                'min_burn':  'MinBurn',
+                'min_stake':  'MinStakeGlobal',
+                'min_weight_stake':  'MinWeightStake',
+                'unit_emission':  'UnitEmission',
+                'tx_rate_limit':  'TxRateLimit',
+                'vote_threshold':  'GlobalVoteThreshold',
+                'vote_mode':  'VoteModeGlobal'
+            }
 
             async def aquery_constant(f, **kwargs):
                 return self.query_constant(f, **kwargs)
@@ -1956,6 +1938,10 @@ class Subspace(c.Module):
             
         return archive_history
         
+    
+    
+    
+    
     def key_usage_path(self, key:str):
         key_ss58 = self.resolve_key_ss58(key)
         return f'key_usage/{key_ss58}'
@@ -2389,8 +2375,6 @@ class Subspace(c.Module):
         )
 
         return response
-
-
 
     def update_module(
         self,
@@ -3289,7 +3273,7 @@ class Subspace(c.Module):
     
 
 
-    def my_balance(self, search:str=None, update=False, network:str = 'main', fmt=fmt,  block=None, min_value:int = 0):
+    def my_balance(self, search:str=None, update=False, network:str = 'main', fmt='j',  block=None, min_value:int = 0):
 
         balances = self.balances(network=network, fmt=fmt, block=block, update=update)
         my_balance = {}
@@ -3328,7 +3312,7 @@ class Subspace(c.Module):
             subnet2stake[subnet_name] = self.my_total_stake(network=network, netuid=subnet_name , update=update)
         return subnet2stake
 
-    def my_total_stake(self, netuid='all', network = 'main', fmt=fmt, update=False):
+    def my_total_stake(self, netuid='all', network = 'main', fmt='j', update=False):
         my_stake_to = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, update=update)
         return sum([sum(list(v.values())) for k,v in my_stake_to.items()])
     
@@ -3364,7 +3348,7 @@ class Subspace(c.Module):
     
 
  
-    def my_total_balance(self, network = None, fmt=fmt, update=False):
+    def my_total_balance(self, network = None, fmt='j', update=False):
         return sum(self.my_balance(network=network, fmt=fmt, update=update ).values())
 
 
