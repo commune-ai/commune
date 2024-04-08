@@ -39,7 +39,7 @@ class Tree(c.Module):
     @classmethod
     def tree(cls, tree = None,
                 search=None,
-                update = True,
+                update = False,
                 verbose:bool = False,
                 max_age = 100, **kwargs
                 ) -> List[str]:
@@ -47,7 +47,7 @@ class Tree(c.Module):
         tree = tree or 'commune'
         module_tree = {}
         path = cls.resolve_path(f'{tree}/tree')
-        max_age = max_age if update else None
+        max_age = 0 if update else max_age
         module_tree =  c.get(path, {}, max_age=max_age)
 
         if len(module_tree) == 0:
@@ -179,7 +179,6 @@ class Tree(c.Module):
 
         # remove any files to compress the name even further for
         if len(simple_path.split('.')) > 2:
-            
             if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
 
@@ -189,6 +188,13 @@ class Tree(c.Module):
         if tree == 'commune':
             if simple_path.startswith('modules.'):
                 simple_path = simple_path.replace('modules.', '')
+
+
+
+        for x in ['.miner']:
+            if simple_path.endswith(x):
+                c.print(x)
+                simple_path = simple_path[:-len(x)]
         
         return simple_path
 

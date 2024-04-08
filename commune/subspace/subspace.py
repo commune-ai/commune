@@ -243,7 +243,8 @@ class Subspace(c.Module):
     
         return stake_to
     
-    def my_stake_to(self, netuid = 0,
+    
+    def key2stake(self, netuid = 0,
                      block=None, 
                     update=False, 
                     names = False,
@@ -254,21 +255,33 @@ class Subspace(c.Module):
         if netuid == 'all':
             stake_to_dict = stake_to
            
-            netuid2subnet = self.netuid2subnet()
             for staker_address in address2key.keys():
-                stake_to_total[staker_address] = {}
                 for netuid, stake_to in stake_to_dict.items(): 
-                    if names:
-                        netuid = netuid2subnet[netuid]              
                     if staker_address in stake_to:
-                        stake_to_total[staker_address][netuid] = sum([v[1] for v in stake_to[staker_address]])
-                if len(stake_to_total[staker_address]) == 0:
-                    del stake_to_total[staker_address]
+                        stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to.get(staker_address)])
+            c.print(stake_to_total)
         else:
             for staker_address in address2key.keys():
                 if staker_address in stake_to:
                     stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to[staker_address]])
+            # sort the dictionary by value
+            stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
+
         return stake_to_total
+    my_stake_to = key2stake
+
+    def key2value(self, netuid = 0, block=None, update=False, network='main', fmt='j', min_value=10):
+        key2balance = self.key2balance(block=block, update=update, network=network, fmt=fmt)
+        key2stake = self.key2stake(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
+        key2value = {}
+        for key in key2stake.keys():
+            
+            key2value[key] = key2balance.get(key, 0) + key2stake.get(key, 0)
+
+        key2value = {k:v for k,v in key2value.items() if v > min_value}
+        key2value = dict(sorted(key2value.items(), key=lambda x: x[1], reverse=True))
+
+        return key2value
     
     def min_burn(self,  network='main', block=None, update=False, fmt='j'):
         min_burn = self.query('MinBurn', block=block, update=update, network=network)
@@ -1180,7 +1193,7 @@ class Subspace(c.Module):
         )
         return account
     
-    def accounts(self, key = None, network=None, update=True, block=None):
+    def accounts(self, key = None, network=None, update=True, block=None, max_age=100000, **kwargs):
         self.resolve_network(network)
         key = self.resolve_key_ss58(key)
         accounts = self.query_map(
@@ -1188,6 +1201,8 @@ class Subspace(c.Module):
             name='Account',
             update=update,
             block = block,
+            max_age=max_age,
+            **kwargs
         )
         return accounts
     
@@ -2215,9 +2230,6 @@ class Subspace(c.Module):
         return sum(balances.values())
     
 
-    def sand(self, **kwargs):
-        balances = self.my_balances(**kwargs)
-        return sum(balances.values())
     
     """
     
@@ -3216,16 +3228,15 @@ class Subspace(c.Module):
 
     unreged = unreged_servers = unregistered_servers
                
-    def my_balances(self, search=None, 
-                    update=False, 
-                    fmt='j', 
+    def key2balance(self, search=None, 
                     batch_size = 32,
                     timeout = 10,
                     full_scan = 0,
-                    min_value=10, **kwargs):
+                    min_value=0,
+                      **kwargs):
         address2key = c.address2key(search)
         future2address = {}
-        my_balance = {}
+        key2balance = {}
         
         addresses = list(address2key.keys())
         if full_scan:
@@ -3233,7 +3244,7 @@ class Subspace(c.Module):
         for a in addresses:
             if full_scan:
                 if a in balances:
-                    my_balance[a] = balances[a]
+                    key2balance[a] = balances[a]
             else:
                 futures = list(future2address.keys())
                 if len(future2address) < batch_size:
@@ -3247,62 +3258,51 @@ class Subspace(c.Module):
                             c.print(result, color='red')
                         else:
                             balance = f.result()  
-                            if balance > 0:
+                            if balance > min_value:
                                 c.print(result_address, balance, color='green')
-                                my_balance[result_address] = balance
+                                key2balance[result_address] = balance
                         break
+        key2balance = {k:v for k,v in key2balance.items() if v > min_value}
 
-        return my_balance
+        return key2balance
 
         
 
+        key2balances = key2balance
 
-        # my_balances = {key:balances[address] for address,key in address2key.items() if address in balances}
+        # key2balances = {key:balances[address] for address,key in address2key.items() if address in balances}
         # if min_value > 0:
-        #     my_balances = {k:v for k,v in my_balances.items() if v > min_value}
-        # return my_balances
+        #     key2balances = {k:v for k,v in key2balances.items() if v > min_value}
+        # return key2balances
     
-
-    # def my_balances(self, search=None, update=False, network="main", min_value=10, **kwargs):
-    #     address2key = c.address2key(search)
-    #     key2balance = {}
-    #     for address, key in address2key.items():
-    #         c.print(f'Getting balance for {key}')
-    #         key2balance[address] = self.get_balance(key)
-    #     return key2balance
 
     
 
 
-    def my_balance(self, search:str=None, update=False, network:str = 'main', fmt='j',  block=None, min_value:int = 0):
+    def key2balance(self, search:str=None, update=False, network:str = 'main', fmt='j',  block=None, min_value:int = 10):
 
         balances = self.balances(network=network, fmt=fmt, block=block, update=update)
-        my_balance = {}
+        key2balance = {}
         key2address = c.key2address()
         for key, address in key2address.items():
             if address in balances:
-                my_balance[key] = balances[address]
+                key2balance[key] = balances[address]
 
         if search != None:
-            my_balance = {k:v for k,v in my_balance.items() if search in k}
+            key2balance = {k:v for k,v in key2balance.items() if search in k}
             
-        my_balance = dict(sorted(my_balance.items(), key=lambda x: x[1], reverse=True))
+        key2balance = dict(sorted(key2balance.items(), key=lambda x: x[1], reverse=True))
 
         if min_value > 0:
-            my_balance = {k:v for k,v in my_balance.items() if v > min_value}
+            key2balance = {k:v for k,v in key2balance.items() if v > min_value}
 
-        return my_balance
+        return key2balance
         
-    key2balance = myb = mybal = my_balance
 
     def my_value(
-                 self, 
-                 network = 'main',
-                 update=False,
-                 fmt='j'
+                 self, *args, **kwargs
                  ):
-        return self.my_total_stake(network=network, update=update, fmt=fmt,) + \
-                    self.my_total_balance(network=network, update=update, fmt=fmt)
+        return sum(list(self.key2value( *args, **kwargs).values()))
     
     my_supply   = my_value
 
@@ -3350,7 +3350,7 @@ class Subspace(c.Module):
 
  
     def my_total_balance(self, network = None, fmt='j', update=False):
-        return sum(self.my_balance(network=network, fmt=fmt, update=update ).values())
+        return sum(self.key2balance(network=network, fmt=fmt, update=update ).values())
 
 
     def check_valis(self, **kwargs):
@@ -3426,8 +3426,7 @@ class Subspace(c.Module):
                 call_function=fn,
                 call_params=params,
         )
-
-        c.print(f'Sending Transaction: 📡', compose_kwargs, color=color)
+        c.print(f'Sending Transaction ({key.ss58_address[:4] + "..."}🔑): 📡', compose_kwargs,color=color)
         tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
 
         self.put_json(paths['pending'], tx_state)
@@ -3507,12 +3506,13 @@ class Subspace(c.Module):
             key = self.config.key
         if key == None:
             key = 'module'
-        
+
         if isinstance(key, str):
             address2key = c.address2key()
-            key = address2key.get(key, None)
-            if c.key_exists( key ):
-                key = c.get_key( key )
+            key2address = {v:k for k,v in address2key.items()}
+            if key in address2key:
+                key = address2key[key]
+            assert key in key2address, f"Key {key} not found in your keys, please make sure you have it"
             if key == None:
                 raise ValueError(f"Key {key} not found in your keys, please make sure you have it")
             key = c.get_key(key)

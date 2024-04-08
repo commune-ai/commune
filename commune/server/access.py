@@ -30,7 +30,10 @@ class Access(c.Module):
         if refresh:
             self.rm_state()
         self.last_time_synced = c.time()
-        self.state = {}
+        self.state = {'sync_time': 0, 
+                      'stake_from': {}, 
+                      'role2rate': role2rate, 
+                      'fn_info': {}}
         
         c.thread(self.run_loop)
 

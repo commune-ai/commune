@@ -23,6 +23,8 @@ class Namespace(c.Module):
         
         network = network or 'local'
         path = network 
+        
+        namespace = cls.get(path, {}, max_age=max_age)
 
         if 'subspace' in network:
             if '.' in network:
@@ -31,18 +33,16 @@ class Namespace(c.Module):
                 netuid = netuid or 0
             if c.is_int(netuid):
                 netuid = int(netuid)
-            return c.module(network)().namespace(search=search, 
+            namespace = c.module(network)().namespace(search=search, 
                                                  update=update, 
                                                  max_age=max_age, 
                                                  netuid=netuid,
                                                  **kwargs)
-        else:
-            namespace = cls.get(path, None, max_age=max_age)
-
-
+        elif network == 'local':
             if update or namespace == None:
                 namespace = cls.update_namespace(network=network)
                 cls.put(path, namespace)
+        
                 
 
 
@@ -56,10 +56,11 @@ class Namespace(c.Module):
             namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
         return namespace
     
+    namespace = namespace
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         namespace[name] = address
         cls.put_namespace(network, namespace)
         return {'success': True, 'msg': f'Block {name} registered to {network}.'}
@@ -68,7 +69,7 @@ class Namespace(c.Module):
     @classmethod
     def deregister_server(cls, name:str, network=network) -> Dict:
 
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         address2name = {v: k for k, v in namespace.items()}
         if name in address2name:
             name = address2name[name]
@@ -86,7 +87,7 @@ class Namespace(c.Module):
     
     @classmethod
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         address = namespace.get(name, None)
         if external and address != None:
             address = address.replace(c.default_ip, c.ip())
@@ -113,7 +114,7 @@ class Namespace(c.Module):
             return {'success': False, 'msg': f'Namespace {network} not found.'}
     @classmethod
     def name2address(cls, name:str, network:str=network ):
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         address =  namespace.get(name, None)
         ip = c.ip()
     
@@ -123,7 +124,7 @@ class Namespace(c.Module):
     
     @classmethod
     def address2name(cls, name:str, network:str=network ):
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         address2name = {v: k for k, v in namespace.items()}
         return address2name
     
@@ -138,15 +139,15 @@ class Namespace(c.Module):
 
     @classmethod
     def modules(cls, network:List=network) -> List[str]:
-        return list(cls.get_namespace(network=network).keys())
+        return list(cls.namespace(network=network).keys())
     
     @classmethod
     def addresses(cls, network:str=network, **kwargs) -> List[str]:
-        return list(cls.get_namespace(network=network, **kwargs).values())
+        return list(cls.namespace(network=network, **kwargs).values())
     
     @classmethod
     def module_exists(cls, module:str, network:str=network) -> bool:
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         return bool(module in namespace)
     
 
@@ -190,11 +191,11 @@ class Namespace(c.Module):
 
     @classmethod
     def merge_namespace(cls, from_network:str, to_network:str, module = None):
-        from_namespace = cls.get_namespace(network=from_network)
+        from_namespace = cls.namespace(network=from_network)
         if module == None:
             module = c.module(from_network)
 
-        to_namespace = cls.get_namespace(network=to_network)
+        to_namespace = cls.namespace(network=to_network)
         to_namespace.update(from_namespace)
         cls.put_namespace(to_network, to_namespace)
         return {'success': True, 'msg': f'Namespace {from_network} merged into {to_network}.'}
@@ -220,7 +221,7 @@ class Namespace(c.Module):
         address = info['address']
         module_ip = address.split(':')[0]
         is_remote = bool(module_ip != c.ip())
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         if is_remote:
             name = name + '_' + str(module_ip)
         addresses = list(namespace.values())
@@ -324,7 +325,7 @@ class Namespace(c.Module):
         return cls.put_namespace(network, {})
     @classmethod
     def network2namespace(self):
-        return {network: self.get_namespace(network=network) for network in self.networks()}
+        return {network: self.namespace(network=network) for network in self.networks()}
     all = network2namespace
     @classmethod
     def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
@@ -344,15 +345,16 @@ class Namespace(c.Module):
         cls.rm_namespace(network)
         cls.rm_namespace(network2)
 
-        assert cls.get_namespace(network=network) == {}, 'Namespace not empty.'
+        namespace = cls.namespace(network=network)
+        assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'
         cls.register_server('test', 'test', network=network)
-        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network=network)}'
+        assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.namespace(network=network)}'
 
-        assert cls.get_namespace(network2) == {}
+        assert cls.namespace(network2) == {}
         cls.register_server('test', 'test', network=network2)
-        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not restored. {cls.get_namespace(network=network)}'
+        assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not restored. {cls.namespace(network=network)}'
         cls.deregister_server('test', network=network2)
-        assert cls.get_namespace(network2) == {}
+        assert cls.namespace(network2) == {}
         cls.rm_namespace(network)
         assert cls.namespace_exists(network) == False
         cls.rm_namespace(network2)
@@ -374,7 +376,7 @@ class Namespace(c.Module):
     
 
     def clean(cls, network='local'):
-        namespace = cls.get_namespace(network=network)
+        namespace = cls.namespace(network=network)
         address2name = {}
         
         for name, address in address2name.items():

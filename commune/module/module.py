@@ -4209,6 +4209,17 @@ class c:
         return [f for f in dir(cls) if f.startswith('test_')]
     
     @classmethod
+    def test(cls):
+        self = cls()
+        fn2result = {}
+        for fn in self.test_fns():
+            c.print(f'testing {fn}')
+            fn2result[fn] = getattr(self, fn)()
+        return fn2result
+
+        
+    
+    @classmethod
     def testnet(cls, module = None):
         if cls.path() == 'module':
             return c.module('test')().test()
@@ -7203,8 +7214,8 @@ class c:
     get_balance = balance
     
     @classmethod
-    def my_balances(cls, *args, **kwargs):
-        return c.module('subspace')().my_balances(*args, **kwargs)
+    def key2balances(cls, *args, **kwargs):
+        return c.module('subspace')().key2balances(*args, **kwargs)
 
     @classmethod
     def my_keys(cls, *args, **kwargs):
@@ -7316,8 +7327,8 @@ class c:
 
 
     @classmethod
-    def my_balance(cls, *args, **kwargs):
-        return c.module('subspace')().my_balance(*args, **kwargs)
+    def key2balance(cls, *args, **kwargs):
+        return c.module('subspace')().key2balance(*args, **kwargs)
 
     @classmethod
     def nodes(cls, *args, **kwargs):

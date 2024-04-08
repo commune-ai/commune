@@ -475,10 +475,11 @@ class Vali(c.Module):
                     ):
         paths = self.module_paths(network=network)
         module_infos = []
+        is_valid_module_info = lambda r : isinstance(r, dict) and 'ss58_address' in r
         # chunk the jobs into batches
         for path in paths:
             r = self.get(path, max_age=max_age)
-            if isinstance(r, dict) and 'ss58_address' in r:
+            if is_valid_module_info(r):
                 r['staleness'] = c.time() - r.get('timestamp', 0)
                 module_infos += [{k: r.get(k, None) for k in keys}]
             else :
