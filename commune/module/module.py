@@ -38,10 +38,10 @@ class c:
     address = '0.0.0.0:8888' # the address of the server (default)
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
+    libname = lib_name = lib = root_path.split('/')[-1] # the name of the library
     datapath = os.path.join(libpath, 'data') # the path to the data folder
     modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
-    library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     console = Console() # the consolve
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -1935,7 +1935,7 @@ class c:
 
     @classmethod
     def cache_path(cls):
-        path = os.path.expanduser(f'~/.{cls.library_name}')
+        path = os.path.expanduser(f'~/.{cls.libname}')
         return path
 
     @classmethod
@@ -3736,7 +3736,7 @@ class c:
             
         return lib2version
     @classmethod
-    def version(cls, lib:str=library_name):
+    def version(cls, lib:str=libname):
         lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()

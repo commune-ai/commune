@@ -98,7 +98,7 @@ class InferenceAPIClient(Client):
         """
 
         headers = build_hf_headers(
-            token=token, library_name="text-generation", library_version=__version__
+            token=token, libname="text-generation", library_version=__version__
         )
 
         # Text Generation Inference client only supports a subset of the available hub models
@@ -154,7 +154,7 @@ class InferenceAPIAsyncClient(AsyncClient):
                 Timeout in seconds
         """
         headers = build_hf_headers(
-            token=token, library_name="text-generation", library_version=__version__
+            token=token, libname="text-generation", library_version=__version__
         )
 
         # Text Generation Inference client only supports a subset of the available hub models

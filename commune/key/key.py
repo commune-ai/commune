@@ -728,6 +728,7 @@ class Keypair(c.Module):
     def from_password(cls, password:str, **kwargs):
         return cls.create_from_uri(password, **kwargs)
 
+
     @classmethod
     def from_uri(
             cls, 
@@ -1458,10 +1459,8 @@ class Keypair(c.Module):
             else:
                 raise ValueError( "public_key must be a string or bytes" )
 
-            keypair = Keypair(
-                public_key=public_key,
-                ss58_format=commune.__ss58_format__
-            )
+            keypair = Keypair(public_key=public_key,
+                              ss58_format=c.__ss58_format__)
 
             ss58_addr = keypair.ss58_address
             return ss58_addr is not None

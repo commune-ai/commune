@@ -40,7 +40,7 @@ class Namespace(c.Module):
             namespace = cls.get(path, None, max_age=max_age)
 
 
-            if update or len(namespace) == None:
+            if update or namespace == None:
                 namespace = cls.update_namespace(network=network)
                 cls.put(path, namespace)
                 
