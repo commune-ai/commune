@@ -1060,9 +1060,10 @@ class Subspace(c.Module):
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
         if not c.valid_ss58_address(key):
-            name2key = self.name2key(netuid=netuid)
-            if key in name2key:
-                key = name2key[key]
+            key2addresss = c.key2address(netuid=netuid)
+            if key in key2addresss:
+                key = key2addresss[key]
+        
         assert c.valid_ss58_address(key), f"Invalid key {key}"
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged

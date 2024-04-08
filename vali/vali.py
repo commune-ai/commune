@@ -463,8 +463,8 @@ class Vali(c.Module):
     
     def module_infos(self,
                     keys = ['name', 'w', 
-                            'staleness', 'timestamp', 
-                            'latency', 'address'],
+                            'staleness',
+                            'latency', 'ss58_address'],
                     path = 'cache/module_infos',
                     max_age = 3600,
                     network = None,

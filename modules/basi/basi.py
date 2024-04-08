@@ -22,10 +22,6 @@ class Basi(c.Module):
             kwargs['text'] = ' '.join(text)
             futures += [c.submit(self.call, kwargs=kwargs)]
         return c.wait(futures, timeout=10)
-    
 
     
-        
-    
-        
-    
+Basi.run(__name__)
