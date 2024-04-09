@@ -4,10 +4,10 @@ import json
 
 Vali = c.module('vali')
 class ValiTextTruthfulQA(Vali):
-    def __init__(self,**kwargs):
-        config = self.set_config(kwargs=kwargs)
+    def __init__(self,config=None, **kwargs):
+        self.init_vali(config, **kwargs)
         self.dataset = c.module(self.config.dataset)()
-        self.init_vali(config)
+
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
         prompt = f'''

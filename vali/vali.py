@@ -23,7 +23,10 @@ class Vali(c.Module):
             self.score_module = module.score_module
         # initialize the validator
         # merge the config with the default config
-        config = c.dict2munch({**Vali.config(), **config})
+        config = config or {}
+        config = {**Vali.config(), **config}
+        config = self.set_config(config=config, kwargs=kwargs)
+
         c.print(config, 'VALI CONFIG')
 
         if hasattr(config, 'key'):
