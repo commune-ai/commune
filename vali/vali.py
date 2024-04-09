@@ -493,12 +493,10 @@ class Vali(c.Module):
             c.m('subspace')().serialize(module_infos)     
         return module_infos
 
-
-    def num_modules(self, **kwargs):
-        return len(self.leaderboard(**kwargs))
-
     def leaderboard(self, *args, df=True, **kwargs): 
         return self.module_infos(*args, df=df, **kwargs)
+    
+    l = leaderboard
     
     def module_paths(self, network=None):
         paths = self.ls(self.storage_path(network=network))

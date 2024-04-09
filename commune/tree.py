@@ -189,11 +189,8 @@ class Tree(c.Module):
             if simple_path.startswith('modules.'):
                 simple_path = simple_path.replace('modules.', '')
 
-
-
         for x in ['.miner']:
             if simple_path.endswith(x):
-                c.print(x)
                 simple_path = simple_path[:-len(x)]
         
         return simple_path
