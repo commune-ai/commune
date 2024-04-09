@@ -1,5 +1,5 @@
-netuid: 0
 network: subspace # global or local network
+netuid: 0
 alpha: 0.9
 timeout: 2
 tag: null

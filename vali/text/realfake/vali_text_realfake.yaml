@@ -2,4 +2,6 @@ dataset: data.text.realfake
 search: model
 tag: base
 target: real
+network: subspace
+netuid: 0
 

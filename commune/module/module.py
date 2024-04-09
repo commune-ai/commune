@@ -7750,7 +7750,9 @@ class c:
 
     @classmethod
     def restart_many(cls, search:str = None, network = None, **kwargs):
-        servers = c.servers(search, network=network)
+        t1 = c.time()
+        servers = c.pm2ls(search)
+        c.print(f'{c.time()-t1}')
         for m in servers:
             c.restart(m, **kwargs)
         return servers

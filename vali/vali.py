@@ -19,7 +19,7 @@ class Vali(c.Module):
     def __init__(self,
                  config:dict=None,
                  **kwargs):
-        self.init(config=config, **kwargs)
+        self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, module=None, **kwargs):
         if module != None:
@@ -27,7 +27,6 @@ class Vali(c.Module):
             assert callable(module.score_module), f'Module must have a callable score_module attribute, got {score_module.score_module}'
             self.score_module = module.score_module
         # initialize the validator
-        config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         config = c.dict2munch({**Vali.get_config(), **config})
         c.print(config, 'VALI CONFIG')
@@ -514,12 +513,10 @@ class Vali(c.Module):
 
         return module_infos
 
-
-    def num_modules(self, **kwargs):
-        return len(self.leaderboard(**kwargs))
-
     def leaderboard(self, *args, df=True, **kwargs): 
         return self.module_infos(*args, df=df, **kwargs)
+    
+    l = leaderboard
     
     def module_paths(self, network=None):
         paths = self.ls(self.storage_path(network=network))
@@ -529,7 +526,7 @@ class Vali(c.Module):
         path = self.storage_path() + f'/{k}'
         self.put(path, v)
     
-
+    
     def __del__(self):
         c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
         workers = self.workers()
