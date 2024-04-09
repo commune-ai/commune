@@ -22,12 +22,12 @@ class DataHF(c.Module):
                 streaming: bool= False,
                 split: str = None, 
                 **kwargs):
-        config = self.set_config(kwargs=locals())
-        self.set_dataset(paths=config.path, name=config.name, split=config.split, streaming=config.streaming)
+        config = self.set_config(locals())
+        self.set_dataset(path=config.path, name=config.name, split=config.split, streaming=config.streaming)
     
 
         
-    def set_dataset(self, path:str, name:str = None, split:str = None, streaming:bool=False):
+    def set_dataset(self, path:str, name:str = None, split:str = None, streaming:bool=False, **kwargs):
         path = self.shortcuts.get(path, path)
         c.print(f'Loading dataset: {name} from {path}')
 

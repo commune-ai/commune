@@ -15,14 +15,13 @@ class Vali(c.Module):
     def __init__(self,
                  config:dict=None,
                  **kwargs):
-        self.init(config=config, **kwargs)
+        self.init_vali(config=config, **kwargs)
 
-    def init(self, config=None, module=None, **kwargs):
+    def init_vali(self, config=None, module=None, **kwargs):
         if module != None:
             assert hasattr(module, 'score_module'), f'Module must have a config attribute, got {module}'
             self.score_module = module.score_module
         # initialize the validator
-        config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         config = c.dict2munch({**Vali.config(), **config})
         c.print(config, 'VALI CONFIG')
@@ -33,7 +32,6 @@ class Vali(c.Module):
         self.sync()
         c.thread(self.run_loop)
 
-    init_vali = init
 
 
     def run_loop(self):
@@ -508,18 +506,18 @@ class Vali(c.Module):
         self.put(path, v)
     
 
-    def __del__(self):
-        c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
-        workers = self.workers()
-        futures = []
-        for w in workers:
-            if self.config.mode == 'thread': 
-                c.print(f'Stopping worker {w}', color='cyan')
-                futures += [c.submit(c.kill, args=[w])]
-            elif self.config.mode == 'server':
-                c.print(f'Stopping server {w}', color='cyan')
-                futures += [c.submit(c.kill, args=[w])]
-        return c.wait(futures, timeout=10)
+    # def __del__(self):
+    #     c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
+    #     workers = self.workers()
+    #     futures = []
+    #     for w in workers:
+    #         if self.config.mode == 'thread': 
+    #             c.print(f'Stopping worker {w}', color='cyan')
+    #             futures += [c.submit(c.kill, args=[w])]
+    #         elif self.config.mode == 'server':
+    #             c.print(f'Stopping server {w}', color='cyan')
+    #             futures += [c.submit(c.kill, args=[w])]
+    #     return c.wait(futures, timeout=10)
         
 
     def random_module(self):

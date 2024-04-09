@@ -4,9 +4,9 @@ import json
 Vali = c.module('vali')
 class ValiTextRealfake(Vali):
     def __init__(self, config=None, **kwargs):
-        config = self.set_config(config=config, kwargs=kwargs)   
-        self.dataset =  c.module(config.dataset)()
-        self.init_vali(config)
+        self.init_vali(config, **kwargs)
+        self.dataset =  c.module(self.config.dataset)()
+
 
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
