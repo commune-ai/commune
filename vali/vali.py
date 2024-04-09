@@ -28,6 +28,7 @@ class Vali(c.Module):
             self.score_module = module.score_module
         # initialize the validator
         # merge the config with the default config
+        config = self.set_config(config, kwargs=kwargs)
         config = c.dict2munch({**Vali.get_config(), **config})
         c.print(config, 'VALI CONFIG')
 
@@ -526,9 +527,8 @@ class Vali(c.Module):
         path = self.storage_path() + f'/{k}'
         self.put(path, v)
     
-    
+
     def __del__(self):
-        c.print(f'Vali {self.config.network} {self.config.netuid} stopped', color='cyan')
         workers = self.workers()
         futures = []
         for w in workers:
