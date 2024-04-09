@@ -102,7 +102,7 @@ class Keypair(c.Module):
             and seed_hex == None \
             and mnemonic == None:
 
-            key = self.gen()
+            key = self.new_key()
             seed_hex = key.__dict__.get('seed_hex', seed_hex)
             private_key = key.__dict__.get('private_key', private_key)
             crypto_type = key.__dict__.get('crypto_type', crypto_type)
@@ -171,7 +171,7 @@ class Keypair(c.Module):
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}', color='red')
             return json.loads(cls.get(path))
-        key = cls.gen(mnemonic=mnemonic, private_key=private_key, **kwargs)
+        key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key.path = path
         key_json = key.to_json()
         if password != None:
@@ -197,11 +197,13 @@ class Keypair(c.Module):
         cls.rm_key(path)
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         new_key = cls.get_key(new_path)
-        return {'success': True, 'message': f'key moved from {path} to {new_path}', 'key': new_key}
+        return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
+    
+
     rename_key = mv_key 
     
     @classmethod
-    def switch_key(cls, path1:str, path2:str):
+    def switch_keys(cls, path1:str, path2:str):
         
         assert path1 != path2
         assert cls.key_exists(path1), f'key does not exist at {path1}'
@@ -229,7 +231,7 @@ class Keypair(c.Module):
         
         return {'success': True, 'before': before, 'after': after, 'msg': f'switched {path1} and {path2}'}
     
-    swap_key = switch_key
+    swap_keys = switch_keys
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
         response = []
@@ -240,9 +242,6 @@ class Keypair(c.Module):
             response.append(cls.add_key(key_name, **kwargs))
 
         return response
-
-
-    add = add_key
     
     @classmethod
     def key_info(cls, path='module', create_if_not_exists=False, **kwargs):
@@ -351,13 +350,15 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def get_keys(cls, search=None):
+    def get_keys(cls, search=None, clean_failed_keys=False):
         keys = {}
         for key in cls.keys():
             if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
                     c.print(f'failed to get key {key}', color='red')
+                    if clean_failed_keys:
+                        cls.rm_key(key)
                     keys.pop(key)
                 
         return keys
@@ -510,7 +511,7 @@ class Keypair(c.Module):
         return crypto_type
     
     @classmethod
-    def gen(cls, 
+    def new_key(cls, 
             mnemonic:str = None,
             suri:str = None, 
             private_key: str = None,
@@ -542,7 +543,7 @@ class Keypair(c.Module):
         
         return key
     
-    create = gen
+    create = gen = new_key
 
     
     
@@ -576,7 +577,7 @@ class Keypair(c.Module):
     @classmethod
     def sand(cls):
         
-        for k in cls.gen(suri=2):
+        for k in cls.new_key(suri=2):
             
             password = 'fam'
             enc = cls.encrypt(k, password=password)
@@ -1062,7 +1063,7 @@ class Keypair(c.Module):
     @property
     def aes_key(self):
         if not hasattr(self, '_aes_key'):
-            password = self.private_key
+            password = self.mnemonic or self.private_key
             self._aes_key = c.module('key.aes')(c.bytes2str(password))
         return self._aes_key
 
@@ -1263,12 +1264,25 @@ class Keypair(c.Module):
     
     @classmethod
     def test_encryption(cls,value = 10):
-        key = cls.gen()
+        key = cls.new_key()
         enc = key.encrypt(value)
         c.print(enc)
         dec = key.decrypt(enc)
         assert dec == value, f'encryption failed, {dec} != {value}'
         return {'encrypted':enc, 'decrypted': dec}
+
+
+    def test_key_encryption(self, test_key='test.key'):
+        key = self.add_key(test_key, refresh=True)
+        og_key = self.get_key(test_key)
+        r = self.encrypt_key(test_key)
+        c.print(r)
+        self.decrypt_key(test_key, password=r['password'])
+        key = self.get_key(test_key)
+
+        assert key.ss58_address == og_key.ss58_address, f'key encryption failed, {key.ss58_address} != {self.ss58_address}'
+
+        return {'success': True, 'msg': 'test_key_encryption passed'}
         
         
 
@@ -1323,7 +1337,7 @@ class Keypair(c.Module):
     @classmethod
     def dashboard(cls): 
         import streamlit as st
-        self = cls.gen()
+        self = cls.new_key()
         
         
         keys = self.keys()
@@ -1541,4 +1555,6 @@ class Keypair(c.Module):
 
     
 Keypair.run(__name__)
+
+
 

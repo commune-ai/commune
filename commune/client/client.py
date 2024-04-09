@@ -101,7 +101,7 @@ class Client(c.Module):
                         progress_bar = c.tqdm(desc='MB per Second', position=0)
                     result = {}
                     async for line in response.content:
-                        
+
                         event_data = line.decode('utf-8')
                         event_bytes  = len(event_data)
                         
@@ -144,7 +144,7 @@ class Client(c.Module):
             input['result'] = result
             input['module']  = self.address
             input['latency'] =  c.time() - input['timestamp']
-            path = self.history_path+'/' + self.server_name + '/' + str(input['timestamp'])
+            path = self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+ + str(input['timestamp'])
             self.put(path, input)
         return result
     
@@ -152,21 +152,7 @@ class Client(c.Module):
     def history(cls, key=None, history_path='history'):
         key = c.get_key(key)
         return cls.ls(history_path + '/' + key.ss58_address)
-    @classmethod
-    def all_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.glob(history_path)
-    @classmethod
-    def rm_key_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path + '/' + key.ss58_address)
     
-    @classmethod
-    def rm_history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.rm(history_path)
-
-
     def process_output(self, result):
         ## handles 
         if isinstance(result, str):

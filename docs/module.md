@@ -39,6 +39,26 @@ c agi/filepath
 home/saltoshi/commune/modules/agi/agi.py
 
 
+c serve agi
+or
+c agi/serve
+or
+a agi serve
+
+OUTPUT
+{
+    'success': True,
+    'name': 'agi',
+    'address': '0.0.0.0:50129',
+    'kwargs': {}
+}
+
+c namespace
+
+OUTPUT
+
+
+
 
 
 

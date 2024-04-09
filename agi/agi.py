@@ -1,11 +1,10 @@
 import commune as c
+from .utils import a
 
 class Agi(c.Module):
-    def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
+    def __init__(self, a=a):
+        self.a = a
+    def call(self, b = 1):
+        return self.a + b
 
-    def call(self, x:int = 1, y:int = 2) -> int:
-        c.print(self.config)
-        c.print(self.config, 'This is the config, it is a Munch object')
-        return x + y
-    
+

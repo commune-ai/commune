@@ -26,6 +26,7 @@ class Server(c.Module):
         save_history:bool= True,
         history_path:str = None , 
         nest_asyncio = True,
+        mnemonic = None,
         new_loop = True,
         **kwargs
         ) -> 'Server':
@@ -64,12 +65,23 @@ class Server(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        
-        self.module = module 
-        self.access_module = c.module(access_module)(module=self.module)  
-        self.set_history_path(history_path)
-        self.set_key(key)
 
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        whitelist = module.whitelist if hasattr(module, 'whitelist') else module.functions(include_parents=False)
+        whitelist = list(set(whitelist + c.whitelist))
+        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
+        blacklist = list(set(blacklist + c.blacklist))
+        module.whitelist = whitelist
+        module.blacklist = blacklist
+        self.module = module 
+
+
+        self.access_module = c.module(access_module)(module=self.module)  
+
+        self.set_history_path(history_path)
+        if mnemonic != None:
+            c.add_key(self.name, mnemonic)
+        self.set_key(key)
         self.set_api(ip=self.ip, port=self.port)
 
 
@@ -307,7 +319,7 @@ class Server(c.Module):
         self.put(path, item)
 
     def set_history_path(self, history_path):
-        self.history_path = history_path or f'history/{self.name}'
+        self.history_path = self.resolve_path(history_path or f'history/{self.name}')
         return {'history_path': self.history_path}
 
     @classmethod
@@ -315,11 +327,6 @@ class Server(c.Module):
         dirpath  = f'{history_path}/{server}'
         return cls.rm(dirpath)
     
-    @classmethod
-    def rm_all_history(cls, server=None, history_path='history'):
-        dirpath  = f'{history_path}'
-        return cls.rm(dirpath)
-
 
     @classmethod
     def history(cls, 

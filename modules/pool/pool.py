@@ -54,8 +54,6 @@ class Pool(c.Module):
             'n':self.num_replicas()
         }
 
-    start = process 
-
     @classmethod
     def getppid(cls):
         return os.getppid()

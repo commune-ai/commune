@@ -63,7 +63,6 @@ class Serializer(c.Module):
 
             if hasattr(self, f'serialize_{str_v_type}'):
                 # SERIALIZE MODE ON
-                c.print(f"Serializing {str_v_type}")
                 new_value = {'data':  getattr(self, f'serialize_{str_v_type}')(data=x), 
                              'data_type': str_v_type,  
                              'serialized': True}

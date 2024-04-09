@@ -489,7 +489,7 @@ class c:
         if path == None: 
             path = cls.config_path()
         else:
-            module_tree = cls.module_tree()
+            module_tree = c.tree()
             path = module_tree[path].replace('.py', '.yaml')
             
         config = cls.load_yaml(path)
@@ -603,7 +603,9 @@ class c:
             
 
         if password != None:
+            assert data['encrypted'] , f'{k} is not encrypted'
             data['data'] = c.decrypt(data['data'], password=password, key=key)
+
         data = data or default
         
         if isinstance(data, dict):
@@ -631,43 +633,6 @@ class c:
         return data
     
 
-
-    @classmethod
-    def get_many(cls,
-            *k, 
-            default: Any=None, 
-            mode:str = 'json',
-            max_age:str = None,
-            cache :bool = False,
-            full :bool = False,
-            **kwargs) -> Any:
-        
-        '''
-        Puts a value in sthe config, with the option to encrypt it
-
-        Return the value
-        '''
-        data_map = {k: cls.get(k, default=default, mode=mode, max_age=max_age, cache=cache, full=full, **kwargs) for k in k}
-        return data_map
-
-    @classmethod
-    def get_age(cls, k:int=0, scale:str = 'hours', **kwargs) -> int:
-
-        try:
-            timestamp =  cls.get_json(k).get('timestamp', 0)
-        except:
-            timestamp = 0
-
-        seconds =  c.timestamp() - int(timestamp)
-        scale2factor = {'seconds': 1,
-                         'minutes': 60, 
-                         'hours': 3600,
-                           'days': 86400, 
-                           'weeks': 604800, 
-                           'years': 31536000}
-        
-        return seconds / scale2factor[scale]
-    
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
         '''
@@ -681,10 +646,7 @@ class c:
         cls.save_config(config=config)
 
         return {'success': True, 'msg': f'config({k} = {v})'}
-   
-    def setc(self, k, v, password=None) -> Munch:
-        return setattr(self.config, k, v)
-   
+    setc = putc
     @classmethod
     def rmc(cls, k, password=None) -> Munch:
         '''
@@ -695,7 +657,7 @@ class c:
         cls.save_config(config=config)
    
     delc = rmc
-    setc = putc
+    
 
     @classmethod
     def popc(cls, key:str):
@@ -708,11 +670,6 @@ class c:
         config = cls.config()
         return key in config
 
-    @classmethod
-    def keysc(cls):
-        config = cls.config()
-        return list(config.keys())
-        
     @classmethod  
     def getc(cls, key, default= None, password=None) -> Any:
         '''
@@ -774,7 +731,7 @@ class c:
 
         # THIS LOADS A YAML IF IT EXIST, OR IT USES THE INIT KWARGS IF THERE IS NO YAML
         if has_config:
-            default_config = cls.load_config()
+            default_config = cls.load_config(to_munch=False)
         else: 
             default_config = cls.init_kwargs()
 
@@ -1246,15 +1203,19 @@ class c:
         return cls.choice(cls.free_ports(*args, **kwargs))
     
     @staticmethod
-    def random_int(*args):
+    def random_int(start_value=100, end_value=None):
+        if end_value == None: 
+            end_value = start_value
+            start_value, end_value = 0 , start_value
+        
+        assert start_value != None, 'start_value must be provided'
+        assert end_value != None, 'end_value must be provided'
         import random
-        if len(args) == 1:
-            return random.randint(0, args[0])
-        elif len(args) == 2:
-            return random.randint(args[0], args[1])
-        else:
-            raise ValueError('Invalid number of arguments')
+        return random.randint(start_value, end_value)
+        
 
+
+        return random.randint(args[0], args[1])
 
     
     @classmethod
@@ -2179,6 +2140,7 @@ class c:
                 virtual:bool = True, 
                 prefix_match: bool = False,
                 possible_modes = ['http', 'https', 'ws', 'wss'],
+                trials = 3,
                 key = None,
                 **kwargs):
         
@@ -2209,6 +2171,9 @@ class c:
             if prefix_match:
                 module = c.choice(list(namespace.keys()))
             if module not in namespace:
+                c.namespace(module, network=network, update=True)
+                if trials > 0:
+                    return c.connect(module, network=network, namespace=namespace, mode=mode, virtual=virtual, trials=trials-1, **kwargs)
                 raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
             address = namespace.get(module, None)
 
@@ -2689,7 +2654,12 @@ class c:
 
     
     @classmethod
-    def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
+    def resolve_server_name(cls, 
+                            module:str = None, 
+                            tag:str=None, 
+                            name:str = None,  
+                            tag_seperator:str='::', 
+                            **kwargs):
         """
         Resolves the server name
         """
@@ -2724,6 +2694,7 @@ class c:
               network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
+              name = None, # name of the server if None, it will be the module name
               refresh:bool = True, # refreshes the server's key
               wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
@@ -2732,48 +2703,41 @@ class c:
               public: bool = False,
               mnemonic = None, # mnemonic for the server
               key = None,
+              config_keys = ['network'],
               **extra_kwargs
               ):
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
-        module = module or cls.module_path()
-        # RESOLVE THE SERVER NAME
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-        if tag_seperator in server_name:
-            module, tag = server_name.split(tag_seperator)
+        name = server_name or name # name of the server if None, it will be the module name
+        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
+        if tag_seperator in name:
+            module, tag = name.split(tag_seperator)
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
-            address = c.get_address(server_name, network=network)
+            address = c.get_address(name, network=network)
             port = int(address.split(':')[-1]) if address else c.free_port()
 
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
         if remote:
-
-            # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs = c.locals2kwargs(locals())
-            
-            # SET THIS TO FALSE TO AVOID RECURSION
-            remote_kwargs['remote'] = False 
-
-
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
+            cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
             if wait_for_server:
-                cls.wait_for_server(server_name, network=network)
-
-            # 
+                cls.wait_for_server(name, network=network)
             address = c.ip() + ':' + str(remote_kwargs['port'])
-            return {'success':True, 'name': server_name, 'address':address, 'kwargs':kwargs}
+            return {'success':True, 
+                    'name': name, 
+                    'address':address, 
+                    'kwargs':kwargs
+                    }        
         
-        c.print(f'Serving {server_name} on port {port} {module}', color='green')
         module_class = c.module(module)
         kwargs.update(extra_kwargs)
-
+        
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
 
@@ -2781,40 +2745,28 @@ class c:
             kwargs['tag'] = tag
         if module_class.is_arg_key_valid('server_name'):
             kwargs['server_name'] = server_name
+        if module_class.is_arg_key_valid('network'):
+            kwargs['network'] = network
 
         # start the class
+        module_config = module_class.config()
+        for k in config_keys:
+            if k in module_config:
+                module_config[k] = locals()[k]
+        kwargs = {**module_config, **kwargs}
         self = module_class(**kwargs)
-
-        self.server_name = server_name
-
-        if tag_seperator in server_name:
-            tag = server_name.split(tag_seperator)[-1]
-        else:
-            tag = None
-
+        self.server_name = name
         self.tag = tag
 
-        
-        address = c.get_address(server_name, network=network)
+        address = c.get_address(name, network=network)
         if address != None and ':' in address:
             port = address.split(':')[-1]   
 
         if c.server_exists(server_name, network=network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
 
-        # RESOLVE THE WHITELIST AND BLACKLIST
-        whitelist = self.whitelist if hasattr(self, 'whitelist') else []
-        if len(whitelist) == 0 and module != 'module':
-            whitelist = self.functions(include_parents=False)
-            
-        whitelist = list(set(whitelist + c.whitelist))
-        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
-
-        setattr(self, 'whitelist', whitelist)
-        setattr(self, 'blacklist', blacklist)
-
         c.module(f'server')(module=self, 
-                                          name=server_name, 
+                                          name=name, 
                                           port=port, 
                                           network=network, 
                                           max_workers=max_workers, 
@@ -2823,7 +2775,7 @@ class c:
 
         return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
-                     'name':server_name, 
+                     'name':name, 
                      'kwargs': kwargs,
                      'module':module}
 
@@ -3010,6 +2962,9 @@ class c:
                 docs: bool = True,
                 include_parents:bool = False,
                 defaults:bool = True, cache=False) -> 'Schema':
+
+        if '/' in str(search):
+            module, fn = search.split('/')
         
         # if module is None, then we will use the cls
         if hasattr(cls, str(search)):
@@ -3745,8 +3700,7 @@ class c:
         return c.module('network').external_ip(*args, **kwargs)
     
     @classmethod
-    def ip(cls,  max_age=100, update:bool = False, **kwargs) -> str:
-        t1 = c.time()
+    def ip(cls,  max_age=10000, update:bool = False, **kwargs) -> str:
         ip = c.get('ip', None, max_age=max_age, update=update)
         if ip == None:
             ip =  cls.external_ip(**kwargs)
@@ -4216,22 +4170,6 @@ class c:
 
         
     
-    @classmethod
-    def testnet(cls, module = None):
-        if cls.path() == 'module':
-            return c.module('test')().test()
-        module = module or cls
-        results = {}
-        test_fns = module.test_fns()
-        c.print(f'test_fns: {test_fns}')
-        for fn in module.test_fns():
-            test_fn = getattr(module, fn)
-            if c.classify_fn(test_fn) == 'self':
-                test_fn = getattr(module(), fn)
-            results[fn] = test_fn()
-        return results
-            
-
 
     ### TIME LAND ###
     
@@ -5205,6 +5143,8 @@ class c:
             responses.append(c.namespace(network=network, update=True))
         if subspace:
             responses.append(c.module('subspace').sync())
+        
+        c.ip(update=1)
 
         return {'success': True, 'responses': responses}
     
@@ -5453,10 +5393,10 @@ class c:
 
     @classmethod
     def new_module( cls,
-                   module : str = None,
+                   module : str ,
                    repo : str = None,
                    base : str = 'base',
-                   code : str = None,
+                   base_module : str = 'demo',
                    tree : bool = 'commune',
                    include_config : bool = False,
                    overwrite : bool  = False,
@@ -5468,9 +5408,12 @@ class c:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
+
+        class_name = ''
+        for m in module.split('.'):
+            class_name += m[0].upper() + m[1:] # capitalize first letter
+
         module = module.replace('.','/')
-        class_name = module[0].upper() + module[1:] # capitalize first letter
-        class_name = ''.join([m.capitalize() for m in module.split('_')])
 
         # add it to the root
         tree2path = cls.tree2path()
@@ -5485,53 +5428,33 @@ class c:
                 return {'success': False,
                         'path': module_path,
                          'msg': f' module {module} already exists, set overwrite=True to overwrite'}
-
-        
+            
         if repo != None:
             # Clone the repository
             c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
             c.cmd(f'rm -rf {module_path}/.git')
 
-        # Create the module name if it doesn't exist, infer it from the repo name 
-        if module == None:
-            assert repo != None, 'repo must be specified if module is not specified'
-            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-        
-        # currently we are using the directory name as the module name
-        if module_type == 'dir':
-            c.mkdir(module_path, exist_ok=True)
-        else:
-            raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
-        
+        # get the code ready from the base module
+        c.print(f'Getting {base_module}')
+        base_module = c.module(base_module)
+        code = base_module.code()
 
-        if code == None:
-            base_module = c.module(base)
-            code = base_module.code()
-            code = code.replace('Demo', class_name)
-
-            
-        module = module.replace('/','_') # replace / with _ for the class name
-        
-        # define the module code and config paths
-        
-        module_code_path =f'{module_path}/{module}.py'
-        module_code_lines = []
+        # replace the class name
+        base_class_name = base_module.class_name()
         class_name = module[0].upper() + module[1:] # capitalize first letter
-        class_name = ''.join([m.capitalize() for m in module.split('_')])
-        
-        # rename the class to the correct name 
-        for code_ln in code.split('\n'):
-            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) :
-                indent = code_ln.split('class')[0]
-                code_ln = f'{indent}class {class_name}(c.Module):'
-            module_code_lines.append(code_ln)
-            
-        c.put_text(module_code_path, code)
-        if include_config:
+        class_name = ''.join([m.capitalize() for m in module.split('/')])
+        code = code.replace(base_class_name, class_name)
+  
+        if base_module.has_config():
+            c.mkdir(module_path, exist_ok=True)
+            module_code_path =f'{module_path}/{module}.py'
             module_config_path = module_code_path.replace('.py', '.yaml')
-            c.save_yaml(module_config_path, {'class_name': class_name})
-        
+            c.save_yaml(module_config_path, base_module.config())
+        else:
+            module_code_path = f'{module_path}.py'
+        c.put_text(module_code_path, code)
+            
         c.module_tree(update=True)
 
         return {'success': True, 
@@ -6843,8 +6766,9 @@ class c:
         return os.path.getsize(filepath)
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
-        if '/' in str(module):
+        if '/' in str(module) or module in cls.fns():
             return c.fn_code(module)
+            
         module = cls.resolve_module(module)
         text =  c.get_text( module.pypath(), *args, **kwargs)
         if search != None:

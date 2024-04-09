@@ -4,6 +4,7 @@ network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
 sync_interval: 10
+min_update_interval: 1
 sleep_interval: 5
 initial_sleep : 1
 search: null

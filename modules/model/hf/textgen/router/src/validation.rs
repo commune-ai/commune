@@ -209,7 +209,7 @@ impl Validation {
 
         // If seed is None, assign a random one
         let seed = match seed {
-            None => thread_rng().gen(),
+            None => thread_rng().new_key(),
             Some(seed) => {
                 if best_of > 1 {
                     return Err(BestOfSeed);

@@ -316,7 +316,7 @@ class Subspace(c.Module):
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
-        value = self.get(path, None, max_age=max_age)
+        value = self.get(path, None, max_age=max_age, update=update)
         if value != None:
             return value
         substrate = self.get_substrate(network=network, mode=mode)
@@ -1158,6 +1158,7 @@ class Subspace(c.Module):
                  block: int = None,
                  fmt='j',
                  network=None,
+                 max_age=0,
                  update=True) -> Optional['Balance']:
         r""" Returns the token balance for the passed ss58_address address
         Args:
@@ -1176,7 +1177,8 @@ class Subspace(c.Module):
                 params=[key_ss58],
                 block = block,
                 network=network,
-                update=update
+                update=update,
+                max_age=max_age
             )
 
         return  self.format_amount(result['data']['free'] , fmt=fmt)
@@ -1426,6 +1428,7 @@ class Subspace(c.Module):
                           timeout=20,
                          netuid=0, 
                          fmt='j',
+                         
                          update = False,
                          batch_size = 16,
                            **kwargs) -> List['ModuleInfo']:
@@ -3048,7 +3051,7 @@ class Subspace(c.Module):
                 return modules
             modules = c.df(modules)
 
-            modules = modules.sort_values('stake_from', ascending=False)
+            modules = modules.sort_values('name', ascending=False)
             del modules['key']
         return modules
 

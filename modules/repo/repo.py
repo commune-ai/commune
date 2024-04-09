@@ -30,15 +30,16 @@ class Repo(c.Module):
     def update(self):
         self.repo2path(update=True)
     
-    def repo2path(self, repo = None, update=False, repo_path='repo2path'):
-        repo2path = {} if update else self.get(repo_path, {}) 
-        if len(repo2path) > 0:
-            return repo2path
-        find_repo_paths = self.find_repo_paths()
-        for path in find_repo_paths:
-            repo_name = path.split('/')[-1]
-            repo2path[repo_name] = path
-        self.put(repo_path, repo2path)
+    def repo2path(self,  repo = None, search = None, update=False, max_age=1000, repo_path='repo2path'):
+        repo2path = self.get(repo_path, {}, max_age=max_age, update=update) 
+        if len(repo2path) == 0:
+            find_repo_paths = self.find_repo_paths()
+            for path in find_repo_paths:
+                repo_name = path.split('/')[-1]
+                repo2path[repo_name] = path
+            self.put(repo_path, repo2path)
+        if search != None:
+            return {k:v for k,v in repo2path.items() if search in k}
         if repo != None:
             return {k:v for k,v in repo2path.items()}
         return repo2path
