@@ -371,10 +371,9 @@ class Vali(c.Module):
             error = c.detailed_error(e)
             self.errors += 1
             response = {'w': 0, 'error': error}
-            is_error = True
             verbose_keys += ['error']
 
-        c.print(response, color='red')
+        c.print(response, color='red', verbose=verbose)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
@@ -432,7 +431,7 @@ class Vali(c.Module):
     
     def votes(self):
         network = self.config.network
-        module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'])
+        module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'], df=False)
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
         for info in module_infos:
@@ -510,7 +509,7 @@ class Vali(c.Module):
         if min_weight > 0:
             module_infos = module_infos[module_infos['w'] > min_weight]
         if not df:
-            return module_infos.tolist()
+            return module_infos.to_dict(orient='records')
 
         return module_infos
 

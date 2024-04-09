@@ -1523,8 +1523,6 @@ class c:
                 module = c.import_object('commune.tree.Tree')
             else:
                 # convert the simple to path
-                c.print(f'FACKKKKKK {path}', color='green', verbose=verbose)
-
                 path = c.simple2path(path, tree=tree)
                 object_path = c.path2objectpath(path, tree=tree)
                 module = c.import_object(object_path)
@@ -2138,7 +2136,7 @@ class c:
                 namespace = None,
                 mode = 'http',
                 virtual:bool = True, 
-                prefix_match: bool = False,
+                prefix_match: bool = True,
                 possible_modes = ['http', 'https', 'ws', 'wss'],
                 trials = 3,
                 key = None,
@@ -2170,11 +2168,7 @@ class c:
             # if we want to match the prefix, then we will match the prefix
             if prefix_match:
                 module = c.choice(list(namespace.keys()))
-            if module not in namespace:
-                c.namespace(module, network=network, update=True)
-                if trials > 0:
-                    return c.connect(module, network=network, namespace=namespace, mode=mode, virtual=virtual, trials=trials-1, **kwargs)
-                raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
+            raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
             address = namespace.get(module, None)
 
         if '://' in address:
@@ -2745,15 +2739,7 @@ class c:
             kwargs['tag'] = tag
         if module_class.is_arg_key_valid('server_name'):
             kwargs['server_name'] = server_name
-        if module_class.is_arg_key_valid('network'):
-            kwargs['network'] = network
 
-        # start the class
-        module_config = module_class.config()
-        for k in config_keys:
-            if k in module_config:
-                module_config[k] = locals()[k]
-        kwargs = {**module_config, **kwargs}
         self = module_class(**kwargs)
         self.server_name = name
         self.tag = tag
