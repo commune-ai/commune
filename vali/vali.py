@@ -300,8 +300,8 @@ class Vali(c.Module):
 
     def score_module(self, module: 'c.Module'):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        ip = module.ls()
-        assert isinstance(ip, dict), f"{module}, {ip}"
+        info = module.info()
+        assert isinstance(info, dict), f'Info must be a dictionary, got {info}'
         return {'w': 1}
     
     
@@ -479,7 +479,7 @@ class Vali(c.Module):
 
 
     def module_info(self, **kwargs):
-        return self.subspace.get_module(self.key.ss58_address, netuid=self.netuid, **kwargs)
+        return self.subspace.module_info(self.key.ss58_address, netuid=self.netuid, **kwargs)
     
     def module_infos(self,
                     keys = ['name', 'w', 

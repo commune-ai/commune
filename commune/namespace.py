@@ -376,7 +376,10 @@ class Namespace(c.Module):
                     name = f.result()
                     if 'Internal Server Error' in name:
                         raise Exception(name)
-                    namespace[name] = address
+                    if isinstance(name, dict) and 'error' in name:
+                        c.print(f'Error {name} with {address}', color='red', verbose=verbose)
+                    else:
+                        namespace[name] = address
                     c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
                 except Exception as e:
                     c.print(f'Error {e} with {address}', color='red', verbose=verbose)

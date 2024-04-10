@@ -46,15 +46,13 @@ class Client(c.Module):
             possible_modes = ['http', 'https'],
             ):
         if verbose:
-            c.print(f"Connecting to {self.address}", color='green')
+            c.print(f"Connecting to {address}", color='green')
         # we dont want to load the namespace if we have the address
         if not c.is_address(address):
-            namespace = c.namespace(address, network=network)            
-            address = c.choice(list(namespace.keys()))
-            if address not in namespace:
-                raise Exception(f'No module with name {address} found in namespace {namespace.keys()}')
-            address = namespace.get(address, None)
-        
+            module = address # we assume its a module name
+            namespace = c.get_namespace(search=module, network=network)            
+            module = c.choice(list(namespace.keys()))
+            address = namespace[module]
         if '://' in address:
             mode = address.split('://')[0]
             assert mode in possible_modes, f'Invalid mode {mode}'
@@ -62,8 +60,6 @@ class Client(c.Module):
         address = address.replace(c.ip(), '0.0.0.0')
         self.address = address
         return {'address': self.address}
-
-
 
     async def process_request(self, url:str, request: dict, headers=None, timeout:int=10):
         # start a client session and send the request
@@ -153,7 +149,7 @@ class Client(c.Module):
         address = address or self.address
         args = args if args else []
         kwargs = kwargs if kwargs else {}
-        url = f"http://{address}/{fn}/"
+        
         input =  { 
                         "args": args,
                         "kwargs": kwargs,
@@ -174,6 +170,10 @@ class Client(c.Module):
         else:
             raise ValueError(f"Invalid message_type: {message_type}")
         
+        url = f"{address}/{fn}/"
+        if not url.startswith('http'):
+            url = 'http://' + url
+        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green')
         result = await self.process_request(url, request, headers=headers, timeout=timeout)
 
         if self.save_history:

@@ -629,7 +629,6 @@ class c:
             cls.cache[k] = data
 
         return data
-    
 
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
@@ -827,8 +826,8 @@ class c:
     
     @classmethod
     def module_info(cls, *args, **kwargs):
-        return c.module('subspace')().get_module(*args, **kwargs)
-    
+        return c.module('subspace')().module_info(*args, **kwargs)
+    minfo = module_info
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):
@@ -5057,6 +5056,10 @@ class c:
     getnet = get_network
     resnet = resolve_network
     
+
+    def update_config(self, k, v):
+        self.config[k] = v
+        return self.config
     # local update  
     @classmethod
     def update(cls, 
@@ -7387,7 +7390,7 @@ class c:
         if name in name2shortcut:
             del shortcuts[name2shortcut[name]]
         shortcuts[shortcut] = name
-        c.putc('shortcuts', shortcuts)
+        cls.putc('shortcuts', shortcuts)
         return {'success': True, 'msg': f'added shortcut ({shortcut} -> {name})'}
 
     @classmethod

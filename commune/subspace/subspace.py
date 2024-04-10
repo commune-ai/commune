@@ -367,7 +367,7 @@ class Subspace(c.Module):
                   module='SubspaceModule',
                   update: bool = True,
                   max_age : str = 1000, # max age in seconds
-                  mode = 'ws',
+                  mode = 'http',
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
@@ -378,6 +378,7 @@ class Subspace(c.Module):
         if name  == 'Account':
             module = 'System'
         network = self.resolve_network(network, new_connection=False, mode=mode)
+
         path = f'query/{network}/{module}.{name}'
         # resolving the params
         params = params or []
@@ -385,8 +386,6 @@ class Subspace(c.Module):
         is_single_subnet = bool(netuid != 'all' and netuid != None)
         if is_single_subnet:
             params = [netuid] + params
-
-
         if not isinstance(params, list):
             params = [params]
         if len(params) > 0 :
@@ -395,16 +394,17 @@ class Subspace(c.Module):
         paths = self.glob(path + '*')
         update = update or len(paths) == 0 or block != None
         if not update:
-            value = self.get(sorted(paths, reverse=True)[-1],None , max_age=max_age)
+            last_path = sorted(paths, reverse=True)[-1]
+            value = self.get(last_path,None , max_age=max_age)
         else:
             value = None
 
         if value == None:
-            block = block or self.block
+            # block = block or self.block
             path = path + f'{block}'
             network = self.resolve_network(network)
             # if the value is a tuple then we want to convert it to a list
-            
+    
             substrate = self.get_substrate(network=network, mode=mode)
             qmap =  substrate.query_map(
                 module=module,
@@ -416,9 +416,8 @@ class Subspace(c.Module):
             )
 
             new_qmap = {} 
-            progress_bar = c.progress(qmap, desc=f'Querying {name} map with params {params}')
+            progress_bar = c.progress(qmap, desc=f'Querying {name} ma')
             for (k,v) in qmap:
-                c.print(k,v)
                 progress_bar.update(1)
                 if not isinstance(k, tuple):
                     k = [k]
@@ -428,8 +427,7 @@ class Subspace(c.Module):
                 if hasattr(v, 'value'):
                     v = v.value
                     c.dict_put(new_qmap, k, v)
-            for p in paths:
-                c.rm(p)
+
             self.put(path, new_qmap)
         
         else: 
@@ -469,7 +467,7 @@ class Subspace(c.Module):
     """ Returns network SubnetN hyper parameter """
     def n(self,  netuid: int = 0, network = 'main' ,block: Optional[int] = None, update=True, **kwargs ) -> int:
         if netuid == 'all':
-            return sum(self.query_map('N', block=block , update=update, network=network, **kwargs))
+            return sum(self.query_map('N', block=block , update=update, network=network, **kwargs).values())
         else:
             return self.query( 'N', params=[netuid], block=block , update=update, network=network, **kwargs)
 
@@ -954,7 +952,9 @@ class Subspace(c.Module):
                     fmt:str='j', 
                     rows:bool = True,
                     value_features = ['min_stake', 'max_stake']
-                    ) -> list:        
+                    ) -> list:     
+        if update:
+            max_age=0   
         network = self.resolve_network(network)  
         netuid = self.resolve_netuid(netuid)
         path = f'query/{network}/SubspaceModule.SubnetParams'          
@@ -1322,8 +1322,8 @@ class Subspace(c.Module):
                  **kwargs ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         self.resolve_network(network)
-        names = c.submit(self.get_feature, args=['names'])
-        keys = c.submit(self.get_feature, args=['keys'])
+        names = c.submit(self.get_feature, args=['names'], kwargs={'netuid':netuid, 'update':update, 'max_age':max_age})
+        keys = c.submit(self.get_feature, args=['keys'], kwargs={'netuid':netuid, 'update':update, 'max_age':max_age})
         names, keys = c.wait([names, keys], timeout=timeout)
         name2key = dict(zip(names, keys))
         if name != None:
@@ -1357,10 +1357,10 @@ class Subspace(c.Module):
         return self.subnet(netuid=netuid, network=network)['emission']*self.epoch_time(netuid=netuid, network=network)
 
 
-    def get_block(self, network='main', block_hash=None, max_age=8): 
+    def get_block(self, network='main', block_hash=None, max_age=30): 
         network = network or 'main'
         path = f'cache/{network}.block'
-        block = self.get(path, block_hash, max_age=max_age)
+        block = self.get(path, None, max_age=max_age)
         if block == None:
             self.resolve_network(network)
             block_header = self.substrate.get_block( block_hash=block_hash)['header']
@@ -1384,18 +1384,18 @@ class Subspace(c.Module):
         return self.block_time * self.subnet(netuid=netuid)['tempo']
 
     
-    def get_module(self, module='vali',
+    def module_info(self, module='vali',
                     netuid=0,
                     network='main',
                     fmt='j',
                     method='subspace_getModuleInfo',
                     mode = 'http',
+                    block = None,
                     lite = True, **kwargs ) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode=mode)
-        if isinstance(module, int):
-            module = self.uid2key(uid=module, netuid=netuid)
-        if isinstance(module, str):
-            module_key = self.resolve_key_ss58(module)
+        module_key = module
+        if not c.valid_ss58_address(module):
+            module_key = self.name2key(name=module, network=network, **kwargs)
         json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
         module = requests.post(url,  json=json).json()
         module = {**module['result']['stats'], **module['result']['params']}
@@ -1408,16 +1408,13 @@ class Subspace(c.Module):
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
-        module['vote_staleness'] = self.block - module['last_update']
+        module['vote_staleness'] = (block or self.block) - module['last_update']
         if lite :
             features = self.module_features + ['stake', 'vote_staleness']
             module = {f: module[f] for f in features}
-
         assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
-
-
-
         return module
+    minfo = get_module = module_info
     
 
     @staticmethod
@@ -1425,16 +1422,16 @@ class Subspace(c.Module):
         return ''.join([chr(x) for x in l]).strip()
 
     def get_modules(self, keys:list = None,
-                     network='main',
-                          timeout=20,
-                         netuid=0, 
+                         network='main',
+                        netuid=0, 
+                         timeout=20,
                          fmt='j',
-                         
+                         block = None,
                          update = False,
-                         batch_size = 16,
+                         batch_size = 8,
                            **kwargs) -> List['ModuleInfo']:
         netuid = self.resolve_netuid(netuid)
-        
+        block = block or self.block
         if netuid == 'all':
             futures = []
             all_keys = self.keys(update=update, netuid=netuid)
@@ -1446,20 +1443,40 @@ class Subspace(c.Module):
             keys = self.keys(update=update, netuid=netuid)
         if len(keys) == 0:
             return []
+        
+        if len(keys) >= batch_size:
+            key_batches = c.chunk(keys, chunk_size=batch_size)
+            futures = []
+            for key_batch in key_batches:
+                f = c.submit(self.get_modules, kwargs=dict(keys=key_batch,
+                                                        block=block, 
+                                                        network=network, 
+                                                        netuid=netuid, 
+                                                        batch_size=len(keys) + 1,
+                                                        timeout=timeout))
+                futures += [f]
+            module_batches = c.wait(futures, timeout=timeout)
+            modules = c.copy([])
+            name2module = {}
+            for module_batch in module_batches:
+                for m in module_batch:
+                    if isinstance(m, dict) and 'name' in m:
+                        name2module[m['name']] = m
+                    
+            modules = list(name2module.values())
+            return modules
+
         progress_bar = c.tqdm(total=len(keys), desc=f'Querying {len(keys)} keys for modules')
         modules = []
         for key in keys:
-            try:
-                module = self.get_module(module=key, netuid=netuid, network=network, fmt=fmt, **kwargs)
-            except Exception as e:
-                c.print(e)
-                continue
+            module = self.module_info(module=key, block=block, netuid=netuid, network=network, fmt=fmt, **kwargs)
             if isinstance(module, dict) and 'name' in module:
                 modules.append(module)
                 progress_bar.update(1)
-            else:
-                c.print(f'Error querying module for key {key} {module}')
+            modules.append(module)
+        
         return modules
+    
         
     def my_modules(self, netuid=0, generator=False,  **kwargs):
         keys = self.my_keys(netuid=netuid)
@@ -1526,6 +1543,13 @@ class Subspace(c.Module):
             'address': 'Address',
         }
 
+        name2default = {
+            'delegation_fee': 20,
+            'name': '',
+            'key': '',
+
+        }
+
 
 
         netuid = self.resolve_netuid(netuid or subnet)
@@ -1576,8 +1600,7 @@ class Subspace(c.Module):
                         module[feature] = state[feature][uid]
                     else:
                         uid_key = uid2key[uid]
-                        assert uid_key in state[feature], f"Key {uid_key} not found in {feature}"
-                        module[feature] = state[feature][uid_key]
+                        module[feature] = state[feature].get(uid_key, name2default.get(uid_key, None))
                 modules.append(module)
             self.put(path, modules)
 
@@ -2414,7 +2437,7 @@ class Subspace(c.Module):
         self.resolve_network(network)
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-        module_info = self.get_module(module)
+        module_info = self.module_info(module)
 
         ip = c.ip(update=1)
 
@@ -2464,6 +2487,9 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         subnet_params = self.subnet_params( netuid=netuid , update=update, network=network, fmt='nanos')
         # infer the key if you have it
+        for k in ['max_stake', 'min_stake']:
+            if k in params:
+                params[k] = params[k] * 1e9
         if key == None:
             key2address = self.address2key()
             if subnet_params['founder'] not in key2address:
@@ -3045,12 +3071,11 @@ class Subspace(c.Module):
                 keys = list(staked_modules.keys())
                 
         block = self.block
-        modules = self.get_modules(keys)
+        modules = self.get_modules(keys, block=block)
 
-
-
-        for m in modules:
-            m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
+        for m in modules:          
+            if isinstance(m['stake_from'], dict): 
+                m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
             m['stake'] = int(m['stake'])
         if search != None:
             modules = [m for m in modules if search in m['name']]
@@ -3101,7 +3126,7 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
-        module_info = self.get_module(key.ss58_address, netuid=netuid)
+        module_info = self.module_info(key.ss58_address, netuid=netuid)
         global_params = self.global_params( network=network, update=update, fmt='j')
         subnet_params = self.subnet_params( netuid = netuid )
         
