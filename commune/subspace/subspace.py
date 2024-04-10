@@ -3364,8 +3364,7 @@ class Subspace(c.Module):
         if remote:
             kwargs = c.locals2kwargs(locals())
             return self.remote_fn('check_servers', kwargs=kwargs)
-        features = ['name', 'serving', 'address', 'last_update', 'stake', 'dividends']
-        module_stats = self.stats(search=search, netuid=netuid, features=features, df=False, update=update)
+        module_stats = self.stats(search=search, netuid=netuid, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
         block = self.block
         response_batch = {}

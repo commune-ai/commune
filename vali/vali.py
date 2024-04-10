@@ -311,7 +311,7 @@ class Vali(c.Module):
     def eval(self, module:str = None, 
                     network=None, 
                     verbose = None,
-                    verbose_keys = ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness'],
+                    verbose_keys = None,
                     
                     **kwargs):
         
@@ -322,6 +322,7 @@ class Vali(c.Module):
         """
         The following evaluates a module sver
         """
+        verbose_keys = verbose_keys or ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness']
 
         verbose = verbose or self.verbose
         # load the module stats (if it exists)

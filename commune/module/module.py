@@ -2892,7 +2892,7 @@ class c:
             info['signature'] = auth['signature']
             info['ss58_address'] = auth['address']
         if schema:
-            schema = self.schema(defaults=True)
+            schema = self.schema(defaults=True, include_parents=True)
             info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
 
         if hardware:
@@ -2952,34 +2952,25 @@ class c:
 
         if '/' in str(search):
             module, fn = search.split('/')
-        
-        # if module is None, then we will use the cls
-        if hasattr(cls, str(search)):
-            fn = search
-            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
+            cls = c.module(module)
 
         if isinstance(module, str):
-
             if '/' in module:
                 module , fn = module.split('/')
             module = c.module(module)
-            
-
         module = module or cls
-            
-        if fn == None:
-            function_schema_map = {}
-            for fn in module.get_functions(include_parents=include_parents):
-                if search != None  and search not in fn:
-                    continue
-                module_fn = getattr(module, fn )
-                if callable(module_fn):
-                    function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
-    
-            return function_schema_map
+        functions = [fn] if fn else module.get_functions(include_parents=include_parents)
+
+        schema = {}
+        for fn in module.get_functions(include_parents=include_parents):
+            if search != None and search not in fn:
+                continue
+            module_fn = getattr(module, fn )
+            if callable(module_fn):
+                schema[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)        
+
+        return c.copy(schema)
         
-        else:
-            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
 
     @classmethod
     def get_function_annotations(cls, fn):
@@ -4183,7 +4174,6 @@ class c:
     @classmethod
     def datetime2time(cls, x:str):
         import datetime
-        c.print(x)
         return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
     date2time =  datetime2time
 
@@ -5404,7 +5394,6 @@ class c:
 
         # add it to the root
         tree2path = cls.tree2path()
-        c.print(tree2path)
         modules_path = tree2path[tree]
         module_path = os.path.join(modules_path, module)
         
@@ -5726,8 +5715,6 @@ class c:
 
         if 'remote' in kwargs:
             kwargs['remote'] = False
-
-
         
         return cls.launch(fn=fn, 
                    module = module,
@@ -6523,15 +6510,13 @@ class c:
             fn_obj = getattr(obj, fn_name)
             if not callable(fn_obj):
                 continue
-            
             # skip hidden functions if include_hidden is False
-            if (include_hidden==False) and (fn_name.startswith('__') and fn_name.endswith('__')):
-                
+            if (not include_hidden) and ((fn_name.startswith('__') or fn_name.endswith('_'))):
                 if fn_name != '__init__':
                     continue
-    
+
             # if the function is in the parent class, skip it
-            if  (fn_name in parent_functions) and (include_parents==False):
+            if  (fn_name in parent_functions) and (not include_parents):
                 continue
 
             # if the function is a property, skip it
@@ -7906,7 +7891,6 @@ class c:
                 v = None
             
             if isinstance(v, str):
-                c.print(v)
                 if v.startswith('[') and v.endswith(']'):
                     if len(v) > 2:
                         v = eval(v)

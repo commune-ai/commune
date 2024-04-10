@@ -266,7 +266,6 @@ class PM2(c.Module):
             cls.kill(name)  
         
         cwd = cwd or module.dirpath()
-        c.print(cwd)
         
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
