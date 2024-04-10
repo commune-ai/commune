@@ -7,7 +7,7 @@ target: 'answers'
 search: model
 start: True
 dataset : data.text.truthqa
-verbose: True
+verbose: False
 base_score: 0.1
 
 

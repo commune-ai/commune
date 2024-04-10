@@ -31,7 +31,6 @@ class ValiTextTruthfulQA(Vali):
 
         # generate the output
         output: str = model.generate(prompt)
-        c.print(output)
         prediction = json.loads(output)['answer']
 
 

@@ -40,7 +40,7 @@ class Namespace(c.Module):
                                                  **kwargs)
         elif network == 'local':
             if update or namespace == None:
-                namespace = cls.build_network(network=network)     
+                namespace = cls.build_namespace(network=network)     
         namespace = namespace or {}   
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
@@ -198,18 +198,6 @@ class Namespace(c.Module):
         cls.put_namespace(to_network, to_namespace)
         return {'success': True, 'msg': f'Namespace {from_network} merged into {to_network}.'}
 
-
-
-    @classmethod
-    def readd_servers(cls, search=None,  network= 'local', timeout=10):
-        import tqdm
-        futures = []
-        for serve, address in tqdm.tqdm(c.namespace(network=network).items()):
-            futures += [c.submit(cls.add_server, args=[address], kwargs=dict(network=network), return_future=True, timeout=timeout)]
-        c.wait(futures, timeout=timeout)
-        servers = c.servers(network=network)
-        return {'success': True, 'servers': servers}
-
     @classmethod
     def add_server(cls, address:str, name=None, network:str = 'local',timeout:int=10, **kwargs):
         module = c.connect(address)
@@ -361,6 +349,42 @@ class Namespace(c.Module):
         return {'success': True, 'msg': 'Namespace tests passed.'}
     
 
+    @classmethod
+    def build_namespace(cls,
+                        timeout:int = 10,
+                        network:str = 'local', 
+                        verbose=True)-> dict:
+        '''
+        The module port is where modules can connect with each othe.
+        When a module is served "module.serve())"
+        it will register itself with the namespace_local dictionary.
+        '''
+        namespace = {}
+        ip = c.ip()
+        addresses = [ip+':'+str(p) for p in c.used_ports()]
+        future2address = {}
+        for address in addresses:
+            f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
+            future2address[f] = address
+        futures = list(future2address.keys())
+        c.print(f'Updating namespace {network} with {len(futures)} addresses')
+
+        for f in c.as_completed(futures, timeout=timeout):
+            address = future2address[f]
+            try:
+                name = f.result()
+                namespace[name] = address
+                c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
+            except Exception as e:
+                c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+
+        cls.put_namespace(network, namespace)
+
+            
+        return namespace
+
+    update_namespace = build_namespace
+    
     @classmethod
     def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
         servers = cls.servers(network=network, **kwargs)

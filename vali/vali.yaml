@@ -6,6 +6,7 @@ verbose: False
 sync_interval: 10
 min_update_interval: 1
 sleep_interval: 5
+sample_sleep_interval: 0.1
 initial_sleep : 1
 search: null
 max_age: 3600
