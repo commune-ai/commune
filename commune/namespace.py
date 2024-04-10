@@ -351,7 +351,7 @@ class Namespace(c.Module):
 
     @classmethod
     def build_namespace(cls,
-                        timeout:int = 10,
+                        timeout:int = 2,
                         network:str = 'local', 
                         verbose=True)-> dict:
         '''
@@ -374,6 +374,8 @@ class Namespace(c.Module):
                 address = future2address[f]
                 try:
                     name = f.result()
+                    if 'Internal Server Error' in name:
+                        raise Exception(name)
                     namespace[name] = address
                     c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
                 except Exception as e:
