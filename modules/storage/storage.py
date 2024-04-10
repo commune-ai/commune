@@ -5,7 +5,7 @@ import json
 import os
 
 class Storage(c.Module):
-    whitelist: List = ['put', 'get', 'hash', 'items']
+    whitelist: List = ['put_item', 'get_item', 'hash', 'items']
     replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
@@ -38,7 +38,7 @@ class Storage(c.Module):
         return file2size
 
 
-    def put(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
+    def put_item(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
         timestamp = c.timestamp()
         path = self.resolve_item_path(k)    
         
@@ -53,7 +53,7 @@ class Storage(c.Module):
         return {'success': True, 'path': path, 'timestamp': timestamp}
     
 
-    def rm(self, k):
+    def rm_item(self, k):
         k = self.resolve_item_path(k)
         return c.rm(k)
 
@@ -64,7 +64,7 @@ class Storage(c.Module):
         return {'success': True, 'items': items}
     
 
-    def get(self,k:str) -> Any:
+    def get_item(self,k:str) -> Any:
         k = self.resolve_item_path(k)
         v = self.get_json(k, {})['data']
         v = self.serializer.deserialize(v) 
@@ -74,7 +74,7 @@ class Storage(c.Module):
         """
         Hash a string
         """
-        data = self.get(k)
+        data = self.get_item(k)
         if seed != None:
             data = f'{data}{seed_sep}{seed}'
         return c.hash(data)
@@ -93,15 +93,15 @@ class Storage(c.Module):
     def test_storage(self):
         key = 'test'
         value = {'test': 'value'}
-        self.put(key, value)
-        new_value = self.get(key)
+        self.put_item(key, value)
+        new_value = self.get_item(key)
         assert value == new_value, f'Error: {value} != {new_value}'
         return {'success': True, 'msg': 'Storage test passed'}
     
     def test_hash(self):
         k = 'test'
         value = 'value'
-        self.put(k, value)
+        self.put_item(k, value)
         hash1 = self.hash_item(k ,seed=1)
         hash2 = self.hash_item(k,  seed=1)
         assert hash1 == hash2, f'Error: {hash1} != {hash2}'

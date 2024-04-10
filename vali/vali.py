@@ -157,16 +157,18 @@ class Vali(c.Module):
         results = []
         batch_size = batch_size or self.config.batch_size
         module_addresses = c.shuffle(list(self.namespace.values()))
-        batch_size = min(batch_size, len(module_addresses)//2)
+        batch_size = min(batch_size, len(module_addresses))
         self.executor = c.module('executor.thread')(max_workers=batch_size)
         batch_size = self.config.batch_size
         
         while len(module_addresses) > 0:
+            c.sleep(self.config.sample_sleep_interval)
+
             module_address = module_addresses.pop()
             # if the futures are less than the batch, we can submit a new future
             lag = c.time() - self.address2last_update.get(module_address, 0)
             if lag < self.config.min_update_interval:
-                c.print(f'Module {module_address} is too fresh, skipping', verbose=self.config.debug)
+                # c.print(f'Module {module_address} is too fresh, skipping', verbose=self.config.debug)
                 continue
             futures.append(self.executor.submit(self.eval, args=[module_address],timeout=self.config.timeout))
             self.address2last_update[module_address] = c.time()
@@ -182,6 +184,7 @@ class Vali(c.Module):
                         break
                 except Exception as e:
                     c.print(c.detailed_error(e))
+
                     
         if len(futures) >= 0:
             try:
@@ -316,8 +319,6 @@ class Vali(c.Module):
                     **kwargs):
         
 
-
-        
 
         """
         The following evaluates a module sver
