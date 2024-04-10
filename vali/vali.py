@@ -420,7 +420,7 @@ class Vali(c.Module):
             return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
         votes = self.votes()
         info = {
-            'num_uids': len(votes['uids']),
+            'num_uids': len(votes.get('uids', [])),
             'timestamp': votes['timestamp'],
             'staleness': self.vote_staleness,
             'key': self.key.ss58_address,

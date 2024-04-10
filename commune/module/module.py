@@ -2168,7 +2168,8 @@ class c:
             # if we want to match the prefix, then we will match the prefix
             if prefix_match:
                 module = c.choice(list(namespace.keys()))
-            raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
+            if module not in namespace:
+                raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
             address = namespace.get(module, None)
 
         if '://' in address:

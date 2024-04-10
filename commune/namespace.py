@@ -24,7 +24,7 @@ class Namespace(c.Module):
         network = network or 'local'
         path = network 
         
-        namespace = cls.get(path, {}, max_age=max_age)
+        namespace = cls.get(path, None, max_age=max_age)
 
         if 'subspace' in network:
             if '.' in network:
@@ -40,13 +40,8 @@ class Namespace(c.Module):
                                                  **kwargs)
         elif network == 'local':
             if update or namespace == None:
-                namespace = cls.update_namespace(network=network)
-                cls.put(path, namespace)
-        
-                
-
-
-
+                namespace = cls.build_network(network=network)     
+        namespace = namespace or {}   
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 
@@ -152,10 +147,10 @@ class Namespace(c.Module):
     
 
     @classmethod
-    def update_namespace(cls,
+    def build_namespace(cls,
                         timeout:int = 10,
                         network:str = 'local', 
-                        verbose=False)-> dict:
+                        verbose=True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -181,8 +176,11 @@ class Namespace(c.Module):
                 c.print(f'Error {e} with {address}', color='red', verbose=verbose)
 
         cls.put_namespace(network, namespace)
+
             
         return namespace
+
+    update_namespace = build_namespace
     
     @classmethod
     def migrate_namespace(cls, network:str='local'):
