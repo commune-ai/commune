@@ -1458,7 +1458,6 @@ class Subspace(c.Module):
                 progress_bar.update(1)
             else:
                 c.print(f'Error querying module for key {key} {module}')
-    
         return modules
         
     def my_modules(self, netuid=0, generator=False,  **kwargs):
@@ -2618,23 +2617,23 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         name2key = self.name2key(netuid=netuid, max_age=max_age)
 
-        def resolve_module_key(x, netuid=0):
+        def resolve_module_key(x):
             if not c.valid_ss58_address(x):
                 x = name2key.get(x)
             assert c.valid_ss58_address(x), f"Module key {x} is not a valid ss58 address"
             return x
-        
-        c.print(module_key, new_module_key)
-            
-        module_key = resolve_module_key(module_key, netuid=netuid)
-        new_module_key = resolve_module_key(new_module_key, netuid=netuid)
+                    
+        module_key = resolve_module_key(module_key)
+        new_module_key = resolve_module_key(new_module_key)
         assert module_key != new_module_key, f"Module key {module_key} is the same as new_module_key {new_module_key}"
 
         if amount == None:
-            stake_to = self.get_stake_to( key=key , fmt='nanos', netuid=netuid)
-            amount = stake_to.get(new_module_key, 0)
+            stake_to = self.get_stake_to( key=key , fmt='nanos', netuid=netuid, max_age=0)
+            amount = stake_to.get(module_key, 0)
         else:
             amount = amount * 10**9
+
+        assert amount > 0, f"Amount must be greater than 0"
                 
         # Get current stake
         params={
@@ -2998,6 +2997,7 @@ class Subspace(c.Module):
                         keys = None,
                         max_age = 1000,
                         features = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee', 'vote_staleness'],
+                        sort_by = 'stake_from',
                         **kwargs):
         
         key = self.resolve_key(key)
@@ -3051,7 +3051,7 @@ class Subspace(c.Module):
                 return modules
             modules = c.df(modules)
 
-            modules = modules.sort_values('name', ascending=False)
+            modules = modules.sort_values(sort_by, ascending=False)
             del modules['key']
         return modules
 
