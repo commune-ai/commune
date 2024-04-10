@@ -1,10 +1,10 @@
 import commune as c
 Vali = c.module('vali')
 class ValiTextMath(Vali):
-    def __init__(self, config=None, **kwargs):
-        config = self.set_config(config=config, kwargs=kwargs)   
-        self.dataset =  c.module(config.dataset)()
-        self.init_vali(config)
+    def __init__(self, network='local',  **kwargs):
+        self.init_vali(locals())
+        self.dataset =  c.module(self.config.dataset)()
+
 
     def score_module(self, module, **kwargs):
         w = 0
@@ -21,7 +21,6 @@ class ValiTextMath(Vali):
 
         OUTPUT (answer: int):
         '''
-
 
         output_text = module.forward(fn='generate', args=[prompt])
         prediction = float(output_text.split("json```")[1].split("```")[0])

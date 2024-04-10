@@ -880,7 +880,6 @@ class Peer(c.Module):
         info_paths = self.ls('peers')
         peer_infos = []
         for path in info_paths:
-            c.print(path)
             info = self.get(path, {})
             # c.print(info)
             peer_infos += [info.get('hardware', {})]

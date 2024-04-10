@@ -566,11 +566,5 @@ class Vali(c.Module):
         except Exception as e:
             pass
         return 0
-    
-
-
-
-
-
-        
+ 
 Vali.run(__name__)

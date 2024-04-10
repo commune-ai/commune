@@ -94,6 +94,7 @@ class Emoji(c.Module):
             'brown_square': '🟫',
             'satellite': '🛰️',
             'satellite_antenna': '📡',
+            'computer': '💻',
             
     }
 

@@ -1,12 +1,8 @@
-netuid: 0
-network: main # global or local network
-alpha: 0.9
+
+network: subspace.0 # global or local network
 timeout: 2
-tag: null
 search: model
-start: True
 dataset: mmlu
-verbose: False
 target: target
 input: input
 

@@ -130,7 +130,8 @@ class c:
     
     @classmethod
     def call(cls, module : str, 
-                fn:str = None,*args,
+                fn:str = None,
+                *args,
                 timeout : int = 10,
                 prefix_match:bool = False,
                 network:str = 'local',
@@ -140,7 +141,8 @@ class c:
                 default_fn = 'info',
                 **extra_kwargs) -> None:
           
-        
+        if '//' in module:
+            module = module.split('//')[-1]
         if '/' in module:
             # adjust the split
             if fn != None:
@@ -152,17 +154,13 @@ class c:
                            prefix_match=prefix_match, 
                            virtual=False, 
                            key=key)
+        
 
-        if params != None:
-            assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
-            if isinstance(params, list):
-                args = params
-            elif isinstance(params, dict):
-                kwargs = params  
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs) 
-        fn = fn or default_fn
-        return  asyncio.run(module.async_forward(fn=fn, args=args, kwargs=kwargs))
+        return  asyncio.run(module.async_forward(fn=fn, 
+                                                 args=args, 
+                                                 kwargs=kwargs, 
+                                                 params=params, 
+                                                 default_fn=default_fn))
 
     @classmethod
     async def async_call(cls, *args,**kwargs):
@@ -2133,59 +2131,19 @@ class c:
     def connect(cls,
                 module:str, 
                 network : str = 'local',
-                namespace = None,
                 mode = 'http',
                 virtual:bool = True, 
-                prefix_match: bool = True,
-                possible_modes = ['http', 'https', 'ws', 'wss'],
-                trials = 3,
-                key = None,
                 **kwargs):
         
-  
-
-        """
-        Connects to a server by the name of the module
-        :param module: name of the module
-        """
-        network = network or 'local'
-        key = c.get_key(key)
-
-        if '://' in module:
-            module = module.split('://')[-1]
+        client = c.module( f'client')(address=module, 
+                                       virtual=virtual, 
+                                       network=network,
+                                       **kwargs)
+        # if virtual turn client into a virtual client, making it act like if the server was local
+        if virtual:
+            return client.virtual()
         
-        ip = c.ip()
-        module = module.replace(ip, c.default_ip)
-
-        # we dont want to load the namespace if we have the address
-
-        if c.is_address(module):
-            address = module
-        else:
-            namespace = namespace or c.namespace(module, network=network, update=False)
-            # using the namespace to reaolve the address
-            
-            # if we want to match the prefix, then we will match the prefix
-            if prefix_match:
-                module = c.choice(list(namespace.keys()))
-            if module not in namespace:
-                raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
-            address = namespace.get(module, None)
-
-        if '://' in address:
-            mode = address.split('://')[0]
-            assert mode in possible_modes, f'Invalid mode {mode}'
-            address = address.split('://')[-1]
-        ip = ':'.join(address.split(':')[:-1])
-        port = int(address.split(':')[-1])
-
-        
-        return c.get_client(ip=ip, 
-                            port=port, 
-                            key=key, 
-                            mode=mode,
-                            virtual=virtual, 
-                            **kwargs)
+        return client
 
     @classmethod
     async def async_connect(cls, *args, **kwargs):
@@ -2259,21 +2217,6 @@ class c:
         if return_dict:
             return dict(zip(modules, module_clients))
         return module_clients
-
-    @classmethod
-    def get_client(cls, ip:str = None, port:int = None ,virtual:bool = True, mode=server_mode, **kwargs):
-        '''
-        Returns a client to a server
-        '''
-        client_path = f'client.{mode}'
-        client = c.module(client_path)(ip=ip, port=port,**kwargs)
-        # if virtual turn client into a virtual client, making it act like if the server was local
-        if virtual:
-            return client.virtual()
-        
-        return client
-
-    
 
     @classmethod
     def nest_asyncio(cls):
@@ -3796,6 +3739,10 @@ class c:
         for gpu_id, gpu_info in cls.gpu_info_map().items():
             used_gpu_memory += gpu_info['used'] 
         return used_gpu_memory
+
+
+    def forward(self, a=1, b=2):
+        return a+b
     
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
@@ -4055,12 +4002,18 @@ class c:
 
     @classmethod
     def resolve_console(cls, console = None, **kwargs):
-        if not hasattr(cls,'console'):
-            from rich.console import Console
-            cls.console = Console(**kwargs)
-        if console is not None:
-            cls.console = console
-        return cls.console
+        if hasattr(cls,'console'):
+            return cls.console
+    
+        
+        import logging
+        from rich.logging import RichHandler
+        from rich.console import Console
+        logging.basicConfig(level=logging.DEBUG, handlers=[RichHandler()])   
+            # print the line number
+        console = Console()
+        cls.console = console
+        return console
     
     @classmethod
     def critical(cls, *args, **kwargs):
@@ -4088,20 +4041,20 @@ class c:
               flush:bool = False,
               **kwargs):
               
-        if verbose:
-            if color == 'random':
-                color = cls.random_color()
-            if color:
-                kwargs['style'] = color
-            console = cls.resolve_console(console, **kwargs)
+        if not verbose:
+            return 
+        if color == 'random':
+            color = cls.random_color()
+        if color:
+            kwargs['style'] = color
 
-
-            try:
-                if flush:
-                    console.print(**kwargs, end='\r')
-                console.print(*text, **kwargs)
-            except Exception as e:
-                print(e)
+        console = cls.resolve_console(console)
+        try:
+            if flush:
+                console.print(**kwargs, end='\r')
+            console.print(*text, **kwargs)
+        except Exception as e:
+            print(e)
     @classmethod
     def success(cls, *args, **kwargs):
         logger = cls.resolve_logger()
@@ -4233,9 +4186,12 @@ class c:
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
+        
         if hasattr(data, 'hex'):
             return data.hex()
         else:
+            if isinstance(data, str):
+                return data
             return bytes.decode(data, mode)
     
     # JSON2BYTES
@@ -6977,6 +6933,15 @@ class c:
     @classmethod
     def transfer_stake(cls, *args, **kwargs):
         return c.module('subspace')().transfer_stake(*args, **kwargs)
+
+    @classmethod
+    def add_profit_shares(cls, *args, **kwargs):
+        return c.module('subspace')().add_profit_shares(*args, **kwargs)
+
+    @classmethod
+    def profit_shares(cls, *args, **kwargs):
+        return c.module('subspace')().profit_shares(*args, **kwargs)
+
 
     send = transfer
 

@@ -195,7 +195,7 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_data: np.ndarray) -> 
     fabric.print("Validating ...")
     model.eval()
 
-    losses = torch.zeros(eval_iters, device=fabric.device)
+    losses = torch.zeros(eval_iters, vice=fabric.device)
     for k in range(eval_iters):
         input_ids, targets = get_batch(fabric, val_data, model.config.block_size)
         logits = model(input_ids)

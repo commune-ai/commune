@@ -2362,17 +2362,26 @@ class Subspace(c.Module):
     ##################
     #### profit share ####
     ##################
+
+    def profit_shares(self, key=None, network: str = 'main', **kwargs) -> List[Dict[str, Union[str, int]]]:
+        key = self.resolve_module_key(key)
+
+        return self.query_map('ProfitShares', network=network, **kwargs)
+
     def add_profit_shares(
         self,
         keys: List[str], # the keys to add profit shares to
         shares: List[float] = None , # the shares to add to the keys
         key: str = None,
-        network : str = None,
+        netuid : int = 0,
+        network : str = 'main',
     ) -> bool:
         
         key = self.resolve_key(key)
         network = self.resolve_network(network)
         assert len(keys) > 0, f"Must provide at least one key"
+        key2address = c.key2address()   
+        keys = [key2address.get(k, k) for k in keys]             
         assert all([c.valid_ss58_address(k) for k in keys]), f"All keys must be valid ss58 addresses"
         shares = shares or [1 for _ in keys]
 
@@ -2597,6 +2606,13 @@ class Subspace(c.Module):
 
         return response
 
+    def resolve_module_key(self, x, netuid=0, max_age=10):
+        if not c.valid_ss58_address(x):
+            name2key = self.name2key(netuid=netuid, max_age=max_age)
+            x = name2key.get(x)
+        assert c.valid_ss58_address(x), f"Module key {x} is not a valid ss58 address"
+        return x
+                    
     
     def transfer_stake(
             self,
@@ -2615,16 +2631,9 @@ class Subspace(c.Module):
 
         c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
-        name2key = self.name2key(netuid=netuid, max_age=max_age)
 
-        def resolve_module_key(x):
-            if not c.valid_ss58_address(x):
-                x = name2key.get(x)
-            assert c.valid_ss58_address(x), f"Module key {x} is not a valid ss58 address"
-            return x
-                    
-        module_key = resolve_module_key(module_key)
-        new_module_key = resolve_module_key(new_module_key)
+        module_key = self.resolve_module_key(module_key)
+        new_module_key = self.resolve_module_key(new_module_key)
         assert module_key != new_module_key, f"Module key {module_key} is the same as new_module_key {new_module_key}"
 
         if amount == None:
@@ -3428,7 +3437,7 @@ class Subspace(c.Module):
                 call_function=fn,
                 call_params=params,
         )
-        c.print(f'Sending Transaction ({key.ss58_address[:4] + "..."}🔑): 📡', compose_kwargs,color=color)
+        c.print(f'Sending 📡 using 🔑(ss58={key.ss58_address}, name={key.path})🔑', compose_kwargs,color=color)
         tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
 
         self.put_json(paths['pending'], tx_state)

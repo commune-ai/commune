@@ -318,7 +318,6 @@ class Keypair(c.Module):
                 json:bool=False,
                 create_if_not_exists:bool = True,
                 **kwargs):
-        
         if cls.key_exists(path) == False:
             if create_if_not_exists == True:
                 key = cls.add_key(path, **kwargs)
@@ -344,8 +343,7 @@ class Keypair(c.Module):
             key_json['path'] = path
             return key_json
         else:
-            key = cls.from_json(key_json)
-            return key
+            return cls.from_json(key_json)
         
         
         
@@ -582,7 +580,6 @@ class Keypair(c.Module):
             password = 'fam'
             enc = cls.encrypt(k, password=password)
             dec = cls.decrypt(enc, password='bro ')
-            c.print(k,dec)
             
             
 
@@ -1163,7 +1160,6 @@ class Keypair(c.Module):
 
     def test_signing(self):
         sig = self.sign('test')
-        c.print(sig)
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
         sig = self.sign('test', return_str=True)
@@ -1210,7 +1206,6 @@ class Keypair(c.Module):
     
         data = cls.get(path)
         assert data.startswith(cls.encrypted_prefix), f'file {path} is not encrypted'
-        c.print(data)
         data = data[len(cls.encrypted_prefix):]
         enc_text =  c.decrypt(data, password=password)
         cls.put(path, enc_text)
@@ -1266,7 +1261,6 @@ class Keypair(c.Module):
     def test_encryption(cls,value = 10):
         key = cls.new_key()
         enc = key.encrypt(value)
-        c.print(enc)
         dec = key.decrypt(enc)
         assert dec == value, f'encryption failed, {dec} != {value}'
         return {'encrypted':enc, 'decrypted': dec}
@@ -1276,7 +1270,6 @@ class Keypair(c.Module):
         key = self.add_key(test_key, refresh=True)
         og_key = self.get_key(test_key)
         r = self.encrypt_key(test_key)
-        c.print(r)
         self.decrypt_key(test_key, password=r['password'])
         key = self.get_key(test_key)
 

@@ -2,13 +2,11 @@ import commune as c
 from typing import *
 import json
 
-Vali = c.module('vali')
-class ValiTextMMLU(Vali):
+class ValiTextMMLU(c.module('vali')):
 
     def __init__(self,**kwargs):
-        config = self.set_config(kwargs=kwargs)
-        self.dataset = c.module('data.hf')(path=config.dataset)
-        self.init_vali(**config)
+        self.init_vali(locals())
+        self.dataset = c.module('data.hf')(path=self.config.dataset)
 
     def score_module(self, module='model', **kwargs) -> int:
 
@@ -25,8 +23,6 @@ class ValiTextMMLU(Vali):
         'instruction': 'GIVE THE ANSWER AS AN INDEX -> {{answer:str}} ?',
         })
         output: str = model.generate(prompt)
-
-
         # process the output
         if isinstance(output, dict):
             output = output['answer']
@@ -37,13 +33,6 @@ class ValiTextMMLU(Vali):
                 pass
         # get the correct answer
         w = float(target in output)
-
         return {'w': w, 'target': target, 'input': prompt, 'output': output}
 
-    @classmethod
-    def test(cls):
-        vali = cls(start=False)
-        return vali.score_module(module='model.openai')
-
-            
 

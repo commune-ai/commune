@@ -28,6 +28,7 @@ class Server(c.Module):
         nest_asyncio = True,
         mnemonic = None,
         new_loop = True,
+        subnet = None,
         **kwargs
         ) -> 'Server':
 
@@ -65,6 +66,8 @@ class Server(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+        module.network = self.network
+        module.subnet = self.subnet
 
         # RESOLVE THE WHITELIST AND BLACKLIST
         whitelist = module.whitelist if hasattr(module, 'whitelist') else module.functions(include_parents=False)
@@ -133,6 +136,8 @@ class Server(c.Module):
                                  'kwargs': input['kwargs'], 
                                  'timestamp': input['timestamp'], 
                                  'address': input['address']}
+                
+            
             input['data'] = self.serializer.deserialize(input['data'])
             # here we want to verify the data is signed with the correct key
             request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
@@ -148,13 +153,6 @@ class Server(c.Module):
             data = input['data']
             args = data.get('args',[])
             kwargs = data.get('kwargs', {})
-
-            fn_name = f"{self.name}::{fn}"
-
-            info = {
-                'fn': fn_name,
-                'address': input['address'],
-            }
             
             fn_obj = getattr(self.module, fn)
             
@@ -163,19 +161,23 @@ class Server(c.Module):
             else:
                 result = fn_obj
 
-            success = True
+            if isinstance(result, dict) and 'error' in result:
+                success = False 
+            else:
+                success = True
 
             # if the result is a future, we need to wait for it to finish
         except Exception as e:
             result = c.detailed_error(e)
-        if isinstance(result, dict) and 'error' in result:
             success = False 
-        
+
+
 
         if success:
             c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:4]}... ✅\033 ', color='green')
         else:
             c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:4]}... 🚨\033', color='red')
+            c.print(result, color='red')
         
 
         result = self.process_result(result)
@@ -361,7 +363,6 @@ class Server(c.Module):
         assert module_name in c.servers()
 
         response = c.call(module_name)
-        c.print(response)
 
         c.kill(module_name)
         assert module_name not in c.servers()

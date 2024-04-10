@@ -1,8 +1,17 @@
 import commune as c
 
+timeout = 40
+futures = []
+for s in c.stats(df=False):
+    f = c.submit(c.add_profit_shares, kwargs=dict(key=s['name'], keys=['module']), timeout=timeout)
+    futures.append(f)
 
+for f in c.as_completed(futures, timeout=timeout):
+    try:
+        print(f.result())
+    except Exception as e:
+        print(e)
 
-c.print(c.m)
 # root_key_address = c.root_key_address()
 # key2future = {}
 # netuids = c.netuids()
