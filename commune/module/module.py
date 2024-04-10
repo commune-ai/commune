@@ -824,7 +824,11 @@ class c:
     @classmethod
     def switch_key(cls, *args, **kwargs):
         return c.module('key').switch_key(*args, **kwargs)
-
+    
+    @classmethod
+    def module_info(cls, *args, **kwargs):
+        return c.module('subspace')().get_module(*args, **kwargs)
+    
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):

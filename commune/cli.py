@@ -16,6 +16,8 @@ class cli(c.Module):
                 save: bool = True):
         self.base_module = c.module(module)
         args = args or self.argv()
+        if args[0].endswith('.py'):
+            return c.cmd('python3 ' + args[0])
         args_str = 'c ' + ' '.join(args)
         
         if new_event_loop:

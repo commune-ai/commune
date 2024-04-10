@@ -418,6 +418,7 @@ class Subspace(c.Module):
             new_qmap = {} 
             progress_bar = c.progress(qmap, desc=f'Querying {name} map with params {params}')
             for (k,v) in qmap:
+                c.print(k,v)
                 progress_bar.update(1)
                 if not isinstance(k, tuple):
                     k = [k]
@@ -992,7 +993,7 @@ class Subspace(c.Module):
                     if f in subnet_params:
                         continue
                     feature2future[f] = c.submit(self.query_map, dict(name=name2feature[f], 
-                                                                    update=update, 
+                                                                    max_age=max_age,
                                                                     block=block))
                 future2feature = {v:k for k,v in feature2future.items()}
                 futures = list(feature2future.values())
@@ -2415,6 +2416,8 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)  
         module_info = self.get_module(module)
 
+        ip = c.ip(update=1)
+
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
         
@@ -2428,7 +2431,8 @@ class Subspace(c.Module):
             delegation_fee = module_info['delegation_fee']
         assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
 
-
+        if ip not in address:
+            address = ip + ':'+ address.split(':')[-1]
         params = {
             'netuid': netuid, # defaults to module.netuid
              # PARAMS #
