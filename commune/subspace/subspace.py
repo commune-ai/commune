@@ -394,8 +394,8 @@ class Subspace(c.Module):
         paths = self.glob(path + '*')
         update = update or len(paths) == 0 or block != None
         if not update:
-            last_path = sorted(paths, reverse=True)[-1]
-            value = self.get(last_path,None , max_age=max_age)
+            last_path = sorted(paths, reverse=True)[0]
+            value = self.get(last_path, None , max_age=max_age)
         else:
             value = None
 

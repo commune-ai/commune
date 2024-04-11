@@ -35,6 +35,73 @@ class Client(c.Module):
 
         
 
+    async def async_forward(self,
+        fn: str,
+        args: list = None,
+        kwargs: dict = None,
+        params: dict = None,
+        address : str = None,
+        timeout: int = 10,
+        headers : dict ={'Content-Type': 'application/json'},
+        message_type = "v0",
+        default_fn = 'info',
+        verbose = False,
+        debug = True,
+        **extra_kwargs
+        ):
+        if isinstance(args, dict):
+            kwargs = args
+            args = None
+
+        if params != None:
+            assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
+            if isinstance(params, list):
+                args = params
+            elif isinstance(params, dict):
+                kwargs = params  
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs) 
+        fn = fn or default_fn
+        
+        address = address or self.address
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        
+        input =  { 
+                        "args": args,
+                        "kwargs": kwargs,
+                        "ip": c.ip(),
+                        "timestamp": c.timestamp(),
+                        }
+        self.count += 1
+        # serialize this into a json string
+        if message_type == "v0":
+            request = self.serializer.serialize(input)
+            request = self.key.sign(request, return_json=True)
+            # key emoji 
+            
+        elif message_type == "v1":
+            input['ticket'] = self.key.ticket()
+            request = self.serializer.serialize(input)
+        else:
+            raise ValueError(f"Invalid message_type: {message_type}")
+        
+        url = f"{address}/{fn}/"
+        if not url.startswith('http'):
+            url = 'http://' + url
+        result = await self.process_request(url, request, headers=headers, timeout=timeout)
+
+        c.print(f"🛰️ Call {self.address}/{fn} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
+
+        if self.save_history:
+            input['fn'] = fn
+            input['result'] = result
+            input['module']  = self.address
+            input['latency'] =  c.time() - input['timestamp']
+            path = self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(input['timestamp'])
+            self.put(path, input)
+        return result
+    
     
     def age(self):
         return  self.start_timestamp - c.timestamp()
@@ -52,6 +119,7 @@ class Client(c.Module):
             module = address # we assume its a module name
             namespace = c.get_namespace(search=module, network=network)            
             module = c.choice(list(namespace.keys()))
+            assert module in namespace, f"Invalid module {module}"
             address = namespace[module]
         if '://' in address:
             mode = address.split('://')[0]
@@ -118,73 +186,6 @@ class Client(c.Module):
 
         return result
 
-    async def async_forward(self,
-        fn: str,
-        args: list = None,
-        kwargs: dict = None,
-        params: dict = None,
-        address : str = None,
-        timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'},
-        message_type = "v0",
-        default_fn = 'info',
-        verbose = False,
-        debug = True,
-        **extra_kwargs
-        ):
-        if isinstance(args, dict):
-            kwargs = args
-            args = None
-
-        if params != None:
-            assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
-            if isinstance(params, list):
-                args = params
-            elif isinstance(params, dict):
-                kwargs = params  
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs) 
-        fn = fn or default_fn
-        
-        address = address or self.address
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-        
-        input =  { 
-                        "args": args,
-                        "kwargs": kwargs,
-                        "ip": c.ip(),
-                        "timestamp": c.timestamp(),
-                        }
-        self.count += 1
-        # serialize this into a json string
-        if message_type == "v0":
-            request = self.serializer.serialize(input)
-            request = self.key.sign(request, return_json=True)
-            # key emoji 
-            
-            c.print(f"🛰️ Call {self.address}/{fn} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
-        elif message_type == "v1":
-            input['ticket'] = self.key.ticket()
-            request = self.serializer.serialize(input)
-        else:
-            raise ValueError(f"Invalid message_type: {message_type}")
-        
-        url = f"{address}/{fn}/"
-        if not url.startswith('http'):
-            url = 'http://' + url
-        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green')
-        result = await self.process_request(url, request, headers=headers, timeout=timeout)
-
-        if self.save_history:
-            input['fn'] = fn
-            input['result'] = result
-            input['module']  = self.address
-            input['latency'] =  c.time() - input['timestamp']
-            path = self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(input['timestamp'])
-            self.put(path, input)
-        return result
-    
     @classmethod
     def history(cls, key=None, history_path='history'):
         key = c.get_key(key)

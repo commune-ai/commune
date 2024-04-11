@@ -827,7 +827,14 @@ class c:
     @classmethod
     def module_info(cls, *args, **kwargs):
         return c.module('subspace')().module_info(*args, **kwargs)
+    
     minfo = module_info
+
+    @classmethod
+    def pwd2key(cls, *args, **kwargs):
+        return c.module('key').pwd2key(*args, **kwargs)
+
+    password2key = pwd2key        
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):

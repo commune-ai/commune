@@ -718,6 +718,8 @@ class Keypair(c.Module):
     @classmethod
     def from_password(cls, password:str, **kwargs):
         return cls.create_from_uri(password, **kwargs)
+    
+    pwd2key = password2key = from_password
 
 
     @classmethod

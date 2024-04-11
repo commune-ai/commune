@@ -94,7 +94,6 @@ class Vali(c.Module):
 
     def run_info(self):
         return {
-
             'network': self.network_info(),
             'epoch': self.epoch_info() ,
             'vote': self.vote_info(),
@@ -423,7 +422,6 @@ class Vali(c.Module):
         votes = self.votes()
         info = {
             'num_uids': len(votes.get('uids', [])),
-            'timestamp': votes['timestamp'],
             'staleness': self.vote_staleness,
             'key': self.key.ss58_address,
             'network': self.network,
