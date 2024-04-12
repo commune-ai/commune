@@ -246,8 +246,12 @@ class Vali(c.Module):
                     }
         # RESOLVE THE VOTING NETWORKS
         if 'subspace' in network :
+            if '.' in network:
+                network, netuid = network.split('.')
             # subspace network
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
+            if isinstance(netuid, str):
+                netuid = self.subspace.netuid
             namespace = self.subspace.namespace(search=search, netuid=netuid, max_age=max_age)
         if 'bittensor' in network:
             # bittensor network
@@ -490,18 +494,18 @@ class Vali(c.Module):
                     max_age = 3600,
                     min_weight = 0,
                     network = None,
-                    ascending = False,
-                    sort_by = ['w'],
+                    ascending = True,
+                    sort_by = ['staleness'],
                     df = True,
+                    n = None,
                     **kwargs
                     ):
         paths = self.module_paths(network=network)
         module_infos = []
-        is_valid_module_info = lambda r : isinstance(r, dict) and 'ss58_address' in r
         # chunk the jobs into batches
         for path in paths:
             r = self.get(path, max_age=max_age)
-            if is_valid_module_info(r):
+            if isinstance(r, dict) and 'ss58_address' in r:
                 r['staleness'] = c.time() - r.get('timestamp', 0)
                 module_infos += [{k: r.get(k, None) for k in keys}]
             else :
@@ -511,6 +515,8 @@ class Vali(c.Module):
         module_infos = module_infos.sort_values(by=sort_by, ascending=ascending)
         if min_weight > 0:
             module_infos = module_infos[module_infos['w'] > min_weight]
+        if n != None:
+            module_infos = module_infos[:n]
         if not df:
             return module_infos.to_dict(orient='records')
 

@@ -144,22 +144,49 @@ c.add_profit_sharing(keys=keys ,shares=shares, netuid=0)
 
 Voting on the Network if someone is staked to you, you can vote on the network. This is done by voting for a module. This can be done by voting for a module. 
 
-**Stake Based Conseneus Protocals**
-
-Commune is a flexible modular chain that allows for multiple consensus protocals. The two main protocals are yuma and yomama. Commune intends to have a flexible network that can adapt to different use cases and add additional protocals in the future for different use cases.
-
-**Linear**
-
-Linear is the simplest in that it represents a linear distribution of the rewards. This is good for a general network that does not require any specialized voting. The downside is that it can be easily manipulated by cabals or dishonest voting. This requires additional security measures to prevent dishonest voting.
-
-**Yuma**
-Yuma specializes the network to agree by forcing the validators to vote towards the median of the network. This can be good for specialized utility networks and commune has this an an option. The whole thesis of yuma is to incentivize intelligence without dishonest voting or cabals voting for themselves. 
-
-**Yomama**
-Yomama voting includes several restrictions to avoid self voting concentrations of power as does yuma. This can be done through a trust score. The trust score is defined as the number of modules that voted for you. This score is then averaged with the staked voted for you using the trust ratio. 
-
-Trust Score = (Number of Modules that voted for you) / (Total Number of Modules)
-
-This allows for a flexible system where the network can decide to be more stake weighted or trust weighted. This allows for a more flexible network that can adapt to different use cases.
 
 
+Tokens
+
+We want to enable any key on the network to register a token under its address. This involves
+
+
+```python
+c.add_token(key='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', 
+            supply=1000000, 
+            native_tokens=1000
+            )
+
+{
+    'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w',
+    'token_pool': 51000,
+    'native_pool': 1000,
+} 
+
+The token creator can also  update the token supply. This will not affect the price of the token, but will affect the balance of the token. 
+
+```python
+
+c.swap_tokens(token_key=key, supply=51000,  stake=1000, k=1)
+{
+    'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w',
+    'token_pool': 51000,
+    'native_pool': 1000,
+    'k': 1
+}
+```
+
+The token creator can also transfer the token to another key. This will affect the balance of the token. 
+
+```python
+c.transfer_token(key, to='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', amount=1000)
+
+{
+    'from':{'balance': 1000, 'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w'}
+    'to': {'balance': 1000, 'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w'}
+
+}
+
+```
+
+This will register the token onto the chain
