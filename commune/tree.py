@@ -8,7 +8,7 @@ class Tree(c.Module):
     default_tree_path = c.libpath
     default_tree = default_tree_path.split('/')[-1]
     default_trees = [default_tree_path]
-    def __init__(self, a=1, b=2):
+    def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
 
     

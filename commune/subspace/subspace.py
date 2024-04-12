@@ -930,7 +930,7 @@ class Subspace(c.Module):
             storage += x
         return storage
     
-    def my_subnets(self, key=None, block=None, update=False, **kwargs):
+    def my_subnet2netuid(self, key=None, block=None, update=False, **kwargs):
         address2key = c.address2key()
         subnet_params_list = self.subnet_params(block=block, update=update, netuid='all', **kwargs)
         subnet2netuid = {}
@@ -938,10 +938,10 @@ class Subspace(c.Module):
             if subnet_params['founder'] in address2key:
                 subnet2netuid[subnet_params['name']] = netuid
         return subnet2netuid
-                
     
-
-    
+    def my_subnets(self, key=None, block=None, update=False, **kwargs):
+        return list(self.my_subnet2netuid(key=key, block=block, update=update, **kwargs).keys())
+            
     def subnet_params(self, 
                     netuid=0,
                     network = 'main',
@@ -1014,7 +1014,7 @@ class Subspace(c.Module):
             for netuid in range(num_subnets):
                 subnets_param_row = {}
                 for k in subnet_params.keys():
-                    subnets_param_row[k] = subnet_params[k][netuid]
+                    subnets_param_row[k] = subnet_params[k].get(netuid, 0)
                     if k in value_features:
                         subnets_param_row[k] = self.format_amount(subnets_param_row[k], fmt=fmt)
                 subnets_param_rows.append(subnets_param_row)

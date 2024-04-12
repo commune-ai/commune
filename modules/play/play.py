@@ -4,7 +4,7 @@ import streamlit as st
 class Play(c.Module):
 
     @classmethod
-    def dashboard(cls, module:c.Module = None,  network=None):
+    def app(cls, module:c.Module = None,  network=None):
         self = cls()
         c.load_style() 
         modules = c.modules()

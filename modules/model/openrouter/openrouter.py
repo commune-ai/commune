@@ -37,8 +37,7 @@ class OpenRouterModule(c.Module):
     ask = talk
 
     def forward(self, text: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
-
-
+        
         model = model or self.model
         history = history or []
 
