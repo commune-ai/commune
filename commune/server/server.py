@@ -122,6 +122,8 @@ class Server(c.Module):
    
         """
         user_info = None
+        color = c.random_color()
+
         try:
             input['fn'] = fn
             # you can verify the input with the server key class
@@ -173,11 +175,18 @@ class Server(c.Module):
 
 
 
-        if success:
-            c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:4]}... ✅\033 ', color='green')
-        else:
-            c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:4]}... 🚨\033', color='red')
-            c.print(result, color='red')
+
+        print_info = {
+            'fn': fn,
+            'address': input['address'],
+            'latency': c.time() - input['data']['timestamp'],
+            'datetime': c.time2datetime(input['data']['timestamp']),
+            'success': success,
+        }
+        if not success:
+            print_info['error'] = result
+
+        c.print(print_info, color=color)
         
 
         result = self.process_result(result)

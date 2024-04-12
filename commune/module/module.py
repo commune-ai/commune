@@ -2828,7 +2828,6 @@ class c:
             info = c.get('info', default=None, max_age=max_age)
             if info != None:
                 return info
-        c.print('fam', self)
         fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
 
