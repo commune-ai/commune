@@ -65,6 +65,9 @@ class Vali(c.Module):
                     if self.vote_staleness > self.config.vote_interval:
                         r = self.vote()
                 run_info.update(r)
+
+                df = self.leaderboard()[:10]
+                c.print(df)
                 c.print(run_info)
 
             except Exception as e:
@@ -514,7 +517,10 @@ class Vali(c.Module):
         return module_infos
 
     def leaderboard(self, *args, df=True, **kwargs): 
-        return self.module_infos(*args, df=df, **kwargs)
+        df =  self.module_infos(*args, df=df, **kwargs)
+        del df['ss58_address']
+        return df
+        
     
     l = leaderboard
     

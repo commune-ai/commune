@@ -32,11 +32,16 @@ if you want to serve the module on a different subnet, you can do so by providin
 c serve model.openai::whadup subnet=text
 ```
 
-Subnets
+Namespaces
 
-Subnets are a way to organize modules. Each subnet is a collection of modules that are related to each other. For example, the text subnet can contain modules that are related to text processing. The commune subnet can contain modules that are related to the commune.
+Namespaces are a way to organize modules. Each namespace is a collection of modules that are related to each other. For example, the text namespace can contain modules that are related to text processing. The commune namespace can contain modules that are related to the commune.
 
-To see your existing subnets
+
+Subnet Namespaces
+
+Subnets are a way to organize modules on chain. Each subnet is a collection of modules that are related to each other. For example, the text subnet can contain modules that are related to text processing. The commune subnet can contain modules that are related to the commune.
+
+To see your existing subnets on commune.
 
 c my_subnets
 
@@ -103,9 +108,18 @@ c.add_profit_sharing(keys=keys ,shares=shares, netuid=0)
 Voting on the Network if someone is staked to you, you can vote on the network. This is done by voting for a module. This can be done by voting for a module. 
 
 ```python
-
+# you can use the names, the uids or the keys
 c.vote(module=['model.0', 'model.2'], weights=[0,1], netuid=10)
+or
+c.vote(module=['5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', '5ERLrXrrKPg9k99yp8DuGhop6eajPEgzEED8puFzmtJfyJES'], weights=[0,1], netuid=10)
+or 
+c.vote(module=[0, 2], weights=[0,1], netuid=10)
 ```
+
+
+Validator Modules
+
+A module can be a validator, where it can scan the network
 
 To vote on the network
 
