@@ -3,7 +3,11 @@ Our goal is to connect all applications into a single decentralized network of t
 
 The Module
 
-A module can represent everything as it is turing complete. This means a module can represent any idea, like an ai model, to a business, to a student loan. In code terms, a module is a simple class in python, where it is a collection of functions that change a state. This general definition is the core foundation of the module
+A module can represent everything as it is turing complete. This means a module can represent any idea, like an ai model, to a business, to a student loan. In code terms, a module is a simple class in python, where it is a collection of functions that change a state. This general definition is the core foundation of the module.
+
+Why do we need to connect with everything in the simplest form? 
+
+The answer is that we want to create a network of things that can interact with each other. This allows for a flexible network that can adapt to different use cases.
 
 Module Key
 

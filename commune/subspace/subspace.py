@@ -972,7 +972,6 @@ class Subspace(c.Module):
                 'founder_share': 'FounderShare',
                 'incentive_ratio': 'IncentiveRatio',
                 'trust_ratio': 'TrustRatio',
-                'vote_threshold': 'VoteThresholdSubnet',
                 'vote_mode': 'VoteModeSubnet',
                 'max_weight_age': 'MaxWeightAge',
                 'name': 'SubnetNames',
@@ -1123,15 +1122,11 @@ class Subspace(c.Module):
                 'max_name_length':  'MaxNameLength',
                 'max_allowed_modules':  'MaxAllowedModules',
                 'max_allowed_subnets':  'MaxAllowedSubnets',
-                'max_proposals':  'MaxProposals',
                 'max_registrations_per_block':  'MaxRegistrationsPerBlock',
                 'min_burn':  'MinBurn',
                 'min_stake':  'MinStakeGlobal',
                 'min_weight_stake':  'MinWeightStake',
                 'unit_emission':  'UnitEmission',
-                'tx_rate_limit':  'TxRateLimit',
-                'vote_threshold':  'GlobalVoteThreshold',
-                'vote_mode':  'VoteModeGlobal'
             }
 
             async def aquery_constant(f, **kwargs):
@@ -1559,7 +1554,7 @@ class Subspace(c.Module):
         modules = self.get(path, None, max_age=max_age)
         if modules == None:
 
-            progress = c.tqdm(total=len(features), desc=f'Querying {len(features)} features')
+            progress = c.tqdm(total=len(features), desc=f'Querying {features}')
             future2key = {}
             def query(name, **kwargs):
                 if name in vector_features:
@@ -1571,7 +1566,7 @@ class Subspace(c.Module):
             key2future = {}
 
             while not all([f in state for f in features ]):
-                c.print(f'Querying {len(features)} features')
+                c.print(f'Querying {features}')
                 for feature in features:
                     if feature in state or feature in key2future:
                         continue
