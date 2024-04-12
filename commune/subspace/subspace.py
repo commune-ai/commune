@@ -1352,7 +1352,7 @@ class Subspace(c.Module):
         return self.subnet(netuid=netuid, network=network)['emission']*self.epoch_time(netuid=netuid, network=network)
 
 
-    def get_block(self, network='main', block_hash=None, max_age=30): 
+    def get_block(self, network='main', block_hash=None, max_age=8): 
         network = network or 'main'
         path = f'cache/{network}.block'
         block = self.get(path, None, max_age=max_age)
