@@ -7,7 +7,7 @@ A module can represent everything as it is turing complete. This means a module 
 
 Module Key
 
-Each module is represented as a key which is an sr25519 key. The public key is used to register the module onto the blockchain. The key is used to sign, encrypt,decrypt and verify messages.
+Each module is represented as a key which is an sr25519 key. The public key is used to register the module onto the blockchain. The key is used to sign, encrypt,decrypt and verify messages. The key is used to identify the module on the network.
 
 
 Serving a Module
@@ -90,7 +90,6 @@ to transfer 100 between two registered modules you can do so like this.
 c.transfer_stake('5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', '5ERLrXrrKPg9k99yp8DuGhop6eajPEgzEED8puFzmtJfyJES', 100, netuid=10)
 ```
 
-
 Trustless Emission Profit Sharing 
 
 Each module can profit share its own emission by specifying the fraction of emissions it wants to split across any key. This allows for any module to profit share its emission with any other key (even if its a module).
@@ -100,6 +99,17 @@ keys = ["5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES", "5ERLrXrrKPg9k99yp8D
 shares = [0.5, 0.5]
 c.add_profit_sharing(keys=keys ,shares=shares, netuid=0)
 ```
+
+Voting on the Network if someone is staked to you, you can vote on the network. This is done by voting for a module. This can be done by voting for a module. 
+
+```python
+
+c.vote(module=['model.0', 'model.2'], weights=[0,1], netuid=10)
+```
+
+To vote on the network
+
+
 
 
 
