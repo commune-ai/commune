@@ -42,27 +42,13 @@ class PM2(c.Module):
        
 
     @classmethod
-    def kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
+    def kill(cls, name:str, verbose:bool = False, **kwargs):
         if name == 'all':
             return cls.kill_all(verbose=verbose)
-        list = cls.list()
-        rm_list = []
-        if name in list:
-            rm_list = [name]
-
-        if prefix_match:
-            rm_list = [ p for p in list if p.startswith(name)]
-
-        if len(rm_list) == 0:
-            return {'success':False, 'message':f'No pm2 processes found for {name}'}
-        for n in rm_list:
-            if verbose:
-                c.print(f'Killing {n}', color='red')
-            cls.cmd(f"pm2 delete {n}", verbose=False)
-            # remove the logs from the pm2 logs directory
-            cls.rm_logs(n)
-
-        return {'success':True, 'killed':rm_list, 'message':f'Killed {name}'}
+        cls.cmd(f"pm2 delete {name}", verbose=False)
+        # remove the logs from the pm2 logs directory
+        cls.rm_logs(name)
+        return {'success':True, 'message':f'Killed {name}'}
     
     @classmethod
     def status(cls, verbose=True):
@@ -148,9 +134,14 @@ class PM2(c.Module):
         module_list = []
         for line in output_string.split('\n'):
             if '  default  ' in line:
+
                 server_name = line.split('default')[0].strip()
                 server_name = server_name.split(' ')[-1].strip()
-                # fixes odd issue where there is a space between the name and the front 
+                c.print('errored' in line, server_name)
+                if 'errored' not in line:
+                    cls.kill(server_name, verbose=True)
+                    continue
+
                 module_list += [server_name]
             
         if search != None:

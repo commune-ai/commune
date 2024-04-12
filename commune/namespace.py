@@ -85,8 +85,7 @@ class Namespace(c.Module):
         namespace = cls.namespace(network=network)
         address = namespace.get(name, None)
         if external and address != None:
-            address = address.replace(c.default_ip, c.ip())
-            
+            address = address.replace(c.default_ip, c.ip()) 
         return address
 
     

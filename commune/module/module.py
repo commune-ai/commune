@@ -2654,6 +2654,8 @@ class c:
               config_keys = ['network'],
               **extra_kwargs
               ):
+        if c.is_module(module):
+            cls = module
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
         name = server_name or name # name of the server if None, it will be the module name
@@ -7862,6 +7864,11 @@ class c:
                 start_time = current_time
             c.sleep(interval)
 
+
+    @staticmethod
+    def get_pid():
+        return os.getpid()
+        
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
