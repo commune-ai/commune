@@ -190,13 +190,15 @@ class c:
                 **extra_kwargs) -> None:
         if '/' in search:
             args = [fn] + list(args)
-            module, fn = search.split('/')
+            search, fn = search.split('/')
+            module = search 
         namespace = c.namespace(search, network=network)
 
         future2module = {}
 
 
         for module, address in namespace.items():
+            c.print(args, kwargs)
             future = c.submit(c.call,
                               args = args,
                                kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
