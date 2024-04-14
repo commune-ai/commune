@@ -438,7 +438,7 @@ class Vali(c.Module):
     
     def votes(self):
         network = self.config.network
-        module_infos = self.module_infos(network=network, keys=['name', 'w', 'ss58_address'], df=False)
+        module_infos = self.module_infos(network=network, df=False)
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
         for info in module_infos:
@@ -512,6 +512,7 @@ class Vali(c.Module):
                 self.rm(path)
         self.put(path, module_infos) 
         module_infos = c.df(module_infos) 
+        c.print(module_infos[:10])
         module_infos = module_infos.sort_values(by=sort_by, ascending=ascending)
         if min_weight > 0:
             module_infos = module_infos[module_infos['w'] > min_weight]
