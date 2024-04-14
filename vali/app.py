@@ -20,7 +20,7 @@ class App(c.Module):
         if len(state) == 0 :
             state = {
                 'run_info': server.run_info,
-                'module_infos': server.module_infos(update=True)
+                'module_infos': server.leaderboard(update=True)
             }
 
             self.put(state_path, state)

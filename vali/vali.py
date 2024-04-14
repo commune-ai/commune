@@ -203,15 +203,11 @@ class Vali(c.Module):
     def is_voting_network(self):
         return 'subspace' in self.config.network or 'bittensor' in self.config.network
     
-
     def filter_module(self, module:str):
         if self.config.search in  module:
             return True
         return False
-
-
-         
-
+    
     def set_network(self, 
                      network:str=None, 
                      search:str=None,  
@@ -265,6 +261,8 @@ class Vali(c.Module):
             namespace = c.module('namespace').namespace(search=search, max_age=max_age)
     
         self.namespace = namespace
+        self.namespace = {k: v for k, v in self.namespace.items() if self.filter_module(k)}
+
         self.n  = len(self.namespace)    
         self.name2address = self.namespace
         self.address2name = {v: k for k, v in self.namespace.items()}  
@@ -436,12 +434,15 @@ class Vali(c.Module):
         return info
     
     
-    def votes(self):
+    def votes(self, 
+                  
+            ):
         network = self.config.network
-        module_infos = self.module_infos(network=network, df=False)
+        keys = ['name', 'w', 'staleness','latency', 'ss58_address'],
+        leaderboard = self.leaderboard(network=network, keys=keys, to_dict=True, n= self.config.max_votes)
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
-        for info in module_infos:
+        for info in leaderboard:
             ## valid modules have a weight greater than 0 and a valid ss58_address
             if 'ss58_address' in info and info['w'] >= 0:
                 if info['ss58_address'] in key2uid:
@@ -486,47 +487,51 @@ class Vali(c.Module):
     def module_info(self, **kwargs):
         return self.subspace.module_info(self.key.ss58_address, netuid=self.netuid, **kwargs)
     
-    def module_infos(self,
+    def leaderboard(self,
                     keys = ['name', 'w', 
                             'staleness',
-                            'latency', 'ss58_address'],
+                            'latency'],
                     path = 'cache/module_infos',
                     max_age = 3600,
                     min_weight = 0,
                     network = None,
-                    ascending = True,
-                    sort_by = ['staleness'],
-                    df = True,
-                    n = None,
+                    ascending = False,
+                    sort_by = ['w','staleness'],
+                    to_dict = False,
+                    n = 50,
+                    page = None,
                     **kwargs
                     ):
         paths = self.module_paths(network=network)
-        module_infos = []
+        df = []
         # chunk the jobs into batches
         for path in paths:
             r = self.get(path, max_age=max_age)
             if isinstance(r, dict) and 'ss58_address' in r:
                 r['staleness'] = c.time() - r.get('timestamp', 0)
-                module_infos += [{k: r.get(k, None) for k in keys}]
+                df += [{k: r.get(k, None) for k in keys}]
             else :
                 self.rm(path)
-        self.put(path, module_infos) 
-        module_infos = c.df(module_infos) 
-        assert len(module_infos) > 0
-        module_infos = module_infos.sort_values(by=sort_by, ascending=ascending)
+        self.put(path, df) 
+        df = c.df(df) 
+        assert len(df) > 0
+        # sort_by = [s for s in sort_by if s in df.columns]
+        df = df.sort_values(by=sort_by, ascending=ascending)
         if min_weight > 0:
-            module_infos = module_infos[module_infos['w'] > min_weight]
+            df = df[df['w'] > min_weight]
         if n != None:
-            module_infos = module_infos[:n]
-        if not df:
-            return module_infos.to_dict(orient='records')
+            if page != None:
+                df = df[page*n:(page+1)*n]
+            else:
+                df = df[:n]
 
-        return module_infos
-
-    def leaderboard(self, *args, df=True, **kwargs): 
-        df =  self.module_infos(*args, df=df, **kwargs)
-        return df
         
+        if to_dict:
+            return df.to_dict(orient='records')
+
+        return df
+
+
     
     l = leaderboard
     

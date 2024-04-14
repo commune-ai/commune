@@ -9,7 +9,7 @@ c.stake('5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', 100, netuid=10)
 or to stake multiple amounts to multiple keys, you can do so like this
 
 ```python
-c.stake_multiple(['5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', '5ERLrXrrKPg9k99yp8DuGhop6eajPEgzEED8puFzmtJfyJES'], [100, 100], netuid=10)
+c.stake_multiple(modules=['5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', '5ERLrXrrKPg9k99yp8DuGhop6eajPEgzEED8puFzmtJfyJES'], amounts=[100, 100], netuid=10)
 ```
 
 to transfer 100 between two registered modules you can do so like this.

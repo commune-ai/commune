@@ -41,7 +41,8 @@ Token State
     },
     'native_pool_balance': 1000 # the balance of the pool
 }
-}
+
+
 
 ```
 
@@ -99,13 +100,13 @@ If a module or subnet points towards a token address. The mint ratio will direct
 Connecting a token to a module or subnet
 
 ```python
-c.update_module('module', token_ratio=0.1)
+c.add_module_token(module='module',  # the module address
+                  token='5F4bEvY7UBoM47qqedn8tv55YFAuqFwq1AgNHN9MXV5Dpteg',  # the token address
+                  emission_ratio=0.1 # the ratio of emissions that are minted to the token
+                  )
 ```
 This means 10 percent of the liquidity (0.1) is being directed into the pool while getting the tokens minted in addition to the tokens from the pool. This forces less volitility as it incentivizes volume.
-
 
 Connecting all of the Assets in the World : A decentralized blackrock 
 
 The following will connect all of the assets in the world to the chain. We do this by allowing for the option for minting tokens using multisignature wallets. These signers of the ultisignature can approve the minting and burning of tokens upon collateralization of the assets. This allows for any token to be minted and burned upon the collateralization of the assets. 
-```python
-c.add_module_token(module='model.openai::jay', token_address='

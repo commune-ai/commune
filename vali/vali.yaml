@@ -4,7 +4,7 @@ network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
 sync_interval: 10
-min_update_interval: 1
+min_update_interval: 4 # the minimum interval to update the network
 sleep_interval: 5
 sample_sleep_interval: 0.1
 initial_sleep : 1
@@ -47,6 +47,7 @@ min_num_weights: 10
 debug: False
 print_interval: 2
 clone_suffix : clone
+max_votes: 1000
 
 
 

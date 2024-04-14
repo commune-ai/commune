@@ -1,8 +1,7 @@
 
-Tokens:
+Multichain:
 
-We want anyone to make a token where the community can provide liquidity to support new ideas that benefit open source projects. These tokens can be minted if they are connected the a subnet or a module. The native token has a null address of 
-
+We live in a multichain world
 ```python
 c.add_token(key='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', #the key of the token
             supply=1000000, # initial supplys
@@ -78,7 +77,6 @@ If a module or subnet points towards a token address. The mint ratio will direct
 Native Pool Balance
 
 The native pool balance is the balance of the native tokens in the pool. This is the balance of the native tokens in the pool. 
-
 
  
 ```python
