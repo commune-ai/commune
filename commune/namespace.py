@@ -49,6 +49,8 @@ class Namespace(c.Module):
 
         if public:
             namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
+        
+        namespace = {k:v for k,v in sorted(namespace.items(), key=lambda x: x[0])}
         return namespace
     
     namespace = namespace
