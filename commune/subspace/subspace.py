@@ -3122,10 +3122,10 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
-        global_params = self.global_params( network=network, update=update, fmt='j')
+        global_params = self.global_params( network=network, fmt='j')
         subnet_params = self.subnet_params( netuid = netuid )
-        
         module_info = self.module_info(key.ss58_address, netuid=netuid)
+        
         stake = module_info['stake']
         min_stake = global_params['min_weight_stake'] * subnet_params['min_allowed_weights']
         assert stake > min_stake
@@ -3141,9 +3141,7 @@ class Subspace(c.Module):
                     modules[i] = key2name[module]
                 elif module in name2uid:
                     modules[i] = name2uid[module]
-            else:
-                raise Exception(f'Could not find {module} in network {netuid}')
-
+                    
         uids = modules
             
         if weights is None:
