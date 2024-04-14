@@ -138,7 +138,7 @@ class PM2(c.Module):
                 server_name = line.split('default')[0].strip()
                 server_name = server_name.split(' ')[-1].strip()
                 c.print('errored' in line, server_name)
-                if 'errored' not in line:
+                if 'errored' in line:
                     cls.kill(server_name, verbose=True)
                     continue
 

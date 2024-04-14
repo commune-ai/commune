@@ -79,6 +79,7 @@ Native Pool Balance
 
 The native pool balance is the balance of the native tokens in the pool. This is the balance of the native tokens in the pool. 
 
+
  
 ```python
 
@@ -101,7 +102,7 @@ If a module or subnet points towards a token address. The mint ratio will direct
 Connecting a token to a module or subnet
 
 ```python
-c.token_connect_module('module', token='
+c.connect_module('module', token='
 
 This will register the token onto the chain
 

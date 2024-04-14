@@ -157,15 +157,13 @@ class Vali(c.Module):
         self.sync(network=network)
         futures = []
         results = []
-        batch_size = batch_size or self.config.batch_size
         module_addresses = c.shuffle(list(self.namespace.values()))
-        batch_size = min(batch_size, len(module_addresses))
+        batch_size = min(self.config.batch_size, len(module_addresses))
         self.executor = c.module('executor.thread')(max_workers=batch_size)
         batch_size = self.config.batch_size
-        
+    
         while len(module_addresses) > 0:
             c.sleep(self.config.sample_sleep_interval)
-
             module_address = module_addresses.pop()
             # if the futures are less than the batch, we can submit a new future
             lag = c.time() - self.address2last_update.get(module_address, 0)
@@ -174,7 +172,6 @@ class Vali(c.Module):
                 continue
             futures.append(self.executor.submit(self.eval, args=[module_address],timeout=self.config.timeout))
             self.address2last_update[module_address] = c.time()
-                
             if len(futures) >= batch_size:
                 try:
                     for future in c.as_completed(futures,
@@ -187,13 +184,11 @@ class Vali(c.Module):
                 except Exception as e:
                     c.print(c.detailed_error(e))
 
-                    
         if len(futures) >= 0:
             try:
-                for future in c.as_completed(futures,
-                                                timeout=self.config.timeout*2):
-                    futures.remove(future)
-                    result = future.result()
+                for future in c.as_completed(futures, timeout=self.config.timeout*2):
+                    futures.remove(future) # remove the future
+                    result = future.result() # result 
                     results += [result]  
                     c.print(result, verbose=self.config.debug)
             except Exception as e:
@@ -207,6 +202,14 @@ class Vali(c.Module):
 
     def is_voting_network(self):
         return 'subspace' in self.config.network or 'bittensor' in self.config.network
+    
+
+    def filter_module(self, module:str):
+        if self.config.search in  module:
+            return True
+        return False
+
+
          
 
     def set_network(self, 
@@ -370,7 +373,6 @@ class Vali(c.Module):
         info['path'] = path
 
         start_time = c.time()
-        is_error = False
         try:
             response = self.score_module(module)
             response = self.process_response(response)
@@ -389,7 +391,6 @@ class Vali(c.Module):
         info.update(response)
         self.put(path, info)
         response =  {k:info[k] for k in verbose_keys}
-
 
         # record the success statistics
         if response['w'] > 0:

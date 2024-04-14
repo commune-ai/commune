@@ -11,3 +11,6 @@ class ValiAdd(c.module('vali')):
         assert result == a + b , f'{result} != {a} + {b}'
         return 1
     
+    def forward(self, a=1, b=1):
+        return a + b
+    

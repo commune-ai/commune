@@ -34,4 +34,8 @@ c call subenet.vali::0/leaderboard
 
 ```
 
+register onchain 
+
+c.register("subenet.vali::0", subnet="commune")
+
 
