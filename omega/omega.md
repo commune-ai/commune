@@ -34,49 +34,8 @@ c call subenet.vali::0/leaderboard
 
 ```
 
+register onchain 
 
-salvivona@Sals-MacBook-Pro commune % c call subnet.vali::0/config     
-/opt/homebrew/bin/c:4: DeprecationWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html
-  __import__('pkg_resources').require('commune==0.0.1')
-{
-    'network': 'local',
-    'netuid': 0,
-    'verbose': False,
-    'sync_interval': 10,
-    'min_update_interval': 1,
-    'sleep_interval': 5,
-    'sample_sleep_interval': 0.1,
-    'initial_sleep': 1,
-    'search': None,
-    'max_age': 3600,
-    'vote': True,
-    'fn': None,
-    'alpha': 0.5,
-    'worker_fn_name': 'worker',
-    'min_stake': 1,
-    'vote_interval': 100,
-    'vote_timeout': 50,
-    'voting_networks': ['subspace', 'bittensor'],
-    'max_history': 10,
-    'connect_score': 0.1,
-    'latency_score_weight': 0.2,
-    'vote_tag': None,
-    'mode': 'thread',
-    'batch_size': 32,
-    'workers': 1,
-    'threads_per_worker': 32,
-    'timeout': 3,
-    'sleep_time': 0.05,
-    'refresh': True,
-    'start': True,
-    'is_main_worker': True,
-    'min_num_weights': 10,
-    'debug': False,
-    'print_interval': 2,
-    'clone_suffix': 'clone',
-    'tag': '0',
-    'server_name': 'subnet.vali::0'
-}
-
+c.register("subenet.vali::0", subnet="commune")
 
 

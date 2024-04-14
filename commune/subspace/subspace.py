@@ -3110,6 +3110,7 @@ class Subspace(c.Module):
         self,
         uids: Union['torch.LongTensor', list] = None,
         weights: Union['torch.FloatTensor', list] = None,
+        modules = None,
         netuid: int = 0,
         key: 'c.key' = None,
         network = None,
@@ -3130,14 +3131,18 @@ class Subspace(c.Module):
         assert stake > min_stake
         max_num_votes = stake // global_params['min_weight_stake']
         n = int(min(max_num_votes, subnet_params['max_allowed_weights']))
+        uids = None
         # checking if the "uids" are passed as names -> strings
-        if uids != None and all(isinstance(item, str) for item in uids):
-            name2uid = self.name2uid(netuid=netuid, network=network, update=update, max_age=max_age)
-            for i, uid in enumerate(uids):
-                if uid in name2uid:
-                    uids[i] = name2uid[uid]
-                else:
-                    raise Exception(f'Could not find {uid} in network {netuid}')
+        
+        for i, module in enumerate(modules):
+            if isinstance(module, str):
+                if module in key2name:
+                    module = key2name[module]
+                elif module in name2uid:
+                    uids[i] = name2uid[module]
+                
+            else:
+                raise Exception(f'Could not find {uid} in network {netuid}')
 
         if uids == None:
             # we want to vote for the nonzero dividedn

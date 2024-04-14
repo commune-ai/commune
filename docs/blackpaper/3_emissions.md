@@ -1,4 +1,8 @@
 
+
+
+
+
 **Stake Based Conseneus Protocals**
 
 Commune is a flexible modular chain that allows for multiple consensus protocals. The two main protocals are yuma and yomama. Commune intends to have a flexible network that can adapt to different use cases and add additional protocals in the future for different use cases.
