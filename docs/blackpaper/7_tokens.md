@@ -85,12 +85,10 @@ The native pool balance is the balance of the native tokens in the pool. This is
 The following 
 c.swap_tokens(from_token='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', 
               to_token='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w
-              amount=51000)
+              amount=1000)
 {
-    'token_key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w',
-    'token_pool': 51000,
-    'native_pool': 1000,
-    'k': 1
+    'from_token_amount': 50000,
+    'to_token_amount': 1000,
 }
 ```
 
@@ -101,11 +99,13 @@ If a module or subnet points towards a token address. The mint ratio will direct
 Connecting a token to a module or subnet
 
 ```python
-c.token_connect_module('module', token='
-
-This will register the token onto the chain
-
-
 c.update_module('module', token_ratio=0.1)
-
+```
 This means 10 percent of the liquidity (0.1) is being directed into the pool while getting the tokens minted in addition to the tokens from the pool. This forces less volitility as it incentivizes volume.
+
+
+Connecting all of the Assets in the World : A decentralized blackrock 
+
+The following will connect all of the assets in the world to the chain. We do this by allowing for the option for minting tokens using multisignature wallets. These signers of the ultisignature can approve the minting and burning of tokens upon collateralization of the assets. This allows for any token to be minted and burned upon the collateralization of the assets. 
+```python
+c.add_module_token(module='model.openai::jay', token_address='
