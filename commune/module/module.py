@@ -2811,7 +2811,7 @@ class c:
     def info(self , 
              module = None,
              schema: bool = True,
-             namespace:bool = True,
+             namespace:bool = False,
              commit_hash:bool = True,
              hardware : bool = True,
              update: bool = False,

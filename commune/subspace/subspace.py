@@ -2034,7 +2034,7 @@ class Subspace(c.Module):
               network = network,
               df:bool=True, 
               update:bool = False ,  
-              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'last_update', 'vote_staleness', 'serving'],
+              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'vote_staleness', 'serving'],
               sort_features = ['emission', 'stake'],
               fmt : str = 'j',
               modules = None,
@@ -3402,7 +3402,7 @@ class Subspace(c.Module):
         c.print(f"Checking {len(module2stats)} {search} servers")
         for module, stats in module2stats.items():
             # check if the module is serving
-            lag = block - stats['last_update']
+            lag = stats['vote_staleness']
             if not c.server_exists(module) or lag > min_lag:
                 response  = c.serve(module)
             else:
