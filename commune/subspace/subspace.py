@@ -3122,34 +3122,29 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
-        module_info = self.module_info(key.ss58_address, netuid=netuid)
         global_params = self.global_params( network=network, update=update, fmt='j')
         subnet_params = self.subnet_params( netuid = netuid )
         
+        module_info = self.module_info(key.ss58_address, netuid=netuid)
         stake = module_info['stake']
         min_stake = global_params['min_weight_stake'] * subnet_params['min_allowed_weights']
         assert stake > min_stake
         max_num_votes = stake // global_params['min_weight_stake']
         n = int(min(max_num_votes, subnet_params['max_allowed_weights']))
-        uids = None
+        modules = uids or modules
+        if modules == None:
+            modules = c.shuffle(self.uids(netuid=netuid, update=update))
         # checking if the "uids" are passed as names -> strings
-        
         for i, module in enumerate(modules):
             if isinstance(module, str):
                 if module in key2name:
-                    module = key2name[module]
+                    modules[i] = key2name[module]
                 elif module in name2uid:
-                    uids[i] = name2uid[module]
-                
+                    modules[i] = name2uid[module]
             else:
-                raise Exception(f'Could not find {uid} in network {netuid}')
+                raise Exception(f'Could not find {module} in network {netuid}')
 
-        if uids == None:
-            # we want to vote for the nonzero dividedn
-            uids = self.uids(netuid=netuid, network=network, update=update)
-            assert len(uids) > 0, f"No nonzero dividends found in network {netuid}"
-            # shuffle the uids
-            uids = c.shuffle(uids)
+        uids = modules
             
         if weights is None:
             weights = [1 for _ in uids]

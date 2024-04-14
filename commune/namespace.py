@@ -165,14 +165,17 @@ class Namespace(c.Module):
         futures = list(future2address.keys())
         c.print(f'Updating namespace {network} with {len(futures)} addresses')
 
-        for f in c.as_completed(futures, timeout=timeout):
-            address = future2address[f]
-            try:
-                name = f.result()
-                namespace[name] = address
-                c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
-            except Exception as e:
-                c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+        try:
+            for f in c.as_completed(futures, timeout=timeout):
+                address = future2address[f]
+                try:
+                    name = f.result()
+                    namespace[name] = address
+                    c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
+                except Exception as e:
+                    c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+        except Exception as e:
+            c.print(f'Timeout error {e}', color='red', verbose=verbose)
 
         cls.put_namespace(network, namespace)
 
@@ -382,7 +385,7 @@ class Namespace(c.Module):
                     c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
                 except Exception as e:
                     c.print(f'Error {e} with {address}', color='red', verbose=verbose)
-        except TimeoutError as e:
+        except Exception as e:
             c.print(f'Timeout error {e}', color='red', verbose=verbose)
 
         cls.put_namespace(network, namespace)
