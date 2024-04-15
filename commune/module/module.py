@@ -991,6 +991,16 @@ class c:
             x = list(x)
         return sum(x) / len(x)
     
+    def median(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
+        if not isinstance(x, list):
+            x = list(x)
+        x = sorted(x)
+        n = len(x)
+        if n % 2 == 0:
+            return (x[n//2] + x[n//2 - 1]) / 2
+        else:
+            return x[n//2]
+    
     def stdev(self, x:list= [0,1,2,3,4,5,6,7,8,9,10], p=2):
         if not isinstance(x, list):
             x = list(x)
@@ -2326,7 +2336,7 @@ class c:
     def is_address(cls, address:str) -> bool:
         if not isinstance(address, str):
             return False
-        if '//:' in address:
+        if '://' in address:
             return True
         conds = []
         conds.append(len(address.split('.')) >= 3)
@@ -4250,6 +4260,16 @@ class c:
 
         return output_dict
     
+    @classmethod
+    def is_file_module(cls) -> bool:
+        dirpath = cls.dirpath()
+        filepath = cls.filepath()
+        return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
+
+    @classmethod
+    def is_folder_module(cls) -> bool:
+        return not cls.is_file_module()
+    
     @staticmethod
     def jsonable( value):
         import json
@@ -5418,13 +5438,14 @@ class c:
     make_dir= mkdir
 
     @classmethod
-    def path2text(cls, path:str = None):
+    def path2text(cls, path:str = './'):
+
         path = cls.resolve_path(path)
         path2text = {}
         for filepath in c.glob(path + '/**'):
             try:
                 path2text[filepath] = c.get_text(filepath)
-            except:
+            except Exception as e:
                 pass
         return path2text
         
@@ -5805,26 +5826,23 @@ class c:
         
         future2idx = {future:i for i,future in enumerate(futures)}
 
-        results = []
-
-        # wait for the futures as they complete
-
-        results = []
-        results = [None]*len(futures)
-
         if timeout == None and hasattr(futures[0], 'timeout'):
             timeout = futures[0].timeout
 
 
         if generator:
             def get_results(futures):
-
-                for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                    if return_dict:
-                        idx = future2idx[future]
-                        yield {'idx': idx, 'result': future.result()}
-                    else:
-                        yield future.result()
+                try: 
+                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                        if return_dict:
+                            idx = future2idx[future]
+                            yield {'idx': idx, 'result': future.result()}
+                        else:
+                            yield future.result()
+                except Exception as e:
+                    c.print(f'Error: {e}')
+                    yield None
+                
         else:
             def get_results(futures):
                 results = [None]*len(futures)
@@ -5833,11 +5851,9 @@ class c:
                         idx = future2idx[future]
                         results[idx] = future.result()
                         del future2idx[future]
-
                     if is_singleton: 
                         results = results[0]
                 except Exception as e:
-                    results = []
                     unfinished_futures = [future for future in futures if future in future2idx]
                     c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
                 return results

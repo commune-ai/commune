@@ -24,7 +24,7 @@ class ValiTextRealfake(Vali):
         return prompt
         
 
-    def score_module(self, module, **kwargs):
+    def score(self, module, **kwargs):
         w = 0
         module = c.connect(module) if isinstance(module, str) else module
 
@@ -54,5 +54,5 @@ class ValiTextRealfake(Vali):
     @classmethod
     def test(cls, module='model.openai', **kwargs):
         vali = cls(start=False)
-        return vali.score_module(module=module, **kwargs)
+        return vali.score(module=module, **kwargs)
 

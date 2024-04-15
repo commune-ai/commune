@@ -2,13 +2,16 @@ import commune as c
 
 
 class Vali(c.m('vali')):
+
+    whitelist = ['get_module', 'eval_module', 'leaderboard']
+
     def __init__(self, 
                  search='subspace', 
                  reference='subspace', 
                  netuid = 0,
                  network = 'local',
                  **kwargs):
-        self.init_vali(kwargs)
+        self.init_vali(locals())
         self.reference = c.m(reference)()
         self.sync_time = 10
 
@@ -16,14 +19,12 @@ class Vali(c.m('vali')):
         keys = self.reference.keys(netuid = self.config.netuid)
         return c.shuffle(keys)[0]
 
-
-    def score_module(self, module):
+    def score(self, module):
+        if isinstance(module, str):
+            module = c.connect(module, network = self.config.network)
         key = self.get_module_key()
         local_output = self.reference.get_module(key)
         remote_output = module.get_module(key)
-
-        c.print('remote_output', remote_output)
-        c.print('local_output', local_output)
         remote_hash = c.hash(remote_output)
         local_hash = c.hash(local_output)
 
@@ -31,5 +32,8 @@ class Vali(c.m('vali')):
             return 1
         else:   
             return 0
+        
+    def get_module(self, module, **kwargs):
+        return self.reference.get_module(module, **kwargs)
         
 

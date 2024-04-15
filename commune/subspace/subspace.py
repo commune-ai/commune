@@ -17,6 +17,7 @@ class Subspace(c.Module):
 
 
     whitelist = ['query', 
+                 'score',
                  'query_map', 
                  'get_module', 
                  'get_balance', 

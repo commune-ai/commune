@@ -18,7 +18,7 @@ class ValiTextTruthfulQA(Vali):
         ```json'''
         return prompt
 
-    def score_module(self, module='model', **kwargs) -> int:
+    def score(self, module='model', **kwargs) -> int:
 
 
         model = c.connect(module) if isinstance(module, str) else module
@@ -49,4 +49,4 @@ class ValiTextTruthfulQA(Vali):
     @classmethod
     def test(cls, module='model.openai', **kwargs):
         vali = cls(start=False)
-        return vali.score_module(module=module, **kwargs)
+        return vali.score(module=module, **kwargs)

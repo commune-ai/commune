@@ -4,7 +4,7 @@ class ValiAdd(c.module('vali')):
     def __init__(self, network='local', **kwargs):
         self.init_vali(locals())
 
-    def score_module(self, module) -> int:
+    def score(self, module) -> int:
         a = c.random_int()
         b = c.random_int()
         result = module.forward(a, b)

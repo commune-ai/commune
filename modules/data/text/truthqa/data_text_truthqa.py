@@ -4,7 +4,7 @@ from typing import List
 class DataTextTruthQa(c.Module):
    
    
-    def score_module(self, module:str, fn='sample', kwargs={'idx': 0}):
+    def score(self, module:str, fn='sample', kwargs={'idx': 0}):
         reference_output = getattr(self.dataset, fn=fn)(**kwargs)
         if isinstance(module, str):
             output =  c.async_call(module=module,fn=fn, **kwargs)

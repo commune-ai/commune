@@ -117,10 +117,14 @@ class Client(c.Module):
         # we dont want to load the namespace if we have the address
         if not c.is_address(address):
             module = address # we assume its a module name
-            namespace = c.get_namespace(search=module, network=network)            
-            module = c.choice(list(namespace.keys()))
-            assert module in namespace, f"Invalid module {module}"
-            address = namespace[module]
+            assert module != None, 'module must be provided'
+            namespace = c.get_namespace(search=module, network=network)
+            if module in namespace:
+                address = namespace[module]
+            else:    
+                module = c.choice(list(namespace.keys()))
+                c.print(f"Module {module} not found, using {module} instead", color='red')
+                address = namespace[module]
         if '://' in address:
             mode = address.split('://')[0]
             assert mode in possible_modes, f'Invalid mode {mode}'

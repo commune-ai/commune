@@ -8,7 +8,7 @@ class ValiTextMMLU(c.module('vali')):
         self.init_vali(locals())
         self.dataset = c.module('data.hf')(path=self.config.dataset)
 
-    def score_module(self, module='model', **kwargs) -> int:
+    def score(self, module='model', **kwargs) -> int:
 
 
         model = c.connect(module) if isinstance(module, str) else module

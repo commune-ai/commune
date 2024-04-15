@@ -41,7 +41,8 @@ class Namespace(c.Module):
         elif network == 'local':
             if update or namespace == None:
                 namespace = cls.build_namespace(network=network)     
-        namespace = namespace or {}   
+        namespace = {} if namespace == None else namespace
+        
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
 

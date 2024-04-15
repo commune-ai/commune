@@ -6,7 +6,7 @@ class ValiTextMath(Vali):
         self.dataset =  c.module(self.config.dataset)()
 
 
-    def score_module(self, module, **kwargs):
+    def score(self, module, **kwargs):
         w = 0
 
         sample = self.dataset.sample()

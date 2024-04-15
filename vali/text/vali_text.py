@@ -22,7 +22,7 @@ class ValiText(Vali):
             self.dataset = c.connect(dataset)
         return self.dataset
 
-    def score_module(self, module='model.openai') -> int:
+    def score(self, module='model.openai') -> int:
         if isinstance(module, str):
             module = c.connect(module)
         module.info(timeout=1)

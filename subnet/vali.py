@@ -8,7 +8,7 @@ class Vali(c.module("vali")):
         # send locals() to init
         self.init_vali(locals())
 
-    def score_module(self, module):
+    def score(self, module):
         a = 1
         b = 1
         result = module.forward(a, b)
