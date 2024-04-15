@@ -35,7 +35,6 @@ class Vali(c.Module):
         if hasattr(config, 'key'):
             self.key = c.key(config.key)
         self.config = config
-        self.sync()
         c.thread(self.run_loop)
 
     init = init_vali
@@ -246,6 +245,15 @@ class Vali(c.Module):
                     'sync_lag': self.network_staleness, 
                     'sync_interval': self.config.sync_interval,
                     }
+        
+        if '.' in  network:
+            assert len(network.split('.')) == 2, f'Network must have one dot, got {network}'
+            network, netuid = network.split('.')
+            try:
+                netuid = int(netuid)
+            except:
+                pass
+
         # RESOLVE THE VOTING NETWORKS
         if 'subspace' in network :
             if '.' in network:
@@ -270,12 +278,12 @@ class Vali(c.Module):
         self.name2address = self.namespace
         self.address2name = {v: k for k, v in self.namespace.items()}  
 
-        self.network = network
-        self.netuid = netuid
-        self.fn = fn
-        self.search = search
-        self.max_age = max_age
-        self.subnet = subnet
+        self.config.network = self.network = network
+        self.config.netuid = self.netuid= netuid
+        self.config.subnet = self.subnet = subnet
+        self.config.fn = self.fn = fn
+        self.config.search = self.search  = search
+        self.config.max_age = self.max_age = max_age
         network_info = self.network_info()
 
         return network_info
@@ -333,7 +341,6 @@ class Vali(c.Module):
         """
         The following evaluates a module sver
         """
-        c.print(f'🚀 :: Eval Module {module} :: 🚀',  color='yellow', verbose=verbose)
         verbose_keys = verbose_keys or ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness']
 
         verbose = verbose or self.verbose
