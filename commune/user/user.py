@@ -9,11 +9,18 @@ class User(c.Module):
     ##################################
     # USER LAND
     ##################################
- 
+
+    def role2users(self):
+        role2users = {}
+        for user,v in self.users().items():
+            role = v['role']
+            if role not in role2users:
+                role2users[role] = []
+            role2users[role].append(user)
+        return role2users
     @classmethod
     def add_user(cls, address, role='user', name=None, **kwargs):
-        if not c.valid_ss58_address(address):
-            return {'success': False, 'msg': f'{address} is not a valid address'}
+        assert c.valid_ss58_address(address), f'{address} is not a valid address'
         users = cls.get('users', {})
         info = {'role': role, 'name': name, **kwargs}
         users[address] = info
@@ -21,12 +28,18 @@ class User(c.Module):
         return {'success': True, 'user': address,'info':info}
     
     @classmethod
-    def users(cls):
+    def users(cls, role=None):
         users = cls.get('users', {})
         root_key_address  = c.root_key().ss58_address
         if root_key_address not in users:
             cls.add_admin(root_key_address)
+        if role is not None:
+            return {k:v for k,v in users.items() if v['role'] == role}
         return cls.get('users', {})
+
+    def roles(self):
+        return list(set([v['role'] for k,v in self.users().items()]))
+
     
     @classmethod
     def is_user(self, address):
@@ -38,6 +51,7 @@ class User(c.Module):
 
     def blacklist_user(self, address):
         blacklist = self.blacklist()
+        assert c.valid_ss58_address(address), f'{address} is not a valid address'
         blacklist.append(address)
         self.put('blacklist', blacklist)
         return {'success': True, 'msg': f'blacklisted {address}'}
@@ -101,8 +115,9 @@ class User(c.Module):
         users = cls.get('users', {})
         users.pop(address)
         cls.put('users', users)
+        
         assert not cls.user_exists(address), f'{address} still in users'
-        return {'success': True, 'msg': f'removed {address} from users'}
+        return {'success': True, 'msg': f'removed {address} from users', 'users': cls.users()}
     
     
     def df(self):
