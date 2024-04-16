@@ -112,7 +112,6 @@ class Client(c.Module):
             network : str = 'local',
             possible_modes = ['http', 'https'],
             ):
-        c.print(f"Connecting to {address}", color='green', verbose=verbose)
         # we dont want to load the namespace if we have the address
         if not c.is_address(address):
             module = address # we assume its a module name

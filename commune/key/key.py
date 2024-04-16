@@ -929,7 +929,6 @@ class Keypair(c.Module):
         signature in bytes
 
         """
-        c.print(self.ss58_address)
         seperator =  seperator or self.seperator
         if not isinstance(data, str):
             data = c.python2str(data)
