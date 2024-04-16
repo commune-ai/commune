@@ -372,7 +372,6 @@ class Vali(c.Module):
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
         info = self.get(path,  module.info(timeout=self.config.timeout), max_age=self.config.max_age)
     
-        c.print(f'🚀 :: Eval Module {info["name"]} :: 🚀',  color='yellow', verbose=verbose)
 
         assert 'address' in info and 'name' in info, f'Info must have a address key, got {info.keys()}'
         info['staleness'] = c.time() - info.get('timestamp', 0)

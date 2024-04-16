@@ -31,6 +31,27 @@ class User(c.Module):
     @classmethod
     def is_user(self, address):
         return address in self.users() or address in c.users()
+
+    def is_blacklisted(self, address):
+        return address in self.blacklist()
+
+
+    def blacklist_user(self, address):
+        blacklist = self.blacklist()
+        blacklist.append(address)
+        self.put('blacklist', blacklist)
+        return {'success': True, 'msg': f'blacklisted {address}'}
+
+    def whitelist_user(self, address):
+        blacklist = self.blacklist()
+        blacklist.remove(address)
+        self.put('blacklist', blacklist)
+        return {'success': True, 'msg': f'whitelisted {address}'}
+
+    def blacklist(self):
+        return self.get('blacklist', [])
+
+
     @classmethod
     def get_user(cls, address):
         users = cls.users()
@@ -129,5 +150,15 @@ class User(c.Module):
                 st.write(response)
 
 
+    def test_blacklisting(self):
+        blacklist = self.blacklist()
+        key = c.get_key('test')
+        assert key.ss58_address not in self.blacklist(), 'key already blacklisted'
+        self.blacklist_user(key.ss58_address)
+        assert key.ss58_address in self.blacklist(), 'key not blacklisted'
+        self.whitelist_user(key.ss58_address)
+        assert key.ss58_address not in self.blacklist(), 'key not whitelisted'
+        return {'success': True, 'msg': 'blacklist test passed'}
+        
 User.run(__name__)
 

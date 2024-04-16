@@ -1,3 +1,6 @@
 import commune as c
 
-c.print(c.serve('vali', kwargs={"network": 'subspace.1'}, remote=0))
+servers = c.servers('subspace::')
+
+for s in servers:
+    c.print(c.register(s))

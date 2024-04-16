@@ -58,6 +58,9 @@ class Access(c.Module):
         state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
         time_since_sync = c.time() - state.get('sync_time', 0)
 
+        self.key2address = c.key2address()
+        self.address2key = c.address2key()
+
         if time_since_sync > self.config.sync_interval:
             self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
@@ -78,7 +81,10 @@ class Access(c.Module):
                         'time_since_sync': int(time_since_sync)}
         return response
 
-    def verify(self, input:dict) -> dict:
+    def verify(self, 
+               address='5FNBuR2yVf4A1v5nt3w5oi4ScorraGRjiSVzkXBVEsPHaGq1', 
+               fn: str = 'info' ,
+              input:dict = None) -> dict:
         """
         input : dict 
             fn : str
@@ -86,11 +92,14 @@ class Access(c.Module):
 
         returns : dict
         """
-        fn = input['fn']
-        address = input['address']
+        if input is not None:
+            address = input.get('address', address)
+            fn = input.get('fn', fn)
+
+        # ONLY THE ADMIN CAN CALL ANY FUNCTION, THIS IS A SECURITY FEATURE
+        # THE ADMIN KEYS ARE STORED IN THE CONFIG
         if c.is_admin(address):
             return {'success': True, 'msg': f'is verified admin'}
-        
 
         whitelist =  list(set(self.module.whitelist + c.whitelist))
         blacklist =  self.module.blacklist
@@ -100,6 +109,9 @@ class Access(c.Module):
 
         if c.is_user(address):
             return {'success': True, 'msg': f'is verified user'}
+
+        if address in self.address2key:
+            return {'success': True, 'msg': f'address {address} is a local key'}
 
         if fn.startswith('__') or fn.startswith('_'):
             return {'success': False, 'msg': f'Function {fn} is private'}
@@ -185,7 +197,7 @@ class Access(c.Module):
 
         for i in range(base_rate*3):    
             t1 = c.time()
-            c.print(module.verify(input={'address': key.ss58_address, 'fn': 'info'}))
+            c.print(module.verify(**{'address': key.ss58_address, 'fn': 'info'}))
             t2 = c.time()
             c.print(f'🚨 {t2-t1} seconds... 🚨\033', color='yellow')
     
