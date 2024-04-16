@@ -915,6 +915,7 @@ class Keypair(c.Module):
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
              return_str = False,
+             seperator = None
              ) -> bytes:
         """
         Creates a signature for given data
@@ -928,7 +929,8 @@ class Keypair(c.Module):
         signature in bytes
 
         """
-        seperator = self.seperator
+        c.print(self.ss58_address)
+        seperator =  seperator or self.seperator
         if not isinstance(data, str):
             data = c.python2str(data)
         if type(data) is ScaleBytes:
@@ -965,9 +967,14 @@ class Keypair(c.Module):
             return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
     
+    def ticket2address(self, ticket, **kwargs):
+        return self.verify(ticket, **kwargs)
+    
     def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
+               return_address = False,
+               ss58_format = 42,
                **kwargs
                ) -> bool:
         
@@ -989,6 +996,7 @@ class Keypair(c.Module):
             data, signature = data.split(self.seperator)
 
         data = c.copy(data)
+        
 
         if isinstance(data, dict):
 
@@ -1036,6 +1044,8 @@ class Keypair(c.Module):
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
 
+        if return_address:
+            return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
 
 
@@ -1506,14 +1516,17 @@ class Keypair(c.Module):
         assert self.verify(sig)
         return {'success':True}
 
-    def ticket(self, **kwargs):
+    def ticket(self, key=None, **kwargs):
+        if key != None:
+            self = c.get_key(key)
         data = str(c.timestamp())
         return self.sign(data, return_str=True, **kwargs)
 
-    def verify_ticket(self, ticket=None, max_age=1, **kwargs):
+    def verify_ticket(self, ticket=None, max_age=1, seperator = None, **kwargs):
+        seperator = seperator or self.seperator
         if c.exists(ticket):
             ticket = c.get_text(ticket)
-        data = int(ticket.split(self.seperator)[0])
+        data = int(ticket.split(seperator)[0])
         age = c.timestamp() - data
         if age > max_age:
             raise ValueError(f'ticket is too old, {age} > {max_age}')
@@ -1534,6 +1547,11 @@ class Keypair(c.Module):
     def ticket_exists(self, path = None):
         path = path or self.ticket_path
         return c.exists(path)
+    
+    def test_ticket(self):
+        ticket = self.ticket()
+        c.print(ticket)
+        return self.verify_ticket(ticket)
 
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic
@@ -1546,7 +1564,20 @@ class Keypair(c.Module):
     
     def app(self):
         c.module('key.app').app()
-        
+
+
+    def test_move_key(self):
+        self.add_key('testfrom')
+        assert self.key_exists('testfrom')
+        og_key = self.get_key('testfrom')
+        self.mv_key('testfrom', 'testto')
+        assert self.key_exists('testto')
+        assert not self.key_exists('testfrom')
+        new_key = self.get_key('testto')
+        assert og_key.ss58_address == new_key.ss58_address
+        self.rm_key('testto')
+        assert not self.key_exists('testto')
+        return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
 
     
 Keypair.run(__name__)

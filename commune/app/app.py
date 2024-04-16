@@ -23,7 +23,8 @@ class App(c.Module):
             remote_kwargs = c.locals2kwargs(locals())
             remote_kwargs['remote'] = False
             c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
-            url = f'http://{c.ip()}:{port}'
+            ip = c.ip()
+            url = f'http://{ip}:{port}'
 
             return {'success': True, 
                     'msg': f'running {module} on {port}', 
@@ -55,10 +56,8 @@ class App(c.Module):
             'kwargs': kwargs,
             'cmd': cmd
         }
-        c.print(module2dashboard)
         self.put('module2dashboard', module2dashboard)
         cwd = os.path.dirname(module_filepath)
-        
         return c.cmd(cmd, verbose=True, cwd=cwd)
     
 

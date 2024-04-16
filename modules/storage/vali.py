@@ -22,7 +22,6 @@ class StorageVali(c.module('vali')):
         assert value == new_value, f'{value} != {new_value}'
         return 1
     
-    def put_item(self, key: str, value: int) -> int:
         return self.put('storage/' + key, value)
     
     def get_item(self, key: str) -> int:

@@ -108,12 +108,11 @@ class Client(c.Module):
 
     def set_client(self,
             address : str = None,
-            verbose: bool = False,
+            verbose: bool = 1,
             network : str = 'local',
             possible_modes = ['http', 'https'],
             ):
-        if verbose:
-            c.print(f"Connecting to {address}", color='green')
+        c.print(f"Connecting to {address}", color='green', verbose=verbose)
         # we dont want to load the namespace if we have the address
         if not c.is_address(address):
             module = address # we assume its a module name
@@ -122,9 +121,7 @@ class Client(c.Module):
             if module in namespace:
                 address = namespace[module]
             else:    
-                module = c.choice(list(namespace.keys()))
-                c.print(f"Module {module} not found, using {module} instead", color='red')
-                address = namespace[module]
+                address = module
         if '://' in address:
             mode = address.split('://')[0]
             assert mode in possible_modes, f'Invalid mode {mode}'

@@ -568,6 +568,17 @@ class Subspace(c.Module):
         stake = self.query( 'Stake',params=[netuid, key_ss58], block=block , update=update)
         return self.format_amount(stake, fmt=fmt)
 
+    def all_balances(self, timeout=4):
+        key2address = c.key2address()
+        futures = []
+        for key, address in key2address.items():
+            future = c.submit(self.get_balance, kwargs={'key': address}, timeout=timeout)
+            futures.append(future)
+            c.print(f'{key}: {balance}')
+        
+        balances = c.wait(futures, timeout=timeout)
+        return balances
+
     
 
     def all_key_info(self, netuid='all', timeout=10, update=False, **kwargs):
@@ -2313,6 +2324,15 @@ class Subspace(c.Module):
         module_key = module_key or c.get_key(name).ss58_address
         netuid2subnet = self.netuid2subnet(max_age=max_age)
         subnet2netuid = {v:k for k,v in netuid2subnet.items()}
+
+        if netuid != None:
+            netuid = self.resolve_netuid(netuid)
+            subnet = netuid2subnet.get(netuid)
+        elif subnet != None:
+            if subnet in subnet2netuid:
+                netuid = subnet2netuid[subnet]
+            else:
+                netuid = len(subnet2netuid)
         
         if stake == None :
             if isinstance(subnet, str):
@@ -2320,8 +2340,9 @@ class Subspace(c.Module):
                     netuid = subnet2netuid[subnet]
                 else:
                     netuid = len(subnet2netuid)
-            min_stake = self.min_register_stake(netuid=netuid, network=network)
-            stake = min_stake + 1
+        
+        min_stake = self.min_register_stake(netuid=netuid, network=network)
+        stake = min_stake + 1
         stake = stake * 1e9
 
         params = { 

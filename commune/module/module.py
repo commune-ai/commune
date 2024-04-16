@@ -2911,7 +2911,6 @@ class c:
                 search = None,
                 module = None,
                 fn = None,
-                code : bool = False,
                 docs: bool = True,
                 include_parents:bool = False,
                 defaults:bool = True, cache=False) -> 'Schema':
@@ -2933,7 +2932,7 @@ class c:
                 continue
             module_fn = getattr(module, fn )
             if callable(module_fn):
-                schema[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)        
+                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
 
         return c.copy(schema)
         
@@ -6274,10 +6273,10 @@ class c:
 
     @classmethod
     def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
-        schema = cls.schema(search=search, code=code, defaults=defaults)
+        schema = cls.schema(search=search,  defaults=defaults)
         fn2str = {}
-        for k,v in schema.items():
-            fn2str[k] = c.python2str(v)
+        for fn in schema.keys():
+            fn2str[fn] = cls.fn_code(fn)
             
         return fn2str
     @classmethod
@@ -7279,6 +7278,15 @@ class c:
         return c.module('subspace')().subnets(*args, **kwargs)
     
     @classmethod
+    def subnet2netuid(cls, *args, **kwargs):
+        return c.module('subspace')().subnet2netuid(*args, **kwargs)
+    
+    @classmethod
+    def netuid2subnet(cls, *args, **kwargs):
+        return c.module('subspace')().netuid2subnet(*args, **kwargs)
+    
+
+    @classmethod
     def subnet(cls, *args, **kwargs):
         return c.module('subspace')().subnet(*args, **kwargs)
 
@@ -7286,12 +7294,15 @@ class c:
     def netuids(cls, *args, **kwargs):
         return c.module('subspace')().netuids(*args, **kwargs)
     
+    def glob_hash(self, path=None, **kwargs):
+        
+        glob_dict = c.glob(path, **kwargs)
+        glob_hash = c.hash(glob_dict)
+        c.put('glob_hash', glob_hash)
     
     @classmethod
     def my_subnets(cls, *args, **kwargs):
         return c.module('subspace')().my_subnets(*args, **kwargs)
-    
-
 
     @classmethod
     def networth(cls, *args, **kwargs):

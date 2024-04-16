@@ -3,7 +3,6 @@ import commune as c
 from typing import *
 
 class Vali(c.Module):
-
     last_sync_time = 0
     last_sent = 0
     last_success = 0
@@ -14,24 +13,23 @@ class Vali(c.Module):
     whitelist = ['eval_module', 'score', 'eval', 'leaderboard']
     address2last_update = {}
 
-
-
     def __init__(self,
                  config:dict=None,
                  **kwargs):
-        self.init_vali(config=config, **kwargs)
+        self.init_vali(config=config, kwargs=kwargs)
 
-    def init_vali(self, config=None, module=None, **kwargs):
+    def init_vali(self, config=None, module=None, kwargs=None,  **extra_kwargs):
         if module != None:
-            assert hasattr(module, 'score'), f'Module must have a config attribute, got {score}'
-            assert callable(module.score), f'Module must have a callable score attribute, got {score.score}'
+            assert hasattr(module, 'score'), f'Module must have a config attribute'
+            assert callable(module.score), f'Module must have a callable score attribute'
             self.score = module.score
         # initialize the validator
         # merge the config with the default config
-        config = self.set_config(config, kwargs=kwargs)
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)
+        config = self.set_config(config=config, kwargs=kwargs)
         config = c.dict2munch({**Vali.get_config(), **config})
         c.print(config, 'VALI CONFIG')
-
         if hasattr(config, 'key'):
             self.key = c.key(config.key)
         self.config = config
@@ -79,8 +77,7 @@ class Vali(c.Module):
             'network': self.config.network, 
             'netuid': self.config.netuid, 
             'n': self.n,
-            'fn': self.config.fn,
-            'staleness': self.network_staleness,
+            'staleness': int(self.network_staleness),
 
         }
     
@@ -252,6 +249,9 @@ class Vali(c.Module):
             try:
                 netuid = int(netuid)
             except:
+                subnet2netuid = self.subspace.subnet2netuid()
+                assert netuid in subnet2netuid, f'Netuid {netuid} not found in {subnet2netuid}'
+                netuid = subnet2netuid[netuid]
                 pass
 
         # RESOLVE THE VOTING NETWORKS
@@ -279,13 +279,13 @@ class Vali(c.Module):
         self.address2name = {v: k for k, v in self.namespace.items()}  
 
         self.config.network = self.network = network
-        self.config.netuid = self.netuid= netuid
+        self.config.netuid = self.netuid = netuid
         self.config.subnet = self.subnet = subnet
         self.config.fn = self.fn = fn
         self.config.search = self.search  = search
         self.config.max_age = self.max_age = max_age
         network_info = self.network_info()
-
+        c.print(network_info)
         return network_info
     
 
@@ -370,13 +370,8 @@ class Vali(c.Module):
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
-        cached_info = self.get(path, {}, max_age=self.config.max_age)
-
-        if len(cached_info) > 0 :
-            info = cached_info
-        else:
-            info = module.info(timeout=self.config.timeout)
-
+        info = self.get(path,  module.info(timeout=self.config.timeout), max_age=self.config.max_age)
+    
         c.print(f'🚀 :: Eval Module {info["name"]} :: 🚀',  color='yellow', verbose=verbose)
 
         assert 'address' in info and 'name' in info, f'Info must have a address key, got {info.keys()}'
@@ -388,18 +383,18 @@ class Vali(c.Module):
             response = self.score(module)
             response = self.process_response(response)
         except Exception as e:
-            error = c.detailed_error(e)
+            response = c.detailed_error(e)
             self.errors += 1
-            response = {'w': 0, 'error': error}
-            verbose_keys += ['error']
+            response['w'] = 0
+            verbose_keys = list(response.keys())
 
         c.print(response, color='red', verbose=True)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
-        response['w'] = c.round(response['w'], 3)
-        # merge the info with the response
-        info.update(response)
+        for k in ['w', 'latency', 'timestamp']:
+            info[k] = response[k]
+
         self.put(path, info)
         response =  {k:info[k] for k in verbose_keys}
 
@@ -419,7 +414,7 @@ class Vali(c.Module):
         else:
             network = network or self.config.network
             if 'subspace' in network:
-                network_str = f'{network}.{self.netuid}'
+                network_str = f'{network}.{self.config.netuid}'
             else:
                 network_str = network
                 

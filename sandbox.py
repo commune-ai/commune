@@ -1,3 +1,3 @@
 import commune as c
 
-path2text = c.path2text('./')
+c.print(c.serve('vali', kwargs={"network": 'subspace.1'}, remote=0))
