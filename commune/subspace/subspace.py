@@ -1315,6 +1315,7 @@ class Subspace(c.Module):
                  timeout=30, 
                  netuid: int = 0, 
                  update=False, 
+                 trials=3,
                  **kwargs ) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         self.resolve_network(network)
@@ -1323,7 +1324,17 @@ class Subspace(c.Module):
         names, keys = c.wait([names, keys], timeout=timeout)
         name2key = dict(zip(names, keys))
         if name != None:
-            return name2key[name]
+            if name in name2key:
+                return name2key[name]
+            else:
+                trials -= 1
+                if trials == 0:
+                    return None
+                else:
+                    return self.name2key(name=name, network=network, 
+                                        timeout=timeout, netuid=netuid, update=True, 
+                                        trials=trials, **kwargs)
+                
         return name2key
 
 
@@ -2511,12 +2522,19 @@ class Subspace(c.Module):
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
         name = name or module_info['name']
-        address = address or module_info['address']
         delegation_fee = fee or delegation_fee or module_info['delegation_fee']
         assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
 
+
+        if name != module_info['name']:
+            c.print(f'Changing name from {module_info["name"]} to {name}, we need to serve the new module and swap the keys')
+            c.print(c.mv_key(module_info['name'], name))
+            address = c.serve(name)['address']
+            
+        address = address or module_info['address']
         if ip not in address:
             address = ip + ':'+ address.split(':')[-1]
+
         params = {
             'netuid': netuid, # defaults to module.netuid
              # PARAMS #
@@ -2528,11 +2546,7 @@ class Subspace(c.Module):
         reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
 
         # IF SUCCESSFUL, MOVE THE KEYS, AS THIS IS A NON-REVERSIBLE OPERATION
-        if reponse['success']:
-            if name != module_info['name']:
-                c.mv_keys(module_info['name'], name)
-                c.serve(name)
-                c.kill(module_info['name'])
+
 
         return reponse
 
