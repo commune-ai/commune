@@ -15,12 +15,6 @@ class Network(c.Module):
     Handles interactions with the subspace chain.
     """
 
-    def __init__( 
-        self, 
-        **kwargs,
-    ):
-        self.set_config(kwargs=kwargs)
-
     def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
         mode = mode or self.config.connection_mode
         network = 'network' or self.config.network

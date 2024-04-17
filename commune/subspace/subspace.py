@@ -3029,7 +3029,6 @@ class Subspace(c.Module):
     
     def my_keys(self, search=None, netuid=0, max_age=1000, update=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
-
         keys = self.keys(netuid=netuid, max_age=max_age, update=update, **kwargs)
         key2address = c.key2address(search=search, max_age=max_age, update=update)
         if search != None:
