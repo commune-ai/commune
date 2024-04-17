@@ -177,12 +177,12 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         cls.put(path, key_json)
-        cls.update_keys()
+        cls.update()
         return  json.loads(key_json)
     
     
     @classmethod
-    def update_keys(cls, **kwargs):
+    def update(cls, **kwargs):
         return cls.key2address(update=True,**kwargs)
     
     @classmethod
@@ -363,23 +363,15 @@ class Keypair(c.Module):
         
 
     @classmethod
-    def key2address(cls, search=None, max_age=1000, cache=True, **kwargs):
+    def key2address(cls, search=None, max_age=1000, update=False, **kwargs):
         path = 'key2address'
         key2address = []
-        cache_path =  f'cache_{path}'
-        if hasattr(cls, cache_path):
-            return getattr(cls, cache_path)
-        
-        key2address =  cls.get(path, key2address,max_age=max_age)
-
+        key2address =  cls.get(path, key2address,max_age=max_age, update=update)
         if len(key2address) == 0:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         if search != None:
             key2address =  {k:v for k,v in key2address.items() if  search in k}
-
-        if cache:
-            setattr(cls, cache_path, key2address)
         
         return key2address
 
@@ -424,6 +416,10 @@ class Keypair(c.Module):
         if search != None:
             keys = [key for key in keys if search in key]
         return keys
+
+    @classmethod
+    def n(cls, *args, **kwargs):
+        return len(cls.key2address(*args, **kwargs))
     
     @classmethod
     def key_exists(cls, key, **kwargs):
@@ -448,7 +444,7 @@ class Keypair(c.Module):
         if key not in keys:
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
-        cls.update_keys()
+        cls.update()
         assert c.exists(key2path[key]) == False, 'key not deleted'
 
         return {'deleted':[key]}

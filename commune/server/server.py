@@ -147,7 +147,7 @@ class Server(c.Module):
             assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
             
             # verify the access module
-            user_info = self.access_module.verify(input)
+            user_info = self.access_module.verify(fn=input['fn'], address=input['address'])
             if not user_info['success']:
                 return user_info
             assert 'args' in input['data'], f"args not in input data"
@@ -304,7 +304,7 @@ class Server(c.Module):
     @classmethod
     def test_serving(cls):
         module_name = 'storage::test'
-        module = c.serve(module_name, wait_for_server=True)
+        module = c.serve(module_name)
         module = c.connect(module_name)
         module.put("hey",1)
         assert module.get("hey") == 1, f"get failed {module.get('hey')}"
@@ -315,7 +315,7 @@ class Server(c.Module):
     @classmethod
     def test_serving_with_different_key(cls):
         module_name = 'storage::test'
-        module = c.serve(module_name, wait_for_server=True)
+        module = c.serve(module_name)
         module = c.connect(module_name)
         module.put("hey",1)
         c.kill(module_name)
@@ -387,7 +387,6 @@ class Server(c.Module):
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               tag_seperator:str='::',
               max_workers:int = None,
@@ -430,10 +429,7 @@ class Server(c.Module):
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
-            
-            if wait_for_server:
-                cls.wait_for_server(server_name, network=network)
-            
+
             return {'success':True, 
                     'name': server_name, 
                     'address':c.ip() + ':' + str(remote_kwargs['port']), 

@@ -43,7 +43,7 @@ class User(c.Module):
     
     @classmethod
     def is_user(self, address):
-        return address in self.users() or address in c.users()
+        return address in self.users()
 
     def is_blacklisted(self, address):
         return address in self.blacklist()

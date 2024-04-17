@@ -174,7 +174,7 @@ class Vali(c.Module):
                     for future in c.as_completed(futures,
                                                  timeout=self.config.timeout):
                         result = future.result()
-                        c.print(result, verbose=self.config.debug or self.config.verbose)
+                        c.print(result, verbose=self.config.verbose)
                         futures.remove(future)
                         results += [result]  
                         break
@@ -387,7 +387,6 @@ class Vali(c.Module):
             response['w'] = 0
             verbose_keys = list(response.keys())
 
-        c.print(response, color='red', verbose=True)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
@@ -450,15 +449,21 @@ class Vali(c.Module):
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         is_voting_network = self.is_voting_network()
         key2uid = {}
+        self_uid = None
         if self.config.network in ['subspace']:
+            self_uid =  self.subspace.get_uid(key=self.key.ss58_address, 
+                                                network=self.config.network, 
+                                                netuid=self.config.netuid)
             key2uid = self.subspace.key2uid(netuid=self.config.netuid)
         for info in leaderboard:
             ## valid modules have a weight greater than 0 and a valid ss58_address
             if  isinstance(info, dict) and 'ss58_address' in info:
                 if (info['ss58_address'] in key2uid and info['w'] >= 0) or not is_voting_network:
-                    votes['keys'] += [info['ss58_address']]
-                    votes['weights'] += [info['w']]
-                    votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
+                    uid = key2uid.get(info['ss58_address'], -1)
+                    if self_uid == None or uid != self_uid:
+                        votes['keys'] += [info['ss58_address']]
+                        votes['weights'] += [info['w']]
+                        votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
         return votes
     
@@ -468,11 +473,15 @@ class Vali(c.Module):
 
     def set_weights(self, 
                     uids:List[int]=None, 
-                    weights: List[float]=None, **kwargs):
+                    weights: List[float]=None, 
+                    **kwargs):
+        self.sync()
         if uids == None or weights == None:
             votes =self.votes() 
             weights = votes['weights']
             uids = votes['uids']
+
+
 
         if len(uids) < self.config.min_num_weights:
             return {'success': False, 
