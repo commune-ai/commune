@@ -290,7 +290,9 @@ class Subspace(c.Module):
     def min_burn(self,  network='main', block=None, update=False, fmt='j'):
         min_burn = self.query('MinBurn', block=block, update=update, network=network)
         return self.format_amount(min_burn, fmt=fmt)
-    
+
+
+
     def query(self, 
               name:str,  
               params = None, 
@@ -956,7 +958,46 @@ class Subspace(c.Module):
     
     def my_subnets(self, key=None, block=None, update=False, **kwargs):
         return list(self.my_subnet2netuid(key=key, block=block, update=update, **kwargs).keys())
+
+
+    @classmethod
+    def feature2name(cls, feature='MinStake'):
+        chunks = []
+        for i, ch in enumerate(feature):
+            if feature == 'SubnetNames':
+                return 'name'
+            if ch.isupper():
+                if i == 0:
+                    chunks += [ch.lower()]
+                else:
+                    chunks += [f'_{ch.lower()}']
+            else:
+                chunks += [ch]
+        return ''.join(chunks)
+
+    @classmethod
+    def name2feature(cls, name='min_stake_fam'):
+        chunks = name.split('_')
+        return ''.join([c.capitalize() for c in chunks])
+
+
+    def query_multi(self, params_batch , substrate=None, module='SubspaceModule', feature='SubnetNames', network='main'):
+        substrate = substrate or self.get_substrate(network=network)
+
+        # check if the params_batch is a list of lists
+        for i,p in enumerate(params_batch):
+            if isinstance(p, dict):
+                p = [p.get('module', module), p.get('feature', feature), p.get('netuid', 0)]
+            if len(p) == 1:
+                p = [module, feature, p]
+            assert len(p) == 3, f"[module, feature, netuid] should be of length 4. Got {p}"
+            params_batch[i] = p
             
+        assert isinstance(params_batch, list), f"params_batch should be a list of lists"
+        multi_query = [substrate.create_storage_key(*p) for p in params_batch]
+        results = substrate.query_multi(multi_query)
+        return results
+
     def subnet_params(self, 
                     netuid=0,
                     network = 'main',
@@ -966,79 +1007,45 @@ class Subspace(c.Module):
                     max_age = 1000,
                     fmt:str='j', 
                     rows:bool = True,
-                    value_features = ['min_stake', 'max_stake']
-                    ) -> list:     
-        if update:
-            max_age=0   
-        network = self.resolve_network(network)  
+                    value_features = ['min_stake', 'max_stake'],
+                    features  = [
+                            "Tempo",
+                           'ImmunityPeriod',
+                            'MinAllowedWeights',
+                           'MaxAllowedWeights',
+                            'MaxAllowedUids',
+                            'MinStake',
+                            'Founder', 
+                           'FounderShare',
+                            'IncentiveRatio',
+                            'TrustRatio',
+                            'VoteModeSubnet',
+                            'MaxWeightAge',
+                            'MaxStake', 
+                            'SubnetNames'
+                            ]
+                        
+                    ) -> list:  
+
         netuid = self.resolve_netuid(netuid)
-        path = f'query/{network}/SubspaceModule.SubnetParams'          
-        subnet_params = self.get(path, None, max_age=max_age)
-
-
-        name2feature  = {
-                'tempo': "Tempo",
-                'immunity_period': 'ImmunityPeriod',
-                'min_allowed_weights': 'MinAllowedWeights',
-                'max_allowed_weights': 'MaxAllowedWeights',
-                'max_allowed_uids': 'MaxAllowedUids',
-                'min_stake': 'MinStake',
-                'founder': 'Founder', 
-                'founder_share': 'FounderShare',
-                'incentive_ratio': 'IncentiveRatio',
-                'trust_ratio': 'TrustRatio',
-                'vote_mode': 'VoteModeSubnet',
-                'max_weight_age': 'MaxWeightAge',
-                'name': 'SubnetNames',
-                'max_stake': 'MaxStake',
-            }
-
+        path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
+        subnet_params = self.get(path, None, max_age=max_age, update=update)
+        names = [self.feature2name(f) for f in features]
+        name2feature = dict(zip(names, features))
         if subnet_params == None:
-            features = list(name2feature.keys())
-            block = block or self.block
             subnet_params = {}
-            n = len(features)
-            progress = c.tqdm(total=n, desc=f'Querying {n} features')
-            futures = []
-            while len(features) > 0 :
-                c.print(f'Querying {len(features)} features')
-                feature2future = {}
-                for f in features:
-                    if f in subnet_params:
-                        continue
-                    feature2future[f] = c.submit(self.query_map, dict(name=name2feature[f], 
-                                                                    max_age=max_age,
-                                                                    block=block))
-                future2feature = {v:k for k,v in feature2future.items()}
-                futures = list(feature2future.values())
-                for f in c.as_completed(futures, timeout=timeout):
-                    feature = future2feature[f]
-                    result = f.result()
-                    if c.is_error(result):
-                        continue
-                    subnet_params[feature] = result
-                    features.remove(feature)
-                    progress.update(1)
+            multi_query = [("SubspaceModule", f, [0]) for f in name2feature.values()]
+            subspace = self.get_substrate(network=network)
+            results = self.query_multi(multi_query)
+            for idx, (k, v) in enumerate(results):
+                c.print(k,v, names)
+                subnet_params[names[idx]] = v.value
 
             self.put(path, subnet_params)
-        subnet_params = {f: {int(k):v for k,v in subnet_params[f].items()} for f in subnet_params}
-        if netuid == 'all':
-            num_subnets = len(subnet_params['tempo'])
-            subnets_param_rows = []
-            for netuid in range(num_subnets):
-                subnets_param_row = {}
-                for k in subnet_params.keys():
-                    subnets_param_row[k] = subnet_params[k].get(netuid, 0)
-                    if k in value_features:
-                        subnets_param_row[k] = self.format_amount(subnets_param_row[k], fmt=fmt)
-                subnets_param_rows.append(subnets_param_row)
-            subnet_params = subnets_param_rows    
-        else: 
-            for k,v in subnet_params.items():
-                subnet_params[k] = v.get(netuid, None)
-                if k in value_features:
-                    subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
-                            
+        for k in value_features:
+            if k in ['min_stake', 'max_stake']:
+                subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+
         return subnet_params
     
     subnet = subnet_params
@@ -3181,9 +3188,9 @@ class Subspace(c.Module):
 
     def set_weights(
         self,
-        uids: Union['torch.LongTensor', list] = None,
+        modules: Union['torch.LongTensor', list] = None,
         weights: Union['torch.FloatTensor', list] = None,
-        modules = None,
+        uids = None,
         netuid: int = 0,
         key: 'c.key' = None,
         network = None,
@@ -3204,6 +3211,8 @@ class Subspace(c.Module):
         assert stake > min_stake
         max_num_votes = stake // global_params['min_weight_stake']
         n = int(min(max_num_votes, subnet_params['max_allowed_weights']))
+
+
         modules = uids or modules
         if modules == None:
             modules = c.shuffle(self.uids(netuid=netuid, update=update))

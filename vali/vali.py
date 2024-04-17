@@ -174,7 +174,7 @@ class Vali(c.Module):
                     for future in c.as_completed(futures,
                                                  timeout=self.config.timeout):
                         result = future.result()
-                        c.print(result, verbose=self.config.debug or self.config.verbose)
+                        c.print(result, verbose=self.config.verbose)
                         futures.remove(future)
                         results += [result]  
                         break
@@ -387,7 +387,6 @@ class Vali(c.Module):
             response['w'] = 0
             verbose_keys = list(response.keys())
 
-        c.print(response, color='red', verbose=True)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
