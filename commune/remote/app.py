@@ -5,8 +5,6 @@ from typing import *
 import json
 import pandas as pd
 
-
-
 class App(c.Module):
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
@@ -20,7 +18,11 @@ class App(c.Module):
         c.load_style()
         self = cls()
         self.sidebar()
-        getattr(self, f'ssh_dashboard')()
+        modes = ['ssh', 'manage_hosts']
+        tabs = st.tabs(modes)
+        for i,t in enumerate(tabs):
+            with t:
+                getattr(self, f'{modes[i]}_dashboard')()
 
 
 
@@ -67,6 +69,9 @@ class App(c.Module):
             if rm_host:
                 self.remote.rm_host(rm_host_name)
 
+        self.host2ssh_search()
+
+
     def host2ssh_search(self, expander=True):
         if expander:
             with st.expander('Host2ssh', expanded=False):
@@ -81,6 +86,8 @@ class App(c.Module):
             st.code(ssh)
     
     def ssh_dashboard(self):
+
+        self.ssh_params()
 
         host_map = self.host_map
         host_names = list(host_map.keys())
@@ -238,11 +245,7 @@ class App(c.Module):
         st.title('Remote Dashboard')
 
         self.filter_hosts_dashboard()
-        self.host2ssh_search()
-        self.ssh_params()
-        self.manage_hosts_dashboard()
-        self.host_stats_page()
-        
+  
 
 
 App.run(__name__)

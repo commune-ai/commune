@@ -276,7 +276,6 @@ class Subspace(c.Module):
         return stake_to_total
     my_stake_to = key2stake
 
-<<<<<<< HEAD
 
     def empty_keys(self, network='main', block=None, update=False, max_age=1000, fmt='j'):
         key2address = c.key2address()
@@ -292,20 +291,11 @@ class Subspace(c.Module):
     def key2value(self, netuid = 'all', block=None, update=False, max_age=1000, network='main', fmt='j', min_value=0, **kwargs):
         key2balance = self.key2balance(block=block, update=update, network=network, max_age=max_age, fmt=fmt)
         key2stake = self.key2stake(netuid=netuid, block=block, update=update, network=network, max_age=max_age, fmt=fmt)
-=======
-    def key2value(self, netuid = 'all', block=None, update=False, network='main', fmt='j', min_value=0, **kwargs):
-        key2balance = self.key2balance(block=block, update=update, network=network, fmt=fmt)
-        key2stake = self.key2stake(netuid=netuid, block=block, update=update, network=network, fmt=fmt)
->>>>>>> 652909b9d46661efa02e938cef0598f947694cd6
         key2value = {}
         keys = set(list(key2balance.keys()) + list(key2stake.keys()))
         for key in keys:
             key2value[key] = key2balance.get(key, 0) + key2stake.get(key, 0)
-<<<<<<< HEAD
         key2value = {k:v for k,v in key2value.items()}
-=======
-        key2value = {k:v for k,v in key2value.items() if v >= min_value}
->>>>>>> 652909b9d46661efa02e938cef0598f947694cd6
         key2value = dict(sorted(key2value.items(), key=lambda x: x[1], reverse=True))
         return key2value
     
@@ -3240,11 +3230,7 @@ class Subspace(c.Module):
                     timeout=100,
                     batch_size = 128,
                     fmt = 'j',
-<<<<<<< HEAD
-                    n = 10,
-=======
                     n = 10000,
->>>>>>> 652909b9d46661efa02e938cef0598f947694cd6
                     max_trials = 3,
                     names = False,
                     **kwargs):
@@ -3255,7 +3241,6 @@ class Subspace(c.Module):
         key2address = c.key2address(search=search)
         if keys == None:
             keys = list(key2address.keys())
-<<<<<<< HEAD
         if len(keys) > n:
             c.print(f'Getting balances for {len(keys)} keys > {n} keys, using batch_size {batch_size}')
             balances = self.balances(network=network, **kwargs)
@@ -3299,43 +3284,6 @@ class Subspace(c.Module):
                 else:
                     progress.update(1)
                     key2balance.update(result)
-=======
-        keys = keys[:n]
-        batch_size = min(batch_size, len(keys))
-        batched_keys = c.chunk(keys, batch_size)
-        num_batches = len(batched_keys)
-        progress = c.progress(num_batches)
-        futures = []
-        c.print(f'Getting balances for {len(keys)} keys')
-
-        def batch_fn(batch_keys):
-            substrate = self.get_substrate(network=network)
-            batch_keys = [key2address.get(k, k) for k in batch_keys]
-            c.print(f'Getting balances for {len(batch_keys)} keys')
-            results = substrate.query_multi([ substrate.create_storage_key("System", "Account", [k]) for k in batch_keys])
-            return  {k.params[0]: v['data']['free'].value for k, v in results}
-        key2balance = {}
-        progress = c.progress(num_batches)
-
-
-        for batch_keys in batched_keys:
-            fails = 0
-            while fails < max_trials:
-                if fails > max_trials:
-                    raise Exception(f'Error getting balances {fails}/{max_trials}')
-                try:
-                    result = batch_fn(batch_keys)
-                    progress.update(1)
-                    break # if successful, break
-                except Exception as e:
-                    fails += 1
-                    c.print(f'Error getting balances {fails}/{max_trials} {e}')
-            if c.is_error(result):
-                c.print(result, color='red')
-            else:
-                progress.update(1)
-                key2balance.update(result)
->>>>>>> 652909b9d46661efa02e938cef0598f947694cd6
         for k,v in key2balance.items():
             key2balance[k] = self.format_amount(v, fmt=fmt)
         if names:
