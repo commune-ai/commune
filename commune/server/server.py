@@ -147,7 +147,7 @@ class Server(c.Module):
             assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
             
             # verify the access module
-            user_info = self.access_module.verify(input)
+            user_info = self.access_module.verify(fn=input['fn'], address=input['address'])
             if not user_info['success']:
                 return user_info
             assert 'args' in input['data'], f"args not in input data"

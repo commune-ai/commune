@@ -43,7 +43,7 @@ sleep_time: 0.05
 refresh : True
 start: True
 is_main_worker: True
-min_num_weights: 10
+min_num_weights: 1
 debug: False
 print_interval: 2
 clone_suffix : clone

@@ -1316,8 +1316,12 @@ class c:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-    def kill_port_range(self, start_port = 8501, end_port = 8620, timeout=5, n=0):
-        port_range = [start_port, end_port]
+    def kill_port_range(self, start_port = None, end_port = None, timeout=5, n=0):
+        if start_port != None and end_port != None:
+            port_range = [start_port, end_port]
+        else:
+            port_range = c.port_range()
+        
         if n > 0:
             port_range = [start_port, start_port + n]
         assert isinstance(port_range[0], int), 'port_range must be a list of ints'
@@ -2651,7 +2655,7 @@ class c:
               module:Any = None ,
               kwargs:dict = None,  # kwargs for the module
               tag:str=None,
-              network = 'local',
+              server_network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
@@ -2677,7 +2681,7 @@ class c:
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
-            address = c.get_address(name, network=network)
+            address = c.get_address(name, network=server_network)
             port = int(address.split(':')[-1]) if address else c.free_port()
 
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
@@ -2688,8 +2692,6 @@ class c:
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
-            if wait_for_server:
-                cls.wait_for_server(name, network=network)
             address = c.ip() + ':' + str(remote_kwargs['port'])
             return {'success':True, 
                     'name': name, 
@@ -2712,17 +2714,17 @@ class c:
         self.server_name = name
         self.tag = tag
 
-        address = c.get_address(name, network=network)
+        address = c.get_address(name, network=server_network)
         if address != None and ':' in address:
             port = address.split(':')[-1]   
 
-        if c.server_exists(server_name, network=network) and not refresh: 
+        if c.server_exists(server_name, network=server_network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
 
         c.module(f'server')(module=self, 
                                           name=name, 
                                           port=port, 
-                                          network=network, 
+                                          network=server_network, 
                                           max_workers=max_workers, 
                                           public=public, 
                                           key=key)
@@ -3158,42 +3160,16 @@ class c:
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
 
-    @classmethod
-    def register(cls,  
-                 module = 'vali::commune',
-                 tag:str = None,
-                 key : str = None,
-                 name = None,
-                 stake : int = None,
-                 subnet:str = 'commune',
-                 netuid = None,
-                 refresh:bool =False,
-                 address = None,
-                 wait_for_server:bool = False,
-                 module_key = None,
-                 **kwargs ):
-        name = name or cls.resolve_server_name(module=module, tag=tag)
-        if '::' in name:
-            module, tag = name.split('::')
-            
-        # resolve module name and tag if they are in the server_name
-        if c.server_exists(module) and not refresh :
-            address = c.get_address(module)
-        else:
-            serve_info =  c.serve(module,
-                                wait_for_server=wait_for_server, 
-                                refresh=refresh,
-                                **kwargs)
-            address = serve_info['address']
+    def register_servers(self, search=None, **kwargs):
+        servers = c.servers(search=search)
+        for s in servers:
+            c.print(f'Registering {s}')
+            c.register(s, name=s, **kwargs)
 
-        response =  c.module('subspace')().register(name=name,
-                                      address=address, 
-                                      subnet=subnet, 
-                                      key=key, 
-                                      stake=stake, 
-                                      netuid = netuid,
-                                      module_key= module_key or c.get_key_address(name))
-        return response
+
+    @classmethod
+    def register(cls,  *args, **kwargs ):
+        return  c.module('subspace')().register(*args, **kwargs)
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -3384,8 +3360,9 @@ class c:
             assert mode in default_modes, f'{mode} not in {default_modes}'
             methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
             
-
-        
+    @classmethod
+    def transfer_multiple(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_multiple(*args, **kwargs)   
 
     @classmethod
     def transfer_fn_code(cls, module1= 'module',
@@ -4713,20 +4690,29 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,module = None, n=2, tag=None, max_workers=10, parallel=True, timeout=20, remote=False,  **kwargs):
+    def fleet(cls,
+            module = None, 
+            n=2, tag=None, 
+            max_workers=10, 
+            parallel=True, 
+            timeout=20, 
+            remote=False,  
+            **kwargs):
+        if '::' in module:
+            module, tag = module.split('::')
+        if isinstance(module, str):
+            module = c.module(module)
         cls = module or cls
-        if isinstance(cls, str):
-            cls = c.module(module)
-        c.update()
+
         if tag == None:
             tag = ''
 
         if parallel:
             futures = []
             for i in range(n):
-                server_kwargs={'tag':tag + str(i), **kwargs}
-                future = c.submit(cls.serve, kwargs=server_kwargs, timeout=timeout, max_workers=max_workers)
-                futures = futures + [future]
+                f = c.submit(cls.serve, kwargs={'tag':tag + str(i), **kwargs}, 
+                                        timeout=timeout, max_workers=max_workers)
+                futures += [f]
 
             results = []
             for future in  c.as_completed(futures, timeout=timeout):
@@ -4861,6 +4847,10 @@ class c:
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
+
+    @classmethod
+    def mv_key(cls, key:str, new_key:str):
+        return c.module('key').mv_key(key, new_key)
     
     @classmethod
     def determine_type(cls, x):
@@ -5116,16 +5106,6 @@ class c:
         c.ip(update=1)
 
         return {'success': True, 'responses': responses}
-    
-
-    def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
-        t1 = c.timestamp()
-
-        while  True:
-            t2 = c.timestamp()
-            for module, timeout in module2timeout.items():
-                if t2 - t1 > timeout:
-                    c.update(module=module)
 
     @classmethod
     def sync(cls, *args, **kwargs):
@@ -8134,7 +8114,6 @@ class c:
         port_range = c.port_range()
         x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
         return x
-    
 
         
 

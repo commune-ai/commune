@@ -10,6 +10,7 @@ class Tree(c.Module):
     default_trees = [default_tree_path]
     def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
+        c.thread(self.run_loop)
 
     
     @classmethod
@@ -81,6 +82,32 @@ class Tree(c.Module):
             trees = cls.default_trees
         return trees
     
+    @classmethod
+    def tree_hash(cls, *args, **kwargs):
+        tree = cls.tree(*args, **kwargs)
+        tree_hash = c.hash(tree)
+        cls.put('tree_hash', tree_hash)
+        return tree_hash
+
+    @classmethod
+    def old_tree_hash(cls, *args, **kwargs):
+        return cls.get('tree_hash', None)
+
+    @classmethod
+    def has_tree_changed(cls, *args, **kwargs):
+        old_tree_hash = cls.old_tree_hash(*args, **kwargs)
+        new_tree_hash = cls.tree_hash(*args, **kwargs)
+        return old_tree_hash != new_tree_hash
+
+    def run_loop(self, *args, sleep_time=10, **kwargs):
+        while True:
+            c.print('Checking for tree changes')
+            if self.has_tree_changed():
+                c.print('Tree has changed, updating')
+                self.tree(update=True)
+            else:
+                c.print('Tree has not changed')
+            self.sleep(10)
         
     @classmethod
     def add_tree(cls, tree_path:str, **kwargs):

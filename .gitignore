@@ -5,9 +5,6 @@
 *$py.class
 *.pyc
 env/
-# weigths and biases
-wandb/
-
 
 # benchmark results
 benchmarks/results/
@@ -20,9 +17,7 @@ benchmarks/results/*
 *.log
 
 # runs/data/models/logs/~
-data/**
-!data/key.json
-
+./data/**
 
 # C extensions
 *.so

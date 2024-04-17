@@ -9,9 +9,11 @@ class Vali(c.m('vali')):
                  search='subspace', 
                  reference='subspace', 
                  netuid = 0,
-                 network = 'local',
+                 network = 'subspace',
                  **kwargs):
+
         self.init_vali(locals())
+        c.print(self.config)
         self.reference = c.m(reference)()
         self.sync_time = 10
 

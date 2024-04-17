@@ -450,15 +450,21 @@ class Vali(c.Module):
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         is_voting_network = self.is_voting_network()
         key2uid = {}
+        self_uid = None
         if self.config.network in ['subspace']:
+            self_uid =  self.subspace.get_uid(key=self.key.ss58_address, 
+                                                network=self.config.network, 
+                                                netuid=self.config.netuid)
             key2uid = self.subspace.key2uid(netuid=self.config.netuid)
         for info in leaderboard:
             ## valid modules have a weight greater than 0 and a valid ss58_address
             if  isinstance(info, dict) and 'ss58_address' in info:
                 if (info['ss58_address'] in key2uid and info['w'] >= 0) or not is_voting_network:
-                    votes['keys'] += [info['ss58_address']]
-                    votes['weights'] += [info['w']]
-                    votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
+                    uid = key2uid.get(info['ss58_address'], -1)
+                    if self_uid == None or uid != self_uid:
+                        votes['keys'] += [info['ss58_address']]
+                        votes['weights'] += [info['w']]
+                        votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
         return votes
     
@@ -468,11 +474,15 @@ class Vali(c.Module):
 
     def set_weights(self, 
                     uids:List[int]=None, 
-                    weights: List[float]=None, **kwargs):
+                    weights: List[float]=None, 
+                    **kwargs):
+        self.sync()
         if uids == None or weights == None:
             votes =self.votes() 
             weights = votes['weights']
             uids = votes['uids']
+
+
 
         if len(uids) < self.config.min_num_weights:
             return {'success': False, 
