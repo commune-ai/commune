@@ -1994,34 +1994,7 @@ class Subspace(c.Module):
             
         return archive_history
         
-    
-    
-    
-    
-    def key_usage_path(self, key:str):
-        key_ss58 = self.resolve_key_ss58(key)
-        return f'key_usage/{key_ss58}'
 
-    def key_used(self, key:str):
-        return self.exists(self.key_usage_path(key))
-    
-    def use_key(self, key:str):
-        return self.put(self.key_usage_path(key), c.time())
-    
-    def unuse_key(self, key:str):
-        return self.rm(self.key_usage_path(key))
-    
-    def test_key_usage(self):
-        key_path = 'test_key_usage'
-        c.add_key(key_path)
-        self.use_key(key_path)
-        assert self.key_used(key_path)
-        self.unuse_key(key_path)
-        assert not self.key_used(key_path)
-        c.rm_key('test_key_usage')
-        assert not c.key_exists(key_path)
-        return {'success': True, 'msg': f'Tested key usage for {key_path}'}
-        
 
     def get_nonce(self, key:str=None, network=None, **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
@@ -2127,6 +2100,9 @@ class Subspace(c.Module):
     def storage_functions(self, network=network, block_hash = None):
         self.resolve_network(network)
         return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
+    
+    
+    
     storage_fns = storage_functions
         
 
@@ -2235,8 +2211,6 @@ class Subspace(c.Module):
             c.print(k, state['balances'].get(addy, 0))
         
 
-
-
     def test_balance(self, network:str = network, n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10, key=None):
         key = c.get_key(key)
 
@@ -2279,23 +2253,6 @@ class Subspace(c.Module):
     WALLET VIBES
     
     """
-    
-    
-    """
-    #########################################
-                    CHAIN LAND
-    #########################################
-    
-    """
-
-    def chain(self, *args, **kwargs):
-        return c.module('subspace.chain')(*args, **kwargs)
-    
-    def chain_config(self, *args, **kwargs):
-        return self.chain(*args, **kwargs).config
-    
-    def chains(self, *args, **kwargs):
-        return self.chain(*args, **kwargs).chains()
 
     """
     #########################################
@@ -2340,9 +2297,6 @@ class Subspace(c.Module):
         else:
             serve_info =  c.serve(module, name=name, **kwargs)
             address = serve_info['address']
-
-
-
 
         network =self.resolve_network(network)
         key = self.resolve_key(key)
@@ -2624,104 +2578,6 @@ class Subspace(c.Module):
                                      key=key, 
                                      nonce=nonce)
 
-
-        return response
-
-
-
-    #################
-    #### Serving ####
-    #################
-    def vote_proposal(
-        self,
-        proposal_id: int = None,
-        key: str = None,
-        network = 'main',
-        nonce = None,
-        netuid = 0,
-        **params,
-
-    ) -> bool:
-
-        self.resolve_network(network)
-        # remove the params that are the same as the module info
-        params = {
-            'proposal_id': proposal_id,
-            'netuid': netuid,
-        }
-
-        response = self.compose_call(fn='add_subnet_proposal',
-                                     params=params, 
-                                     key=key, 
-                                     nonce=nonce)
-
-        return response
-
-    #################
-    #### Serving ####
-    #################
-    def update_global(
-        self,
-        key: str = None,
-        network : str = 'main',
-        sudo:  bool = True,
-        **params,
-    ) -> bool:
-
-        key = self.resolve_key(key)
-        network = self.resolve_network(network)
-        global_params = self.global_params(fmt='nanos')
-        global_params.update(params)
-        params = global_params
-        for k,v in params.items():
-            if isinstance(v, str):
-                params[k] = v.encode('utf-8')
-        # this is a sudo call
-        return self.compose_call(fn='update_global',
-                                     params=params, 
-                                     key=key, 
-                                     sudo=sudo)
-
-
-
-
-
-    #################
-    #### set_code ####
-    #################
-    def set_code(
-        self,
-        wasm_file_path = None,
-        key: str = None,
-        network = network,
-    ) -> bool:
-
-        if wasm_file_path == None:
-            wasm_file_path = self.wasm_file_path()
-
-        assert os.path.exists(wasm_file_path), f'Wasm file not found at {wasm_file_path}'
-
-        self.resolve_network(network)
-        key = self.resolve_key(key)
-
-        # Replace with the path to your compiled WASM file       
-        with open(wasm_file_path, 'rb') as file:
-            wasm_binary = file.read()
-            wasm_hex = wasm_binary.hex()
-
-        code = '0x' + wasm_hex
-
-        # Construct the extrinsic
-        response = self.compose_call(
-            module='System',
-            fn='set_code',
-            params={
-                'code': code.encode('utf-8')
-            },
-            unchecked_weight=True,
-            sudo = True,
-            key=key
-        )
 
         return response
 
@@ -3171,10 +3027,11 @@ class Subspace(c.Module):
     
     
     
-    def my_keys(self, *args, search=None, netuid=0, **kwargs):
+    def my_keys(self, search=None, netuid=0, max_age=1000, update=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        keys = self.keys(*args,netuid=netuid, **kwargs)
-        key2address = c.key2address()
+
+        keys = self.keys(netuid=netuid, max_age=max_age, update=update, **kwargs)
+        key2address = c.key2address(search=search, max_age=max_age, update=update)
         if search != None:
             key2address = {k: v for k,v in key2address.items() if search in k}
         addresses = list(key2address.values())
@@ -3389,20 +3246,20 @@ class Subspace(c.Module):
             return  {k.params[0]: v['data']['free'].value for k, v in results}
         key2balance = {}
         progress = c.progress(num_batches)
+
+
         for batch_keys in batched_keys:
             fails = 0
             while fails < max_trials:
+                if fails > max_trials:
+                    raise Exception(f'Error getting balances {fails}/{max_trials}')
                 try:
                     result = batch_fn(batch_keys)
                     progress.update(1)
-                    break
+                    break # if successful, break
                 except Exception as e:
                     fails += 1
-                    if fails == max_trials:
-                        raise e
                     c.print(f'Error getting balances {fails}/{max_trials} {e}')
-                
-
             if c.is_error(result):
                 c.print(result, color='red')
             else:
@@ -3415,34 +3272,6 @@ class Subspace(c.Module):
             key2balance = {address2key[k]: v for k,v in key2balance.items()}
         return key2balance
         
-
-    def clean_keys(self, 
-                   network='main', 
-                   min_value=1,
-                   update = True):
-        """
-        description:
-            Removes keys with a value less than min_value
-        params:
-            network: str = 'main', # network to remove keys from
-            min_value: int = 1, # min value of the key
-            update: bool = True, # update the key2value cache
-            max_age: int = 0 # max age of the key2value cache
-        """
-        key2value= self.key2value(netuid='all', update=update, network=network, fmt='j', min_value=0)
-        address2key = c.address2key()
-        rm_keys = []
-        for k,v in key2value.items():
-            if k in address2key and v < min_value:
-                c.print(f'Removing key {k} with value {v}')
-                c.rm_key(address2key[k])
-                rm_keys += [k]
-        return rm_keys
-
-
-
-        
-
     def registered_servers(self, netuid = 0, network = network,  **kwargs):
         netuid = self.resolve_netuid(netuid)
         network = self.resolve_network(network)
@@ -3456,10 +3285,9 @@ class Subspace(c.Module):
                 registered_keys += [s]
         return registered_keys
 
+    reged  = registered_servers
 
-    reged = reged_servers = registered_servers
-
-    unreged = unreged_servers = unregistered_servers
+    unreged  = unregistered_servers
                
     def key2balance(self, search=None, 
                     batch_size = 64,
@@ -3482,17 +3310,7 @@ class Subspace(c.Module):
         for k,v in key2balance.items():
             key2balance[k] = self.format_amount(v, fmt=fmt)
         return key2balance
-
-        
-
-        key2balances = key2balance
-
-        # key2balances = {key:balances[address] for address,key in address2key.items() if address in balances}
-        # if min_value > 0:
-        #     key2balances = {k:v for k,v in key2balances.items() if v > min_value}
-        # return key2balances
     
-
     def my_value(
                  self, *args, **kwargs
                  ):
@@ -3500,56 +3318,12 @@ class Subspace(c.Module):
     
     my_supply   = my_value
 
-    def subnet2stake(self, network=None, update=False) -> dict:
-        subnet2stake = {}
-        for subnet_name in self.subnet_names(network=network):
-            c.print(f'Getting stake for subnet {subnet_name}')
-            subnet2stake[subnet_name] = self.my_total_stake(network=network, netuid=subnet_name , update=update)
-        return subnet2stake
-
     def my_total_stake(self, netuid='all', network = 'main', fmt='j', update=False):
         my_stake_to = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, update=update)
         return sum([sum(list(v.values())) for k,v in my_stake_to.items()])
-    
-
-
-
-
-    def staker2stake(self,  update=False, network='main', fmt='j', local=False):
-        staker2netuid2stake = self.staker2netuid2stake(update=update, network=network, fmt=fmt, local=local)
-        staker2stake = {}
-        for staker, netuid2stake in staker2netuid2stake.items():
-            if staker not in staker2stake:
-                staker2stake[staker] = 0
-            
-        return staker2stake
-    
-
-    def staker2netuid2stake(self,  update=False, network='main', fmt='j', local=False, **kwargs):
-        stake_to = self.query_map("StakeTo", update=update, network=network, **kwargs)
-        staker2netuid2stake = {}
-        for netuid , stake_to_subnet in stake_to.items():
-            for staker, stake_tuples in stake_to_subnet.items():
-                staker2netuid2stake[staker] = staker2netuid2stake.get(staker, {})
-                staker2netuid2stake[staker][netuid] = staker2netuid2stake[staker].get(netuid, [])
-                staker2netuid2stake[staker][netuid] = sum(list(map(lambda x: x[-1], stake_tuples )))
-                staker2netuid2stake[staker][netuid] +=  self.format_amount(staker2netuid2stake[staker][netuid],fmt=fmt)
-        
-        if local:
-            address2key = c.address2key()
-            staker2netuid2stake = {address:staker2netuid2stake.get(address,{}) for address in address2key.keys()}
-
-        return staker2netuid2stake
-    
-
- 
-    def my_total_balance(self, network = None, fmt='j', update=False):
-        return sum(self.key2balance(network=network, fmt=fmt, update=update ).values())
-
 
     def check_valis(self, **kwargs):
         return self.check_servers(search='vali', **kwargs)
-    
     
     def check_servers(self, search='vali',update:bool=False, netuid=0, min_lag=100, remote=False, **kwargs):
         if remote:
