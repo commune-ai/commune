@@ -208,6 +208,45 @@ class Client(c.Module):
         else:
             return self.loop.run_until_complete(forward_future)
         
+
+
+    
+    
+    @classmethod
+    def call_search(cls, 
+                    search : str, *args,
+                timeout : int = 10,
+                network:str = 'local',
+                key:str = None,
+                kwargs = None,
+                return_future:bool = False,
+                **extra_kwargs) -> None:
+        if '/' in search:
+            search, fn = search.split('/')
+        namespace = c.namespace(search=search, network=network)
+        future2module = {}
+        for module, address in namespace.items():
+            c.print(args, kwargs, extra_kwargs)
+            future = c.submit(c.call,
+                      
+                               kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
+                                         'network': network, 'key': key, 
+                                        'args' : args,
+                                         'kwargs': kwargs, 'return_future': return_future, 
+                                         **extra_kwargs} )
+            future2module[future] = module
+        futures = list(future2module.keys())
+        result = {}
+        progress_bar = c.tqdm(len(futures))
+        for future in c.as_completed(futures):
+            module = future2module.pop(future)
+            futures.remove(future)
+            progress_bar.update(1)
+            result[module] = future.result()
+
+        return result
+            
+
         
     __call__ = forward
 

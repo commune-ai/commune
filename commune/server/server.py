@@ -12,16 +12,15 @@ class Server(c.Module):
         module: Union[c.Module, object] = None,
         name: str = None,
         network:str = 'local',
-        ip = '0.0.0.0',
         port: Optional[int] = None,
         sse: bool = True,
         chunk_size: int = 1000,
-        max_request_staleness: int = 60, 
+        max_request_staleness: int = 2, 
         key = None,
         verbose: bool = False,
         timeout: int = 256,
         access_module: str = 'server.access',
-        public: bool = False,
+        free: bool = False,
         serializer: str = 'serializer',
         save_history:bool= True,
         history_path:str = None , 
@@ -33,10 +32,13 @@ class Server(c.Module):
         ) -> 'Server':
 
         if new_loop:
-            self.loop = c.new_event_loop(nest_asyncio=nest_asyncio)
-   
-        self.serializer = c.module(serializer)()
-        self.set_address(ip=ip, port=port)
+            c.new_event_loop(nest_asyncio=nest_asyncio)
+
+        self.ip = c.ip()
+        while port != None and c.port_used(port):
+            port = port or c.free_port()
+        self.port = port
+        self.address = f"http://{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.network = network
         self.verbose = verbose
@@ -44,53 +46,43 @@ class Server(c.Module):
         self.save_history = save_history
         self.chunk_size = chunk_size
         self.timeout = timeout
-        self.public = public
-        if module == None:
-            module = 'module'
+        self.free = free
+        self.key = key
+        self.serializer = c.module(serializer)()
+        self.set_module(module)
+        self.access_module = c.module(access_module)(module=self.module)  
+        self.set_history_path(history_path)
+        self.set_api(port=self.port)
 
+    def set_module(self, module, key=None):
+
+        module = module or 'module'
         if isinstance(module, str):
             module = c.module(module)()
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        whitelist = module.whitelist if hasattr(module, 'whitelist') else module.functions(include_parents=False)
+        # Resolve the blacklist
+        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
 
-        if name == None:
-            if hasattr(module, 'server_name'):
-                name = module.server_name
-            else:
-                name = module.__class__.__name__
-        self.name = name
+        self.whitelist = list(set(whitelist + c.whitelist))
+        self.blacklist = list(set(blacklist + c.blacklist))
+        self.name = module.server_name
+        self.schema = module.schema() 
+        self.module = module 
 
-        if hasattr(module, 'schema'):
-            self.schema = module.schema()
-        else:
-            self.schema = c.schema(module)
-
+        module.whitelist = whitelist
+        module.blacklist = blacklist
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
         module.network = self.network
         module.subnet = self.subnet
 
-        # RESOLVE THE WHITELIST AND BLACKLIST
-        whitelist = module.whitelist if hasattr(module, 'whitelist') else module.functions(include_parents=False)
-        whitelist = list(set(whitelist + c.whitelist))
-        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
-        blacklist = list(set(blacklist + c.blacklist))
-        module.whitelist = whitelist
-        module.blacklist = blacklist
-        self.module = module 
+ 
 
+        return {'success': True, 'msg': f'Set module {module}'}
 
-        self.access_module = c.module(access_module)(module=self.module)  
-
-        self.set_history_path(history_path)
-        if mnemonic != None:
-            c.add_key(self.name, mnemonic)
-        self.set_key(key)
-        self.set_api(ip=self.ip, port=self.port)
-
-
-
-    def set_key(self, key):
-        if key == None:
+        if self.key == None:
             key = c.get_key(self.name)
         if isinstance(key, str):
             key = c.get_key(key)  
@@ -98,16 +90,6 @@ class Server(c.Module):
         c.print(f'🔑 Key: {self.key} 🔑\033')
 
 
-    def set_address(self,ip='0.0.0.0', port:int=None):
-        if '://' in ip:
-            assert ip.startswith('http'), f"Invalid ip {ip}"
-            ip = ip.split('://')[1]
-            
-        self.ip = ip
-        self.port = int(port) if port != None else c.free_port()
-        while c.port_used(self.port):
-            self.port = c.free_port()
-        self.address = f"http://{self.ip}:{self.port}"
     def forward(self, fn:str, input:dict):
         """
         fn (str): the function to call
@@ -127,12 +109,7 @@ class Server(c.Module):
         try:
             input['fn'] = fn
             # you can verify the input with the server key class
-            if self.public:
-                pass
-            else:
-                assert self.key.verify(input), f"Data not signed with correct key"
-
-
+            assert self.key.verify(input), f"Data not signed with correct key"
             if 'args' in input and 'kwargs' in input:
                 input['data'] = {'args': input['args'], 
                                  'kwargs': input['kwargs'], 
@@ -197,8 +174,6 @@ class Server(c.Module):
         'address': input['address'],
         'args': input['data']['args'],
         'kwargs': input['data']['kwargs'],
-        
-
         }
         if self.save_history:
 
@@ -216,9 +191,8 @@ class Server(c.Module):
             self.add_history(output)
 
         return result
-    def set_api(self, ip:str = '0.0.0.0', port:int = 8888):
-        ip = self.ip if ip == None else ip
-        port = self.port if port == None else port
+
+    def set_api(self, port:int = 8888):
         
         self.app = FastAPI()
         self.app.add_middleware(
@@ -236,8 +210,8 @@ class Server(c.Module):
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
             c.register_server(name=self.name, address = self.address, network=self.network)
-            c.print(f'\033🚀 Registered {self.name} --> {self.ip}:{self.port} 🚀\033')
-            uvicorn.run(self.app, host=c.default_ip, port=self.port, loop="asyncio")
+            c.print(f'\033🚀 Registered {self.name} --> {self.address} 🚀\033')
+            uvicorn.run(self.app, host='0.0.0.0', port=self.port, loop="asyncio")
         except Exception as e:
             c.print(e, color='red')
             c.deregister_server(self.name, network=self.network)
@@ -319,9 +293,6 @@ class Server(c.Module):
         module = c.connect(module_name)
         module.put("hey",1)
         c.kill(module_name)
-
-
-
 
 
     # HISTORY 

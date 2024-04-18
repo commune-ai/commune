@@ -177,47 +177,9 @@ class c:
 
 
     
-    
     @classmethod
-    def call_search(cls, 
-                    search : str, 
-                fn:str = None, *args,
-                timeout : int = 10,
-                network:str = 'local',
-                key:str = None,
-                kwargs = None,
-                return_future:bool = False,
-                **extra_kwargs) -> None:
-        if '/' in search:
-            args = [fn] + list(args)
-            search, fn = search.split('/')
-            module = search 
-        namespace = c.namespace(search, network=network)
-
-        future2module = {}
-
-
-        for module, address in namespace.items():
-            c.print(args, kwargs)
-            future = c.submit(c.call,
-                              args = args,
-                               kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
-                                         'network': network, 'key': key, 
-                                         'kwargs': kwargs, 'return_future': return_future, 
-                                         **extra_kwargs} )
-            future2module[future] = module
-        futures = list(future2module.keys())
-        result = {}
-        progress_bar = c.tqdm(len(futures))
-        for future in c.as_completed(futures):
-            module = future2module.pop(future)
-            futures.remove(future)
-            progress_bar.update(1)
-            result[module] = future.result()
-
-        return result
-            
-
+    def call_search(cls,*args, **kwargs) -> None:
+        return c.m('client').call_search(*args, **kwargs)
 
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -2663,7 +2625,7 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               tag_seperator:str='::',
               max_workers:int = None,
-              public: bool = False,
+              free: bool = False,
               mnemonic = None, # mnemonic for the server
               key = None,
               config_keys = ['network'],
@@ -2697,13 +2659,10 @@ class c:
                     'address':address, 
                     'kwargs':kwargs
                     }        
-        
         module_class = c.module(module)
         kwargs.update(extra_kwargs)
-        
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
-
         if module_class.is_arg_key_valid('tag'):
             kwargs['tag'] = tag
         if module_class.is_arg_key_valid('server_name'):
@@ -2725,7 +2684,7 @@ class c:
                                           port=port, 
                                           network=server_network, 
                                           max_workers=max_workers, 
-                                          public=public, 
+                                          free=free, 
                                           key=key)
 
         return  {'success':True, 
@@ -3203,9 +3162,9 @@ class c:
         return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
                 
     @classmethod
-    def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
-        return  c.module('pm2').list(verbose=verbose)
-    pm2ls  = pm2_list
+    def pm2_servers(cls, search=None,  verbose:bool = False) -> List[str]:
+        return  c.module('pm2').servers(verbose=verbose)
+    pm2ls  = pm2_list = pm2_servers
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
     @classmethod
@@ -4717,41 +4676,31 @@ class c:
     @classmethod
     def fleet(cls,
             module = None, 
-            n=2, tag=None, 
+            n=2, 
+            tag=None, 
             max_workers=10, 
             parallel=True, 
             timeout=20, 
             remote=False,  
             **kwargs):
-        if '::' in module:
-            module, tag = module.split('::')
-        if isinstance(module, str):
-            module = c.module(module)
-        cls = module or cls
+
+        if module == None:
+            module = cls.module_path()
 
         if tag == None:
             tag = ''
 
-        if parallel:
-            futures = []
-            for i in range(n):
-                f = c.submit(cls.serve, kwargs={'tag':tag + str(i), **kwargs}, 
-                                        timeout=timeout, max_workers=max_workers)
-                futures += [f]
-
-            results = []
-            for future in  c.as_completed(futures, timeout=timeout):
-                result = future.result()
-                c.print(result)
-                results += [result]
-
-        else:
-            results = []
-            for i in range(n):
-                server_kwargs={'tag':tag + str(i), **kwargs}
-                result = cls.serve(**server_kwargs)
-                c.print(result)
-                results = results + [result]
+        futures = []
+        for i in range(n):
+            f = c.submit(c.serve,  
+                            kwargs={'module': module, 'tag':tag + str(i), **kwargs}, 
+                            timeout=timeout)
+            futures += [f]
+        results = []
+        for future in  c.as_completed(futures, timeout=timeout):
+            result = future.result()
+            c.print(result)
+            results += [result]
 
         return results
         
@@ -7733,15 +7682,6 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.print(m)
             c.restart(m)
-
-    @classmethod
-    def restart_many(cls, search:str = None, network = None, **kwargs):
-        t1 = c.time()
-        servers = c.pm2ls(search)
-        c.print(f'{c.time()-t1}')
-        for m in servers:
-            c.restart(m, **kwargs)
-        return servers
 
         
     
