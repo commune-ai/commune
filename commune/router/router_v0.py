@@ -248,7 +248,7 @@ class Router(c.Module):
     @classmethod
     def test(cls, tag=None):
         test_module_name = 'test_module'
-        module = c.serve(server_name=test_module_name, wait_for_server=True)
+        module = c.serve(server_name=test_module_name)
         output =  cls().call(module=test_module_name, fn='info', tag=tag)
         c.print(output)
         assert isinstance( output, dict) and 'name' in output 

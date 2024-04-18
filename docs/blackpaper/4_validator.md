@@ -11,7 +11,7 @@ c.vote(module=['model.0', 'model.2'], weights=[0,1], netuid=10)
 or
 c.vote(module=['5E2SmnsAiciqU67pUT3PcpdUL623HccjarKeRv2NhZA2zNES', '5ERLrXrrKPg9k99yp8DuGhop6eajPEgzEED8puFzmtJfyJES'], weights=[0,1], netuid=10)
 or 
-c.vote(module=[0, 2], weights=[0,1], netuid=10)
+c.vote(modules=[0, 2], weights=[0,1], netuid=10, key='registered_key_name')
 ```
 
 The weights can be changed at anytime and are calculated every tempo blocks. 

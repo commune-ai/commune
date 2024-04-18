@@ -8,7 +8,7 @@ class PM2(c.Module):
    
     @classmethod
     def restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        list = cls.list()
+        list = cls.servers()
         if name in list:
             rm_list = [name]
         else:
@@ -27,7 +27,7 @@ class PM2(c.Module):
        
     @classmethod
     def restart_prefix(cls, name:str = None, verbose:bool=False):
-        list = cls.list()
+        list = cls.servers()
             
         restarted_modules = []
         
@@ -118,7 +118,7 @@ class PM2(c.Module):
     @classmethod
     def kill_many(cls, search=None, verbose:bool = True, timeout=10):
         futures = []
-        for name in cls.list(search=search):
+        for name in cls.servers(search=search):
             c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
             f = c.submit(cls.kill, kwargs=dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
             futures.append(f)
@@ -129,12 +129,11 @@ class PM2(c.Module):
         return cls.kill_many(search=None, verbose=verbose, timeout=timeout)
                 
     @classmethod
-    def list(cls, search=None,  verbose:bool = False) -> List[str]:
+    def servers(cls, search=None,  verbose:bool = False) -> List[str]:
         output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n'):
             if '  default  ' in line:
-
                 server_name = line.split('default')[0].strip()
                 server_name = server_name.split(' ')[-1].strip()
                 c.print('errored' in line, server_name)
@@ -149,12 +148,13 @@ class PM2(c.Module):
             module_list = [m for m in module_list if search_true(m)]
                 
         return module_list
+    
 
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
     @classmethod
     def exists(cls, name:str) -> bool:
-        return bool(name in cls.list())
+        return bool(name in cls.servers())
     
     @classmethod
     def start(cls, 
@@ -260,3 +260,18 @@ class PM2(c.Module):
         
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
+
+
+
+
+    @classmethod
+    def restart_many(cls, search:str = None, network = None, **kwargs):
+        t1 = c.time()
+        servers = cls.servers(search)
+        futures = [c.submit(c.restart, kwargs={"name": m, **kwargs}) for m in servers]
+        results = []
+        for f in c.as_completed(futures):
+            result = f.result()
+            c.print(result)
+            results.append(result)
+        return results

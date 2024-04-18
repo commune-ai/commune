@@ -469,7 +469,7 @@ class Vali(c.Module):
     
     @property
     def votes_path(self):
-        return self.storage_path() + f'/votes'
+        return self.storage_path() + f'/votes.json'
 
     def set_weights(self, 
                     uids:List[int]=None, 

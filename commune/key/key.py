@@ -171,6 +171,7 @@ class Keypair(c.Module):
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}', color='red')
             return json.loads(cls.get(path))
+        c.print(f'generating key {path}')
         key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key.path = path
         key_json = key.to_json()
@@ -903,7 +904,6 @@ class Keypair(c.Module):
 
         return json_data
     
-    seperator = "<DATA::SIGNATURE>"
 
 
 
@@ -911,7 +911,7 @@ class Keypair(c.Module):
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
              return_str = False,
-             seperator = None
+             seperator = "<DATA::SIGNATURE>"
              ) -> bytes:
         """
         Creates a signature for given data
@@ -925,7 +925,6 @@ class Keypair(c.Module):
         signature in bytes
 
         """
-        seperator =  seperator or self.seperator
         if not isinstance(data, str):
             data = c.python2str(data)
         if type(data) is ScaleBytes:
@@ -964,11 +963,16 @@ class Keypair(c.Module):
     
     def ticket2address(self, ticket, **kwargs):
         return self.verify(ticket, **kwargs)
+
+    def signature2address(self, sig, **kwargs):
+        return self.verify(sig, return_address=True, **kwargs)
+    sig2addy = signature2address
     
     def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
                return_address = False,
+               seperator = "<DATA::SIGNATURE>",
                ss58_format = 42,
                **kwargs
                ) -> bool:
@@ -987,8 +991,8 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
-        if isinstance(data, str) and self.seperator in data:
-            data, signature = data.split(self.seperator)
+        if isinstance(data, str) and seperator in data:
+            data, signature = data.split(seperator)
 
         data = c.copy(data)
         
@@ -1512,13 +1516,9 @@ class Keypair(c.Module):
         return {'success':True}
 
     def ticket(self, key=None, **kwargs):
-        if key != None:
-            self = c.get_key(key)
-        data = str(c.timestamp())
-        return self.sign(data, return_str=True, **kwargs)
+        return c.module('key.ticket')().create(key=self.key, **kwargs)
 
-    def verify_ticket(self, ticket=None, max_age=1, seperator = None, **kwargs):
-        seperator = seperator or self.seperator
+    def verify_ticket(self, ticket=None, max_age=1, seperator = "<DATA::SIGNATURE>", **kwargs):
         if c.exists(ticket):
             ticket = c.get_text(ticket)
         data = int(ticket.split(seperator)[0])

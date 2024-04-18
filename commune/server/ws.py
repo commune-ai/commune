@@ -248,7 +248,7 @@ class ServerWS(c.Module):
 
     def test(self):
         module_name = 'storage::test'
-        module = c.serve(module_name, wait_for_server=True)
+        module = c.serve(module_name)
         module = c.connect(module_name)
         module.put("hey",1)
         c.kill(module_name)

@@ -1,110 +1,14 @@
 
 Multichain:
 
-We live in a multichain world
-```python
-c.add_token(key='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', #the key of the token
-            supply=1000000, # initial supplys
-            native_tokens=1000 # the initial native tokens 
-            mint_ratio=1, # the number of tokens that are minted when emission enters from a module or a subnet
-            k=1 # the curve ratio on the uniswap curve
-            )
+We live in a multichain world and we intend to build a future towards an economy of many chains. Each chain has its own unique characteristics and serves a specific purpose. The chains are interoperable and can communicate with each other. This allows for a more efficient and scalable system. The chains can be public or private, permissioned or permissionless, and can be customized to meet the needs of different applications.
 
-Token Params
-```python
-{
-    'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w',
-    'token_pool': 51000,
-    'native_pool': 1000,
-    'mint_ratio': 10
-    'k': 1,
-} 
-```
+Inter-Blockchain Communication (IBC): 
 
-The token is now registered inside the chain's Token Storage Mapping the token's address to the balances holders.
+Inter-Blockchain Communication (IBC) is a protocol that allows different blockchains to communicate with each other. This enables the transfer of assets and data between chains, creating a seamless experience for users. IBC is a key component of the multichain ecosystem and is essential for enabling interoperability between chains. Becaue we are a substrate chain, we needed to use the rust implementation of IBC and alter it into a pallet to include into a future runtime upgrade. This runtime upgrade will take place by the end of may 2024 to june 2024.
 
 
-Token State
-```python
+Trustless Bridges for Trustless Liqduidity
 
-{
-    'params': {
-        'key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', # the key of the token
-        'token_pool': 51000, # the balance of the token pool
-        'max_price_ratio': 1.1  # the maximum price ratio before the pool is adjusted
-        'min_price_ratio': 0.9 # the minimum price ratio before the pool is adjustedssss
-        'k': 1, # the curve ratio on the uniswap curve
-    } 
-    'balances': {
-        '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w': 51000
-    },
-    'native_pool_balance': 1000 # the balance of the pool
-}
-}
+Trustless bridges are a key component of the multichain ecosystem. They allow for the transfer of assets between chains without the need for a trusted intermediary. This enables trustless liquidity provision and decentralized trading across chains. Trustless bridges are secure, transparent, and efficient, making them an essential tool for the multichain economy. We have implemented trustless bridges in our multichain ecosystem to enable seamless asset transfer and trading between chains. This allows users to access a wide range of assets and liquidity pools across different chains, creating a more vibrant and diverse ecosystem.
 
-```
-
-Token Parameters
-
-supply : The total supply of tokens. 
-token_pool: The ratio of emissions of native to staked tokens minted
-min_price_ratio: The minimum price ratio before the pool is adjusted
-max_price_ratio: The maximum price ratio before the pool is adjusted
-k: The curve ratio on the uniswap curve
-
-Token Balances
-
-The balances of the token holders are stored in the balances dictionary. The key is the address of the token holder and the value is the balance of the token holder.
-
-Native Pool Balance
-
-The native pool balance is the balance of the native tokens in the pool. This is the balance of the native tokens in the pool.
-
-Minumum Price Ratio
-
-The minimum price ratio is the minimum price ratio before the pool is adjusted. This is the minimum price ratio before the pool is adjusted. If the price hits the minimum price ratio, the token pool is adjusted such that the price is brought back to the minimum price ratio.
-
-Maximum Price Ratio
-
-The maximum price ratio is the maximum price ratio before the pool is adjusted. This is the maximum price ratio before the pool is adjusted. If the price hits the maximum price ratio, the token pool is minted to  adjusted such that the price is brought back to the minimum price ratio.
-
-
-Token Minting from Emissions
-
-If a module or subnet points towards a token address. The mint ratio will direct the tokens towards the emission provider. The stakers will also get the tokens minted in addition to the tokens from the pool. 
-
-
-Native Pool Balance
-
-The native pool balance is the balance of the native tokens in the pool. This is the balance of the native tokens in the pool. 
-
- 
-```python
-
-The following 
-c.swap_tokens(from_token='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w', 
-              to_token='5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w
-              amount=51000)
-{
-    'token_key': '5Fe8eMg6YGDhZUwnnmiarTyNNGACGHeoDTVXez94yGA9mz9w',
-    'token_pool': 51000,
-    'native_pool': 1000,
-    'k': 1
-}
-```
-
-Token Minting from Emissions
-
-If a module or subnet points towards a token address. The mint ratio will direct the tokens towards the emission provider. A module or subnet can connect with one or many tokens which can combine as meta token pools, which are adjusted bundles of token pools. However this part of the project will focus on single tokens per module and subnet.
-
-Connecting a token to a module or subnet
-
-```python
-c.connect_module('module', token='
-
-This will register the token onto the chain
-
-
-c.update_module('module', token_ratio=0.1)
-
-This means 10 percent of the liquidity (0.1) is being directed into the pool while getting the tokens minted in addition to the tokens from the pool. This forces less volitility as it incentivizes volume.
