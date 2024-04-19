@@ -13,6 +13,8 @@ Module Key
 
 Each module is represented as a key which is an sr25519 key. The public key is used to register the module onto the blockchain. The key is used to sign, encrypt,decrypt and verify messages. These keys can also represent other keys on any other chain through transfering its seed entropy to another chain key format. This allows for modules to exist on any chain
 
+![Alt text](image_module_key.png)
+
 For Warning for Anti-Python Peeps
 
 The module is designed from a python class, but this can be implemented in rust, javascript, or any other language, even if they are functional programming languages (via structs). You can think of the module as a class in any language, where it is a collection of functions that change a state. This is the core foundation of the module.
@@ -29,6 +31,9 @@ class Model(c.Module):
         return a + b + self.c
 
 ```
+
+![Alt text](image_module.png)
+
 
 I can serve this as an api which runs in the background 
 
@@ -100,9 +105,16 @@ c add_shortcut wombo w
 {'success': True, 'msg': 'added shortcut (wombo -> w)'}
 
 
+Namespaces
+
+Namespaces are a way to organize modules. Each namespace is a collection of modules that associates. To see the namespace of a network
+
+```python
+c.namespace(network='local')
+```
+```bash
+{'subnet.add.subnet.vali': '0.0.0.0:50214', 'subnet.vali::0': '0.0.0.0:50086', 'vali': '0.0.0.0:50204'}
+```
 
 
-
-
-Fo
 

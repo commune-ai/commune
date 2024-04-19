@@ -37,4 +37,4 @@ reward = emission * (1 - delegation_fee) * (stake / total_stake)
 
 The reward is then added to the stake of the module. The total stake is the sum of all stakes on the module. The delegation_fee is the fee the module takes from the reward. The emission is the total emission of the module.
 
-![Alt text](image_staking_rewards.png)
+![Alt text](image_stake_rewards.png)
