@@ -4553,6 +4553,11 @@ class c:
         return c.module('key').add_key(key, *args, **kwargs)
     
     @classmethod
+    def new_key(cls,  *args,  **kwargs):
+        return c.module('key').new_key( *args, **kwargs)
+    
+
+    @classmethod
     def save_keys(cls, *args,  **kwargs):
         return c.module('key').save_keys(*args, **kwargs)
     savemems = savekeys = save_keys
