@@ -8,7 +8,7 @@ class Storage(c.Module):
     replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()

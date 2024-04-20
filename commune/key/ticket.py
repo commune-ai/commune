@@ -14,7 +14,6 @@ class Ticket(c.Module):
         key = c.get_key(key)
         return key.verify(data=timestamp, signature=signature, seperator=seperator)
 
-
     def test(self):
         key = c.get_key('test')
         ticket = self.create(key)

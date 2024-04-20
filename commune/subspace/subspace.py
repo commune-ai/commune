@@ -2045,7 +2045,7 @@ class Subspace(c.Module):
               network = network,
               df:bool=True, 
               update:bool = False ,  
-              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'vote_staleness', 'serving'],
+              features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'vote_staleness', 'serving', 'address'],
               sort_features = ['emission', 'stake'],
               fmt : str = 'j',
               modules = None,
@@ -3345,12 +3345,17 @@ class Subspace(c.Module):
         for module, stats in module2stats.items():
             # check if the module is serving
             lag = stats['vote_staleness']
+            port = int(stats['address'].split(':')[-1])
             if not c.server_exists(module) or lag > min_lag:
-                response  = c.serve(module)
-            else:
-                response = f"{module} is already serving or has a lag of {lag} blocks but less than {min_lag} blocks"
-            response_batch[module] = response
+                c.print(f"Server {module} is not serving or has a lag of {lag} > {min_lag}")
+                response_batch[module]  = c.submit(c.serve, kwargs=dict(module=module, network=f'subspace.{netuid}', port=port))
 
+        futures = list(response_batch.values())
+        future2key = {f: k for k,f in response_batch.items()}
+        for f in c.as_completed(futures):
+            key = future2key[f]
+            c.print(f.result())
+            response_batch[key] = f.result()
         return response_batch
 
 

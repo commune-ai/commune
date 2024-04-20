@@ -35,8 +35,9 @@ class Server(c.Module):
             c.new_event_loop(nest_asyncio=nest_asyncio)
 
         self.ip = c.ip()
-        while port != None and c.port_used(port):
-            port = port or c.free_port()
+        port = port or c.free_port()
+        while c.port_used(port):
+            port =  c.free_port()
         self.port = port
         self.address = f"http://{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness

@@ -2633,6 +2633,8 @@ class c:
               ):
         if c.is_module(module):
             cls = module
+        if module == None:
+            module = cls.module_path()
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
         name = server_name or name # name of the server if None, it will be the module name

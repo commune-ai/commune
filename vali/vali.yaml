@@ -9,8 +9,10 @@ sleep_interval: 5
 sample_sleep_interval: 0.1
 initial_sleep : 1
 search: null
-max_age: 3600
+max_age_info: 3600
+max_leaderboard_age: 3600
 vote: True
+subnet : null
 fn : null
 
 # score
@@ -35,10 +37,10 @@ vote_tag : null
 
 # workers
 mode: thread
-batch_size: 32 # the batch size for the worker
+batch_size: 64 # the batch size for the worker
 workers: 1 # the number of workers
 threads_per_worker: 32
-timeout: 3
+timeout: 8
 sleep_time: 0.05
 refresh : True
 start: True

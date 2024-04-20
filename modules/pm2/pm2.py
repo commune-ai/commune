@@ -100,7 +100,6 @@ class PM2(c.Module):
                 path = f'{cls.dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, tail=tail)
-                    c.print(text)
                 except Exception as e:
                     c.print(e)
                     continue
@@ -136,7 +135,6 @@ class PM2(c.Module):
             if '  default  ' in line:
                 server_name = line.split('default')[0].strip()
                 server_name = server_name.split(' ')[-1].strip()
-                c.print('errored' in line, server_name)
                 if 'errored' in line:
                     cls.kill(server_name, verbose=True)
                     continue
