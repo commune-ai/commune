@@ -11,7 +11,9 @@ services:
       - ~/.commune:/config/.commune
       - ~/.commune:/root/.commune
       - ./:/commune
-      #- /var/run/docker.sock:/var/run/docker.sock #Nuclear option
+      - /var/run/docker.sock:/var/run/docker.sock #Nuclear option
     ports:
       - 50050-50250:50050-50250
+      # - 8501-8511:8501-8511
+
     restart: unless-stopped

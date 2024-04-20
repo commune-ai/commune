@@ -1,8 +1,6 @@
 import commune as c
 
 class Loop(c.Module):
-    def __init__(self):
-        
 
     def call(self, x:int = 1, y:int = 2) -> int:
         c.print(self.config)
@@ -10,10 +8,18 @@ class Loop(c.Module):
         return x + y
     
 
-    def dashboard(self):
+    def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
+        t1 = c.timestamp()
+        while  True:
+            t2 = c.timestamp()
+            for module, timeout in module2timeout.items():
+                if t2 - t1 > timeout:
+                    c.update(module=module)
+
+    def app(self):
         import streamlit as st
 
-        loops = c.loops()
+        loops = self.loops()
         modules = ['module', 'subspace', 'remote']
         option = st.selectbox('Select a Loop', modules, modules.index('module'), key=f'loop.option')
         if option == 'module':
@@ -32,4 +38,5 @@ class Loop(c.Module):
             raise Exception(f'Invalid option {option}')
 
 
+Loop.run(__name__)
     
