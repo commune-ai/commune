@@ -222,16 +222,7 @@ class Vali(c.Module):
                      fn : str = None,
                      max_age: int = 1000, **kwargs):
         
-        if self.network_staleness < self.config.sync_interval and (network == self.network and network != None):
-            return {'msg': 'Alredy Synced network Within Interval', 
-                    'staleness': self.network_staleness(), 
-                    'sync_interval': self.config.sync_interval,
-                    'network': self.config.network, 
-                    'subnet': self.config.netuid, 
-                    'n': self.n,
-                    'fn': self.config.fn,
-                    'search': self.config.search,
-                    }
+   
 
         config = self.config
         # name2address / namespace
@@ -242,6 +233,16 @@ class Vali(c.Module):
         config.fn = fn or config.fn        
         config.max_age_network = max_age or self.config.max_age_network
 
+     if self.network_staleness < config.sync_interval and (network == config.network and config.network != None):
+            return {'msg': 'Alredy Synced network Within Interval', 
+                    'staleness': self.network_staleness(), 
+                    'sync_interval': self.config.sync_interval,
+                    'network': self.config.network, 
+                    'subnet': self.config.netuid, 
+                    'n': self.n,
+                    'fn': self.config.fn,
+                    'search': self.config.search,
+                    }
         self.last_sync_time = c.time()
         if self.network_staleness() > config.max_age_network:
             return {'msg': 'Alredy Synced network Within Interval', 
