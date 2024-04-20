@@ -233,7 +233,7 @@ class Vali(c.Module):
         config.fn = fn or config.fn        
         config.max_age_network = max_age or self.config.max_age_network
 
-     if self.network_staleness < config.sync_interval and (network == config.network and config.network != None):
+        if self.network_staleness() < config.sync_interval:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'staleness': self.network_staleness(), 
                     'sync_interval': self.config.sync_interval,
