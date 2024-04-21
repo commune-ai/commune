@@ -1,10 +1,5 @@
 import commune as c
 
-servers = c.servers('subspace::')
-timeout=100
-subnet = 'subspace'
-c.print(c.transfer_multiple(destinations=servers, amounts=50))
-
 # futures = []
 # for s in servers:
 #     c.print(f"Registering {s} with key {s}")
