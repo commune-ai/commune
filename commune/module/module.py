@@ -96,7 +96,7 @@ class c:
             config = kwargs.pop('config')
 
         # get the config
-        config =  self.config(config=config,kwargs=kwargs, to_munch=to_munch)
+        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
 
 
@@ -1836,15 +1836,18 @@ class c:
 
     
     @classmethod
-    def locals2kwargs(cls,locals_dict:dict) -> dict:
-        locals_dict = locals_dict or {}
-        kwargs = locals_dict.pop('kwargs', {}) or {}
-        assert isinstance(locals_dict, dict)
-        kwargs.update(locals_dict)
+    def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
+        kwargs = locals_dict or {}
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
+
         assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
+
+        # These lines are needed to remove the self and cls from the locals_dict
+        for k in kwargs_keys:
+            kwargs.update( locals_dict.pop(k, {}) or {})
+
         return kwargs
     
 
@@ -2553,8 +2556,8 @@ class c:
         return c.module("subspace")().subnet_params(*args, **kwargs)
 
     @classmethod
-    def my_subnet(cls, *args, **kwargs):
-        return c.module("subspace")().subnet_params(*args, **kwargs)
+    def my_subnets(cls, *args, **kwargs):
+        return c.module("subspace")().my_subnets(*args, **kwargs)
     
     @classmethod
     def global_params(cls, *args, **kwargs):
@@ -2564,9 +2567,6 @@ class c:
     def subnet_names(cls, *args, **kwargs):
         return c.module("subspace")().subnet_names(*args, **kwargs)
     
-    
-    
-
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
         namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
@@ -2665,9 +2665,9 @@ class c:
         kwargs.update(extra_kwargs)
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
-        if module_class.is_arg_key_valid('tag'):
+        if module_class.is_arg_key_valid('tag', fn='__init__'):
             kwargs['tag'] = tag
-        if module_class.is_arg_key_valid('server_name'):
+        if module_class.is_arg_key_valid('server_name', fn='__init__'):
             kwargs['server_name'] = server_name
 
         self = module_class(**kwargs)
@@ -7060,10 +7060,18 @@ class c:
     @classmethod
     def balance(cls, *args, **kwargs):
         return c.module('subspace')().balance(*args, **kwargs)
+    @classmethod
+    def balances(cls, *args, **kwargs):
+        return c.module('subspace')().balance(*args, **kwargs)
 
-        
-    get_balance = balance
-    
+
+    @classmethod
+    def get_balance(cls, *args, **kwargs):
+        return c.module('subspace')().get_balance(*args, **kwargs)
+    @classmethod
+    def get_balances(cls, *args, **kwargs):
+        return c.module('subspace')().get_balances(*args, **kwargs)
+
     @classmethod
     def key2balances(cls, *args, **kwargs):
         return c.module('subspace')().key2balances(*args, **kwargs)
@@ -8081,6 +8089,32 @@ class c:
         port_range = c.port_range()
         x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
         return x
+
+    @classmethod
+    def launcher_keys(cls):
+        keys = c.keys()
+        return [k for k in keys if k.startswith('module::')]
+    
+    @classmethod
+    def load_launcher_keys(cls, amount=400, **kwargs):
+        launcher_keys = cls.launcher_keys()
+        destinations = []
+        amounts = []
+        launcher2balance = c.get_balances(launcher_keys)
+        for k in launcher_keys:
+            amount_needed = amount - launcher2balance.get(k, 0)
+            if amount_needed > 0:
+                destinations.append(k)
+                amounts.append(amount_needed)
+            else:
+                c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')
+
+        return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
+    
+    @classmethod
+    def launcher2balance(cls):
+        keys = cls.launcher_keys()
+        return c.get_balances(keys)
 
         
 

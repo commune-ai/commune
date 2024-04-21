@@ -3,6 +3,7 @@ import streamlit as st
 from typing import *
 import json
 import paramiko
+import os
 
 class SSH(c.Module):
     @classmethod
@@ -85,3 +86,21 @@ class SSH(c.Module):
         except Exception as e:
             c.print(e)
         return outputs
+
+
+    key_path = os.path.expanduser('~/.ssh/id_ed25519')
+    public_key_path = key_path + '.pub'
+
+
+    def public_key_text(self):
+        return c.get_text(self.public_key_path)
+
+
+    def public_key(self):
+        return self.public_key_text().split('\n')[0].split(' ')[1]
+
+    def create_key(self, key:str = None):
+        if key == None:
+            key = self.key_path
+        return c.cmd(f'ssh-keygen -o -a 100 -t ed25519 -f ~/.ssh/id_ed25519')
+    

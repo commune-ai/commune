@@ -73,13 +73,13 @@ class Executor(c.Module):
     def submit(self, 
                fn: Callable,
                params = None,
-                args:dict=None, 
-                kwargs:dict=None, 
-                priority:int=1,
+               args:dict=None, 
+               kwargs:dict=None, 
+               priority:int=1,
                 timeout=200, 
                 return_future:bool=True,
                 wait = True, 
-                path:str=None) -> Future:
+                path:str=None, **extra_kwargs) -> Future:
         if params != None:
             if isinstance(params, dict):
                 kwargs = params
@@ -94,9 +94,9 @@ class Executor(c.Module):
                     time.sleep(0.1)
             else:
                 return {'success': False, 'msg':"cannot schedule new futures after maxsize exceeded"}
-
         args = args or []
         kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)
 
         with self.shutdown_lock:
 

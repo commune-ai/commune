@@ -2288,7 +2288,7 @@ class Subspace(c.Module):
     def register(
         self,
         name: str , # defaults to module.tage
-        address : str = 'NA',
+        address : str = '0.0.0.0:8888',
         stake : float = None,
         subnet: str = 'commune',
         netuid = 0,
@@ -2298,9 +2298,9 @@ class Subspace(c.Module):
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         module : str = None,
+        serve: bool = False,
         nonce=None,
         tag = None,
-        fmt = 'nano',
         max_age = 1000,
     **kwargs
     ) -> bool:
@@ -2310,14 +2310,12 @@ class Subspace(c.Module):
         if tag != None:
             name = f'{module}::{tag}'
         # resolve module name and tag if they are in the server_name
-        if c.server_exists(module) and not refresh :
-            address = c.get_address(module)
-        else:
+        if serve and not c.server_exists(module):
             serve_info =  c.serve(module, name=name, **kwargs)
             address = serve_info['address']
 
         network =self.resolve_network(network)
-        address = address or c.namespace(network='local').get(name, '0.0.0.0:8888')
+        address = address or c.namespace().get(name,address)
         module_key = module_key or c.get_key(name).ss58_address
         netuid2subnet = self.netuid2subnet(max_age=max_age)
         subnet2netuid = {v:k for k,v in netuid2subnet.items()}
@@ -2338,8 +2336,7 @@ class Subspace(c.Module):
                     return {'success': False, 'msg': 'Subnet not found and not created'}
                 
             # require prompt to create new subnet        
-
-
+                
         stake = stake or 0
         min_register_stake = self.min_register_stake(netuid=netuid, network=network)
         if stake < min_register_stake:
@@ -3152,6 +3149,44 @@ class Subspace(c.Module):
 
     vote = set_weights
 
+
+
+    @classmethod
+    def register_many(cls, key2address ,
+        timeout=60,
+        netuid = 0):
+        futures = []
+        launcher_keys = c.launcher_keys()
+        future2launcher = {}
+        future2module = {}
+        registered_keys = c.m('subspace')().keys(netuid=netuid)
+        progress = c.tqdm(total=len(key2address))
+        while len(key2address) > 0:
+            modules = list(key2address.keys())
+            for i, module in enumerate(modules):
+                module_key = key2address[module]
+                if module_key in registered_keys:
+                    c.print(f"Skipping {module} with key {module}")
+                    key2address.pop(module)
+                    progress.update(1)
+                    continue
+                c.print(f"Registering {module} with key {module}")
+                launcher_key = launcher_keys[i % len(launcher_keys)]
+                kwargs=dict(name=module, module_key=module_key, serve=True, key=launcher_key)
+                future = c.submit(c.register, kwargs=kwargs, timeout=timeout)
+                future2launcher[future] = launcher_key
+                future2module[future] = module
+
+            futures = list(future2launcher.keys())
+
+            for f in c.as_completed(futures, timeout=timeout):
+                module = future2module.pop(f)
+                launcher_key = future2launcher.pop(f)
+                module_key = key2address.pop(module)
+                c.print(f"Registered {module} module_key:{module_key} launcher_key:{launcher_key}")
+                r = f.result()
+                if c.is_error(r):
+                    progress.update(1)
 
 
     def register_servers(self, search=None, netuid = 0, network = 'main',  timeout=42, key=None,  transfer_multiple=0, extra_amount=0,**kwargs):

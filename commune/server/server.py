@@ -371,13 +371,9 @@ class Server(c.Module):
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
         module = module or cls.module_path()
-
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-
         # resolve the server name ()
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-        
+    
         if tag_seperator in server_name:
             module, tag = server_name.split(tag_seperator)
 
@@ -393,13 +389,8 @@ class Server(c.Module):
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
         if remote:
             # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs = c.locals2kwargs(locals(), merge_kwargs=False)
-            # SET THIS TO FALSE TO AVOID RECURSION
-            remote_kwargs['remote'] = False 
-            # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
-            for _ in ['extra_kwargs', 'address']:
-                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            
+            remote = False # SET THIS TO FALSE TO AVOID RECURSION
+            remote_kwargs = c.locals2kwargs(locals(), kwargs_keys=['extra_kwargs'])
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
 
             return {'success':True, 

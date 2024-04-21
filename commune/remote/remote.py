@@ -11,12 +11,17 @@ class Remote(c.Module):
     executable_path='commune/bin/c'
     @classmethod
     def ssh_cmd(cls, *cmd_args, 
+                
+                port = None, 
+                user = None,
+                password = None,
                 host:str= None,  
                 cwd:str=None, 
                 verbose=False, 
                 sudo=False, 
                 key=None, 
                 timeout=10,  
+                key_policy = 'auto_add_policy',
                 **kwargs ):
         """s
         Run a command on a remote server using Remote.
@@ -30,28 +35,31 @@ class Remote(c.Module):
         """
         command = ' '.join(cmd_args).strip()
         
-        if command.startswith('c '):
-            command = command.replace('c ', cls.executable_path + ' ')
 
-        if cwd != None:
-            command = f'cd {cwd} && {command}'
-
+        if host == None:
+            host = {
+                'host': host,
+                'port': port,
+                'user': user,
+                'pwd': password,
+            }
+        else:
+            host = cls.hosts().get(host, None)
+            
         
-        hosts = cls.hosts()
-        host_name = host
-        if host_name == None:
-            host = c.choice(list(hosts.keys()))
-            host_name = host
-        if host_name not in hosts:
-            raise Exception(f'Host {host_name} not found')
-        host = hosts[host_name]
+        host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
+
+
+        c.print(f'Running command: {command} on {host["name"]}')
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
-
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if key_policy == 'auto_add_policy':
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        else:
+            client.load_system_host_keys()
                 
         # Connect to the remote server
         client.connect(host['host'],
@@ -59,6 +67,13 @@ class Remote(c.Module):
                        username=host['user'], 
                        password=host['pwd'])
         
+
+
+        # THE COMMAND
+
+        if cwd != None:
+            command = f'cd {cwd} && {command}'
+
         if sudo and host['user'] != "root":
             command = "sudo -S -p '' %s" % command
         stdin, stdout, stderr = client.exec_command(command)
@@ -73,12 +88,12 @@ class Remote(c.Module):
 
             for line in stdout.readlines():
                 if verbose:
-                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'), color=color)
+                    c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
                 outputs['output'] += line
 
             for line in stderr.readlines():
                 if verbose:
-                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
+                    c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
                 outputs['error'] += line
         
             if len(outputs['error']) == 0:
