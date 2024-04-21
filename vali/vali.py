@@ -81,7 +81,7 @@ class Vali(c.Module):
             'netuid': self.config.netuid, 
             'n': self.n,
             'fn': self.config.fn,
-            'staleness': self.network_staleness,
+            'staleness': self.network_staleness(),
 
         }
     
@@ -274,7 +274,6 @@ class Vali(c.Module):
         self.netuid = netuid
         self.fn = fn
         self.search = search
-        self.max_age = max_age
         self.subnet = subnet
 
         return self.network_info()
@@ -360,7 +359,7 @@ class Vali(c.Module):
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
-        cached_info = self.get(path, {}, max_age=self.config.max_age)
+        cached_info = self.get(path, {})
 
         if len(cached_info) > 0 :
             info = cached_info
