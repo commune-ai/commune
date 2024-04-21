@@ -3333,7 +3333,7 @@ class Subspace(c.Module):
     def check_valis(self, **kwargs):
         return self.check_servers(search='vali', **kwargs)
     
-    def check_servers(self, search='vali',update:bool=False, netuid=0, min_lag=100, remote=False, **kwargs):
+    def check_servers(self, search='vali',update:bool=False, netuid=0, min_lag=100, timeout=30, remote=False, **kwargs):
         if remote:
             kwargs = c.locals2kwargs(locals())
             return self.remote_fn('check_servers', kwargs=kwargs)
@@ -3348,11 +3348,13 @@ class Subspace(c.Module):
             port = int(stats['address'].split(':')[-1])
             if not c.server_exists(module) or lag > min_lag:
                 c.print(f"Server {module} is not serving or has a lag of {lag} > {min_lag}")
-                response_batch[module]  = c.submit(c.serve, kwargs=dict(module=module, network=f'subspace.{netuid}', port=port))
+                response_batch[module]  = c.submit(c.serve, 
+                                                    kwargs=dict(module=module, network=f'subspace.{netuid}', port=port),
+                                                    timeout=timeout)
 
         futures = list(response_batch.values())
         future2key = {f: k for k,f in response_batch.items()}
-        for f in c.as_completed(futures):
+        for f in c.as_completed(futures, timeout=timeout):
             key = future2key[f]
             c.print(f.result())
             response_batch[key] = f.result()

@@ -445,8 +445,11 @@ class Vali(c.Module):
                   
             ):
         network = self.config.network
-        keys = ['name', 'w', 'staleness','latency', 'ss58_address'],
-        leaderboard = self.leaderboard(network=network, keys=keys, to_dict=True, n= self.config.max_votes)
+        keys = ['name', 'w', 'staleness','latency', 'ss58_address']
+        leaderboard = self.leaderboard(network=network, 
+                                       keys=keys, 
+                                       to_dict=True, 
+                                       n=self.config.max_votes)
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
         for info in leaderboard:
@@ -518,6 +521,7 @@ class Vali(c.Module):
             r = self.get(path, max_age=max_age)
             if isinstance(r, dict) and 'ss58_address' in r:
                 r['staleness'] = c.time() - r.get('timestamp', 0)
+                c.print(keys)
                 df += [{k: r.get(k, None) for k in keys}]
             else :
                 # removing the path as it is not a valid module and is too old
