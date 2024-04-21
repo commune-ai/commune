@@ -229,6 +229,49 @@ class Subspace(c.Module):
         return wasm_file_path
     
 
+    def my_staked_module_keys(self, netuid = 0, **kwargs):
+        my_stake_to = self.my_stake_to(netuid=netuid, **kwargs)
+        module_keys = {} if netuid == 'all' else []
+        for key, stake_to_key in my_stake_to.items():
+            if netuid == 'all':
+                for _netuid, stake_to_subnet in stake_to_key.items():
+                    module_keys[_netuid] = list(stake_to_subnet.keys()) + module_keys.get(_netuid, [])
+            else:
+                module_keys += list(stake_to_key.keys())
+            
+        return module_keys
+
+    def my_stake_to(self, netuid = 0, **kwargs):
+        stake_to = self.stake_to(netuid=netuid, **kwargs)
+        key2address = c.key2address()
+        my_stake_to = {}
+        
+        for key, address in key2address.items():
+            if netuid == 'all':
+                my_stake_to[address] = my_stake_to.get(address, {})
+                for _netuid, stake_to_subnet in stake_to.items():
+                    if address in stake_to_subnet:
+                        my_stake_to[address][_netuid] = {k:v  for k,v in stake_to_subnet.get(address, [])}
+                        if my_stake_to[address][_netuid] == 0:
+                            del my_stake_to[address][_netuid]
+            else:
+                my_stake_to[address] = {k:v  for k,v in stake_to.get(address, [])}
+
+        stake_to_keys = list(my_stake_to.keys())
+        for key in stake_to_keys:
+            if len(my_stake_to[key]) == 0:
+                del my_stake_to[key]
+
+        return my_stake_to
+    
+
+    def staked_module_keys(self, netuid = 0, **kwargs):
+        stake_to = self.stake_to(netuid=netuid, **kwargs)
+        module_keys = []
+        for key, stake_to_key in stake_to.items():
+            module_keys += list(stake_to_key.keys())
+        return module_keys
+
     def my_stake_from(self, netuid = 0, block=None, update=False, network=network, fmt='j', max_age=1000 , **kwargs):
         stake_from_tuples = self.stake_from(netuid=netuid,
                                              block=block,
@@ -304,7 +347,6 @@ class Subspace(c.Module):
             stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
 
         return stake_to_total
-    my_stake_to = key2stake
 
 
     def empty_keys(self, network='main', block=None, update=False, max_age=1000, fmt='j'):
@@ -2994,20 +3036,12 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
 
         if keys == None:
-            staked_modules = self.get_stake_to(key=key, 
-                                               netuid=netuid, 
-                                               names=False, 
-                                               network=network,
-                                               max_age=max_age,
-                                                 **kwargs)
-
+            staked_modules = self.my_staked_module_keys(netuid=netuid, network=network, max_age=max_age, update=True)
             if netuid == 'all':
                 staked = {}
-                for netuid, netuid_staked_modules in staked_modules.items():
-                    keys = list(netuid_staked_modules.keys())
+                for netuid, keys in staked_modules.items():
                     if len(keys) == 0:
                         continue
-                    c.print(f'Getting staked modules for SubNetwork {netuid} with {len(keys)} modules')
                     staked_netuid = self.staked(search=search, 
                                                 key=key, 
                                                 netuid=netuid, 
@@ -3019,8 +3053,17 @@ class Subspace(c.Module):
                 
                 return staked
             else: 
-                keys = list(staked_modules.keys())
+                keys = staked_modules
                 
+
+        c.print(f'Getting staked modules for SubNetwork {netuid} with {len(keys)} modules')
+
+
+        name2key = self.name2key(netuid=netuid, max_age=max_age)
+        key2name = {v: k for k,v in name2key.items()}
+
+        if search != None:
+            keys = [k for k in keys if search in key2name.get(k, k)]
         block = self.block
         modules = self.get_modules(keys, block=block)
 
@@ -3031,9 +3074,7 @@ class Subspace(c.Module):
         if search != None:
             modules = [m for m in modules if search in m['name']]
 
-
         if df:
-            
             modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
 
             if len(modules) == 0: 
