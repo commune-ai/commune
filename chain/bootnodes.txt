@@ -19,3 +19,4 @@
 /dns4/commune-validator-node-18.communeai.net/tcp/30333/p2p/12D3KooWLHgZiNtTde6kcW9XBCTumvqfmVgZjYoeY7DJ3J76VHHZ
 /dns4/commune-validator-node-19.communeai.net/tcp/30333/p2p/12D3KooWEBHPWzuymUKqdzytqDbNCvjsVQzEdazyVeSEcw7dJ1hC
 /dns4/commune-validator-node-20.communeai.net/tcp/30333/p2p/12D3KooWB6QbWjoDhgfvEyyYEzF4VzbeBPBZwviTcp7ay4p7ycTm
+/dns4/commune-1.boot.onfinality.io/tcp/28544/ws/p2p/12D3KooWMy8Qz9norJzV15FDTPRXVgKuB8ktFjA1yJarFSKGTFot
