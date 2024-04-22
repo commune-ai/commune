@@ -67,7 +67,6 @@ class MnemonicLanguageCode:
 
 
 class Keypair(c.Module):
-    mems_path = c.repo_path + '/data/keymems.json'
     keys_path = c.data_path + '/keys.json'
     def __init__(self, 
                  ss58_address: str = None, 
@@ -268,15 +267,9 @@ class Keypair(c.Module):
     def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
         return cls.load_mems(path, verbose=verbose, refresh=refresh, **kwargs)
 
-
+    save_keys_path  = 'saved_keys.json'
     @classmethod
-    def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
-
-        return cls.save_mems(path, verbose=verbose, **kwargs)
-        
-
-    @classmethod
-    def save_keys(cls, path=mems_path):
+    def save_keys(cls, path=save_keys_path, **kwargs):
         c.print(f'saving mems to {path}')
         mems = cls.mems()
         c.put_json(path, mems)
@@ -285,8 +278,8 @@ class Keypair(c.Module):
     savemems = savekeys = save_keys 
 
     @classmethod
-    def load_keys(cls, path=mems_path, refresh=False, **kwargs):
-        mems = c.load_json(path)
+    def load_keys(cls, path=save_keys_path, refresh=False, **kwargs):
+        mems = c.get_json(path)
         for k,mem in mems.items():
             try:
                 cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
@@ -364,7 +357,7 @@ class Keypair(c.Module):
         
 
     @classmethod
-    def key2address(cls, search=None, max_age=1000, update=False, **kwargs):
+    def key2address(cls, search=None, max_age=100000, update=False, **kwargs):
         path = 'key2address'
         key2address = []
         key2address =  cls.get(path, key2address,max_age=max_age, update=update)
@@ -904,14 +897,13 @@ class Keypair(c.Module):
 
         return json_data
     
-
-
-
+    seperator = "<DATA::SIGNATURE>"
+    
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
-             return_str = False,
-             seperator = "<DATA::SIGNATURE>"
+             return_string = False,
+             seperator = seperator
              ) -> bytes:
         """
         Creates a signature for given data
@@ -957,7 +949,7 @@ class Keypair(c.Module):
                 'address': self.ss58_address,
             }
 
-        if return_str:
+        if return_string:
             return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
     
@@ -972,7 +964,7 @@ class Keypair(c.Module):
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
                return_address = False,
-               seperator = "<DATA::SIGNATURE>",
+               seperator = seperator,
                ss58_format = 42,
                **kwargs
                ) -> bool:
@@ -1173,7 +1165,7 @@ class Keypair(c.Module):
         sig = self.sign('test')
         assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
         assert self.verify('test',sig, self.public_key)
-        sig = self.sign('test', return_str=True)
+        sig = self.sign('test', return_string=True)
         assert self.verify(sig, self.public_key)
         return {'success':True}
 
@@ -1509,45 +1501,22 @@ class Keypair(c.Module):
     
 
     def test_str_signing(self):
-        sig = self.sign('test', return_str=True)
+        sig = self.sign('test', return_string=True)
         # c.print(''+sig)
         assert not self.verify('1'+sig)
         assert self.verify(sig)
         return {'success':True}
 
     def ticket(self, key=None, **kwargs):
-        return c.module('key.ticket')().create(key=self.key, **kwargs)
+        return c.module('ticket')().create(key=self.key, **kwargs)
 
-    def verify_ticket(self, ticket=None, max_age=1, seperator = "<DATA::SIGNATURE>", **kwargs):
-        if c.exists(ticket):
-            ticket = c.get_text(ticket)
-        data = int(ticket.split(seperator)[0])
-        age = c.timestamp() - data
-        if age > max_age:
-            raise ValueError(f'ticket is too old, {age} > {max_age}')
-        return self.verify(ticket, **kwargs)
-
-    def is_ticket(self, ticket):
-        return self.seperator in ticket
-    ticket_path = (c.libpath + '/data/ticket.txt')
-    def save_ticket(self, path = None, **kwargs):
-        ticket = self.ticket(**kwargs)
-        path = path or self.ticket_path
-        return c.put_text(path, ticket)
-    
-    def load_ticket(self, path = None, **kwargs):
-        path = path or self.ticket_path
-        return c.get_text(path)
-    
-    def ticket_exists(self, path = None):
-        path = path or self.ticket_path
-        return c.exists(path)
+    def verify_ticket(self, ticket, **kwargs):
+        return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
     
     def test_ticket(self):
         ticket = self.ticket()
-        c.print(ticket)
-        return self.verify_ticket(ticket)
-
+        assert self.verify_ticket(ticket)
+        return {'success':True, 'msg':'test_ticket passed'}
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic
         return Mnemonic('english').to_mnemonic(self.private_key)

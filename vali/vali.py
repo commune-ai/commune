@@ -22,15 +22,20 @@ class Vali(c.Module):
         self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, module=None, **kwargs):
+
+
         if module != None:
             assert hasattr(module, 'score_module'), f'Module must have a config attribute, got {score_module}'
             assert callable(module.score_module), f'Module must have a callable score_module attribute, got {score_module.score_module}'
             self.score_module = module.score_module
         # initialize the validator
         # merge the config with the default config
+            
         config = self.set_config(config, kwargs=kwargs)
-        config = c.dict2munch({**Vali.get_config(), **config})
+
         c.print(config, 'VALI CONFIG')
+
+        config = c.dict2munch({**Vali.get_config(), **config})
 
         if hasattr(config, 'key'):
             self.key = c.key(config.key)
@@ -104,7 +109,7 @@ class Vali(c.Module):
             }
     
     def workers(self):
-        if self.config.mode == 'server':
+        if self.config.mode == None or str(self.config.mode) == 'server':
             return c.servers(search=self.server_name)
         elif self.config.mode == 'thread':
             return c.threads(search='worker')
@@ -521,7 +526,6 @@ class Vali(c.Module):
             r = self.get(path, max_age=max_age)
             if isinstance(r, dict) and 'ss58_address' in r:
                 r['staleness'] = c.time() - r.get('timestamp', 0)
-                c.print(keys)
                 df += [{k: r.get(k, None) for k in keys}]
             else :
                 # removing the path as it is not a valid module and is too old

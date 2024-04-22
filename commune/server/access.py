@@ -98,8 +98,8 @@ class Access(c.Module):
             return {'success': True, 'msg': f'is verified admin'}
 
         
-        assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"
-        assert fn not in blacklist, f"Function {fn} is blacklisted" 
+        assert fn in self.whitelist , f"Function {fn} not in whitelist={self.whitelist}"
+        assert fn not in self.blacklist, f"Function {fn} is blacklisted={self.blacklist}" 
         
         if address in self.address2key:
             return {'success': True, 'msg': f'address {address} is a local key'}

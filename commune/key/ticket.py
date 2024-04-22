@@ -7,7 +7,7 @@ class Ticket(c.Module):
     def create(self, key, seperator=seperator):
         timestamp = str(c.time())
         key = c.get_key(key)
-        return key.sign(timestamp, return_str=True, seperator=seperator)
+        return key.sign(timestamp, return_string=True, seperator=seperator)
 
     def verify(self, ticket, key, seperator=seperator):
         timestamp, signature = ticket.split(seperator)

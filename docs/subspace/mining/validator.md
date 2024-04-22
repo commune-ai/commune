@@ -8,18 +8,17 @@ In this tutorial, you will learn how to deploy a validator on the network and pe
 
 To register a validator with a specific tag, use the following CLI command:
 
-```bash
-c vali register tag=whadup subnet=commune
-or 
-c serve vali::whadup # defaults to (netuid=0 subnet=commune key=vali::whadup)
-c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
-```
 
 ```python
+import commune as c
 c.serve('vali::whadup')
 vali.register('vali::whadup')
 ```
 
+```bash
+c serve vali::whadup network=subspace # deploys a validator to review the network
+c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
+```
 
 If you want to register with another key 
    
@@ -32,24 +31,23 @@ To check the status of the validator, use the following command:
 
 ```bash
 c call vali/module_info
-# or
-c s/get_module vali # or the module name
 ```
 
 ```python
+c.call("vali/module_info")
 ```
 
 
 ```bash
 {
-    'key': '5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi',
-    'name': 'vali',
-    'address': '135.180.26.167:50141',
-    'emission': 6.440794074,
-    'incentive': 0.0,
-    'dividends': 0.005676356145571069,
-    'last_update': 377547,
-    'stake_from': [
+    'key': '5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi', # key of the validator
+    'name': 'vali', # name of the module
+    'address': '135.180.26.167:50141', # address of the validator
+    'emission': 6.440794074, # emission to the validator
+    'incentive': 0.0, # incentives to the validator
+    'dividends': 0.005676356145571069, # dividends (rewards) to the validator
+    'last_update': 377547, # last update of the weights 
+    'stake_from': [ 
         ['5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi', 48.812576334],
         ['5CaWWhTk4D7fphZvjFHKyuaCerqe7uJm3EGNrynGzKczSBNP', 592.049591244],
         ['5ESGbQnTo9RnHEdDpuCYcYDXAAVwHST6dZZ4b5c9JbVr2T3B', 107.994213725],
@@ -59,43 +57,9 @@ c s/get_module vali # or the module name
         ['5F4sToiPYnbWkg795ryvY5iAVrgDKrpPZv53gaYWEVHHeuKC', 0.002085575],
         ['5CPRaN54kf2cdFauG76kFepE4PeYTc2ttkF4VzF2GCxGaehb', 22322.431257368]
     ],
-    'delegation_fee': 50,
-    'stake': 426715.998079558
+    'delegation_fee': 50, # delegation fee
+    'stake': 426715.998079558 # total stake to the module
 }
-
-
-```
-This creates a key with "vali::whadup". 
-
-You can also serve it and register it with the following commands:
-   
- ```bash
-   c serve vali::whadup
-   c register vali::whadup
-```
-
-to get the validator key is to use the following command:
-
-```bash
-c get_key vali::whadup
-```
-
-
-```python
-vali = c.module('vali')
-vali.get_key('whadup')
-```
-```
-<Keypair (address=5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi, path=vali, crypto_type: SR25519)>
-```
-
-or 
-   
-```bash
-c get_key vali::whadup
-```
-
-
 
 ### Staking Your Validator
 
@@ -103,8 +67,10 @@ Ensure that you have staked your validator by following these steps:
 
 1. Stake your validator with another key using the CLI command:
 
+
    ```bash
-   c stake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200 
+   # stake 200 tokens to the validator using the key=module (default key)
+   c stake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200 key=module
    ```
    or 
    ```python
@@ -123,6 +89,51 @@ Ensure that you have staked your validator by following these steps:
 2. If needed, you can unstake by using the following command:
 
    ```bash
-   c unstake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200
+   c unstake 5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi 200 key=module
    ```
+   or
+    ```python
+    c.unstake("5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi", 200, key="module")
+    ```
+
+
+### Step 3: Updating Your Validator
+
+
+To update your validator, use the following command:
+
+You can update your module's following parameters:
+
+- `delegation_fee`: The delegation fee for the validator.
+- `name`: The name of the validator.
+- `address`: The address of the validator.
+
+
+```bash
+
+c update_module vali::whadup delegation_fee=10 name=vali::whadup2
+
+``
+
+
+Updating Multiple Validators at Once
+
+Sometimes your validators go offline and reserve on a different port. This is not common but when it happens, you can update all of the servers at once using the following command:
+
+
+The following command updates all of the servers at once:
+```bash
+c update_modules search=vali
+```
+
+To update multiple validators at once to a delegation_fee of 10 , use the following command:
+
+```bash
+
+c update_modules search=vali delegation_fee=10 
+
+```
+
+
+
 

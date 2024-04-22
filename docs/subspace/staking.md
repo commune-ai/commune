@@ -112,3 +112,16 @@ or if you want to specify the same amount, just do the amounts as an integer
 ```bash 
 c stake_many modules modules=[model1,model2] amounts=10
 ```
+
+
+## Staked Modules 
+
+
+c staked search=None netuid=1
+
+    dividends                    stake_from    delegation_fee          stake    vote_staleness
+11  vali.text.truthqa::commie1   0.016297      836737               5  1543452              49
+50    vali::project_management   0.014511      821491             100   835445              47
+47            vali::stakecomai   0.014252      793614              20   814443              85
+32               vali::comchat   0.018128      614167               5   963592               3
+58  vali.text.realfake::commie   0.015503      608276               5   932424              49

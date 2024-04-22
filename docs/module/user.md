@@ -28,8 +28,20 @@ To see all users
 
 To see the user2role mapping
 
+c user2role
 {
     '5CfWRdKjT5cUjSnpZA7xuW3a3qsXWkisbqrCrBky3L12Wc8R': 'admin
     '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC': 'admin',
     '5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY': 'admin'
+}
+
+
+
+To get the roles per users
+
+
+c role2users
+
+{
+    'admin': ['5CfWRdKjT5cUjSnpZA7xuW3a3qsXWkisbqrCrBky3L12Wc8R', '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC', '5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY']
 }

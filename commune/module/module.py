@@ -96,9 +96,7 @@ class c:
             config = kwargs.pop('config')
 
         # get the config
-        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
-
-
+        config =  self.config(config=config,kwargs=kwargs, to_munch=to_munch)
 
         # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
@@ -110,7 +108,6 @@ class c:
         
         if save_config:
             self.save_config(config=config)
-    
         return self.config
 
 
@@ -270,7 +267,6 @@ class c:
         # get the module path
         
         path = cls.get_module_path(simple=simple)
-        path = path.replace('modules.', '')
         return path
     
     path  = name = module_name =  module_path
@@ -302,23 +298,32 @@ class c:
     @classmethod
     def config_path(cls) -> str:
         return cls.get_module_path(simple=False).replace('.py', '.yaml')
-    
-    @classmethod    
-    def dict2munch(cls, x:Dict) -> Munch:
-        '''
-        Converts a dict to a munch
-        '''
-        from commune.utils.dict import dict2munch
-        return dict2munch(x)
-    
+
     @classmethod
-    def munch2dict(cls, x:'Munch') -> Dict:
+    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
         '''
-        Converts a munch to a dict
+        Turn dictionary into Munch
         '''
-        from commune.utils.dict import munch2dict
-        return munch2dict(x)
-    
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = c.dict2munch(v)
+            x = Munch(x)
+        return x 
+
+    @classmethod
+    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
+        '''
+        Turn munch object  into dictionary
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = c.munch2dict(v)
+
+        return x 
+
     @classmethod
     def munch(cls, x:Dict) -> Munch:
         '''
@@ -1466,6 +1471,7 @@ class c:
 
         if path.endswith('module/module.py'):
             return 'commune.Module'
+        
         python_classes = cls.find_python_classes(path)
         if len(python_classes) == 0:
             return None
@@ -1512,6 +1518,7 @@ class c:
                 path = c.simple2path(path, tree=tree)
                 object_path = c.path2objectpath(path, tree=tree)
                 module = c.import_object(object_path)
+
             if cache:
                 c.module_cache[tree][path] = module
                 
@@ -2400,8 +2407,7 @@ class c:
     @server_name.setter
     def server_name(self, v):
         if callable(self.config):
-            self.config = self.config()
-
+            self.set_config()
         self.config['server_name'] = v
         return self.config['server_name']
     
@@ -2661,6 +2667,8 @@ class c:
                     'address':address, 
                     'kwargs':kwargs
                     }        
+        
+        c.print(module)
         module_class = c.module(module)
         kwargs.update(extra_kwargs)
         if mnemonic != None:
@@ -7645,6 +7653,10 @@ class c:
     @classmethod
     def users(cls, *args, **kwargs):
         return c.module('user').user(*args, **kwargs)
+    
+    @classmethod
+    def role2users(cls, *args, **kwargs):
+        return c.module('user')().role2users(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
         return c.module('user').is_user(address)

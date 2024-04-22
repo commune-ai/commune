@@ -1,6 +1,10 @@
 Access to A Module
 
 
+
+
+
+
 Whitelist/Blacklist Functions
 
 If you want to restrict access to a module, you can use the whitelist and blacklist functions. These functions are used to restrict access to a module based on the user's role.
@@ -21,4 +25,24 @@ To add a user to a custom role:
 c.add_user("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY", role="custom_role")
 ```
 
-w
+
+Default Whitelist Functions
+
+The default whitelist functions are the functions from the Module class. These functions are available to all users by default.
+
+
+Example
+
+```python
+import commune as c
+
+class MyModule(c.Module):
+    def __init__(self):
+        super().__init__()
+
+    def my_function(self):
+        print("Hello, World!")
+
+
+c.print(MyModule.whitelist)
+```

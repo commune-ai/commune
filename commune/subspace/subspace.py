@@ -3059,7 +3059,7 @@ class Subspace(c.Module):
         c.print(f'Getting staked modules for SubNetwork {netuid} with {len(keys)} modules')
 
 
-        name2key = self.name2key(netuid=netuid, max_age=max_age)
+        name2key = self.name2key(search=search, netuid=netuid, max_age=max_age)
         key2name = {v: k for k,v in name2key.items()}
 
         if search != None:
