@@ -11,7 +11,7 @@ class Remote(c.Module):
     executable_path='commune/bin/c'
     @classmethod
     def ssh_cmd(cls, *cmd_args, 
-                
+                cmd : str = None,
                 port = None, 
                 user = None,
                 password = None,
@@ -19,6 +19,7 @@ class Remote(c.Module):
                 cwd:str=None, 
                 verbose=False, 
                 sudo=False, 
+                stream = False,
                 key=None, 
                 timeout=10,  
                 key_policy = 'auto_add_policy',
@@ -33,16 +34,17 @@ class Remote(c.Module):
         :param command: Command to be executed on the remote machine.
         :return: Command output.
         """
-        command = ' '.join(cmd_args).strip()
         
-
         if host == None:
-            host = {
-                'host': host,
-                'port': port,
-                'user': user,
-                'pwd': password,
-            }
+            if port == None or user == None or password == None:
+                host = list(cls.hosts().values())[0]
+            else:
+                host = {
+                    'host': host,
+                    'port': port,
+                    'user': user,
+                    'pwd': password,
+                }
         else:
             host = cls.hosts().get(host, None)
             
@@ -50,7 +52,6 @@ class Remote(c.Module):
         host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
 
 
-        c.print(f'Running command: {command} on {host["name"]}')
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
@@ -66,38 +67,49 @@ class Remote(c.Module):
                        port=host['port'], 
                        username=host['user'], 
                        password=host['pwd'])
-        
-
 
         # THE COMMAND
 
+        command = ' '.join(cmd_args).strip() if cmd == None else cmd
         if cwd != None:
             command = f'cd {cwd} && {command}'
 
+        # Execute the command on the remote server
         if sudo and host['user'] != "root":
             command = "sudo -S -p '' %s" % command
+
+        c.print(f'Running command: {command} on {host["name"]}')
+
         stdin, stdout, stderr = client.exec_command(command)
 
         try:
             if sudo:
-                stdin.write(host['pwd'] + "\n")
-                stdin.flush()
+                
+                stdin.write(host['pwd'] + "\n") # Send the password for sudo commands
+                stdin.flush() # Send the password
+
             color = c.random_color()
             # Print the output of ls command
-            outputs = {'error': '', 'output': ''}
 
-            for line in stdout.readlines():
-                if verbose:
-                    c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
-                outputs['output'] += line
 
-            for line in stderr.readlines():
-                if verbose:
-                    c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
-                outputs['error'] += line
-        
-            if len(outputs['error']) == 0:
-                outputs = outputs['output']
+            def print_output():
+                for line in stdout.readlines():
+                    if verbose:
+                        c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
+                    yield line 
+
+                for line in stderr.readlines():
+                    if verbose:
+                        c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
+                    yield line
+
+            if stream:
+                return print_output()
+            
+            else:
+                output = ''
+                for line in print_output():
+                    output += line 
     
             # stdin.close()
             # stdout.close()
@@ -105,33 +117,35 @@ class Remote(c.Module):
             # client.close()
         except Exception as e:
             c.print(e)
-        return outputs
+
+        return output
 
     @classmethod
     def add_host(cls, 
-                 cmd:str = None , # in the format of 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
                  pwd:str = None,
+                 password:str = None,
                  name : str = None
+                 
                  ):
         
         hosts = cls.hosts()
         host = {
-            'host': host,
-            'port': port,
-            'user': user,
-            'pwd': pwd
+            'host': host, # IP address of the remote machine
+            'port': port, # Remote port (typically 22)
+            'user': user, # Remote username
+            'pwd': pwd or password # Remote password
         }
+
         if name == None:
+            # 
             cnt = 0
             name = f'{user}{cnt}'
-
             while name in hosts:
-                name = f'{user}{cnt}'
                 cnt += 1
-        
+                name = f'{user}{cnt}'
         hosts[name] = host
         cls.save_hosts(hosts)
 

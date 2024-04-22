@@ -40,7 +40,7 @@ mode: thread
 batch_size: 64 # the batch size for the worker
 workers: 1 # the number of workers
 threads_per_worker: 32
-timeout: 8
+timeout: 3
 sleep_time: 0.05
 refresh : True
 start: True

@@ -9,6 +9,13 @@ class App(c.Module):
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
         self.remote = c.module('remote')()
+        c.thread(self.run_loop)
+
+
+    def run_loop(self):
+        c.new_event_loop()
+        while True:
+            st.write('Running')
 
     @classmethod
     def app(cls, module: str = None, **kwargs):
@@ -53,10 +60,14 @@ class App(c.Module):
         with st.expander('Add Host', expanded=False):
             st.markdown('## Hosts')
             cols = st.columns(2)
+            
             host = cols[0].text_input('Host',  '0.0.0.0')
             port = cols[1].number_input('Port', 22, 30000000000, 22)
-            user = st.text_input('User', 'root')
-            pwd = st.text_input('Password', type='password')
+
+            cols = st.columns(2)
+            user = cols[0].text_input('User', 'root')
+            pwd = cols[1].text_input('Password', type='password')
+            name = cols[0].text_input('Name', user+'@'+host)
             add_host = st.button('Add Host')
 
             if add_host:
@@ -64,9 +75,20 @@ class App(c.Module):
 
         with st.expander('Remove Host', expanded=False):
             host_names = list(self.remote.hosts().keys())
-            rm_host_name = st.selectbox('Host Name', host_names)
+            rm_host_name = st.selectbox('Host to Remove', host_names)
             rm_host = st.button('Remove Host')
             if rm_host:
+                self.remote.rm_host(rm_host_name)
+
+        with st.expander('Rename Host', expanded=False):
+            host_names = list(self.remote.hosts().keys())
+            rm_host_name = st.selectbox('Host Name', host_names)
+            new_host_name = st.text_input('New Host Name')
+            rename_host = st.button('Rename Host')
+            if rename_host:
+                host = self.remote.hosts()[rm_host_name]
+                self.remote.add_host(host)
+
                 self.remote.rm_host(rm_host_name)
 
         self.host2ssh_search()
@@ -111,78 +133,80 @@ class App(c.Module):
         # make this a stop button red
 
         stop_button = cols[1].button('Stop')
-        host2future = {}
 
         host2stats = self.get('host2stats', {})
         
+        future2host = {}
         if run_button and not stop_button:
             for host in host_names:
                 future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
-                host2future[host] = future
+                future2host[future] = host
                 host2stats[host] = host2stats.get(host, {'success': 0, 'error': 0 })
 
-
-            futures = list(host2future.values())
-            hosts = list(host2future.keys())
             cols = st.columns(num_columns)
             failed_hosts = []
             col_idx = 0
-
             errors = []
+            futures = list(future2host.keys())
+
+            success_expander = st.expander('Results', expanded=expanded)
+            failed_expander = st.expander('Failed', expanded=expanded)
 
             try:
-                for result in c.wait(futures, timeout=timeout, generator=True, return_dict=True):
+                for future in c.as_completed(futures, timeout=timeout):
 
-
-                    host = hosts[result['idx']]
                     if host == None:
                         continue
 
-                    host2future.pop(host)
-                    result = result['result']
+                    host = future2host.pop(future)
+                    stats = host2stats.get(host, {'success': 0, 'error': 0})
+                    result = future.result()
                     is_error = c.is_error(result)
-                    msg = result['error'] if is_error else result.strip()
+                    if is_error:
+                        with failed_expander:
+                            st.error(f'Error: {result}')
+                        
+                    else:
 
-                    # get the colkumne
-                    col_idx = (col_idx) % len(cols)
-                    col = cols[col_idx]
-                    col_idx += 1
+                        with success_expander:
+        
+                            msg = result if is_error else result.strip()
+
+                            # get the colkumne
+                            col_idx = (col_idx) % len(cols)
+                            col = cols[col_idx]
+                            col_idx += 1
 
 
-                    stats = host2stats[host]
+                            stats = host2stats.get(host, {'success': 0, 'error': 0})
+
+
+
+                            # if the column is full, add a new column
+                            with col:
+                                msg = fn_code(msg)
+                                emoji =  c.emoji("cross") if is_error else c.emoji("check")
+                                title = f'{emoji} :: {host} :: {emoji}'
                     
+                                if is_error:
+                                    failed_hosts += [host]
+                                    errors += [msg]
+                                    stats['error'] += 1
+                                    
+                                else:
+                                    stats['last_success'] = c.time()
+                                    stats['success'] += 1
+                                    st.write(title)
+                                    st.code(msg)
 
-  
-
-                    # if the column is full, add a new column
-                    with col:
-                        msg = fn_code(msg)
-                        emoji =  c.emoji("cross") if is_error else c.emoji("check")
-                        title = f'{emoji} :: {host} :: {emoji}'
-            
-                        if is_error:
-                            failed_hosts += [host]
-                            errors += [msg]
-                            stats['error'] += 1
-                            
-                        else:
-                            stats['last_success'] = c.time()
-                            stats['success'] += 1
-                            with st.expander(title, expanded=expanded):
-                                st.code(msg)
-
-                    
-                    
                     host2stats[host] = stats
-            
-
+        
 
             except Exception as e:
-                pending_hosts = list(host2future.keys())
+                pending_hosts = list(future2host.values())
                 st.error(c.detailed_error(e))
                 st.error(f"Hosts {pending_hosts} timed out")
                 failed_hosts += pending_hosts
-
                 for host in pending_hosts:
                     stats = host2stats[host]
                     stats['error'] += 1
@@ -198,17 +222,10 @@ class App(c.Module):
                 if delete_failed:
                     for host in selected_failed_hosts:
                         self.remote.rm_host(host)
+
                 for host, error in zip(failed_hosts, errors):
-        
                     st.write(f'**{host}**')
                     st.code(error)
-
-
-    def host_stats_page(self):
-        host2stats = self.get('host2stats', {})
-        host2stats = {k:v for k,v in host2stats.items() if v['success'] + v['error'] > 0}
-        df = pd.DataFrame(host2stats).T
-        st.write(df)
 
 
     def ssh_params(self):

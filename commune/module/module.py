@@ -6234,9 +6234,9 @@ class c:
 
     @classmethod
     def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
-        schema = cls.schema(search=search,  defaults=defaults)
+        fns = cls.fns(search=search)
         fn2str = {}
-        for fn in schema.keys():
+        for fn in fns:
             fn2str[fn] = cls.fn_code(fn)
             
         return fn2str
@@ -8096,15 +8096,17 @@ class c:
         return [k for k in keys if k.startswith('module::')]
     
     @classmethod
-    def load_launcher_keys(cls, amount=400, **kwargs):
+    def load_launcher_keys(cls, amount=600, **kwargs):
         launcher_keys = cls.launcher_keys()
+        key2address = c.key2address()
         destinations = []
         amounts = []
         launcher2balance = c.get_balances(launcher_keys)
         for k in launcher_keys:
-            amount_needed = amount - launcher2balance.get(k, 0)
+            k_address = key2address[k]
+            amount_needed = amount - launcher2balance.get(k_address, 0)
             if amount_needed > 0:
-                destinations.append(k)
+                destinations.append(k_address)
                 amounts.append(amount_needed)
             else:
                 c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')

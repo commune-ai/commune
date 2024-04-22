@@ -34,7 +34,7 @@ class Access(c.Module):
                       'stake_from': {}, 
                       'role2rate': role2rate, 
                       'fn_info': {}}
-        
+
         c.thread(self.run_loop)
 
 
@@ -43,8 +43,12 @@ class Access(c.Module):
         if isinstance(module, str):
             module = c.module(module)()
         self.module = module
-        return {'success': True, 'msg': f'set module to {module}'}
 
+        self.whitelist =  list(set(self.module.whitelist + c.whitelist))
+        self.blacklist =  list(set(self.module.blacklist + c.blacklist))
+
+        return {'success': True, 'msg': f'set module to {module}'}
+    
     def run_loop(self):
         while True:
             try:
@@ -67,18 +71,17 @@ class Access(c.Module):
             state['sync_time'] = c.time()
             self.state = state
             self.put(self.state_path, self.state)
-            
             c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
-            
-            response = {'success': True, 
-                        'msg': f'synced {self.state_path}', 
-                        'until_sync': int(self.config.sync_interval - time_since_sync),
-                        'time_since_sync': int(time_since_sync)}
+
         else:
             response = {'success': True, 
                         'msg': f'not syncing {self.state_path}', 
                         'until_sync': int(self.config.sync_interval - time_since_sync),
                         'time_since_sync': int(time_since_sync)}
+        response = {'success': True, 
+                    'msg': f'synced {self.state_path}', 
+                    'until_sync': int(self.config.sync_interval - time_since_sync),
+                    'time_since_sync': int(time_since_sync)}
         return response
 
     def verify(self, 
@@ -101,24 +104,21 @@ class Access(c.Module):
         if c.is_admin(address):
             return {'success': True, 'msg': f'is verified admin'}
 
-        whitelist =  list(set(self.module.whitelist + c.whitelist))
-        blacklist =  self.module.blacklist
-
+        
         assert fn in whitelist , f"Function {fn} not in whitelist={whitelist}"
         assert fn not in blacklist, f"Function {fn} is blacklisted" 
+        
+        if address in self.address2key:
+            return {'success': True, 'msg': f'address {address} is a local key'}
+        if fn.startswith('__') or fn.startswith('_'):
+            return {'success': False, 'msg': f'Function {fn} is private'}
+        if address in self.address2key:
+            return {'success': True, 'msg': f'address {address} is in the whitelist'}
 
         if c.is_user(address):
             return {'success': True, 'msg': f'is verified user'}
 
-        if address in self.address2key:
-            return {'success': True, 'msg': f'address {address} is a local key'}
 
-        if fn.startswith('__') or fn.startswith('_'):
-            return {'success': False, 'msg': f'Function {fn} is private'}
-
-        if address in self.address2key:
-            return {'success': True, 'msg': f'address {address} is in the whitelist'}
-        
         current_time = c.time()
 
         # sync of the state is not up to date 

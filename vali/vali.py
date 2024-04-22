@@ -210,7 +210,7 @@ class Vali(c.Module):
         return 'subspace' in self.config.network or 'bittensor' in self.config.network
     
     def filter_module(self, module:str):
-        if self.config.search in  module:
+        if  self.config.search == None or self.config.search in module:
             return True
         return False
     
