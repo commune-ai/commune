@@ -8,7 +8,6 @@ import streamlit as st
 
 class SubspaceDashboard(c.Module):
     
-
     def emission_schedule(self, 
                           days = 10000, 
                         starting_emission = 0, 
@@ -47,7 +46,7 @@ class SubspaceDashboard(c.Module):
 
             state.burn_price_per_day.append(current_burned_emission_per_day)
 
-            
+
             current_emission_per_day -= current_burned_emission_per_day
 
             total_emission += current_emission_per_day

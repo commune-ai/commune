@@ -26,7 +26,7 @@ class MyVali(Vali):
     def __init__(self, **kwargs):
         self.init_vali(**kwargs)
     
-    def score_module(module):
+    def score(module):
         """
         scores a module 1 if it return successful, and 0 if not
         """

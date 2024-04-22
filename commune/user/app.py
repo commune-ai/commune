@@ -7,8 +7,8 @@ import streamlit as st
 
 class UsersApp(c.Module):
     @classmethod
-    def st(cls):
-        self = Users()
+    def app(cls):
+        self = c.module('user')()
         self.local_css()
         self.keys = c.keys()
         self.button = {}

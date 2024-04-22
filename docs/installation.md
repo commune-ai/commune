@@ -68,7 +68,6 @@ chmod +x ./scripts/* # make sure the scripts are executable
 sudo ./scripts/install_npm_env.sh # install npm and pm2 (sudo may not be required)
 ```
 
-
 4. Check if commune is installed correctly, try running the following command
 ```bash
 c modules
