@@ -61,10 +61,8 @@ class Access(c.Module):
     def sync_network(self):
         state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
         time_since_sync = c.time() - state.get('sync_time', 0)
-
         self.key2address = c.key2address()
         self.address2key = c.address2key()
-
         if time_since_sync > self.config.sync_interval:
             self.subspace = c.module('subspace')(network=self.config.network)
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
@@ -73,11 +71,6 @@ class Access(c.Module):
             self.put(self.state_path, self.state)
             c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
 
-        else:
-            response = {'success': True, 
-                        'msg': f'not syncing {self.state_path}', 
-                        'until_sync': int(self.config.sync_interval - time_since_sync),
-                        'time_since_sync': int(time_since_sync)}
         response = {'success': True, 
                     'msg': f'synced {self.state_path}', 
                     'until_sync': int(self.config.sync_interval - time_since_sync),
