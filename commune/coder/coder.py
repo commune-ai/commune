@@ -104,3 +104,28 @@ class Coder(c.Module):
         
         return response
 
+
+
+    def file2fns(self, filepath):
+        '''
+        """
+        Documentation for `get_fns` function:
+        
+        This function retrieves the list of functions available in a given module.
+        
+        Parameters:
+            - self: The instance of the class that this method is bound to.
+            - module: The name of the module for which the list of functions is to be retrieved.
+        
+        Returns:
+            - fns: A list of function names available in the specified module.
+        '''
+        if not filepath.endswith('.py'):
+            filepath = filepath + '.py'
+    
+        code =  c.get_text(filepath)
+        lines = code.split('\n')
+        fns = []
+        for line in lines:
+            if 'def ' in line:
+                fns += line.split('def ')[1].split('(')[0]
