@@ -60,14 +60,21 @@ class ThreadPoolExecutor(c.Module):
     
     def submit(self, 
                fn: Callable,
+               params = None,
                 args:dict=None, 
                 kwargs:dict=None, 
+                priority:int=1,
                 timeout=200, 
                 return_future:bool=True,
                 wait = True, 
                 path:str=None) -> Future:
-        args = args or ()
-        kwargs = kwargs or {}
+        if params != None:
+            if isinstance(params, dict):
+                kwargs = params
+            elif isinstance(params, list):
+                args = params
+            else:
+                raise ValueError("params must be a list or a dict")
         # check if the queue is full and if so, raise an exception
         if self.work_queue.full():
             if wait:
@@ -75,15 +82,19 @@ class ThreadPoolExecutor(c.Module):
                     time.sleep(0.1)
             else:
                 return {'success': False, 'msg':"cannot schedule new futures after maxsize exceeded"}
+
+        args = args or []
+        kwargs = kwargs or {}
+
         with self.shutdown_lock:
+
             if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
             if self.shutdown:
                 raise RuntimeError("cannot schedule new futures after shutdown")
-            priority = kwargs.get("priority", 1)
+            priority = kwargs.get("priority", priority)
             if "priority" in kwargs:
                 del kwargs["priority"]
-
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
@@ -93,8 +104,8 @@ class ThreadPoolExecutor(c.Module):
         # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
         if return_future:
             return task.future
-        else: 
-            return task.future.result()
+        
+        return task.future.result()
 
 
     def adjust_thread_count(self):

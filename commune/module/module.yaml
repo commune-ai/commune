@@ -1,7 +1,7 @@
 access_module:
   stake2rate: 100
+debug: false
 fam: bro
-ip: 162.157.13.236
 k: 2
 network: subspace
 shortcuts:
@@ -12,10 +12,12 @@ shortcuts:
   freegpt: model.freegpt
   lit: lit_gpt
   openai: model.openai
+  openrouter: model.openrouter
+  or: model.openrouter
   r: remote
   s: subspace
   sel: selenium
   store: storage
   tg: textgen
+  wombo: w
 tag: null
-debug: false
