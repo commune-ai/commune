@@ -77,8 +77,6 @@ class Server(c.Module):
         module.network = self.network
         module.subnet = self.subnet
         self.key = self.module.key = c.get_key(key or self.name)
-        c.print(f'🔑 Key: {self.module.key} 🔑\033')
-
 
         return {'success': True, 'msg': f'Set module {module}', 'key': self.key.ss58_address}
 
