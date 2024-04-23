@@ -1088,7 +1088,7 @@ class Subspace(c.Module):
                     netuid=0,
                     network = 'main',
                     block : Optional[int] = None,
-                    update = False,
+                    update = True,
                     timeout = 30,
                     max_age = 1000,
                     fmt:str='j', 
@@ -1099,19 +1099,45 @@ class Subspace(c.Module):
                     ) -> list:  
 
         netuid = self.resolve_netuid(netuid)
+
+
+
         path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
-        names = [self.feature2name(f) for f in features]
-        name2feature = dict(zip(names, features))
+        
         if subnet_params == None:
+            if netuid == 'all':
+                subnet_params = {}
+                future2netuid = {}
+                for netuid in self.netuids():
+                    f = c.submit(self.subnet_params, kwargs={'netuid': netuid, 
+                                                         'network': network, 
+                                                         'block': block, 
+                                                         'update': update, 
+                                                         'timeout': timeout, 
+                                                         'max_age': max_age, 
+                                                         'fmt': fmt, 
+                                                         'rows': rows, 
+                                                         'features': features, 
+                                                         'value_features': value_features
+                                                         })
+                    future2netuid[f] = netuid
+                tqdm = c.tqdm(total=len(future2netuid), desc='Querying Subnet Params')
+                for f in c.as_completed(future2netuid.keys(), timeout=timeout):
+                    subnet_params[future2netuid[f]] = f.result()
+                    tqdm.update(1)
+                return subnet_params
+            
+            names = [self.feature2name(f) for f in features]
+            name2feature = dict(zip(names, features))
             subnet_params = {}
-            multi_query = [("SubspaceModule", f, [0]) for f in name2feature.values()]
-            subspace = self.get_substrate(network=network)
+            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
             results = self.query_multi(multi_query)
+            
             for idx, (k, v) in enumerate(results):
                 subnet_params[names[idx]] = v.value
-
             self.put(path, subnet_params)
+
         for k in value_features:
             if k in value_features:
                 subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
