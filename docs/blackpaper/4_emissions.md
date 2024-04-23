@@ -24,4 +24,5 @@ This allows for a flexible system where the network can decide to be more stake 
 
 **yumaswap**
 
-The uniswap protocal is more effective with longer voting epochs (tempos).
+The uniswap protocal is more effective with longer voting epochs (tempos) on the scale of weeks and months. 
+This involves granting everyone with stable voting tokens for each module. When a module is staked, it is traded for a stake token. The dividends of the staker is based on how early the staker is in the voting epoch. This is a way to incentivize long term staking and to prevent short term manipulation. This also makes it so that the staker is incentivized to vote for the best module and not just the one that will give them the most dividends. The votes can be done weekly or monthly and the dividends are paid out at the end of the epoch. 

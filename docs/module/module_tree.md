@@ -1,4 +1,7 @@
-the tree is a map of modules within a folder.
+
+
+The goal of the tree is to find all of the files that contains a module. 
+When you parse the commune folder, you want to map all of the object's imports to a name. This forms a global tree of modules, where the key is the short form and the value is the path to the module class.
 
 do access the tree
 
