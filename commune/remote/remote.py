@@ -11,12 +11,18 @@ class Remote(c.Module):
     executable_path='commune/bin/c'
     @classmethod
     def ssh_cmd(cls, *cmd_args, 
+                cmd : str = None,
+                port = None, 
+                user = None,
+                password = None,
                 host:str= None,  
                 cwd:str=None, 
                 verbose=False, 
                 sudo=False, 
+                stream = False,
                 key=None, 
                 timeout=10,  
+                key_policy = 'auto_add_policy',
                 **kwargs ):
         """s
         Run a command on a remote server using Remote.
@@ -28,61 +34,82 @@ class Remote(c.Module):
         :param command: Command to be executed on the remote machine.
         :return: Command output.
         """
-        command = ' '.join(cmd_args).strip()
         
-        if command.startswith('c '):
-            command = command.replace('c ', cls.executable_path + ' ')
-
-        if cwd != None:
-            command = f'cd {cwd} && {command}'
-
+        if host == None:
+            if port == None or user == None or password == None:
+                host = list(cls.hosts().values())[0]
+            else:
+                host = {
+                    'host': host,
+                    'port': port,
+                    'user': user,
+                    'pwd': password,
+                }
+        else:
+            host = cls.hosts().get(host, None)
+            
         
-        hosts = cls.hosts()
-        host_name = host
-        if host_name == None:
-            host = c.choice(list(hosts.keys()))
-            host_name = host
-        if host_name not in hosts:
-            raise Exception(f'Host {host_name} not found')
-        host = hosts[host_name]
+        host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
+
+
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
-
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if key_policy == 'auto_add_policy':
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        else:
+            client.load_system_host_keys()
                 
         # Connect to the remote server
         client.connect(host['host'],
                        port=host['port'], 
                        username=host['user'], 
                        password=host['pwd'])
-        
+
+        # THE COMMAND
+
+        command = ' '.join(cmd_args).strip() if cmd == None else cmd
+        if cwd != None:
+            command = f'cd {cwd} && {command}'
+
+        # Execute the command on the remote server
         if sudo and host['user'] != "root":
             command = "sudo -S -p '' %s" % command
+
+        c.print(f'Running command: {command} on {host["name"]}')
+
         stdin, stdout, stderr = client.exec_command(command)
 
         try:
             if sudo:
-                stdin.write(host['pwd'] + "\n")
-                stdin.flush()
+                
+                stdin.write(host['pwd'] + "\n") # Send the password for sudo commands
+                stdin.flush() # Send the password
+
             color = c.random_color()
             # Print the output of ls command
-            outputs = {'error': '', 'output': ''}
 
-            for line in stdout.readlines():
-                if verbose:
-                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'), color=color)
-                outputs['output'] += line
 
-            for line in stderr.readlines():
-                if verbose:
-                    c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
-                outputs['error'] += line
-        
-            if len(outputs['error']) == 0:
-                outputs = outputs['output']
+            def print_output():
+                for line in stdout.readlines():
+                    if verbose:
+                        c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
+                    yield line 
+
+                for line in stderr.readlines():
+                    if verbose:
+                        c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
+                    yield line
+
+            if stream:
+                return print_output()
+            
+            else:
+                output = ''
+                for line in print_output():
+                    output += line 
     
             # stdin.close()
             # stdout.close()
@@ -90,33 +117,35 @@ class Remote(c.Module):
             # client.close()
         except Exception as e:
             c.print(e)
-        return outputs
+
+        return output
 
     @classmethod
     def add_host(cls, 
-                 cmd:str = None , # in the format of 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
                  pwd:str = None,
+                 password:str = None,
                  name : str = None
+                 
                  ):
         
         hosts = cls.hosts()
         host = {
-            'host': host,
-            'port': port,
-            'user': user,
-            'pwd': pwd
+            'host': host, # IP address of the remote machine
+            'port': port, # Remote port (typically 22)
+            'user': user, # Remote username
+            'pwd': pwd or password # Remote password
         }
+
         if name == None:
+            # 
             cnt = 0
             name = f'{user}{cnt}'
-
             while name in hosts:
-                name = f'{user}{cnt}'
                 cnt += 1
-        
+                name = f'{user}{cnt}'
         hosts[name] = host
         cls.save_hosts(hosts)
 
@@ -514,7 +543,7 @@ class Remote(c.Module):
         c.cmd(ssh)
 
     
-    def loop(self, timeout=40, interval=30, max_staleness=360, remote=True, batch_size=10):
+    def loop(self, timeout=40, interval=30, max_age=360, remote=True, batch_size=10):
         if remote:
             return self.remote_fn('loop',kwargs = locals())
         while True:
@@ -559,7 +588,6 @@ class Remote(c.Module):
     def clear_terms(cls):
         path = cls.search_terms_path
         return  cls.put(path, {'include': '', 'avoid': ''})
-
 
     @classmethod
     def avoid(cls, *terms):
@@ -623,8 +651,6 @@ class Remote(c.Module):
     def pwds(self, search=None):
         return {k:v['pwd'] for k,v in self.hosts(search=search).items()}
 
-
-
     @classmethod
     def host2ssh(cls, search = None, host_map=None):
         host_map = host_map or cls.host_map(search=search)
@@ -634,8 +660,6 @@ class Remote(c.Module):
             host2ssh[k] = f'sshpass -p {v["pwd"]} ssh {v["user"]}@{v["host"]} -p {v["port"]}'
         return host2ssh
     
-
-
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)
@@ -646,7 +670,6 @@ class Remote(c.Module):
         infos = c.infos(network=network)
         return {info['ss58_address'] for info in infos if 'ss58_address' in info}
     
- 
     def check_peers(self, timeout=10):
         futures = []
         for m,a in c.namespace(network='remote').items():
@@ -654,8 +677,7 @@ class Remote(c.Module):
         results = c.wait(futures, timeout=timeout)
         return results
     
-
-    def sync(self, timeout=40,  max_staleness=360):
+    def sync(self, timeout=40,  max_age=360):
         futures = []
         namespace = c.namespace('module', network='remote')
         paths = []
@@ -686,7 +708,6 @@ class Remote(c.Module):
     def peerpath2name(self, path:str):
         return path.split('/')[-1].replace('.json', '')
     
-
     def peer2info(self):
         peer_infos = {}
         for path in self.ls('peers'):
@@ -696,12 +717,11 @@ class Remote(c.Module):
             peer_infos[peer_name] = info
         return peer_infos
     
-
-    def peer2lag(self, max_staleness=1000):
+    def peer2lag(self, max_age=1000):
         peer2timestamp = self.peer2timestamp()
         time = c.time()
         ip2host = self.ip2host()
-        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_staleness}
+        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_age}
 
     def peer2timestamp(self):
         peer2info = self.peer2info()
@@ -725,8 +745,6 @@ class Remote(c.Module):
             info = cls.get(path, {})
             peer2namespace[path] = info.get('namespace', {})
         return peer2namespace
-
-
 
     @classmethod
     def add_peers(cls, add_admins:bool=False, timeout=20, update=False, network='remote'):
@@ -760,15 +778,11 @@ class Remote(c.Module):
 
         return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
  
-
-
-
     def peer_info(self, peer):
         host2ip = self.host2ip()
         peer = host2ip.get(peer, peer)
         return self.get(f'peers/{peer}', {})
     
-
     @classmethod
     def call(cls, fn:str='info' , *args, 
              search:str='module', 
@@ -798,13 +812,9 @@ class Remote(c.Module):
                 return list(futures.values())[0]
             return futures
         else:
-
-    
-            
             num_futures = len(futures)
             results = {}
             import tqdm 
-
 
             progress_bar = tqdm.tqdm(total=num_futures)
             error_progress = tqdm.tqdm(total=num_futures)
@@ -826,21 +836,21 @@ class Remote(c.Module):
         
             return results
     @classmethod
-    def dashboard(cls):
-        c.module('remote.app').dashboard()
+    def app(cls):
+        return c.module('remote.app').app()
 
     def save_ssh_config(self, path="~/.ssh/config"):
         ssh_config = self.ssh_config()
         return c.put_text(path, ssh_config) 
 
-    def ssh_config(self):
+    def ssh_config(self, search=None):
         """
         Host {name}
           HostName 0.0.0.0.0
           User fam
           Port 8888
         """
-        host_map = self.host_map()
+        host_map = self.host_map(search=search)
         toml_text = ''
         for k,v in host_map.items():
             toml_text += f'Host {k}\n'
@@ -880,5 +890,8 @@ class Remote(c.Module):
         if host not in hosts:
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
+    
+
+
 
 Remote.run(__name__)

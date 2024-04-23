@@ -1,5 +1,0 @@
-netuid: 0
-search: storage
-storage_timeout: 5
-tag: base
-network: local

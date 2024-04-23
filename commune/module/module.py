@@ -1,6 +1,7 @@
 import inspect
 import os
 import concurrent
+import threading
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
@@ -12,14 +13,24 @@ import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
+import nest_asyncio
+nest_asyncio.apply()
 
 # AGI BEGINS 
 class c:
+    whitelist = ['info',
+                'schema',
+                'server_name',
+                'is_admin',
+                'namespace',
+                'whitelist', 
+                'blacklist',
+                'fns'] # whitelist of helper functions to load
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
-    git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
+    giturl = git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
     homepath = home_path = os.path.expanduser('~') # the home path
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
@@ -27,22 +38,11 @@ class c:
     address = '0.0.0.0:8888' # the address of the server (default)
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
+    libname = lib_name = lib = root_path.split('/')[-1] # the name of the library
     datapath = os.path.join(libpath, 'data') # the path to the data folder
-    modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
+    modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
-    library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
-    pwd = os.getenv('PWD') # the current working directory from the process starts 
     console = Console() # the consolve
-    helper_functions = ['info',
-                        'schema',
-                        'server_name',
-                        'is_admin',
-                        'namespace',
-                        'code',
-                        'whitelist', 
-                        'blacklist',
-                        'fns'] # whitelist of helper functions to load
-    whitelist = []
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
@@ -56,7 +56,6 @@ class c:
     @classmethod
     def init(cls, *args, **kwargs):
         return cls(*args, **kwargs)
-
 
     default_tag = 'base'
     @property
@@ -74,7 +73,10 @@ class c:
             self.config = c.dict2munch({})
         self.config['tag'] = value
         return value
-        
+    @classmethod
+    def pwd(cls):
+        pwd = os.getenv('PWD') # the current wor king directory from the process starts 
+        return pwd
 
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
@@ -92,10 +94,9 @@ class c:
 
         if 'config' in kwargs:
             config = kwargs.pop('config')
-            
-        # get the config
-        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
+        # get the config
+        config =  self.config(config=config,kwargs=kwargs, to_munch=to_munch)
 
         # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
@@ -107,7 +108,6 @@ class c:
         
         if save_config:
             self.save_config(config=config)
-    
         return self.config
 
 
@@ -127,116 +127,56 @@ class c:
     
     @classmethod
     def call(cls, module : str, 
-                fn:str = None,*args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = None,
-                key:str = None,
-                kwargs = None,
-                return_future:bool = False,
-                **extra_kwargs) -> None:
-
-        client_kwargs = { 
-                          'network': network,
-                          'prefix_match': prefix_match,
-                          'network': network,
-                          'key': key,
-                          'kwargs': kwargs,
-                          'timeout': timeout,
-                          **extra_kwargs}
-
-        
-        futures = c.async_call(module, fn, *args, **client_kwargs)
-        if return_future:
-            return futures
-        return c.gather(futures, timeout=timeout)
-    
-    
-    @classmethod
-    def call_search(cls, 
-                    search : str, 
-                fn:str = None, *args,
-                timeout : int = 10,
-                network:str = 'local',
-                key:str = None,
-                kwargs = None,
-                return_future:bool = False,
-                **extra_kwargs) -> None:
-        if '/' in search:
-            args = [fn] + list(args)
-            module, fn = search.split('/')
-        namespace = c.namespace(search, network=network)
-
-        future2module = {}
-
-
-        for module, address in namespace.items():
-            future = c.submit(c.call,
-                              args = args,
-                               kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
-                                         'network': network, 'key': key, 
-                                         'kwargs': kwargs, 'return_future': return_future, 
-                                         **extra_kwargs} )
-            future2module[future] = module
-        futures = list(future2module.keys())
-        result = {}
-        progress_bar = c.tqdm(len(futures))
-        for future in c.as_completed(futures):
-            module = future2module.pop(future)
-            futures.remove(future)
-            progress_bar.update(1)
-            result[module] = future.result()
-
-        return result
-            
-        
-            
-        
-        
-        return c.call(namespace, fn, *args, timeout=timeout, network=network, key=key, kwargs=kwargs, return_future=return_future, **extra_kwargs)
-
-    
-    
-    @classmethod
-    async def async_call(cls,
-                module : str, 
-                fn : str = None,
+                fn:str = None,
                 *args,
                 timeout : int = 10,
                 prefix_match:bool = False,
-                network:str = None,
+                network:str = 'local',
                 key:str = None,
                 kwargs = None,
-                verbose = False,
+                params = None,
                 default_fn = 'info',
-                **extra_kwargs
-                ) -> None:
-        
-        if '://' in module:
-            module = module.split('://')[-1]
-  
+                **extra_kwargs) -> None:
+          
+        if '//' in module:
+            module = module.split('//')[-1]
         if '/' in module:
             # adjust the split
             if fn != None:
                 args = [fn] + list(args)
             module , fn = module.split('/')
-        else:
-            if fn == None:
-                fn = default_fn
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)  
-        try:
-            module = c.connect(module,network=network,  prefix_match=prefix_match, virtual=False, key=key)
-            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
-            result = await asyncio.wait_for(future, timeout=timeout)
-        except Exception as e:
-            result = c.detailed_error(e)
+
+        module = c.connect(module,
+                           network=network,  
+                           prefix_match=prefix_match, 
+                           virtual=False, 
+                           key=key)
         
-        return result
+
+        return  asyncio.run(module.async_forward(fn=fn, 
+                                                 args=args, 
+                                                 kwargs=kwargs, 
+                                                 params=params, 
+                                                 default_fn=default_fn))
+
+    @classmethod
+    async def async_call(cls, *args,**kwargs):
+        return c.call(*args, **kwargs)
+
+    @classmethod
+    def fn2async(cls, fn:Callable, args=None, kwargs=None, **extra_kwargs):
+        args = args or []
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)
+        async def async_fn():
+            return fn(*args, **kwargs)
+        return async_fn()
+
 
     
-
-
+    @classmethod
+    def call_search(cls,*args, **kwargs) -> None:
+        return c.m('client').call_search(*args, **kwargs)
 
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -269,24 +209,25 @@ class c:
             module_path = cls.path2simple(module_path)
         return module_path
     
+
     @classmethod
-    def get_module_dirpath(cls, obj=None,  simple:bool=False) -> str:
-        return  os.path.dirname(c.get_module_path(obj=obj, simple=simple))
-    get_module_dir = get_module_dirpath
-    
-    @classmethod
-    def filepath(cls) -> str:
+    def filepath(cls, obj=None) -> str:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        return cls.get_module_path(simple=False)
+        obj = cls.resolve_module(obj)
+        module_path =  inspect.getfile(obj)
+        return module_path
     
+    @classmethod
+    def gitbranch(cls) -> str:
+        return c.cmd('git branch').split('\n')[0].replace('* ', '')
 
     @classmethod
-    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/main/'):
-        
-        filepath = cls.filepath().replace(c.modules_path, '')
-        
+    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/'):
+        branch = cls.gitbranch()
+        root = root + branch + '/'
+        filepath = cls.filepath().replace(c.repo_path + '/', '')
         return root + filepath
 
 
@@ -326,7 +267,6 @@ class c:
         # get the module path
         
         path = cls.get_module_path(simple=simple)
-        path = path.replace('modules.', '')
         return path
     
     path  = name = module_name =  module_path
@@ -358,23 +298,32 @@ class c:
     @classmethod
     def config_path(cls) -> str:
         return cls.get_module_path(simple=False).replace('.py', '.yaml')
-    
-    @classmethod    
-    def dict2munch(cls, x:Dict) -> Munch:
-        '''
-        Converts a dict to a munch
-        '''
-        from commune.utils.dict import dict2munch
-        return dict2munch(x)
-    
+
     @classmethod
-    def munch2dict(cls, x:'Munch') -> Dict:
+    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
         '''
-        Converts a munch to a dict
+        Turn dictionary into Munch
         '''
-        from commune.utils.dict import munch2dict
-        return munch2dict(x)
-    
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = c.dict2munch(v)
+            x = Munch(x)
+        return x 
+
+    @classmethod
+    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
+        '''
+        Turn munch object  into dictionary
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = c.munch2dict(v)
+
+        return x 
+
     @classmethod
     def munch(cls, x:Dict) -> Munch:
         '''
@@ -383,16 +332,21 @@ class c:
         return cls.dict2munch(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None, root:bool = False) -> Dict:
+    def load_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
         '''f
         Loads a yaml file
         '''
-        path = cls.resolve_path(path, root=root)
+        import yaml
+        path = cls.resolve_path(path)
+
+        try:
+            with open(path, 'r') as file:
+                data = yaml.safe_load(file)
+        except:
+            data = default
+
+        return data
         
-        from commune.utils.dict import load_yaml
-        config = load_yaml(path)
-        return config
-    
     get_yaml = load_yaml
 
 
@@ -417,13 +371,13 @@ class c:
         '''
         Returns the code of a function
         '''
-
-        if seperator in fn:
-            module_path, fn = fn.split(seperator)
-            module = c.module(module_path)
-            fn = getattr(module, fn)
-        else:
-            fn = getattr(cls, fn)
+        if isinstance(fn, str):
+            if seperator in fn:
+                module_path, fn = fn.split(seperator)
+                module = c.module(module_path)
+                fn = getattr(module, fn)
+            else:
+                fn = getattr(cls, fn)
         
         
         code_text = inspect.getsource(fn)
@@ -446,16 +400,15 @@ class c:
     fncode = fn_code
     @classmethod
     def sandbox(cls):
-        
         c.cmd(f'python3 {c.libpath}/sandbox.py')
     sand = sandbox
 
     @classmethod
-    def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
+    def save_yaml(cls, path:str,  data: dict) -> Dict:
         '''
         Loads a yaml file
         '''
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
             
         from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
@@ -493,7 +446,7 @@ class c:
     
     
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = False, root:bool = False) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
@@ -503,7 +456,7 @@ class c:
         if path == None: 
             path = cls.config_path()
         else:
-            module_tree = cls.module_tree()
+            module_tree = c.tree()
             path = module_tree[path].replace('.py', '.yaml')
             
         config = cls.load_yaml(path)
@@ -540,7 +493,7 @@ class c:
 
     def test_file(self, k='test_a', v=1):
         c.put(k,v)
-        assert self.exists(k)
+        assert self.exists(k), f'file does not exist ({k})'
         self.encrypt_file(k)
         c.print(self.get_text(k))
         self.decrypt_file(k)
@@ -561,7 +514,13 @@ class c:
         return text.startswith(prefix)
 
     @classmethod
-    def put(cls, k: str, v: Any,  mode: bool = 'json', encrypt: bool = False, verbose: bool = False, password: str = None, **kwargs) -> Any:
+    def put(cls, 
+            k: str, 
+            v: Any,  
+            mode: bool = 'json',
+            encrypt: bool = False, 
+            verbose: bool = False, 
+            password: str = None, **kwargs) -> Any:
         '''
         Puts a value in the config
         '''
@@ -569,6 +528,9 @@ class c:
         
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
+
+        if not c.jsonable(v):
+            v = c.serialize(v)    
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
         
@@ -577,8 +539,10 @@ class c:
 
         if verbose:
             c.print(f'put {k} = {v}')
+
+        data_size = c.sizeof(v)
     
-        return data
+        return {'k': k, 'data_size': data_size, 'encrypted': encrypt, 'timestamp': c.timestamp()}
     
     @classmethod
     def get(cls,
@@ -589,6 +553,7 @@ class c:
             cache :bool = False,
             full :bool = False,
             key: 'Key' = None,
+            update :bool = False,
             password : str = None,
             **kwargs) -> Any:
         
@@ -605,15 +570,19 @@ class c:
             
 
         if password != None:
-            data['data'] = c.decrypt(data['data'], password=password)
+            assert data['encrypted'] , f'{k} is not encrypted'
+            data['data'] = c.decrypt(data['data'], password=password, key=key)
 
         data = data or default
+        
         if isinstance(data, dict):
+            if update:
+                max_age = 0
             if max_age != None:
                 timestamp = data.get('timestamp', None)
                 if timestamp != None:
                     age = int(c.time() - timestamp)
-                    if age > max_age:
+                    if age > max_age: # if the age is greater than the max age
                         c.print(f'{k} is too old ({age} > {max_age})', color='red')
                         return default
         else:
@@ -629,54 +598,7 @@ class c:
             cls.cache[k] = data
 
         return data
-    
 
-    @classmethod
-    def obj_age(cls, item:dict) -> int:
-        return c.timestamp() - int(cls.get_json(item).get('timestamp', 0))
-
-    @classmethod
-    def get_many(cls,
-            *k, 
-            default: Any=None, 
-            mode:str = 'json',
-            max_age:str = None,
-            cache :bool = False,
-            full :bool = False,
-            **kwargs) -> Any:
-        
-        '''
-        Puts a value in sthe config, with the option to encrypt it
-
-        Return the value
-        '''
-        data_map = {k: cls.get(k, default=default, mode=mode, max_age=max_age, cache=cache, full=full, **kwargs) for k in k}
-        return data_map
-
-    @classmethod
-    def get_age(cls, k:int=0, scale:str = 'hours', **kwargs) -> int:
-
-        try:
-            timestamp =  cls.get_json(k).get('timestamp', 0)
-        except:
-            timestamp = 0
-
-        seconds =  c.timestamp() - int(timestamp)
-        scale2factor = {'seconds': 1,
-                         'minutes': 60, 
-                         'hours': 3600,
-                           'days': 86400, 
-                           'weeks': 604800, 
-                           'years': 31536000}
-        
-        return seconds / scale2factor[scale]
-
-    
-    @staticmethod
-    def too_old(self, timestamp:int, max_age:int):
-        return c.time() - timestamp > max_age
-    
-    
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
         '''
@@ -690,13 +612,7 @@ class c:
         cls.save_config(config=config)
 
         return {'success': True, 'msg': f'config({k} = {v})'}
-   
-    
-    def setc(self, k, v, password=None) -> Munch:
-        return setattr(self.config, k, v)
-   
-   
-
+    setc = putc
     @classmethod
     def rmc(cls, k, password=None) -> Munch:
         '''
@@ -707,14 +623,8 @@ class c:
         cls.save_config(config=config)
    
     delc = rmc
-    setc = putc
+    
 
-
-
-    @classmethod
-    def frontend(cls):
-        return c.compose('frontend')
-      
     @classmethod
     def popc(cls, key:str):
         config = cls.config()
@@ -726,11 +636,6 @@ class c:
         config = cls.config()
         return key in config
 
-    @classmethod
-    def keysc(cls):
-        config = cls.config()
-        return list(config.keys())
-        
     @classmethod  
     def getc(cls, key, default= None, password=None) -> Any:
         '''
@@ -781,7 +686,7 @@ class c:
         return self.path_exists(path)
 
     @classmethod
-    def get_config(cls, 
+    def config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
                    to_munch:bool = True) -> Munch:
@@ -792,7 +697,7 @@ class c:
 
         # THIS LOADS A YAML IF IT EXIST, OR IT USES THE INIT KWARGS IF THERE IS NO YAML
         if has_config:
-            default_config = cls.load_config()
+            default_config = cls.load_config(to_munch=False)
         else: 
             default_config = cls.init_kwargs()
 
@@ -801,32 +706,30 @@ class c:
         elif isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
-        elif isinstance(config, dict):
+        
+        if isinstance(config, dict):
             config = {**default_config, **config}
         else:
             raise ValueError(f'config must be a dict, str or None, not {type(config)}')
-            
-        assert isinstance(config, dict), f'config must be a dict, not {config}'
-        
+                
         # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
         # for example  model.name=bert is the same as config[model][name]=bert
         # merge kwargs with itself (CAUTION THIS DOES NOT WORK IF KWARGS WAS MEANT TO BE A VARIABLE LOL)
-        kwargs = kwargs if kwargs != None else cls.init_kwargs()
-        kwargs.update(kwargs.pop('kwargs', {}))
-        for k,v in kwargs.items():
-            cls.dict_put(config,k,v )
-            
+
+        config = c.locals2kwargs(config)
+
+        if kwargs != None:
+            kwargs = c.locals2kwargs(kwargs)
+            for k,v in kwargs.items():
+                cls.dict_put(config,k,v )
         #  add the config after in case the config has a config attribute lol
         if to_munch:
             config = cls.dict2munch(config)
-        
+
+
         return config
  
-    config = get_config
-
-    @classmethod
-    def cfg(cls, *args, **kwargs):
-        return cls.get_config(*args, **kwargs)
+    cfg = get_config = config
 
     @classmethod
     def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
@@ -889,7 +792,18 @@ class c:
     @classmethod
     def switch_key(cls, *args, **kwargs):
         return c.module('key').switch_key(*args, **kwargs)
+    
+    @classmethod
+    def module_info(cls, *args, **kwargs):
+        return c.module('subspace')().module_info(*args, **kwargs)
+    
+    minfo = module_info
 
+    @classmethod
+    def pwd2key(cls, *args, **kwargs):
+        return c.module('key').pwd2key(*args, **kwargs)
+
+    password2key = pwd2key        
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):
@@ -946,73 +860,19 @@ class c:
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
     
-    @classmethod
-    def dash(cls, *args, **kwargs):
-        return cls.st(*args, **kwargs)
 
     @classmethod
-    def st(cls,
-           fn='dashboard', 
-           module:str = None, 
+    def start_app(cls,
+           module:str = 'module', 
+           fn='app', 
            port=8501, 
            public:bool = False, 
-           remote:bool = False, 
-           kwargs=None):
-        if module == None: 
-            module = cls.module_path()
-
-        kwargs = kwargs or {}
-        if public:
-            port = c.free_port()
-
-        while c.port_used(port):
-            c.print(f'Port {port} is already in use', color='red')
-            port = port + 1
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())
-            remote_kwargs['remote'] = False
-            c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
-            url = f'http://{c.ip()}:{port}'
-
-            return {'success': True, 
-                    'msg': f'running {module} on {port}', 
-                    'url': url}
-        module_path = module
-        module = c.module(module_path)
-        module_filepath = module.filepath()
-        # add port to the command
-        cmd = f'streamlit run {module_filepath} --server.port {port}'
-        
-        if kwargs == None:
-            kwargs = {}
-
-        kwargs_str = json.dumps(kwargs)
-        kwargs_str = kwargs_str.replace('"', "'")
-
-        cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
-
-        module2dashboard = c.get('module2dashboard', {})
-        if module_path in module2dashboard:
-            try:
-                module_port = module2dashboard[module_path]['port']
-                c.print(f'Killing {module_path} on port {module_port}')
-                c.kill_port(module_port)
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-
-        module2dashboard[module_path] = {
-            'port': port,
-            'fn': fn,
-            'kwargs': kwargs,
-            'cmd': cmd
-        }
-        
-        c.put('module2dashboard', module2dashboard)
-
-        cwd = os.path.dirname(module_filepath)
-        c.cmd(cmd, verbose=True, cwd=cwd)
-
-        
+           remote:bool = False):
+        kwargs = c.locals2kwargs(locals())
+        return c.module('app')().start(**kwargs)
+    
+    app = start_app
+ 
     @staticmethod
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
@@ -1023,6 +883,7 @@ class c:
     @classmethod
     def rpwd(cls, *args, **kwargs):
         return c.module('remote')().pwd(*args, **kwargs)
+    pw = rpwd
     @classmethod
     def cmd(cls, command:Union[str, list],
             *args,
@@ -1032,6 +893,7 @@ class c:
                         password: bool = None,
                         color: str = 'white',
                         bash : bool = False,
+                        cwd : str = None,
                         **kwargs):
         return c.module('os').cmd( 
                         command,
@@ -1072,25 +934,20 @@ class c:
 
 
     @classmethod
-    def module_exists(cls, module:str) -> bool:
+    def module_exists(cls, module:str, **kwargs) -> bool:
         '''
         Returns true if the module exists
         '''
-        return module in c.modules()
+        return module in c.modules(**kwargs)
 
 
     
     @classmethod
-    def modules(cls, search=None, mode='local', **kwargs)-> List[str]:
-        '''
-        List of module paths with respect to module.py file
-        
-        Assumes the module root directory is the directory containing module.py
-        '''
+    def modules(cls, search=None, mode='local', tree='commune', **kwargs)-> List[str]:
         if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
             module_list = c.module('subspace')().modules(search=search, **kwargs)
         else:
-            module_list = list(cls.module_tree().keys())
+            module_list = list(c.tree(search=search, tree=tree, **kwargs).keys())
             if search != None:
                 module_list = [m for m in module_list if search in m]
         return module_list
@@ -1100,6 +957,16 @@ class c:
         if not isinstance(x, list):
             x = list(x)
         return sum(x) / len(x)
+    
+    def median(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
+        if not isinstance(x, list):
+            x = list(x)
+        x = sorted(x)
+        n = len(x)
+        if n % 2 == 0:
+            return (x[n//2] + x[n//2 - 1]) / 2
+        else:
+            return x[n//2]
     
     def stdev(self, x:list= [0,1,2,3,4,5,6,7,8,9,10], p=2):
         if not isinstance(x, list):
@@ -1172,11 +1039,10 @@ class c:
     
     @classmethod
     def makedirs(cls, *args, **kwargs):
-        import os
         return os.makedirs(*args, **kwargs)
 
     @classmethod
-    def resolve_path(cls, path:str = None, extension:Optional[str]= None, root:bool = False, file_type:str = 'json'):
+    def resolve_path(cls, path:str = None, extension:Optional[str]= None, file_type:str = 'json'):
         '''
         ### Documentation for `resolve_path` class method
         
@@ -1209,7 +1075,7 @@ class c:
         file_path = MyClassName.resolve_path('data/subfolder/file', extension='txt')
         
         # Resolve a path in relation to the root temporary directory
-        root_file_path = MyClassName.resolve_path('configs/settings', root=True)
+        root_file_path = MyClassName.resolve_path('configs/settings'
         ```
         
         #### Notes:
@@ -1219,17 +1085,17 @@ class c:
 
         if path == None:
             return cls.tmp_dir()
-        
+
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
-            path =  os.path.expanduser(path)
+            path =  os.path.abspath(path)
         elif path.startswith('./'):
             path = os.path.abspath(path)
         else:
             # if it is a relative path, then it is relative to the module path
             # ex: 'data' -> '.commune/path_module/data'
-            tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
+            tmp_dir = cls.tmp_dir()
 
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
@@ -1324,15 +1190,19 @@ class c:
         return cls.choice(cls.free_ports(*args, **kwargs))
     
     @staticmethod
-    def random_int(*args):
+    def random_int(start_value=100, end_value=None):
+        if end_value == None: 
+            end_value = start_value
+            start_value, end_value = 0 , start_value
+        
+        assert start_value != None, 'start_value must be provided'
+        assert end_value != None, 'end_value must be provided'
         import random
-        if len(args) == 1:
-            return random.randint(0, args[0])
-        elif len(args) == 2:
-            return random.randint(args[0], args[1])
-        else:
-            raise ValueError('Invalid number of arguments')
+        return random.randint(start_value, end_value)
+        
 
+
+        return random.randint(args[0], args[1])
 
     
     @classmethod
@@ -1413,8 +1283,12 @@ class c:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-    def kill_port_range(self, start_port = 8501, end_port = 8620, timeout=5, n=0):
-        port_range = [start_port, end_port]
+    def kill_port_range(self, start_port = None, end_port = None, timeout=5, n=0):
+        if start_port != None and end_port != None:
+            port_range = [start_port, end_port]
+        else:
+            port_range = c.port_range()
+        
         if n > 0:
             port_range = [start_port, start_port + n]
         assert isinstance(port_range[0], int), 'port_range must be a list of ints'
@@ -1439,7 +1313,7 @@ class c:
 
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
-        
+   
         if not c.port_used(port):
             return {'success': True, 'msg': f'port {port} is not in use'}
         if mode == 'python':
@@ -1454,7 +1328,7 @@ class c:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
             return port
         elif mode == 'bash':
-            c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
+            c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
         return {'success': True, 'msg': f'killed port {port}'}
 
     @classmethod
@@ -1481,41 +1355,24 @@ class c:
             
     
     @classmethod
-    def kill_all(cls, network='local'):
+    def kill_all(cls, network='local', timeout=20, verbose=True):
         futures = []
         for s in c.servers(network=network):
-            futures += [c.submit(c.kill, args=[s], return_future=True)]
+            c.print(f'Killing {s}', color='red')
+            futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
 
-        results = c.wait(futures)
-        c.update_namespace(network=network)
+        results_list = []
+        for f in c.as_completed(futures, timeout=timeout):
+            result = f.result()
+            c.print(result, verbose=verbose)
+            results_list += [result]
+
+        c.namespace(network=network, update=True)
 
         return {'namespace': c.namespace(network=network)}
 
-            
-    @classmethod
-    def restart_peers(cls, timeout=20):
-        futures = []
-        for p in cls.peers():
-            futures += [c.submit(c.restart_server, args=[p], return_future=True, timeout=timeout)]
-
-        results = c.wait(futures,timeout=timeout)
-        return results
-
-
-
-    @classmethod
-    def restart_all_servers(cls, verbose: bool = True):
-        '''
-        Kill all of the servers
-        '''
-        for module in cls.servers():
-            if verbose:
-                c.print(f'Restarting {module}', color='red')
-            cls.server_restart(module)
-    @classmethod
-    def restart_all(cls):
-        cls.restart_all_servers()
-
+        
+    
     @classmethod
     def path_config_exists(cls, path:str) -> bool:
         '''
@@ -1525,82 +1382,29 @@ class c:
             if os.path.exists(path.replace('.py', ext)):
                 return True
         return False
-    @classmethod
-    def path2simple(cls, path:str) -> str:
-
-        # does the config exist
-
-   
-
-        simple_path =  path.split(deepcopy(cls.root_dir))[-1]
-
-        if cls.path_config_exists(path):
-            simple_path = os.path.dirname(simple_path)
-
-        simple_path = simple_path.replace('.py', '')
-        
-        
-        simple_path = simple_path.replace('/', '.')[1:]
 
 
-        # compress nae
-        chunks = simple_path.split('.')
-        simple_chunk = []
-        for i, chunk in enumerate(chunks):
-            if len(simple_chunk)>0:
 
-                if simple_chunk[-1] == chunks[i]:
-                    continue
-                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
-                    continue
-            simple_chunk += [chunk]
-        
-        if '_' in simple_chunk[-1]:
-            filename_chunks = simple_chunk[-1].split('_')
-            # if all of the chunks are in the filename
-            if all([c in simple_chunk for c in filename_chunks]):
-                simple_chunk = simple_chunk[:-1]
-
-        simple_path = '.'.join(simple_chunk)
-
-        # remove any files to compress the name even further for
-        if len(simple_path.split('.')) > 2:
-            
-            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
-                simple_path = '.'.join(simple_path.split('.')[:-1])
-        
-        return simple_path
     
 
+    @classmethod
+    def path2simple(cls, 
+                    path:str,
+                    tree = None,
+                    ) -> str:
+
+        return c.module('tree').path2simple(path=path, tree=tree)  
+    
 
     @classmethod
-    def path2localpath(cls, path:str) -> str:
-        local_path = path.replace(cls.repo_path, cls.root_dir)
-        return local_path
-    @classmethod
-    def path2config(cls, path:str, to_munch=False)-> dict:
-        path = cls.path2config_path(path=path)
-        return cls.load_config(path, to_munch=to_munch)
-    
-    @classmethod
-    def path2config_path(cls, path:str):
-        return path.replace('.py', '.yaml')
-    @classmethod
-    def simple2config_path(cls,  path:str):
-        return cls.path2config_path(cls.simple2path(path))
-    @classmethod
-    def simple2config(cls, path:str, to_munch=False)-> dict:
-        return cls.load_config(cls.simple2config_path(path), to_munch=to_munch)
+    def tree_paths(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').tree_paths(*args, **kwargs)  
     
     
     @classmethod
-    def import_path(cls):
-        return cls.path2objectpath(cls.module_file())
+    def tree_names(cls):
+        return c.module('tree').tree_names()
     
-    @classmethod
-    def object_path(cls):
-        return cls.path2objectpath(cls.module_path(simple=False))
-
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
 
@@ -1619,15 +1423,6 @@ class c:
 
         return ['.'.join(object_path.split('.')[:-1]+[c]) for c in classes]
 
-    
-    @classmethod
-    def object_module_path(cls):
-        return '.'.join(cls.object_path().split('.')[:-1])
-    
-    
-    @classmethod
-    def __object_name__(cls):
-        return '.'.join(cls.object_path().split('.')[:-1])
 
 
     @classmethod
@@ -1667,29 +1462,25 @@ class c:
         # return the class names
         return class_names
     
-    
 
     @classmethod
-    def path2objectpath(cls, path:str, search=['c.Module']) -> str:
-
+    def path2objectpath(cls, path:str = None, tree=None) -> str:
+        path = path or cls.filepath()
+        tree = tree or 'commune'
+        tree_path = cls.tree2path()[tree]
 
         if path.endswith('module/module.py'):
             return 'commune.Module'
         
-        python_classes = cls.find_python_classes(path, search=search)
-        
-            
+        python_classes = cls.find_python_classes(path)
         if len(python_classes) == 0:
             return None
+        
         object_name = python_classes[-1]
-        path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
+        path = path.replace(tree_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         return path
 
-    @classmethod
-    def path2object(cls, path:str) -> str:
-        path = cls.path2objectpath(path)
-        return c.import_object(path)
     
     @classmethod
     def url2text(cls, *args, **kwargs):
@@ -1697,40 +1488,42 @@ class c:
 
     module_cache = {}
     @classmethod
-    def get_module(cls, path:str, cache=True, timeit=True, catch_exception=False, verbose=False) -> str:
-        if catch_exception: 
-            try:
-                return cls.get_module(path, cache=cache, timeit=timeit, catch_exception=False)
-            except Exception as e:
-                # sometimes you need to update the module tree
-                cls.tree(update=True)
-        path = path or 'module'
-       
-        if not isinstance(path, str):
-            return path
-        if cache:
-            if path in c.module_cache:
-                return c.module_cache[path]
+    def get_module(cls, 
+                   path:str = 'module', 
+                   cache=True, 
+                   tree = None,
+                   verbose=False) -> str:
         t1 = c.time()
-        # convert the simple to path
-        path = c.simple2path(path)
-        t2 = c.time()
-        c.print(f'Converted {path} to {t2-t1} seconds', color='green', verbose=verbose)
+        path = path or 'module'
+        tree = tree or 'commune'
+        module = None
+        c.print(f'Importing {path}', color='green', verbose=verbose)    
 
-        # convert the path to object path
-        try:
-            path = c.path2objectpath(path, search=None)
-        except Exception as e:
-            c.print(f'Error: {e}', color='red')
-            c.update()
-            path = c.path2objectpath(path, search=None)
-        
-        # import the object
-        
-        module = c.import_object(path)
-        t2 = c.time()
-        c.print(f'Imported {path} in {t2-t1} seconds', color='green', verbose=verbose)
-        c.module_cache[path] = module
+
+        if cache:
+            if tree in c.module_cache:
+                if path in c.module_cache[tree]:
+                    module = c.module_cache[tree][path]
+            else:
+                c.module_cache[tree] = {}
+
+
+        c.print(f'Importing {module}', color='green', verbose=verbose)
+
+        if module == None:
+            if path == 'tree':
+                module = c.import_object('commune.tree.Tree')
+            else:
+                # convert the simple to path
+                path = c.simple2path(path, tree=tree)
+                object_path = c.path2objectpath(path, tree=tree)
+                module = c.import_object(object_path)
+
+            if cache:
+                c.module_cache[tree][path] = module
+                
+        latency = c.time() - t1
+        c.print(f'Imported {path} in {latency} seconds', color='green', verbose=verbose)
         return module
 
     @classmethod
@@ -1747,40 +1540,27 @@ class c:
     
 
     @classmethod
-    def tree(cls, search=None, 
-                update:bool = False,
-                path = 'local_module_tree'
-                ) -> List[str]:
-        module_tree = {}
-
-        if not hasattr(cls, 'tree_cache'):
-            cls.tree_cache = {}
-
-        if not update:
-            if cls.tree_cache != {}:
-                module_tree = cls.tree_cache
+    def timefn(cls, fn, *args, trials=1, **kwargs):
+        if trials > 1:
+            responses = []
+            for i in range(trials):
+                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
+            return responses
+        if isinstance(fn, str):
+            if '/' in fn:
+                module, fn = fn.split('/')
+                module = c.module(module)
             else:
-                module_tree =  c.get(path, {})
-                cls.tree_cache = module_tree
+                module = cls
+            if module.classify_fn(fn) == 'self':
+                module = cls()
+            fn = getattr(module, fn)
         
-        if len(module_tree) == 0:
-            for tree_path in cls.trees():
-                # get modules from each tree
-                python_paths = c.get_module_python_paths(path=tree_path)
-                # add the modules to the module tree
-                module_tree.update({c.path2simple(f): f for f in python_paths})
-                # to use functions like c. we need to replace it with module lol
-                if cls.root_module_class in module_tree:
-                    module_tree[cls.root_module_class] = module_tree.pop(cls.root_module_class)
-                
-                c.put(path, module_tree)
+        t1 = c.time()
+        result = fn(*args, **kwargs)
+        t2 = c.time()
 
-        # cache the module tree
-        if search != None:
-            module_tree = {k:v for k,v in module_tree.items() if search in k}
-        return module_tree
-    
-    tree_folders_path = 'module_tree_folders'
+        return {'time': t2 - t1}
 
 
     def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
@@ -1792,15 +1572,34 @@ class c:
                 new_d[k] = v
         
         return new_d
-            
+    
+
+
+    @classmethod
+    def tree(cls, *args,
+                **kwargs) -> List[str]:
+        return c.module('tree').tree(*args,  **kwargs) 
+
+    @classmethod
+    def tree2path(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').tree2path( *args, **kwargs)
+
+    @classmethod
+    def default_trees(cls):
+        return c.m('tree').default_trees
+
+    
     @classmethod
     def trees(cls):
-        path = cls.tree_folders_path
-        trees =   c.get(path, [])
-        if c.libpath not in trees:
-            trees += [c.libpath]
-        return trees
+        return c.m('tree').trees()
     
+    @classmethod
+    def add_tree(cls, path:str = './', **kwargs):
+        return c.m('tree').add_tree(path, **kwargs)
+    
+    @classmethod
+    def rm_tree(cls, path:str = './', **kwargs):
+        return c.m('tree').rm_tree(path, **kwargs)
 
     def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
         if not repo_path.startswith('/') and not repo_path.startswith('.') and not repo_path.startswith('~'):
@@ -1820,7 +1619,6 @@ class c:
                 code_lines[i] = line.replace(class_name, name)
                 break
         code = '\n'.join(code_lines)
-            
 
         module_path = repo_path + '/module.py'
 
@@ -1829,28 +1627,7 @@ class c:
 
         # build the tree
         c.build_tree(update=True)
-        
-    @classmethod
-    def add_tree(cls, tree_path:str, **kwargs):
 
-        tree_path = os.path.expanduser(tree_path)
-        path = cls.tree_folders_path
-        tree_folder = c.get(path, [])
-
-        tree_folder += [tree_path]
-        tree_folder = list(set(tree_folder))
-        assert os.path.isdir(tree_path)
-        assert isinstance(tree_folder, list)
-        c.put(path, tree_folder, **kwargs)
-        return {'module_tree_folders': tree_folder}
-    
-    @classmethod
-    def rm_tree(cls, tree_path:str, **kwargs):
-        path = cls.tree_folders_path
-        tree_folder = c.get(tree_path, [])
-        tree_folder = [f for f in tree_folder if f != tree_path ]
-        c.put(path, tree_folder)
-        return {'module_tree_folders': tree_folder}
 
     @classmethod
     def simple2path(cls, path:str, **kwargs) -> str:
@@ -1862,6 +1639,7 @@ class c:
             else:
                 modules = c.modules(path)
                 raise Exception(f'Could not find {path} in {modules} modules')
+
         return tree[path]
     
 
@@ -1910,8 +1688,10 @@ class c:
         '''
         Search for all of the modules with yaml files. Format of the file
         '''
-        search_glob = c.libpath+'/**/*.py' 
-        path = path if path else c.root_path
+
+        path = path or c.libpath
+
+        search_glob = path +'/**/*.py' 
         modules = []
 
         # find all of the python files
@@ -1958,6 +1738,9 @@ class c:
     def valid_module(cls,module,**kwargs ):
         modules = c.servers(module, **kwargs)
         return bool(len(modules) > 0)
+    @classmethod
+    def Vali(cls, *args, **kwargs):
+        return c.module('vali')
     
     @classmethod
     def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
@@ -2004,30 +1787,15 @@ class c:
         return Timer(*args, **kwargs)
     
 
-    @classmethod
-    def timefn(cls, fn, *args, trials=1, **kwargs):
-        if trials > 1:
-            responses = []
-            for i in range(trials):
-                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
-            return responses
-        if isinstance(fn, str):
-            if '/' in fn:
-                module, fn = fn.split('/')
-                module = c.module(module)
-            else:
-                module = cls
-            if module.classify_fn(fn) == 'self':
-                module = cls()
-            fn = getattr(module, fn)
-        
-        t1 = c.time()
-        result = fn(*args, **kwargs)
-        t2 = c.time()
 
-        return {'time': t2 - t1}
-
-
+    def timefn(cls, fn, *args,  **kwargs):
+        def wrapper(*args, **kwargs):
+            t1 = c.time()
+            result = fn(*args, **kwargs)
+            t2 = c.time()
+            c.print(f'{fn.__name__} took {t2-t1} seconds')
+            return result
+        return wrapper
 
     @classmethod
     def timeit(cls, fn, *args, include_result=False, **kwargs):
@@ -2075,27 +1843,18 @@ class c:
 
     
     @classmethod
-    def locals2kwargs(cls,
-                      locals_dict:dict,
-                      seperate_args:bool=False,
-                      merge_kwargs :bool = True) -> dict:
-        kwargs = {}
-        locals_dict = locals_dict if locals_dict != None else {}
-        assert isinstance(locals_dict, dict)
-        kwargs.update(locals_dict)
-        if merge_kwargs:
-            kwargs.update(locals_dict.get('kwargs', {}))
-        
+    def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
+        kwargs = locals_dict or {}
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
 
-        if seperate_args:
-            args = locals_dict.pop('args', [])
-            assert isinstance(args, list), f'args must be a list, got {type(args)}'
-            return args, kwargs
-
         assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
+
+        # These lines are needed to remove the self and cls from the locals_dict
+        for k in kwargs_keys:
+            kwargs.update( locals_dict.pop(k, {}) or {})
+
         return kwargs
     
 
@@ -2128,7 +1887,7 @@ class c:
 
     @classmethod
     def cache_path(cls):
-        path = os.path.expanduser(f'~/.{cls.library_name}')
+        path = os.path.expanduser(f'~/.{cls.libname}')
         return path
 
     @classmethod
@@ -2136,88 +1895,75 @@ class c:
         return os.path.expanduser('~')
 
     @classmethod
-    def get_json(cls, *args, **kwargs):
-        loop = c.get_event_loop()
-        return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
-    @classmethod
-    async def async_get_json(cls,
-                             path:str,
-                             default:Any=None,
-                             root: bool = False,
-                             verbose: bool = False,
-                             **kwargs):
+    def get_json(cls, 
+                path:str,
+                default:Any=None,
+                verbose: bool = False,**kwargs):
         from commune.utils.dict import async_get_json
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
 
         c.print(f'Loading json from {path}', color='green', verbose=verbose)
 
         try:
-            data = await async_get_json(path, default=default, **kwargs)
+            data = cls.get_text(path, **kwargs)
         except Exception as e:
-            if verbose:
-                c.print(f'Failed to load json from {path} with error {e}')
             return default
-    
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except Exception as e:
+                c.print(e)
+                return default
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
                 data = data['data']
-        
         return data
+    @classmethod
+    async def async_get_json(cls,*args, **kwargs):
+        return  cls.get_json(*args, **kwargs)
 
     load_json = get_json
 
     data_path = repo_path + '/data'
 
     @classmethod
-    def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
+    def put_torch(cls, path:str, data:Dict,  **kwargs):
         import torch
-        path = cls.resolve_path(path=path, extension='pt', root=root)
+        path = cls.resolve_path(path=path, extension='pt')
         torch.save(data, path)
         return path
-    
-    
-    @classmethod
-    def get_torch(cls,path:str, root:bool = False, **kwargs):
-        import torch
-        path = cls.resolve_path(path=path, extension='pt', root=root)
-        return torch.load(path)
-    
     
     def init_nn(self):
         import torch
         torch.nn.Module.__init__(self)
     
     @classmethod
-    def put_json(cls,*args,**kwargs) -> str:
-        loop = c.get_event_loop()
-        return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
+    async def async_put_json(cls,*args,**kwargs) -> str:
+        return cls.put_json(*args, **kwargs) 
     
     @classmethod
-    async def async_put_json(cls, 
+    def put_json(cls, 
                  path:str, 
                  data:Dict, 
                  meta = None,
-                 root: bool = False,
                  verbose: bool = False,
 
                  **kwargs) -> str:
-        
-        from commune.utils.dict import async_put_json
         if meta != None:
             data = {'data':data, 'meta':meta}
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
         # cls.lock_file(path)
         c.print(f'Putting json from {path}', color='green', verbose=verbose)
-
-        await async_put_json(path=path, data=data, **kwargs)
-        # cls.unlock_file(path)
+        if isinstance(data, dict):
+            data = json.dumps(data)
+        c.put_text(path, data)
         return path
     
     save_json = put_json
     
     @classmethod
-    def file_exists(cls, path:str, root:bool = False)-> bool:
-        path = cls.resolve_path(path=path, root=root)
+    def file_exists(cls, path:str)-> bool:
+        path = cls.resolve_path(path=path)
         exists =  os.path.exists(path)
         if not exists and not path.endswith('.json'):
             exists = os.path.exists(path + '.json')
@@ -2238,30 +1984,30 @@ class c:
 
 
     @classmethod
-    def rm_json(cls, path=None, root:bool = False):
+    def rm_json(cls, path=None):
         from commune.utils.dict import rm_json
 
         if path in ['all', '**']:
             return [cls.rm_json(f) for f in cls.glob(files_only=False)]
         
-        path = cls.resolve_path(path=path, extension='json', root=root)
+        path = cls.resolve_path(path=path, extension='json')
 
         return rm_json(path )
     
     @classmethod
-    def rmdir(cls, path, root:bool = False):
+    def rmdir(cls, path):
         import shutil
         return shutil.rmtree(path)
 
     @classmethod
-    def isdir(cls, path, root:bool = False):
-        path = cls.resolve_path(path=path, root=root)
+    def isdir(cls, path):
+        path = cls.resolve_path(path=path)
         return os.path.isdir(path)
         
 
     @classmethod
-    def isfile(cls, path, root: bool = False):
-        path = cls.resolve_path(path=path, root=root)
+    def isfile(cls, path):
+        path = cls.resolve_path(path=path)
         return os.path.isfile(path)
 
 
@@ -2280,10 +2026,10 @@ class c:
         
 
     @classmethod
-    def rm(cls, path, extension=None, root=False, mode = 'json'):
+    def rm(cls, path, extension=None, mode = 'json'):
         
         assert isinstance(path, str), f'path must be a string, got {type(path)}'
-        path = cls.resolve_path(path=path, extension=extension, root=root)
+        path = cls.resolve_path(path=path, extension=extension)
 
         # incase we want to remove the json file
         mode_suffix = f'.{mode}'
@@ -2315,15 +2061,11 @@ class c:
 
 
     @classmethod
-    def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
-        
-        path = cls.resolve_path(path, extension=None, root=root)
-        
+    def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
+        path = cls.resolve_path(path, extension=None)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
-            
         paths = glob(path, recursive=recursive)
-        
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -2332,19 +2074,10 @@ class c:
     def get_file_size(cls, path:str):
         path = cls.resolve_path(path)
         return os.path.getsize(path)
-         
-    @classmethod
-    def ls_json(cls, path:str = '', recursive:bool = True):
-        return [os.path.basename(p).replace('.json', '')for p in cls.ls(path, recursive=recursive)]
-    
-    # @classmethod
-    # def rm_storage(cls):
-        
 
     @classmethod
     def ls(cls, path:str = '', 
            recursive:bool = False,
-           root:bool = False,
            return_full_path:bool = True):
         """
         provides a list of files in the path 
@@ -2352,27 +2085,30 @@ class c:
         this path is relative to the module path if you dont specifcy ./ or ~/ or /
         which means its based on the module path
         """
-        path = cls.resolve_path(path, extension=None, root=root)
+        path = cls.resolve_path(path, extension=None)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
             return []
         if return_full_path:
-            ls_files = [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
+            ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
 
         ls_files = sorted(ls_files)
         return ls_files
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
-        if path.startswith('~'):
-            path = os.path.expanduser(path)
+        path = os.path.abspath(path)
         return os.listdir(path)
+
+    @classmethod
+    def abspath(cls, path:str) -> str:
+        return os.path.abspath(path)
+
 
     @classmethod
     def walk(cls, path:str, module:str=False) -> List[str]:
         
-        import os
         path_map = {}
         for root, dirs, files in os.walk(path):
             for f in files:
@@ -2392,79 +2128,24 @@ class c:
     @classmethod
     def connect(cls,
                 module:str, 
-                network : str = None,
-                namespace = None,
+                network : str = 'local',
                 mode = 'http',
                 virtual:bool = True, 
-                verbose: bool = False, 
-                prefix_match: bool = False,
-                key = None,
-                return_future:bool = False,):
-
-        kwargs = c.locals2kwargs(locals())
-        return_future = kwargs.pop('return_future', False)
-        future = cls.async_connect(**kwargs)
-        if return_future:
-            return future
-        return c.gather(future)
-    
-    @classmethod
-    def reoslve_client(cls, module, network='local', **kwargs):
-        if not c.server_exists(module):
-            c.serve(module,wait_for_server=True, network=network)
-        return c.connect(module, network=network **kwargs)
-    
-
-    @classmethod
-    async def async_connect(cls, 
-                module:str, 
-                network : str = None,
-                namespace = None,
-                mode = 'http',
-                virtual:bool = False, 
-                prefix_match: bool = False,
-                key = None,
-                **kwargs ):
-
-        """
-        Connects to a server by the name of the module
-        :param module: name of the module
-        """
-        if '://' in module:
-            module = module.split('://')[-1]
-
-        network = c.resolve_network(network)
-        key = cls.get_key(key)
-
-
-        # we dont want to load the namespace if we have the address
-        is_address = c.is_address(module)
-        if is_address:
-            address = module
-        else:
-            # using the namespace to reaolve the address
-            namespace = namespace if namespace != None else c.namespace(module, network=network)
-            modules = list(namespace.keys())
-            # if we want to match the prefix, then we will match the prefix
-            if prefix_match == True:
-                module = c.choice(modules)
-
-            if module not in namespace:
-                raise Exception(f'No module with name {module} found in namespace {namespace.keys()}')
-            address = namespace.get(module, None)
-
-        if '://' in address:
-            address = address.split('://')[-1]
-        ip = ':'.join(address.split(':')[:-1])
-        port = int(address.split(':')[-1])
-
-        # CONNECT TO THE MODULE
-        if 'None' in address:
-            raise Exception(f'Invalid address {address}')
-
-        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
-
+                **kwargs):
+        
+        client = c.module( f'client')(address=module, 
+                                       virtual=virtual, 
+                                       network=network,
+                                       **kwargs)
+        # if virtual turn client into a virtual client, making it act like if the server was local
+        if virtual:
+            return client.virtual()
+        
         return client
+
+    @classmethod
+    async def async_connect(cls, *args, **kwargs):
+        return c.connect(*args, **kwargs)
      
     @classmethod
     def root_address(cls, name:str='module',
@@ -2534,21 +2215,6 @@ class c:
         if return_dict:
             return dict(zip(modules, module_clients))
         return module_clients
-
-    @classmethod
-    def get_client(cls, ip:str = None, port:int = None ,virtual:bool = True, mode=server_mode, **kwargs):
-        '''
-        Returns a client to a server
-        '''
-        client_path = f'client.{mode}'
-        client = c.module(client_path)(ip=ip, port=port,**kwargs)
-        # if virtual turn client into a virtual client, making it act like if the server was local
-        if virtual:
-            return client.virtual()
-        
-        return client
-
-    
 
     @classmethod
     def nest_asyncio(cls):
@@ -2646,13 +2312,13 @@ class c:
     def is_address(cls, address:str) -> bool:
         if not isinstance(address, str):
             return False
-        if '//:' in address:
+        if '://' in address:
             return True
         conds = []
+        conds.append(len(address.split('.')) >= 3)
         conds.append(isinstance(address, str))
         conds.append(':' in address)
-        conds.append(cls.is_number(address.split(':')[-1]))
-        conds.append('.' in address and c.is_number(address.split('.')[0]))
+        conds.append(cls.is_int(address.split(':')[-1]))
         return all(conds)
     
     @classmethod
@@ -2741,8 +2407,7 @@ class c:
     @server_name.setter
     def server_name(self, v):
         if callable(self.config):
-            self.config = self.config()
-
+            self.set_config()
         self.config['server_name'] = v
         return self.config['server_name']
     
@@ -2775,6 +2440,8 @@ class c:
     def attributes(self):
         return list(self.__dict__.keys())
 
+    
+
     @classmethod
     def get_attributes(cls, search = None, obj=None):
         if obj is None:
@@ -2784,11 +2451,8 @@ class c:
         # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
         attrs =  dir(obj)
         if search is not None:
-            attrs = [a for a in attrs if search in a]
+            attrs = [a for a in attrs if search in a and callable(a)]
         return attrs
-
-    
-
     
     # NAMESPACE::MODULE
     namespace_module = 'module.namespace'
@@ -2857,7 +2521,8 @@ class c:
     def namespace(cls,
                   search:str = None,
                   network:str='local',
-                  update: bool = False, **kwargs):
+                  update: bool = False,
+                   **kwargs):
         namespace =  c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
@@ -2895,6 +2560,10 @@ class c:
     @classmethod
     def subnet_params(cls, *args, **kwargs):
         return c.module("subspace")().subnet_params(*args, **kwargs)
+
+    @classmethod
+    def my_subnets(cls, *args, **kwargs):
+        return c.module("subspace")().my_subnets(*args, **kwargs)
     
     @classmethod
     def global_params(cls, *args, **kwargs):
@@ -2904,9 +2573,6 @@ class c:
     def subnet_names(cls, *args, **kwargs):
         return c.module("subspace")().subnet_names(*args, **kwargs)
     
-    
-    
-
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
         namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
@@ -2920,7 +2586,12 @@ class c:
 
     
     @classmethod
-    def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
+    def resolve_server_name(cls, 
+                            module:str = None, 
+                            tag:str=None, 
+                            name:str = None,  
+                            tag_seperator:str='::', 
+                            **kwargs):
         """
         Resolves the server name
         """
@@ -2950,118 +2621,85 @@ class c:
     @classmethod
     def serve(cls, 
               module:Any = None ,
+              kwargs:dict = None,  # kwargs for the module
               tag:str=None,
-              network = 'local',
+              server_network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
-              kwargs:dict = None,  # kwargs for the module
+              name = None, # name of the server if None, it will be the module name
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
-              mode:str = 'http',
               tag_seperator:str='::',
               max_workers:int = None,
-              public: bool = False,
-              mnemonic = None,
+              free: bool = False,
+              mnemonic = None, # mnemonic for the server
               key = None,
+              config_keys = ['network'],
               **extra_kwargs
               ):
+        if c.is_module(module):
+            cls = module
+        if module == None:
+            module = cls.module_path()
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
-        module = module or cls.module_path()
-
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-
-        # resolve the server name ()
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-        
-        if tag_seperator in server_name:
-            module, tag = server_name.split(tag_seperator)
-
+        name = server_name or name # name of the server if None, it will be the module name
+        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
+        if tag_seperator in name:
+            module, tag = name.split(tag_seperator)
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
-            address = c.get_address(server_name, network=network)
-            if address != None :
-                port = int(address.split(':')[-1])
-            else:
-                port = c.free_port()
+            address = c.get_address(name, network=server_network)
+            port = int(address.split(':')[-1]) if address else c.free_port()
 
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
         if remote:
-
-            # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs = c.locals2kwargs(locals(), merge_kwargs=False)
-            
-            # SET THIS TO FALSE TO AVOID RECURSION
-            remote_kwargs['remote'] = False 
-
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
-            if wait_for_server:
-                cls.wait_for_server(server_name, network=network)
-
-            # 
+            cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
             address = c.ip() + ':' + str(remote_kwargs['port'])
-            return {'success':True, 'name': server_name, 'address':address, 'kwargs':kwargs}
+            return {'success':True, 
+                    'name': name, 
+                    'address':address, 
+                    'kwargs':kwargs
+                    }        
         
-        
-        module_class = cls.resolve_module(module)
+        c.print(module)
+        module_class = c.module(module)
         kwargs.update(extra_kwargs)
-
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
-
-        if module_class.is_arg_key_valid('tag'):
+        if module_class.is_arg_key_valid('tag', fn='__init__'):
             kwargs['tag'] = tag
-        if module_class.is_arg_key_valid('server_name'):
+        if module_class.is_arg_key_valid('server_name', fn='__init__'):
             kwargs['server_name'] = server_name
 
-        # start the class
         self = module_class(**kwargs)
-
-        self.server_name = server_name
-
-        if tag_seperator in server_name:
-            tag = server_name.split(tag_seperator)[-1]
-        else:
-            tag = None
-
+        self.server_name = name
         self.tag = tag
 
-        
-        address = c.get_address(server_name, network=network)
+        address = c.get_address(name, network=server_network)
         if address != None and ':' in address:
             port = address.split(':')[-1]   
 
-        if c.server_exists(server_name, network=network) and not refresh: 
+        if c.server_exists(server_name, network=server_network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
 
-        # RESOLVE THE WHITELIST AND BLACKLIST
-        whitelist = self.whitelist if hasattr(self, 'whitelist') else []
-        if len(whitelist) == 0 and module != 'module':
-            whitelist = self.functions(include_parents=False)
-            
-        whitelist = list(set(whitelist + c.helper_functions))
-        blacklist = self.blacklist if hasattr(self, 'blacklist') else []
-
-        setattr(self, 'whitelist', whitelist)
-        setattr(self, 'blacklist', blacklist)
-
         c.module(f'server')(module=self, 
-                                          name=server_name, 
+                                          name=name, 
                                           port=port, 
-                                          network=network, 
+                                          network=server_network, 
                                           max_workers=max_workers, 
-                                          public=public, 
+                                          free=free, 
                                           key=key)
 
         return  {'success':True, 
                      'address':  f'{c.default_ip}:{port}' , 
-                     'name':server_name, 
+                     'name':name, 
                      'kwargs': kwargs,
                      'module':module}
 
@@ -3153,7 +2791,7 @@ class c:
     def info(self , 
              module = None,
              schema: bool = True,
-             namespace:bool = True,
+             namespace:bool = False,
              commit_hash:bool = True,
              hardware : bool = True,
              update: bool = False,
@@ -3172,7 +2810,6 @@ class c:
             info = c.get('info', default=None, max_age=max_age)
             if info != None:
                 return info
-        c.print('fam', self)
         fns = [fn for fn in self.whitelist]
         attributes =[ attr for attr in self.attributes()]
 
@@ -3191,7 +2828,7 @@ class c:
             info['signature'] = auth['signature']
             info['ss58_address'] = auth['address']
         if schema:
-            schema = self.schema(defaults=True)
+            schema = self.schema(defaults=True, include_parents=True)
             info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
 
         if hardware:
@@ -3216,7 +2853,7 @@ class c:
     @classmethod
     def hardware(cls, fmt:str = 'gb', **kwargs):
         return c.module('os').hardware(fmt=fmt, **kwargs)
-    
+
     @classmethod
     def init_schema(cls):
         return cls.fn_schema('__init__')
@@ -3241,41 +2878,34 @@ class c:
 
     @classmethod
     def schema(cls,
-                                search = None,
-                                module = None,
-                                fn = None,
-                                code : bool = False,
-                                docs: bool = True,
-                                include_parents:bool = False,
-                                defaults:bool = True, cache=False) -> 'Schema':
-        
-        # if module is None, then we will use the cls
-        if hasattr(cls, str(search)):
-            fn = search
-            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
+                search = None,
+                module = None,
+                fn = None,
+                docs: bool = True,
+                include_parents:bool = False,
+                defaults:bool = True, cache=False) -> 'Schema':
+
+        if '/' in str(search):
+            module, fn = search.split('/')
+            cls = c.module(module)
 
         if isinstance(module, str):
-
             if '/' in module:
                 module , fn = module.split('/')
             module = c.module(module)
-            
-
         module = module or cls
-            
-        if fn == None:
-            function_schema_map = {}
-            for fn in module.get_functions(include_parents=include_parents):
-                if search != None  and search not in fn:
-                    continue
-                module_fn = getattr(module, fn )
-                if callable(module_fn):
-                    function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
-    
-            return function_schema_map
+        functions = [fn] if fn else module.get_functions(include_parents=include_parents)
+
+        schema = {}
+        for fn in module.get_functions(include_parents=include_parents):
+            if search != None and search not in fn:
+                continue
+            module_fn = getattr(module, fn )
+            if callable(module_fn):
+                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
+
+        return c.copy(schema)
         
-        else:
-            return cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
 
     @classmethod
     def get_function_annotations(cls, fn):
@@ -3394,12 +3024,8 @@ class c:
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
 
-        if len(servers) == 0:
-            servers = c.pm2ls(search)
 
-
-        if n == None:
-            n = len(servers)
+        n = n or len(servers)
 
         if n > 0 and n < 1:
             servers = servers[:int(len(servers)*n)]
@@ -3417,15 +3043,15 @@ class c:
         else:
             results = []
             for s in servers:
-                results.append(c.kill(s, **kwarsg))
+                results.append(c.kill(s, **kwargs))
 
             
         return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
         
     delete = kill_server = kill
     def destroy(self):
-        self.kill(self.server_name)
-        return path
+        return self.kill(self.server_name)
+        
     
     def self_destruct(self):
         c.kill(self.server_name)    
@@ -3470,12 +3096,10 @@ class c:
         args = args or []
 
         # if module is not specified, use the current module
-        if module == None:
-            module = cls 
-        elif isinstance(module, str):
+        module = module or cls 
+        if isinstance(module, str):
             module = c.module(module) 
-
-
+            
         # resolve the name
         if name == None:
             # if the module has a module_path function, use that as the name
@@ -3489,7 +3113,6 @@ class c:
  
         c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
 
-
         launch_kwargs = dict(
                 module=module, 
                 fn = fn,
@@ -3501,53 +3124,20 @@ class c:
                 **extra_launch_kwargs
         )
         
-
         assert fn != None, 'fn must be specified for pm2 launch'
-    
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
 
-    @classmethod
-    def register(cls,  
-                 module = None,
-                 tag:str = None,
-                 key : str = None,
-                 stake : int = None,
-                 subnet:str = 'commune',
-                 refresh:bool =False,
-                 address = None,
-                 wait_for_server:bool = False,
-                 ensure_server = False,
-                 module_key = None,
-                 **kwargs ):
-        subspace = c.module('subspace')()
-        
-        # resolve module name and tag if they are in the server_name
-        if ensure_server:
-            if c.server_exists(name, network='local') and refresh == False:
-                address = c.get_address(name)
-            else:
-                module = cls.resolve_module(module)
-                serve_info =  module.serve(
-                                    server_name=name, 
-                                    wait_for_server=wait_for_server, 
-                                    refresh=refresh, 
-                                    tag=tag,
-                                    **kwargs)
-                
-                name = serve_info['name']
-                address = serve_info['address']
-                module_key = module_key or c.get_key_address(name)
-        else:
-            name = cls.resolve_server_name(module=module, tag=tag, tag_seperator='::')
+    def register_servers(self, search=None, **kwargs):
+        servers = c.servers(search=search)
+        for s in servers:
+            c.print(f'Registering {s}')
+            c.register(s, name=s, **kwargs)
 
-        response =  subspace.register(name=name,
-                                      address=address, 
-                                      subnet=subnet, 
-                                      key=key, 
-                                      stake=stake, 
-                                      module_key=module_key)
-        return response
+
+    @classmethod
+    def register(cls,  *args, **kwargs ):
+        return  c.module('subspace')().register(*args, **kwargs)
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -3582,9 +3172,9 @@ class c:
         return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
                 
     @classmethod
-    def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
-        return  c.module('pm2').list(verbose=verbose)
-    pm2ls  = pm2_list
+    def pm2_servers(cls, search=None,  verbose:bool = False) -> List[str]:
+        return  c.module('pm2').servers(verbose=verbose)
+    pm2ls  = pm2_list = pm2_servers
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
     @classmethod
@@ -3658,38 +3248,38 @@ class c:
     @staticmethod
     def memory_usage(fmt='gb'):
         fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
-        import os, psutil
+        import psutil
         process = psutil.Process()
         scale = fmt2scale.get(fmt)
         return (process.memory_info().rss // 1024) / scale
 
     @classmethod
-    def argparse(cls, verbose: bool = False):
-        import argparse
-        parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-        args = parser.parse_args()
-        if verbose:
-            c.print('Argparse Args: ',args, color='cyan')
-        args.kwargs = json.loads(args.kwargs.replace("'",'"'))
-        args.params = json.loads(args.params.replace("'",'"'))
-        args.inputs = json.loads(args.input.replace("'",'"'))
+    def argparse(cls, verbose: bool = False, version=1):
+        if version == 1:
+            parser = argparse.ArgumentParser(description='Argparse for the module')
+            parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
+            parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
+            parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+            args = parser.parse_args()
+            if verbose:
+                c.print('Argparse Args: ',args, color='cyan')
+            args.kwargs = json.loads(args.kwargs.replace("'",'"'))
+            args.params = json.loads(args.params.replace("'",'"'))
+            args.inputs = json.loads(args.input.replace("'",'"'))
 
-        # if you pass in the params, it will override the kwargs
-        if len(args.params) > len(args.kwargs):
-            args.kwargs = args.params
-        args.args = json.loads(args.args.replace("'",'"'))
+            # if you pass in the params, it will override the kwargs
+            if len(args.params) > len(args.kwargs):
+                args.kwargs = args.params
+            args.args = json.loads(args.args.replace("'",'"'))
 
         return args
 
     @classmethod
-    def run(cls, name:str = None, verbose:bool = False) -> Any: 
+    def run(cls, name:str = None, verbose:bool = False, version=1) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
-            args = cls.argparse()
+            args = cls.argparse(version=version)
 
             if args.function == '__init__':
                 return cls(*args.args, **args.kwargs)     
@@ -3698,11 +3288,11 @@ class c:
                 fn_type = cls.classify_fn(fn)
 
                 if fn_type == 'self':
-                    self = cls(*args.args, **args.kwargs)
+                    module = cls(*args.args, **args.kwargs)
+                else:
+                    module = cls
 
-                    return
-
-                return getattr(cls, args.function)(*args.args, **args.kwargs)     
+                return getattr(module, args.function)(*args.args, **args.kwargs)     
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -3738,8 +3328,9 @@ class c:
             assert mode in default_modes, f'{mode} not in {default_modes}'
             methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
             
-
-        
+    @classmethod
+    def transfer_multiple(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_multiple(*args, **kwargs)   
 
     @classmethod
     def transfer_fn_code(cls, module1= 'module',
@@ -3968,12 +3559,9 @@ class c:
                 cmd += ' --upgrade'
         return cls.cmd(cmd, verbose=verbose)
 
-
-
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
         return bool(lib in cls.pip_libs())
-    
     
     @classmethod
     def lib2version(cls, lib:str = None) -> dict:
@@ -3988,7 +3576,7 @@ class c:
             
         return lib2version
     @classmethod
-    def version(cls, lib:str=library_name):
+    def version(cls, lib:str=libname):
         lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()
@@ -3997,26 +3585,17 @@ class c:
     
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
-        ip = c.module('network').get_external_ip(*args, **kwargs)
-        if ip == None or len(ip) == 0:
-            ip = c.default_ip
-        return ip
-    
-
+        return c.module('network').external_ip(*args, **kwargs)
     
     @classmethod
-    def ip(cls, update:bool = False, **kwargs) -> str:
-        if not update:
-            ip = c.get('ip', None)
-            if ip != None:
-                return ip
-        
-        ip =  cls.external_ip(**kwargs)
+    def ip(cls,  max_age=10000, update:bool = False, **kwargs) -> str:
+        ip = c.get('ip', None, max_age=max_age, update=update)
         if ip == None:
-            ip = '0.0.0.0'
-        if update:
+            ip =  cls.external_ip(**kwargs)
             c.put('ip', ip)
+            
         return ip
+    
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
         if mode == 'queue':
@@ -4056,7 +3635,6 @@ class c:
         '''
         Pay attention to this function. It sets the environment variable
         '''
-        import os
         os.environ[key] = value
         return value 
 
@@ -4065,7 +3643,6 @@ class c:
         '''
         Pay attention to this function. It sets the environment variable
         '''
-        import os
         return  os.environ[key] 
 
     env = get_env
@@ -4129,6 +3706,10 @@ class c:
         for gpu_id, gpu_info in cls.gpu_info_map().items():
             used_gpu_memory += gpu_info['used'] 
         return used_gpu_memory
+
+
+    def forward(self, a=1, b=2):
+        return a+b
     
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
@@ -4307,18 +3888,7 @@ class c:
             tensor = torch.rand(1)
         tensor_size =  tensor.nelement() * tensor.element_size()
         return c.format_data_size(tensor_size, fmt=fmt)
-    @classmethod 
-    def get_model_device(cls, model, fast_and_lazy:bool = True) -> 'torch.device':
-        if fast_and_lazy:
-            return next(model.parameters()).device
-        else:
-            unique_devices = set()
-            for p in model.parameters():
-                unique_devices.add(p.device)
-            return list(unique_devices)[0]
-        return next(model.parameters()).device
-    
-            
+
     @classmethod
     def model_shortcuts(cls, **kwargs):
         return  c.module('hf').getc('shortcuts')
@@ -4336,6 +3906,10 @@ class c:
     
     def add_remote(self, *args, **kwargs):
         return c.module('namespace').add_remote(*args, **kwargs)
+    
+
+
+    
 
     @classmethod
     def model_options(cls):
@@ -4348,116 +3922,17 @@ class c:
     @staticmethod
     def get_trainable_params(model:'nn.Module')->List[str]:
         return c.module('model').get_trainable_params(model)
-    @classmethod
-    def model_gpu_memory(cls, model:str, num_shard = 2):
-        model_size = cls.get_model_size(model)
-        size_per_shard = model_size/num_shard
-        free_gpu_memory = cls.free_gpu_memory()
-        model_gpu_memory = {}
-        for i in range(num_shard):
-            for gpu_id in c.copy(list(free_gpu_memory.keys())):
-                gpu_memory  = free_gpu_memory[gpu_id]
-                if gpu_memory > size_per_shard:
-                    model_gpu_memory[gpu_id] = size_per_shard 
-                    free_gpu_memory.pop(gpu_id)
-                    break
-        return model_gpu_memory
+
 
     @classmethod
     def model_gpus(cls, model, num_shard=2):
         return list(cls.model_gpu_memory(model,num_shard).keys())     
-
-    
-    @classmethod
-    def get_empty_model(cls, model,
-                        verbose: bool = False,
-                        trust_remote_code:bool=True,
-                        init_device:str = 'meta',
-                        **kwargs):
-        model = c.model_shortcuts().get(model, model)
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
-        
-        kwargs['trust_remote_code'] = trust_remote_code
-        model = c.model_shortcuts().get(model, model)
-
-        if isinstance(model, str):
-            if verbose:
-                c.print(f'loading config model from {model}...')
-
-            config = AutoConfig.from_pretrained(model, **kwargs)
-            config.init_device=init_device
-            config_dict = config.to_dict()
-            with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(config,  **kwargs)
-                
-                
-        return model
-    
-    @classmethod
-    def init_empty_weights(cls, *args, **kwargs):
-        from accelerate import init_empty_weights
-
-        return init_empty_weights(*args, **kwargs)
-        
-        
-    @classmethod
-    def get_model_size(cls, 
-                       model: 'nn.Module',
-                       model_inflation_ratio: float = 1.0, 
-                       fmt = 'b',
-                       keys:List[str]=None):
-        
-        # get the size of the model by initializing an empty model
-        model = c.resolve_model(model)
-            
-        params = {}
-        size_in_bytes = 0 
-        for name, param in model.state_dict().items():
-            if keys != None and name not in keys:
-                continue
-            
-            size_in_bytes += cls.get_tensor_size(param)
-          
-        return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
-
-    model_size = get_model_size
-
 
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
             model = c.get_empty_model(model)
         return model
-        
-    @classmethod
-    def params_size_map(cls, 
-                       model: str,
-                       block_prefix:str = 'layers',
-                       fmt= 'b',
-                       keys:List[str]=None):
-        
-        
-        
-        # get the size of the model by initializing an empty model
-        model = c.resolve_model(model)
-        
-        params = {}
-        size_in_bytes = 0 
-        
-        for name, param in model.state_dict().items():
-            params_size = c.format_data_size(cls.get_tensor_size(param), fmt=fmt)
-            if name.startswith(block_prefix):
-                
-                idx = name.replace(block_prefix+'.','').split('.')[0]
-                block_name = f'{block_prefix}.{idx}'
-                if block_name not in params:
-                    params[block_name] = 0
-                params[block_name] += params_size
-            else:
-                params[name] = params_size
-                        
-        return params
 
 
     def num_params(self)->int:
@@ -4498,12 +3973,18 @@ class c:
 
     @classmethod
     def resolve_console(cls, console = None, **kwargs):
-        if not hasattr(cls,'console'):
-            from rich.console import Console
-            cls.console = Console(**kwargs)
-        if console is not None:
-            cls.console = console
-        return cls.console
+        if hasattr(cls,'console'):
+            return cls.console
+    
+        
+        import logging
+        from rich.logging import RichHandler
+        from rich.console import Console
+        logging.basicConfig(level=logging.DEBUG, handlers=[RichHandler()])   
+            # print the line number
+        console = Console()
+        cls.console = console
+        return console
     
     @classmethod
     def critical(cls, *args, **kwargs):
@@ -4531,20 +4012,20 @@ class c:
               flush:bool = False,
               **kwargs):
               
-        if verbose:
-            if color == 'random':
-                color = cls.random_color()
-            if color:
-                kwargs['style'] = color
-            console = cls.resolve_console(console, **kwargs)
+        if not verbose:
+            return 
+        if color == 'random':
+            color = cls.random_color()
+        if color:
+            kwargs['style'] = color
 
-
-            try:
-                if flush:
-                    console.print(**kwargs, end='\r')
-                console.print(*text, **kwargs)
-            except Exception as e:
-                print(e)
+        console = cls.resolve_console(console)
+        try:
+            if flush:
+                console.print(**kwargs, end='\r')
+            console.print(*text, **kwargs)
+        except Exception as e:
+            print(e)
     @classmethod
     def success(cls, *args, **kwargs):
         logger = cls.resolve_logger()
@@ -4580,41 +4061,17 @@ class c:
     def test_fns(cls):
         return [f for f in dir(cls) if f.startswith('test_')]
     
-
-       
     @classmethod
-    def test(cls,
-              modules=['server', 
-                       'key', 
-                       'namespace', 
-                       'executor', 
-                       'vali'],
-              timeout=40):
-        futures = []
-        results = []
-        if cls.module_path() == 'module':
-            for module_name in modules:
-                module = c.module(module_name)
-                assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
-                futures.append(c.submit(module.test))
-            results = c.wait(futures, timeout=timeout)
-            results = dict(zip(modules, results))
-            for module_name, result in results.items():
-                if c.is_success(result):
-                    results[module_name] = 'success'
-                else  :
-                    results[module_name] = 'failure'
-        else:
-            module_fns = c.fns()
-            fns = [getattr(cls,f) for f in cls.fns() if f.startswith('test_') and not (f in module_fns and cls.module_path() != 'module')]
-            c.print(f'Running {len(fns)} tests')
-            for fn in fns:
-                results += [c.submit(fn)]
-            
-            results = c.wait(results, timeout=timeout)
+    def test(cls):
+        self = cls()
+        fn2result = {}
+        for fn in self.test_fns():
+            c.print(f'testing {fn}')
+            fn2result[fn] = getattr(self, fn)()
+        return fn2result
 
-        return results
         
+    
 
     ### TIME LAND ###
     
@@ -4641,7 +4098,6 @@ class c:
     @classmethod
     def datetime2time(cls, x:str):
         import datetime
-        c.print(x)
         return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
     date2time =  datetime2time
 
@@ -4688,29 +4144,6 @@ class c:
         else:
             return args[1:]
 
-    @classmethod
-    def parse_args(cls, argv = None):
-        if argv is None:
-            argv = cls.argv()
-
-        args = []
-        kwargs = {}
-        parsing_kwargs = False
-        for arg in argv:
-            # TODO fix exception with  "="
-            # if any([arg.startswith(_) for _ in ['"', "'"]]):
-            #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-            #     args.append(cls.determine_type(arg))
-            if '=' in arg:
-                parsing_kwargs = True
-                key, value = arg.split('=', 1)
-                # use determine_type to convert the value to its actual type
-                
-                kwargs[key] = cls.determine_type(value)
-            else:
-                assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                args.append(cls.determine_type(arg))
-        return args, kwargs
 
     # BYTES LAND
     
@@ -4724,9 +4157,12 @@ class c:
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
+        
         if hasattr(data, 'hex'):
             return data.hex()
         else:
+            if isinstance(data, str):
+                return data
             return bytes.decode(data, mode)
     
     # JSON2BYTES
@@ -4771,6 +4207,40 @@ class c:
             return input
 
         return output_dict
+    
+    @classmethod
+    def is_file_module(cls, module = None) -> bool:
+        if module != None:
+            cls = c.module(module)
+        dirpath = cls.dirpath()
+        filepath = cls.filepath()
+        return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
+    
+    @classmethod
+    def module2isfolder(cls, module = None) -> bool:
+        modules = c.modules()
+        module2isfolder = {}
+        for m in modules:
+            try: 
+                module2isfolder[m] = c.is_folder_module(m)
+            except Exception as e:
+                c.print(e)
+                module2isfolder[m] = False
+
+        return module2isfolder
+            
+
+
+    @classmethod
+    def is_folder_module(cls,  module = None) -> bool:
+        if module != None:
+            cls = c.module(module)
+        return not cls.is_file_module()
+
+    def test_folder_module_detector(self,positives = ['module', 'vali', 'client']):
+        for p in positives:
+            assert self.is_folder_module(p) == True, f'{p} is a folder module'
+        return {'success': True, 'msg': 'All folder modules detected', 'positives': positives}
     
     @staticmethod
     def jsonable( value):
@@ -4856,8 +4326,6 @@ class c:
     
     fn2async = asubmit
     
-
-
     @classmethod
     def root_key2address(cls, search='module'):
         return c.key2address(search)
@@ -5095,6 +4563,11 @@ class c:
         return c.module('key').add_key(key, *args, **kwargs)
     
     @classmethod
+    def new_key(cls,  *args,  **kwargs):
+        return c.module('key').new_key( *args, **kwargs)
+    
+
+    @classmethod
     def save_keys(cls, *args,  **kwargs):
         return c.module('key').save_keys(*args, **kwargs)
     savemems = savekeys = save_keys
@@ -5114,20 +4587,10 @@ class c:
         signature =  key.sign(data, **kwargs)
         return signature
     
-
-    def timestamp_to_iso(timestamp):
-        import datetime
-        # Convert timestamp to datetime object
-        dt = datetime.datetime.fromtimestamp(timestamp)
-
-        # Format datetime object as ISO date string
-        iso_date = dt.date().isoformat()
-
-        return iso_date
-    
-    @classmethod
-    def verify(cls, auth, module='subspace', **kwargs ) -> bool:    
-        return c.module(module)(**kwargs).verify(auth)
+    def verify(self, auth, key=None, **kwargs ) -> bool:  
+        key = self.resolve_key(key)
+        c.print(auth)
+        return key.verify(auth, **kwargs)
         
     
     @classmethod
@@ -5138,7 +4601,6 @@ class c:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
-
     @classmethod
     def is_encrypted(cls, data, prefix=encrypted_prefix):
         if isinstance(data, str):
@@ -5148,14 +4610,6 @@ class c:
             return bool(data.get('encrypted', False) == True)
         else:
             return False
-        
-        
-    
-    @classmethod
-    def rm_user(cls, user: str = None):
-        self.users.pop(user, None)  
-        
-    
     
     @classmethod
     def network(cls) -> str:
@@ -5179,12 +4633,12 @@ class c:
         self.users.pop(key, None)
         
     @classmethod
-    def reserve_port(cls,port:int = None, var_path='reserved_ports' , root=True):
+    def reserve_port(cls,port:int = None, var_path='reserved_ports'):
         if port == None:
             port = cls.free_port()
-        reserved_ports =  cls.get(var_path, {}, root=root)
+        reserved_ports =  cls.get(var_path, {})
         reserved_ports[str(port)] = {'time': cls.time()}
-        c.put(var_path, reserved_ports, root=root)
+        c.put(var_path, reserved_ports)
         c.print(f'reserving {port}')
         return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
@@ -5193,14 +4647,14 @@ class c:
     
     @classmethod
     def reserved_ports(cls,  var_path='reserved_ports'):
-        return list(map(int, cls.get(var_path, {}, root=True).keys()))
+        return list(map(int, c.get(var_path, {}).keys()))
     resports = reserved_ports
 
     
     @classmethod
     def unreserve_port(cls,port:int, 
                        var_path='reserved_ports'):
-        reserved_ports =  cls.get(var_path, {}, root=True)
+        reserved_ports =  c.get(var_path, {})
         
         port_info = reserved_ports.pop(port,None)
         if port_info == None:
@@ -5208,7 +4662,7 @@ class c:
         
         output = {}
         if port_info != None:
-            c.put(var_path, reserved_ports, root=True)
+            c.put(var_path, reserved_ports)
             output['msg'] = 'port removed'
         else:
             output['msg'] =  f'port {port} doesnt exist, so your good'
@@ -5220,11 +4674,8 @@ class c:
     
     @classmethod
     def unreserve_ports(cls,*ports, 
-                       var_path='reserved_ports' ,
-                       verbose:bool = True, 
-                       root:bool = True):
-        output ={}
-        reserved_ports =  cls.get(var_path, {}, root=root)
+                       var_path='reserved_ports' ):
+        reserved_ports =  cls.get(var_path, {})
         if len(ports) == 0:
             # if zero then do all fam, tehe
             ports = list(reserved_ports.keys())
@@ -5232,39 +4683,39 @@ class c:
             ports = ports[0]
         ports = list(map(str, ports))
         reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-        cls.put(var_path, reserved_ports, root=root)
+        c.put(var_path, reserved_ports)
         return cls.reserved_ports()
     
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20, remote=False,  **kwargs):
+    def fleet(cls,
+            module = None, 
+            n=2, 
+            tag=None, 
+            max_workers=10, 
+            parallel=True, 
+            timeout=20, 
+            remote=False,  
+            **kwargs):
 
-        c.update()
+        if module == None:
+            module = cls.module_path()
+
         if tag == None:
             tag = ''
 
-        if parallel:
-            futures = []
-            for i in range(n):
-                server_kwargs={'tag':tag + str(i), **kwargs}
-                future = c.submit(cls.serve, kwargs=server_kwargs, timeout=timeout, max_workers=max_workers)
-                futures = futures + [future]
-
-            results = []
-            for future in  c.as_completed(futures, timeout=timeout):
-                result = future.result()
-                c.print(result)
-                results += [result]
-                c.register_server(name=result['name'], address=result['address'])
-
-        else:
-            results = []
-            for i in range(n):
-                server_kwargs={'tag':tag + str(i), **kwargs}
-                result = cls.serve(**server_kwargs)
-                c.print(result)
-                results = results + [result]
+        futures = []
+        for i in range(n):
+            f = c.submit(c.serve,  
+                            kwargs={'module': module, 'tag':tag + str(i), **kwargs}, 
+                            timeout=timeout)
+            futures += [f]
+        results = []
+        for future in  c.as_completed(futures, timeout=timeout):
+            result = future.result()
+            c.print(result)
+            results += [result]
 
         return results
         
@@ -5283,19 +4734,21 @@ class c:
     executor_cache = {}
     @classmethod
     def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
-        
         if cache:
             if mode in cls.executor_cache:
                 return cls.executor_cache[mode]
         executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
-        cls.executor_cache[mode] = executor
+        if cache:
+            cls.executor_cache[mode] = executor
         return executor
+    
+
     @classmethod
     def submit(cls, 
                 fn, 
-                kwargs: dict = {}, 
                 params = None,
-                args:list = [], 
+                kwargs: dict = None, 
+                args:list = None, 
                 timeout:int = 20, 
                 return_future:bool=True,
                 init_args : list = [],
@@ -5305,12 +4758,18 @@ class c:
                 mode:str='thread',
                 max_workers : int = 100,
                 ):
+        kwargs = {} if kwargs == None else kwargs
+        args = [] if args == None else args
         if params != None:
-            kwargs = {**kwargs, **params}
+            if isinstance(params, dict):
+                kwargs = {**kwargs, **params}
+            elif isinstance(params, list):
+                args = [*args, *params]
+            else:
+                raise ValueError('params must be a list or a dictionary')
         
         fn = c.get_fn(fn)
         executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
-        
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
@@ -5352,64 +4811,14 @@ class c:
             return futures
         return c.wait(futures)
 
-    @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=True, **kwargs):
-        subspace = c.module('subspace')()
-        if tag == None:
-            tag = ''
-        if module == None:
-            module = cls.module_path()
-        server_names = []
-        if stake == None:
-            stake = subspace.min_register_stake(netuid=netuid)
-            c.print('No stake provided, using min stake, which is {}'.format(stake), color='yellow')
-        if multithread:
-            executor = c.module('executor')(max_workers=n)
-            futures = []
-            for i in range(n):
-                server_name = module +"::" + tag + str(i)
-                if c.is_registered(server_name):
-                    c.print(f'Server {server_name} already exists, skipping', color='yellow')
-                    continue
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
-                futures = futures + [future]
-            return c.wait(futures, timeout=timeout)
-        else:
-            for i in range(n):
-                
-                try:
-                    server_name = module +"::" + tag + str(i)
 
-                    if c.is_registered(server_name):
-                        c.print(f'Server {server_name} already exists, skipping', color='yellow')
-                        continue
-                    r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
-                except Exception as e:
-                    c.print(e)
-                    r = {'success':False, 'error':c.detailed_error(e)}
-                c.print(r)
-                server_names.append(r)
-            return {'servers':server_names}
-
-    @classmethod
-    def servefleet(cls,module = None, tag:str=None, n:int=2, refresh=False, **kwargs):
-        subspace = c.module('subspace')()
-        if tag == None:
-            tag = ''
-        server_names = []
-        for i in range(n):
-            r = cls.serve(module=module, tag=tag+str(i), refresh=refresh,  **kwargs)
-            server_names.append(r)
-        return {'servers':server_names}
-    
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
-        return c.module('module.client')(*args, **kwargs)
+        return c.module('client')(*args, **kwargs)
     
     @classmethod
     def serialize(cls, x, **kwargs):
-        serializer = c.serializer()
-        return serializer.serialize(x, **kwargs)
+        return c.serializer().serialize(x, **kwargs)
 
     @classmethod
     def serializer(cls, *args, **kwargs):
@@ -5418,30 +4827,20 @@ class c:
     @classmethod
     def deserialize(cls, x, **kwargs):
         return c.serializer().deserialize(x, **kwargs)
-
-    @classmethod
-    def proto2json(cls, data):
-        from google.protobuf.json_format import MessageToJson
-        return MessageToJson(data)
-
+    
     @classmethod
     def process(cls, *args, **kwargs):
         return c.module('process').process(*args, **kwargs)
 
     @classmethod
-    def json2proto(cls, data):
-        from google.protobuf.json_format import JsonToMessage
-        return JsonToMessage(data)
-    
-
-    @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
-    
+
     @classmethod
-    def launchpad(cls):
-        return c.import_object('commune.launchpad.Launchpad')()
+    def mv_key(cls, key:str, new_key:str):
+        return c.module('key').mv_key(key, new_key)
+    
     @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null' or x == 'None':
@@ -5529,6 +4928,48 @@ class c:
     @classmethod
     def check_module(cls, module:str):
         return c.connect(module)
+
+    @classmethod
+    def pwdtree(cls):
+        tree2path   =  c.tree2path()
+        pwd = c.pwd()
+        return {v:k for k,v in tree2path.items()}.get(pwd, None)
+    which_tree = pwdtree
+    
+    @classmethod
+    def istree(cls):
+        return cls.pwdtree() != None
+
+    @classmethod
+    def is_pwd(cls, module:str = None):
+        if module != None:
+            module = c.module(module)
+        else:
+            module = cls
+        return module.dirpath() == c.pwd()
+
+    @classmethod
+    def server_many(cls, *modules, n=2, **kwargs):
+
+        if isinstance(modules[0], list):
+            modules = modules[0]
+        
+        futures = []
+        for module in modules:
+            future = c.submit(c.serve, kwargs={'module': module, **kwargs})
+            futures.append(future)
+            
+        results = []
+        for future in c.as_completed(futures):
+            result = future.result()
+            c.print(result)
+            results.append(result)
+        return results
+    
+    
+    @classmethod
+    def currnet_module(cls):
+        return c.module(cls.module_path())
     
     @classmethod
     def is_success(cls, x):
@@ -5550,15 +4991,34 @@ class c:
                 return True
         return False
 
-    @staticmethod
-    def is_number(value):
-        try:
-            int(value)
-        except Exception:
-            return False
-        return True
+
     
-    is_digit = is_number
+    @classmethod
+    def is_int(cls, value) -> bool:
+        o = False
+        try :
+            int(value)
+            if '.' not in str(value):
+                o =  True
+        except:
+            pass
+        return o
+    
+        
+    @classmethod
+    def is_float(cls, value) -> bool:
+        o =  False
+        try :
+            float(value)
+            if '.' in str(value):
+                o = True
+        except:
+            pass
+
+        return o
+        
+    
+
     @classmethod
     def resolve_network(cls, network='local'):
 
@@ -5604,6 +5064,10 @@ class c:
     getnet = get_network
     resnet = resolve_network
     
+
+    def update_config(self, k, v):
+        self.config[k] = v
+        return self.config
     # local update  
     @classmethod
     def update(cls, 
@@ -5616,7 +5080,7 @@ class c:
                ):
         responses = []
         if tree:
-            r = c.tree(update=True)
+            r = c.tree()
             responses.append(r)
 
         if module != None:
@@ -5627,18 +5091,10 @@ class c:
             responses.append(c.namespace(network=network, update=True))
         if subspace:
             responses.append(c.module('subspace').sync())
+        
+        c.ip(update=1)
 
         return {'success': True, 'responses': responses}
-    
-
-    def loops(self, module2timeout= {'module': 10, 'subspace': 10}):
-        t1 = c.timestamp()
-
-        while  True:
-            t2 = c.timestamp()
-            for module, timeout in module2timeout.items():
-                if t2 - t1 > timeout:
-                    c.update(module=module)
 
     @classmethod
     def sync(cls, *args, **kwargs):
@@ -5669,9 +5125,9 @@ class c:
         return file_contents
 
     @classmethod
-    def put_text(cls, path:str, text:str, root=False, key=None, bits_per_character=8) -> None:
+    def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
         if not isinstance(text, str):
             text = c.python2str(text)
         if key != None:
@@ -5679,16 +5135,15 @@ class c:
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
-
         # get size
         text_size = len(text)*bits_per_character
     
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
             
     @classmethod
-    def add_text(cls, path:str, text:str, root=False) -> None:
+    def add_text(cls, path:str, text:str) -> None:
         # Get the absolute path of the file
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
@@ -5698,11 +5153,10 @@ class c:
     def readlines(self, path:str,
                   start_line:int = 0,
                   end_line:int = 0, 
-                  root=False, 
                   resolve:bool = True) -> List[str]:
         # Get the absolute path of the file
         if resolve:
-            path = self.resolve_path(path, root=root)
+            path = self.resolve_path(path)
         # Read the contents of the file
         with open(path, 'r') as file:
             lines = file.readlines()
@@ -5723,6 +5177,7 @@ class c:
             lines = lines[start_line:end_line]
         lines = '\n'.join(lines)
         return lines
+
     
     
     @classmethod
@@ -5876,10 +5331,11 @@ class c:
 
     @classmethod
     def new_module( cls,
-                   module : str = None,
+                   module : str ,
                    repo : str = None,
                    base : str = 'base',
-                   code : str = None,
+                   base_module : str = 'demo',
+                   tree : bool = 'commune',
                    include_config : bool = False,
                    overwrite : bool  = False,
                    module_type : str ='dir'):
@@ -5890,70 +5346,59 @@ class c:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
+
+        class_name = ''
+        for m in module.split('.'):
+            class_name += m[0].upper() + m[1:] # capitalize first letter
+
         module = module.replace('.','/')
-        if c.has_module(module) and overwrite==False:
-            return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
-        
-
-        class_name = module[0].upper() + module[1:] # capitalize first letter
-        class_name = ''.join([m.capitalize() for m in module.split('_')])
-
 
         # add it to the root
-        module_path = os.path.join(c.modules_path, module)
+        tree2path = cls.tree2path()
+        modules_path = tree2path[tree]
+        module_path = os.path.join(modules_path, module)
         
-        if overwrite and c.module_exists(module_path): 
-            c.rm(module_path)
-
-        
+        if c.module_exists(module_path): 
+            if overwrite:
+                c.rm(module_path)
+            else:
+                return {'success': False,
+                        'path': module_path,
+                         'msg': f' module {module} already exists, set overwrite=True to overwrite'}
+            
         if repo != None:
             # Clone the repository
             c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
             c.cmd(f'rm -rf {module_path}/.git')
 
-        # Create the module name if it doesn't exist, infer it from the repo name 
-        if module == None:
-            assert repo != None, 'repo must be specified if module is not specified'
-            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-        
-        # currently we are using the directory name as the module name
-        if module_type == 'dir':
-            c.mkdir(module_path, exist_ok=True)
-        else:
-            raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
-        
+        # get the code ready from the base module
+        c.print(f'Getting {base_module}')
+        base_module = c.module(base_module)
+        code = base_module.code()
 
-        if code == None:
-            base_module = c.module(base)
-            code = base_module.code()
-            code = code.replace('Demo', class_name)
-
-            
-        module = module.replace('/','_') # replace / with _ for the class name
-        
-        # define the module code and config paths
-        
-        module_code_path =f'{module_path}/{module}.py'
-        module_code_lines = []
+        # replace the class name
+        base_class_name = base_module.class_name()
         class_name = module[0].upper() + module[1:] # capitalize first letter
-        class_name = ''.join([m.capitalize() for m in module.split('_')])
-        
-        # rename the class to the correct name 
-        for code_ln in code.split('\n'):
-            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]) :
-                indent = code_ln.split('class')[0]
-                code_ln = f'{indent}class {class_name}(c.Module):'
-            module_code_lines.append(code_ln)
-            
-        c.put_text(module_code_path, code)
-        if include_config:
+        class_name = ''.join([m.capitalize() for m in module.split('/')])
+        code = code.replace(base_class_name, class_name)
+  
+        if base_module.has_config():
+            c.mkdir(module_path, exist_ok=True)
+            module_code_path =f'{module_path}/{module}.py'
             module_config_path = module_code_path.replace('.py', '.yaml')
-            c.save_yaml(module_config_path, {'class_name': class_name})
-        
+            c.save_yaml(module_config_path, base_module.config())
+        else:
+            module_code_path = f'{module_path}.py'
+        c.put_text(module_code_path, code)
+            
         c.module_tree(update=True)
 
-        return {'success': True, 'msg': f' created a new repo called {module}'}
+        return {'success': True, 
+                'path': module_path,
+                'module': module,
+                'class_name': class_name,
+                'msg': f' created a new repo called {module}'}
         
     
     add_module = new_module
@@ -5961,13 +5406,16 @@ class c:
     make_dir= mkdir
 
     @classmethod
-    def filepath2text(cls, path:str = None):
-        if path == None:
-            path = c.root_path
-        filepath2text = {}
-        for filepath in c.glob(path):
-            filepath2text[filepath] = c.get_text(filepath)
-        return filepath2text
+    def path2text(cls, path:str = './'):
+
+        path = cls.resolve_path(path)
+        path2text = {}
+        for filepath in c.glob(path + '/**'):
+            try:
+                path2text[filepath] = c.get_text(filepath)
+            except Exception as e:
+                pass
+        return path2text
         
 
     @classmethod
@@ -6121,9 +5569,9 @@ class c:
             
 
     @classmethod
-    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, root=True, **kwargs):
+    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, **kwargs):
         reserved_gpu_memory = {} if refresh else cls.reserved_gpus()
-        if type(gpu_memory) in [int, float, str]:
+        if type(gpu_mmory) in [int, float, str]:
             gpu_memory = cls.max_gpu_memory(gpu_memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
             memory = cls.resolve_memory(memory) 
@@ -6132,12 +5580,12 @@ class c:
                 reserved_gpu_memory[gpu] += memory
             else:
                 reserved_gpu_memory[gpu] = memory
-        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=root)
+        c.put('reserved_gpu_memory', reserved_gpu_memory)
         return reserved_gpu_memory
     
     @classmethod
     def reserved_gpus(cls,*args, **kwargs) -> Dict[str, int]:
-        reserved_gpus = cls.get('reserved_gpu_memory', {}, root=True)
+        reserved_gpus = c.get('reserved_gpu_memory', {})
         reserved_gpus = {k:int(v) for k,v in reserved_gpus.items() if v > 0} 
         reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items()}
         return reserved_gpus  
@@ -6158,7 +5606,7 @@ class c:
                 
         c.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
-        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
+        c.put('reserved_gpu_memory', reserved_gpu_memory)
         return cls.reserved_gpus()
 
     release_gpus = unleash_gpus =  unreserve_gpus
@@ -6229,11 +5677,8 @@ class c:
 
         if 'remote' in kwargs:
             kwargs['remote'] = False
-
-
         
-            
-        response = cls.launch(fn=fn, 
+        return cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
                     refresh=refresh,
@@ -6349,26 +5794,23 @@ class c:
         
         future2idx = {future:i for i,future in enumerate(futures)}
 
-        results = []
-
-        # wait for the futures as they complete
-
-        results = []
-        results = [None]*len(futures)
-
         if timeout == None and hasattr(futures[0], 'timeout'):
             timeout = futures[0].timeout
 
 
         if generator:
             def get_results(futures):
-
-                for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                    if return_dict:
-                        idx = future2idx[future]
-                        yield {'idx': idx, 'result': future.result()}
-                    else:
-                        yield future.result()
+                try: 
+                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                        if return_dict:
+                            idx = future2idx[future]
+                            yield {'idx': idx, 'result': future.result()}
+                        else:
+                            yield future.result()
+                except Exception as e:
+                    c.print(f'Error: {e}')
+                    yield None
+                
         else:
             def get_results(futures):
                 results = [None]*len(futures)
@@ -6377,11 +5819,9 @@ class c:
                         idx = future2idx[future]
                         results[idx] = future.result()
                         del future2idx[future]
-
                     if is_singleton: 
                         results = results[0]
                 except Exception as e:
-                    results = []
                     unfinished_futures = [future for future in futures if future in future2idx]
                     c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
                 return results
@@ -6648,39 +6088,7 @@ class c:
 
         return wrapper
     
-    
-    @staticmethod
-    def encode_topk( forward_response_tensor: 'torch.Tensor' , topk:int=4096) -> 'torch.Tensor':
-        import torch
-        """ Returns topk tokens/probabilities given unnormalized logits as input. """
 
-        #import ipdb; ipdb.set_trace()
-
-        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
-        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
-
-        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
-        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
-
-        topk_values = probs.gather( index=topk_indices, dim=-1)
-        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
-        return encoded_probs  # [batch_size, sequence_len, topk + topk]
-
-    # @staticmethod
-    # def private_key_to_mnemonic(private_key):
-    #     # Convert the public key to a hex string
-    #     public_key_hex = substrate.keccak_256(private_key).hex()
-
-    #     # Convert the public key hex to a mnemonic
-    #     mnemonic = bip39.mnemonic_from_entropy(public_key_hex)
-
-    #     return mnemonic
-    
-    @classmethod
-    def docker_ps(cls, sudo=True):
-        return cls.cmd('docker ps', sudo=True)
-    dps = docker_ps
-    
     '''
     SSH LAND
     '''
@@ -6834,10 +6242,10 @@ class c:
 
     @classmethod
     def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
-        schema = cls.schema(search=search, code=code, defaults=defaults)
+        fns = cls.fns(search=search)
         fn2str = {}
-        for k,v in schema.items():
-            fn2str[k] = c.python2str(v)
+        for fn in fns:
+            fn2str[fn] = cls.fn_code(fn)
             
         return fn2str
     @classmethod
@@ -6877,10 +6285,7 @@ class c:
             tag = default_tag
         assert tag != None
         return tag
-    def resolve_tag_path(self, tag=None): 
-        tag = self.resolve_tag(tag)
-        return self.resolve_path(tag)
-    
+
     @classmethod
     def python2types(cls, d:dict)-> dict:
         return {k:str(type(v)).split("'")[1] for k,v in d.items()}
@@ -6891,7 +6296,6 @@ class c:
     
     @staticmethod
     def get_files_code(directory):
-        import os
         code_dict = {}
 
         for root, dirs, files in os.walk(directory):
@@ -6910,13 +6314,16 @@ class c:
         for i in range(n):
             cls.serve(tag=str(i), **kwargs)
         
-
-    def self_methods(self):
-        return c.get_self_methods(self)
+    @classmethod
+    def self_methods(cls):
+        return c.classify_fns(cls)['self']
 
     @classmethod
-    def classify_fns(cls, obj= None):
+    def classify_fns(cls, obj= None, mode=None):
         method_type_map = {}
+        obj = obj or c.module(obj)
+        if isinstance(obj, str):
+            obj = c.module(obj)
         for attr_name in dir(obj):
             method_type = None
             try:
@@ -6927,7 +6334,8 @@ class c:
             if method_type not in method_type_map:
                 method_type_map[method_type] = []
             method_type_map[method_type].append(attr_name)
-        
+        if mode != None:
+            method_type_map = method_type_map[mode]
         return method_type_map
 
 
@@ -7059,15 +6467,13 @@ class c:
             fn_obj = getattr(obj, fn_name)
             if not callable(fn_obj):
                 continue
-            
             # skip hidden functions if include_hidden is False
-            if (include_hidden==False) and (fn_name.startswith('__') and fn_name.endswith('__')):
-                
+            if (not include_hidden) and ((fn_name.startswith('__') or fn_name.endswith('_'))):
                 if fn_name != '__init__':
                     continue
-    
+
             # if the function is in the parent class, skip it
-            if  (fn_name in parent_functions) and (include_parents==False):
+            if  (fn_name in parent_functions) and (not include_parents):
                 continue
 
             # if the function is a property, skip it
@@ -7219,21 +6625,6 @@ class c:
         if obj == None:
             obj = cls
         return callable(getattr(obj, fn_name, None))
-
-    @staticmethod
-    def try_fn_n_times(fn, kwargs:Dict, try_count_limit: int = 10):
-        '''
-        try a function n times
-        '''
-        try_count = 0
-        return_output = None
-        while try_count < try_count_limit:
-            try:
-                return_output = fn(**kwargs)
-                break
-            except RuntimeError:
-                try_count += 1
-        return return_output
     
     
     @classmethod
@@ -7242,12 +6633,9 @@ class c:
         return json.loads(json_string.replace("'", '"'))
     
     @classmethod
-    def bro(cls, x):
-        return x
-
-    @classmethod
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
+   
     @classmethod
     def my_stake(cls, *args, **kwargs):
         return c.module('subspace')().my_stake(*args, **kwargs)
@@ -7286,7 +6674,6 @@ class c:
     @staticmethod
     def sizeof( obj):
         import sys
-        type_str = c.type_str(obj)
         sizeof = 0
         if isinstance(obj, dict):
             for k,v in obj.items():
@@ -7308,8 +6695,9 @@ class c:
         return os.path.getsize(filepath)
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
-        if '/' in str(module):
+        if '/' in str(module) or module in cls.fns():
             return c.fn_code(module)
+            
         module = cls.resolve_module(module)
         text =  c.get_text( module.pypath(), *args, **kwargs)
         if search != None:
@@ -7476,141 +6864,6 @@ class c:
         new_code = '\n'.join(lines)
         cls.put_text(cls.filepath(), new_code)
         return {'success': True, 'msg': f'Added line {idx} to {text}'}
-    
-    @classmethod
-    def add_lines(cls, idx=0, n=1 ):
-        for i in range(n):
-            cls.add_line(idx=idx)
-
-    @classmethod
-    def add_lines2(cls, idx=0, n=1 ):
-        """
-        jhey
-        """
-        for i in range(n):
-            cls.add_line(idx=idx)
-
-    @classmethod
-    def rm_docs(cls, fn:str='rm_docs'):
-        """
-        sup
-        """
-
-        doc_info = cls.fn_docs(fn, include_quotes=True, return_dict=True)
-        
-        doc_idx_bounds = doc_info['idx_bounds']
-
-        if doc_idx_bounds == None:
-            return None
-
-        fn_info = cls.fn_info(fn)
-
-        fn_code = fn_info['code']
-        
-        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0] - 2]
-       
-        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]:]
-        
-        new_fn_code = '\n'.join(before_comment_code + after_comment_code)
-        
-        return c.add_fn_code(fn=fn, code=new_fn_code)
-    
-    def rm_fn(self, fn:str='rm_fn'):
-        return self.add_fn_code(fn, code='')
-    
-    @classmethod
-    def add_fn_code(cls, fn:str='test_fn', code:str = None):
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_line"]
-        end_line = fn_info["end_line"]
-        fn_code = fn_info['code']
-        module_code = cls.code()
-        lines = module_code.split('\n')
-        if code == None:
-            code = ''
-        new_lines = lines[:start_line] + [code] + lines[end_line:]
-
-
-        new_code = '\n'.join(new_lines)
-        return c.put_text(cls.filepath(), new_code)
-
-
-    def test_fn2(self):
-        """
-          het 
-        """
-        print("fam")
-
-    @classmethod 
-    def fn_docs(cls, fn:str='test_fn2', include_quotes=False, return_dict=False):
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-    
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"]
-        '''
-        sup
-        '''
-        end_line = fn_info["end_line"]
-        code = cls.code()
-        lines = code.split('\n')
-        comment_idx_bounds = []
-
-        for i, line in enumerate(lines[start_line:end_line]):
-
-            comment_bounds = ['"""', "'''"]
-            for comment_bound in comment_bounds:
-                if  comment_bound in line:
-                    comment_idx_bounds.append(i)
-            if len(comment_idx_bounds) == 2:
-                break
-
-        if len(comment_idx_bounds) == 0:
-            return {
-                'idx_bounds': None,
-                'text': None,
-            }
-        
-
-        start_line_shift = -1 if include_quotes else 0
-        end_line_shift = 1 if include_quotes else 0
-        idx_bounds = [start_line+comment_idx_bounds[0] + start_line_shift, start_line+comment_idx_bounds[1]+ end_line_shift + 1]
-        comment_text = '\n'.join(lines[idx_bounds[0]:idx_bounds[1]])
-
-        if return_dict:
-            return {
-            'idx_bounds': comment_idx_bounds,
-            'text': comment_text,
-            }
-        return comment_text
-
-    @classmethod
-    def add_docs(cls, fn='add_docs', comment="This is a document"):
-        '''
-        This is a document
-        '''
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-
-        
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"] + 1
-        tab_space = "        "
-        cls.add_line(idx=start_line, text=tab_space+"'''")
-        for i, line in enumerate(comment.split('\n')):
-            cls.add_line(idx=start_line+i+1, text=tab_space + line)
-        cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
-        
-        
-
 
     @classmethod
     def get_line(cls, idx):
@@ -7623,19 +6876,8 @@ class c:
         c.print(len(line))
         return line
 
-    @classmethod
-    def is_empty_line(cls, idx):
-        line = cls.get_line(idx)
-        return len(line.strip()) == 0
 
 
-    @classmethod
-    def get_code_line(cls, idx:int = 0, code:str = None ):
-        if code == None:
-            code = cls.code() # get the code
-        lines = code.split('\n')
-        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
-        return lines[idx]
     
     tokenizer_cache = {}
     @classmethod
@@ -7681,6 +6923,27 @@ class c:
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
 
+    @classmethod
+    def is_repo(cls, path='.'):
+        return c.module('repo')().is_repo(path)
+    
+    @classmethod
+    def staked(cls, *args, **kwargs):
+        return c.module('subspace')().staked(*args, **kwargs)
+
+    @classmethod
+    def transfer_stake(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_stake(*args, **kwargs)
+
+    @classmethod
+    def add_profit_shares(cls, *args, **kwargs):
+        return c.module('subspace')().add_profit_shares(*args, **kwargs)
+
+    @classmethod
+    def profit_shares(cls, *args, **kwargs):
+        return c.module('subspace')().profit_shares(*args, **kwargs)
+
+
     send = transfer
 
     @classmethod
@@ -7698,9 +6961,9 @@ class c:
         return c.module('subspace')().update_module(*args, **kwargs)
     
     @classmethod
-    def vote(cls, *args, **kwargs):
+    def set_weights(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)
-
+    vote = set_weights
     @classmethod
     def set_weights(cls, *args, **kwargs):
         return c.module('subspace')().vote(*args, **kwargs)
@@ -7729,7 +6992,7 @@ class c:
         return c.module('subspace')().my_stake_from(*args, **kwargs)
     
     @classmethod
-    def my_stake_to(self, *args, **kwargs):
+    def my_stake_to(cls, *args, **kwargs):
         return c.module('subspace')().my_stake_to(*args, **kwargs)
     
 
@@ -7805,13 +7068,21 @@ class c:
     @classmethod
     def balance(cls, *args, **kwargs):
         return c.module('subspace')().balance(*args, **kwargs)
-
-        
-    get_balance = balance
-    
     @classmethod
-    def my_balances(cls, *args, **kwargs):
-        return c.module('subspace')().my_balances(*args, **kwargs)
+    def balances(cls, *args, **kwargs):
+        return c.module('subspace')().balance(*args, **kwargs)
+
+
+    @classmethod
+    def get_balance(cls, *args, **kwargs):
+        return c.module('subspace')().get_balance(*args, **kwargs)
+    @classmethod
+    def get_balances(cls, *args, **kwargs):
+        return c.module('subspace')().get_balances(*args, **kwargs)
+
+    @classmethod
+    def key2balances(cls, *args, **kwargs):
+        return c.module('subspace')().key2balances(*args, **kwargs)
 
     @classmethod
     def my_keys(cls, *args, **kwargs):
@@ -7834,7 +7105,7 @@ class c:
 
     @staticmethod
     def valid_ss58_address(address:str):
-        return c.module('key').valid_ss58_address(address)
+        return c.module('key').valid_ss58_address(str(address))
     is_valid_ss58_address = valid_ss58_address
 
     @classmethod
@@ -7923,8 +7194,8 @@ class c:
 
 
     @classmethod
-    def my_balance(cls, *args, **kwargs):
-        return c.module('subspace')().my_balance(*args, **kwargs)
+    def key2balance(cls, *args, **kwargs):
+        return c.module('subspace')().key2balance(*args, **kwargs)
 
     @classmethod
     def nodes(cls, *args, **kwargs):
@@ -7984,8 +7255,31 @@ class c:
         return c.module('subspace')().subnets(*args, **kwargs)
     
     @classmethod
+    def subnet2netuid(cls, *args, **kwargs):
+        return c.module('subspace')().subnet2netuid(*args, **kwargs)
+    
+    @classmethod
+    def netuid2subnet(cls, *args, **kwargs):
+        return c.module('subspace')().netuid2subnet(*args, **kwargs)
+    
+
+    @classmethod
     def subnet(cls, *args, **kwargs):
         return c.module('subspace')().subnet(*args, **kwargs)
+
+    @classmethod
+    def netuids(cls, *args, **kwargs):
+        return c.module('subspace')().netuids(*args, **kwargs)
+    
+    def glob_hash(self, path=None, **kwargs):
+        
+        glob_dict = c.glob(path, **kwargs)
+        glob_hash = c.hash(glob_dict)
+        c.put('glob_hash', glob_hash)
+    
+    @classmethod
+    def my_subnets(cls, *args, **kwargs):
+        return c.module('subspace')().my_subnets(*args, **kwargs)
 
     @classmethod
     def networth(cls, *args, **kwargs):
@@ -8110,60 +7404,41 @@ class c:
         if name in name2shortcut:
             del shortcuts[name2shortcut[name]]
         shortcuts[shortcut] = name
-        c.putc('shortcuts', shortcuts)
+        cls.putc('shortcuts', shortcuts)
         return {'success': True, 'msg': f'added shortcut ({shortcut} -> {name})'}
 
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
     
-    @classmethod
-    def model_menu(cls):
-        return c.model_shortcuts()
-    
-    @classmethod
-    def talk(cls , *args, module = 'model', num_jobs=1, timeout=6, **kwargs):
-        jobs = []
-        for i in range(num_jobs):
-            model = c.connect(module, virtual=False)
-            c.print('Selecting: ', model)
-            job = model.async_forward(fn='talk', args=args, kwargs=kwargs)
-            jobs += [job]
 
-        results = c.gather(jobs, timeout=timeout)
-        for r in results:
-            if c.is_success(r):
-                if isinstance(r, str) and len(r) > 0:
-                    return r
-
-        return 'Im sorry I dont know how to respond to that, can you rephrase that?'
-
-
-    def x(self, y=1):
-        c.print('fam', y)
 
     @classmethod
-    def ask(cls, *args, **kwargs):
-        return c.module('model.openai').generate(*args, **kwargs)
+    def talk(cls, *args, **kwargs):
+        return c.module('model.openrouter')().talk(*args, **kwargs)
+
+    @classmethod
+    def yesno(self, prompt:str):
+        return c.module('model.openrouter')().talk(f"{prompt} give a yes or no response ONLY IN ONE WORD", max_tokens=10)
+    ask = a = talk
 
     @classmethod
     def containers(cls):
         return c.module('docker').containers()
 
     @staticmethod
-    def chunk(sequence:list = [0,2,3,4,5,6,67,],
-            chunk_size:int=None,
+    def chunk(sequence:list = [0,2,3,4,5,6,6,7],
+            chunk_size:int=4,
             num_chunks:int= None):
         assert chunk_size != None or num_chunks != None, 'must specify chunk_size or num_chunks'
         if chunk_size == None:
-            chunk_size = len(sequence) // num_chunks
-
+            chunk_size = len(sequence) / num_chunks
         if chunk_size > len(sequence):
             return [sequence]
         if num_chunks == None:
-            num_chunks = len(sequence) // chunk_size
-
-
+            num_chunks = int(len(sequence) / chunk_size)
+        if num_chunks == 0:
+            num_chunks = 1
         chunks = [[] for i in range(num_chunks)]
         for i, element in enumerate(sequence):
             idx = i % num_chunks
@@ -8179,16 +7454,16 @@ class c:
 
     def install_docker_gpus(self):
         self.chmod_scripts()
-        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+        c.cmd(f'{c.libpath}/scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
 
     def install_docker(self):
         self.chmod_scripts()
-        c.cmd('./scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
+        c.cmd(f'{c.libpath}/scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
 
     @classmethod
     def install_rust(cls, sudo=True) :
         cls.chmod_scripts()
-        c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+        c.cmd(f'{c.libpath}/scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
     @classmethod
     def install_npm(cls, sudo=False) :
@@ -8202,16 +7477,11 @@ class c:
     def install_python(cls, sudo=True) :
         c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
 
-    # def remote_wrapper(cls, fn):
-
-    #     def wrapper(**kwargs):
-    #         remote = kwargs.pop('remote', False)
-    #         if remote:
-    #             return cls.remote_fn(fn, **kwargs)
-
-
+    def cancel(self, futures):
+        for f in futures:
+            f.cancel()
+        return {'success': True, 'msg': 'cancelled futures'}
        
-
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
@@ -8247,11 +7517,6 @@ class c:
     def ss58_decode(cls, data:Union[str, bytes],**kwargs):
         from scalecodec.utils.ss58 import ss58_decode
         return ss58_decode(data,  **kwargs)
-
-
-    @classmethod
-    def random_tmp_file_path(cls, prefix='randomtempfile_utc'):
-        return f"/tmp/{prefix}{c.time()}"
 
     @classmethod
     def name2compose(self, **kwargs):
@@ -8309,7 +7574,6 @@ class c:
     def hello(cls):
         c.print('hello')
 
-
     thread_map = {}
     @classmethod
     def thread(cls,fn: Union['callable', str],  
@@ -8321,7 +7585,7 @@ class c:
                     start:bool = True,
                     tag_seperator:str='::', 
                     **extra_kwargs):
-
+        
         if isinstance(fn, str):
             fn = c.get_fn(fn)
         if args == None:
@@ -8333,8 +7597,6 @@ class c:
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
-        import threading
-
         if name == None:
             name = fn.__name__
             cnt = 0
@@ -8343,16 +7605,15 @@ class c:
                 if tag == None:
                     tag = ''
                 name = name + tag_seperator + tag + str(cnt)
+        
         t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
 
-
         # set the time it starts
-        t.__dict__['start_time'] = c.time()
+        setattr(t, 'start_time', c.time())
         t.daemon = daemon
         if start:
             t.start()
         cls.thread_map[name] = t
-        c.print(f'created thread {name}')
         return t
 
     @classmethod
@@ -8373,7 +7634,6 @@ class c:
 
     @classmethod
     def thread_count(cls):
-        import threading
         return threading.active_count()
     @classmethod
     def resolve_key_address(cls, key):
@@ -8393,6 +7653,10 @@ class c:
     @classmethod
     def users(cls, *args, **kwargs):
         return c.module('user').user(*args, **kwargs)
+    
+    @classmethod
+    def role2users(cls, *args, **kwargs):
+        return c.module('user')().role2users(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
         return c.module('user').is_user(address)
@@ -8446,23 +7710,11 @@ class c:
             c.print(m)
             c.restart(m)
 
-    @classmethod
-    def restart_many(cls, search:str = None, network = None, **kwargs):
-        servers = c.servers(search, network=network)
-        for m in servers:
-            c.restart(m, **kwargs)
-        return servers
-
         
     
     @classmethod
     def getcwd(cls):
         return os.getcwd()
-
-    @classmethod
-    def kill_replicas(self, network:str=None, **kwargs):
-        for m in cls.replicas(network=network, **kwargs):
-            c.kill(m)
 
     @classmethod
     def gc(cls):
@@ -8479,9 +7731,14 @@ class c:
     def emoji(cls,  name:str):
         return c.module('emoji').emoji(name)
 
+    @classmethod
+    def emojis(cls, search = None):
+        
+        emojis =  c.module('emoji').emojis
+        if search != None:
+            emojis = {k:v for k,v in emojis.items() if search in k}
+        return 
 
-    
-    
     @staticmethod
     def tqdm(*args, **kwargs):
         from tqdm import tqdm
@@ -8521,7 +7778,6 @@ class c:
     ## API MANAGEMENT ##
     
     def set_api_key(self, api_key:str, cache:bool = True):
-        import os
         api_key = os.getenv(str(api_key), None)
         if api_key == None:
             api_key = self.get_api_key()
@@ -8552,14 +7808,11 @@ class c:
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
     
-
-
     @classmethod
     def set_api_keys(cls, api_keys:str):
         api_keys = list(set(api_keys))
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
-
 
     @classmethod
     def rm_api_key(cls, api_key:str):
@@ -8572,7 +7825,6 @@ class c:
 
         cls.put('api_keys', api_keys)
         return {'api_keys': api_keys}
-
 
     @classmethod
     def get_api_key(cls, module=None):
@@ -8612,6 +7864,11 @@ class c:
                 start_time = current_time
             c.sleep(interval)
 
+
+    @staticmethod
+    def get_pid():
+        return os.getpid()
+        
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
@@ -8620,7 +7877,6 @@ class c:
                 v = None
             
             if isinstance(v, str):
-                c.print(v)
                 if v.startswith('[') and v.endswith(']'):
                     if len(v) > 2:
                         v = eval(v)
@@ -8651,7 +7907,7 @@ class c:
                     assert k != 'NA', f'Key {k} not in default'
                 elif v in ['True', 'False']:
                     v = eval(v)
-                elif c.is_number(v):
+                elif c.is_int(v):
                     v = eval(v)
                 else:
                     v = v
@@ -8717,28 +7973,35 @@ class c:
     def sid(cls):
         return c.module('subspace.chain')().id()
 
-
-    @classmethod
-    def dashboard(cls):
-        c.module('dashboard').dashboard()
-    app = dashboard
-
     @classmethod
     def ticket(self, key=None):
         key = c.get_key(key)
         return key.ticket()
+    
+    def save_ticket(self, key=None, **kwargs):
+        key = c.get_key(key)
+        return key.save_ticket(**kwargs)
+
+    def load_ticket(self, key=None, **kwargs):
+        key = c.get_key(key)
+        return key.load_ticket(**kwargs)
+
+    @classmethod
+    def verify_ticket(cls, *args, **kwargs):
+
+        return c.get_key().verify_ticket(*args, **kwargs)
+    
     @classmethod
     def load_style(cls):
         return c.module('streamlit').load_style()
 
     @classmethod
     def active_thread_count(cls): 
-        import threading
         return threading.active_count()
     
     @classmethod
     def init_args(cls):
-        return list(cls.init_kwargs().keys())
+        return list(cls.config().keys())
 
     @classmethod
     def soup(cls, *args, **kwargs):
@@ -8746,7 +8009,6 @@ class c:
         return BeautifulSoup(*args, **kwargs)
     
     ########
-    
    
     @classmethod
     def document(cls, fn):
@@ -8775,7 +8037,6 @@ class c:
     def set_page_config(self,*args, **kwargs):
         return c.module('streamlit').set_page_config(*args, **kwargs)
         
-
     @classmethod
     def get_state(cls, network='main', netuid='all', update=True, path='state'):
         t1 = c.time()
@@ -8802,42 +8063,80 @@ class c:
         return state
         
     @classmethod
-    def eval(cls, module):
-        '''
-        Docs:
-        c
-        ### eval(cls, module)
-        
-        This class method evaluates a given module by invoking its 'vali' method and passing the 'module' parameter. 
-        
-        #### Parameters:
-        - `module`: The module to be evaluated.
-        
-        #### Returns:
-        - The result of evaluating the module using the 'vali' method.
-        
-        #### Usage:
-        This method is intended to be used in a class that has a 'vali' method implemented. It can be called as follows:
-        
-        ```
-        result = ClassName.eval(some_module)
-        ```
-        Where `ClassName` is the name of the class with the `eval` class method, and `some_module` is the module to evaluate.
-        '''
-        return c.module('vali')().eval(module)
+    def eval(cls, module, vali=None,  **kwargs):
+        vali = c.module('vali')() if vali == None else c.module(vali)
+        return c.eval(module, **kwargs)
+    
+    @classmethod
+    def run_epoch(self, *args, vali=None, **kwargs):
+        vali = c.module('vali')() if vali == None else c.module(vali)
+        return vali.run_epoch(*args, **kwargs)
+
     @classmethod
     def comment(self,fn:str='module/ls'):
-        return c.module('coder').comment(fn)
-
-    def imported_modules(self, module=None):
-        # get the text
-        text = c.module(module).get_text(module)
+        return c.module('coder')().comment(fn)
 
     @classmethod
     def host2ssh(cls, *args, **kwarg):
         return c.module('remote').host2ssh(*args, **kwarg)
+
+    @classmethod
+    def imported_modules(self, module:str = None):
+        return c.module('code').imported_modules(module=module)
+    
+    def server2fn(self, *args, **kwargs ):
+        servers = c.servers(*args, **kwargs)
+        futures = []
+        server2fn = {}
+        for s in servers:
+            server2fn[s] = c.submit(f'{s}/schema', kwargs=dict(code=True))
+        futures = list(server2fn.values())
+        fns = c.wait(futures,timeout=10)
+        for s, f in zip(servers, fns):
+            server2fn[s] = f
+        return server2fn
+
+    def docker_compose_file(self, *args, **kwargs):
+        x = c.load_yaml(f'{c.libpath}/docker-compose.yml', *args, **kwargs)
+        port_range = c.port_range()
+        x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
+        return x
+
+    @classmethod
+    def launcher_keys(cls):
+        keys = c.keys()
+        return [k for k in keys if k.startswith('module::')]
+    
+    @classmethod
+    def load_launcher_keys(cls, amount=600, **kwargs):
+        launcher_keys = cls.launcher_keys()
+        key2address = c.key2address()
+        destinations = []
+        amounts = []
+        launcher2balance = c.get_balances(launcher_keys)
+        for k in launcher_keys:
+            k_address = key2address[k]
+            amount_needed = amount - launcher2balance.get(k_address, 0)
+            if amount_needed > 0:
+                destinations.append(k_address)
+                amounts.append(amount_needed)
+            else:
+                c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')
+
+        return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
+    
+    @classmethod
+    def launcher2balance(cls):
+        keys = cls.launcher_keys()
+        return c.get_balances(keys)
+
+        
+
     
 Module = c
+
 Module.run(__name__)
     
+
+
 

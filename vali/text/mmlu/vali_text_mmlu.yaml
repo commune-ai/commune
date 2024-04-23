@@ -1,0 +1,8 @@
+
+network: subspace.0 # global or local network
+timeout: 2
+search: model
+dataset: mmlu
+target: target
+input: input
+

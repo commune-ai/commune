@@ -13,8 +13,9 @@ class VirtualClient:
         else:
             self.module_client = module
 
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout:int=10, **kwargs):
-        future =  asyncio.wait_for(self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs), timeout=timeout)
+    def remote_call(self, *args, return_future= False, timeout:int=10, **kwargs):
+        remote_fn = kwargs.pop('remote_fn')
+        future =  asyncio.wait_for(self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout), timeout=timeout)
         if return_future:
             return future
         else:
@@ -33,7 +34,7 @@ class VirtualClient:
         if key in self.protected_attributes :
             return getattr(self, key)
         else:
-            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
+            return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
         
 
 
