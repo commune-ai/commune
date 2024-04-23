@@ -105,6 +105,7 @@ class Vali(c.Module):
             'network': self.network_info(),
             'epoch': self.epoch_info() ,
             'vote': self.vote_info(),
+            'module': self.module_info(),
 
             }
     
