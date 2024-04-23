@@ -348,7 +348,6 @@ class Keypair(c.Module):
             if str(search) in key or search == None:
                 keys[key] = cls.get_key(key)
                 if keys[key] == None:
-                    c.print(f'failed to get key {key}', color='red')
                     if clean_failed_keys:
                         cls.rm_key(key)
                     keys.pop(key)

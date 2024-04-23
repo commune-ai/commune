@@ -2552,6 +2552,7 @@ class Subspace(c.Module):
         ip = c.ip(update=1)
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
+        module_info['name'] = module
         name = name or module_info['name']
         delegation_fee = fee or delegation_fee or module_info['delegation_fee']
         assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
@@ -2582,7 +2583,7 @@ class Subspace(c.Module):
 
         return reponse
 
-
+    update_server = update_module
 
     #################
     #### UPDATE SUBNET ####
@@ -2732,6 +2733,7 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
+
 
         if c.valid_ss58_address(module):
             module_key = module
