@@ -24,14 +24,4 @@ This allows for a flexible system where the network can decide to be more stake 
 
 **yumaswap**
 
-The yumaswap protocal uses the uniswap protocal to incentivize early stakers more than later stakers. This is done by using a bonding curve to calculate the rewards. The bonding curve is defined as the following:
-
-```python
-reward = emission * (1 - delegation_fee) * (stake / total_stake)
-```
-
-The reward is then added to the stake of the module. The total stake is the sum of all stakes on the module. The delegation_fee is the fee the module takes from the reward. The emission is the total emission of the module.
-
-
-
-
+The uniswap protocal is more effective with longer voting epochs (tempos).

@@ -95,3 +95,16 @@ String Output:
 This cotains the data and signature joined by a seperator.
 
 {DATA}{SEPERATOR}{SIGNATURE}
+
+
+key2balance map
+
+
+c key2balance
+
+
+key2stake map
+
+c key2stake
+
+

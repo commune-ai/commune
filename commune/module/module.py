@@ -278,6 +278,7 @@ class c:
     def class_name(cls, obj= None) -> str:
         obj = obj if obj != None else cls
         return obj.__name__
+    classname = class_name
     @classmethod
     def get_class_name(cls, obj = None) -> str:
         obj = obj if obj != None else cls
@@ -2584,6 +2585,19 @@ class c:
         return namespace
     
 
+    def add_fn(self, fn, name=None):
+        if name == None:
+            name = fn.__name__
+        assert not hasattr(self, name), f'{name} already exists'
+
+        setattr(self, name, fn)
+
+        return {
+            'success':True ,
+            'message':f'Added {name} to {self.__class__.__name__}'
+        }
+    
+    add_attribute = add_attr = add_function = add_fn
     
     @classmethod
     def resolve_server_name(cls, 

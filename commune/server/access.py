@@ -185,13 +185,13 @@ class Access(c.Module):
         return access_state
 
     @classmethod
-    def test(cls, key='vali::fam', base_rate=2):
+    def test_whitelist(cls, key='vali::fam', base_rate=2, fn='info'):
         module = cls(module=c.module('module')(),  base_rate=base_rate)
         key = c.get_key(key)
 
         for i in range(base_rate*3):    
             t1 = c.time()
-            c.print(module.verify(**{'address': key.ss58_address, 'fn': 'info'}))
+            result = module.verify(**{'address': key.ss58_address, 'fn': 'info'})
             t2 = c.time()
             c.print(f'🚨 {t2-t1} seconds... 🚨\033', color='yellow')
     

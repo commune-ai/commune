@@ -232,7 +232,7 @@ class Subspace(c.Module):
     def my_staked_module_keys(self, netuid = 0, **kwargs):
         my_stake_to = self.my_stake_to(netuid=netuid, **kwargs)
         module_keys = {} if netuid == 'all' else []
-        for key, stake_to_key in my_stake_to.items():
+        for subnet_netuid, stake_to_key in my_stake_to.items():
             if netuid == 'all':
                 for _netuid, stake_to_subnet in stake_to_key.items():
                     module_keys[_netuid] = list(stake_to_subnet.keys()) + module_keys.get(_netuid, [])
@@ -245,7 +245,7 @@ class Subspace(c.Module):
         stake_to = self.stake_to(netuid=netuid, **kwargs)
         key2address = c.key2address()
         my_stake_to = {}
-        
+
         for key, address in key2address.items():
             if netuid == 'all':
                 my_stake_to[address] = my_stake_to.get(address, {})
@@ -3025,6 +3025,8 @@ class Subspace(c.Module):
     def staked(self, 
                        search = None,
                         key = None, 
+                        update = False,
+                        n = None,
                         netuid = 0, 
                         network = 'main',
                         df = True,
@@ -3038,7 +3040,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
 
         if keys == None:
-            staked_modules = self.my_staked_module_keys(netuid=netuid, network=network, max_age=max_age, update=True)
+            staked_modules = self.my_staked_module_keys(netuid=netuid, network=network, max_age=max_age, update=update)
             if netuid == 'all':
                 staked = {}
                 for netuid, keys in staked_modules.items():
@@ -3067,6 +3069,8 @@ class Subspace(c.Module):
         if search != None:
             keys = [k for k in keys if search in key2name.get(k, k)]
         block = self.block
+        if n != None:
+            keys = keys[:n]
         modules = self.get_modules(keys, block=block)
 
         for m in modules:          
@@ -3085,6 +3089,9 @@ class Subspace(c.Module):
 
             modules = modules.sort_values(sort_by, ascending=False)
             del modules['key']
+
+        if n != None:
+            modules = modules[:n]
         return modules
 
     staked_modules = staked
