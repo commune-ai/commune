@@ -101,7 +101,7 @@ If wombo is too long for you, ad you want w, set a shortcut.
 This is stored in your root module's config.
 
 c add_shortcut wombo w
-
+vD
 {'success': True, 'msg': 'added shortcut (wombo -> w)'}
 
 

@@ -11,7 +11,6 @@ class App(c.Module):
         self.remote = c.module('remote')()
         c.thread(self.run_loop)
 
-
     def run_loop(self):
         c.new_event_loop()
         while True:
@@ -31,8 +30,6 @@ class App(c.Module):
             with t:
                 getattr(self, f'{modes[i]}_dashboard')()
 
-
-
     def filter_hosts_dashboard(self, host_names: list = None):
 
         host_map = self.remote.hosts()
@@ -47,13 +44,10 @@ class App(c.Module):
         host_names = list(host_map.keys())
         n = len(host_names)
 
-        
-
         with st.expander(f'Hosts (n={n})', expanded=False):
             host_names = st.multiselect('Host', host_names, host_names)
         self.host_map = {k:host_map[k] for k in host_names}
         self.host2ssh = self.remote.host2ssh(host_map=host_map)
-
 
     def manage_hosts_dashboard(self):
 
@@ -92,7 +86,6 @@ class App(c.Module):
                 self.remote.rm_host(rm_host_name)
 
         self.host2ssh_search()
-
 
     def host2ssh_search(self, expander=True):
         if expander:
@@ -201,7 +194,6 @@ class App(c.Module):
 
                     host2stats[host] = stats
         
-
             except Exception as e:
                 pending_hosts = list(future2host.values())
                 st.error(c.detailed_error(e))
@@ -213,7 +205,6 @@ class App(c.Module):
                     host2stats[host] = stats
                 errors += [c.detailed_error(e)] * len(pending_hosts)
             
-
             self.put('host2stats', host2stats)
 
             with st.expander('Failed Hosts', expanded=False):
