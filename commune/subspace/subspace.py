@@ -987,11 +987,16 @@ class Subspace(c.Module):
                 jobs = list(name2job.values())
                 results = c.wait(jobs, timeout=timeout)
                 for i, feature in enumerate(features_left):
-                    if c.is_error(results[i]):
-                        c.print(f'Error querying {results[i]}')
-                    else:
-                        subnet_params[feature] = results[i]
-                        progress.update(1)
+                    c.print(f'Querying {feature}')
+                    try:
+                        if c.is_error(results[i]):
+                            c.print(f'Error querying {results[i]}')
+                        else:
+                            subnet_params[feature] = results[i]
+                            progress.update(1)
+                    except Exception as e:
+                        c.print(e)
+                        continue
 
                         
             
@@ -2456,9 +2461,9 @@ class Subspace(c.Module):
                     'name': name.encode('utf-8'),
                     'stake': stake,
                     'module_key': module_key,
+                    'metadata': b'{}',
                 }
         
-        c.print(params)
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
         return response
@@ -2599,6 +2604,7 @@ class Subspace(c.Module):
             'name': name, # defaults to module.tage
             'address': address, # defaults to module.tage
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
+            'metadata': b'{}',
         }
 
         reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
