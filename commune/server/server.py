@@ -33,7 +33,6 @@ class Server(c.Module):
 
         if new_loop:
             c.new_event_loop(nest_asyncio=nest_asyncio)
-
         self.ip = c.ip()
         port = port or c.free_port()
         while c.port_used(port):
@@ -48,9 +47,8 @@ class Server(c.Module):
         self.chunk_size = chunk_size
         self.timeout = timeout
         self.free = free
-        self.key = key
         self.serializer = c.module(serializer)()
-        self.set_module(module)
+        self.set_module(module, key=key)
         self.access_module = c.module(access_module)(module=self.module)  
         self.set_history_path(history_path)
         self.set_api(port=self.port)
@@ -78,18 +76,11 @@ class Server(c.Module):
         module.address  = self.address
         module.network = self.network
         module.subnet = self.subnet
+        self.key = self.module.key = c.get_key(key or self.name)
+        c.print(f'🔑 Key: {self.module.key} 🔑\033')
 
- 
 
-        return {'success': True, 'msg': f'Set module {module}'}
-
-        if self.key == None:
-            key = c.get_key(self.name)
-        if isinstance(key, str):
-            key = c.get_key(key)  
-        self.key = self.module.key = key
-        c.print(f'🔑 Key: {self.key} 🔑\033')
-
+        return {'success': True, 'msg': f'Set module {module}', 'key': self.key.ss58_address}
 
     def forward(self, fn:str, input:dict):
         """
@@ -278,26 +269,6 @@ class Server(c.Module):
 
 
 
-    @classmethod
-    def test_serving(cls):
-        module_name = 'storage::test'
-        module = c.serve(module_name)
-        module = c.connect(module_name)
-        module.put("hey",1)
-        assert module.get("hey") == 1, f"get failed {module.get('hey')}"
-        c.kill(module_name)
-        return {'success': True, 'msg': 'server test passed'}
-
-
-    @classmethod
-    def test_serving_with_different_key(cls):
-        module_name = 'storage::test'
-        module = c.serve(module_name)
-        module = c.connect(module_name)
-        module.put("hey",1)
-        c.kill(module_name)
-
-
     # HISTORY 
     def add_history(self, item:dict):    
         path = self.history_path + '/' + item['address'] + '/'+  str(item['timestamp']) 
@@ -336,117 +307,6 @@ class Server(c.Module):
     def __del__(self):
         c.deregister_server(self.name)
 
-    @classmethod
-    def test_basics(cls) -> dict:
-        servers = c.servers()
-        c.print(servers)
-        tag = 'test'
-        module_name = c.serve(module='module', tag=tag)['name']
-        c.wait_for_server(module_name)
-        assert module_name in c.servers()
-
-        response = c.call(module_name)
-
-        c.kill(module_name)
-        assert module_name not in c.servers()
-        return {'success': True, 'msg': 'server test passed'}
-
-    
-    @classmethod
-    def serve(cls, 
-              module:Any = None ,
-              tag:str=None,
-              network = 'local',
-              port :int = None, # name of the server if None, it will be the module name
-              server_name:str=None, # name of the server if None, it will be the module name
-              kwargs:dict = None,  # kwargs for the module
-              refresh:bool = True, # refreshes the server's key
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              tag_seperator:str='::',
-              max_workers:int = None,
-              mode:str = "http",
-              public: bool = False,
-              mnemonic = None,
-              key = None,
-              **extra_kwargs
-              ):
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs or {})
-        module = module or cls.module_path()
-        # resolve the server name ()
-        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-    
-        if tag_seperator in server_name:
-            module, tag = server_name.split(tag_seperator)
-
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
-        if port == None:
-            # now if we have the server_name, we can repeat the server
-            address = c.get_address(server_name, network=network)
-            if address != None :
-                port = int(address.split(':')[-1])
-            else:
-                port = c.free_port()
-
-        # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-        if remote:
-            # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote = False # SET THIS TO FALSE TO AVOID RECURSION
-            remote_kwargs = c.locals2kwargs(locals(), kwargs_keys=['extra_kwargs'])
-            cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
-
-            return {'success':True, 
-                    'name': server_name, 
-                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
-                    'kwargs':kwargs}
-        
-        module_class = cls.resolve_module(module)
-        
-        kwargs.update(extra_kwargs)
-
-        if mnemonic != None:
-            c.add_key(server_name, mnemonic)
-
-        if module_class.is_arg_key_valid('tag'):
-            kwargs['tag'] = tag
-        if module_class.is_arg_key_valid('server_name'):
-            kwargs['server_name'] = server_name
-
-        # start the class
-        self = module_class(**kwargs)
-
-        self.server_name = server_name
-
-        if tag_seperator in server_name:
-            tag = server_name.split(tag_seperator)[-1]
-        else:
-            tag = None
-
-        self.tag = tag
-        self.key = server_name
-
-        address = c.get_address(server_name, network=network)
-        if address != None and ':' in address:
-            port = address.split(':')[-1]   
-
-        if c.server_exists(server_name, network=network) and not refresh: 
-            return {'success':True, 'message':f'Server {server_name} already exists'}
-
-        self(module=self, 
-            name=server_name, 
-            port=port, 
-            network=network, 
-            max_workers=max_workers, 
-            mode=mode, 
-            public=public, 
-            key=key)
-
-        return  {'success':True, 
-                     'address':  f'{c.default_ip}:{port}' , 
-                     'name':server_name, 
-                     'kwargs': kwargs,
-                     'module':module}
-
     @staticmethod
     def resolve_function_access(module):
         # RESOLVE THE WHITELIST AND BLACKLIST
@@ -459,6 +319,44 @@ class Server(c.Module):
         setattr(module, 'blacklist', blacklist)
         return module
     
+
+
+
+    @classmethod
+    def test_basics(cls) -> dict:
+        servers = c.servers()
+        c.print(servers)
+        tag = 'test'
+        module_name = c.serve(module='module', tag=tag)['name']
+        c.wait_for_server(module_name)
+        assert module_name in c.servers()
+        c.kill(module_name)
+        assert module_name not in c.servers()
+        return {'success': True, 'msg': 'server test passed'}
     
+
+    @classmethod
+    def test_serving(cls):
+        module_name = 'storage::test'
+        module = c.serve(module_name)
+        module = c.connect(module_name)
+        module.put("hey",1)
+        assert module.get("hey") == 1, f"get failed {module.get('hey')}"
+        c.kill(module_name)
+        return {'success': True, 'msg': 'server test passed'}
+
+
+    @classmethod
+    def test_serving_with_different_key(cls, module_name = 'storage::test', key='test'):
+        module = c.serve(module_name, key=key)
+        c.wait_for_server(module_name)
+        module = c.connect(module_name)
+        info = module.info()
+        key = c.get_key(key)
+        assert info['ss58_address'] == key.ss58_address, f"key failed {key.ss58_address} != {info['ss58_address']}"
+        c.kill(module_name)
+        return {'success': True, 'msg': 'server test passed'}
+
+
 
 Server.run(__name__)
