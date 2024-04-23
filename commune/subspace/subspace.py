@@ -989,6 +989,7 @@ class Subspace(c.Module):
                 for i, feature in enumerate(features_left):
                     c.print(f'Querying {feature}')
                     try:
+                        c.print(f'Querying {feature}', results)
                         if c.is_error(results[i]):
                             c.print(f'Error querying {results[i]}')
                         else:
