@@ -1,0 +1,18 @@
+[package]
+name = "clients"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+
+[dependencies]
+pyo3 = "0.15.0"
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1", features = ["full"] }  # for our async runtime
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+pyo3-asyncio = { version = "0.14", features = ["attributes", "async-std-runtime"] }
+async-std = "1.9"
