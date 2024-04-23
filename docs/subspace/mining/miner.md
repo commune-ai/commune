@@ -241,7 +241,7 @@ Sometimes your server may be running on a different port than the one it is regi
 
 ```python
 
-c.module('subspace')().update_servers()
+c.module('subspace')().update_servers(search=None)
 ```
 
 or 
@@ -249,7 +249,14 @@ or
 c subspace/update_servers 
 
 
+If you wnat to only update a specific server, you can use the following command:
 
+```python
+c.module('subspace')().update_servers(search='model.openai')
+```
+or 
+
+c subspace/update_servers search=model.openai
 
 
 ### Launcher Keys
@@ -268,9 +275,6 @@ To load the balance of the keys by an amount
 c load_launcher_keys amount=500
 
 This transfers the amount to the keys from the root key.
-
-
-
 
 
 

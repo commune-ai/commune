@@ -2681,9 +2681,8 @@ class c:
                     'address':address, 
                     'kwargs':kwargs
                     }        
-        
-        c.print(module)
         module_class = c.module(module)
+
         kwargs.update(extra_kwargs)
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
@@ -2702,7 +2701,6 @@ class c:
 
         if c.server_exists(server_name, network=server_network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
-
         c.module(f'server')(module=self, 
                                           name=name, 
                                           port=port, 
