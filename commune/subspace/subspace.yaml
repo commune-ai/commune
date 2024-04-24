@@ -1,6 +1,6 @@
 block_time: 8
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
-connection_mode: ws
+network_mode: ws
 frontend:
   telemetry:
     feed: ws://165.22.186.112:50094/feed

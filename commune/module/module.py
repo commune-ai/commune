@@ -3620,8 +3620,9 @@ class c:
         if ip == None:
             ip =  cls.external_ip(**kwargs)
             c.put('ip', ip)
-            
         return ip
+    
+
     
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):

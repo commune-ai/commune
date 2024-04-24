@@ -257,17 +257,22 @@ class Vali(c.Module):
                     'sync_interval': self.config.sync_interval,
                     }
         # RESOLVE THE VOTING NETWORKS
+
         if 'subspace' in config.network :
+            if '.' in config.network:
+                config.network, config.netuid = config.network.split('.')
+
             self.subspace = c.module('subspace')(network=config.network, netuid=config.netuid)
             if isinstance(config.netuid, str):
-                config.netuid = self.subspace.subnet2netuid(config.subnet)
+                config.netuid = self.subspace.subnet2netuid(config.netuid)
             namespace = self.subspace.namespace(netuid=config.netuid, max_age=config.max_age_network)
+            config.subnet = self.subspace.netuid2subnet(config.netuid)
         if 'bittensor' in config.network:
             self.subtensor = c.module('bittensor')(network=config.network, netuid=config.netuid)
             namespace = self.subtensor.namespace(netuid=config.netuid, max_age=config.max_age_network)
         if 'local' in config.network:
             # local network
-            namespace = c.module('namespace').namespace(search=config.search, max_age=config.max_age_network)
+            namespace = c.get_namespace(search=config.search, max_age=config.max_age_network)
     
         self.namespace = namespace
         self.namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
