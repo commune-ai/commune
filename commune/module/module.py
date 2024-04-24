@@ -1856,6 +1856,17 @@ class c:
     def local_node_urls(cls):
         return c.module('subpsace').local_node_urls()
 
+    def locals2hash(self, kwargs:dict = {'a': 1}, keys=['kwargs']) -> str:
+        kwargs.pop('cls', None)
+        kwargs.pop('self', None)
+        return c.dict2hash(kwargs)
+
+    @classmethod
+    def dict2hash(cls, d:dict) -> str:
+        for k in d.keys():
+            assert c.jsonable(d[k]), f'{k} is not jsonable'
+        return c.hash(d)
+
     
     @classmethod
     def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
@@ -3387,7 +3398,7 @@ class c:
     @classmethod
     def fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
         module = c.module(module)
-        is_self_method = bool(fn in module.self_methods())
+        is_self_method = bool(fn in module.self_functions())
 
         if is_self_method:
             module = module()
@@ -4079,10 +4090,12 @@ class c:
     
     @classmethod
     def test(cls, module=None, timeout=60):
-        if module != None:
-            if c.module_exists(module + '.test'):
-                cls = c.module(module + '.test')
-        self = cls() if module == None else c.module(module)()
+        module = module or cls.module_path()
+        if c.module_exists(module + '.test'):
+            c.print('FOUND TEST MODULE', color='yellow')
+            module = module + '.test'
+        cls = c.module(module)
+        self = cls()
         future2fn = {}
         for fn in self.test_fns():
             c.print(f'testing {fn}')
@@ -6375,8 +6388,10 @@ class c:
             cls.serve(tag=str(i), **kwargs)
         
     @classmethod
-    def self_methods(cls):
+    def self_functions(cls):
         return c.classify_fns(cls)['self']
+    
+    self_functions = self_functions
 
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
@@ -6560,10 +6575,10 @@ class c:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
-    self_methods = get_self_methods = self_fns 
+    self_functions = get_self_functions = self_fns 
 
     @classmethod
-    def class_fns(cls: Union[str, type], obj=None):
+    def class_functions(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -6572,10 +6587,10 @@ class c:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
     
-    class_methods = get_class_methods =  class_fns 
+    class_methods = get_class_methods =  class_fns = class_functions
 
     @classmethod
-    def static_fns(cls: Union[str, type], obj=None):
+    def static_functions(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -6583,9 +6598,9 @@ class c:
         functions =  c.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
-    get_static_methods = static_fns
-
-    static_meethods = static_fns = get_static_methods
+    
+    static_methods = static_fns =  static_functions
+    
     @classmethod
     def fn_signature(cls, fn) -> dict: 
         '''

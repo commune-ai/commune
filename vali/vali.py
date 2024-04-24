@@ -199,7 +199,7 @@ class Vali(c.Module):
 
         if len(futures) >= 0:
             try:
-                for future in c.as_completed(futures, timeout=self.config.timeout*2):
+                for future in c.as_completed(futures, timeout=self.config.timeout):
                     futures.remove(future) # remove the future
                     result = future.result() # result 
                     results += [result]  

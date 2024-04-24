@@ -33,9 +33,11 @@ class Namespace(c.Module):
                 netuid = netuid or 0
             if c.is_int(netuid):
                 netuid = int(netuid)
+            c.print(f'Getting namespace {network} with netuid {netuid}')
+
+            # NOTE: WE INTENTIONALLY DEFER TO THE MAX_AGE OF BEING NONE HERE AND DEFER TO SUBSPACE'S MAX_AGE
             namespace = c.module(network)().namespace(search=search, 
                                                  update=update, 
-                                                 max_age=max_age, 
                                                  netuid=netuid,
                                                  **kwargs)
         elif network == 'local':

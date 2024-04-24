@@ -45,7 +45,7 @@ class Client(c.Module):
         headers : dict ={'Content-Type': 'application/json'},
         message_type = "v0",
         default_fn = 'info',
-        verbose = False,
+        verbose = True,
         debug = True,
         **extra_kwargs
         ):
@@ -88,7 +88,6 @@ class Client(c.Module):
         url = f"{address}/{fn}/"
         if not url.startswith('http'):
             url = 'http://' + url
-        c.print(request)
         result = await self.process_request(url, request, headers=headers, timeout=timeout)
 
         c.print(f"🛰️ Call {self.address}/{fn} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
