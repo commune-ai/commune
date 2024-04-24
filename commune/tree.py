@@ -204,7 +204,11 @@ class Tree(c.Module):
         # we want to remove stupid names like tree.tree -> tree or model.openai.model -> model.openai
         if len(simple_path.split('.')) > 0:
             simple_path_splits = simple_path.split('.')
-            simple_path = '.'.join(list(set(simple_path_splits)))
+            new_simple_path = []
+            for p in simple_path_splits:
+                if p in simple_path:
+                    new_simple_path += [p]
+                    
 
         if tree != None:
             if simple_path.startswith(tree):
