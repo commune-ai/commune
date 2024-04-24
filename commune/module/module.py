@@ -152,6 +152,14 @@ class c:
                            virtual=False, 
                            key=key)
         
+        # if isinstance(kwargs, str):
+        #     kwargs = c.str2dict(kwargs)
+        if kwargs == None:
+            kwargs = {}
+        
+        c.print(kwargs)
+        kwargs.update(extra_kwargs)
+        
 
         return  asyncio.run(module.async_forward(fn=fn, 
                                                  args=args, 
@@ -1358,19 +1366,25 @@ class c:
     @classmethod
     def kill_all(cls, network='local', timeout=20, verbose=True):
         futures = []
-        for s in c.servers(network=network):
-            c.print(f'Killing {s}', color='red')
-            futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
+        namespace = c.namespace(network=network, update=True)
+        progress = c.tqdm(len(namespace))
 
-        results_list = []
-        for f in c.as_completed(futures, timeout=timeout):
-            result = f.result()
-            c.print(result, verbose=verbose)
-            results_list += [result]
+        while len(namespace) > 0:
+            for s in c.servers(network=network):
+                c.print(f'Killing {s}', color='red')
+                futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
 
-        c.namespace(network=network, update=True)
+            results_list = []
+            for f in c.as_completed(futures, timeout=timeout):
+                result = f.result()
+                c.print(result, verbose=verbose)
+                results_list += [result]
+            
+            namespace = c.namespace(network=network, update=True)
+            progress.update(1)
 
-        return {'namespace': c.namespace(network=network)}
+
+        return {'namespace': namespace}
 
         
     
@@ -2423,19 +2437,9 @@ class c:
         time_waiting = 0
         logs = []
         while not c.server_exists(name, network=network):
-            c.sleep(sleep_interval)
             time_waiting += sleep_interval
-            c.print(f'Waiting for server {name} to start')
-            new_logs = list(set(c.logs(name, mode='local').split('\n')))
-            print_logs = [l for l in new_logs if l not in logs]
-
-            if verbose:
-                if len(print_logs) > 0:
-                    logs.extend(print_logs)
-                    logs = list(set(logs))
-                    c.print('\n'.join(print_logs))
-            if time_waiting > timeout:
-                raise TimeoutError(f'Timeout waiting for server to start')
+            c.sleep(sleep_interval)
+            logs.append(f'Waiting for {name} to start')
         return True
         
     def attributes(self):
@@ -4070,16 +4074,29 @@ class c:
         return cls.console.log(*args, **kwargs)
     
     @classmethod
-    def test_fns(cls):
-        return [f for f in dir(cls) if f.startswith('test_')]
+    def test_fns(cls, *args, **kwargs):
+        return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     
     @classmethod
-    def test(cls):
-        self = cls()
-        fn2result = {}
+    def test(cls, module=None, timeout=60):
+        if module != None:
+            if c.module_exists(module + '.test'):
+                cls = c.module(module + '.test')
+        self = cls() if module == None else c.module(module)()
+        future2fn = {}
         for fn in self.test_fns():
             c.print(f'testing {fn}')
-            fn2result[fn] = getattr(self, fn)()
+            f = c.submit(getattr(self, fn), timeout=timeout)
+            future2fn[f] = fn
+        fn2result = {}
+        for f in c.as_completed(future2fn, timeout=timeout):
+
+            fn = future2fn[f]
+            result = f.result()
+            c.print(f'{fn} result: {result}')
+            fn2result[fn] = result
+
+
         return fn2result
 
         
@@ -5085,7 +5102,7 @@ class c:
     def update(cls, 
                module = None,
                tree:bool = True,
-               namespace: bool = True,
+               namespace: bool = False,
                subspace: bool = False,
                network: str = 'local',
                **kwargs
@@ -5151,14 +5168,48 @@ class c:
         text_size = len(text)*bits_per_character
     
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
+    
+
+    def rm_lines(self, path:str, start_line:int, end_line:int) -> None:
+        # Get the absolute path of the file
+        text = c.get_text(path)
+        text = text.split('\n')
+        text = text[:start_line-1] + text[end_line:]
+        text = '\n'.join(text)
+        c.put_text(path, text)
+        return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
+    
+    def rm_line(self, path:str, line:int, text=None) -> None:
+        # Get the absolute path of the file
+        text =  c.get_text(path)
+        text = text.split('\n')
+        text = text[:line-1] + text[line:]
+        text = '\n'.join(text)
+        c.put_text(path, text)
+        return {'success': True, 'msg': f'Removed line {line} from {path}'}
+        # Write the text to the file
             
     @classmethod
-    def add_text(cls, path:str, text:str) -> None:
+    def add_line(cls, path:str, text:str, line=None) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
+        text = str(text)
         # Write the text to the file
+        if line != None:
+            line=int(line)
+            lines = c.get_text(path).split('\n')
+            lines = lines[:line] + [text] + lines[line:]
+            c.print(lines)
+
+            text = '\n'.join(lines)
         with open(path, 'w') as file:
             file.write(text)
+
+
+        return {'success': True, 'msg': f'Added line to {path}'}
+
+    add_text = add_line
+    
            
            
     @classmethod
@@ -5345,12 +5396,10 @@ class c:
     def new_module( cls,
                    module : str ,
                    repo : str = None,
-                   base : str = 'base',
                    base_module : str = 'demo',
                    tree : bool = 'commune',
-                   include_config : bool = False,
                    overwrite : bool  = False,
-                   module_type : str ='dir'):
+                   **kwargs):
         
         """ Makes directories for path.
         """
@@ -5397,9 +5446,7 @@ class c:
   
         if base_module.has_config():
             c.mkdir(module_path, exist_ok=True)
-            module_code_path =f'{module_path}/{module}.py'
-            module_config_path = module_code_path.replace('.py', '.yaml')
-            c.save_yaml(module_config_path, base_module.config())
+            module_code_path =f"{module_path}/{module_path.replace('/','_')}.py"
         else:
             module_code_path = f'{module_path}.py'
         c.put_text(module_code_path, code)
@@ -6261,13 +6308,14 @@ class c:
             
         return fn2str
     @classmethod
-    def fn2hash(cls, *args, mode='sha256', **kwargs):
+    def fn2hash(cls, fn=None , mode='sha256', **kwargs):
         fn2hash = {}
-        for k,v in cls.fn2str(*args, **kwargs).items():
+        for k,v in cls.fn2str(**kwargs).items():
             fn2hash[k] = c.hash(v,mode=mode)
+        if fn:
+            return fn2hash[fn]
         return fn2hash
     
-        
     @classmethod
     def module2fn2str(self, code = True, defaults = False, **kwargs):
         module2fn2str = {  }
@@ -8044,7 +8092,9 @@ class c:
         #### Returns:
         - Returns the documentation of the provided function `fn` as generated by the `document_fn` method of the `agent.coder
         '''
-        return c.module('agent.coder')().document_fn(fn)
+        return c.module('coder')().document_fn(fn)
+
+    comment = document
 
     def set_page_config(self,*args, **kwargs):
         return c.module('streamlit').set_page_config(*args, **kwargs)
@@ -8086,7 +8136,7 @@ class c:
 
     @classmethod
     def comment(self,fn:str='module/ls'):
-        return c.module('coder')().comment(fn)
+        return c.module('code')().comment(fn)
 
     @classmethod
     def host2ssh(cls, *args, **kwarg):

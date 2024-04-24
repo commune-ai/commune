@@ -1,24 +1,31 @@
+
 A server is a module that is converted to an http server.
 
+To deploy a server
+c serve model.openai::tag
+
+{
+    'success': True,
+    'name': 'model.openai::tag',
+    'address': '162.84.137.201:50191',
+    'kwargs': {}
+}
 
 The server can be called in several ways
 
-The name of the endpoing is formated as
+c call model.openai::tag/forward "sup"
 
+"hey there homie"
+
+The name of the endpoing is formated as
 
 {server_ip}:{server_port}/{function}
 
 with the data being a json request in the format of the following
 
 
-```json
-{
-    "data" : "{'args': [], 'kwargs': {'a': 1}, 'timestamp': 1713911754.136804}",
-    "signature" : "59rcj4fjdjiwjoijveoivjhowuhveoruvherouvhnerouohouev"
-}
-```
 
-or 
+Where teh args and kwargs are the positional and keyword arguments of the function and the timestamp is the timestamp of the request. The signature is the signature of the data using the user's private key.
 
 ```json
 {

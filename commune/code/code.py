@@ -120,12 +120,20 @@ class Coder(c.Module):
         Returns:
             - fns: A list of function names available in the specified module.
         '''
+
+        if c.module_exists(filepath):
+            filepath = c.filepath()
         if not filepath.endswith('.py'):
             filepath = filepath + '.py'
-    
         code =  c.get_text(filepath)
         lines = code.split('\n')
         fns = []
         for line in lines:
-            if 'def ' in line:
-                fns += line.split('def ')[1].split('(')[0]
+            if  '):' in line.strip() and 'def ' in line.split('):')[0].strip():
+                fn = line.split('def ')[1].split('):')[0].split('(')[0]
+                if ' ' in fn or ']' in fn:
+                    continue
+                fns.append(fn)
+                
+
+        return fns
