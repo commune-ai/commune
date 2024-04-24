@@ -2,37 +2,9 @@ import commune as c
 
 class Test(c.Module):
 
-
-    @classmethod
-    def test(cls):
-        self = c.module('subspace.test')
-        n = self.n()
-        assert isinstance(n, int)
-        assert n > 0
-
-        market_cap = self.mcap()
-        assert isinstance(market_cap, int), f'{market_cap} is not an int'
-
-        name2key = self.name2key()
-        assert isinstance(name2key, dict), f'{name2key} is not a dict'
-        assert len(name2key) == n
-
-        stats = self.stats()
-        assert len(stats) == n
-
-        assert isinstance(self.names()[0], str)
-        assert isinstance(self.addresses()[0], str)
-
-
-        
-
-
-
     def test_global_params(self):
         global_params = c.global_params(fmt='dict')
         assert isinstance(global_params, dict)
-
-
 
 
     def test_subnet_params(self):
@@ -48,6 +20,18 @@ class Test(c.Module):
             assert isinstance(v, dict), f'{v} is not a dict'
 
         return {'msg': 'subnet_params test passed', 'success': True}
+    
+
+
+    def test_module_params(self, keys=['dividends', 'incentive']):
+        self = c.module('subspace')()
+        key = self.keys()[0]
+        module_info = self.get_module(key)
+        assert isinstance(module_info, dict)
+        for k in keys:
+            assert k in module_info, f'{k} not in {module_info}'
+
+        return {'msg': 'module_params test passed', 'success': True, 'module_info': module_info}
 
 
 

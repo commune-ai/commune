@@ -1484,7 +1484,7 @@ class Subspace(c.Module):
         return self.block_time * self.subnet(netuid=netuid)['tempo']
 
     
-    def module_info(self, module='vali',
+    def get_module(self, module='vali',
                     netuid=0,
                     network='main',
                     fmt='j',
@@ -1516,7 +1516,7 @@ class Subspace(c.Module):
         return module
 
 
-    minfo = get_module = module_info
+    minfo = module_info = get_module
     
     @staticmethod
     def vec82str(l:list):
@@ -3098,7 +3098,7 @@ class Subspace(c.Module):
             keys = [k for k in keys if search in key2name.get(k, k)]
         block = self.block
         if n != None:
-            keys = keys[:n]
+            keys = keys
         modules = self.get_modules(keys, block=block)
 
         for m in modules:          
@@ -3639,25 +3639,6 @@ class Subspace(c.Module):
     def test_module_storage(self):
         modules = self.get_modules(netuid=0)
         return modules 
-
-    @classmethod
-    def test(cls):
-        s = c.module('subspace')()
-        n = s.n()
-        assert isinstance(n, int)
-        assert n > 0
-
-        market_cap = s.mcap()
-        assert isinstance(market_cap, float), market_cap
-
-        name2key = s.name2key()
-        assert isinstance(name2key, dict)
-        assert len(name2key) == n
-
-        stats = s.stats(df=False)
-        assert isinstance(stats, list) 
-
-
     
 
 

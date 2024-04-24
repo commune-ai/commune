@@ -14,13 +14,13 @@ class Socket(c.Module):
     def connect(cls,ip: str = '0.0.0.0', port: int = 8888, timeout: int = 1):
         if  not isinstance(ip, str):
             raise TypeError('ip must be a string')
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             # Set the socket timeout
-            sock.settimeout(timeout)
+            s.settimeout(timeout)
 
             # Try to connect to the specified IP and port
             try:
-                sock.connect((ip, port))
+                s.connect((ip, port))
             except Exception as e:
 
                 # If the connection fails, return False
@@ -35,26 +35,35 @@ class Socket(c.Module):
         socket.close()
     
     def receive(self, port=8888, ip: str = '0.0.0.0', timeout: int = 1, size: int = 1024):
-        socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        socket.connect((ip, port))
-        data = socket.recv(size)
-        socket.close()
-        return data
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((ip, port))
+            data = s.recv(size)
+            s.close()
+            return data
     
 
-    def serve(self, port=8889, ip: str = '0.0.0.0'):
-        import socket
-        socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        socket.bind((ip, port))
-        socket.listen(1)
-        conn, addr = socket.accept()
-        c.print('Connected by', addr)
-        with conn:
-            print('Connected by', addr)
-            while True:
-                data = conn.recv(1024)
-                if not data:
-                    break
-                conn.sendall(data)
+    def serve(self, port=8888, ip: str = '0.0.0.0'):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((ip, port))
+            s.listen(1)
+            conn, addr = s.accept()
+            c.print('Connected by', addr)
+            with conn:
+                print('Connected by', addr)
+                while True:
+                    data = conn.recv(1024)
+                    if not data:
+                        break
+                    conn.sendall(data)
+
+    def test(self):
+        c.thread(self.serve)
+        c.sleep(1)
+        self.connect()
+        f = c.submit(self.send, args=['hey'])
+        self.receive()
+        c.wait(f)
+        self.kill()
+        return {'success': True, 'msg': 'server test passed'}
 
         

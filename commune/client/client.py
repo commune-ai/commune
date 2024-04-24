@@ -70,7 +70,6 @@ class Client(c.Module):
         input =  { 
                         "args": args,
                         "kwargs": kwargs,
-                        "ip": c.ip(),
                         "timestamp": c.timestamp(),
                         }
         self.count += 1
@@ -89,6 +88,7 @@ class Client(c.Module):
         url = f"{address}/{fn}/"
         if not url.startswith('http'):
             url = 'http://' + url
+        c.print(request)
         result = await self.process_request(url, request, headers=headers, timeout=timeout)
 
         c.print(f"🛰️ Call {self.address}/{fn} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)

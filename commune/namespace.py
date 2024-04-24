@@ -149,6 +149,18 @@ class Namespace(c.Module):
     
 
     @classmethod
+    def check_servers(self, *args, **kwargs):
+        servers = c.pm2ls()
+        namespace = c.namespace(*args, **kwargs)
+        c.print('Checking servers', color='blue')
+        for server in servers:
+            if server in namespace:
+                c.print(c.pm2_restart(server))
+
+        return {'success': True, 'msg': 'Servers checked.'}
+    
+
+    @classmethod
     def build_namespace(cls,
                         timeout:int = 10,
                         network:str = 'local', 

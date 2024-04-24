@@ -200,10 +200,11 @@ class Tree(c.Module):
 
         simple_path = '.'.join(simple_chunk)
 
-        # remove any files to compress the name even further for
-        if len(simple_path.split('.')) > 2:
-            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
-                simple_path = '.'.join(simple_path.split('.')[:-1])
+        # THE COMPRESSOR
+        # we want to remove stupid names like tree.tree -> tree or model.openai.model -> model.openai
+        if len(simple_path.split('.')) > 0:
+            simple_path_splits = simple_path.split('.')
+            simple_path = '.'.join(list(set(simple_path_splits)))
 
         if tree != None:
             if simple_path.startswith(tree):

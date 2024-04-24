@@ -49,7 +49,7 @@ class Coder(c.Module):
         - The `c` object is assumed to be a pre-defined object with methods `connect`, `fn_code`, and `add_docs`.
         - `self.process_response` is assumed to be a method that processes the generated documentation response. Its functionality is not detailed in the provided code.
         '''
-        model = c.connect(model, **model_params)
+        model = c.m('model.openrouter')()
         input = json.dumps({
             'instruction': 'given the code, document the function in a professional manner in the docs section', 
             'code': c.fn_code(fn),
@@ -60,7 +60,7 @@ class Coder(c.Module):
         docs = self.process_response(docs)
 
         # add docs to the function
-        cls.add_docs(fn, docs)
+        self.add_docs(fn, docs)
 
         return docs
     
@@ -216,6 +216,7 @@ class Coder(c.Module):
         start_line = fn_info["start_code_line"] + 1
         tab_space = "        "
         cls.add_line(idx=start_line, text=tab_space+"'''")
+        c.print(comment)
         for i, line in enumerate(comment.split('\n')):
             cls.add_line(idx=start_line+i+1, text=tab_space + line)
         cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
