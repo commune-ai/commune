@@ -16,7 +16,7 @@ class Network(c.Module):
     """
 
     def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
-        mode = mode or self.config.connection_mode
+        mode = mode or self.config.network_mode
         network = 'network' or self.config.network
         if url == None:
             

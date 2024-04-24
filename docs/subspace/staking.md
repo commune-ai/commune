@@ -10,15 +10,10 @@ The root key is what you should be using for managing your commune modules. by d
 ```bash 
 c root_key
 ```
-
 ```bash
 <Keypair (address=5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC, path=module,  crypto_type: SR25519)>
 ```
 
-
-## getting stats on the network
-
-You can get the stake 
 
 ## Register a Module
 To register a module, you can use the following command
@@ -42,24 +37,8 @@ To update a module, you can use the following command. At the moment you can upd
 
 ```
 
-c update_module model.openai name=model.openai::fam1 address=124.545.545:8080
+c update_module module=model.openai name=model.openai::fam1 address=124.545.545:8080 delegation_fee=10
 ```
-
-
-## Syncing with the network 
-
-To ensure you are synced with the blockchain you must run the sync loop for subspace.
-This loop periodically syncs with the network in the bacground every interval=60 seconds
-
-```bash
-c s loop interval=60
-```
-Result
-```bash
-{'success': True, 'msg': 'Launched subspace::loop', 'timestamp': 1702854431}
-
-```
-
 
 
 
@@ -114,10 +93,10 @@ c stake_many modules modules=[model1,model2] amounts=10
 ```
 
 
-## Staked Modules 
+## List Your Staked Modules 
 
 
-c staked search=None netuid=1
+c staked search=vali netuid=1
 
     dividends                    stake_from    delegation_fee          stake    vote_staleness
 11  vali.text.truthqa::commie1   0.016297      836737               5  1543452              49
@@ -125,3 +104,11 @@ c staked search=None netuid=1
 47            vali::stakecomai   0.014252      793614              20   814443              85
 32               vali::comchat   0.018128      614167               5   963592               3
 58  vali.text.realfake::commie   0.015503      608276               5   932424              49
+
+
+Transfer stake from one module to another, if you dont specify the amount, the default is the entire stake towards the module
+
+```bash
+c transfer_stake vali.text.truthqa::commie1 vali::project_management amount=0.01 # default netuid=0
+```
+

@@ -1,6 +1,6 @@
 import commune as c
 
-class Test(c.Module):
+class Test(c.m('subspace')):
 
     def test_global_params(self):
         global_params = c.global_params(fmt='dict')
@@ -14,10 +14,20 @@ class Test(c.Module):
         assert isinstance(subnet_params_b, dict)
         assert c.hash(subnet_params_a) == c.hash(subnet_params_b), f'{subnet_params_a} != {subnet_params_b}'
 
-        subnet_params_all = c.subnet_params(netuid='all')
-        assert isinstance(subnet_params_all, dict)
-        for k,v in subnet_params_all.items():
-            assert isinstance(v, dict), f'{v} is not a dict'
+
+        subnet_names = c.subnet_names()
+        assert isinstance(subnet_names, list) and len(subnet_names) > 0
+        subnet2netuid = c.subnet2netuid()
+        assert isinstance(subnet2netuid, dict) and len(subnet2netuid) > 0
+        
+
+        namespace = self.namespace(netuid=subnet2netuid['commune'])
+        assert isinstance(namespace, dict)
+        namespace = self.namespace(netuid=0)
+        assert isinstance(namespace, dict)
+        namespace = self.namespace(netuid='all')
+        assert isinstance(namespace, dict)
+        namespace = self.namespace(network='subspace.commune')
 
         return {'msg': 'subnet_params test passed', 'success': True}
     
