@@ -9,11 +9,9 @@ from .cli import cli
 # set the module functions as globals
 for k,v in Module.__dict__.items():
     globals()[k] = v
-
-for f in Module.get_class_methods() + Module.get_static_methods():
+for f in Module.class_functions() + Module.static_functions():
     globals()[f] = getattr(Module, f)
-    
-for f in Module.get_self_methods():
+for f in Module.self_functions():
     globals()[f] = lambda *args, **kwargs: getattr(Module(), f)(*args, **kwargs)
-    
 globals()['cli'] = cli
+

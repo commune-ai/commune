@@ -38,7 +38,7 @@ class Tree(c.Module):
                 search=None,
                 update = False,
                 verbose:bool = False,
-                max_age = 100, **kwargs
+                max_age = 100000, **kwargs
                 ) -> List[str]:
         
         tree = tree or 'commune'

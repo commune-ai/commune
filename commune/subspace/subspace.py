@@ -1332,9 +1332,10 @@ class Subspace(c.Module):
     def netuids(self, network=network, update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet(network=network, update=update, block=block).keys())
 
-    def subnet_names(self, network=network , update=False, block=None, **kwargs) -> Dict[str, str]:
-        records = self.query_map('SubnetNames', update=update, network=network, block=block, **kwargs)
-        return list(records.values())
+    def subnet_names(self, network=network , update=False, block=None, max_age=60, **kwargs) -> Dict[str, str]:
+        records = self.query_map('SubnetNames', update=update, network=network, block=block, max_age=max_age, **kwargs)
+        lower_case_records = list(map(lambda x: str(x).lower(), records.values()))
+        return sorted(list(lower_case_records))
     
     netuid2subnet = subnet_names
 
@@ -1495,7 +1496,7 @@ class Subspace(c.Module):
         url = self.resolve_url(network=network, mode=mode)
         module_key = module
         if not c.valid_ss58_address(module):
-            module_key = self.name2key(name=module, network=network, **kwargs)
+            module_key = self.name2key(name=module, network=network, netuid=netuid, **kwargs)
         json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
         module = requests.post(url,  json=json).json()
         module = {**module['result']['stats'], **module['result']['params']}
@@ -2419,7 +2420,8 @@ class Subspace(c.Module):
             
         stake = stake * 1e9
 
-    
+        if '0.0.0.0' in address:
+            address = address.replace('0.0.0.0', c.ip())
 
         params = { 
                     'network': subnet.encode('utf-8'),
@@ -2566,16 +2568,17 @@ class Subspace(c.Module):
         name: str = None, # the name of the new module
         delegation_fee: float = None, # the delegation fee of the new module
         fee : float = None, # the fee of the new module
-        netuid: int = None, # the netuid of the new module
+        netuid: int = 0, # the netuid of the new module
         network : str = "main", # the network of the new module
         nonce = None, # the nonce of the new module
         tip: int = 0, # the tip of the new module
+        max_ip_age = 100, # the max age of the new module ip
     ) -> bool:
         self.resolve_network(network)
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-        module_info = self.module_info(module)
-        ip = c.ip(update=1)
+        module_info = self.module_info(module, netuid=netuid)
+        ip = c.ip(max_age=max_ip_age)
         if module_info['key'] == None:
             return {'success': False, 'msg': 'not registered'}
         module_info['name'] = module
@@ -2588,11 +2591,13 @@ class Subspace(c.Module):
             c.print(f'Changing name from {module_info["name"]} to {name}, we need to serve the new module and swap the keys')
             c.print(c.mv_key(module_info['name'], name))
             address = c.serve(name)['address']
-            
-        address = address or module_info['address']
+
+        current_address = c.namespace().get(name)
+        if module_info['address'] != current_address:
+            address = current_address
+            c.print(f'Changing address from {module_info["address"]} to {address}')
         if ip not in address:
             address = ip + ':'+ address.split(':')[-1]
-
         params = {
             'netuid': netuid, # defaults to module.netuid
              # PARAMS #
