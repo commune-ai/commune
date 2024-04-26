@@ -1,6 +1,7 @@
 import commune as c
 import streamlit as st
 from typing import *
+import os
 import json
 import paramiko
 
@@ -552,16 +553,19 @@ class Remote(c.Module):
 
     def save_ssh_config(self, path="~/.ssh/config"):
         ssh_config = []
+        path = os.path.expanduser(path)
+        return path
 
-        for host_name, host in self.hosts().items():
-            ssh_config.append(f'Host {host_name}')
-            ssh_config.append(f'  HostName {host["host"]}')
-            ssh_config.append(f'  Port {host["port"]}')
-            ssh_config.append(f'  User {host["user"]}')
 
-        ssh_config = '\n'.join(ssh_config)
+        # for host_name, host in self.hosts().items():
+        #     ssh_config.append(f'Host {host_name}')
+        #     ssh_config.append(f'  HostName {host["host"]}')
+        #     ssh_config.append(f'  Port {host["port"]}')
+        #     ssh_config.append(f'  User {host["user"]}')
 
-        return c.put_text(path, ssh_config)
+        # ssh_config = '\n'.join(ssh_config)
+
+        # return c.put_text(path, ssh_config)
     
         
     def text2hosts(self, text, model='model.openai'):

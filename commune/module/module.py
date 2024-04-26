@@ -1092,14 +1092,16 @@ class c:
         - This method relies on the `os` module to perform path manipulations and checks.
         - This method is versatile and can handle various input path formats, simplifying file path resolution in the class's context.
         '''
-
+    
         if path == None:
             return cls.tmp_dir()
+        
+
 
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
-            path =  os.path.abspath(path)
+            path =  os.path.expanduser(path)
         elif path.startswith('./'):
             path = os.path.abspath(path)
         else:

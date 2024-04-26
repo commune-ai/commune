@@ -9,13 +9,6 @@ class App(c.Module):
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
         self.remote = c.module('remote')()
-        c.thread(self.run_loop)
-
-    def run_loop(self):
-        c.new_event_loop()
-        while True:
-            st.write('Running')
-
     @classmethod
     def app(cls, module: str = None, **kwargs):
         if module:
