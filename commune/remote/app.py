@@ -135,9 +135,6 @@ class App(c.Module):
             errors = []
             futures = list(future2host.keys())
 
-            success_expander = st.expander('Results', expanded=expanded)
-            failed_expander = st.expander('Failed', expanded=expanded)
-
             try:
                 for future in c.as_completed(futures, timeout=timeout):
 
@@ -148,42 +145,30 @@ class App(c.Module):
                     stats = host2stats.get(host, {'success': 0, 'error': 0})
                     result = future.result()
                     is_error = c.is_error(result)
-                    if is_error:
-                        with failed_expander:
-                            st.error(f'Error: {result}')
-                        
-                    else:
+                    if not is_error:        
+                        msg = result if is_error else result.strip()
 
-                        with success_expander:
-        
-                            msg = result if is_error else result.strip()
-
-                            # get the colkumne
-                            col_idx = (col_idx) % len(cols)
-                            col = cols[col_idx]
-                            col_idx += 1
+                        # get the colkumne
+                        col_idx = (col_idx) % len(cols)
+                        col = cols[col_idx]
+                        col_idx += 1
 
 
-                            stats = host2stats.get(host, {'success': 0, 'error': 0})
+                        stats = host2stats.get(host, {'success': 0, 'error': 0})
 
 
 
-                            # if the column is full, add a new column
-                            with col:
-                                msg = fn_code(msg)
-                                emoji =  c.emoji("cross") if is_error else c.emoji("check")
-                                title = f'{emoji} :: {host} :: {emoji}'
-                    
-                                if is_error:
-                                    failed_hosts += [host]
-                                    errors += [msg]
-                                    stats['error'] += 1
-                                    
-                                else:
-                                    stats['last_success'] = c.time()
-                                    stats['success'] += 1
-                                    st.write(title)
-                                    st.code(msg)
+                        # if the column is full, add a new column
+                        with col:
+                            msg = fn_code(msg)
+                            emoji =  c.emoji("cross") if is_error else c.emoji("check")
+                            title = f'{emoji} :: {host} :: {emoji}'
+
+                            stats['last_success'] = c.time()
+                            stats['success'] += 1
+                            with st.expander(f'Results {host}', expanded=expanded):
+                                st.write(title)
+                                st.code(msg)
 
                     host2stats[host] = stats
         
