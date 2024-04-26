@@ -2481,6 +2481,12 @@ class c:
     @classmethod
     def servers(cls, *args, **kwargs) -> List[str]:
         return c.module("namespace").servers(*args, **kwargs)
+    @classmethod
+    def server2key(self, *args, **kwargs):
+        servers = c.servers()
+        key2address = c.key2address()
+        server2key = {s:key2address[s] for s in servers}
+        return server2key
 
     @classmethod
     def rservers(cls, *args, **kwargs) -> List[str]:
