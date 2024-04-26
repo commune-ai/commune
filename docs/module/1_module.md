@@ -34,7 +34,6 @@ c.new_module('agi')
 }
 ```
 
-
 c agi/filepath 
 home/saltoshi/commune/modules/agi/agi.py
 
@@ -57,19 +56,7 @@ c namespace
 
 OUTPUT
 
-
-
-
-
-
-
-
 c agi filepath
-
-
-
-
-
 
 
 ### Searching for a Specific Module
@@ -102,7 +89,6 @@ or
 ```bash
 c.print(c.call('model.openai/info', *args, **kwargs))
 ```
-
 
 ---
 
@@ -146,8 +132,7 @@ This is the yaml file if the module has a config file stored in the same directo
 To list the functions of a module, use the `fns()` method:
 
 ```python
-demo_functions = demo.fns()
-c.print(demo_functions)
+demo.fns()
 ```
 
 ### Searching for a Function
@@ -159,14 +144,19 @@ matching_functions = demo.fns(function_search_query)
 c.print(matching_functions)
 ```
 
-### Getting Function Schema
+### Function Schema
 You can retrieve the schema of a specific function using the `schema()` method:
 
 ```python
-function_name = 'bro'
-function_schema = demo.schema(function_name)
-c.print(function_schema)
+c.module('model.openai').schema()
 ```
+
+
+{
+    '__init__': {'input': {'a': 'int'}, 'default': {'a': 1}, 'output': {}, 'docs': None, 'type': 'self'},
+    'call': {'input': {'b': 'int'}, 'default': {'b': 1}, 'output': {}, 'docs': None, 'type': 'self'}
+}
+
 ---
 
 This concludes our tutorial on module management using the `commune` library. You've learned how to find modules, manage their functions, serve them, and interact with served modules. This library can greatly simplify the process of managing and deploying code modules in your projects.

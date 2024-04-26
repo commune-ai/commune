@@ -1,6 +1,7 @@
 
 
 import commune as c
+import hashlib
 
 
 class Hash(c.Module):
@@ -9,30 +10,19 @@ class Hash(c.Module):
     def hash(cls, x, mode: str='sha256',*args,**kwargs):
         x = cls.python2str(x)
         if mode == 'keccak':
-            from web3.main import Web3
-            hash_output = Web3.keccak(text=x, *args, **kwargs)
-        
-            return hash_output.hex()
+            return c.import_object('web3.main.Web3').keccak(text=x, *args, **kwargs).hex()
         elif mode == 'ss58':
-            # only works for 32 byte hex strings
-            hash_fn = c.import_object('scalecodec.utils.ss58.ss58_encode')
-            # convert to hex
-            return hash_fn(x, *args,**kwargs) 
+            return c.import_object('scalecodec.utils.ss58.ss58_encode')(x, *args,**kwargs) 
         elif mode == 'python':
             return hash(x)
         elif mode == 'md5':
-            import hashlib
             return hashlib.md5(x.encode()).hexdigest()
         elif mode == 'sha256':
-            import hashlib
             return hashlib.sha256(x.encode()).hexdigest()
         elif mode == 'sha512':
-            import hashlib
             return hashlib.sha512(x.encode()).hexdigest()
         elif mode =='sha3_512':
-            import hashlib
             return hashlib.sha3_512(x.encode()).hexdigest()
-        
         else:
             raise ValueError(f'unknown mode {mode}')
 
