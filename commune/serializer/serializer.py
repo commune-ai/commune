@@ -55,7 +55,7 @@ class Serializer(c.Module):
         v_type = type(x)
         if v_type in [dict, list, tuple, set]:
             new_value = self.serialize(x, mode=None)
-        elif v_type in [int, float, str, bool]:
+        elif v_type in [int, float, str, bool, type(None)]:
             new_value = x
         else:
             # GET THE TYPE OF THE VALUE
