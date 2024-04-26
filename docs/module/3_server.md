@@ -1,4 +1,7 @@
 
+## Serving
+
+
 A server is a module that is converted to an http server.
 
 To deploy a server
@@ -25,6 +28,39 @@ with the data being a json request in the format of the following
 
 
 
+### Viewing Available Servers
+You can view the available servers using the `servers()` method:
+
+```python
+c.servers()
+```
+
+### Viewing Server Logs
+To view the logs of a served module, you can use the `logs()` method:
+
+```python
+c.logs('demo::tag1', mode='local')
+```
+
+### Connecting to a Served Module
+You can connect to a served module using the `connect()` method:
+The following calls the `info()` function of the `demo::tag1` module:
+
+```python
+c.connect('demo::tag1').info()
+```
+
+### Restarting and Killing a Served Module
+You can restart or kill a served module using the `restart()` and `kill()` methods:
+
+```python
+c.restart('demo::tag1')  # Restart the module
+c.kill('demo::tag1')     # Kill the module
+```
+
+---
+
+
 Where teh args and kwargs are the positional and keyword arguments of the function and the timestamp is the timestamp of the request. The signature is the signature of the data using the user's private key.
 
 ```json
@@ -33,13 +69,9 @@ Where teh args and kwargs are the positional and keyword arguments of the functi
     "signature" : "59rcj4fjdjiwjoijveoivjhowuhveoruvherouvhnerouohouev"
 }
 
-or 
-```
+
 
 Verification
-
-
-
 
 
 The Access Module
@@ -119,6 +151,55 @@ To see the module
 
 c access/filepath # for the path
 c access/code # for the code
+
+
+Admins
+
+Admins are the ones who can do anything on a computer and from outside a computer. They have all access to the commune's functions and can add other admins. There is by default one admin per commune. Admins can add other admins if needed.
+
+c.add_admin("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY")
+
+or 
+
+c.add_user("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY", role="admin")
+
+
+To add a custom role
+
+c.add_user("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY", role="custom_role")
+
+
+To remove an admin, use the remove_admin function.
+
+c.rm_admin("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY")
+
+To see all users
+
+{
+    '5CfWRdKjT5cUjSnpZA7xuW3a3qsXWkisbqrCrBky3L12Wc8R': {'role': 'admin'},
+    '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC': {'role': 'admin'},
+    '5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY': {'role': 'admin'}
+}
+
+To see the user2role mapping
+
+c user2role
+{
+    '5CfWRdKjT5cUjSnpZA7xuW3a3qsXWkisbqrCrBky3L12Wc8R': 'admin
+    '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC': 'admin',
+    '5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY': 'admin'
+}
+
+
+
+To get the roles per users
+
+
+c role2users
+
+{
+    'admin': ['5CfWRdKjT5cUjSnpZA7xuW3a3qsXWkisbqrCrBky3L12Wc8R', '5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC', '5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY']
+}
 
 
 

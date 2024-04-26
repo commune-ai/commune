@@ -1,80 +1,43 @@
-# Subspace Module
-
-This involves a runthrough of the main function of subspace. We recommend going through the code if you want to understand the full extent of this module as there are alot of functions
-
-
-## ROOT KEY
-
-The root key is what you should be using for managing your commune modules. by default this is the following.
-
-```bash 
-c root_key
-```
-```bash
-<Keypair (address=5GZBhMZZRMWCiqgqdDGZCGo16Kg5aUQUcpuUGWwSgHn9HbRC, path=module,  crypto_type: SR25519)>
-```
-
-
-## Register a Module
-To register a module, you can use the following command
-
-```
-c model.openai register tag=sup api_key=sk-...
-```
-
-or
-
-```
-c register model.openai tag=sup api_key=sk-...
-```
-
-Please make sure you specify a unique tag, as it will not go through if someone else has that name on the subnet. When you deploy the module, the module will be serving locally on your machine and will be accessed by the network.
-
-
-## Update a Module
-
-To update a module, you can use the following command. At the moment you can update the module's name and address. Please not if you update the name, you will need to restart the server with the new name. This is currently something we want to avoid in the future by having to rename the server without killing it 
-
-```
-
-c update_module module=model.openai name=model.openai::fam1 address=124.545.545:8080 delegation_fee=10
-```
-
-
-
+# Staking 
 ## Stake Tokens
 
 To stake on a module, you can use the following commands:
 
 ```
-c stake 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 100
+c.stake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S, amount=100,  key='module')
 ```
 
 ## Unstake Tokens
 
 The following unstakes 100 tokens from the module with the address 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S
+The default key is the root key (module) and the default netuid is 0 (commune).
 
+```python
+c.unstake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S , amount=10, netuid=0,  key='module')
 ```
-c unstake 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 10
-```
-
 
 Unstake 100 tokens from the module with the name model.openai
+This uses the name2key function to get the key from the name. 
+
+NOTE:
+Please note that is is always more secure to use the address as the key, as the name can be changed by the user, and you can accidentally stake the incorrect key if your name2key is not up to date. 
+
+```python
+c.unstake(module=model.openai, amount=100, netuid=0, key='module')
 ```
-c unstake module=model.openai amount=100
-```
+
 ### Stake Many
 
 To stake multiple modules at once do the following
 
 ```bash 
-c stake_many modules=[model1,model2] amounts=[10,20]
+c.stake_many(modules=[model1,model2].amounts=[10,20], netuid=10)
 ```
 
 or if you want to specify the same amount, just do the amounts as an integer
 
 ```bash 
-c stake_many modules modules=[model1,model2] amounts=10
+c.stake_many(modules=[model1,model2], amounts=[10, 10], netuid=0)
 ```
 
 
@@ -83,13 +46,13 @@ c stake_many modules modules=[model1,model2] amounts=10
 To stake multiple modules at once do the following
 
 ```bash 
-c stake_many modules=[model1,model2] amounts=[10,20]
+c.unstake_many(modules=[model1,model2], amounts=[10,20])
 ```
 
 or if you want to specify the same amount, just do the amounts as an integer
 
 ```bash 
-c stake_many modules modules=[model1,model2] amounts=10
+c.stake_many(modules=[model1,model2], amounts=10)
 ```
 
 

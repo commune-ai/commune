@@ -236,7 +236,6 @@ class Vali(c.Module):
         config.search =  search or config.search
         config.netuid =  netuid or config.netuid 
         config.subnet = subnet or config.subnet or config.netuid
-        config.fn = fn or config.fn        
         config.max_age_network = max_age or self.config.max_age_network
 
         if self.network_staleness() < config.sync_interval:

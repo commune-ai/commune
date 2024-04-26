@@ -116,9 +116,7 @@ class Tree(c.Module):
 
         path = cls.tree_folders_path
         tree_folder = c.get(path, [])
-        tree_folder += cls.default_trees
-        tree_folder += [tree_path]
-        tree_folder = list(set(tree_folder))
+        tree_folder = list(set(tree_folder + cls.default_trees + [tree_path]))
         assert os.path.isdir(tree_path)
         assert isinstance(tree_folder, list)
         c.put(path, tree_folder, **kwargs)
@@ -127,7 +125,7 @@ class Tree(c.Module):
     @classmethod
     def rm_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
-        tree_folder = c.get(tree_path, [])
+        tree_folder = c.get(path, [])
         tree_folder = [f for f in tree_folder if f != tree_path ]
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
@@ -167,6 +165,7 @@ class Tree(c.Module):
     def path2simple(cls, path:str, tree=None) -> str:
 
         tree = cls.resolve_tree(tree)
+        filename = os.path.basename(path).replace('.py', '')
 
         path = os.path.abspath(path)
         homepath = os.path.expanduser('~')
@@ -218,11 +217,10 @@ class Tree(c.Module):
                 simple_path = simple_path.replace('modules.', '')
 
 
-
-        # for x in ['.miner']:
-        #     if simple_path.endswith(x):
-        #         c.print(x)
-        #         simple_path = simple_path[:-len(x)]
+        # # if the filename is in the simple path, remove it
+        # if '_' in filename:
+        #     if filename.replace('_', '.') in simple_path:
+        #         simple_path = simple_path[:-len(filename)]
         
         return simple_path
 

@@ -255,6 +255,7 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         return os.path.dirname(cls.filepath())
+    folderpath = dirname = dirpath
 
     @classmethod
     def dlogs(cls, *args, **kwargs):
@@ -3154,14 +3155,7 @@ class c:
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
-
-    def register_servers(self, search=None, **kwargs):
-        servers = c.servers(search=search)
-        for s in servers:
-            c.print(f'Registering {s}')
-            c.register(s, name=s, **kwargs)
-
-
+    
     @classmethod
     def register(cls,  *args, **kwargs ):
         return  c.module('subspace')().register(*args, **kwargs)
@@ -4109,8 +4103,6 @@ class c:
             result = f.result()
             c.print(f'{fn} result: {result}')
             fn2result[fn] = result
-
-
         return fn2result
 
         
@@ -4455,11 +4447,10 @@ class c:
     @classmethod
     def hash(cls, 
              data: Union[str, bytes], 
-             mode: str = 'sha256', 
              **kwargs) -> bytes:
-        if not hasattr(cls, 'hash_module'):
-            cls.hash_module = cls.get_module('crypto.hash')()
-        return cls.hash_module(data, mode=mode, **kwargs)
+        if not hasattr(cls, '_hash_module'):
+            cls._hash_module = c.module('crypto.hash')()
+        return cls._hash_module(data, **kwargs)
     
 
     @classmethod
@@ -5125,7 +5116,6 @@ class c:
         if tree:
             r = c.tree()
             responses.append(r)
-
         if module != None:
             return c.module(module).update()
         # update local namespace
@@ -5412,7 +5402,7 @@ class c:
                    repo : str = None,
                    base_module : str = 'demo',
                    tree : bool = 'commune',
-                   overwrite : bool  = False,
+                   overwrite : bool  = True,
                    **kwargs):
         
         """ Makes directories for path.
@@ -5420,74 +5410,89 @@ class c:
         if module == None: 
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-        module_path = 'path'
-
+        tree_path = c.tree2path().get(tree)
+        
         class_name = ''
         for m in module.split('.'):
             class_name += m[0].upper() + m[1:] # capitalize first letter
 
-        module = module.replace('.','/')
-
-        # add it to the root
-        tree2path = cls.tree2path()
-        modules_path = tree2path[tree]
-        module_path = os.path.join(modules_path, module)
-        
-        if c.module_exists(module_path): 
+        if c.module_exists(module): 
             if overwrite:
+                module_path = c.module(module).dirpath() if c.is_file_module(module) else c.module(module).filepath()
                 c.rm(module_path)
             else:
                 return {'success': False,
                         'path': module_path,
                          'msg': f' module {module} already exists, set overwrite=True to overwrite'}
-            
-        if repo != None:
-            # Clone the repository
-            c.cmd(f'git clone {repo} {module_path}')
-            # Remove the .git directory
-            c.cmd(f'rm -rf {module_path}/.git')
 
         # get the code ready from the base module
         c.print(f'Getting {base_module}')
         base_module = c.module(base_module)
-        code = base_module.code()
+        is_folder_module = base_module.is_folder_module()
 
-        # replace the class name
-        base_class_name = base_module.class_name()
-        class_name = module[0].upper() + module[1:] # capitalize first letter
-        class_name = ''.join([m.capitalize() for m in module.split('/')])
-        code = code.replace(base_class_name, class_name)
-  
-        if base_module.has_config():
-            c.mkdir(module_path, exist_ok=True)
-            module_code_path =f"{module_path}/{module_path.replace('/','_')}.py"
+        base_module_class = base_module.class_name()
+        module_class_name = ''.join([m[0].upper() + m[1:] for m in module.split('.')])
+
+        # build the path2text dictionary 
+        if is_folder_module:
+            dirpath = tree_path + '/'+ module.replace('.','/') + '/'
+            base_dirpath = base_module.dirpath()
+            path2text = c.path2text( base_module.dirpath())
+            path2text = {k.replace(base_dirpath +'/',dirpath ):v for k,v in path2text.items()}         
         else:
-            module_code_path = f'{module_path}.py'
-        c.put_text(module_code_path, code)
-            
-        c.module_tree(update=True)
+            module_path = tree_path + '/'+ module.replace('.','/') + '.py'
+            code = base_module.code()
+            path2text = {module_path: code}
 
-        return {'success': True, 
-                'path': module_path,
-                'module': module,
-                'class_name': class_name,
-                'msg': f' created a new repo called {module}'}
+        og_path2text = c.copy(path2text)
+        for path, text in og_path2text.items():
+            file_type = path.split('.')[-1]
+            is_module_python_file = (file_type == 'py' and 'class ' + base_module_class in text)
+
+            if is_folder_module:
+                if file_type ==  'yaml' or is_module_python_file:
+                    path_filename = path.split('/')[-1]
+                    new_filename = module.replace('.', '_') + '.'+ file_type
+                    path = path[:-len(path_filename)] + new_filename
+
+
+            if is_module_python_file:
+                text = text.replace(base_module_class, module_class_name)
+
+            path2text[path] = text
+            c.put_text(path, text)
+            c.print(f'Created {path} :: {module}')
+
+        c.tree(update=1)
+       
+        assert c.module_exists(module), f'Failed to create module {module}'
         
+
+        return {'success': True, 'msg': f'Created module {module}', 'path': path, 'paths': list(c.path2text(c.module(module).dirpath()).keys())}
     
     add_module = new_module
     
     make_dir= mkdir
 
     @classmethod
-    def path2text(cls, path:str = './'):
+    def path2text(cls, path:str, relative=False):
 
         path = cls.resolve_path(path)
+        assert os.path.exists(path), f'path {path} does not exist'
+        if os.path.isdir(path):
+            filepath_list = c.glob(path + '/**')
+        else:
+            assert os.path.exists(path), f'path {path} does not exist'
+            filepath_list = [path] 
         path2text = {}
-        for filepath in c.glob(path + '/**'):
+        for filepath in filepath_list:
             try:
                 path2text[filepath] = c.get_text(filepath)
             except Exception as e:
                 pass
+        if relative:
+            pwd = c.pwd()
+            path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
         return path2text
         
 
@@ -7008,8 +7013,8 @@ class c:
         return c.module('subspace')().staked(*args, **kwargs)
 
     @classmethod
-    def transfer_stake(cls, *args, **kwargs):
-        return c.module('subspace')().transfer_stake(*args, **kwargs)
+    def stake_transfer(cls, *args, **kwargs):
+        return c.module('subspace')().stake_transfer(*args, **kwargs)
 
     @classmethod
     def add_profit_shares(cls, *args, **kwargs):
