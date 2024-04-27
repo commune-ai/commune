@@ -1,6 +1,5 @@
 
 from setuptools import setup, find_packages
-from pkg_resources import parse_requirements
 from os import path
 from io import open
 here = path.abspath(path.dirname(__file__))
@@ -24,7 +23,11 @@ setup(
     author_email='',
     license='MIT',
     # install_requires=install_requires,
-    scripts=['bin/c'],
+    entry_points={
+        'console_scripts': [
+            'c=commune.cli:main',
+        ],
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
