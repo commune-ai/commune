@@ -161,4 +161,6 @@ class cli(c.Module):
     def history_paths(cls, **kwargs):
         history = cls.history_module().history_paths(**kwargs) 
         return history
-    
+
+def main():
+    cli()
