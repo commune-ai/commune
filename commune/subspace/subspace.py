@@ -1138,22 +1138,16 @@ class Subspace(c.Module):
             names = [self.feature2name(f) for f in features]
             name2feature = dict(zip(names, features))
             subnet_params = {}
-
-            while trials > 0:
-
-                try:
-                    multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
-                    results = self.query_multi(multi_query)
-                    break 
-                except Exception as e:
-                    c.print(e)
-                    trials = trials - 1
-                    assert trials > 0
-            if netuid == 'all':
-                return results
-            for idx, (k, v) in enumerate(results):
-                subnet_params[names[idx]] = v.value
-
+            block = self.block
+            future2name = {}
+            params=[] if netuid=='all' else [netuid]
+            for name, feature in name2feature.items():
+                f = c.submit(self.query, kwargs=dict(name=feature, block=block, params=params , update=update, **kwargs))
+                future2name[f] = name
+            for future in c.as_completed(future2name, timeout=timeout):
+                name = future2name[future]
+                subnet_params[name] = future.result()
+            
             self.put(path, subnet_params)
 
         for k in value_features:
@@ -1387,8 +1381,6 @@ class Subspace(c.Module):
         if netuid == None :
             # If the netuid is not specified, use the default.
             return 0
-        
-              
         if isinstance(netuid, str):
             subnet2netuid = self.subnet2netuid()
             if netuid not in subnet2netuid:
@@ -2422,7 +2414,7 @@ class Subspace(c.Module):
         name: str , # defaults to module.tage
         address : str = None,
         stake : float = None,
-        netuid = None,
+        netuid = 0,
         subnet: str = 'commune',
         key : str  = None,
         module_key : str = None,
