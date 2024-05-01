@@ -5,12 +5,10 @@ class History(c.Module):
     def __init__(self, folder_path='history'):
         self.folder_path = self.resolve_path(folder_path)
 
-
-
     def set_folder_path(self, path):
-        self.folder_path = self.resolve_path(path)
-        assert os.path.isdir(self.folder_path), f"History path {self.folder_path} does not exist"
-        c.print(f"History path: {self.folder_path}", color='green')
+        self.folder_path = self.resolve_path(path) # set the folder path to the resolved path
+        assert os.path.isdir(self.folder_path), f"History path {self.folder_path} does not exist" # check if the path exists
+        c.print(f"History path: {self.folder_path}", color='green') # print the path
         
     def add(self, item:dict, path=None):
         if 'timestamp' not in item:

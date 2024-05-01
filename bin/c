@@ -1,3 +1,2 @@
 import commune as c
-
 c.cli()

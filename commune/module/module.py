@@ -1776,6 +1776,10 @@ class c:
         return models
     
     @classmethod
+    def infer_device_map(cls, *args, **kwargs):
+        return cls.infer_device_map(*args, **kwargs)
+    
+    @classmethod
     def datasets(cls, **kwargs) -> List[str]:
         return c.servers('data',  **kwargs)
     datas = datasets
@@ -2745,10 +2749,7 @@ class c:
     def functions(cls, search: str=None , include_parents:bool = False, module=None):
         if module != None:
             cls = c.module(module)
-        functions = cls.get_functions(include_parents=include_parents)  
-        functions = list(set(functions))
-        if isinstance(search, str):
-            functions = [f for f in functions if search in f]
+        functions = cls.get_functions(include_parents=include_parents, search=search)  
         return functions
 
     fns = functions
@@ -2778,30 +2779,7 @@ class c:
     
     function_signature_map = fn_signature_map
 
-    @property
-    def function_default_map(self, include_parents=False):
-        return self.get_function_default_map(obj=self, include_parents=False)
-        
-    @classmethod
-    def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
-        obj = obj if obj else cls
-        default_value_map = {}
-        function_signature = cls.fn_signature_map(obj=obj,include_parents=include_parents)
-        for fn_name, fn in function_signature.items():
-            default_value_map[fn_name] = {}
-            if fn_name in ['self', 'cls']:
-                continue
-            for var_name, var in fn.items():
-                if len(var.split('=')) == 1:
-                    var_type = var
-                    default_value_map[fn_name][var_name] = 'NA'
 
-                elif len(var.split('=')) == 2:
-                    var_value = var.split('=')[-1].strip()                    
-                    default_value_map[fn_name][var_name] = eval(var_value)
-        
-        return default_value_map   
-    
     def is_fn_allowed(self, fn_name:str) -> bool:
         whitelist = self.whitelist
         blacklist = self.blacklist
@@ -2930,8 +2908,6 @@ class c:
                 module , fn = module.split('/')
             module = c.module(module)
         module = module or cls
-        functions = [fn] if fn else module.get_functions(include_parents=include_parents)
-
         schema = {}
         for fn in module.get_functions(include_parents=include_parents):
             if search != None and search not in fn:
@@ -3302,26 +3278,30 @@ class c:
             if len(args.params) > len(args.kwargs):
                 args.kwargs = args.params
             args.args = json.loads(args.args.replace("'",'"'))
+        elif version == 2:
+            args = c.parseargs()
 
         return args
 
     @classmethod
     def run(cls, name:str = None, verbose:bool = False, version=1) -> Any: 
-        if name == '__main__' or name == None or name == cls.__name__:
-            args = cls.argparse(version=version)
+        is_main =  name == '__main__' or name == None or name == cls.__name__
+        if not is_main:
+            return {'success':False, 'message':f'Not main module {name}'}
+        args = cls.argparse(version=version)
 
-            if args.function == '__init__':
-                return cls(*args.args, **args.kwargs)     
+        if args.function == '__init__':
+            return cls(*args.args, **args.kwargs)     
+        else:
+            fn = getattr(cls, args.function)
+            fn_type = cls.classify_fn(fn)
+
+            if fn_type == 'self':
+                module = cls(*args.args, **args.kwargs)
             else:
-                fn = getattr(cls, args.function)
-                fn_type = cls.classify_fn(fn)
+                module = cls
 
-                if fn_type == 'self':
-                    module = cls(*args.args, **args.kwargs)
-                else:
-                    module = cls
-
-                return getattr(module, args.function)(*args.args, **args.kwargs)     
+            return getattr(module, args.function)(*args.args, **args.kwargs)     
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -4945,8 +4925,6 @@ class c:
     
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
-
-            
         if port_range == None:
             port_range = c.get('port_range', default=cls.default_port_range)
             
@@ -6526,6 +6504,7 @@ class c:
 
     @classmethod
     def get_functions(cls, obj: Any = None,
+                      search = None,
                       include_parents:bool=False, 
                       include_hidden:bool = False) -> List[str]:
         '''
@@ -6553,6 +6532,8 @@ class c:
             dir_list = obj.__dict__.keys()
 
         for fn_name in dir_list:
+            if search != None and search not in fn_name:
+                continue
             fn_obj = getattr(obj, fn_name)
             if not callable(fn_obj):
                 continue
@@ -6573,7 +6554,9 @@ class c:
             # if the function is callable, include it
             if callable(getattr(obj, fn_name)):
                 functions.append(fn_name)
-                            
+
+
+        functions = list(set(functions))     
             
         return functions
 
@@ -7210,55 +7193,6 @@ class c:
         return c.module('subspace').add_node_key(*args, **kwargs)
     
 
-    @classmethod   
-    def infer_device_map(cls, 
-                         model:str, 
-                         max_memory: dict = None,
-                         block_prefix : str = 'model.layers',
-                         buffer_memory:float = '1gb', # 10GB buffer (bytes)
-                         quantize:str = None, #
-                         verbose: bool = False,
-                         **kwargs,
-                         ):
-        if quantize in ['int8']: 
-            quantize_factor = 0.5
-        elif quantize in ['int4']:
-            quantize_factor = 0.25
-        elif quantize == None: 
-            quantize_factor = 1
-        model = c.resolve_model(model)
-        param_size_map = c.params_size_map(model, block_prefix=block_prefix, **kwargs)
-        
-        free_gpu_memory = c.free_gpu_memory() if max_memory == None else max_memory
-        buffer_memory  = c.resolve_memory(buffer_memory)
-        device_map = {}
-        gpu = None
-        gpu_memory = 0
-        unallocated_memory = sum(param_size_map.values())
-        allocated_gpu_memory = {}
-        
-        gpu = None
-        
-        
-        
-        for param_key, param_size in param_size_map.items():            
-            # find the most free gpu if gpu is None or if the gpu has less memory than the buffer memory
-        
-            if (gpu == None) or (free_gpu_memory[gpu] < buffer_memory) or (free_gpu_memory[gpu] < param_size):
-                gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
-                allocated_gpu_memory[gpu] = 0
-            
-            allocated_gpu_memory[gpu] += param_size
-            free_gpu_memory[gpu] -= param_size
-            unallocated_memory -= param_size
-            device_map[param_key] = gpu
-            
-        c.print(allocated_gpu_memory, c.free_gpu_memory())
-        assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
-                
-        return device_map
-        
-        
     @classmethod
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
@@ -8221,6 +8155,8 @@ class c:
         keys = cls.launcher_keys()
         return c.get_balances(keys)
 
+
+    
         
 
     

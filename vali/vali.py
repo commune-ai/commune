@@ -79,35 +79,7 @@ class Vali(c.Module):
                 c.print(c.detailed_error(e))
 
 
-    def network_info(self):
-        return {
-            'search': self.config.search,
-            'network': self.config.network, 
-            'netuid': self.config.netuid, 
-            'n': self.n,
-            'fn': self.config.fn,
-            'staleness': self.network_staleness(),
 
-        }
-    
-    def epoch_info(self):
-        return {
-            'requests': self.requests,
-            'errors': self.errors,
-            'successes': self.successes,
-            'last_sent': c.round(c.time() - self.last_sent, 3),
-            'last_success': c.round(c.time() - self.last_success, 3),
-            'batch_size': self.config.batch_size,
-        }
-
-    def run_info(self):
-        return {
-            'network': self.network_info(),
-            'epoch': self.epoch_info() ,
-            'vote': self.vote_info(),
-            'module': self.module_info(),
-
-            }
     
     def workers(self):
         if self.config.mode == None or str(self.config.mode) == 'server':
@@ -159,6 +131,8 @@ class Vali(c.Module):
         return self.epoch()
     
 
+
+
     def epoch(self, batch_size = None, network=None, **kwargs):
         self.sync(network=network)
         futures = []
@@ -184,8 +158,7 @@ class Vali(c.Module):
             self.address2last_update[module_address] = c.time()
             if len(futures) >= batch_size:
                 try:
-                    for future in c.as_completed(futures,
-                                                 timeout=self.config.timeout):
+                    for future in c.as_completed(futures, timeout=self.config.timeout):
                         result = future.result()
                         c.print(result, verbose=self.config.debug or self.config.verbose)
                         futures.remove(future)
@@ -203,11 +176,22 @@ class Vali(c.Module):
                     futures.remove(future) # remove the future
                     result = future.result() # result 
                     results += [result]  
-                    c.print(result, verbose=self.config.debug)
             except Exception as e:
                 c.print('ERROR',c.detailed_error(e))
         return results
         
+
+    
+    def epoch_info(self):
+        return {
+            'requests': self.requests,
+            'errors': self.errors,
+            'successes': self.successes,
+            'last_sent': c.round(c.time() - self.last_sent, 3),
+            'last_success': c.round(c.time() - self.last_success, 3),
+            'batch_size': self.config.batch_size,
+        }
+
     def network_staleness(self):
         # return the time since the last sync with the network
         return c.time() - self.last_sync_time
@@ -538,7 +522,6 @@ class Vali(c.Module):
         self.put(path, df) 
         df = c.df(df) 
         assert len(df) > 0
-        # sort_by = [s for s in sort_by if s in df.columns]
         df = df.sort_values(by=sort_by, ascending=ascending)
         if min_weight > 0:
             df = df[df['w'] > min_weight]
@@ -548,7 +531,7 @@ class Vali(c.Module):
             else:
                 df = df[:n]
 
-        
+        # if to_dict is true, we return the dataframe as a list of dictionaries
         if to_dict:
             return df.to_dict(orient='records')
 
@@ -605,4 +588,26 @@ class Vali(c.Module):
             pass
         return 0
  
+
+    def network_info(self):
+        return {
+            'search': self.config.search,
+            'network': self.config.network, 
+            'netuid': self.config.netuid, 
+            'n': self.n,
+            'fn': self.config.fn,
+            'staleness': self.network_staleness(),
+
+        }
+
+    def run_info(self):
+        return {
+            'network': self.network_info(),
+            'epoch': self.epoch_info() ,
+            'vote': self.vote_info(),
+            'module': self.module_info(),
+
+            }
+
+
 Vali.run(__name__)
