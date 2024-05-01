@@ -16,16 +16,6 @@ class cli(c.Module):
                 save: bool = True):
         self.base_module = c.module(module)
         args = args or self.argv()
-        if args[0].endswith('.py'):
-            return c.cmd('python3 ' + args[0])
-        args_str = 'c ' + ' '.join(args)
-        
-        if new_event_loop:
-            c.new_event_loop(True)
-
-        if len(args) == 0:
-            return c.schema()
-        
         output = self.get_output(args)
 
         if c.is_generator(output):
@@ -39,7 +29,7 @@ class cli(c.Module):
             c.print(output, verbose=verbose)
         
         if save:
-            self.history_module().add({'input': args_str, 'output': output})
+            self.history_module().add({'input': 'c ' + ' '.join(args), 'output': output})
 
     def get_output(self, args):
 
@@ -100,7 +90,6 @@ class cli(c.Module):
                 parsing_kwargs = True
                 key, value = arg.split('=', 1)
                 # use determine_type to convert the value to its actual type
-                
                 kwargs[key] = cls.determine_type(value)
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
@@ -110,11 +99,17 @@ class cli(c.Module):
 
     @classmethod
     def determine_type(cls, x):
-        if x.lower() in 'null' or x == 'None':
-            return None
-        elif x.lower() in ['true', 'false']:
+
+        if x.startswith('py(') and x.endswith(')'):
+            try:
+                return eval(x[3:-1])
+            except:
+                return x
+        if x.lower() in 'null' or x == 'None':  # convert 'null' or 'None' to None
+            return None 
+        elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool
             return bool(x.lower() == 'true')
-        elif x.startswith('[') and x.endswith(']'):
+        elif x.startswith('[') and x.endswith(']'): # this is a list
             try:
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
@@ -146,6 +141,8 @@ class cli(c.Module):
                     return float(x)
                 except ValueError:
                     return x
+                
+
     @classmethod
     def history_module(cls, path='history'):
         return c.m('history')( cls.resolve_path(path))

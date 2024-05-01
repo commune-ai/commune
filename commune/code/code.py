@@ -1,5 +1,6 @@
 import commune as c
 import json
+from typing import *
 
 class Coder(c.Module):
     def comment(self,
@@ -137,3 +138,29 @@ class Coder(c.Module):
                 
 
         return fns
+    
+
+    @property
+    def get_function_default_map(self, include_parents=False):
+        return self.get_function_default_map(obj=self, include_parents=False)
+        
+    @classmethod
+    def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
+        obj = obj if obj else cls
+        default_value_map = {}
+        function_signature = cls.fn_signature_map(obj=obj,include_parents=include_parents)
+        for fn_name, fn in function_signature.items():
+            default_value_map[fn_name] = {}
+            if fn_name in ['self', 'cls']:
+                continue
+            for var_name, var in fn.items():
+                if len(var.split('=')) == 1:
+                    var_type = var
+                    default_value_map[fn_name][var_name] = 'NA'
+
+                elif len(var.split('=')) == 2:
+                    var_value = var.split('=')[-1].strip()                    
+                    default_value_map[fn_name][var_name] = eval(var_value)
+        
+        return default_value_map   
+    

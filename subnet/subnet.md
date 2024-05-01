@@ -1,7 +1,7 @@
 to start the subnet
 
 
-c subnet/testnet 
+c subnet/testnet valis=2 miners=3
 
 this creates a testnet on your computer 
 [

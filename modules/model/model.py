@@ -533,3 +533,75 @@ class Model(nn.Module, c.Module):
         encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
     
+
+
+
+    @classmethod   
+    def infer_device_map(cls, 
+                         model:str, 
+                         max_memory: dict = None,
+                         block_prefix : str = 'model.layers',
+                         buffer_memory:float = '1gb', # 10GB buffer (bytes)
+                         quantize:str = None, #
+                         verbose: bool = False,
+                         **kwargs,
+                         ):
+        # if quantize in ['int8']: 
+        #     quantize_factor = 0.5
+        # elif quantize in ['int4']:
+        #     quantize_factor = 0.25
+        # elif quantize == None: 
+        #     quantize_factor = 1
+        model = c.resolve_model(model)
+        param_size_map = c.params_size_map(model, block_prefix=block_prefix, **kwargs)
+        
+        free_gpu_memory = c.free_gpu_memory() if max_memory == None else max_memory
+        buffer_memory  = c.resolve_memory(buffer_memory)
+        device_map = {}
+        gpu = None
+        unallocated_memory = sum(param_size_map.values())
+        allocated_gpu_memory = {}
+        
+        gpu = None
+        
+        for param_key, param_size in param_size_map.items():            
+            # find the most free gpu if gpu is None or if the gpu has less memory than the buffer memory
+        
+            if (gpu == None) or (free_gpu_memory[gpu] < buffer_memory) or (free_gpu_memory[gpu] < param_size):
+                gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
+                allocated_gpu_memory[gpu] = 0
+            
+            allocated_gpu_memory[gpu] += param_size
+            free_gpu_memory[gpu] -= param_size
+            unallocated_memory -= param_size
+            device_map[param_key] = gpu
+            
+        c.print(allocated_gpu_memory, c.free_gpu_memory())
+        assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
+                
+        return device_map
+        
+        
+
+    @classmethod
+    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
+        
+        '''
+        Resolves the device that is used the least to avoid memory overflow.
+        '''
+        import torch
+        if device == None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            assert torch.cuda.is_available(), 'Cuda is not available'
+            gpu_id = 0
+            if find_least_used:
+                gpu_id = cls.most_free_gpu()
+                
+            device = f'cuda:{gpu_id}'
+        
+            if verbose:
+                device_info = cls.gpu_info(gpu_id)
+                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
+        return device  
+    

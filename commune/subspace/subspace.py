@@ -1055,15 +1055,15 @@ class Subspace(c.Module):
     
     def my_subnet2netuid(self, key=None, block=None, update=False, **kwargs):
         address2key = c.address2key()
-        subnet_params_list = self.subnet_params(block=block, update=update, netuid='all', **kwargs)
+        subnet_params = self.subnet_params(block=block, update=update, netuid='all', **kwargs)
         subnet2netuid = {}
-        for netuid, subnet_params in enumerate(subnet_params_list):
+        for netuid, subnet_params in subnet_params.items():
             if subnet_params['founder'] in address2key:
                 subnet2netuid[subnet_params['name']] = netuid
         return subnet2netuid
     
-    def my_subnets(self, key=None, block=None, update=False, **kwargs):
-        return list(self.my_subnet2netuid(key=key, block=block, update=update, **kwargs).keys())
+    def my_subnets(self, key=None, update=True, **kwargs):
+        return list(self.my_subnet2netuid(key=key,  update=update, **kwargs).keys())
 
 
     @classmethod
@@ -1120,9 +1120,10 @@ class Subspace(c.Module):
                     update = True,
                     max_age = 1000,
                     fmt:str='j', 
-                    trials = 4,
+                    timeout = 30,
                     features  = subnet_features,
                     value_features = ['min_stake', 'max_stake'], 
+                    block = None,
                     **kwargs
                     ) -> list:  
 
@@ -1142,17 +1143,24 @@ class Subspace(c.Module):
             future2name = {}
             params=[] if netuid=='all' else [netuid]
             for name, feature in name2feature.items():
-                f = c.submit(self.query, kwargs=dict(name=feature, block=block, params=params , update=update, **kwargs))
+                f = c.submit(self.query_map, kwargs=dict(name=feature,params=params , update=update, block=block, **kwargs))
                 future2name[f] = name
             for future in c.as_completed(future2name, timeout=timeout):
                 name = future2name[future]
                 subnet_params[name] = future.result()
             
-            self.put(path, subnet_params)
 
-        for k in value_features:
-            if k in value_features:
-                subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+            if netuid == 'all':
+                new_subnet_params = {}
+                for name, netuid2value in subnet_params.items():
+                    for netuid, value in netuid2value.items():
+                        if netuid not in new_subnet_params:
+                            new_subnet_params[netuid] = {}
+                        new_subnet_params[netuid][name] = value
+                subnet_params = new_subnet_params
+                self.put(path, subnet_params)
+                c.print(subnet_params)
+
         return subnet_params
 
 
@@ -1507,7 +1515,6 @@ class Subspace(c.Module):
                     network='main',
                     trials = 4,
                     fmt='j',
-                    method='subspace_getModuleInfo',
                     mode = 'http',
                     block = None,
                     lite = True, **kwargs ) -> 'ModuleInfo':
@@ -1516,7 +1523,7 @@ class Subspace(c.Module):
         if not c.valid_ss58_address(module):
             module_key = self.name2key(name=module, network=network, netuid=netuid, **kwargs)
         netuid = self.resolve_netuid(netuid)
-        json={'id':1, 'jsonrpc':'2.0',  'method': method, 'params': [module_key, netuid]}
+        json={'id':1, 'jsonrpc':'2.0',  'method': 'subspace_getModuleInfo', 'params': [module_key, netuid]}
         module = None
         for i in range(trials):
             try:
@@ -2440,29 +2447,27 @@ class Subspace(c.Module):
             if serve_info == None:
                 serve_info =  c.serve(name, **kwargs)
                 address = serve_info['address']
-
-    
         namespace = c.get_namespace()
-
         network =self.resolve_network(network)
         address = address or namespace.get(name,address)
         module_key = module_key or c.get_key(name).ss58_address
         netuid2subnet = self.netuid2subnet(max_age=max_age)
         subnet2netuid = {v:k for k,v in netuid2subnet.items()}
-        
-        if netuid != None:
-            subnet = netuid2subnet.get(netuid, subnet)
+        netuid = netuid or subnet
         assert isinstance(subnet, str), f"Subnet must be a string"
-        if subnet in subnet2netuid:
-            netuid = netuid2subnet[netuid]
-
-        else:
+        if isinstance(netuid, str):
+            subnet = netuid
+            netuid = subnet2netuid.get(netuid, 0)
+        
+        c.print(f"Registering {name} with {stake} stake on {subnet} subnet")
+                    
+        if netuid not in netuid2subnet:
             netuid = 0
             response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
             if response.lower() not in ["yes", 'y', 'dope']:
                 return {'success': False, 'msg': 'Subnet not found and not created'}
                 
-            # require prompt to create new subnet        
+        # require prompt to create new subnet        
                 
         stake = stake or 0
         min_register_stake = self.min_register_stake(netuid=netuid, network=network)
@@ -2474,7 +2479,7 @@ class Subspace(c.Module):
             if mkey_balance > stake:
                 c.print(f'Using {name} key to register {name} with {stake} stake')
                 key = mkey
-            
+
         stake = stake * 1e9
 
         if '0.0.0.0' in address:
@@ -3312,6 +3317,8 @@ class Subspace(c.Module):
         
         '''
         key2address = key2address or c.key2address()
+        if servers == None:
+            servers = list(key2address.keys())
         key2address = {k:v for k,v in key2address.items() if k in servers}
         futures = []
         launcher_keys = c.launcher_keys()

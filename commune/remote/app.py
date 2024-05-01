@@ -23,7 +23,7 @@ class App(c.Module):
             with t:
                 getattr(self, f'{modes[i]}_dashboard')()
 
-    def filter_hosts_dashboard(self, host_names: list = None):
+    def filter_hosts_dashboard(self, host_names: list = None, expanded: bool = True, **kwargs):
 
         host_map = self.remote.hosts()
         host_names = list(host_map.keys())
@@ -36,9 +36,7 @@ class App(c.Module):
         host_map = self.remote.filter_hosts(**search_terms)
         host_names = list(host_map.keys())
         n = len(host_names)
-
-        with st.expander(f'Hosts (n={n})', expanded=False):
-            host_names = st.multiselect('Host', host_names, host_names)
+        host_names = st.multiselect(f'Hosts(n={n})', host_names, host_names)
         self.host_map = {k:host_map[k] for k in host_names}
         self.host2ssh = self.remote.host2ssh(host_map=host_map)
 
@@ -78,20 +76,13 @@ class App(c.Module):
 
                 self.remote.rm_host(rm_host_name)
 
-        self.host2ssh_search()
+
 
     def host2ssh_search(self, expander=True):
-        if expander:
-            with st.expander('Host2ssh', expanded=False):
-                self.host2ssh_search(expander=False)
-                return
-        search =  st.text_input("Filter")
+        host =  st.selectbox('Search', list(self.host2ssh.keys()))
         host2ssh = self.host2ssh
-        for host, ssh in host2ssh.items():
-            if search != None and search not in host:
-                continue
-            st.write(host)
-            st.code(ssh)
+        host2ssh = host2ssh.get(host, {})
+        st.code(host2ssh)
     
     def ssh_dashboard(self):
 
@@ -134,6 +125,7 @@ class App(c.Module):
             col_idx = 0
             errors = []
             futures = list(future2host.keys())
+            host2ssh = self.host2ssh
 
             try:
                 for future in c.as_completed(futures, timeout=timeout):
@@ -230,7 +222,11 @@ class App(c.Module):
 
         st.title('Remote Dashboard')
 
-        self.filter_hosts_dashboard()
+        with st.expander('FILTER HOSTS', expanded=False):
+            self.filter_hosts_dashboard()
+
+        with st.expander('HOST_2_SSH', expanded=False):
+            self.host2ssh_search(expander=False)
   
 
 

@@ -28,15 +28,19 @@ class Subnet(c.Module):
             c.print(tree, 'This is the tree, it is a Munch object')
             return tree
 
-    def new_subnet(self, search=None, **kwargs):
-        modules = c.modules(search=search, **kwargs)
-        subnets = []
-        for module in modules:
-            if 'vali' in module and module.startswith('subnet'):
-                subnet = module.split('.')[1]
-                if (module[:len(module)-len('.vali')] + '.miner') in modules:
-                    subnets.append(subnet)
-        return subnets
+    @classmethod
+    def testnet(cls, miners=10, valis=1, **kwargs):
+        futures = []
+        for miner in range(miners):
+            f = c.submit(c.serve, [f"subnet.miner::{miner}"])
+            futures += [f]
+        for vali in range(valis):
+            f = c.submit(c.serve,[f"subnet.vali::{vali}"])
+            futures += [f]
+        
+        for future in c.as_completed(futures):
+            c.print(future.result())
+        return {'miners': miners, 'valis': valis}
 
     @classmethod
     def repos(cls, search=None, **kwargs):
