@@ -1111,6 +1111,12 @@ class Subspace(c.Module):
         results = substrate.query_multi(multi_query)
         return results
 
+    def blocks_until_vote(self, netuid=0, **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        tempo = self.subnet_params(netuid=netuid, **kwargs)['tempo']
+        block = self.block
+        return tempo - ((block + netuid) % tempo)
+    
     def subnet_params(self, 
                     netuid=0,
                     network = 'main',
@@ -2449,7 +2455,7 @@ class Subspace(c.Module):
                 
         stake = stake or 0
         min_register_stake = self.min_register_stake(netuid=netuid, network=network)
-        stake = min(min_register_stake, stake)
+        stake = max(min_register_stake, stake)
         
         if c.key_exists(name):
             mkey = c.get_key(name)
@@ -2462,6 +2468,9 @@ class Subspace(c.Module):
 
         if '0.0.0.0' in address:
             address = address.replace('0.0.0.0', c.ip(update=1))
+
+        if len(address) > 32:
+            address = address[-32:]
 
         metadata = c.dict2str(metadata or {})
         params = { 
