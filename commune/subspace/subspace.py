@@ -1117,46 +1117,30 @@ class Subspace(c.Module):
                     update = False,
                     max_age = 1000,
                     fmt:str='j', 
-                    timeout = 30,
                     features  = subnet_features,
                     value_features = ['min_stake', 'max_stake'], 
-                    block = None,
                     **kwargs
                     ) -> list:  
 
         netuid = self.resolve_netuid(netuid)
 
-
-
         path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
-        
+        names = [self.feature2name(f) for f in features]
+        name2feature = dict(zip(names, features))
         if subnet_params == None:
-            
-            names = [self.feature2name(f) for f in features]
-            name2feature = dict(zip(names, features))
-            subnet_params = {}
             block = self.block
-            future2name = {}
-            params=[] if netuid=='all' else [netuid]
-            for name, feature in name2feature.items():
-                f = c.submit(self.query_map, kwargs=dict(name=feature,params=params , update=update, block=block, **kwargs))
-                future2name[f] = name
-            for future in c.as_completed(future2name, timeout=timeout):
-                name = future2name[future]
-                subnet_params[name] = future.result()
-            
+            subnet_params = {}
+            multi_query = [("SubspaceModule", f, []) for f in name2feature.values()]
+            results = self.query_multi(multi_query)
+            for idx, (k, v) in enumerate(results):
+                subnet_params[names[idx]] = v.value
+            self.put(path, subnet_params)
 
-            if netuid == 'all':
-                new_subnet_params = {}
-                for name, netuid2value in subnet_params.items():
-                    for netuid, value in netuid2value.items():
-                        if netuid not in new_subnet_params:
-                            new_subnet_params[netuid] = {}
-                        new_subnet_params[netuid][name] = value
-                subnet_params = new_subnet_params
-                self.put(path, subnet_params)
-                c.print(subnet_params)
+        for k in value_features:
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+        return subnet_params
+
 
         return subnet_params
 
