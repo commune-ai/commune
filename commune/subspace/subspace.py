@@ -414,7 +414,6 @@ class Subspace(c.Module):
                 value =  response.value
                 break
             except Exception as e:
-                c.print(f'Error querying {name} with params {params} and block {block} on network {network}')
                 trials = trials - 1
                 if trials == 0:
                     raise e
@@ -513,8 +512,6 @@ class Subspace(c.Module):
                     )
                     break
                 except Exception as e:
-                    c.print(e)
-                    c.print(f'Error querying {name} with params {params} and block {block} on network {network}')
                     trials = trials - 1
                     if trials == 0:
                         raise e
@@ -1083,7 +1080,7 @@ class Subspace(c.Module):
             name =  'vote_mode'
         elif name == 'subnet_names':
             name  = 'name'
-        elif feature == 'min_stake_global':
+        elif name == 'min_stake_global':
             name =  'min_stake'
             
         return name
@@ -1117,7 +1114,7 @@ class Subspace(c.Module):
     def subnet_params(self, 
                     netuid=0,
                     network = 'main',
-                    update = True,
+                    update = False,
                     max_age = 1000,
                     fmt:str='j', 
                     timeout = 30,
@@ -1235,7 +1232,7 @@ class Subspace(c.Module):
                     block : Optional[int] = None,
                     update = False,
                     timeout = 30,
-                    max_age = 10000,
+                    max_age = 100000,
                     fmt:str='j', 
                     rows:bool = True,
                     value_features = ['min_stake', 'min_burn', 'unit_emission', 'min_weight_stake'],
@@ -1250,16 +1247,13 @@ class Subspace(c.Module):
         if subnet_params == None:
             subnet_params = {}
             multi_query = [("SubspaceModule", f, []) for f in name2feature.values()]
-            subspace = self.get_substrate(network=network)
             results = self.query_multi(multi_query)
             for idx, (k, v) in enumerate(results):
-
                 subnet_params[names[idx]] = v.value
-
             self.put(path, subnet_params)
+
         for k in value_features:
-            if k in value_features:
-                subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
 

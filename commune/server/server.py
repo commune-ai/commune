@@ -15,7 +15,7 @@ class Server(c.Module):
         port: Optional[int] = None,
         sse: bool = True,
         chunk_size: int = 1000,
-        max_request_staleness: int = 2, 
+        max_request_staleness: int = 5, 
         key = None,
         verbose: bool = False,
         timeout: int = 256,

@@ -7,7 +7,7 @@ sync_interval: 10
 min_update_interval: 4 # the minimum interval to update the network
 sleep_interval: 5
 sample_sleep_interval: 0.1
-initial_sleep : 1
+initial_sleep : 5
 search: null
 max_age_info: 3600
 max_leaderboard_age: 3600

@@ -45,7 +45,7 @@ class Client(c.Module):
         headers : dict ={'Content-Type': 'application/json'},
         message_type = "v0",
         default_fn = 'info',
-        verbose = True,
+        verbose = False,
         debug = True,
         **extra_kwargs
         ):
