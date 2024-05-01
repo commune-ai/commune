@@ -40,3 +40,12 @@ Conclusion
 Using the Remote class is like having a magic wand that lets you talk to computers no matter where they are. You can ask them to do things for you, remember new computer friends, and make sure all your computer friends are safe and happy.
 
 This README.md aims to simplify the explanation of the Remote class functionalities and usage, making it accessible to beginners or even to a younger audience. Adjust the content as necessary to better fit your project or audience.
+
+
+APP
+
+to run the app 
+
+c app remote 
+or 
+c app r
