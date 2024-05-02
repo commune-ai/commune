@@ -321,7 +321,7 @@ class Namespace(c.Module):
     
     @classmethod
     def servers(cls, search=None, network:str = 'local', **kwargs):
-        namespace = cls.namespace(search=search, network=network)
+        namespace = cls.namespace(search=search, network=network, **kwargs)
         return list(namespace.keys())
 
     @classmethod
