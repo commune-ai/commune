@@ -225,7 +225,6 @@ class Client(c.Module):
         namespace = c.namespace(search=search, network=network)
         future2module = {}
         for module, address in namespace.items():
-            c.print(args, kwargs, extra_kwargs)
             future = c.submit(c.call,
                       
                                kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 

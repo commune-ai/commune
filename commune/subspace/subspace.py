@@ -15,9 +15,13 @@ class Subspace(c.Module):
     Handles interactions with the subspace chain.
     """
 
-
     whitelist = ['query', 
                  'score',
+                 'keys',
+                 'incentives',
+                 'stakes',
+                 'netuids',
+                 'subnet2netuid',
                  'query_map', 
                  'get_module', 
                  'get_balance', 
@@ -93,6 +97,10 @@ class Subspace(c.Module):
         **kwargs,
     ):
         self.set_config(kwargs=kwargs)
+        c.print(self.config)
+        if self.config.run_loop == True:
+            c.print('Running loop')
+            c.thread(self.run_loop)
 
     network_mode = 'ws'
 
@@ -2322,7 +2330,11 @@ class Subspace(c.Module):
 
     def sync(self,*args, **kwargs):
         
+        self.stake_from(update=1)
+        self.global_params(update=1)
+        self.subnet_params(update=1)
         self.get_balances(update=1)
+
         
 
     def check_storage(self, block_hash = None, network=network):
@@ -2852,6 +2864,7 @@ class Subspace(c.Module):
             key : 'c.Key' = None,  # defaults to first key
             netuid : Union[str, int] = 0, # defaults to module.netuid
             network: str= None,
+            buffer = 0,
             **kwargs
         ) -> dict:
         """
@@ -2893,10 +2906,12 @@ class Subspace(c.Module):
             raise Exception('Invalid input')
 
         if amount == None:
-            stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=module_key)
-            amount = stake_to[module_key] - 100000
+            stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=key.ss58_address)
+            amount = stake_to[module_key]
         else:
             amount = int(self.to_nanos(amount))
+        
+        amount = max(0, amount - buffer)
         # convert to nanos
         params={
             'amount': amount ,
@@ -3306,7 +3321,7 @@ class Subspace(c.Module):
         key2address = key2address or c.key2address()
         if servers == None:
             servers = list(key2address.keys())
-        key2address = {k:v for k,v in key2address.items() if k in servers}
+        key2address = {s['name']: s['ss58_address'] for s in servers}
         futures = []
         launcher_keys = c.launcher_keys()
         future2launcher = {}
@@ -3356,6 +3371,19 @@ class Subspace(c.Module):
             if  key2address[s] not in keys:
                 unregister_servers += [s]
         return unregister_servers
+    
+
+    def rm_min_value_keys(self, min_value=0.1, **kwargs):
+        key2balance = self.key2value(**kwargs)
+        key2address = c.address2key()
+        for k,v in key2balance.items():
+            if v < min_value and k in key2address:
+                c.print(f'Removing {k} with value {v}')
+                # try:
+                #     c.rm_key(k)
+                # except Exception as e:
+                #     c.print(f'Error removing {k} with value {v} {e}')
+        return {'success': True, 'message': f'Removed keys with value < {min_value}'}
 
     def get_balances(self, 
                     keys=None,
@@ -3376,6 +3404,7 @@ class Subspace(c.Module):
         key2address = c.key2address(search=search)
         if keys == None:
             keys = list(key2address.keys())
+
         if len(keys) > n:
             c.print(f'Getting balances for {len(keys)} keys > {n} keys, using batch_size {batch_size}')
             balances = self.balances(network=network, **kwargs)
