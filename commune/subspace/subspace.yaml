@@ -1,4 +1,5 @@
 block_time: 8
+run_loop: False
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 network_mode: ws
 frontend:
