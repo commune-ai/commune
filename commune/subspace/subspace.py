@@ -3290,7 +3290,7 @@ class Subspace(c.Module):
 
     vote = set_weights
 
-    def register_servers(self,  search=None, netuid = 0, timeout=60, max_age=None,  key=None, update=False, **kwargs):
+    def register_servers(self,  search=None, infos=None,  netuid = 0, timeout=60, max_age=None,  key=None, update=False, **kwargs):
         '''
         key2address : dict
             A dictionary of module names to their keys
@@ -3300,13 +3300,14 @@ class Subspace(c.Module):
             The netuid of the modules
         
         '''
-        infos = c.infos(search=search, **kwargs)
         keys = c.submit(self.keys, dict(netuid=netuid, update=update, max_age=max_age))
         names = c.submit(self.names, dict(netuid=netuid, update=update, max_age=max_age))
         keys, names = c.wait([keys, names], timeout=timeout)
-        should_register_fn = lambda x: x['ss58_address'] not in keys and x['name'] not in names
-        infos = [i for i in infos if should_register_fn(i)]
-        c.print(f'Found {infos} modules to register')
+        if infos==None:
+            infos = c.infos(search=search, **kwargs)
+            should_register_fn = lambda x: x['ss58_address'] not in keys and x['name'] not in names
+            infos = [i for i in infos if should_register_fn(i)]
+            c.print(f'Found {infos} modules to register')
         for i, info in enumerate(infos):
             r = c.register(name=info['name'], 
                          address= info['address'],
