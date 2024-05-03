@@ -26,7 +26,10 @@ class Test(c.Module):
         module = c.connect(server_name)
 
         module.put("hey",1)
-        assert module.get("hey") == 1, f"get failed {module.get('hey')}"
+        v = module.get("hey")
+        c.print(v)
+        assert v == 1, f"get failed {module.get('hey')}"
+        
         c.kill(server_name)
         return {'success': True, 'msg': 'server test passed'}
 

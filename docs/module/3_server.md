@@ -5,7 +5,10 @@
 A server is a module that is converted to an http server.
 
 To deploy a server
+
+```python
 c serve model.openai::tag
+```
 
 {
     'success': True,
@@ -14,9 +17,14 @@ c serve model.openai::tag
     'kwargs': {}
 }
 
+
+
+
 The server can be called in several ways
 
+```python
 c call model.openai::tag/forward "sup"
+```
 
 "hey there homie"
 

@@ -1018,11 +1018,76 @@ class Subspace(c.Module):
         return subnet_state
 
 
-
+    def subnet2stakes(self, network='main', block=None, update=False, fmt='j', **kwargs):
+        subnet2stakes = {}
+        for netuid in self.netuids(network=network, update=update):
+            subnet2stakes[netuid] = self.stakes(netuid=netuid, network=network, block=block, update=update, fmt=fmt, **kwargs)
+        return subnet2stakes
 
 
     def total_stake(self, network=network, block: Optional[int] = None, netuid:int='all', fmt='j', update=False) -> 'Balance':
         return sum([sum([sum(list(map(lambda x:x[1], v))) for v in vv.values()]) for vv in self.stake_to(network=network, block=block,update=update, netuid='all')])
+
+    def subnet2stake(self, fmt='j'):
+        netuid2subnet = self.netuid2subnet()
+        netuid2stake = self.netuid2stake(fmt=fmt)
+        subnet2stake = {}
+        for netuid, subnet in netuid2subnet.items():
+            subnet2stake[subnet] = netuid2stake[netuid]
+        return subnet2stake
+        
+
+    def netuid2stake(self, fmt='j',  **kwargs):
+        netuid2stake = self.query_map('TotalStake',  **kwargs)
+        for netuid, stake in netuid2stake.items():
+            netuid2stake[netuid] = self.format_amount(stake, fmt=fmt)
+
+        return netuid2stake
+
+    def netuid2n(self, fmt='j',  **kwargs):
+        netuid2n = self.query_map('N',  **kwargs)
+        return netuid2n
+    
+    def subnet2n(self, fmt='j',  **kwargs):
+        netuid2n = self.netuid2n(fmt=fmt, **kwargs)
+        netuid2subnet = self.netuid2subnet()
+        subnet2n = {}
+        for netuid, subnet in netuid2subnet.items():
+            subnet2n[subnet] = netuid2n[netuid]
+        return subnet2n
+    
+
+    def netuid2emission(self, fmt='j',  **kwargs):
+        netuid2emission = self.query_map('SubnetEmission',  **kwargs)
+        for netuid, emission in netuid2emission.items():
+            netuid2emission[netuid] = self.format_amount(emission, fmt=fmt)
+        netuid2emission = dict(sorted(netuid2emission.items(), key=lambda x: x[1], reverse=True))
+
+        return netuid2emission
+    
+    def subnet2emission(self, fmt='j',  **kwargs):
+        netuid2emission = self.netuid2emission(fmt=fmt, **kwargs)
+        netuid2subnet = self.netuid2subnet()
+        subnet2emission = {}
+        for netuid, subnet in netuid2subnet.items():
+            subnet2emission[subnet] = netuid2emission[netuid]
+        # sort by emission
+        subnet2emission = dict(sorted(subnet2emission.items(), key=lambda x: x[1], reverse=True))
+       
+
+        return subnet2emission
+
+
+    def subnet2state(self, fmt='j',  **kwargs):
+        netuid2n = self.netuid2n(fmt=fmt, **kwargs)
+        netuid2stake = self.netuid2stake(fmt=fmt, **kwargs)
+        netuid2emission = self.netuid2emission(fmt=fmt, **kwargs)
+        for netuid, state in netuid2state.items():
+            netuid2state[netuid] = self.format_amount(state, fmt=fmt)
+        return netuid2state
+
+
+
 
     def total_balance(self, network=network, block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
         return sum(list(self.balances(network=network, block=block, fmt=fmt).values()), update=update)
@@ -1135,9 +1200,8 @@ class Subspace(c.Module):
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
         if subnet_params == None:
-            block = self.block
             subnet_params = {}
-            multi_query = [("SubspaceModule", f, []) for f in name2feature.values()]
+            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
             results = self.query_multi(multi_query)
             for idx, (k, v) in enumerate(results):
                 subnet_params[names[idx]] = v.value
@@ -1166,17 +1230,7 @@ class Subspace(c.Module):
             subnet2params[subnet] = self.subnet_params(netuid=netuid, block=block)
         return subnet2params
     
-    def subnet2emission( self, network: int = None, block: Optional[int] = None ) -> Optional[float]:
-        subnet2emission = self.subnet2params(network=network, block=block)
-        return subnet2emission
-
     
-
-    def subnet2state( self, network: int = None, block: Optional[int] = None ) -> Optional[float]:
-        subnet2state = self.subnet2params(network=network, block=block)
-
-        return subnet2state
-            
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
@@ -2231,7 +2285,7 @@ class Subspace(c.Module):
 
     def storage_functions(self, network=network, block_hash = None):
         self.resolve_network(network)
-        return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
+        storage_fns =  self.substrate.get_metadata_storage_functions( block_hash=block_hash)
     
     
     
@@ -2621,6 +2675,7 @@ class Subspace(c.Module):
         address: str = None, # the address of the new module
         name: str = None, # the name of the new module
         delegation_fee: float = None, # the delegation fee of the new module
+        metadata = None, # the metadata of the new module
         fee : float = None, # the fee of the new module
         netuid: int = 0, # the netuid of the new module
         network : str = "main", # the network of the new module
@@ -2640,6 +2695,7 @@ class Subspace(c.Module):
         delegation_fee = fee or delegation_fee or module_info['delegation_fee']
         assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
 
+        metadata = c.serialize(metadata or {})
 
         if name != module_info['name']:
             c.print(f'Changing name from {module_info["name"]} to {name}, we need to serve the new module and swap the keys')
@@ -2659,7 +2715,7 @@ class Subspace(c.Module):
             'name': name, # defaults to module.tage
             'address': address, # defaults to module.tage
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
-            'metadata': b'{}',
+            'metadata': metadata, # defaults to module.metadata
         }
 
         reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
@@ -2754,7 +2810,6 @@ class Subspace(c.Module):
             amount: Union[int, float] = None, 
             key: str = None,
             netuid:int = 0,
-            max_age=10,
             network:str = None,
         ) -> bool:
         # STILL UNDER DEVELOPMENT, DO NOT USE
@@ -2765,8 +2820,9 @@ class Subspace(c.Module):
         c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
 
-        module_key = self.resolve_module_key(module_key)
-        new_module_key = self.resolve_module_key(new_module_key)
+        module_key = self.resolve_module_key(module_key, netuid=netuid)
+        new_module_key = self.resolve_module_key(new_module_key, netuid=netuid)
+        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         assert module_key != new_module_key, f"Module key {module_key} is the same as new_module_key {new_module_key}"
 
         if amount == None:
@@ -3156,12 +3212,11 @@ class Subspace(c.Module):
         block = self.block
         if n != None:
             keys = keys
-        modules = self.get_modules(keys, block=block)
-
+        modules = self.get_modules(keys, block=block, netuid=netuid)
         for m in modules:          
             if isinstance(m['stake_from'], dict): 
                 m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
-            m['stake'] = int(m['stake'])
+            m['cstake'] = int(m['stake'])
         if search != None:
             modules = [m for m in modules if search in m['name']]
 
@@ -3290,7 +3345,12 @@ class Subspace(c.Module):
 
     vote = set_weights
 
-    def register_servers(self,  search=None, infos=None,  netuid = 0, timeout=60, max_age=None,  key=None, update=False, **kwargs):
+    def register_servers(self,  search=None, infos=None,  
+                         netuid = 0, 
+                         timeout=60, max_age=None, 
+                          key=None, update=False, 
+                          parallel = True,
+                          **kwargs):
         '''
         key2address : dict
             A dictionary of module names to their keys
@@ -3303,83 +3363,62 @@ class Subspace(c.Module):
         keys = c.submit(self.keys, dict(netuid=netuid, update=update, max_age=max_age))
         names = c.submit(self.names, dict(netuid=netuid, update=update, max_age=max_age))
         keys, names = c.wait([keys, names], timeout=timeout)
+
         if infos==None:
             infos = c.infos(search=search, **kwargs)
             should_register_fn = lambda x: x['ss58_address'] not in keys and x['name'] not in names
             infos = [i for i in infos if should_register_fn(i)]
             c.print(f'Found {infos} modules to register')
-        for i, info in enumerate(infos):
-            r = c.register(name=info['name'], 
-                         address= info['address'],
-                         module_key=info['ss58_address'], 
-                          key=key)
-            c.print(r, color='green')
+        if parallel:
+            launcher2balance = c.launcher2balance()
+            min_stake = self.min_register_stake(netuid=netuid)
+            launcher2balance = {k: v for k,v in launcher2balance.items() if v > min_stake}
+            launcher_keys = list(launcher2balance.keys())
+            futures = []
+            for i, info in enumerate(infos):
+                if info['ss58_address'] in keys:
+                    continue
+                    
+                launcher_key = launcher_keys[i % len(launcher_keys)]
+                c.print(f"Registering {info['name']} with module_key {info['ss58_address']} using launcher {launcher_key}")
+                f = c.submit(c.register, kwargs=dict(name=info['name'], 
+                                                    address= info['address'],
+                                                    module_key=info['ss58_address'], 
+                                                    key=launcher_key), timeout=timeout)
+                futures+= [f]
+
+                if len(futures) == len(launcher_keys):
+                    for future in c.as_completed(futures, timeout=timeout):
+                        r = future.result()
+                        c.print(r, color='green')
+                        futures.remove(future)
+                        break
+
+            for future in c.as_completed(futures, timeout=timeout):
+                r = future.result()
+                c.print(r, color='green')
+                futures.remove(future)
+
+            return infos
+                
+        else:
+
+            for info in infos:
+                r = c.register(name=info['name'], 
+                            address= info['address'],
+                            module_key=info['ss58_address'], 
+                            key=key)
+                c.print(r, color='green')
   
         return {'success': True, 'message': 'All modules registered'}
 
 
-    @classmethod
-    def register_servers_parallel(cls, servers = None , key2address = None, timeout=60, netuid = 0):
-        '''
-        key2address : dict
-            A dictionary of module names to their keys
-        timeout : int 
-            The timeout for each registration
-        netuid : int
-            The netuid of the modules
-        
-        '''
-        key2address = key2address or c.key2address()
-        if servers == None:
-            servers = list(key2address.keys())
-        key2address = {k:v for k,v in key2address.items() if k in servers}
-        futures = []
-        launcher_keys = c.launcher_keys()
-        future2launcher = {}
-        future2module = {}
-        registered_keys = c.m('subspace')().keys(netuid=netuid)
-        progress = c.tqdm(total=len(key2address))
-
-        while len(key2address) > 0:
-            modules = list(key2address.keys())
-            for i, module in enumerate(modules):
-                module_key = key2address[module]
-                if module_key in registered_keys:
-                    c.print(f"Skipping {module} with key {module}")
-                    key2address.pop(module)
-                    progress.update(1)
-                    continue
-                c.print(f"Registering {module} with key {module}")
-                if len(launcher_keys) == 0:
-                    c.print(f"No launchers found")
-                    launcher_keys = [c.root_key()]
-                launcher_key = launcher_keys[i % len(launcher_keys)]
-                kwargs=dict(name=module, module_key=module_key, serve=True, key=launcher_key)
-                future = c.submit(c.register, kwargs=kwargs, timeout=timeout)
-                future2launcher[future] = launcher_key
-                future2module[future] = module
-
-            futures = list(future2launcher.keys())
-
-            for f in c.as_completed(futures, timeout=timeout):
-                module = future2module.pop(f)
-                launcher_key = future2launcher.pop(f)
-                module_key = key2address.pop(module)
-                c.print(f"Registered {module} module_key:{module_key} launcher_key:{launcher_key}")
-                r = f.result()
-                c.print(r)
-                if not c.is_error(r):
-                    progress.update(1)
-        return {'success': True, 'message': 'All modules registered'}
-
-
-    def unregistered_servers(self, search=None, netuid = 0, network = network,  timeout=42, key=None, max_age=None, update=False, transfer_multiple=True,**kwargs):
+    def unregistered_servers(self, search=None, netuid = 0, network = network, key=None, max_age=None, update=False, transfer_multiple=True,**kwargs):
         netuid = self.resolve_netuid(netuid)
         network = self.resolve_network(network)
         servers = c.servers(search=search)
-        key2address = c.key2address(update=1)
+        key2address = c.key2address(update=update)
         keys = self.keys(netuid=netuid, max_age=max_age, update=update)
-        uniregistered_keys = []
         unregister_servers = []
         for s in servers:
             if  key2address[s] not in keys:

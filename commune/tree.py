@@ -14,13 +14,17 @@ class Tree(c.Module):
 
     
     @classmethod
-    def simple2path(cls, path:str, tree=None, **kwargs) -> str:
+    def simple2path(cls, path:str, tree=None, trials=3, **kwargs) -> str:
         tree = tree or c.pwd_tree()
         if path not in tree:
             shortcuts = c.shortcuts()
             if path in shortcuts:
                 path = shortcuts[path]
             else:
+                if trials > 0:
+                    c.tree(update=1)
+                    return cls.simple2path(path, tree=tree, trials=trials-1 )
+
                 raise Exception(f'Could not find {path} module')
         return tree[path]
     

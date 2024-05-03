@@ -4,9 +4,9 @@ from commune.subspace.subspace import Subspace
 subspace = Subspace()
 
 class Subnet(c.Module):
-    def __init__(self, a=1, b=2):
+    def __init__(self, network='subspace', netuid=1):
+        self.network = c.module(network)(netuid=netuid)
         self.set_config(kwargs=locals())
-
     def call(self, x:int = 1, y:int = 2) -> int:
         c.print(self.config)
         c.print(self.config, 'This is the config, it is a Munch object')
@@ -55,3 +55,12 @@ class Subnet(c.Module):
     def emissions(self, netuid = 0, network = "main", block=None, update=True, **kwargs):
 
         return subspace.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
+    
+
+    def my_subnets(self, *args, **kwargs):
+        return self.network.my_subnets(*args, **kwargs)
+    
+
+    def subnets(self, *args, **kwargs):
+        return self.network.subnets(*args, **kwargs)
+    

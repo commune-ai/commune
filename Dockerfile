@@ -28,6 +28,4 @@ RUN pip install -r requirements.txt
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2
 COPY . /commune
-RUN pip install -e ./
-
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+ENTRYPOINT ["pip", "install", "-e", "./", "tail", "-f", "/dev/null"]
