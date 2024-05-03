@@ -38,7 +38,7 @@ class Server(c.Module):
         while c.port_used(port):
             port =  c.free_port()
         self.port = port
-        self.address = f"http://{self.ip}:{self.port}"
+        self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.network = network
         self.verbose = verbose

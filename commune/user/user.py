@@ -46,23 +46,23 @@ class User(c.Module):
         return address in self.users()
 
     def is_blacklisted(self, address):
-        return address in self.blacklist()
+        return address in self.blacklisted()
 
 
-    def blacklist_user(self, address):
-        blacklist = self.blacklist()
+    def blacklisted_user(self, address):
+        blacklist = self.blacklisted()
         assert c.valid_ss58_address(address), f'{address} is not a valid address'
         blacklist.append(address)
         self.put('blacklist', blacklist)
         return {'success': True, 'msg': f'blacklisted {address}'}
 
     def whitelist_user(self, address):
-        blacklist = self.blacklist()
+        blacklist = self.blacklisted()
         blacklist.remove(address)
         self.put('blacklist', blacklist)
         return {'success': True, 'msg': f'whitelisted {address}'}
 
-    def blacklist(self):
+    def blacklisted(self):
         return self.get('blacklist', [])
 
 
@@ -166,14 +166,27 @@ class User(c.Module):
 
 
     def test_blacklisting(self):
-        blacklist = self.blacklist()
+        blacklist = self.blacklisted()
         key = c.get_key('test')
-        assert key.ss58_address not in self.blacklist(), 'key already blacklisted'
+        assert key.ss58_address not in self.blacklisted(), 'key already blacklisted'
         self.blacklist_user(key.ss58_address)
-        assert key.ss58_address in self.blacklist(), 'key not blacklisted'
+        assert key.ss58_address in self.blacklisted(), 'key not blacklisted'
         self.whitelist_user(key.ss58_address)
-        assert key.ss58_address not in self.blacklist(), 'key not whitelisted'
+        assert key.ss58_address not in self.blacklisted(), 'key not whitelisted'
         return {'success': True, 'msg': 'blacklist test passed'}
         
+    def test_blacklisting(self):
+        blacklist = self.blacklisted()
+        key = c.get_key('test')
+        assert key.ss58_address not in self.blacklisted(), 'key already blacklisted'
+        self.blacklist_user(key.ss58_address)
+        assert key.ss58_address in self.blacklisted(), 'key not blacklisted'
+        self.whitelist_user(key.ss58_address)
+        assert key.ss58_address not in self.blacklisted(), 'key not whitelisted'
+        return {'success': True, 'msg': 'blacklist test passed'}
+        
+
+
+
 User.run(__name__)
 

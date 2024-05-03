@@ -19,10 +19,4 @@ class Login(c.Module):
         st.write(self.key.ss58_address)
 
 
-
-
-
-        
-    
-
 Login.run(__name__)

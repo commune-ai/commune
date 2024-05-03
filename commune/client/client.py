@@ -21,6 +21,8 @@ class Client(c.Module):
             loop: 'asyncio.EventLoop' = None, 
             debug: bool = False,
             serializer= 'serializer',
+            default_fn = 'info',
+
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
@@ -32,23 +34,10 @@ class Client(c.Module):
         self.save_history = save_history
         self.history_path = history_path
         self.debug = debug
+        self.default_fn = default_fn
 
-        
+    def prepare_request(self, args: list = None, kwargs: dict = None, params=None, message_type = "v0"):
 
-    async def async_forward(self,
-        fn: str,
-        args: list = None,
-        kwargs: dict = None,
-        params: dict = None,
-        address : str = None,
-        timeout: int = 10,
-        headers : dict ={'Content-Type': 'application/json'},
-        message_type = "v0",
-        default_fn = 'info',
-        verbose = False,
-        debug = True,
-        **extra_kwargs
-        ):
         if isinstance(args, dict):
             kwargs = args
             args = None
@@ -60,10 +49,6 @@ class Client(c.Module):
             elif isinstance(params, dict):
                 kwargs = params  
         kwargs = kwargs or {}
-        kwargs.update(extra_kwargs) 
-        fn = fn or default_fn
-        
-        address = address or self.address
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
@@ -72,64 +57,29 @@ class Client(c.Module):
                         "kwargs": kwargs,
                         "timestamp": c.timestamp(),
                         }
-        self.count += 1
+        
         # serialize this into a json string
         if message_type == "v0":
             request = self.serializer.serialize(input)
             request = self.key.sign(request, return_json=True)
             # key emoji 
-            
         elif message_type == "v1":
             input['ticket'] = self.key.ticket()
             request = self.serializer.serialize(input)
         else:
             raise ValueError(f"Invalid message_type: {message_type}")
-        
-        url = f"{address}/{fn}/"
+    
+        return request
+    
+    
+    async def send_request(self, url:str, request: dict, headers=None, timeout:int=10, verbose=False):
+        # start a client session and send the request
+
         if not url.startswith('http'):
             url = 'http://' + url
-        result = await self.process_request(url, request, headers=headers, timeout=timeout)
+        
+        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
 
-        c.print(f"🛰️ Call {self.address}/{fn} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
-
-        if self.save_history:
-            input['fn'] = fn
-            input['result'] = result
-            input['module']  = self.address
-            input['latency'] =  c.time() - input['timestamp']
-            path = self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(input['timestamp'])
-            self.put(path, input)
-        return result
-    
-    
-    def age(self):
-        return  self.start_timestamp - c.timestamp()
-
-    def set_client(self,
-            address : str = None,
-            verbose: bool = 1,
-            network : str = 'local',
-            possible_modes = ['http', 'https'],
-            ):
-        # we dont want to load the namespace if we have the address
-        if not c.is_address(address):
-            module = address # we assume its a module name
-            assert module != None, 'module must be provided'
-            namespace = c.get_namespace(search=module, network=network)
-            if module in namespace:
-                address = namespace[module]
-            else:    
-                address = module
-        if '://' in address:
-            mode = address.split('://')[0]
-            assert mode in possible_modes, f'Invalid mode {mode}'
-            address = address.split('://')[-1]
-        address = address.replace(c.ip(), '0.0.0.0')
-        self.address = address
-        return {'address': self.address}
-
-    async def process_request(self, url:str, request: dict, headers=None, timeout:int=10):
-        # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
                 
@@ -185,11 +135,7 @@ class Client(c.Module):
 
         return result
 
-    @classmethod
-    def history(cls, key=None, history_path='history'):
-        key = c.get_key(key)
-        return cls.ls(history_path + '/' + key.ss58_address)
-    
+
     def process_output(self, result):
         ## handles 
         if isinstance(result, str):
@@ -199,6 +145,91 @@ class Client(c.Module):
             return result['data']
         else:
             return result
+
+
+    def resolve_key(self,key=None):
+        if key == None:
+            key = self.key
+        if isinstance(key, str):
+            key = c.get_key(key)
+        return key
+    
+    def prepare_url(self, address, fn):
+        address = address or self.address
+        fn = fn or self.default_fn
+        if '/' in address.split('://')[-1]:
+            address = address.split('://')[-1]
+        url = f"{address}/{fn}/"
+        return url
+
+    async def async_forward(self,
+        fn: str,
+        args: list = None,
+        kwargs: dict = None,
+        params: dict = None,
+        address : str = None,
+        timeout: int = 10,
+        headers : dict ={'Content-Type': 'application/json'},
+        message_type = "v0",
+        key : str = None,
+        verbose = 1,
+        **extra_kwargs
+        ):
+        key = self.resolve_key(key)
+        url = self.prepare_url(address, fn)
+
+        # resolve the kwargs at least
+        kwargs =kwargs or {}
+        kwargs.update(extra_kwargs)
+        request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
+        result = await self.send_request(url=url, request=request, headers=headers, timeout=timeout, verbose=verbose)
+        if self.save_history:
+            input = self.serializer.deserialize(request)
+            path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(input['timestamp'])
+
+            output = {
+                'address': address,
+                'fn': fn,
+                'input': input,
+                'result': result,
+                'latency': c.time() - input['timestamp'],
+            }
+            self.put(path, output)
+        return result
+    
+    
+    def age(self):
+        return  self.start_timestamp - c.timestamp()
+
+    def set_client(self,
+            address : str = None,
+            verbose: bool = 1,
+            network : str = 'local',
+            possible_modes = ['http', 'https'],
+            ):
+        # we dont want to load the namespace if we have the address
+        if not c.is_address(address):
+            module = address # we assume its a module name
+            assert module != None, 'module must be provided'
+            namespace = c.get_namespace(search=module, network=network)
+            if module in namespace:
+                address = namespace[module]
+            else:    
+                address = module
+        if '://' in address:
+            mode = address.split('://')[0]
+            assert mode in possible_modes, f'Invalid mode {mode}'
+            address = address.split('://')[-1]
+        address = address.replace(c.ip(), '0.0.0.0')
+        self.address = address
+        return {'address': self.address}
+
+    @classmethod
+    def history(cls, key=None, history_path='history'):
+        key = c.get_key(key)
+        return cls.ls(history_path + '/' + key.ss58_address)
+    
+
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)

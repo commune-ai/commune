@@ -135,7 +135,6 @@ class c:
                 key:str = None,
                 kwargs = None,
                 params = None,
-                default_fn = 'info',
                 **extra_kwargs) -> None:
           
         if '//' in module:
@@ -164,8 +163,7 @@ class c:
         return  asyncio.run(module.async_forward(fn=fn, 
                                                  args=args, 
                                                  kwargs=kwargs, 
-                                                 params=params, 
-                                                 default_fn=default_fn))
+                                                 params=params))
 
     @classmethod
     async def async_call(cls, *args,**kwargs):
@@ -895,26 +893,8 @@ class c:
         return c.module('remote')().pwd(*args, **kwargs)
     pw = rpwd
     @classmethod
-    def cmd(cls, command:Union[str, list],
-            *args,
-                        verbose:bool = True, 
-                        env:Dict[str, str] = {}, 
-                        sudo:bool = False,
-                        password: bool = None,
-                        color: str = 'white',
-                        bash : bool = False,
-                        cwd : str = None,
-                        **kwargs):
-        return c.module('os').cmd( 
-                        command,
-                        *args,
-                        verbose=verbose, 
-                        env= env,
-                        sudo=sudo,
-                        password=password,
-                        color=color,
-                        bash=bash,
-                        **kwargs)
+    def cmd(cls, *args,**kwargs):
+        return c.module('os').cmd( *args, **kwargs)
     run_command = shell = cmd 
 
     @classmethod
@@ -1490,7 +1470,11 @@ class c:
         if path.endswith('module/module.py'):
             return 'commune.Module'
         
-        python_classes = cls.find_python_classes(path)
+        try:
+            python_classes = cls.find_python_classes(path)
+        except Exception as e:
+            c.tree(update=1)
+            python_classes = cls.find_python_classes(path)
         if len(python_classes) == 0:
             return None
         
@@ -3340,6 +3324,12 @@ class c:
     @classmethod
     def transfer_multiple(cls, *args, **kwargs):
         return c.module('subspace')().transfer_multiple(*args, **kwargs)   
+
+            
+    @classmethod
+    def transfer_stake(cls, *args, **kwargs):
+        return c.module('subspace')().transfer_stake(*args, **kwargs)   
+
 
     @classmethod
     def transfer_fn_code(cls, module1= 'module',
@@ -8133,7 +8123,7 @@ class c:
         return [k for k in keys if k.startswith('module::')]
     
     @classmethod
-    def load_launcher_keys(cls, amount=600, **kwargs):
+    def top_launchers(cls, amount=600, **kwargs):
         launcher_keys = cls.launcher_keys()
         key2address = c.key2address()
         destinations = []
@@ -8150,10 +8140,13 @@ class c:
 
         return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
     
+    load_launcher_keys = top_launchers
     @classmethod
     def launcher2balance(cls):
         keys = cls.launcher_keys()
         return c.get_balances(keys)
+
+
 
 
     

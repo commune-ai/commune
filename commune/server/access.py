@@ -17,6 +17,7 @@ class Access(c.Module):
                 role2rate: dict =  {}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
                 refresh: bool = False,
+                stake_from_weight = 1.0, # the weight of the staker
                 max_age = 600, # max age of the state in seconds
                 sync_interval: int =  60, #  1000 seconds per sync with the network
 

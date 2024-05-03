@@ -563,21 +563,13 @@ class Vali(c.Module):
         return c.wait(futures, timeout=10)
 
     @classmethod
-    def test(cls, network='local', search='vali', n=4):
-        modules = [c.serve(f'vali::{i}', network=network) for i in range(n)]
-        c.serve('vali::test', kwargs=dict(network=network, search=search), wait_for_server=True)
-        vali = c.connect('vali::test')
-
-
-        while True:
-            c.print(vali.run_info())
-            c.sleep(3)
-
+    def test(cls, network='local', search='vali', n=4, sleep_time=5):
+        # modules = [c.serve(f'vali::{i}', network=network) for i in range(n)]
+        c.print(c.serve('vali::test', kwargs=dict(network=network, search=search), wait_for_server=True))
+        leaderboard = c.call('vali::test/leaderboard')
+        c.print(leaderboard)
         return {'success': True, 'msg': 'Test Passed'}
-            
-
-
-
+        
 
     @property
     def vote_staleness(self):

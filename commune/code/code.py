@@ -157,10 +157,32 @@ class Coder(c.Module):
                 if len(var.split('=')) == 1:
                     var_type = var
                     default_value_map[fn_name][var_name] = 'NA'
-
+ 
                 elif len(var.split('=')) == 2:
                     var_value = var.split('=')[-1].strip()                    
                     default_value_map[fn_name][var_name] = eval(var_value)
         
         return default_value_map   
+    
+
+
+    def file2file(self, path, **kwargs):
+        '''
+        """
+        Documentation for `file2file` function:
+        
+        This function reads the content of a file and writes it to another file.
+        
+        Parameters:
+            - self: The instance of the class that this method is bound to.
+            - path: The path to the file to be read.
+            - new_path: The path to the file to be written. If not provided, the content is written to the same file.
+        
+        Returns:
+            - success: A boolean value indicating whether the operation was successful.
+        '''
+        content = c.get_text(path)
+        content = self.model.forward(content, **kwargs)
+        c.put_text(path, content)
+        return content
     

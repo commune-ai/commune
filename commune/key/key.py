@@ -323,7 +323,7 @@ class Keypair(c.Module):
 
         # if key is encrypted, decrypt it
         if c.is_encrypted(key_json):
-            key_json = cls.decrypt(data=key_json, password=password)
+            key_json = c.decrypt(data=key_json, password=password)
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
@@ -346,7 +346,11 @@ class Keypair(c.Module):
         keys = {}
         for key in cls.keys():
             if str(search) in key or search == None:
-                keys[key] = cls.get_key(key)
+                try:
+                    keys[key] = cls.get_key(key)
+                except Exception as e:
+                    c.print(f'failed to get key {key} due to {e}', color='red')
+                    continue
                 if keys[key] == None:
                     if clean_failed_keys:
                         cls.rm_key(key)
