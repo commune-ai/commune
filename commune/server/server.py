@@ -114,10 +114,12 @@ class Server(c.Module):
                                  'timestamp': input['timestamp'], 
                                  'address': input['address']}
                 
-            
+            # deserialize the data
             input['data'] = self.serializer.deserialize(input['data'])
+            
             # here we want to verify the data is signed with the correct key
             request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
+            
             # verifty the request is not too old
             assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
             

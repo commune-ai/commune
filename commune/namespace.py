@@ -22,6 +22,7 @@ class Namespace(c.Module):
                      max_age:int = None, **kwargs) -> dict:
         
         network = network or 'local'
+        
         path = network 
         
         namespace = cls.get(path, None, max_age=max_age)
@@ -54,6 +55,9 @@ class Namespace(c.Module):
             namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
         
         namespace = {k:v for k,v in sorted(namespace.items(), key=lambda x: x[0])}
+        
+        namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
+
         return namespace
     
     namespace = namespace

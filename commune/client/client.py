@@ -60,6 +60,17 @@ class Client(c.Module):
         
         # serialize this into a json string
         if message_type == "v0":
+            """
+            {
+                'data' : {
+                'args': args,
+                'kwargs': kwargs,
+                'timestamp': timestamp,
+                }
+                'signature': signature
+            }
+            
+            """
             request = self.serializer.serialize(input)
             request = self.key.sign(request, return_json=True)
             # key emoji 

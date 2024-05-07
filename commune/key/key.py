@@ -360,7 +360,7 @@ class Keypair(c.Module):
         
 
     @classmethod
-    def key2address(cls, search=None, max_age=100000, update=False, **kwargs):
+    def key2address(cls, search=None, max_age=None, update=False, **kwargs):
         path = 'key2address'
         key2address = []
         key2address =  cls.get(path, key2address,max_age=max_age, update=update)
@@ -963,7 +963,8 @@ class Keypair(c.Module):
         return self.verify(sig, return_address=True, **kwargs)
     sig2addy = signature2address
     
-    def verify(self, data: Union[ScaleBytes, bytes, str, dict], 
+    def verify(self, 
+               data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
                return_address = False,
@@ -995,7 +996,7 @@ class Keypair(c.Module):
         if isinstance(data, dict):
 
             signature = data.pop('signature')
-            public_key = c.ss58_decode(data.pop('address'))
+            public_key = c.ss58_decode(data['address'])
             if 'data' in data:
                 data = data.pop('data')
             

@@ -178,7 +178,6 @@ class Remote(c.Module):
             return cls.get_json(path, {})
         elif filetype == 'yaml':
             return cls.get_yaml(path, {})
-    
     @classmethod
     def switch_hosts(cls, path):
         hosts = c.get_json(path)
@@ -895,6 +894,8 @@ class Remote(c.Module):
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
     
+
+
 
 
 

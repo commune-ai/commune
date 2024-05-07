@@ -31,10 +31,10 @@ class Ticket(c.Module):
         ticket = self.create(key)
         key = self.key
         assert self.verify(ticket, key=key, seperator=self.seperator)
+        ticket2signer = self.ticket2signer(ticket)
+        assert ticket2signer == key.ss58_address
         return {'ticket': ticket, 'key': key.ss58_address}
 
-    def signature2signer(self, signature = None, key=None, seperator=seperator, **kwargs):
-        if signature == None:
-            key = c.get_key(key)
-            signature = key.ticket()
-        return c.verify(signature=signature, return_address=True, seperator=seperator, **kwargs)
+    def ticket2signer(self, ticket = None, seperator=seperator, **kwargs):
+        
+        return c.verify(ticket, return_address=True, seperator=seperator, **kwargs)
