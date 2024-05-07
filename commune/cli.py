@@ -11,7 +11,6 @@ class cli(c.Module):
     def __init__(self, 
                  args = None,
                 module = 'module',
-                new_event_loop: bool = True,
                 verbose = True,
                 save: bool = True):
         self.base_module = c.module(module)
@@ -28,17 +27,19 @@ class cli(c.Module):
                 output = output.toDict()
             c.print(output, verbose=verbose)
         
-        if save:
+        if save and c.jsonable(output):
             self.history_module().add({'input': 'c ' + ' '.join(args), 'output': output})
 
     def get_output(self, args):
 
         args, kwargs = self.parse_args(args)
 
+
         base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
         # is it a fucntion, assume it is for the module
         # handle module/function
         is_fn = args[0] in base_module_attributes
+
 
         if '/' in args[0]:
             args = args[0].split('/') + args[1:]

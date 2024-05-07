@@ -27,6 +27,7 @@ class c:
                 'blacklist',
                 'fns'] # whitelist of helper functions to load
     cost = 1
+
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
@@ -1632,16 +1633,18 @@ class c:
 
 
     @classmethod
-    def simple2path(cls, path:str, **kwargs) -> str:
+    def simple2path(cls, path:str, trials=3, **kwargs) -> str:
         tree = c.tree(**kwargs)
         if path not in tree:
             shortcuts = c.shortcuts()
             if path in shortcuts:
                 path = shortcuts[path]
             else:
-                modules = c.modules(path)
-                raise Exception(f'Could not find {path} in {modules} modules')
-
+                if trials > 0:
+                    c.tree(update=True)
+                    return c.simple2path(path, trials=trials-1, **kwargs)
+                
+                raise Exception(f'Could not find {path} in {c.modules(path)} modules')
         return tree[path]
     
 
@@ -2095,6 +2098,7 @@ class c:
     @classmethod
     def ls(cls, path:str = '', 
            recursive:bool = False,
+           search = None,
            return_full_path:bool = True):
         """
         provides a list of files in the path 
@@ -2111,6 +2115,8 @@ class c:
             ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
 
         ls_files = sorted(ls_files)
+        if search != None:
+            ls_files = list(filter(lambda x: search in x, ls_files))
         return ls_files
     
     @classmethod
@@ -2447,7 +2453,6 @@ class c:
     def attributes(self):
         return list(self.__dict__.keys())
 
-    
 
     @classmethod
     def get_attributes(cls, search = None, obj=None):
@@ -2537,8 +2542,9 @@ class c:
                   update: bool = False,
                    **kwargs):
         namespace =  c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
-        namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
+    
+
     get_namespace = namespace
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
@@ -6415,7 +6421,11 @@ class c:
     
     @classmethod
     def classify_fn(cls, fn):
-        fn = cls.get_fn(fn)
+        
+        if not callable(fn):
+            fn = cls.get_fn(fn)
+        if not callable(fn):
+            return None
         args = cls.get_function_args(fn)
         if len(args) == 0:
             return 'static'
@@ -6423,6 +6433,16 @@ class c:
             return 'self'
         else:
             return 'class'
+        
+    def fn2type(self):
+        fn2type = {}
+        fns = self.fns()
+        for f in fns:
+            if callable(getattr(self, f)):
+                fn2type[f] = self.classify_fn(getattr(self, f))
+        return fn2type
+
+
     
     @classmethod
     def build(cls, *args, **kwargs): 
@@ -6524,7 +6544,9 @@ class c:
         for fn_name in dir_list:
             if search != None and search not in fn_name:
                 continue
+            
             fn_obj = getattr(obj, fn_name)
+            
             if not callable(fn_obj):
                 continue
             # skip hidden functions if include_hidden is False

@@ -311,7 +311,7 @@ class Subspace(c.Module):
     def key2stake(self, netuid = 0,
                      block=None, 
                     update=False, 
-                    names = False,
+                    names = True,
                     max_age = 1000,
                     network='main', fmt='j'):
         stake_to = self.stake_to(netuid=netuid, 
@@ -336,7 +336,8 @@ class Subspace(c.Module):
                     stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to[staker_address]])
             # sort the dictionary by value
             stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
-
+        if names:
+            stake_to_total = {address2key.get(k, k): v for k,v in stake_to_total.items()}
         return stake_to_total
 
 
@@ -2471,6 +2472,7 @@ class Subspace(c.Module):
         metadata = None,
         nonce=None,
         tag = None,
+        ensure_server = True,
         max_age = 1000,
     **kwargs
     ) -> bool:
@@ -2481,10 +2483,15 @@ class Subspace(c.Module):
             name = f'{module}::{tag}'
         # resolve module name and tag if they are in the server_name
         serve_info = None
-        while not c.server_exists(name):
-            if serve_info == None:
-                serve_info =  c.serve(name, **kwargs)
-                address = serve_info['address']
+        if ensure_server :
+            while not c.server_exists(name):
+                if serve_info == None:
+                    if name in c.modules():
+                        serve_info =  c.serve(name, **kwargs)
+                        address = serve_info['address']
+                    else:
+                        address = '0.0.0.0:8888'
+                        break
         namespace = c.get_namespace()
         network =self.resolve_network(network)
         address = address or namespace.get(name,address)
@@ -3242,7 +3249,7 @@ class Subspace(c.Module):
     
     
     
-    def my_keys(self, search=None, netuid=0, max_age=1000, update=False, **kwargs):
+    def my_keys(self, search=None, netuid=0, max_age=None, update=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
         keys = self.keys(netuid=netuid, max_age=max_age, update=update, **kwargs)
         key2address = c.key2address(search=search, max_age=max_age, update=update)
@@ -3428,9 +3435,7 @@ class Subspace(c.Module):
     def get_balances(self, 
                     keys=None,
                     search=None, 
-                    workers = 1,
                     network = 'main',  
-                    timeout=100,
                     batch_size = 128,
                     fmt = 'j',
                     n = 100,
@@ -3529,9 +3534,11 @@ class Subspace(c.Module):
                                     batch_size=batch_size, 
                                 timeout=timeout, 
                                 fmt = 'nanos',
+                                update=1,
                                 min_value=min_value, 
                                 **kwargs)
             self.put(path, key2balance)
+
         for k,v in key2balance.items():
             key2balance[k] = self.format_amount(v, fmt=fmt)
         key2balance = sorted(key2balance.items(), key=lambda x: x[1], reverse=True)

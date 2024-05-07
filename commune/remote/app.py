@@ -17,12 +17,12 @@ class App(c.Module):
         c.new_event_loop()
         c.load_style()
         self = cls()
-        self.sidebar()
-        modes = ['ssh', 'manage_hosts']
+        modes = ['SSH', 'MANAGE_HOSTS', 'AI']
+        # make this spand the whole page
         tabs = st.tabs(modes)
         for i,t in enumerate(tabs):
             with t:
-                getattr(self, f'{modes[i]}_dashboard')()
+                getattr(self, f'{modes[i].lower()}')()
 
     def filter_hosts_dashboard(self, host_names: list = None, expanded: bool = True, **kwargs):
 
@@ -31,8 +31,7 @@ class App(c.Module):
 
         # get the search terms
         search_terms = self.remote.search_terms()
-        for k, v  in search_terms.items():
-            search_terms[k] = st.text_input(k, v)     
+        search_terms['include'] = st.text_input('search', search_terms.get('include', ''))     
         self.remote.set_search_terms(search_terms)
         host_map = self.remote.filter_hosts(**search_terms)
         host_names = list(host_map.keys())
@@ -41,17 +40,19 @@ class App(c.Module):
         self.host_map = {k:host_map[k] for k in host_names}
         self.host2ssh = self.remote.host2ssh(host_map=host_map)
 
-    def manage_hosts_dashboard(self):
+    def manage_hosts(self):
 
+        with st.expander('host2ssh', expanded=1):
+            self.host2ssh_search(expander=False)
+  
         with st.expander('Add Host', expanded=False):
             st.markdown('## Hosts')
-            cols = st.columns(2)
-            
-            host = cols[0].text_input('Host',  '0.0.0.0')
-            port = cols[1].number_input('Port', 22, 30000000000, 22)
+            cols = st.columns(3)
+            user = cols[0].text_input('User', 'root')
+            host = cols[1].text_input('Host',  '0.0.0.0')
+            port = cols[2].number_input('Port', 22, 30000000000, 22)
 
             cols = st.columns(2)
-            user = cols[0].text_input('User', 'root')
             pwd = cols[1].text_input('Password', type='password')
             name = cols[0].text_input('Name', user+'@'+host)
             add_host = st.button('Add Host')
@@ -79,45 +80,96 @@ class App(c.Module):
 
 
 
+    def ai(self):
+        text = st.text_area('Text', 'host is user, port is 22, pwd is password')
+        with st.expander('Prompt', expanded=False):
+            prompt = {
+                'instruction': 'fill in the host details given the input text',
+                'input': text,
+                'host': {
+                    'host': 'str',
+                    'port': 'int',
+                    'pwd': 'str'
+                }
+            }
+            prompt = json.dumps(prompt, indent=4)
+            prompt = st.text_area('Prompt', prompt)
+            max_tokens = st.number_input('Max Tokens', 1, 200000, 100)
+
+        run = st.button('Run Model')
+        if run:
+            model = c.module('model.openrouter')()      
+            response = model.forward(prompt, max_tokens=max_tokens)
+            st.write(response)
+            return response
+
+
+
     def host2ssh_search(self, expander=True):
         host =  st.selectbox('Search', list(self.host2ssh.keys()))
         host2ssh = self.host2ssh
         host2ssh = host2ssh.get(host, {})
         st.code(host2ssh)
     
-    def ssh_dashboard(self):
+    def ssh(self):
 
-        self.ssh_params()
+
+
+
+        with st.expander('params', False):
+            cols = st.columns([4,4,2,2])
+            cwd = cols[0].text_input('cwd', '/')
+            timeout = cols[1].number_input('Timeout', 1, 100, 10)
+            if cwd == '/':
+                cwd = None
+            for i in range(2):
+                cols[i].write('')
+            self.sudo = cols[2].checkbox('Sudo')
+            st.write('---')
+            st.write('## Docker')
+            cols = st.columns([2,1])
+            enable_docker = cols[1].checkbox('Enable Docker')
+            docker_container = cols[0].text_input('Docker Container', 'commune')
+
+            # line 
+            st.write('---')
+            st.write('## Function')
+            cols = st.columns([4,1])
+            num_columns = cols[1].number_input('Num Columns', 1, 10, 2)
+            fn_code = cols[0].text_input('Function', 'x')
+
+            cwd = cwd
+            timeout = timeout
+            num_columns = num_columns
+            fn_code = fn_code
+            expanded = 1
+
+
+        self.filter_hosts_dashboard()
+
 
         host_map = self.host_map
-        host_names = list(host_map.keys())
-        num_columns = self.num_columns
-        expanded = self.expanded
-        cwd = self.cwd
-        timeout = self.timeout
-
         cols = st.columns([5,1])
         cmd = cols[0].text_input('Command', 'ls')
         [cols[1].write('') for i in range(2)]
-        sudo = cols[1].checkbox('Sudo')
-        fn_code = self.fn_code
         if 'x' not in fn_code:
             fn_code = f'x'
         fn_code = f'lambda x: {fn_code}'
         fn_code = eval(fn_code)                               
         cols = st.columns(2)
         run_button = cols[0].button('Run')
-
-        # make this a stop button red
-
         stop_button = cols[1].button('Stop')
 
+
         host2stats = self.get('host2stats', {})
-        
         future2host = {}
+        host_names = list(host_map.keys())
         if run_button and not stop_button:
+            if enable_docker:
+                cmd = f'docker exec {docker_container} {cmd}'
             for host in host_names:
-                future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=dict(host=host, verbose=False, sudo=sudo, search=host_names, cwd=cwd), return_future=True, timeout=timeout)
+                cmd_kwargs = dict(host=host, verbose=False, sudo=self.sudo, search=host_names, cwd=cwd)
+                future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=cmd_kwargs, timeout=timeout)
                 future2host[future] = host
                 host2stats[host] = host2stats.get(host, {'success': 0, 'error': 0 })
 
@@ -126,7 +178,6 @@ class App(c.Module):
             col_idx = 0
             errors = []
             futures = list(future2host.keys())
-            host2ssh = self.host2ssh
 
             try:
                 for future in c.as_completed(futures, timeout=timeout):
@@ -145,12 +196,7 @@ class App(c.Module):
                         col_idx = (col_idx) % len(cols)
                         col = cols[col_idx]
                         col_idx += 1
-
-
                         stats = host2stats.get(host, {'success': 0, 'error': 0})
-
-
-
                         # if the column is full, add a new column
                         with col:
                             msg = fn_code(msg)
@@ -162,7 +208,6 @@ class App(c.Module):
                             with st.expander(f'Results {host}', expanded=expanded):
                                 st.write(title)
                                 st.code(msg)
-
                     host2stats[host] = stats
         
             except Exception as e:
@@ -190,45 +235,6 @@ class App(c.Module):
                     st.code(error)
 
 
-    def ssh_params(self):
-
-        with st.expander('params', False):
-            cols = st.columns([4,4,2,2])
-            cwd = cols[0].text_input('cwd', '/')
-            timeout = cols[1].number_input('Timeout', 1, 100, 10)
-            if cwd == '/':
-                cwd = None
-            for i in range(2):
-                cols[2].write('\n')
-
-            st.write('Print Formatting')
-            expanded = st.checkbox('Expanded', True)
-            cols = st.columns([4,1])
-            num_columns = cols[1].number_input('Num Columns', 1, 10, 2)
-            fn_code = cols[0].text_input('Function', 'x')
-
-            self.cwd = cwd
-            self.timeout = timeout
-            self.num_columns = num_columns
-            self.fn_code = fn_code
-            self.expanded = expanded
-
-
-
-    def sidebar(self, sidebar=True, **kwargs):
-
-        if sidebar:
-            with st.sidebar:
-                return self.sidebar(sidebar=False, **kwargs)
-
-        st.title('Remote Dashboard')
-
-        with st.expander('FILTER HOSTS', expanded=False):
-            self.filter_hosts_dashboard()
-
-        with st.expander('HOST_2_SSH', expanded=False):
-            self.host2ssh_search(expander=False)
-  
 
 
 App.run(__name__)

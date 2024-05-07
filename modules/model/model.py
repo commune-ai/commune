@@ -21,7 +21,7 @@ class Model(nn.Module, c.Module):
                 ):
         
         
-        self.init_model(self)
+        self.init_model()
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
 

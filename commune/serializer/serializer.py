@@ -4,10 +4,8 @@
 # Do whatever you want with this code
 # Dont pull up with your homies if it dont work.
 import numpy as np
-
 from typing import *
 from copy import deepcopy
-
 import commune as c
 import json
 
@@ -46,8 +44,7 @@ class Serializer(c.Module):
                 k_list = list(x.keys())
             elif type(x) in [list, set, tuple]:
                 k_list = list(range(len(x)))
-                if type(x) in [set, tuple]:
-                    x = list(x) 
+                x = list(x) 
             for k in k_list:
                 x[k] = self.resolve_value(x[k])
             return x
@@ -71,18 +68,8 @@ class Serializer(c.Module):
 
         return new_value
     
-    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
-        data = data.to_json()
-        if isinstance(data, bytes):
-            data = data.decode('utf-8')
-        return data
-    
-    
-    def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
-        import pandas as pd
-        return pd.DataFrame.from_json(data)
-    
 
+    
     def test_pandas(self):
         import pandas as pd
         data = pd.DataFrame([{'a': [1,2,3], 'b': [4,5,6]}])
@@ -104,8 +91,12 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
+
         if isinstance(x, dict) and isinstance(x.get('data', None), str):
             x = x['data']
+
+        c.print(x, 'fam')
+
         if isinstance(x, str):
             if x.startswith('{') or x.startswith('['):
                 x = self.str2dict(x)
@@ -145,8 +136,13 @@ class Serializer(c.Module):
     """
     ################ BIG DICT LAND ############################
     """
+    
 
-
+    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
+        data = data.to_json()
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        return data
     
     def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
         import pandas as pd
