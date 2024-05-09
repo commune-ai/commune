@@ -95,7 +95,6 @@ class Serializer(c.Module):
         if isinstance(x, dict) and isinstance(x.get('data', None), str):
             x = x['data']
 
-        c.print(x, 'fam')
 
         if isinstance(x, str):
             if x.startswith('{') or x.startswith('['):

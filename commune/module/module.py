@@ -409,7 +409,7 @@ class c:
     fncode = fn_code
     @classmethod
     def sandbox(cls):
-        c.cmd(f'python3 {c.libpath}/sandbox.py')
+        c.cmd(f'python3 {c.libpath}/sandbox.py', verbose=True)
     sand = sandbox
 
     @classmethod
@@ -905,19 +905,15 @@ class c:
 
     @classmethod
     def import_object(cls, key:str, verbose: bool = False)-> Any:
-        
         '''
-        
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
-        
         '''
-        from importlib import import_module
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
         if verbose:
             c.print(f'Importing {object_name} from {module}')
-        obj =  getattr(import_module(module), object_name)
+        obj =  getattr(c.import_module(module), object_name)
         return obj
     
     imp = get_object = importobj = import_object
@@ -1238,20 +1234,12 @@ class c:
             port_range = cls.resolve_port_range(port_range)
             ports = list(range(*port_range))
             
-            
-            
         ip = ip if ip else c.default_ip
 
         if random_selection:
             ports = c.shuffle(ports)
-            
-        reserved_ports = cls.reserved_ports()
-        # return only when the port is available
-        
         port = None
         for port in ports: 
-            if port in reserved_ports:
-                continue
             if port in avoid_ports:
                 continue
             
@@ -1353,19 +1341,19 @@ class c:
         namespace = c.namespace(network=network, update=True)
         progress = c.tqdm(len(namespace))
 
-        while len(namespace) > 0:
-            for s in c.servers(network=network):
-                c.print(f'Killing {s}', color='red')
-                futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
 
-            results_list = []
-            for f in c.as_completed(futures, timeout=timeout):
-                result = f.result()
-                c.print(result, verbose=verbose)
-                results_list += [result]
-            
-            namespace = c.namespace(network=network, update=True)
-            progress.update(1)
+        for s in c.servers(network=network):
+            c.print(f'Killing {s}', color='red')
+            futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
+
+        results_list = []
+        for f in c.as_completed(futures, timeout=timeout):
+            result = f.result()
+            c.print(result, verbose=verbose)
+            results_list += [result]
+        
+        namespace = c.namespace(network=network, update=True)
+        progress.update(1)
 
 
         return {'namespace': namespace}
@@ -1492,41 +1480,49 @@ class c:
     module_cache = {}
     @classmethod
     def get_module(cls, 
-                   path:str = 'module', 
-                   cache=True, 
-                   tree = None,
-                   verbose=False) -> str:
+                   path:str = 'module',  
+                   cache=True,
+                   tree = 'commune',
+                   trials = 3,
+                   verbose=1) -> str:
+        """
+        params: 
+            path: the path to the module
+            cache: whether to cache the module
+            tree: the tree to search for the module
+        """
         t1 = c.time()
         path = path or 'module'
         tree = tree or 'commune'
         module = None
-        c.print(f'Importing {path}', color='green', verbose=verbose)    
+        cache_key = f'{tree}_{path}'
 
+        if cache and cache_key in c.module_cache:
+            module = c.module_cache[cache_key]
 
-        if cache:
-            if tree in c.module_cache:
-                if path in c.module_cache[tree]:
-                    module = c.module_cache[tree][path]
-            else:
-                c.module_cache[tree] = {}
-
-
-        c.print(f'Importing {module}', color='green', verbose=verbose)
 
         if module == None:
-            if path == 'tree':
-                module = c.import_object('commune.tree.Tree')
+            path2objectpath = {'tree': 'commune.tree.Tree'}
+            if path in path2objectpath:
+                module = c.import_object(path2objectpath[path])
             else:
                 # convert the simple to path
-                path = c.simple2path(path, tree=tree)
-                object_path = c.path2objectpath(path, tree=tree)
-                module = c.import_object(object_path)
-
+                try:
+                    path = c.simple2path(path, tree=tree)
+                    object_path = c.path2objectpath(path, tree=tree)
+                    module = c.import_object(object_path)
+                except Exception as e:
+                    c.print(f'Error: {e}', color='red')
+                    if trials > 0:
+                        c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
+                        c.tree(update=True)
+                        return c.get_module(path, cache=cache, tree=tree, verbose=verbose, trials=trials-1)
+                    else:
+                        raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             if cache:
-                c.module_cache[tree][path] = module
-                
+                c.module_cache[cache_key] = module
+
         latency = c.time() - t1
-        c.print(f'Imported {path} in {latency} seconds', color='green', verbose=verbose)
         return module
 
     @classmethod
@@ -2156,15 +2152,10 @@ class c:
                 virtual:bool = True, 
                 **kwargs):
         
-        client = c.module( f'client')(address=module, 
+        return c.module( f'client').connect(module=module, 
                                        virtual=virtual, 
                                        network=network,
                                        **kwargs)
-        # if virtual turn client into a virtual client, making it act like if the server was local
-        if virtual:
-            return client.virtual()
-        
-        return client
 
     @classmethod
     async def async_connect(cls, *args, **kwargs):
@@ -4669,43 +4660,7 @@ class c:
     resports = reserved_ports
 
     
-    @classmethod
-    def unreserve_port(cls,port:int, 
-                       var_path='reserved_ports'):
-        reserved_ports =  c.get(var_path, {})
-        
-        port_info = reserved_ports.pop(port,None)
-        if port_info == None:
-            port_info = reserved_ports.pop(str(port),None)
-        
-        output = {}
-        if port_info != None:
-            c.put(var_path, reserved_ports)
-            output['msg'] = 'port removed'
-        else:
-            output['msg'] =  f'port {port} doesnt exist, so your good'
 
-        output['reserved'] =  cls.reserved_ports()
-        return output
-    
-    unresport = unreserve_port
-    
-    @classmethod
-    def unreserve_ports(cls,*ports, 
-                       var_path='reserved_ports' ):
-        reserved_ports =  cls.get(var_path, {})
-        if len(ports) == 0:
-            # if zero then do all fam, tehe
-            ports = list(reserved_ports.keys())
-        elif len(ports) == 1 and isinstance(ports[0],list):
-            ports = ports[0]
-        ports = list(map(str, ports))
-        reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-        c.put(var_path, reserved_ports)
-        return cls.reserved_ports()
-    
-    
-    unresports = unreserve_ports
     @classmethod
     def fleet(cls,
             module = None, 
@@ -5249,7 +5204,6 @@ class c:
                 start_byte = file_size - start_byte
             if end_byte <= 0:
                 end_byte = file_size - end_byte 
-
             if end_byte < start_byte:
                 end_byte = start_byte + 100
             chunk_size = end_byte - start_byte + 1
@@ -7857,8 +7811,8 @@ class c:
             if api_key == api_keys[i]:
                 api_keys.pop(i)
                 break   
-
-        cls.put('api_keys', api_keys)
+        path = cls.resolve_path('api_keys')
+        c.put(path, api_keys)
         return {'api_keys': api_keys}
 
     @classmethod
@@ -8167,6 +8121,10 @@ class c:
     def launcher2balance(cls):
         keys = cls.launcher_keys()
         return c.get_balances(keys)
+    
+
+
+    
 
 
 

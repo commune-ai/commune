@@ -202,3 +202,27 @@ class Network(c.Module):
         return output
     
     
+
+    
+    @classmethod
+    def unreserve_ports(cls,*ports, 
+                       var_path='reserved_ports' ):
+        reserved_ports =  cls.get(var_path, {})
+        if len(ports) == 0:
+            # if zero then do all fam, tehe
+            ports = list(reserved_ports.keys())
+        elif len(ports) == 1 and isinstance(ports[0],list):
+            ports = ports[0]
+        ports = list(map(str, ports))
+        reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
+        c.put(var_path, reserved_ports)
+        return cls.reserved_ports()
+    
+    
+    @classmethod
+    def check_used_ports(cls, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        used_ports = {}
+        for port in range(*port_range):
+            used_ports[port] = cls.port_used(port)
+        return used_ports

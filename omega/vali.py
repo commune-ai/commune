@@ -15,7 +15,6 @@ class Vali(c.module("vali")):
         assert result == (a+b), f"result: {result}"
         return 1
     
-
     def forward(self, x, y):
         return x + y
     

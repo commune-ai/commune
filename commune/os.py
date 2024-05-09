@@ -245,8 +245,6 @@ class OsModule(c.Module):
             for ch in iter(lambda: pipe.read(1), b""):
                 # if the the terminal is stuck and needs to enter
                 process.poll() 
-
-
                 try:
                     yield ch.decode()
                 except Exception as e:

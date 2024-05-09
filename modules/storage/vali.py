@@ -2,15 +2,14 @@ import commune as c
 
 class StorageVali(c.module('vali')):
 
-
     whitelist = ['put_item', 'get_item', 'score', 'leaderboard', 'eval']
 
     def __init__(self, 
-                    search= 'storage',
-                    storage_timeout= 5,
-                    tag= 'base',
-                    network= 'local.0',
-                    max_workers= 1, **kwargs
+                search= 'storage',
+                storage_timeout= 5,
+                tag= 'base',
+                network= 'local.0',
+                max_workers= 1, **kwargs
     ):
         self.init_vali(locals())
 
@@ -21,9 +20,7 @@ class StorageVali(c.module('vali')):
         new_value = module.get_item(key)
         assert value == new_value, f'{value} != {new_value}'
         return 1
-    
-        return self.put('storage/' + key, value)
-    
+
     def get_item(self, key: str) -> int:
         return self.get('storage/' + key)
     

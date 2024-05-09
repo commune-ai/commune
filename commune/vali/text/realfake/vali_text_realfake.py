@@ -7,7 +7,6 @@ class ValiTextRealfake(Vali):
         self.init_vali(config, **kwargs)
         self.dataset =  c.module(self.config.dataset)()
 
-
     def create_prompt(self, sample: dict) -> str:
         # format the prompt
     
@@ -20,19 +19,12 @@ class ValiTextRealfake(Vali):
         EXAMPLE: {{answer:0}}
         json```
         '''
-
         return prompt
         
-
     def score(self, module, **kwargs):
         w = 0
         module = c.connect(module) if isinstance(module, str) else module
-
         sample = self.dataset.sample()
-        t = c.time()
-
-        
-        
         target = sample.pop(self.config.target) # a list of correct answers
         prompt = self.create_prompt(sample)
         output = module.generate(prompt)

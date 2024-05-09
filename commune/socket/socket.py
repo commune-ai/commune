@@ -25,8 +25,7 @@ class Socket(c.Module):
 
                 # If the connection fails, return False
                 return False    
-            
-    
+
     @classmethod
     def send(cls,data, port=8888, ip: str = '0.0.0.0'):
         socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,7 +40,6 @@ class Socket(c.Module):
             s.close()
             return data
     
-
     def serve(self, port=8888, ip: str = '0.0.0.0'):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind((ip, port))

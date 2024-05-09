@@ -7,7 +7,7 @@ class Subnet(c.Module):
     def __init__(self, network='subspace', netuid=1):
         self.network = c.module(network)(netuid=netuid)
         self.set_config(kwargs=locals())
-    def call(self, x:int = 1, y:int = 2) -> int:
+    def forward(self, x:int = 1, y:int = 2) -> int:
         c.print(self.config)
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
@@ -32,10 +32,10 @@ class Subnet(c.Module):
     def testnet(cls, miners=10, valis=1, **kwargs):
         futures = []
         for miner in range(miners):
-            f = c.submit(c.serve, [f"subnet.miner::{miner}"])
+            f = c.submit(c.serve, [f"omega.miner::{miner}"])
             futures += [f]
         for vali in range(valis):
-            f = c.submit(c.serve,[f"subnet.vali::{vali}"])
+            f = c.submit(c.serve,[f"omega.vali::{vali}"])
             futures += [f]
         
         for future in c.as_completed(futures):

@@ -52,12 +52,6 @@ class Client(c.Module):
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
-        input =  { 
-                        "args": args,
-                        "kwargs": kwargs,
-                        "timestamp": c.timestamp(),
-                        }
-        
         # serialize this into a json string
         if message_type == "v0":
             """
@@ -71,11 +65,21 @@ class Client(c.Module):
             }
             
             """
+
+            input =  { 
+                        "args": args,
+                        "kwargs": kwargs,
+                        "timestamp": c.timestamp(),
+                        }
             request = self.serializer.serialize(input)
             request = self.key.sign(request, return_json=True)
             # key emoji 
         elif message_type == "v1":
-            input['ticket'] = self.key.ticket()
+
+            inputs = {'params': kwargs,
+                      'ticket': self.key.ticket() }
+            if len(args) > 0:
+                inputs['args'] = args
             request = self.serializer.serialize(input)
         else:
             raise ValueError(f"Invalid message_type: {message_type}")
@@ -194,10 +198,10 @@ class Client(c.Module):
         kwargs.update(extra_kwargs)
         request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
         result = await self.send_request(url=url, request=request, headers=headers, timeout=timeout, verbose=verbose)
+        
         if self.save_history:
             input = self.serializer.deserialize(request)
             path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(input['timestamp'])
-
             output = {
                 'address': address,
                 'fn': fn,
@@ -240,7 +244,6 @@ class Client(c.Module):
         key = c.get_key(key)
         return cls.ls(history_path + '/' + key.ss58_address)
     
-
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)
@@ -303,3 +306,33 @@ class Client(c.Module):
     
     def __repr__(self) -> str:
         return super().__repr__()
+
+
+    @classmethod
+    def connect(cls,
+                module:str, 
+                network : str = 'local',
+                mode = 'http',
+                virtual:bool = True, 
+                **kwargs):
+        
+        
+        
+        client = cls(address=module, 
+                                       virtual=virtual, 
+                                       network=network,
+                                       **kwargs)
+        # if virtual turn client into a virtual client, making it act like if the server was local
+        if virtual:
+            return client.virtual()
+        
+        return client
+    
+
+    def test(self, module='module::test_client'):
+        c.serve(module)
+        c.sleep(1)
+        c.print(c.server_exists(module))
+        c.print('Module started')
+
+        c.print(c.call(module+'/info'))
