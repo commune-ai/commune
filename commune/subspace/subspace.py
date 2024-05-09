@@ -3352,12 +3352,15 @@ class Subspace(c.Module):
 
     vote = set_weights
 
-    def register_servers(self,  search=None, infos=None,  
+    def register_servers(self,  
+                         search=None, 
+                         infos=None,  
                          netuid = 0, 
-                         timeout=60, max_age=None, 
-                          key=None, update=False, 
-                          parallel = True,
-                          **kwargs):
+                         timeout=60, 
+                         max_age=None, 
+                         key=None, update=False, 
+                         parallel = True,
+                         **kwargs):
         '''
         key2address : dict
             A dictionary of module names to their keys
@@ -3377,7 +3380,7 @@ class Subspace(c.Module):
             infos = [i for i in infos if should_register_fn(i)]
             c.print(f'Found {infos} modules to register')
         if parallel:
-            launcher2balance = c.launcher2balance()
+            launcher2balance = c.key2balance()
             min_stake = self.min_register_stake(netuid=netuid)
             launcher2balance = {k: v for k,v in launcher2balance.items() if v > min_stake}
             launcher_keys = list(launcher2balance.keys())

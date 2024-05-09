@@ -660,7 +660,7 @@ class Keypair(c.Module):
 
         return keypair
 
-    from_mem = create_from_mnemonic
+    from_mnemonic = from_mem = create_from_mnemonic
 
     @classmethod
     def create_from_seed(
@@ -970,10 +970,9 @@ class Keypair(c.Module):
                return_address = False,
                seperator = seperator,
                ss58_format = 42,
+               max_age = None,
                **kwargs
                ) -> bool:
-        
-        
         """
         Verifies data with specified signature
 
@@ -990,9 +989,12 @@ class Keypair(c.Module):
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
 
+        if max_age != None:
+            staleness = c.timestamp() - int(data)
+            assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
+
         data = c.copy(data)
         
-
         if isinstance(data, dict):
 
             signature = data.pop('signature')
@@ -1426,8 +1428,6 @@ class Keypair(c.Module):
     def from_private_key(cls, private_key:str):
         return cls(private_key=private_key)
     
-
-
     @classmethod
     def valid_ss58_address(cls, address: str ) -> bool:
         """

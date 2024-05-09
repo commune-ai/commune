@@ -41,15 +41,18 @@ class Server(c.Module):
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.network = network
+
         self.verbose = verbose
         self.sse = sse
-        self.save_history = save_history
         self.chunk_size = chunk_size
         self.timeout = timeout
+
         self.free = free
         self.serializer = c.module(serializer)()
         self.set_module(module, key=key)
         self.access_module = c.module(access_module)(module=self.module)  
+
+        self.save_history = save_history
         self.set_history_path(history_path)
         self.set_api(port=self.port)
 
@@ -327,7 +330,8 @@ class Server(c.Module):
     
 
 
-
+    def wait_for_server(self, timeout=10):
+        return c.wait_for_server(self.name, timeout=timeout)
 
 
 

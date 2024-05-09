@@ -68,10 +68,7 @@ class DataFolder(c.Module):
     def validate(cls, *objs):
         v = objs[0]
 
-
-
-
-    prompt = '''
+    prompt = f'''
     INPUT (JSON):
     ```{sample}```
     QUESTION: 

@@ -242,9 +242,9 @@ class Vali(c.Module):
         # RESOLVE THE VOTING NETWORKS
 
         if 'subspace' in config.network :
+
             if '.' in config.network:
                 config.network, config.netuid = config.network.split('.')
-
             self.subspace = c.module('subspace')(network=config.network, netuid=config.netuid)
             if isinstance(config.netuid, str):
                 config.netuid = self.subspace.subnet2netuid(config.netuid)

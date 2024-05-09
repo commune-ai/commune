@@ -12,9 +12,29 @@ class Tree(c.Module):
         self.set_config(kwargs=locals())
         c.thread(self.run_loop)
 
+
+    # def is_local_module(self, path:str, folders = ['commune', 'modules'], **kwargs) -> bool:
+    #     pwd = c.pwd()
+    #     path = pwd + '/' + path.replace('.', '/')
+    #     for f in folders + ['']:
+    #         if path.startswith(f):
+    #             return True
+    #     c.print(path)
+    #     if os.path.isdir(path):
+    #         paths = self.ls(path)
+    #         possible_paths = []
+    #         for p in paths:
+    #             possible_paths += [p]
+    #             possible_paths += [p + '.py']
+    #     elif os.path.isfile(path + '.py'):
+    #         return True
+    #     path = path.replace(pwd, '')
+    #     return False
     
     @classmethod
     def simple2path(cls, path:str, tree=None, trials=3, **kwargs) -> str:
+
+
         tree = tree or c.pwd_tree()
         if path not in tree:
             shortcuts = c.shortcuts()
@@ -182,6 +202,7 @@ class Tree(c.Module):
         simple_path = simple_path.replace('.py', '')
         
         simple_path = simple_path.replace('/', '.')[1:]
+
 
         # compress nae
         chunks = simple_path.split('.')

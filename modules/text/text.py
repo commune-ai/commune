@@ -16,5 +16,10 @@ class Text(c.Module):
     
     def get_text(self, text, start, end):
         return text[start:end]
+    
+
+    def search2lines(self, filepath=None, search='search' ):
+        text = c.get_text(filepath or self.filepath())
+        return {i: line for i,line in enumerate(text.splitlines()) if search in line}
         
     

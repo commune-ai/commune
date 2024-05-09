@@ -3,7 +3,6 @@ import streamlit as st
 from typing import *
 import os
 import json
-import paramiko
 
 class Remote(c.Module):
     filetype = 'yaml'
@@ -23,6 +22,7 @@ class Remote(c.Module):
                 stream = False,
                 key=None, 
                 timeout=10,  
+                container = None,
                 key_policy = 'auto_add_policy',
                 **kwargs ):
         """s
@@ -35,6 +35,8 @@ class Remote(c.Module):
         :param command: Command to be executed on the remote machine.
         :return: Command output.
         """
+
+        import paramiko
         
         if host == None:
             if port == None or user == None or password == None:
@@ -48,9 +50,11 @@ class Remote(c.Module):
                 }
         else:
             host = cls.hosts().get(host, None)
-            
         
+
         host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
+
+            
 
 
 
@@ -72,14 +76,19 @@ class Remote(c.Module):
         # THE COMMAND
 
         command = ' '.join(cmd_args).strip() if cmd == None else cmd
+
+
         if cwd != None:
             command = f'cd {cwd} && {command}'
 
         # Execute the command on the remote server
         if sudo and host['user'] != "root":
             command = "sudo -S -p '' %s" % command
+            
+        if container != None:
+            command = f'docker exec {container} {command}'
 
-        c.print(f'Running command: {command} on {host["name"]}')
+        c.print(f'Running --> (command={command} host={host["name"]} sudo={sudo} cwd={cwd})')
 
         stdin, stdout, stderr = client.exec_command(command)
 
@@ -92,30 +101,31 @@ class Remote(c.Module):
             color = c.random_color()
             # Print the output of ls command
 
-
             def print_output():
                 for line in stdout.readlines():
                     if verbose:
                         c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
                     yield line 
 
+                # if there is an stderr, print it
+                cnt = 0
                 for line in stderr.readlines():
+                    if cnt == 0:
+                        yield '---- ERROR ----'
                     if verbose:
                         c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
                     yield line
 
             if stream:
                 return print_output()
-            
             else:
                 output = ''
                 for line in print_output():
                     output += line 
-    
-            # stdin.close()
-            # stdout.close()
-            # stderr.close()
-            # client.close()
+
+
+            del stdin, stdout, stderr, client
+
         except Exception as e:
             c.print(e)
 
@@ -232,13 +242,6 @@ class Remote(c.Module):
     def n(cls, search=None):
         return len(cls.hosts(search=search))
 
-    def num_servers(self):
-        return len(self.servers())
-    
-
-    @classmethod
-    def n_servers(self):
-        return len(self.servers())
     
     @classmethod
     def host(self, name):
@@ -248,12 +251,7 @@ class Remote(c.Module):
             raise Exception(f'Host {name} not found')
         
         return hosts[name]
-    @classmethod
-    def has(cls, name):
-        return name in cls.hosts()
-    @classmethod
-    def host_exists(self, name):
-        return name in self.hosts()
+    
     @classmethod
     def install(self):
         c.cmd('pip3 install paramiko')
@@ -328,45 +326,6 @@ class Remote(c.Module):
             results[host] = bool(r)
         return results
     
-    def add_server(self, address):
-        return c.add_server(address, network='remote')
-    
-    def host2rootkey(self, **kwargs):
-        host2rootkey =  self.cmd(f'c root_key_address', **kwargs)
-        return {k: v if isinstance(v, str) else None for k,v in host2rootkey.items()}
-
-    @classmethod
-    def servers(self,search: str ='module', network='remote'):
-        return c.servers(search, network=network)
-    
-    @classmethod
-    def serve(cls, *args, update=False, min_memory:int=10, timeout=10, **kwargs):
-        modules = cls.available_peers(update=update, min_memory=min_memory)
-        c.print(f'Available modules: {modules}')
-        module = c.choice(modules)
-        c.print(f'Serving  on {module}')
-        namespace = c.namespace(network='remote')
-        address = namespace[module]
-        module = c.connect(address)
-        return module.serve(*args, **kwargs, timeout=timeout)
-    
-    @classmethod
-    def fleet(cls, *args, update=False, min_memory:int=20, n=10, tag=None, **kwargs):
-        responses = []
-        for i in range(n):
-            try:
-                response = cls.serve(*args, 
-                        update=update, 
-                        min_memory=min_memory, 
-                        tag= '' if tag == None else tag + str(i), 
-                        **kwargs
-                        )
-            except Exception as e:
-                response = c.detailed_error(e)
-            c.print(response)
-            responses += [response]
-        return responses
-
     @classmethod
     def logs(cls, module, n=3 , **kwargs):
         namespace = cls.namespace(search=module)
@@ -377,49 +336,6 @@ class Remote(c.Module):
             logs = c.call(address, 'logs', name, mode='local')
             c.print(f'[bold yellow]{name}[/bold yellow]')
             c.print('\n'.join(logs.split('\n')[-10:]))
-        
-    
-    @classmethod
-    def namespace(cls, search=None, network='remote', update=False):
-        namespace = {}
-        if not update:
-            namespace = c.get_namespace(network=network)
-            return namespace
-        
-        peer2namespace = cls.peer2namespace()
-        for peer, peer_namespace in peer2namespace.items():
-
-            for name, address in peer_namespace.items():
-                if search != None and search not in name:
-                    continue
-                if name in namespace:
-                    continue
-                namespace[name + '_'+ {peer}] = address
-        c.put_namespace(namespace=namespace, network=network)
-        return namespace
-
-    @classmethod
-    def get_address(self, name):
-        return c.get_address(name)
-
-    
-    @classmethod
-    def addresses(self, search=None, network='remote'):
-        return c.addresses(search=search, network=network)
-    
-    @classmethod
-    def peer2address(self, network='remote'):
-        return c.namespace(search='module', network=network)
-    
-    
-    
-    def keys(self):
-        return [info.get('ss58_address', None)for info in self.infos()]
-    
-    @classmethod
-    def infos(self, search='module',  network='remote', update=False):
-        return c.infos(search=search, network=network, update=update)
-
 
     @classmethod
     def push(cls,**kwargs):
@@ -430,85 +346,8 @@ class Remote(c.Module):
     def pull(cls, stash=True, hosts=None):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
-    @classmethod
-    def hardware(cls, timeout=20, update= True, cache_path:str = 'hardware.json', trials=2):
 
 
-        if not update:
-            peer2hardware = c.get_json(cache_path, {})
-            if len(peer2hardware) > 0:
-                return peer2hardware
-        peer2hardware = {p:None for p in peers}
-        peers = cls.peers()
-        for i in range(trials):
-            call_modules = [p for p in peers if peer2hardware[p] == None]
-            response =  cls.call('hardware', timeout=timeout, modules=call_modules)
-            for peer, hardware in response.items():
-                if isinstance(hardware, dict) and 'memory' in hardware:
-                    c.print(f'{peer} {hardware}')
-                    peer2hardware[peer] = hardware
-
-
-        c.put_json(cache_path, peer2hardware)
-        return peer2hardware
-    
-
-    # peers
-
-    def peers(self, network='remote'):
-        return self.servers(search='module', network=network)
-    
-    def peer2hash(self, search='module', network='remote'):
-        return self.call('chash', search=search, network=network)
-
-    def peer2memory(self, min_memory:int=0, **kwargs):
-        peer2hardware = self.hardware(**kwargs)
-        peer2memory = {}
-        for server, hardware in peer2hardware.items():
-            memory_info = hardware['memory']
-            if isinstance(memory_info, dict) and 'available' in memory_info:
-                if memory_info['available'] >= min_memory:
-                    peer2memory[server] = memory_info['available']
-        return peer2memory
-    
-    @classmethod
-    def available_peers(cls, min_memory:int=10, update: bool=False, address=False):
-        peer2hardware = cls.hardware(update=update)
-        peer2memory = {}
-        
-        for peer, hardware in peer2hardware.items():
-            memory_info = hardware['memory']
-        
-            if isinstance(memory_info, dict) and 'available' in memory_info:
-                if memory_info['available'] >= min_memory:
-                    peer2memory[peer] = memory_info['available']
-        
-        if address :
-            namespace = c.namespace(network='remote')
-            peers = [namespace.get(k) for k in peer2memory]
-        else :
-            peers = list(peer2memory.keys())
-        return peers
-    
-
-    @classmethod
-    def most_available_peer(cls, min_memory:int=8, update: bool=False):
-        peer2hardware = cls.hardware(update=update)
-        peer2memory = {}
-        
-        for peer, hardware in peer2hardware.items():
-            memory_info = hardware['memory']
-            if isinstance(memory_info, dict) and 'available' in memory_info:
-                peer2memory[peer] = memory_info['available']
-        
-        # get the top n peers with the most memory
-        peer2memory = {k:v for k,v in sorted(peer2memory.items(), key=lambda x: x[1], reverse=True)}
-        most_available_peer = list(peer2memory.keys())[0]
-        most_available_peer_memory = peer2memory[most_available_peer]
-        assert most_available_peer_memory >= min_memory, f'Not enough memory, {most_available_peer_memory} < {min_memory}'
-        c.print(f'Most available peer: {most_available_peer} with {most_available_peer_memory} GB memory')
-        return most_available_peer
-    
     @classmethod
     def push(self):
         c.push()
@@ -518,15 +357,7 @@ class Remote(c.Module):
 
 
     
-    
-    @classmethod
-    def check_peers(cls, timeout=10):
-        futures = []
-        for m,a in c.namespace(network='remote').items():
-            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
-        results = c.wait(futures, timeout=timeout)
-        return results
-    
+
     @classmethod
     def setup(cls,**kwargs):
         repo_url = c.repo_url()
@@ -541,31 +372,7 @@ class Remote(c.Module):
         c.print(host2ssh)
         ssh = host2ssh[host]
         c.cmd(ssh)
-
-    
-    def loop(self, timeout=40, interval=30, max_age=360, remote=True, batch_size=10):
-        if remote:
-            return self.remote_fn('loop',kwargs = locals())
-        while True:
-            self.sync()
-            c.sleep(10)
-
-    def save_ssh_config(self, path="~/.ssh/config"):
-        ssh_config = []
-        path = os.path.expanduser(path)
-        return path
-
-
-        # for host_name, host in self.hosts().items():
-        #     ssh_config.append(f'Host {host_name}')
-        #     ssh_config.append(f'  HostName {host["host"]}')
-        #     ssh_config.append(f'  Port {host["port"]}')
-        #     ssh_config.append(f'  User {host["user"]}')
-
-        # ssh_config = '\n'.join(ssh_config)
-
-        # return c.put_text(path, ssh_config)
-    
+        
         
     def text2hosts(self, text, model='model.openai'):
         prompt = {
@@ -662,129 +469,7 @@ class Remote(c.Module):
         for k, v in host_map.items():
             host2ssh[k] = f'sshpass -p {v["pwd"]} ssh {v["user"]}@{v["host"]} -p {v["port"]}'
         return host2ssh
-    
-    @classmethod
-    def peer2key(cls, search=None, network:str='remote', update=False):
-        infos = c.infos(search=search, network=network, update=update)
-        return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
 
-    @classmethod
-    def peer_addresses(cls, network:str='remote'):
-        infos = c.infos(network=network)
-        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
-    
-    def check_peers(self, timeout=10):
-        futures = []
-        for m,a in c.namespace(network='remote').items():
-            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
-        results = c.wait(futures, timeout=timeout)
-        return results
-    
-    def sync(self, timeout=40,  max_age=360):
-        futures = []
-        namespace = c.namespace('module', network='remote')
-        paths = []
-        for name, address in namespace.items():
-            path = 'peers/' + name
-            existing_peer_info = self.get(path, {})
-            peer_update_ts = existing_peer_info.get('timestamp', 0)
-            future = c.submit(c.call, 
-                                args = [address, 'info'],
-                                kwargs = dict(schema=True, namespace=True, hardware=True),
-                                timeout=timeout, return_future=True
-                                )
-            paths += [path]
-            futures += [future]
-
-        results = c.wait(futures, timeout=timeout, generator=False)
-        for i, result in enumerate(results):
-            path = paths[i]
-            if c.is_error(result):
-                c.print(f'Error {result}')
-                continue
-            else:
-                c.print(f'Success {path}')
-                self.put(path, result)
-            self.put(path, result)
-        return {'status': 'success', 'msg': f'Peers synced'}
-
-    def peerpath2name(self, path:str):
-        return path.split('/')[-1].replace('.json', '')
-    
-    def peer2info(self):
-        peer_infos = {}
-        for path in self.ls('peers'):
-            peer_name = self.peerpath2name(path)
-            info = self.get(path, {})   
-            peer_infos[peer_name] = info
-            peer_infos[peer_name] = info
-        return peer_infos
-    
-    def peer2lag(self, max_age=1000):
-        peer2timestamp = self.peer2timestamp()
-        time = c.time()
-        ip2host = self.ip2host()
-        return {ip2host.get(k,k):time - v for k,v in peer2timestamp.items() if time - v < max_age}
-
-    def peer2timestamp(self):
-        peer2info = self.peer2info()
-        return {k:v.get('timestamp', 0) for k,v in peer2info.items()}
-
-    def peer2hardware(self):
-        info_paths = self.ls('peers')
-        peer_infos = []
-        for path in info_paths:
-            c.print(path)
-            info = self.get(path, {})
-            # c.print(info)
-            peer_infos += [info.get('hardware', {})]
-        return peer_infos
-    
-    @classmethod
-    def peer2namespace(cls):
-        info_paths = cls.ls('peers')
-        peer2namespace = {}
-        for path in info_paths:
-            info = cls.get(path, {})
-            peer2namespace[path] = info.get('namespace', {})
-        return peer2namespace
-
-    @classmethod
-    def add_peers(cls, add_admins:bool=False, timeout=20, update=False, network='remote'):
-        """
-        Adds servers to the network by running `c add_peers` on each server.
-        
-        """
-        if update:
-            c.rm_namespace(network=network)
-        if add_admins:
-            cls.add_admin(timeout=timeout)
-
-        namespace = c.namespace(network=network)
-        address2name = {v:k for k,v in namespace.items()}
-        host2_server_addresses_responses = cls.cmd('c addy', verbose=True, timeout=timeout)
-        for i, (host,server_address) in enumerate(host2_server_addresses_responses.items()):
-            if isinstance(server_address, str):
-                server_address = server_address.split('\n')[-1]
-
-                if server_address in address2name:
-                    server_name = address2name[server_address]
-                    c.print(f'{server_name} already in namespace')
-                    continue
-                else:
-                    ip = ':'.join(server_address.split(':')[:-1])
-
-                    server_name = 'module' + '_' +  host
-                    namespace[server_name] = server_address
-
-        c.put_namespace(network=network, namespace=namespace)
-
-        return {'status': 'success', 'msg': f'Servers added', 'namespace': namespace}
- 
-    def peer_info(self, peer):
-        host2ip = self.host2ip()
-        peer = host2ip.get(peer, peer)
-        return self.get(f'peers/{peer}', {})
     
     @classmethod
     def call(cls, fn:str='info' , *args, 

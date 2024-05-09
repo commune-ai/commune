@@ -1,6 +1,5 @@
 import commune as c
 from typing import *
-import json
 import os
 
 class Storage(c.Module):
@@ -21,10 +20,10 @@ class Storage(c.Module):
             os.makedirs(path)
         return path
 
-    def resolve_item_path(self, key: str, tag=None) -> str:
+    def resolve_item_path(self, path: str) -> str:
         store_dir = self.store_dir
-        key = key if  key.startswith(store_dir) else f'{store_dir}/{key}' 
-        return key
+        path = path if  path.startswith(store_dir) else f'{store_dir}/{path}' 
+        return path
     
     def files(self, tag=None) -> List:
         return sorted(c.ls(self.store_dir))
@@ -37,7 +36,7 @@ class Storage(c.Module):
         return file2size
 
 
-    def put_item(self, k,  v: Dict, encrypt:bool=False,  tag=None, serialize:bool = True):
+    def put_item(self, k,  v: Dict, encrypt:bool=False):
         timestamp = c.timestamp()
         path = self.resolve_item_path(k)    
         
@@ -46,26 +45,18 @@ class Storage(c.Module):
             data = self.key.encrypt(data)   
         # sign it for verif
         v = self.key.sign(v, return_json=True)
-
         self.put_json(path, v)
-
         return {'success': True, 'path': path, 'timestamp': timestamp}
     
 
-    def rm_item(self, k):
-        k = self.resolve_item_path(k)
-        return c.rm(k)
-
-    def rm_many(self, search):
-        items = self.items(search=search)
-        for item in items:
-            self.rm_item(item)
-        return {'success': True, 'items': items}
+    def get_item(self,k:str, ticket=None) -> Any:
     
-
-    def get_item(self,k:str) -> Any:
         k = self.resolve_item_path(k)
-        v = self.get_json(k, {})['data']
+
+        v = self.get_json(k, {})
+        if 'ticket' in v:
+            c.ticket2address(v['ticket'])
+        v = v['data']
         v = self.serializer.deserialize(v) 
         return v
     
@@ -87,6 +78,16 @@ class Storage(c.Module):
         results.append(self.test_storage())
         results.append(self.test_hash())
         return results
+    
+    def rm_item(self, k):
+        k = self.resolve_item_path(k)
+        return c.rm(k)
+
+    def rm_many(self, search):
+        items = self.items(search=search)
+        for item in items:
+            self.rm_item(item)
+        return {'success': True, 'items': items}
     
 
     def test_storage(self):
