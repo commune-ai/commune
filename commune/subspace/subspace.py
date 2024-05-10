@@ -2655,8 +2655,10 @@ class Subspace(c.Module):
             name = m['name']
             if c.exists(name):
                 address = c.serve(name)['address']
-                while not c.exists(name):
-                    c.print(name, c.namespace())
+            while not c.exists(name):
+                c.print(name, c.namespace())
+                c.serve
+
             if m['address'] == address and m['name'] == name:
                 c.print(f"Module {m['name']} already up to date")
 
