@@ -258,7 +258,8 @@ class Client(c.Module):
     
     @classmethod
     def call_search(cls, 
-                    search : str, *args,
+                    search : str, 
+                *args,
                 timeout : int = 10,
                 network:str = 'local',
                 key:str = None,
@@ -271,11 +272,11 @@ class Client(c.Module):
         future2module = {}
         for module, address in namespace.items():
             future = c.submit(c.call,
+                                args = list(args),
                       
                                kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
                                          'network': network, 'key': key, 
-                                        'args' : args,
-                                         'kwargs': kwargs, 'return_future': return_future, 
+                                         'kwargs': kwargs,
                                          **extra_kwargs} )
             future2module[future] = module
         futures = list(future2module.keys())
