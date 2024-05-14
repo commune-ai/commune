@@ -222,7 +222,8 @@ class Tree(c.Module):
         if '_' in suffix:
             suffix = simple_path.split('.')[-1]
             suffix_chunks = suffix.split('_')
-            if all([s == s.lower() for s in suffix_chunks]):
+            new_simple_path = '.'.join(simple_path.split('.')[:-1])
+            if all([s.lower() in new_simple_path for s in suffix_chunks]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
         if suffix.endswith('_module'):
             simple_path = '.'.join(simple_path.split('.')[:-1])
