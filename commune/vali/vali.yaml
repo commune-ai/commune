@@ -3,21 +3,19 @@
 network: subspace
 netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
 verbose: False
-sync_interval: 10
-min_update_interval: 4 # the minimum interval to update the network
-sleep_interval: 5
-sample_sleep_interval: 0.1
-initial_sleep : 5
-search: null
-max_age_info: 3600
-max_leaderboard_age: 3600
-vote: True
-subnet : null
-fn : null
-
-# score
-alpha: 0.0
-
+sync_interval: 30
+last_eval_interval: 30 # the minimum interval to update the network
+print_interval: 5 # the sleep interval between sending samples
+sample_interval: 0.005 # the sleep interval between sending samples
+initial_sleep : 5 # the initial sleep time before running the loop
+search: null # the search for modules in the namespace
+max_age_info: 3600 # the maximum age of the info
+max_leaderboard_age: 3600 # the maximum age of the leaderboard 
+vote: True # whether to vote or not
+subnet : null # the subnet to connect to
+fn : null # the function to filter
+max_age_network: 3600 # the maximum age of the network
+alpha: 0.0 # the ma average
 worker_fn_name: worker
 # voting 
 vote: True
@@ -45,11 +43,9 @@ sleep_time: 0.05
 refresh : True
 start: True
 is_main_worker: True
-min_num_weights: 1
 debug: False
-print_interval: 2
-clone_suffix : clone
-max_votes: 1000
+min_num_weights: 1
+max_num_weights: 1000
 
 
 

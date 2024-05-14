@@ -7,25 +7,17 @@ class Storage(c.Module):
     replica_prefix = 'replica'
     shard_prefix = 'shard::'
 
-    def __init__(self, **kwargs):
-        
-        self.set_config(kwargs=locals()) 
+    def __init__(self, store_dir = 'base', **kwargs):
+        self.store_dir = store_dir
         self.serializer = c.module('serializer')()
-
-    @property
-    def store_dir(self) -> str:
-        tag = self.tag if self.tag != None else 'base'
-        path = self.resolve_path(tag)
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
 
     def resolve_item_path(self, path: str) -> str:
         store_dir = self.store_dir
         path = path if  path.startswith(store_dir) else f'{store_dir}/{path}' 
+        path = self.resolve_path(path)
         return path
     
-    def files(self, tag=None) -> List:
+    def files(self) -> List:
         return sorted(c.ls(self.store_dir))
     
     def file2size(self, fmt:str='b') -> int:
@@ -39,7 +31,6 @@ class Storage(c.Module):
     def put_item(self, k,  v: Dict, encrypt:bool=False):
         timestamp = c.timestamp()
         path = self.resolve_item_path(k)    
-        
         # encrypt it if you want
         if encrypt:
             data = self.key.encrypt(data)   
@@ -49,16 +40,15 @@ class Storage(c.Module):
         return {'success': True, 'path': path, 'timestamp': timestamp}
     
 
-    def get_item(self,k:str, ticket=None) -> Any:
-    
+    def get_item(self,k:str) -> Any:
         k = self.resolve_item_path(k)
-
         v = self.get_json(k, {})
         if 'ticket' in v:
             c.ticket2address(v['ticket'])
         v = v['data']
         v = self.serializer.deserialize(v) 
         return v
+    
     
     def hash_item(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', data=None, tag=None) -> str:
         """

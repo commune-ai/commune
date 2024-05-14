@@ -1,4 +1,5 @@
 import commune as c
+from typing import *
 
 class Text(c.Module):
     def __init__(self, a=1, b=2):
@@ -22,4 +23,17 @@ class Text(c.Module):
         text = c.get_text(filepath or self.filepath())
         return {i: line for i,line in enumerate(text.splitlines()) if search in line}
         
-    
+
+
+    @classmethod
+    def find_lines(self, text:str, search:str) -> List[str]:
+        """
+        Finds the lines in text with search
+        """
+        found_lines = []
+        lines = text.split('\n')
+        for line in lines:
+            if search in line:
+                found_lines += [line]
+        
+        return found_lines

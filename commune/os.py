@@ -455,3 +455,113 @@ class OsModule(c.Module):
     @classmethod
     def getcwd(*args,  **kwargs):
         return os.getcwd(*args, **kwargs)
+    
+
+    @classmethod
+    def argv(cls, include_script:bool = False):
+        import sys
+        args = sys.argv
+        if include_script:
+            return args
+        else:
+            return args[1:]
+
+
+
+
+    @classmethod
+    def free_gpu_memory(cls, 
+                     max_gpu_ratio: float = 1.0 ,
+                     reserved_gpus: bool = False,
+                     buffer_memory: float = 0,
+                     fmt = 'b') -> Dict[int, float]:
+        import torch
+        free_gpu_memory = {}
+        
+        buffer_memory = c.resolve_memory(buffer_memory)
+        
+        gpu_info = cls.gpu_info_map()
+        gpus = [int(gpu) for gpu in gpu_info.keys()] 
+        
+        if  reserved_gpus != False:
+            reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
+            assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
+            
+            for r_gpu, r_gpu_memory in reserved_gpus.items():
+                gpu_info[r_gpu]['total'] -= r_gpu_memory
+               
+        for gpu_id, gpu_info in gpu_info.items():
+            if int(gpu_id) in gpus or str(gpu_id) in gpus:
+                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
+                if gpu_memory <= 0:
+                    continue
+                free_gpu_memory[gpu_id] = c.format_data_size(gpu_memory, fmt=fmt)
+        
+        assert sum(free_gpu_memory.values()) > 0, 'No free memory on any GPU, please reduce the buffer ratio'
+
+                
+        return cls.copy(free_gpu_memory)
+    
+
+    free_gpus = free_gpu_memory
+
+
+    
+    @classmethod
+    def get_text(cls, 
+                 path: str, 
+                 tail = None,
+                 start_byte:int = 0,
+                 end_byte:int = 0,
+                 start_line :int= None,
+                 end_line:int = None ) -> str:
+        # Get the absolute path of the file
+        path = c.resolve_path(path)
+
+        # Read the contents of the file
+        with open(path, 'rb') as file:
+
+            file.seek(0, 2) # this is done to get the fiel size
+            file_size = file.tell()  # Get the file size
+            if start_byte < 0:
+                start_byte = file_size - start_byte
+            if end_byte <= 0:
+                end_byte = file_size - end_byte 
+            if end_byte < start_byte:
+                end_byte = start_byte + 100
+            chunk_size = end_byte - start_byte + 1
+
+            file.seek(start_byte)
+
+            content_bytes = file.read(chunk_size)
+
+            # Convert the bytes to a string
+            try:
+                content = content_bytes.decode()
+            except UnicodeDecodeError as e:
+                if hasattr(content_bytes, 'hex'):
+                    content = content_bytes.hex()
+                else:
+                    raise e
+
+            if tail != None:
+                content = content.split('\n')
+                content = '\n'.join(content[-tail:])
+    
+            elif start_line != None or end_line != None:
+                
+                content = content.split('\n')
+                if end_line == None or end_line == 0 :
+                    end_line = len(content) 
+                if start_line == None:
+                    start_line = 0
+                if start_line < 0:
+                    start_line = start_line + len(content)
+                if end_line < 0 :
+                    end_line = end_line + len(content)
+                content = '\n'.join(content[start_line:end_line])
+            else:
+                content = content_bytes.decode()
+        return content
+    
+    

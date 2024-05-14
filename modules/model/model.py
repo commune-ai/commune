@@ -4,6 +4,7 @@ from typing import *
 import torch
 import glob
 from torch import nn
+
 import commune as c
 
  
@@ -25,17 +26,6 @@ class Model(nn.Module, c.Module):
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
 
-    @property
-    def tag(self):
-        if self.config.get('tag', None) == None:
-            self.config['tag'] = 'base'
-        return self.config['tag']
-        
-
-    @tag.setter
-    def tag(self, tag):
-        self.config['tag'] = tag
-
     def init_model(self):
         nn.Module.__init__(self) 
          
@@ -52,7 +42,7 @@ class Model(nn.Module, c.Module):
     def get_optimizer(cls, 
                       model: nn.Module,
                       optimizer='torch.optim.Adam',
-                      lr=1e-5,
+                      lr=1e-4,
                       **kwargs):
         optimizer_map = {'adam':'torch.optim.Adam'}
         optimizer = optimizer_map.get(optimizer, optimizer)
@@ -589,7 +579,6 @@ class Model(nn.Module, c.Module):
         '''
         Resolves the device that is used the least to avoid memory overflow.
         '''
-        import torch
         if device == None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if device == 'cuda':

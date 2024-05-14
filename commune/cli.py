@@ -146,8 +146,7 @@ class cli(c.Module):
 
     @classmethod
     def history_module(cls, path='history'):
-        return c.m('history')( cls.resolve_path(path))
-
+        return c.m('history')(cls.resolve_path(path))
 
     @classmethod
     def history(cls,**kwargs):
@@ -161,4 +160,5 @@ class cli(c.Module):
         return history
 
 def main():
+    import sys
     cli()

@@ -2,6 +2,7 @@
 from setuptools import setup, find_packages
 from os import path
 from io import open
+
 here = path.abspath(path.dirname(__file__))
 
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
@@ -21,7 +22,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     author_email='',
-    license='MIT',
+    license='IDGAF',
     # install_requires=install_requires,
     entry_points={
         'console_scripts': [

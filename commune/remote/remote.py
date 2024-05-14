@@ -5,12 +5,18 @@ import os
 import json
 
 class Remote(c.Module):
-    filetype = 'yaml'
-    host_data_path = f'{c.datapath}/hosts.{filetype}'
-    host_url = 'https://raw.githubusercontent.com/communeai/commune/main/hosts.yaml'
-    executable_path='commune/bin/c'
-    @classmethod
-    def ssh_cmd(cls, *cmd_args, 
+
+    def __init__(self, path = 'hosts'):
+        self.set_host_path(path)
+        
+
+    def set_host_path(self, path=None):
+        path = path or (self.dirpath() + f'/data/hosts.yaml')
+        path = self.resolve_path(path)
+        self.host_data_path = path
+        return {'status': 'success', 'msg': f'Host data path set to {path}'}
+
+    def ssh_cmd(self, *cmd_args, 
                 cmd : str = None,
                 port = None, 
                 user = None,
@@ -40,7 +46,7 @@ class Remote(c.Module):
         
         if host == None:
             if port == None or user == None or password == None:
-                host = list(cls.hosts().values())[0]
+                host = list(self.hosts().values())[0]
             else:
                 host = {
                     'host': host,
@@ -49,7 +55,7 @@ class Remote(c.Module):
                     'pwd': password,
                 }
         else:
-            host = cls.hosts().get(host, None)
+            host = self.hosts().get(host, None)
         
 
         host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
@@ -131,8 +137,8 @@ class Remote(c.Module):
 
         return output
 
-    @classmethod
-    def add_host(cls, 
+    
+    def add_host(self, 
                  host:str = '0.0.0.0',
                  port:int = 22,
                  user:str = 'root',
@@ -142,7 +148,7 @@ class Remote(c.Module):
                  
                  ):
         
-        hosts = cls.hosts()
+        hosts = self.hosts()
         host = {
             'host': host, # IP address of the remote machine
             'port': port, # Remote port (typically 22)
@@ -158,78 +164,69 @@ class Remote(c.Module):
                 cnt += 1
                 name = f'{user}{cnt}'
         hosts[name] = host
-        cls.save_hosts(hosts)
+        self.save_hosts(hosts)
 
         return {'status': 'success', '': f'Host added', }
     
-    @classmethod
-    def save_hosts(cls, hosts=None, filetype=filetype, path = None):
+    
+    def save_hosts(self, hosts=None, path = None):
         if path == None:
-            path = cls.host_data_path
+            path = self.host_data_path
+        
+        c.print(f'Saving hosts to {path}')
         if hosts == None:
-            hosts = cls.hosts()
-        if filetype == 'json':
-            cls.put_json(path, hosts)
-        elif filetype == 'yaml':
-            cls.put_yaml(path, hosts)
+            hosts = self.hosts()
+        self.put_yaml(path, hosts)
 
         return {
                 'status': 'success', 
                 'msg': f'Hosts saved', 
                 'hosts': hosts, 
-                'path': cls.host_data_path, 
-                'filetype': filetype
+                'path': self.host_data_path, 
                 }
-    @classmethod
-    def load_hosts(cls, path = None, filetype=filetype):
+    def load_hosts(self, path = None):
         if path == None:
-            path = cls.host_data_path
-        if filetype == 'json':
-            return cls.get_json(path, {})
-        elif filetype == 'yaml':
-            return cls.get_yaml(path, {})
-    @classmethod
-    def switch_hosts(cls, path):
+            path = self.host_data_path
+        return self.get_yaml(path, {})
+    
+    def switch_hosts(self, path):
         hosts = c.get_json(path)
-        cls.save_hosts(hosts)
+        self.save_hosts(hosts)
         return {'status': 'success', 'msg': f'Host data path switched to {path}'}
     
-    @classmethod
-    def rm_host(cls, name):
-        hosts = cls.hosts()
+    
+    def rm_host(self, name):
+        hosts = self.hosts()
         if name in hosts:
             del hosts[name]
-            cls.save_hosts( hosts)
-            c.print(cls.hosts())
+            self.save_hosts( hosts)
+            c.print(self.hosts())
             return {'status': 'success', 'msg': f'Host {name} removed'}
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
-    @classmethod
-    def hosts(cls, search=None, filetype=filetype, enable_search_terms: bool = False):
-        hosts = cls.load_hosts(filetype=filetype)
+    def hosts(self, search=None, enable_search_terms: bool = False):
+        hosts = self.load_hosts()
         if len(hosts) == 0:
-            assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
+            assert False, f'No hosts found, please add your hosts to {self.host_data_path}'
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
         if enable_search_terms:
-            return cls.filter_hosts(hosts=hosts)
+            return self.filter_hosts(hosts=hosts)
         return hosts
 
     host_map = hosts
 
-    @classmethod
-    def host2ip(cls, search=None):
-        hosts = cls.hosts(search=search)
+    def host2ip(self, search=None):
+        hosts = self.hosts(search=search)
         return {k:v['host'] for k,v in hosts.items()}
 
-    @classmethod
-    def ip2host(cls, search=None):
-        host2ip = cls.host2ip(search=search)
+    def ip2host(self, search=None):
+        host2ip = self.host2ip(search=search)
         return {v:k for k,v in host2ip.items()}
-    @classmethod
-    def names(cls, search=None):
-        return list(cls.hosts(search=search).keys())
+    
+    def names(self, search=None):
+        return list(self.hosts(search=search).keys())
 
     def host2name(self, host):
         hosts = self.hosts()
@@ -238,12 +235,10 @@ class Remote(c.Module):
                 return name
         raise Exception(f'Host {host} not found')
     
-    @classmethod
-    def n(cls, search=None):
-        return len(cls.hosts(search=search))
+    def n(self, search=None):
+        return len(self.hosts(search=search))
 
     
-    @classmethod
     def host(self, name):
         hosts = self.hosts()
 
@@ -252,23 +247,21 @@ class Remote(c.Module):
         
         return hosts[name]
     
-    @classmethod
     def install(self):
         c.cmd('pip3 install paramiko')
     def test(self):
         # Test Remote
         c.print(self.ssh_cmd('ls'))
-    @classmethod
-    def cmd(cls, *commands, 
+
+    def cmd(self, *commands, 
             search=None, 
             hosts:Union[list, dict, str] = None, 
             cwd=None,
               host:str=None,  
               timeout=5 , 
               verbose:bool = True,**kwargs):
-        output = {}
         if hosts == None:
-            hosts = cls.hosts()
+            hosts = self.hosts()
             if host != None:
                 hosts = {host:hosts[host]}
         if search != None:
@@ -276,7 +269,7 @@ class Remote(c.Module):
         if isinstance(hosts, list):
             hosts = {h:hosts[h] for h in hosts}
         elif isinstance(hosts, str):
-            hosts = {hosts:cls.hosts(hosts)}
+            hosts = {hosts:self.hosts(hosts)}
 
         assert isinstance(hosts, dict), f'Hosts must be a dict, got {type(hosts)}'
 
@@ -284,7 +277,7 @@ class Remote(c.Module):
         errors = {}
         host2future = {}
         for host in hosts:
-            host2future[host] = c.submit(cls.ssh_cmd, 
+            host2future[host] = c.submit(self.ssh_cmd, 
                                             args=commands, 
                                             kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs),
                                             return_future=True
@@ -313,22 +306,19 @@ class Remote(c.Module):
 
         return results 
 
-    @classmethod
-    def add_admin(cls, timeout=10):
+    def add_admin(self, timeout=10):
         root_key_address = c.root_key().ss58_address
-        return cls.cmd(f'c add_admin {root_key_address}', timeout=timeout)
+        return self.cmd(f'c add_admin {root_key_address}', timeout=timeout)
     
-    @classmethod
-    def is_admin(cls, timeout=10):
+    def is_admin(self, timeout=10):
         root_key_address = c.root_key().ss58_address
-        results =  cls.cmd(f'c is_admin {root_key_address}', timeout=timeout)
+        results =  self.cmd(f'c is_admin {root_key_address}', timeout=timeout)
         for host, r in results.items():
             results[host] = bool(r)
         return results
     
-    @classmethod
-    def logs(cls, module, n=3 , **kwargs):
-        namespace = cls.namespace(search=module)
+    def logs(self, module, n=3 , **kwargs):
+        namespace = self.namespace(search=module)
         c.print(namespace)
         for name, address in list(namespace.items())[:n]:
             if address == None:
@@ -337,18 +327,15 @@ class Remote(c.Module):
             c.print(f'[bold yellow]{name}[/bold yellow]')
             c.print('\n'.join(logs.split('\n')[-10:]))
 
-    @classmethod
-    def push(cls,**kwargs):
-        return [c.push(), cls.pull()]
+    def push(self,**kwargs):
+        return [c.push(), self.pull()]
 
         
-    @classmethod
-    def pull(cls, stash=True, hosts=None):
+    def pull(self, stash=True, hosts=None):
         return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
 
 
-    @classmethod
     def push(self):
         c.push()
         c.rcmd('c pull', verbose=True)
@@ -358,14 +345,13 @@ class Remote(c.Module):
 
     
 
-    @classmethod
-    def setup(cls,**kwargs):
+    def setup(self,**kwargs):
         repo_url = c.repo_url()
-        c.print(cls.cmd(f'git clone {repo_url}', **kwargs))
-        c.print(cls.cmd(f'apt ', **kwargs))
-        c.print(cls.cmd(f'cd commune && pip install -e .', **kwargs))
-        c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
-        c.print(cls.cmd(f'c serve', **kwargs))
+        c.print(self.cmd(f'git clone {repo_url}', **kwargs))
+        c.print(self.cmd(f'apt ', **kwargs))
+        c.print(self.cmd(f'cd commune && pip install -e .', **kwargs))
+        c.print(self.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
+        c.print(self.cmd(f'c serve', **kwargs))
 
     def enter(self, host='root10'):
         host2ssh  = self.host2ssh()
@@ -388,44 +374,39 @@ class Remote(c.Module):
     # SEARCH TERM LAND
 
     search_terms_path = 'search_terms'
-    @classmethod
-    def set_search_terms(cls, search_terms):
-        path = cls.search_terms_path
-        cls.put(path, search_terms)
+
+    def set_search_terms(self, search_terms):
+        path = self.search_terms_path
+        self.put(path, search_terms)
         return {'status': 'success', 'msg': f'Search terms set', 'search_terms': search_terms}
 
-    @classmethod
-    def clear_terms(cls):
-        path = cls.search_terms_path
-        return  cls.put(path, {'include': '', 'avoid': ''})
+    def clear_terms(self):
+        path = self.search_terms_path
+        return  self.put(path, {'include': '', 'avoid': ''})
 
-    @classmethod
-    def avoid(cls, *terms):
+    def avoid(self, *terms):
         terms = ','.join(terms)
-        search_terms = cls.get_search_terms()
+        search_terms = self.get_search_terms()
         search_terms['avoid'] = terms
-        cls.set_search_terms(search_terms)
+        self.set_search_terms(search_terms)
         return {'status': 'success', 'msg': f'Added {terms} to avoid terms', 'search_terms': search_terms}
     
-    @classmethod
-    def include(cls, *terms):
+    def include(self, *terms):
         terms = ','.join(terms)
-        search_terms = cls.get_search_terms()
+        search_terms = self.get_search_terms()
         search_terms['include'] = terms
-        cls.set_search_terms(search_terms)
+        self.set_search_terms(search_terms)
         return {'status': 'success', 'msg': f'Added {terms} to include terms', 'search_terms': search_terms}
 
-    @classmethod
-    def get_search_terms(cls):
-        path = cls.search_terms_path
-        return cls.get(path, {'include': '', 'avoid': ''})
+    def get_search_terms(self):
+        path = self.search_terms_path
+        return self.get(path, {'include': '', 'avoid': ''})
     search_terms = get_search_terms
 
-    @classmethod
-    def filter_hosts(cls, include=None, avoid=None, hosts=None):
+    def filter_hosts(self, include=None, avoid=None, hosts=None):
 
-        host_map = hosts or cls.hosts()
-        search_terms = cls.search_terms()
+        host_map = hosts or self.hosts()
+        search_terms = self.search_terms()
         if avoid != None:
             search_terms['avoid'] = avoid
         if include != None:
@@ -461,9 +442,8 @@ class Remote(c.Module):
     def pwds(self, search=None):
         return {k:v['pwd'] for k,v in self.hosts(search=search).items()}
 
-    @classmethod
-    def host2ssh(cls, search = None, host_map=None):
-        host_map = host_map or cls.host_map(search=search)
+    def host2ssh(self, search = None, host_map=None):
+        host_map = host_map or self.host_map(search=search)
         c.print()
         host2ssh = {}
         for k, v in host_map.items():
@@ -471,8 +451,7 @@ class Remote(c.Module):
         return host2ssh
 
     
-    @classmethod
-    def call(cls, fn:str='info' , *args, 
+    def call(self, fn:str='info' , *args, 
              search:str='module', 
              modules=None,  
              network:str='remote',
@@ -523,8 +502,8 @@ class Remote(c.Module):
             #     return list(results.values())[0]
         
             return results
-    @classmethod
-    def app(cls):
+
+    def app(self):
         return c.module('remote.app').app()
 
     def save_ssh_config(self, path="~/.ssh/config"):
@@ -550,8 +529,7 @@ class Remote(c.Module):
 
 
 
-    @classmethod
-    def add_host_from_ssh_string(cls, ssh_string: str, name: str = None):
+    def add_host_from_ssh_string(self, ssh_string: str, name: str = None):
         """
         Adds a host using an SSH connection string format that includes the password using the -pwd flag.
 
@@ -571,7 +549,7 @@ class Remote(c.Module):
         ssh_port = int(match.group('ssh_port'))
 
         # Use the existing add_host method to add the host
-        return cls.add_host(host=host, port=ssh_port, user=user, pwd=pwd, name=name)
+        return self.add_host(host=host, port=ssh_port, user=user, pwd=pwd, name=name)
     
     def pwd(self, host):
         hosts = self.hosts(search=host)

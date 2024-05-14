@@ -70,7 +70,7 @@ class Access(c.Module):
             state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
             self.state = state
             self.put(self.state_path, self.state)
-            c.print(f'🔄 Synced {self.state_path} at {state["sync_time"]}... 🔄\033', color='yellow')
+            c.print(f'🔄 Synced {self.state_path} 🔄\033', color='yellow')
 
         response = {'success': True, 
                     'msg': f'synced {self.state_path}', 

@@ -3,7 +3,7 @@ version: "2.1"
 services:
   commune:
     build:
-      context: ./
+      context: ./commune
       dockerfile: Dockerfile
     container_name: commune
     shm_size: '1gb' # for the shared memory size
@@ -14,6 +14,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock #Nuclear option
     ports:
       - 50050-50250:50050-50250
-      # - 8501-8511:8501-8511
 
     restart: unless-stopped

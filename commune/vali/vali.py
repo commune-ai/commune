@@ -14,29 +14,20 @@ class Vali(c.Module):
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
     address2last_update = {}
 
-
-
     def __init__(self,
                  config:dict=None,
                  **kwargs):
         self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, module=None, **kwargs):
-
-
         if module != None:
             assert hasattr(module, 'score_module'), f'Module must have a config attribute, got {score_module}'
             assert callable(module.score_module), f'Module must have a callable score_module attribute, got {score_module.score_module}'
             self.score_module = module.score_module
         # initialize the validator
         # merge the config with the default config
-            
         config = self.set_config(config, kwargs=kwargs)
-
-        c.print(config, 'VALI CONFIG')
-
         config = c.dict2munch({**Vali.get_config(), **config})
-
         if hasattr(config, 'key'):
             self.key = c.key(config.key)
         self.config = config
@@ -45,42 +36,29 @@ class Vali(c.Module):
 
     init = init_vali
 
-
-
     def run_loop(self):
         c.sleep(self.config.initial_sleep)
-
         # start the workers
-        
         self.start_time = c.time()
         for i in range(self.config.workers):
             self.start_worker(i)
         while True:
-
-            c.sleep(self.config.sleep_interval)
+            c.sleep(self.config.print_interval)
             try:
                 self.sync()
                 run_info = self.run_info()
-                c.print(run_info)
-
-                r = {'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval}
+                c.print({'success': False, 'msg': 'Vote Staleness is too low', 'vote_staleness': self.vote_staleness, 'vote_interval': self.config.vote_interval})
                 if not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
-                    r = {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
+                    c.print({'success': False, 'msg': 'Not a voting network', 'network': self.config.network})
                 else:
                     if self.vote_staleness > self.config.vote_interval:
-                        r = self.vote()
-                run_info.update(r)
-
-                df = self.leaderboard()[:10]
-                c.print(df)
+                        c.print(self.vote())
+                c.print(df = self.leaderboard()[:10])
                 c.print(run_info)
 
             except Exception as e:
                 c.print(c.detailed_error(e))
 
-
-
-    
     def workers(self):
         if self.config.mode == None or str(self.config.mode) == 'server':
             return c.servers(search=self.server_name)
@@ -99,7 +77,7 @@ class Vali(c.Module):
         elif self.config.mode == 'server':
             kwargs['config'] = self.config
             worker = self.serve(kwargs=kwargs, 
-                                 key=self.key.path, 
+                                 key=self.server_name, 
                                  server_name = self.server_name + f'::{id}',)
         else:
             raise Exception(f'Invalid mode {self.config.mode}')
@@ -134,7 +112,7 @@ class Vali(c.Module):
 
 
     def epoch(self, batch_size = None, network=None, **kwargs):
-        self.sync(network=network)
+        
         futures = []
         results = []
         module_addresses = c.shuffle(list(self.namespace.values()))
@@ -143,16 +121,15 @@ class Vali(c.Module):
         batch_size = self.config.batch_size
     
         for module_address in module_addresses:
-            c.sleep(self.config.sample_sleep_interval)
-            is_address = c.is_address(module_address)
-            if not is_address:
+            self.sync(network=network)
+            c.sleep(self.config.sample_interval)
+            if not c.is_address(module_address):
                 c.print(f'{module_address} is not a valid address', verbose=self.config.verbose)
                 continue
-
+            
             # if the futures are less than the batch, we can submit a new future
             lag = c.time() - self.address2last_update.get(module_address, 0)
-            if lag < self.config.min_update_interval:
-                # c.print(f'Module {module_address} is too fresh, skipping', verbose=self.config.debug)
+            if lag < self.config.last_eval_interval:
                 continue
             futures.append(self.executor.submit(self.eval, args=[module_address],timeout=self.config.timeout))
             self.address2last_update[module_address] = c.time()
@@ -214,15 +191,7 @@ class Vali(c.Module):
         
    
 
-        config = self.config
-        # name2address / namespace
-        config.network = network or config.network
-        config.search =  search or config.search
-        config.netuid =  netuid or config.netuid 
-        config.subnet = subnet or config.subnet or config.netuid
-        config.max_age_network = max_age or self.config.max_age_network
-
-        if self.network_staleness() < config.sync_interval:
+        if self.network_staleness() < self.config.sync_interval:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'staleness': self.network_staleness(), 
                     'sync_interval': self.config.sync_interval,
@@ -233,12 +202,14 @@ class Vali(c.Module):
                     'search': self.config.search,
                     }
         self.last_sync_time = c.time()
-        if self.network_staleness() > config.max_age_network:
-            return {'msg': 'Alredy Synced network Within Interval', 
-                    'last_sync_time': self.last_sync_time,
-                    'sync_lag': self.network_staleness(), 
-                    'sync_interval': self.config.sync_interval,
-                    }
+        config = self.config
+        # name2address / namespace
+        config.network = network or config.network
+        config.search =  search or config.search
+        config.netuid =  netuid or config.netuid 
+        config.subnet = subnet or config.subnet or config.netuid
+        config.max_age_network = max_age or self.config.max_age_network
+
         # RESOLVE THE VOTING NETWORKS
 
         if 'subspace' in config.network :
@@ -315,7 +286,7 @@ class Vali(c.Module):
 
     def eval(self, module:str = None, 
                     network=None, 
-                    verbose = None,
+                    verbose = True,
                     verbose_keys = None,
                     
                     **kwargs):
@@ -360,7 +331,7 @@ class Vali(c.Module):
         else:
             info = module.info(timeout=self.config.timeout)
 
-        c.print(f'🚀 :: Eval Module {info["name"]} :: 🚀',  color='yellow', verbose=verbose)
+        c.print(f'🚀 :: Eval Module {info["name"]} ({info["address"]}) 🚀',  color='yellow', verbose=verbose)
 
         assert 'address' in info and 'name' in info, f'Info must have a address key, got {info}'
         info['staleness'] = c.time() - info.get('timestamp', 0)
@@ -376,7 +347,6 @@ class Vali(c.Module):
             response = {'w': 0, 'error': error}
             verbose_keys += ['error']
 
-        c.print(response, color='red', verbose=verbose)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
@@ -443,7 +413,7 @@ class Vali(c.Module):
         leaderboard = self.leaderboard(network=network, 
                                        keys=keys, 
                                        to_dict=True, 
-                                       n=self.config.max_votes)
+                                       n=self.config.max_num_weights)
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
         for info in leaderboard:
@@ -474,6 +444,8 @@ class Vali(c.Module):
                     'msg': 'The votes are too low', 
                     'votes': len(votes['uids']), 
                     'min_num_weights': self.config.min_num_weights}
+        if not hasattr(self, 'subspace'):
+            return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
         
         return self.subspace.set_weights(uids=uids, # passing names as uids, to avoid slot conflicts
                             weights=weights, 
@@ -489,7 +461,10 @@ class Vali(c.Module):
 
 
     def module_info(self, **kwargs):
-        return self.subspace.module_info(self.key.ss58_address, netuid=self.config.netuid, **kwargs)
+        if hasattr(self, 'subspace'):
+            return self.subspace.module_info(self.key.ss58_address, netuid=self.config.netuid, **kwargs)
+        else:
+            return {}
     
     def leaderboard(self,
                     keys = ['name', 'w', 
@@ -600,6 +575,17 @@ class Vali(c.Module):
             'module': self.module_info(),
 
             }
+    
+    @classmethod
+    def check_peers(cls):
+        servers = c.servers()
+        module_path = cls.module_path()
+        peers = [s for s in servers if s.startswith(module_path)]
+        c.print(f'Found {len(peers)} peers')
+        for peer in peers:
+            c.print(f'Peer {peer} is alive')
+            result = c.call(peer+'/run_info')
+            c.print(result)
 
 
 Vali.run(__name__)

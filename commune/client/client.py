@@ -187,12 +187,11 @@ class Client(c.Module):
         headers : dict ={'Content-Type': 'application/json'},
         message_type = "v0",
         key : str = None,
-        verbose = 1,
+        verbose = False,
         **extra_kwargs
         ):
         key = self.resolve_key(key)
         url = self.prepare_url(address, fn)
-
         # resolve the kwargs at least
         kwargs =kwargs or {}
         kwargs.update(extra_kwargs)

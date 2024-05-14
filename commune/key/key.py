@@ -267,9 +267,8 @@ class Keypair(c.Module):
     def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
         return cls.load_mems(path, verbose=verbose, refresh=refresh, **kwargs)
 
-    save_keys_path  = 'saved_keys.json'
     @classmethod
-    def save_keys(cls, path=save_keys_path, **kwargs):
+    def save_keys(cls, path='saved_keys.json', **kwargs):
         c.print(f'saving mems to {path}')
         mems = cls.mems()
         c.put_json(path, mems)
@@ -278,7 +277,9 @@ class Keypair(c.Module):
     savemems = savekeys = save_keys 
 
     @classmethod
-    def load_keys(cls, path=save_keys_path, refresh=False, **kwargs):
+    def load_keys(cls, path='saved_keys.json', refresh=False, **kwargs):
+
+        """"""
         mems = c.get_json(path)
         for k,mem in mems.items():
             try:
@@ -297,12 +298,11 @@ class Keypair(c.Module):
                 mems[key] = cls.getmem(key)
             except Exception as e:
                 c.print(f'failed to get mem for {key} due to {e}', color='red')
-            
-
         if search:
             mems = {k:v for k,v in mems.items() if search in k or search in v}
         return mems
 
+    mnemonics = mems
     
 
     @classmethod

@@ -1,11 +1,7 @@
-
-
 import commune as c
 import hashlib
 
-
 class Hash(c.Module):
-
     @classmethod
     def hash(cls, x, mode: str='sha256',*args,**kwargs):
         x = cls.python2str(x)
