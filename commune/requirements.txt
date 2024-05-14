@@ -23,5 +23,5 @@ plotly
 streamlit
 
 ########################
-#BOUNTY: 300 USD (REMOVE TORCH REQUIREMENT)
+
 torch

@@ -150,13 +150,9 @@ class ModelTransformer(Model):
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]   
         self.set_optimizer(**config.optimizer)
-
         if config.load:
             self.load(keys=['model', 'optimizer'])     
-
         self.set_tokenizer(config.model)
-
-
         if config.test:
             self.test()
         

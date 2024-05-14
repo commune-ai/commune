@@ -172,7 +172,7 @@ cython_debug/
 # The cache for chain data in container
 .local
 
-!data/.gitkeep
+!**/.gitkeep
 
 # misc
 .DS_Store

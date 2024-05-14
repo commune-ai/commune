@@ -1430,8 +1430,10 @@ class Subspace(c.Module):
             return 0
         if isinstance(netuid, str):
             subnet2netuid = self.subnet2netuid()
-            if netuid not in subnet2netuid:
+            if netuid not in subnet2netuid: # if still not found, try lower case
                 subnet2netuid =self.subnet2netuid(update=True)
+            if netuid not in subnet2netuid: # if still not found, try lower case
+                subnet2netuid = {k.lower():v for k,v in subnet2netuid.items()}
             assert netuid in subnet2netuid, f"Subnet {netuid} not found in {subnet2netuid}"
             return subnet2netuid[netuid]
 
@@ -2003,7 +2005,6 @@ class Subspace(c.Module):
                     block=None, 
                     update=False,
                     network=network,
-                    total = False,
                     fmt='nano', **kwargs) -> List[Dict[str, Union[str, int]]]:
         
         stake_from = self.query_map('StakeFrom', netuid=netuid, block=block, update=update, network=network, **kwargs)

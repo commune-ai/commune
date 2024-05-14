@@ -1,4 +1,4 @@
-""" An interface for serializing and deserializing bittensor tensors"""
+""" An interface for serializing and deserializing tensors"""
 
 # I DONT GIVE A FUCK LICENSE (IDGAF)
 # Do whatever you want with this code
@@ -12,8 +12,6 @@ import json
 
 class Serializer(c.Module):
 
-
-    
     def serialize(self,x:dict, mode = 'str', copy_value = True):
         if copy_value:
             x = c.copy(x)

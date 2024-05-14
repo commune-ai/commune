@@ -40,7 +40,7 @@ class c:
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
     libname = lib_name = lib = root_path.split('/')[-1] # the name of the library
-    datapath = os.path.join(libpath, 'data') # the path to the data folder
+    datapath = os.path.join(root_path, 'data') # the path to the data folder
     modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     console = Console() # the consolve
@@ -274,8 +274,12 @@ class c:
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
         
-        path = cls.get_module_path(simple=simple)
-        return path
+        obj = cls.resolve_module(cls)
+        module_path =  inspect.getfile(obj)
+        # convert into simple
+        if simple:
+            module_path = cls.path2simple(module_path)
+        return module_path
     
     path  = name = module_name =  module_path
     
@@ -901,7 +905,18 @@ class c:
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
-        return import_module(import_path)
+        try:
+            return import_module(import_path)
+        except Exception as e:
+            c.print(e)
+            import sys
+            sys.path.append(c.pwd())
+            return import_module(import_path)
+
+
+    @classmethod
+    def sys_path(cls, *args, **kwargs):
+        return c.module('os').sys_path(*args, **kwargs)
 
     @classmethod
     def import_object(cls, key:str, verbose: bool = False)-> Any:
@@ -913,6 +928,7 @@ class c:
         object_name = key.split('.')[-1]
         if verbose:
             c.print(f'Importing {object_name} from {module}')
+    
         obj =  getattr(c.import_module(module), object_name)
         return obj
     
@@ -1079,7 +1095,7 @@ class c:
             path = path
         elif path.startswith('~/'):
             path =  os.path.expanduser(path)
-        elif path.startswith('./'):
+        elif path.startswith('.'):
             path = os.path.abspath(path)
         else:
             # if it is a relative path, then it is relative to the module path
@@ -1221,7 +1237,6 @@ class c:
                   port_range: List[int] = None , 
                   ip:str =None, 
                   avoid_ports = None,
-                  reserve:bool = False, 
                   random_selection:bool = True) -> int:
         
         '''
@@ -1244,8 +1259,6 @@ class c:
                 continue
             
             if cls.port_available(port=port, ip=ip):
-                if reserve:
-                    cls.reserve_port(port)
                 return port
         
     
@@ -1358,31 +1371,15 @@ class c:
 
         return {'namespace': namespace}
 
-        
-    
-    @classmethod
-    def path_config_exists(cls, path:str) -> bool:
-        '''
-        Checks if the path exists
-        '''
-        for ext in ['.yaml', '.yml']:
-            if os.path.exists(path.replace('.py', ext)):
-                return True
-        return False
 
-
-
-    
 
     @classmethod
-    def path2simple(cls, 
-                    path:str,
-                    tree = None,
-                    ) -> str:
-
-        return c.module('tree').path2simple(path=path, tree=tree)  
+    def path2simple(cls, *args, **kwargs ) -> str:
+        return c.module('tree').path2simple(*args, **kwargs)  
+    @classmethod
+    def path2objectpath(cls, path:str = None, tree=None) -> str:
+        return c.module('tree').path2objectpath(path=path, tree=tree)
     
-
     @classmethod
     def tree_paths(cls, *args, **kwargs) -> List[str]:
         return c.module('tree').tree_paths(*args, **kwargs)  
@@ -1396,22 +1393,25 @@ class c:
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
 
     @classmethod
-    def find_classes(cls, module=None):
-        if module == None:
-            module = cls.module_path()
-        module = c.module(module)
-        filepath = module.filepath()
-        code = c.get_text(filepath)
+    def find_classes(cls, path):
+        code = c.get_text(path)
         classes = []
         for line in code.split('\n'):
             if all([s in line for s in ['class ', '(', '):']]):
                 classes.append(line.split('class ')[-1].split('(')[0].strip())
-        object_path = cls.path2objectpath(filepath)
+        return [c for c in classes]
+    
 
-        return ['.'.join(object_path.split('.')[:-1]+[c]) for c in classes]
-
-
-
+    @classmethod
+    def find_functions(cls, path):
+        code = c.get_text(path)
+        functions = []
+        for line in code.split('\n'):
+            if line.startswith('def '):
+                if all([s in line for s in ['def ', '(', '):']]):
+                    functions.append(line.split('def ')[-1].split('(')[0].strip())
+        return functions
+    
     @classmethod
     def find_python_classes(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
@@ -1449,30 +1449,6 @@ class c:
         # return the class names
         return class_names
     
-
-    @classmethod
-    def path2objectpath(cls, path:str = None, tree=None) -> str:
-        path = path or cls.filepath()
-        tree = tree or 'commune'
-        tree_path = cls.tree2path()[tree]
-
-        if path.endswith('module/module.py'):
-            return 'commune.Module'
-        
-        try:
-            python_classes = cls.find_python_classes(path)
-        except Exception as e:
-            c.tree(update=1)
-            python_classes = cls.find_python_classes(path)
-        if len(python_classes) == 0:
-            return None
-        
-        object_name = python_classes[-1]
-        path = path.replace(tree_path+'/', '').replace('.py','.').replace('/', '.') 
-        path = path + object_name
-        return path
-
-    
     @classmethod
     def url2text(cls, *args, **kwargs):
         return c.module('web').url2text(*args, **kwargs).text
@@ -1482,8 +1458,9 @@ class c:
     def get_module(cls, 
                    path:str = 'module',  
                    cache=True,
-                   tree = 'commune',
                    trials = 3,
+                   tree = 'commune',
+                   path2objectpath = {'tree': 'commune.tree.tree.Tree'},
                    verbose=1) -> str:
         """
         params: 
@@ -1491,7 +1468,6 @@ class c:
             cache: whether to cache the module
             tree: the tree to search for the module
         """
-        t1 = c.time()
         path = path or 'module'
         tree = tree or 'commune'
         module = None
@@ -1499,30 +1475,26 @@ class c:
 
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
-
-
-        if module == None:
-            path2objectpath = {'tree': 'commune.tree.Tree'}
+            if module != None:
+                return module
+            
+        try:
             if path in path2objectpath:
-                module = c.import_object(path2objectpath[path])
+                object_path = path2objectpath[path]
             else:
-                # convert the simple to path
-                try:
-                    path = c.simple2path(path, tree=tree)
-                    object_path = c.path2objectpath(path, tree=tree)
-                    module = c.import_object(object_path)
-                except Exception as e:
-                    c.print(f'Error: {e}', color='red')
-                    if trials > 0:
-                        c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
-                        c.tree(update=True)
-                        return c.get_module(path, cache=cache, tree=tree, verbose=verbose, trials=trials-1)
-                    else:
-                        raise Exception(f'Could not find {path} in {c.modules(path)} modules')
-            if cache:
-                c.module_cache[cache_key] = module
+                object_path = c.simple2objectpath(path)
+            module = c.import_object(object_path)
+        except Exception as e:
+            raise e
+            c.print(f'Error: {e}', color='red')
+            if trials == 0:
+                raise Exception(f'Could not find {path} in {c.modules(path)} modules')
+            c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
+            c.tree(update=True)
+            module = c.get_module(path, cache=cache, tree=tree, verbose=verbose, trials=trials-1)                
+        if cache:
+            c.module_cache[cache_key] = module
 
-        latency = c.time() - t1
         return module
 
     @classmethod
@@ -1629,19 +1601,12 @@ class c:
 
 
     @classmethod
-    def simple2path(cls, path:str, trials=3, **kwargs) -> str:
-        tree = c.tree(**kwargs)
-        if path not in tree:
-            shortcuts = c.shortcuts()
-            if path in shortcuts:
-                path = shortcuts[path]
-            else:
-                if trials > 0:
-                    c.tree(update=True)
-                    return c.simple2path(path, trials=trials-1, **kwargs)
-                
-                raise Exception(f'Could not find {path} in {c.modules(path)} modules')
-        return tree[path]
+    def simple2path(cls, path:str, **kwargs) -> str:
+        return c.module('tree').simple2path(path, **kwargs)
+    
+    @classmethod
+    def simple2objectpath(cls, path:str, **kwargs) -> str:
+        return c.module('tree').simple2objectpath(path, **kwargs)
     
 
     @classmethod
@@ -2785,58 +2750,52 @@ class c:
         
     def info(self , 
              module = None,
-             schema: bool = True,
-             namespace:bool = False,
-             commit_hash:bool = False,
-             hardware : bool = False,
-             update: bool = False,
-             max_age:int = 100,
+             features = ['schema', 'namespace', 'commit_hash', 'hardware','attributes','functions'], 
+             lite_features = ['name', 'address', 'schema', 'ss58_address', 'description'],
+             lite = True,
              cost = False,
+             **kwargs
              ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
         '''
+        if lite:
+            features = lite_features
+            
         if module != None:
             if isinstance(module, str):
                 module = c.module(module)()
             self = module  
+            
+        info = {}
 
-        if c.exists('info'):
-            info = c.get('info', default=None, max_age=max_age)
-            if info != None:
-                return info
-        fns = [fn for fn in self.whitelist]
-        attributes =[ attr for attr in self.attributes()]
-
-        info  = dict(
-            address = self.address.replace(c.default_ip, c.ip(update=False)),
-            functions =  fns, # get the functions of the module
-            attributes = attributes, # get the attributes of the module
-            name = self.server_name() if callable(self.server_name) else self.server_name, # get the name of the module
-            path = self.module_path(), # get the path of the module
-            chash = self.chash(), # get the hash of the module (code)
-        )
-        info['hash'] = c.hash(info)
-
-        if hasattr(self, 'key'):
-            auth = self.key.sign(info, return_json=True)
-            info['signature'] = auth['signature']
-            info['ss58_address'] = auth['address']
-        if schema:
-            schema = self.schema(defaults=True, include_parents=True)
-            info['schema'] = {fn: schema[fn] for fn in fns if fn in schema}
-
-        if hardware:
-            info['hardware'] = self.hardware()
-
-        if namespace:
+        if 'schema' in features:
+            info['schema'] = self.schema(defaults=True, include_parents=True)
+            info['schema'] = {k: v for k,v in info['schema'].items() if k in self.whitelist}
+        if 'namespace' in features:
             info['namespace'] = c.namespace(network='local')
-        if commit_hash:
+        if 'hardware' in features:
+            info['hardware'] = c.hardware()
+        if 'attributes' in features:
+            info['attributes'] = attributes =[ attr for attr in self.attributes()]
+        if 'functions' in features:
+            info['functions']  = [fn for fn in self.whitelist]
+        if 'name' in features:
+            info['name'] = self.server_name() if callable(self.server_name) else self.server_name # get the name of the module
+        if 'path' in features:
+            info['path'] = self.module_path() # get the path of the module
+        if 'address' in features:
+            info['address'] = self.address.replace(c.default_ip, c.ip(update=False))
+        if 'ss58_address' in features:    
+            info['ss58_address'] = self.key.ss58_address
+        if 'code_hash' in features:
+            info['code_hash'] = self.chash() # get the hash of the module (code)
+        if 'commit_hash' in features:
             info['commit_hash'] = c.commit_hash()
+        if 'description' in features:
+            info['description'] = self.description
 
-        if update:
-            c.set('info', info)
-
+        c.put_json('info', info)
         if cost:
             if hasattr(self, 'cost'):
                 info['cost'] = self.cost
@@ -2883,18 +2842,18 @@ class c:
         if '/' in str(search):
             module, fn = search.split('/')
             cls = c.module(module)
-
         if isinstance(module, str):
             if '/' in module:
                 module , fn = module.split('/')
             module = c.module(module)
+
         module = module or cls
         schema = {}
-        for fn in module.get_functions(include_parents=include_parents):
+        fns = module.get_functions(include_parents=include_parents)
+        for fn in fns:
             if search != None and search not in fn:
                 continue
-            module_fn = getattr(module, fn )
-            if callable(module_fn):
+            if callable(getattr(module, fn )):
                 schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
 
         return c.copy(schema)
@@ -2911,7 +2870,8 @@ class c:
     def fn_schema(cls, fn:str,
                             defaults:bool=True,
                             code:bool = False,
-                            docs:bool = True)->dict:
+                            docs:bool = True, 
+                            version=2)->dict:
         '''
         Get function schema of function in cls
         '''
@@ -2919,12 +2879,7 @@ class c:
         fn = cls.get_fn(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
-        if defaults:
-            fn_schema['default'] = cls.fn_defaults(fn=fn) 
-            for k,v in fn_schema['default'].items(): 
-                if k not in fn_schema['input'] and v != None:
-                    fn_schema['input'][k] = type(v).__name__ if v != None else None
-           
+
            
         for k,v in fn_schema['input'].items():
             v = str(v)
@@ -2952,6 +2907,21 @@ class c:
                 fn_schema['input'].pop(arg)
                 if 'default' in fn_schema:
                     fn_schema['default'].pop(arg, None)
+
+
+        if defaults:
+            fn_schema['default'] = cls.fn_defaults(fn=fn) 
+            for k,v in fn_schema['default'].items(): 
+                if k not in fn_schema['input'] and v != None:
+                    fn_schema['input'][k] = type(v).__name__ if v != None else None
+           
+        if version == 1:
+            pass
+        elif version == 2:
+            defaults = fn_schema.pop('default', {})
+            fn_schema['input'] = {k: {'type':v, 'default':defaults.get(k)} for k,v in fn_schema['input'].items()}
+        else:
+            raise Exception(f'Version {version} not implemented')
                 
 
         return fn_schema
@@ -3391,12 +3361,8 @@ class c:
         '''
         Wraps a python class as a module
         '''
-
         module_class =  c.get_module(module,**kwargs)
-        
         return module_class
-        
-
     m = mod = module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
@@ -4122,11 +4088,7 @@ class c:
         import time
         time.sleep(seconds)
         return None
-    
-    
     # DICT LAND
-    
-    
     @classmethod
     def dict_put(cls, *args, **kwargs):
         dict_put = c.import_object('commune.utils.dict.dict_put')
@@ -4595,12 +4557,10 @@ class c:
         key = self.resolve_key(key)
         signature =  key.sign(data, **kwargs)
         return signature
-    
-    def verify(self, auth, key=None, **kwargs ) -> bool:  
-        key = self.resolve_key(key)
-        c.print(auth)
+    @classmethod
+    def verify(cls, auth, key=None, **kwargs ) -> bool:  
+        key = c.get_key(key)
         return key.verify(auth, **kwargs)
-        
     
     @classmethod
     def get_signer(cls, data:dict ) -> bool:        
@@ -4641,24 +4601,6 @@ class c:
             self.users = []
         self.users.pop(key, None)
         
-    @classmethod
-    def reserve_port(cls,port:int = None, var_path='reserved_ports'):
-        if port == None:
-            port = cls.free_port()
-        reserved_ports =  cls.get(var_path, {})
-        reserved_ports[str(port)] = {'time': cls.time()}
-        c.put(var_path, reserved_ports)
-        c.print(f'reserving {port}')
-        return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
-    
-    
-    resport = reserve_port
-    
-    @classmethod
-    def reserved_ports(cls,  var_path='reserved_ports'):
-        return list(map(int, c.get(var_path, {}).keys()))
-    resports = reserved_ports
-
     
 
     @classmethod
@@ -5245,37 +5187,8 @@ class c:
 
 
     @classmethod
-    def free_gpu_memory(cls, 
-                     max_gpu_ratio: float = 1.0 ,
-                     reserved_gpus: bool = False,
-                     buffer_memory: float = 0,
-                     fmt = 'b') -> Dict[int, float]:
-        import torch
-        free_gpu_memory = {}
-        
-        buffer_memory = c.resolve_memory(buffer_memory)
-        
-        gpu_info = cls.gpu_info_map()
-        gpus = [int(gpu) for gpu in gpu_info.keys()] 
-        
-        if  reserved_gpus != False:
-            reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
-            assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
-            
-            for r_gpu, r_gpu_memory in reserved_gpus.items():
-                gpu_info[r_gpu]['total'] -= r_gpu_memory
-               
-        for gpu_id, gpu_info in gpu_info.items():
-            if int(gpu_id) in gpus or str(gpu_id) in gpus:
-                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
-                if gpu_memory <= 0:
-                    continue
-                free_gpu_memory[gpu_id] = c.format_data_size(gpu_memory, fmt=fmt)
-        
-        assert sum(free_gpu_memory.values()) > 0, 'No free memory on any GPU, please reduce the buffer ratio'
-
-                
-        return cls.copy(free_gpu_memory)
+    def free_gpu_memory(cls, *args, **kwargs) -> Dict[int, float]:
+        return c.module('os').free_gpu_memory(*args, **kwargs)
     
     
     free_gpus = free_gpu_memory
@@ -5298,12 +5211,11 @@ class c:
         
         c.new_module(module=module, repo=repo)
         return {'module':module, 'repo':repo, 'status':'success'}
-        
     
-
     def new_modules(self, *modules, **kwargs):
         for module in modules:
             self.new_module(module=module, **kwargs)
+
     @classmethod
     def find_code_lines(cls,  search:str = None , module=None) -> List[str]:
         module_code = c.module(module).code()
@@ -5398,8 +5310,6 @@ class c:
             path2text[path] = text
             c.put_text(path, text)
             c.print(f'Created {path} :: {module}')
-
-        c.tree(update=1)
        
         assert c.module_exists(module), f'Failed to create module {module}'
         
@@ -7483,7 +7393,7 @@ class c:
 
             
             if not update:
-                result = cls.get(fn_name, default=None, **cache_params)
+                result = cls.get(fn_name, **cache_params)
                 if result != None:
                     return result
 
@@ -7806,7 +7716,7 @@ class c:
     @classmethod
     def rm_api_key(cls, api_key:str):
         assert isinstance(api_key, str)
-        api_keys = cls.get('api_keys', [])
+        api_keys = c.get(cls.resolve_path('api_keys'), [])
         for i in range(len(api_keys)):
             if api_key == api_keys[i]:
                 api_keys.pop(i)
@@ -7827,7 +7737,7 @@ class c:
 
     @classmethod
     def api_keys(cls):
-        return cls.get('api_keys', [])
+        return c.get(cls.resolve_path('api_keys'), [])
     
 
     @classmethod
@@ -7917,7 +7827,7 @@ class c:
 
     @classmethod
     def users(cls):
-        users = cls.get('users', {})
+        users = c.get(cls.resolve_path('users'), {})
         root_key_address  = c.root_key().ss58_address
         if root_key_address not in users:
             cls.add_admin(root_key_address)
