@@ -15,7 +15,7 @@ class Subnet(c.Module):
         
 
     @classmethod
-    def test(cls, n=3, sleep_time=1):
+    def testnet(cls, n=3, sleep_time=1):
         test_vali = 'subnet.vali::test'
         test_miners = [f'subnet.miner::test_{i}' for i in range(n)]
         for miner in test_miners:
@@ -34,5 +34,7 @@ class Subnet(c.Module):
         c.print(leaderboard)
         
         c.serve('subnet.miner::test')
+
+    test = testnet
 
     
