@@ -365,6 +365,7 @@ class c:
     @classmethod
     def sandbox(cls):
         c.cmd(f'python3 {c.libpath}/sandbox.py', verbose=True)
+        return 
     sand = sandbox
 
     @classmethod
@@ -3969,7 +3970,7 @@ class c:
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     
     @classmethod
-    def test(cls, module=None, timeout=60):
+    def test(cls, module=None, timeout=60, trials=3):
         module = module or cls.module_path()
         if c.module_exists(module + '.test'):
             c.print('FOUND TEST MODULE', color='yellow')
@@ -3983,15 +3984,12 @@ class c:
             future2fn[f] = fn
         fn2result = {}
         for f in c.as_completed(future2fn, timeout=timeout):
-
             fn = future2fn[f]
             result = f.result()
             c.print(f'{fn} result: {result}')
+            assert result['success'], f'{fn} failed, {result}'
             fn2result[fn] = result
         return fn2result
-
-        
-    
 
     ### TIME LAND ###
     

@@ -101,7 +101,29 @@ This repo is on the cutting edge of experimentation, so there may be some hiccup
 
 ## Module Filesystem
 
-The `module.py` file serves as an anchor, organizing future modules in what we call a module filesystem. For example, you can store a dataset module in `{PWD}/dataset/text`, which will have a path of `dataset.text`. The current limitation is to have a config where the name of the config is that of the Python object.
+The `module.py` file serves as an anchor, organizing future modules in what we call a module filesystem. The module filesystem is a mix of the commune's core modules with your local modules with respect to your PWD (parent working directory). This allows you to create a module in your local directory and have it be recognized by the commune. For instance if I have a file called `model.py` in my local directory, with the following code:
+
+```python
+
+import commune as c
+class Example(c.Module):
+    def __init__(self):
+        pass
+
+    def predict(self, x):
+        return x + 1
+```
+
+I can call it from the commune cli by running the following command:
+
+```bash
+c model/predict x=1
+```
+or 
+```python
+c.call('model/predict', x=1)
+```
+
 
 ## Subspace
 
@@ -166,3 +188,17 @@ c register my_module_path tag=1
 - Where can i find futher documentation? This repository folder, [Doc](https://github.com/commune-ai/commune/tree/main/docs).
 - Can I install on Windows? Yes, [Guide](https://github.com/OmnipotentLabs/communeaisetup).
 - Can I contribute? Absolutely! We are open to all contributions. Please feel free to submit a pull request.
+
+
+## Testing
+
+We use pytest for testing. To run the tests, simply run the following command:
+
+Make sure you install pytest
+```bash
+pip install pytest
+```
+
+```bash
+pytest commune
+``` 

@@ -38,7 +38,7 @@ class Plot(c.Module):
                     plot = plots[0]
             form = st.form(F'Params for {plot}')
             with form:
-                fig = getattr(self, 'st_plot_'+ plot)(df)
+                fig = getattr(self, 'plot_'+ plot)(df)
                 form.form_submit_button("Render")
         else:
             raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
@@ -83,7 +83,7 @@ class Plot(c.Module):
 
 
 
-    def st_plot_scatter3D(self, df=None):
+    def plot_scatter3D(self, df=None):
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
 
@@ -107,7 +107,7 @@ class Plot(c.Module):
         return fig
 
 
-    def st_plot_box(self, df=None):
+    def plot_box(self, df=None):
 
 
         df = df if isinstance(df, pd.DataFrame) else self.df
@@ -134,7 +134,7 @@ class Plot(c.Module):
         fig.update_layout(width=self.width, height=self.height, font_size=20)
         return fig
 
-    def st_plot_bar(self, df=None):
+    def plot_bar(self, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
@@ -162,7 +162,7 @@ class Plot(c.Module):
 
 
 
-    def st_plot_histogram(self, df=None):
+    def plot_histogram(self, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
@@ -189,7 +189,7 @@ class Plot(c.Module):
         return fig
 
 
-    def st_plot_heatmap(cls, df=None):
+    def plot_heatmap(cls, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)

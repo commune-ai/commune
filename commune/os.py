@@ -574,6 +574,11 @@ class OsModule(c.Module):
         assert os.path.exists(path2), path2
         assert not os.path.exists(path1), path1
         return {'success': True, 'msg': f'Moved {path1} to {path2}'}
+    
+    @classmethod
+    def sys_path(cls):
+        import sys
+        return sys.path
 
     
     

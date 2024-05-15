@@ -22,7 +22,7 @@ class StreamlitModule(c.Module):
     def streamlit_functions(self):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
     
-
+    
     def run(self, data, plots=None, default_plot  ='histogram', title=None ):
         self.cols= st.columns([1,3])
         plots = plots or self.plot_options()

@@ -8,8 +8,6 @@ class Template(c.Module):
             self.set_fn(obj)
         else:
             self.set_module(obj)
-
-
     def set_module(self, module):
         if module == None:
             return None

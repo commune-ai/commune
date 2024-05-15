@@ -1,7 +1,7 @@
 import commune as c
 
 class Subnet(c.m('vali')):
-    def __init__(self, network='local', search='subnet', **kwargs):
+    def __init__(self, network='local', search='add', **kwargs):
         self.init_vali(locals())
 
     def score_module(self, module):
@@ -14,10 +14,10 @@ class Subnet(c.m('vali')):
             return 0
         
     def test(self, n=3, sleep_time=3):
-        test_miners = ['subnet.miner::test' for i in range(n)]
+        test_miners = ['subnet.miner.add::test' for i in range(n)]
         for miner in test_miners:
             c.serve(miner)
-        test_vali = 'subnet.vali::test'
+        test_vali = 'subnet.vali.add::test'
         for miner in test_miners:
             c.serve(test_vali, kwargs={'network': 'local'})
         
