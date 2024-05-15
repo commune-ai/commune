@@ -70,8 +70,8 @@ class cli(c.Module):
         if callable(fn):
             output = fn(*args, **kwargs)
 
-
         return output
+        
 
 
     @classmethod

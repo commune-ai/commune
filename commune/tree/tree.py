@@ -60,8 +60,9 @@ class Tree(c.Module):
                 max_age = None, **kwargs
                 ) -> List[str]:
         
-        tree = cls.resolve_tree(tree)
+        tree_path = cls.resolve_path(tree)
         module_tree = {}
+        tree = cls.resolve_tree(tree)
         path = cls.resolve_path(f'{tree}/tree')
         max_age = 0 if update else max_age
         module_tree =  c.get(path, {}, max_age=max_age)

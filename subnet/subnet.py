@@ -1,4 +1,6 @@
 import commune as c
+import pandas as pd
+
 
 class Subnet(c.Module):
     def score_module(self, module):
@@ -12,7 +14,8 @@ class Subnet(c.Module):
             return 0
         
 
-    def test(self, n=3, sleep_time=3):
+    @classmethod
+    def test(cls, n=3, sleep_time=1):
         test_vali = 'subnet.vali::test'
         test_miners = [f'subnet.miner::test_{i}' for i in range(n)]
         for miner in test_miners:
@@ -23,6 +26,8 @@ class Subnet(c.Module):
         c.sleep(sleep_time)
 
         leaderboard = c.call(test_vali+'/leaderboard')
+        assert isinstance(leaderboard, pd.DataFrame), leaderboard
+        assert len(leaderboard) == n, leaderboard
 
 
 
