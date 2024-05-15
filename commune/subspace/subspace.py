@@ -1447,22 +1447,35 @@ class Subspace(c.Module):
     
     resolve_net = resolve_subnet = resolve_netuid
 
-
     def key2name(self, key: str = None, netuid: int = None) -> str:
         modules = self.keys()
         key2name =  { m['key']: m['name']for m in modules}
         if key != None:
             return key2name[key]
-        
-    def name2uid(self, netuid: int = 0, network: str = 'main') -> int:
+    @staticmethod
+    def search_dict(x, search=None):
+        if search != None:
+            x = {k:v for k,v in x.items() if search in k}
+        return x
+              
+    def name2uid(self, name = None, netuid: int = 0, search=None, network: str = 'main') -> int:
         netuid = self.resolve_netuid(netuid)
         uid2name = self.uid2name(netuid=netuid, network=network)
+
         if netuid == 'all':
-            uid2name = {}
+            netuid2name2uid = {}
             for netuid, netuid_uid2name in uid2name.items():
-                uid2name[netuid] = netuid_uid2name
+                name2uid = self.search_dict(netuid_uid2name)
+                if name != None:
+                    name2uid = name2uid[name] 
+                netuid2name2uid[netuid] = name2uid
+            return netuid2name2uid
+            
         else:
-            name2uid =  {v:k for k,v in uid2name.items()}
+            name2uid =  self. search_dict({v:k for k,v in uid2name.items()}, search=search)
+            if name != None:
+                return name2uid[name] 
+            
         return name2uid
 
     @classmethod

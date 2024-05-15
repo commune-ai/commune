@@ -1,19 +1,16 @@
 import commune as c
+import plotly.express as px
+import pandas as pd
+
 
 class Plotly(c.Module):
 
-    def call(self, x:int = 1, y:int = 2) -> int:
-        c.print(self.config.sup)
-        c.print(self.config, 'This is the config, it is a Munch object')
-        return x + y
     @classmethod
     def treemap( cls,
                 labels:list = ['Category A', 'Category B', 'Category C', 'Other'] ,
                 values:list = [10.1, 9.71, 9.36, 71.83], 
                 title:str = 'Treemap', 
                 font_size:int = 40):
-        import plotly.express as px
-        import pandas as pd
 
         # Assuming we have the same dataset as before
         data = {
@@ -38,11 +35,11 @@ class Plotly(c.Module):
         return fig
     
 
-    def plot(self, chart="scatter") -> int:
-        import plotly.express as px
-        df = px.data.iris()
+    def plot(self, df=None, chart="scatter", x="sepal_width", y="sepal_length") -> int:
+        df = df or px.data.iris()
+        if not isinstance(df, pd.DataFrame):
+            df = pd.DataFrame(df)
         plot = getattr(px, chart)
-        fig = plot(df, x="sepal_width", y="sepal_length")
         fig.show()
         # Show the
     @classmethod
@@ -52,9 +49,6 @@ class Plotly(c.Module):
             title:str = 'Pie Chart', 
             font_size:int = 20, 
             showlegend: int = False):
-        import plotly.express as px
-        import pandas as pd
-
         # Assuming we have the same dataset as before
         data = {
             'labels': labels,
@@ -77,14 +71,30 @@ class Plotly(c.Module):
         fig.data[0].textfont = {'size': font_size}
         # remove legend
         fig.update_layout(showlegend=showlegend)
-        return fig.show()
+        return fig
 
         # Show the
     
     def histogram(self, chart="scatter") -> int:
-        import plotly.express as px
         df = px.data.iris()
         plot = getattr(px, chart)
         fig = plot(df, x="sepal_width", y="sepal_length")
-        fig.show()
-        # Show the
+        return fig
+
+
+    def app(self):
+        import streamlit as st
+
+        c.print('This is the app')
+        self.plot()
+        self.pie()
+        self.treemap()
+        self.histogram()
+        return 1
+    
+
+
+
+
+Plotly.run(__name__)
+        
