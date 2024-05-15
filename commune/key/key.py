@@ -963,6 +963,7 @@ class Keypair(c.Module):
     def signature2address(self, sig, **kwargs):
         return self.verify(sig, return_address=True, **kwargs)
     sig2addy = signature2address
+
     
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
@@ -972,6 +973,7 @@ class Keypair(c.Module):
                seperator = seperator,
                ss58_format = 42,
                max_age = None,
+               address = None,
                **kwargs
                ) -> bool:
         """
@@ -1005,9 +1007,14 @@ class Keypair(c.Module):
             
             if not isinstance(data, str):
                 data = c.python2str(data)
-            
+
+        if address != None:
+            public_key = c.ss58_decode(address)
         if public_key == None:
-            public_key = self.public_key
+            public_key = public_key or self.public_key
+        else:
+            if self.is_ss58(public_key):
+                public_key = c.ss58_decode(public_key)
 
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
