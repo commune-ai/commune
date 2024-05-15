@@ -1257,27 +1257,9 @@ class c:
         for port in range(*port_range):
             used_ports[port] = self.port_used(port)
         return used_ports
-
-
     @classmethod
     def kill_port(cls, port:int, mode='bash')-> str:
-   
-        if not c.port_used(port):
-            return {'success': True, 'msg': f'port {port} is not in use'}
-        if mode == 'python':
-            import signal
-            from psutil import process_iter
-            '''
-            Kills the port {port} on the localhost
-            '''
-            for proc in process_iter():
-                for conns in proc.connections(kind='inet'):
-                    if conns.laddr.port == port:
-                        proc.send_signal(signal.SIGKILL) # or SIGKILL
-            return port
-        elif mode == 'bash':
-            c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
-        return {'success': True, 'msg': f'killed port {port}'}
+        return c.module('os').kill_port(port=port, mode=mode)
 
     @classmethod
     def pm2_restart_all(cls):

@@ -30,4 +30,4 @@ print_interval: 5 # the sleep interval between sending samples
 vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
 
 # logging
-verbose: False # the verbosity of the logging
+verbose: True # the verbosity of the logging
