@@ -10,7 +10,12 @@ class Watchdog(c.Module):
         c.tree(update=1)
         c.namespace(update=1)
         c.print('synced')
-    def run_loop(self, sleep_time=60):
+        self.subspace = c.module('subspace')
+        self.subspace.stake_from(netuid='all')
+
+
+
+    def run_loop(self, sleep_time=30):
         while True:
             try:
                 self.sync()

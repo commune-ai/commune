@@ -313,8 +313,6 @@ class OsModule(c.Module):
     @classmethod
     def mv(cls, path1, path2):
         import shutil
-        path1 = cls.resolve_path(path1)
-        path2 = cls.resolve_path(path2)
         assert os.path.exists(path1), path1
         if not os.path.isdir(path2):
             path2_dirpath = os.path.dirname(path2)
@@ -563,5 +561,19 @@ class OsModule(c.Module):
             else:
                 content = content_bytes.decode()
         return content
+    
+
+    @classmethod
+    def mv(cls, path1, path2):
+        assert os.path.exists(path1), path1
+        if not os.path.isdir(path2):
+            path2_dirpath = os.path.dirname(path2)
+            if not os.path.isdir(path2_dirpath):
+                os.makedirs(path2_dirpath, exist_ok=True)
+        shutil.move(path1, path2)
+        assert os.path.exists(path2), path2
+        assert not os.path.exists(path1), path1
+        return {'success': True, 'msg': f'Moved {path1} to {path2}'}
+
     
     

@@ -1,39 +1,13 @@
 
 # network
-network: subspace
-netuid: 0 # optional if you have a voting network with subnets [bittensor, commune]
-verbose: False
-sync_interval: 30
-last_eval_interval: 30 # the minimum interval to update the network
-print_interval: 5 # the sleep interval between sending samples
+network: subspace # the network to connect to (bittensor, commune, local) to specify subnet, (subspace.0 or subspace.text)
+netuid: 0 # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
+sync_interval: 60
 sample_interval: 0.005 # the sleep interval between sending samples
-initial_sleep : 5 # the initial sleep time before running the loop
 search: null # the search for modules in the namespace
-max_age_info: 3600 # the maximum age of the info
-max_leaderboard_age: 3600 # the maximum age of the leaderboard 
-vote: True # whether to vote or not
-subnet : null # the subnet to connect to
 fn : null # the function to filter
-max_age_network: 3600 # the maximum age of the network
-alpha: 0.0 # the ma average
-worker_fn_name: worker
-# voting 
-vote: True
-min_stake: 1
-vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
-vote_timeout: 50 # the timeout for the vote (in blocks)
-voting_networks: ['subspace', 'bittensor']
 
-# stats
-max_history: 10
-
-# score
-connect_score: 0.1 
-latency_score_weight: 0.2
-alpha: 0.5 # the ma average
-vote_tag : null 
-
-# workers
+# epoch
 mode: thread
 batch_size: 64 # the batch size for the worker
 workers: 1 # the number of workers
@@ -44,9 +18,16 @@ refresh : True
 start: True
 is_main_worker: True
 debug: False
-min_num_weights: 1
-max_num_weights: 1000
+min_update_interval: 30 # the minimum interval to update the network
+alpha: 0.5 # the ma average
+max_leaderboard_age: 3600 # the maximum age of the leaderboard 
+max_history: 10
 
 
+# run loop
+initial_sleep : 5 # the initial sleep time before running the loop
+print_interval: 5 # the sleep interval between sending samples
+vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
 
-
+# logging
+verbose: False # the verbosity of the logging

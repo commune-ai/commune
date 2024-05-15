@@ -12,8 +12,9 @@ import sys
 import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
-import warnings
 import nest_asyncio
+import random
+
 nest_asyncio.apply()
 
 # AGI BEGINS 
@@ -27,7 +28,6 @@ class c:
                 'blacklist',
                 'fns'] # whitelist of helper functions to load
     cost = 1
-
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
@@ -103,12 +103,12 @@ class c:
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
 
-        
         self.config = config 
         self.kwargs = kwargs
-        
+
         if save_config:
             self.save_config(config=config)
+            
         return self.config
 
 
@@ -122,65 +122,16 @@ class c:
     def key(self, key: 'Key'):
         self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
-
-
-    
     
     @classmethod
-    def call(cls, module : str, 
-                fn:str = None,
-                *args,
-                timeout : int = 10,
-                prefix_match:bool = False,
-                network:str = 'local',
-                key:str = None,
-                kwargs = None,
-                params = None,
-                **extra_kwargs) -> None:
-          
-        if '//' in module:
-            module = module.split('//')[-1]
-        if '/' in module:
-            # adjust the split
-            if fn != None:
-                args = [fn] + list(args)
-            module , fn = module.split('/')
-
-        module = c.connect(module,
-                           network=network,  
-                           prefix_match=prefix_match, 
-                           virtual=False, 
-                           key=key)
-        
-        # if isinstance(kwargs, str):
-        #     kwargs = c.str2dict(kwargs)
-        if kwargs == None:
-            kwargs = {}
-        
-        c.print(kwargs)
-        kwargs.update(extra_kwargs)
-        
-
-        return  asyncio.run(module.async_forward(fn=fn, 
-                                                 args=args, 
-                                                 kwargs=kwargs, 
-                                                 params=params))
+    def call(cls, *args, **kwargs) -> None:
+        return c.module('client').call( *args, **kwargs)
 
     @classmethod
     async def async_call(cls, *args,**kwargs):
         return c.call(*args, **kwargs)
 
-    @classmethod
-    def fn2async(cls, fn:Callable, args=None, kwargs=None, **extra_kwargs):
-        args = args or []
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs)
-        async def async_fn():
-            return fn(*args, **kwargs)
-        return async_fn()
 
-
-    
     @classmethod
     def call_search(cls,*args, **kwargs) -> None:
         return c.m('client').call_search(*args, **kwargs)
@@ -706,10 +657,8 @@ class c:
         '''
         Set the config as well as its local params
         '''
-        has_config =  cls.has_config()
-
         # THIS LOADS A YAML IF IT EXIST, OR IT USES THE INIT KWARGS IF THERE IS NO YAML
-        if has_config:
+        if cls.has_config():
             default_config = cls.load_config(to_munch=False)
         else: 
             default_config = cls.init_kwargs()
@@ -902,21 +851,31 @@ class c:
         return c.module('os').cmd( *args, **kwargs)
     run_command = shell = cmd 
 
+ 
+
+    @classmethod
+    def sys_path(cls, *args, **kwargs):
+        return c.module('os').sys_path(*args, **kwargs)
+
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
         try:
             return import_module(import_path)
         except Exception as e:
-            c.print(e)
             import sys
             sys.path.append(c.pwd())
             return import_module(import_path)
-
-
-    @classmethod
-    def sys_path(cls, *args, **kwargs):
-        return c.module('os').sys_path(*args, **kwargs)
+        
+    def can_import_module(self, module:str) -> bool:
+        '''
+        Returns true if the module is valid
+        '''
+        try:
+            c.import_module(module)
+            return True
+        except:
+            return False
 
     @classmethod
     def import_object(cls, key:str, verbose: bool = False)-> Any:
@@ -1087,7 +1046,7 @@ class c:
         '''
     
         if path == None:
-            return cls.tmp_dir()
+            return cls.storage_dir()
         
 
 
@@ -1100,10 +1059,10 @@ class c:
         else:
             # if it is a relative path, then it is relative to the module path
             # ex: 'data' -> '.commune/path_module/data'
-            tmp_dir = cls.tmp_dir()
+            storage_dir = cls.storage_dir()
 
-            if tmp_dir not in path:
-                path = os.path.join(tmp_dir, path)
+            if storage_dir not in path:
+                path = os.path.join(storage_dir, path)
             if not os.path.isdir(path):
                 if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
@@ -1202,13 +1161,7 @@ class c:
         
         assert start_value != None, 'start_value must be provided'
         assert end_value != None, 'end_value must be provided'
-        import random
         return random.randint(start_value, end_value)
-        
-
-
-        return random.randint(args[0], args[1])
-
     
     @classmethod
     def ports(cls, ip='0.0.0.0') -> List[int]:
@@ -1460,8 +1413,8 @@ class c:
                    cache=True,
                    trials = 3,
                    tree = 'commune',
-                   path2objectpath = {'tree': 'commune.tree.tree.Tree'},
-                   verbose=1) -> str:
+                   verbose = 0,
+                   path2objectpath = {'tree': 'commune.tree.tree.Tree'}) -> str:
         """
         params: 
             path: the path to the module
@@ -1472,21 +1425,21 @@ class c:
         tree = tree or 'commune'
         module = None
         cache_key = f'{tree}_{path}'
+        t0 = c.time()
 
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
             if module != None:
                 return module
-            
+
         try:
             if path in path2objectpath:
                 object_path = path2objectpath[path]
             else:
                 object_path = c.simple2objectpath(path)
+
             module = c.import_object(object_path)
         except Exception as e:
-            raise e
-            c.print(f'Error: {e}', color='red')
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
@@ -1494,6 +1447,9 @@ class c:
             module = c.get_module(path, cache=cache, tree=tree, verbose=verbose, trials=trials-1)                
         if cache:
             c.module_cache[cache_key] = module
+
+        if verbose:
+            c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
 
         return module
 
@@ -1693,17 +1649,12 @@ class c:
 
     @classmethod
     def has_config(cls) -> bool:
-        config_path = cls.config_path()
-        return c.exists(config_path)
+        return c.exists(cls.config_path())
   
     @classmethod
     def has_module(cls, module):
         return module in c.modules()
         
-    @classmethod
-    def valid_module(cls,module,**kwargs ):
-        modules = c.servers(module, **kwargs)
-        return bool(len(modules) > 0)
     @classmethod
     def Vali(cls, *args, **kwargs):
         return c.module('vali')
@@ -1831,14 +1782,12 @@ class c:
 
         assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
-
         # These lines are needed to remove the self and cls from the locals_dict
         for k in kwargs_keys:
             kwargs.update( locals_dict.pop(k, {}) or {})
 
         return kwargs
     
-
     get_kwargs = get_params = locals2kwargs 
         
     @classmethod
@@ -1850,18 +1799,18 @@ class c:
         return list(obj.__mro__[1:-1])
 
     @classmethod
-    def tmp_dir(cls):
+    def storage_dir(cls):
         return f'{c.cache_path()}/{cls.module_path()}'
-    storage_dir = tmp_dir
+    tmp_dir = cache_dir   = storage_dir
     
     @classmethod
     def refresh_storage(cls):
-        c.rm(cls.tmp_dir())
+        c.rm(cls.storage_dir())
 
     @classmethod
-    def refresh_tmp_dir(cls):
-        c.rm(cls.tmp_dir())
-        c.makedirs(cls.tmp_dir())
+    def refresh_storage_dir(cls):
+        c.rm(cls.storage_dir())
+        c.makedirs(cls.storage_dir())
         
 
     ############ JSON LAND ###############
@@ -2003,7 +1952,7 @@ class c:
     def rm_all(cls):
         for path in cls.ls():
             cls.rm(path)
-        return {'success':True, 'message':f'{cls.tmp_dir()} removed'}
+        return {'success':True, 'message':f'{cls.storage_dir()} removed'}
         
 
     @classmethod
@@ -2029,13 +1978,13 @@ class c:
     
     @classmethod
     def rm_all(cls):
-        tmp_dir = cls.tmp_dir()
-        if c.exists(tmp_dir):
-            cls.rm(tmp_dir)
-        assert not c.exists(tmp_dir), f'{tmp_dir} was not removed'
-        c.makedirs(tmp_dir)
-        assert c.is_dir_empty(tmp_dir), f'{tmp_dir} was not removed'
-        return {'success':True, 'message':f'{tmp_dir} removed'}
+        storage_dir = cls.storage_dir()
+        if c.exists(storage_dir):
+            cls.rm(storage_dir)
+        assert not c.exists(storage_dir), f'{storage_dir} was not removed'
+        c.makedirs(storage_dir)
+        assert c.is_dir_empty(storage_dir), f'{storage_dir} was not removed'
+        return {'success':True, 'message':f'{storage_dir} removed'}
 
     def is_dir_empty(self, path:str):
         return len(self.ls(path)) == 0
@@ -2622,7 +2571,6 @@ class c:
               free: bool = False,
               mnemonic = None, # mnemonic for the server
               key = None,
-              config_keys = ['network'],
               **extra_kwargs
               ):
         if c.is_module(module):
@@ -2660,11 +2608,7 @@ class c:
         kwargs.update(extra_kwargs)
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
-        if module_class.is_arg_key_valid('tag', fn='__init__'):
-            kwargs['tag'] = tag
-        if module_class.is_arg_key_valid('server_name', fn='__init__'):
-            kwargs['server_name'] = server_name
-
+            
         self = module_class(**kwargs)
         self.server_name = name
         self.tag = tag
@@ -4295,16 +4239,7 @@ class c:
             kwargs.update(kwargs.pop('kwargs',{}))
             return fn(*args, **kwargs)
         return _asubmit()
-    
-    fn2async = asubmit
-    
-    @classmethod
-    def root_key2address(cls, search='module'):
-        return c.key2address(search)
-    
-    @classmethod
-    def root_balances(cls, search='module'):
-        return 
+
     
     @classmethod
     def address2key(cls,*args, **kwargs ):
@@ -4812,8 +4747,6 @@ class c:
                 
         c.put('port_range', port_range)
         return port_range
-    
-    
     
     
     @classmethod
@@ -5615,13 +5548,11 @@ class c:
     rfn = remote_fn
     @classmethod
     def choice(cls, options:Union[list, dict])->list:
-        import random
         options = c.copy(options) # copy to avoid changing the original
         if len(options) == 0:
             return None
         if isinstance(options, dict):
             options = list(options.values())
-
         assert isinstance(options, list),'options must be a list'
         return random.choice(options)
 
@@ -5651,21 +5582,16 @@ class c:
     colours = colors
     @classmethod
     def random_color(cls):
-        import random
         return random.choice(cls.colors())
     randcolor = randcolour = colour = color = random_colour = random_color
 
     @classmethod
     def random_float(cls, min=0, max=1):
-        import random
         return random.uniform(min, max)
 
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
-        
-        
-        import random
         if type(x) in [float, int]:
             x = list(range(int(x)))
         assert len(x)>0
@@ -5688,14 +5614,12 @@ class c:
     def obj2typestr(cls, obj):
         return str(type(obj)).split("'")[1]
 
-
     @classmethod
     def is_coroutine(cls, future):
         """
         returns True if future is a coroutine
         """
         return cls.obj2typestr(future) == 'coroutine'
- 
 
     @classmethod
     def as_completed(cls , futures:list, timeout:int=10, **kwargs):
@@ -5752,7 +5676,6 @@ class c:
             
         return get_results(futures)
     
-
     @staticmethod
     def address2ip(address:str) -> str:
         return str('.'.join(address.split(':')[:-1]))
@@ -5762,7 +5685,6 @@ class c:
         import concurrent.futures
         return concurrent.futures.as_completed(futures, timeout=timeout, **kwargs)
 
-    
     @classmethod
     def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
 
@@ -5806,8 +5728,8 @@ class c:
         results = []
         for gather_result in gather_results:
             results += gather_result
-        
         return results
+    
     @classmethod
     def addresses(cls, *args, **kwargs) -> List[str]:
         return list(c.namespace(*args,**kwargs).values())
@@ -5827,35 +5749,6 @@ class c:
         else:
             raise NotImplemented
         
-
-    @staticmethod
-    def is_ss58(address):
-        # Check address length
-        if len(address) != 47:
-            return False
-        
-        # Check prefix
-        network_prefixes = ['1', '2', '5', '7']  # Add more prefixes as needed
-        if address[0] not in network_prefixes:
-            return False
-        
-        # Verify checksum
-        encoded = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-        address_without_checksum = address[:-1]
-        checksum = address[-1]
-        address_hash = 0
-        for char in address_without_checksum:
-            address_hash = address_hash * 58 + encoded.index(char)
-        
-        # Calculate the expected checksum
-        expected_checksum = encoded[address_hash % 58]
-        
-        # Compare the expected checksum with the provided checksum
-        if expected_checksum != checksum:
-            return False
-        
-        return True
- 
     @staticmethod
     def is_mnemonic(s: str) -> bool:
         import re
@@ -5863,7 +5756,6 @@ class c:
         pattern = r'^(\w+\s){11}\w+(\s\w+){11}$|^(\w+\s){23}\w+$'
         return bool(re.match(pattern, s))
 
-        
     @staticmethod   
     def is_private_key(s: str) -> bool:
         import re
@@ -5871,22 +5763,11 @@ class c:
         pattern = r'^[0-9a-fA-F]{64}$'
         return bool(re.match(pattern, s))
 
-        
     @classmethod
     def mv(cls, path1, path2):
-        import shutil
         path1 = cls.resolve_path(path1)
         path2 = cls.resolve_path(path2)
-        assert os.path.exists(path1), path1
-        if not os.path.isdir(path2):
-            path2_dirpath = os.path.dirname(path2)
-            if not os.path.isdir(path2_dirpath):
-                os.makedirs(path2_dirpath, exist_ok=True)
-        shutil.move(path1, path2)
-        assert os.path.exists(path2), path2
-        assert not os.path.exists(path1), path1
-        return {'success': True, 'msg': f'Moved {path1} to {path2}'}
-
+        return c.module('os').mv(path1, path2)
 
     @classmethod
     def cp(cls, path1:str, path2:str, refresh:bool = False):
@@ -5959,7 +5840,6 @@ class c:
     
     @classmethod
     def shuffle(cls, x:list)->list:
-        import random
         if len(x) == 0:
             return x
         random.shuffle(x)
@@ -6503,7 +6383,6 @@ class c:
         for param_info in fn_signature.values():
             if param_info.kind._name_ == 'VAR_KEYWORD':
                 return True
-        
         return False
 
     @staticmethod
@@ -6512,12 +6391,9 @@ class c:
 
     @classmethod
     def fn_defaults(cls, fn):
-
         """
         Gets the function defaults
         """
-
-        
         fn = cls.get_fn(fn)
         function_defaults = dict(inspect.signature(fn)._parameters)
         for k,v in function_defaults.items():

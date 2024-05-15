@@ -45,7 +45,7 @@ class PM2(c.Module):
     def kill(cls, name:str, verbose:bool = False, **kwargs):
         if name == 'all':
             return cls.kill_all(verbose=verbose)
-        cls.cmd(f"pm2 delete {name}", verbose=False)
+        c.cmd(f"pm2 delete {name}", verbose=False)
         # remove the logs from the pm2 logs directory
         cls.rm_logs(name)
         return {'success':True, 'message':f'Killed {name}'}

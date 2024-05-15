@@ -283,6 +283,8 @@ class Tree(c.Module):
             object_path = object_path[1:]
         object_path = object_path + '.' + classes[-1]
         return object_path
+    
+    
 
 
 

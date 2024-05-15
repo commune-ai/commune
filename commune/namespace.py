@@ -17,11 +17,13 @@ class Namespace(c.Module):
     def namespace(cls, search=None,
                    network:str = 'local',
                      update:bool = False, 
-                     public:bool = True, 
-                     netuid=0, 
+                     public:bool = False, 
+                     netuid=None, 
                      max_age:int = None, **kwargs) -> dict:
         
         network = network or 'local'
+        if netuid != None:
+            network = f'subspace.{netuid}'
         
         path = network 
         
@@ -43,7 +45,8 @@ class Namespace(c.Module):
                                                  **kwargs)
         elif network == 'local':
             if update or namespace == None:
-                namespace = cls.build_namespace(network=network)     
+                namespace = cls.build_namespace(network=network)  
+   
         namespace = {} if namespace == None else namespace
         
         if search != None:
@@ -53,6 +56,10 @@ class Namespace(c.Module):
 
         if public:
             namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
+        
+        if network == 'local':
+            to_local_ip = lambda x: '0.0.0.0:' + x.split(':')[-1]
+            namespace = {k:to_local_ip(v) for k,v in namespace.items() }
         
         namespace = {k:v for k,v in sorted(namespace.items(), key=lambda x: x[0])}
         

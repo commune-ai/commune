@@ -19,7 +19,7 @@ class Access(c.Module):
                 state_path = f'state_path', # the path to the state
                 refresh: bool = False,
                 stake_from_weight = 1.0, # the weight of the staker
-                max_age = 600, # max age of the state in seconds
+                max_age = 30, # max age of the state in seconds
                 sync_interval: int =  60, #  1000 seconds per sync with the network
 
                 **kwargs):
@@ -39,7 +39,7 @@ class Access(c.Module):
 
         c.thread(self.run_loop)
 
-
+        
     def set_module(self, module: c.Module):
         module = module or c.module('module')()
         if isinstance(module, str):

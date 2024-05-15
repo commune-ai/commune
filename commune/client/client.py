@@ -253,6 +253,40 @@ class Client(c.Module):
         
 
 
+    @classmethod
+    def call(cls, module : str, 
+                fn:str = None,
+                *args,
+                timeout : int = 10,
+                prefix_match:bool = False,
+                network:str = 'local',
+                key:str = None,
+                kwargs = None,
+                params = None,
+                **extra_kwargs) -> None:
+          
+        if '//' in module:
+            module = module.split('//')[-1]
+        if '/' in module:
+            # adjust the split
+            if fn != None:
+                args = [fn] + list(args)
+            module , fn = module.split('/')
+
+        module = cls.connect(module,
+                           network=network,  
+                           prefix_match=prefix_match, 
+                           virtual=False, 
+                           key=key)
+        # if isinstance(kwargs, str):
+        #     kwargs = c.str2dict(kwargs)
+        if kwargs == None:
+            kwargs = {}
+        kwargs.update(extra_kwargs)
+        return  asyncio.run(module.async_forward(fn=fn, 
+                                                 args=args, 
+                                                 kwargs=kwargs, 
+                                                 params=params))
     
     
     @classmethod
@@ -263,25 +297,24 @@ class Client(c.Module):
                 network:str = 'local',
                 key:str = None,
                 kwargs = None,
-                return_future:bool = False,
                 **extra_kwargs) -> None:
         if '/' in search:
             search, fn = search.split('/')
         namespace = c.namespace(search=search, network=network)
         future2module = {}
         for module, address in namespace.items():
-            future = c.submit(c.call,
-                                args = list(args),
-                      
-                               kwargs = { 'module': module, 'fn': fn, 'timeout': timeout, 
+            c.print(f"Calling {module}/{fn}", color='green')
+            future = c.submit(cls.call,
+                               args = [module, fn] + list(args),
+                               kwargs = {'timeout': timeout, 
                                          'network': network, 'key': key, 
                                          'kwargs': kwargs,
-                                         **extra_kwargs} )
+                                         **extra_kwargs} , timeout=timeout)
             future2module[future] = module
         futures = list(future2module.keys())
         result = {}
         progress_bar = c.tqdm(len(futures))
-        for future in c.as_completed(futures):
+        for future in c.as_completed(futures, timeout=timeout):
             module = future2module.pop(future)
             futures.remove(future)
             progress_bar.update(1)
@@ -335,4 +368,7 @@ class Client(c.Module):
         c.print(c.server_exists(module))
         c.print('Module started')
 
-        c.print(c.call(module+'/info'))
+        info = c.call(module+'/info')
+        key  = c.get_key(module)
+        assert info['ss58_address'] == key.ss58_address
+        return {'info': info, 'key': str(key)}

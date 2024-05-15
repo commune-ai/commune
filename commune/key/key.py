@@ -269,6 +269,7 @@ class Keypair(c.Module):
 
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):
+        path = cls.resolve_path(path)
         c.print(f'saving mems to {path}')
         mems = cls.mems()
         c.put_json(path, mems)
@@ -1547,6 +1548,34 @@ class Keypair(c.Module):
         assert not self.key_exists('testto')
         return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
 
+    @staticmethod
+    def is_ss58(address):
+        # Check address length
+        if len(address) != 47:
+            return False
+        
+        # Check prefix
+        network_prefixes = ['1', '2', '5', '7']  # Add more prefixes as needed
+        if address[0] not in network_prefixes:
+            return False
+        
+        # Verify checksum
+        encoded = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+        address_without_checksum = address[:-1]
+        checksum = address[-1]
+        address_hash = 0
+        for char in address_without_checksum:
+            address_hash = address_hash * 58 + encoded.index(char)
+        
+        # Calculate the expected checksum
+        expected_checksum = encoded[address_hash % 58]
+        
+        # Compare the expected checksum with the provided checksum
+        if expected_checksum != checksum:
+            return False
+        
+        return True
+ 
     
 Keypair.run(__name__)
 
