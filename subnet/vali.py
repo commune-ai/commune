@@ -13,7 +13,8 @@ class Subnet(c.m('vali')):
         else:
             return 0
         
-    def test(self, n=3, sleep_time=3):
+    def test(self, n=3, sleep_time=3, min_update_interval=0):
+        self.config.min_update_interval
         test_miners = ['subnet.miner.add::test' for i in range(n)]
         for miner in test_miners:
             c.serve(miner)

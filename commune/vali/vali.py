@@ -10,6 +10,7 @@ class Vali(c.Module):
     errors = 0
     requests = 0
     successes = 0  
+    epochs = 0
     voting_networks: ['subspace', 'bittensor']
     score_fns = ['score_module', 'score'] # the score functions
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
@@ -21,6 +22,7 @@ class Vali(c.Module):
         self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, module=None, score_fn=None, **kwargs):
+
 
         if score_fn != None:
             self.set_score_fn(score_fn)
@@ -97,6 +99,23 @@ class Vali(c.Module):
 
     def age(self):
         return c.time() - self.start_time
+    
+
+    def process_result(self, result):
+        w = result.get('w', 0)
+        address = result.get('address', 'unknown')
+        name = result.get('name', 'unknown')
+        c.print(f'<Result>:: {name}({address}) --> {w}', color='purple', verbose=self.config.verbose or self.config.debug)
+        if c.is_error(result):
+            self.epoch_info['errors'] += 1
+        else:
+                    # record the success statistics
+            if result.get('w', 0) > 0:
+                self.epoch_info['successes'] += 1
+                self.epoch_info['last_success'] = c.time()
+            else:
+                self.epoch_info['errors'] += 1
+        return result
 
 
     def worker(self, 
@@ -104,7 +123,14 @@ class Vali(c.Module):
                id=0):
         for epoch in range(int(epochs)): 
             try:
+                t0 = c.time()
                 self.epoch()
+                t1 = c.time()
+                latency = t1 - t0
+                if latency < self.config.min_update_interval:
+                    sleep_time = (self.config.min_update_interval - latency)
+                    c.print(f'Sleeping for {sleep_time} seconds', color='yellow')
+                    c.sleep(sleep_time)
             except Exception as e:
                 c.print('Dawg, theres an error in the epoch')
                 c.print(c.detailed_error(e))
@@ -118,10 +144,23 @@ class Vali(c.Module):
 
 
     def epoch(self, batch_size = None, network=None, **kwargs):
+
+        self.epochs += 1
         
+        if not hasattr(self, 'epoch_info'):
+            self.epoch_info = {
+                'requests': 0,
+                'errors': 0,
+                'successes': 0,
+                'last_sent': 0,
+                'last_success': 0,
+                'batch_size': 0,
+                'epochs': self.epochs,
+                }
         futures = []
         results = []
         module_addresses = c.shuffle(list(self.namespace.values()))
+        c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses))
         self.executor = c.module('executor.thread')(max_workers=batch_size)
         batch_size = self.config.batch_size
@@ -137,6 +176,7 @@ class Vali(c.Module):
                 continue
             futures.append(self.executor.submit(self.eval, args=[module_address],timeout=self.config.timeout))
             self.epoch_info['last_sent'] = c.time()
+            self.epoch_info['requests'] = len(futures)
             self.address2last_update[module_address] = self.epoch_info['last_sent']
 
 
@@ -144,17 +184,8 @@ class Vali(c.Module):
                 try:
                     for future in c.as_completed(futures, timeout=self.config.timeout):
                         result = future.result()
-                        c.print(result, verbose=self.config.debug or self.config.verbose)
                         futures.remove(future)
-                        if c.is_error(result):
-                            c.print('ERROR', result, verbose=self.config.verbose)
-                            self.errors += 1
-                        else:
-                                    # record the success statistics
-                            if result.get('w', 0) > 0:
-                                self.epoch_info['successes'] += 1
-                                self.epoch_info['last_success'] = c.time()
-                            
+                        result = self.process_result(result)
                         results += [result]  
                         break
                 except Exception as e:
@@ -165,20 +196,12 @@ class Vali(c.Module):
                 for future in c.as_completed(futures, timeout=self.config.timeout):
                     futures.remove(future) # remove the future
                     result = future.result() # result 
+                    result = self.process_result(result)
                     results += [result]  
             except Exception as e:
                 c.print('ERROR',c.detailed_error(e))
         return results
         
-    epoch_info = {
-        'requests': 0,
-        'errors': 0,
-        'successes': 0,
-        'last_sent': 0,
-        'last_success': 0,
-        'batch_size': 0,
-    }
-
     def network_staleness(self):
         # return the time since the last sync with the network
         return c.time() - self.last_sync_time
@@ -250,20 +273,7 @@ class Vali(c.Module):
     @property
     def verbose(self):
         return self.config.verbose or self.config.debug
-    
 
-    def process_response(self, response:dict):
-        if type(response) in [int, float, bool]:
-            # if the response is a number, we want to convert it to a dict
-            response = {'w': float(response)}
-        elif type(response) == dict:
-            response = response
-        else:
-            raise Exception(f'Response must be a number or a boolean, got {response}')
-        
-        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
-        return response
-    
 
     def set_score_fn(self, score_fn):
         assert callable(score_fn), f'Score function must be callable, got {score_fn}'
@@ -329,7 +339,7 @@ class Vali(c.Module):
         else:
             info = module.info(timeout=self.config.timeout)
 
-        c.print(f'🚀 :: Eval Module {info["name"]} ({info["address"]}) 🚀',  color='yellow', verbose=verbose)
+        c.print(f'<Calling>:: {info["name"]}({info["address"]})',  color='yellow', verbose=verbose)
 
         assert 'address' in info and 'name' in info, f'Info must have a address key, got {info}'
         info['staleness'] = c.time() - info.get('timestamp', 0)
@@ -338,7 +348,14 @@ class Vali(c.Module):
         start_time = c.time()
         try:
             response = self.score_module(module)
-            response = self.process_response(response)
+            if type(response) in [int, float, bool]:
+                # if the response is a number, we want to convert it to a dict
+                response = {'w': float(response)}
+            elif type(response) == dict:
+                response = response
+            else:
+                raise Exception(f'Response must be a number or a boolean, got {response}')
+            assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
         except Exception as e:
             error = c.detailed_error(e)
             response = {'w': 0, 'error': error}
