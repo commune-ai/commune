@@ -1441,6 +1441,7 @@ class c:
 
             module = c.import_object(object_path)
         except Exception as e:
+            c.print(e)
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')

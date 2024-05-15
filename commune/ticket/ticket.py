@@ -1,27 +1,27 @@
 import commune as c
 
 class Ticket(c.Module):
-    seperator='<DATA::SIGNATURE>'
-    def create(self, key, seperator=seperator, tag=None, **kwargs):
+    seperator='<SIGNATURE>'
+    def create(self, key=None, seperator=seperator, tag=None, **kwargs):
+        key = c.get_key(key) if key else self.key
         timestamp = str(c.time())
-        key = c.get_key(key)
-        c.print(key)
         if tag:
             timestamp += f'::{tag}'
-        return key.sign(timestamp, return_string=True, seperator=seperator)
+        return key.sign(timestamp, return_string=True, seperator=seperator) + '<ADDRESS>' + key.ss58_address
+    
+    def verify(self, ticket, seperator=seperator):
+        assert seperator in ticket, f'No seperator found in {ticket}'
+        ticket, address = ticket.split('<ADDRESS>')
+        return c.verify(ticket, address=address, seperator=seperator)
 
     @classmethod
     def test(cls, key='test'):
         self = cls()
         ticket = self.create(key)
-        key = self.key
+        key = c.get_key(key)
         c.print(ticket)
-        assert c.verify(ticket, key=key)
-        ticket2signer = self.ticket2signer(ticket)
-        c.print(ticket2signer)
-        assert ticket2signer == key.ss58_address
-        return {'ticket': ticket, 'key': key.ss58_address}
+        assert self.verify(ticket), 'Failed to verify'
+        return {'success': True, 'ticket': ticket, 'key': str(key)}
 
-    def ticket2signer(self, ticket = None, seperator=seperator, **kwargs):
-        
-        return c.verify(ticket, return_address=True, seperator=seperator, **kwargs)
+    def qr(self,filename='ticket.png'):
+        return c.module('qrcode').text2qrcode(self.ticket(), filename=filename)
