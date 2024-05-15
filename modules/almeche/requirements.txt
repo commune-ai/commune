@@ -1,5 +1,0 @@
-SpeechRecognition
-pyaudio
-openai
-requests
-printrun
