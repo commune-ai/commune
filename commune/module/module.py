@@ -3289,6 +3289,9 @@ class c:
         '''
         Wraps a python class as a module
         '''
+        shortcuts = c.shortcuts()
+        if module in shortcuts:
+            module = shortcuts[module]
         module_class =  c.get_module(module,**kwargs)
         return module_class
     m = mod = module

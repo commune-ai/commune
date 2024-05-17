@@ -294,7 +294,7 @@ class Keypair(c.Module):
     @classmethod
     def mems(cls, search=None):
         mems = {}
-        for key in cls.keys():
+        for key in cls.keys(search):
             try:
                 mems[key] = cls.getmem(key)
             except Exception as e:

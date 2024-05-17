@@ -162,7 +162,7 @@ class Vali(c.Module):
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses))
-        self.executor = c.module('executor.thread')(max_workers=batch_size)
+        self.executor = c.module('executor.thread')(max_workers=min(1, batch_size))
         batch_size = self.config.batch_size
     
         for module_address in module_addresses:

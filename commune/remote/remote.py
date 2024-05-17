@@ -114,10 +114,8 @@ class Remote(c.Module):
                     yield line 
 
                 # if there is an stderr, print it
-                cnt = 0
+
                 for line in stderr.readlines():
-                    if cnt == 0:
-                        yield '---- ERROR ----'
                     if verbose:
                         c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'))
                     yield line
