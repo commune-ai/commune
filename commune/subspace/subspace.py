@@ -1705,7 +1705,17 @@ class Subspace(c.Module):
         
         module['stake_from'] = {k: self.format_amount(v, fmt=fmt)  for k, v in module['stake_from']}
         return module
-    
+
+    def df(self,
+            netuid=0, 
+            features=['name', 'address', 'incentive', 'dividends', 'emission', 'last_update', 'delegation_fee', 'stake'], 
+            **kwargs) -> 'pd.DataFrame':
+        df =  c.df(self.modules(netuid=netuid, **kwargs))
+        if len(df) > 0:
+            df = df[features]
+        return df
+
+
     def modules(self,
                 search:str= None,
                 network = 'main',
@@ -1716,6 +1726,7 @@ class Subspace(c.Module):
                 timeout = 100,
                 max_age=1000,
                 subnet = None,
+                df = False,
                 vector_features =['dividends', 'incentive', 'trust', 'last_update', 'emission'],
                 **kwargs
                 ) -> Dict[str, 'ModuleInfo']:
@@ -1798,6 +1809,9 @@ class Subspace(c.Module):
         if len(modules) > 0:
             for i in range(len(modules)):
                 modules[i] = self.format_module(modules[i], fmt=fmt)
+            for m in modules:
+                m['stake'] =  sum([v
+                                   for k,v in m['stake_from'].items()])
 
         if search != None:
             modules = [m for m in modules if search in m['name']]

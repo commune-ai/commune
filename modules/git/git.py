@@ -2,6 +2,11 @@ import commune as c
 
 
 class Git(c.Module):
+
+
+    def is_repo(self, libpath:str ):
+        # has the .git folder
+        return c.cmd(f'ls -a {libpath}').count('.git') > 0
     
     
     @staticmethod
