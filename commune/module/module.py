@@ -383,32 +383,11 @@ class c:
     
     put_yaml = save_yaml
 
-    def merge_config(self, config:Dict, overrite_keys:bool = False) -> Dict:
-        '''
-        Merges the config with the current config
-        '''
-        if hasattr(config, 'to_dict'):
-            config = config.to_dict()
-        
-        elif isinstance(config, Munch):
-            config = self.munch2dict(config)
-                
-        # merge the model config with the config
-        
-        default_config = self.munch2dict(self.config)
-        for k,v in config.items():
-            if not overrite_keys:
-                assert k not in default_config, f'config key {k} not found in config'
-            default_config[k] = config[k]        
-        self.config = self.munch(default_config)
-        return self.config
-    
     
     @classmethod
     def config_path(cls) -> str:
         path = cls.module_file().replace('.py', '.yaml')
         return path
-    
     
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
@@ -454,21 +433,6 @@ class c:
         r = key.decrypt(text, password=password,key=key, **kwargs)
         return cls.put_text(path, r)
 
-
-
-    def test_file(self, k='test_a', v=1):
-        c.put(k,v)
-        assert self.exists(k), f'file does not exist ({k})'
-        self.encrypt_file(k)
-        c.print(self.get_text(k))
-        self.decrypt_file(k)
-        new_v = self.get(k)
-        assert new_v == v, f'new_v {new_v} != v {v}'
-        self.rm(k)
-        assert not self.exists(k)
-        assert not os.path.exists(self.resolve_path(k))
-        return {'success': True, 'msg': 'test_file passed'}
- 
 
     def is_encrypted_path(self, path:str, prefix=encrypted_prefix) -> bool:
         '''
@@ -1548,42 +1512,11 @@ class c:
     def simple2objectpath(cls, path:str, **kwargs) -> str:
         return c.module('tree').simple2objectpath(path, **kwargs)
     
-
     @classmethod
     def python_paths(cls, path:str = None, recursive=True, **kwargs) -> List[str]:
-        '''
-        """
-        Documentation for the function `python_paths`:
-        
-        ### Description:
-        This class method returns a list of all `.py` file paths within a specified directory. It allows for optional recursive searching within subdirectories.
-        
-        ### Arguments:
-        - `cls`: The class from which the method is called.
-        - `path` (str, optional): The directory path where the search should begin. Defaults to the homepath of the class.
-        - `recursive` (bool, optional): A flag indicating whether to search subdirectories recursively. Defaults to `True`.
-        - `**kwargs`: Additional keyword arguments that can be passed to the `glob` function.
-        
-        ### Returns:
-        - List[str]: A list of strings, where each element is the path to a `.py` file found in the specified directory and its subdirectories (if recursive searching is enabled).
-        
-        ### Usage Example:
-        
-        ```python
-        # To get all Python file paths in the current home directory of the class
-        python_files = ClassName.python_paths()
-        
-        # To get Python file paths in a specific directory, non-recursively
-        python_files = ClassName.python_paths('/path/to/directory', recursive=False)
-        ```
-        """
-        '''
-
         if path == None:
             path = c.homepath
-        
         return  glob(path + '/**/*.py', recursive=recursive, **kwargs)
-        
     
     @classmethod
     def get_module_python_paths(cls, 
@@ -4137,11 +4070,6 @@ class c:
             cls = c.module(module)
         return not cls.is_file_module()
 
-    def test_folder_module_detector(self,positives = ['module', 'vali', 'client']):
-        for p in positives:
-            assert self.is_folder_module(p) == True, f'{p} is a folder module'
-        return {'success': True, 'msg': 'All folder modules detected', 'positives': positives}
-    
     @staticmethod
     def jsonable( value):
         import json
@@ -5462,25 +5390,6 @@ class c:
         link_cmd[new] = old 
         
         cls.put('link_cmd', link_cmd)
-    
-    # @classmethod
-    # def remote(cls, name:str = None, remote :str = False,**remote_kwargs):
-    #     def decorator(fn):
-    #         if name is None:
-    #             name = fn.__name__
-    #         def inner_function(**kwargs):
-    #             remote = kwargs.pop('remote', remote)
-    #             if remote:
-    #                 kwargs['remote'] = False
-    #                 return cls.launch(fn=fn, kwargs=kwargs, name=name, **remote_kwargs)
-    #             else:
-    #                 return fn(**kwargs)
-                    
-    #         # Return the inner function (wrapper)
-    #         return inner_function
-    
-    #     # Return the decorator function
-    #     return decorator
 
 
     @classmethod
@@ -5529,7 +5438,6 @@ class c:
         
         return {'success': True, 'msg': f'Launched {name}', 'timestamp': c.timestamp()}
 
-    rfn = remote_fn
     @classmethod
     def choice(cls, options:Union[list, dict])->list:
         options = c.copy(options) # copy to avoid changing the original
@@ -5875,103 +5783,7 @@ class c:
                         c.print(f'Retrying {fn.__name__} {i+1}/{trials}', color='red')
 
         return wrapper
-    
 
-    '''
-    SSH LAND
-    '''
-
-    @classmethod
-    def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
-        authorized_keys_file = os.path.expanduser(authorized_keys_file)
-        with open(authorized_keys_file, 'a') as auth_keys_file:
-            auth_keys_file.write(public_key)
-            auth_keys_file.write('\n')
-            
-        c.print('Added the key fam')
-        
-    @classmethod
-    def ssh_authorized_keys(cls, authorized_keys_file:str='~/.ssh/authorized_keys'):
-        
-        authorized_keys_file = os.path.expanduser(authorized_keys_file)
-        if not os.path.exists(authorized_keys_file):
-            return ''
-        return cls.get_text(authorized_keys_file)
-
-    @staticmethod
-    def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
-        public_key_file = os.path.expanduser(public_key_file)
-        os.path.exists(public_key_file), f'public key file {public_key_file} does not exist'
-        with open(public_key_file, 'r') as key_file:
-            public_key_data = key_file.read().strip()
-
-        # Extract the public key from the data
-        public_key = None
-        if public_key_data.startswith("ssh-rsa"):
-            public_key = public_key_data
-
-        return public_key
-        
-    ssh_path = os.path.expanduser('~/.ssh/id_rsa')
-
-    @classmethod
-    def resolve_ssh_path(cls, ssh_path=None):
-        if ssh_path is None:
-            ssh_path = cls.ssh_path
-        return os.path.expanduser(ssh_path)
-
-    @classmethod
-    def ssh_pubkey(cls,ssh_path=None):
-        ssh_path = cls.resolve_ssh_path(ssh_path + '.pub')
-        return cls.get_text(ssh_path)
-    @classmethod
-    def generate_ssh_key_pair(cls, path=None,
-                            passphrase=None):
-        if passphrase is None:
-            passphrase = c.hash(c.get_key('module').mnemonic)
-            c.print(passphrase)
-        path = cls.resolve_ssh_path(path)
-        import paramiko
-        key = paramiko.RSAKey.generate(bits=2048)
-
-        # Save the private key to a file
-        key.write_private_key_file(path, password=passphrase)
-
-        # Save the public key to a file
-        with open(path, "w") as pub_key_file:
-            pub_key_file.write(f"{key.get_name()} {key.get_base64()}")
-        
-        return cls.ssh_pubkey(path) 
-    
-
-
-    @classmethod
-    def id_rsa(cls, path=None):
-        path = cls.resolve_ssh_path(path)
-        return cls.get_text(path)
-    
-    @classmethod
-    def id_rsa_pub(cls, path=None):
-        path = cls.resolve_ssh_path(path)
-        return cls.get_text(f'{path}.pub')
-
-
-    @classmethod
-    def ssh_key(cls, key_file=os.path.expanduser('~/.ssh/id_rsa'),
-                            passphrase=None):
-        c.ensure_lib('paramiko')
-        import paramiko
-        key = paramiko.RSAKey.generate(bits=2048)
-
-        # Save the private key to a file
-        key.write_private_key_file(key_file, password=passphrase)
-
-        # Save the public key to a file
-        ssh_key_path = f"{key_file}.pub"
-        with open(ssh_key_path, "w") as pub_key_file:
-            pub_key_file.write(f"{key.get_name()} {key.get_base64()} Generated by Python")
-        
-        c.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
     @staticmethod
     def reverse_map(x:dict)->dict:
@@ -7054,13 +6866,6 @@ class c:
     @classmethod
     def key2stake(cls, *args, **kwargs):
         return c.module('subspace')().key2stake(*args, **kwargs)
-    
-    @classmethod
-    def build_proto(cls, *args, **kwargs):
-        src_dir = c.root_path + '/module/server/proto'
-        proto_path = src_dir + '/server.proto'
-        cmd = f"python3 -m grpc.tools.protoc {proto_path}  -I {src_dir}  --python_out={src_dir} --grpc_python_out={src_dir}"
-        c.cmd(cmd, verbose=True)
         
     @classmethod
     def update_network(cls, *args, **kwargs):
@@ -7070,7 +6875,6 @@ class c:
     def update_global(cls, *args, **kwargs):
         return c.module('subspace')().update_global(*args, **kwargs)
     
-
     @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
@@ -7088,20 +6892,7 @@ class c:
     @classmethod
     def valis(cls, network=None):
         return c.servers('vali', network=network)
-
-    @classmethod
-    def restart_valis(cls, search=None, network= 'local'):
-        namespace = c.namespace('vali', network=network)
-        for name, address in namespace.items():
-            if search != None:
-                if search not in name:
-                    continue
-                c.restart(name)
-
-        return namespace
-
-        
-
+    
     @classmethod
     def check_valis(cls, *args, **kwargs):
         return c.module('subspace')().check_valis(*args, **kwargs)
@@ -7891,17 +7682,6 @@ class c:
     def launcher2balance(cls):
         keys = cls.launcher_keys()
         return c.get_balances(keys)
-    
-
-
-    
-
-
-
-
-    
-        
-
     
 Module = c
 
