@@ -148,6 +148,7 @@ class App(c.Module):
 
         host_map = self.host_map
         cols = st.columns([5,1])
+        
         cmd = cols[0].text_input('Command', 'ls')
         [cols[1].write('') for i in range(2)]
         if 'x' not in fn_code:

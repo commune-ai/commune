@@ -1,7 +1,7 @@
 
 # network
 network: subspace # the network to connect to (bittensor, commune, local) to specify subnet, (subspace.0 or subspace.text)
-netuid: 0 # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
+netuid: null # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
 sync_interval: 60
 sample_interval: 0.005 # the sleep interval between sending samples
 search: null # the search for modules in the namespace

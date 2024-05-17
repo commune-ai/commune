@@ -43,6 +43,12 @@ class History(c.Module):
             return history[idx]
         return history
     
+    def rm_history(self, search=None, n=100, reverse=True):
+        history_paths = self.history_paths(n=n, reverse=reverse, search=search)
+        for path in history_paths:
+            c.rm(path)
+        return history_paths
+    
     def last_n(self, n=1):
         return self.history(n=n)
     

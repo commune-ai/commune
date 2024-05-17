@@ -146,11 +146,16 @@ class cli(c.Module):
 
     @classmethod
     def history_module(cls, path='history'):
-        return c.m('history')(cls.resolve_path(path))
+        return c.m('history')(folder_path=cls.resolve_path(path))
 
     @classmethod
     def history(cls,**kwargs):
         history = cls.history_module().history(**kwargs)
+        return history
+    
+    @classmethod
+    def rm_history(cls,*args, **kwargs):
+        history = cls.history_module().rm_history(*args, **kwargs)
         return history
     
 

@@ -2517,28 +2517,19 @@ class Subspace(c.Module):
         if isinstance(netuid, str):
             subnet = netuid
             netuid = subnet2netuid.get(netuid, 0)
-        
-        c.print(f"Registering {name} with {stake} stake on {subnet} subnet")
-                    
-        if netuid not in netuid2subnet:
+
+        if netuid in netuid2subnet:
+            subnet = netuid2subnet[netuid]
+        else:
             netuid = 0
             response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
             if response.lower() not in ["yes", 'y', 'dope']:
                 return {'success': False, 'msg': 'Subnet not found and not created'}
-                
+            
         # require prompt to create new subnet        
-                
         stake = stake or 0
         min_register_stake = self.min_register_stake(netuid=netuid, network=network)
         stake = max(min_register_stake, stake)
-        
-        if c.key_exists(name):
-            mkey = c.get_key(name)
-            mkey_balance = self.get_balance(key=mkey.ss58_address, network=network)
-            if mkey_balance > stake:
-                c.print(f'Using {name} key to register {name} with {stake} stake')
-                key = mkey
-
         stake = stake * 1e9
 
         if '0.0.0.0' in address:
@@ -3314,8 +3305,12 @@ class Subspace(c.Module):
         if modules == None:
             modules = c.shuffle(self.uids(netuid=netuid, update=update))
         # checking if the "uids" are passed as names -> strings
+        key2name, name2uid = None, None
         for i, module in enumerate(modules):
             if isinstance(module, str):
+                if key2name == None:
+                    key2name = self.key2name(netuid=netuid, update=update)
+                    name2uid = self.name2uid(netuid=netuid, update=update)
                 if module in key2name:
                     modules[i] = key2name[module]
                 elif module in name2uid:
@@ -3325,7 +3320,6 @@ class Subspace(c.Module):
         
         if weights is None:
             weights = [1 for _ in uids]
-        max_weight = max(weights)
         if len(uids) < subnet_params['min_allowed_weights']:
             n = self.n(netuid=netuid)
             while len(uids) < subnet_params['min_allowed_weights']:
@@ -3335,13 +3329,24 @@ class Subspace(c.Module):
                     weights.append(min_value)
 
         uid2weight = dict(sorted(zip(uids, weights), key=lambda item: item[1], reverse=True))
+        
+        self_uid = self.key2uid(netuid=netuid).get(key.ss58_address, None)
+        uid2weight.pop(self_uid, None)
+
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
-        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
-        uids = torch.tensor(uids)[:n]
-        weights = torch.tensor(weights)[:n]
-        weights = weights / weights.sum() # normalize the weights between 0 and 1
 
+
+        if len(uids) > subnet_params['max_allowed_weights']:
+            uids = uids[:subnet_params['max_allowed_weights']]
+            weights = weights[:subnet_params['max_allowed_weights']]
+
+
+        c.print(f'Voting for {len(uids)} modules')
+        assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
+        uids = torch.tensor(uids)
+        weights = torch.tensor(weights)
+        weights = weights / weights.sum() # normalize the weights between 0 and 1
         # STEP 2: CLAMP THE WEIGHTS BETWEEN 0 AND 1 WITH MIN AND MAX VALUES
         assert min_value >= 0 and max_value <= 1, f"min_value and max_value must be between 0 and 1"
         weights = torch.clamp(weights, min_value, max_value) # min_value and max_value are between 0 and 1
@@ -3349,6 +3354,8 @@ class Subspace(c.Module):
         weights = weights * (2**16 - 1)
         weights = list(map(lambda x : int(min(x, U16_MAX)), weights.tolist()))
         uids = list(map(int, uids.tolist()))
+
+
 
         params = {'uids': uids,
                   'weights': weights, 
@@ -3409,6 +3416,7 @@ class Subspace(c.Module):
                 c.print(f"Registering {info['name']} with module_key {info['ss58_address']} using launcher {launcher_key}")
                 f = c.submit(c.register, kwargs=dict(name=info['name'], 
                                                     address= info['address'],
+                                                    netuid = netuid,
                                                     module_key=info['ss58_address'], 
                                                     key=launcher_key), timeout=timeout)
                 futures+= [f]
