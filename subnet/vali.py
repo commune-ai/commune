@@ -1,7 +1,7 @@
 import commune as c
 
 class Subnet(c.m('vali')):
-    def __init__(self, network='local', search='add', **kwargs):
+    def __init__(self, network='local', search=None, **kwargs):
         self.init_vali(locals())
 
     def score_module(self, module):

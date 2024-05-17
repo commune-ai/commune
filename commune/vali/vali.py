@@ -61,7 +61,8 @@ class Vali(c.Module):
                 else:
                     if self.vote_staleness > self.config.vote_interval:
                         c.print(self.vote())
-                c.print(df = self.leaderboard()[:10])
+                df = self.leaderboard()[:10]
+                c.print(df)
                 c.print(run_info)
 
             except Exception as e:
