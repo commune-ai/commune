@@ -1361,7 +1361,7 @@ class c:
                    trials = 3,
                    tree = 'commune',
                    verbose = 0,
-                   path2objectpath = {'tree': 'commune.tree.tree.Tree'}) -> str:
+                   ) -> str:
         """
         params: 
             path: the path to the module
@@ -1369,7 +1369,6 @@ class c:
             tree: the tree to search for the module
         """
         path = path or 'module'
-        tree = tree or 'commune'
         module = None
         cache_key = f'{tree}_{path}'
         t0 = c.time()
@@ -1380,19 +1379,13 @@ class c:
                 return module
 
         try:
-            if path in path2objectpath:
-                object_path = path2objectpath[path]
-            else:
-                object_path = c.simple2objectpath(path)
-
-            module = c.import_object(object_path)
+            module = c.simple2object(path)
         except Exception as e:
-            c.print(e)
+            raise e
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
-            c.tree(update=True)
-            module = c.get_module(path, cache=cache, tree=tree, verbose=verbose, trials=trials-1)                
+            module = c.get_module(path, cache=cache , verbose=verbose, trials=trials-1)                
         if cache:
             c.module_cache[cache_key] = module
 
@@ -1451,8 +1444,7 @@ class c:
 
 
     @classmethod
-    def tree(cls, *args,
-                **kwargs) -> List[str]:
+    def tree(cls, *args, **kwargs) -> List[str]:
         return c.module('tree').tree(*args,  **kwargs) 
 
     @classmethod
@@ -1509,8 +1501,16 @@ class c:
         return c.module('tree').simple2path(path, **kwargs)
     
     @classmethod
-    def simple2objectpath(cls, path:str, **kwargs) -> str:
-        return c.module('tree').simple2objectpath(path, **kwargs)
+    def simple2objectpath(cls, path:str,path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
+        if path in path2objectpath:
+            object_path =  path2objectpath[path]
+        else:
+            object_path =  c.module('tree').simple2objectpath(path, **kwargs)
+        return object_path
+    @classmethod
+    def simple2object(cls, path:str, **kwargs) -> str:
+        return c.import_object(c.simple2objectpath(path, **kwargs))
+
     
     @classmethod
     def python_paths(cls, path:str = None, recursive=True, **kwargs) -> List[str]:
@@ -3881,7 +3881,6 @@ class c:
         return cls.console.status(*args, **kwargs)
     @classmethod
     def log(cls, *args, **kwargs):
-        console = cls.resolve_console()
         return cls.console.log(*args, **kwargs)
     
     @classmethod
