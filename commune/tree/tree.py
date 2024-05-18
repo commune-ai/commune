@@ -196,7 +196,6 @@ class Tree(c.Module):
             path = path.replace(c.libpath, '')
         elif path.startswith(pwd):
             path = path.replace(pwd, '')
-
         if cls.path_config_exists(path):
             simple_path = os.path.dirname(simple_path)
         else:
