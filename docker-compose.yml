@@ -9,10 +9,10 @@ services:
     shm_size: '1gb' # for the shared memory size
     volumes:
       - ~/.commune:/config/.commune
-      - ~/.commune:/root/.commune
       - ./:/commune
-      - /var/run/docker.sock:/var/run/docker.sock #Nuclear option
+      - /var/run/docker.sock:/var/run/docker.sock # allow for docker to talk to deamon in outside
     ports:
+      # 
       - 50050-50250:50050-50250
 
     restart: unless-stopped
