@@ -1451,22 +1451,22 @@ class c:
     def tree2path(cls, *args, **kwargs) -> List[str]:
         return c.module('tree').tree2path( *args, **kwargs)
 
-    @classmethod
-    def default_trees(cls):
-        return c.m('tree').default_trees
-
     
     @classmethod
     def trees(cls):
         return c.m('tree').trees()
     
     @classmethod
-    def add_tree(cls, path:str = './', **kwargs):
-        return c.m('tree').add_tree(path, **kwargs)
+    def add_tree(cls, *args, **kwargs):
+        return c.m('tree').add_tree(*args, **kwargs)
+
+    @classmethod
+    def add_tree(cls, *args, **kwargs):
+        return c.m('tree').add_tree(*args, **kwargs)
     
     @classmethod
-    def rm_tree(cls, path:str = './', **kwargs):
-        return c.m('tree').rm_tree(path, **kwargs)
+    def rm_tree(cls, *args, **kwargs):
+        return c.m('tree').rm_tree(*args, **kwargs)
 
     def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
         if not repo_path.startswith('/') and not repo_path.startswith('.') and not repo_path.startswith('~'):
@@ -1509,7 +1509,13 @@ class c:
         return object_path
     @classmethod
     def simple2object(cls, path:str, **kwargs) -> str:
-        return c.import_object(c.simple2objectpath(path, **kwargs))
+        path = c.simple2objectpath(path, **kwargs)
+        try:
+            return c.import_object(path)
+        except Exception as e:
+            c.print(path)
+            raise e
+        
 
     
     @classmethod

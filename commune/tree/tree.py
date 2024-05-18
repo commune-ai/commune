@@ -5,20 +5,18 @@ from copy import deepcopy
 
 class Tree(c.Module):
     tree_folders_path = 'module_tree_folders'
-    default_tree_path = c.libpath
-    default_tree_name = default_tree_path.split('/')[-1]
-    default_trees = [default_tree_path]
+    root_tree_path = c.libpath
+    root_tree_name = root_tree_path.split('/')[-1]
+    root_trees = [root_tree_path]
     def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
         # c.thread(self.run_loop)
 
     @classmethod
-    def simple2path(cls, path:str, tree = None, **kwargs) -> bool:
+    def simple2path(cls, path:str, tree = None, update=False,     ignore_prefixes = ['commune', 'modules', 'commune.modules'], **kwargs) -> bool:
         pwd = c.pwd()
         simple_path = path
-        if path == c.homepath:
-            path  = cls.default_tree_path
-        path = pwd + '/' + path.replace('.', '/')
+        path = c.pwd() + '/' + path.replace('.', '/')
         if os.path.isdir(path):
             paths_in_dir = os.listdir(path)
             for p in paths_in_dir:
@@ -26,20 +24,21 @@ class Tree(c.Module):
                     filename = p.split('.')[0].split('/')[-1]
                     if filename == simple_path:
                         path =  path +'/'+ p
-                        return path
-    
-                    
+                        break
+
         if os.path.exists(path + '.py'):
             path =  path + '.py'
         else:
-            tree = cls.tree(update=True, include_default=True)
-            is_module_in_tree = simple_path in tree
-            tree = {k:v for k,v in tree.items() if simple_path in k}
+            root_tree = cls.root_tree()
+            tree = cls.tree()
+            tree.update(root_tree)
+            is_module_in_tree = bool(simple_path in tree)
             if not is_module_in_tree:
-                tree = cls.tree(update=True, include_default=True)
-            assert len(tree) > 0, f'No module found for {simple_path}'
-            path = tree[simple_path] 
-        
+                tree = cls.tree(update=True, include_root=True)
+                tree.update(root_tree)
+
+            path = tree[simple_path]
+            
         return path
     
 
@@ -54,8 +53,8 @@ class Tree(c.Module):
     
 
     @classmethod
-    def default_tree(cls, **kwargs):
-        return cls.tree(path = c.libpath, include_default=False, **kwargs)
+    def root_tree(cls, **kwargs):
+        return cls.tree(path = c.libpath, include_root=False, **kwargs)
 
     _tree_cache = {}    
 
@@ -70,13 +69,13 @@ class Tree(c.Module):
                 search=None,
                 update = False,
                 max_age = None, 
-                include_default = False,
+                include_root = False,
                 **kwargs
                 ) -> List[str]:
         path = cls.resolve_path(path or c.pwd())
         is_repo = cls.is_repo(path)
         if not is_repo:
-            path = cls.default_tree_path
+            path = cls.root_tree_path
         cache_path = path.split('/')[-1]
         if cache_path in cls._tree_cache:
             tree = cls._tree_cache[cache_path]
@@ -88,9 +87,9 @@ class Tree(c.Module):
             cls.put(cache_path, tree)
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
-        if include_default:
-            default_tree = cls.default_tree()
-            tree = {**default_tree, **tree}
+        if include_root:
+            root_tree = cls.root_tree()
+            tree = {**root_tree, **tree}
         return tree
     
 
@@ -159,7 +158,7 @@ class Tree(c.Module):
 
     @classmethod
     def is_pwd_tree(cls):
-        return c.pwd() == cls.default_tree_path
+        return c.pwd() == cls.root_tree_path
     
     @classmethod
     def trees(cls):
@@ -179,7 +178,7 @@ class Tree(c.Module):
     @classmethod
     def resolve_tree(cls, tree:str=None):
         if tree == None:    
-            tree = cls.default_tree_name
+            tree = cls.root_tree_name
         return tree
     
     
@@ -269,13 +268,10 @@ class Tree(c.Module):
     
     @classmethod
     def simple2objectpath(cls, simple_path:str, **kwargs) -> str:
-        path = cls.simple2path(simple_path, **kwargs)
-        classes =  cls.find_classes(path)
-        if path.startswith(c.libpath):
-            object_path = path.replace(c.libpath, '')
-        else:
-            object_path = path.replace(c.pwd(), '')
-
+        object_path = cls.simple2path(simple_path, **kwargs)
+        classes =  cls.find_classes(object_path)
+        if object_path.startswith(c.libpath):
+            object_path = object_path[len(c.libpath):]
         object_path = object_path.replace('.py', '')
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
