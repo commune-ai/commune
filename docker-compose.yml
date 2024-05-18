@@ -3,12 +3,12 @@ version: "2.1"
 services:
   commune:
     build:
-      context: ./commune
+      context: ./
       dockerfile: Dockerfile
     container_name: commune
     shm_size: '1gb' # for the shared memory size
     volumes:
-      - ~/.commune:/config/.commune # mount the temporary folder
+      - ~/.commune:/root/.commune # mount the temporary folder
       - ./:/commune # mount the current directory
       - /var/run/docker.sock:/var/run/docker.sock # allow for docker to talk to deamon in outside
     ports:
