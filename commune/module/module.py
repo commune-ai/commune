@@ -7654,9 +7654,11 @@ class c:
         return x
 
     @classmethod
-    def launcher_keys(cls):
+    def launcher_keys(cls, netuid=0, min_stake=500, **kwargs):
         keys = c.keys()
-        return [k for k in keys if k.startswith('module::')]
+        key2balance =  c.key2balance(**kwargs)
+        key2balance = {k: v for k,v in key2balance.items() if v > min_stake}
+        return [k for k in keys]
     
     @classmethod
     def top_launchers(cls, amount=600, **kwargs):
