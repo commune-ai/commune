@@ -323,7 +323,7 @@ class Keypair(c.Module):
         key_json = cls.get(path)
 
         # if key is encrypted, decrypt it
-        if c.is_encrypted(key_json):
+        if cls.is_encrypted(key_json):
             key_json = c.decrypt(data=key_json, password=password)
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
@@ -560,7 +560,7 @@ class Keypair(c.Module):
            return None 
         
         for k,v in obj.items():
-            if c.is_encrypted(obj[k]) and password != None:
+            if cls.is_encrypted(obj[k]) and password != None:
                 obj[k] = cls.decrypt(data=obj[k], password=password)
         if 'ss58_address' in obj:
             obj['_ss58_address'] = obj.pop('ss58_address')
@@ -1583,6 +1583,16 @@ class Keypair(c.Module):
         
         return True
  
+
+    @classmethod
+    def is_encrypted(cls, data, prefix=encrypted_prefix):
+        if isinstance(data, str):
+            if data.startswith(prefix):
+                return True
+        elif isinstance(data, dict):
+            return bool(data.get('encrypted', False) == True)
+        else:
+            return False
     
 Keypair.run(__name__)
 

@@ -6,7 +6,7 @@ services:
       context: ./
       dockerfile: Dockerfile
     container_name: commune
-    shm_size: '1gb' # for the shared memory size
+    shm_size: '4gb' # for the shared memory size
     volumes:
       - ~/.commune:/root/.commune # mount the temporary folder
       - ./:/commune # mount the current directory

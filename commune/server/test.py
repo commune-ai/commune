@@ -37,7 +37,9 @@ class Test(c.Module):
     @classmethod
     def test_serving_with_different_key(cls, module_name = 'storage::test', key='test'):
         module = c.serve(module_name, key=key)
-        c.wait_for_server(module_name)
+        while not c.server_exists(module_name):
+            c.sleep(1)
+            c.print('waiting for server to start')
         module = c.connect(module_name)
         info = module.info()
         key = c.get_key(key)

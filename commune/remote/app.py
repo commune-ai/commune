@@ -56,8 +56,8 @@ class App(c.Module):
             add_host = st.button('Add Host')
 
             if add_host:
-                self.remote.add_host(host=host, port=port, user=user, pwd=pwd)
-
+                r = self.remote.add_host(host=host, port=port, user=user, pwd=pwd, name=name)
+                st.write(r)
         with st.expander('Remove Host', expanded=False):
             host_names = list(self.remote.hosts().keys())
             rm_host_name = st.selectbox('Host to Remove', host_names)
