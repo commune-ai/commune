@@ -1,7 +1,6 @@
 import commune as c
 import pandas as pd
 
-
 class Subnet(c.Module):
     def score_module(self, module):
         a = c.random_int()
@@ -15,7 +14,7 @@ class Subnet(c.Module):
         
 
     @classmethod
-    def testnet(cls, n=3, sleep_time=1):
+    def test(cls, n=3, sleep_time=5):
         test_vali = 'subnet.vali::test'
         test_miners = [f'subnet.miner::test_{i}' for i in range(n)]
         for miner in test_miners:
@@ -30,11 +29,6 @@ class Subnet(c.Module):
         assert len(leaderboard) == n, leaderboard
 
 
-
         c.print(leaderboard)
         
         c.serve('subnet.miner::test')
-
-    test = testnet
-
-    

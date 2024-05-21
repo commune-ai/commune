@@ -670,28 +670,23 @@ class Subspace(c.Module):
         stake = self.query( 'Stake',params=[netuid, key_ss58], block=block , update=update)
         return self.format_amount(stake, fmt=fmt)
 
-    def all_balances(self, timeout=4):
-        key2address = c.key2address()
-        futures = []
-        for key, address in key2address.items():
-            future = c.submit(self.get_balance, kwargs={'key': address}, timeout=timeout)
-            futures.append(future)
-            c.print(f'{key}: {balance}')
-        
-        balances = c.wait(futures, timeout=timeout)
-        return balances
-
-    
 
     def all_key_info(self, netuid='all', timeout=10, update=False, **kwargs):
         my_keys = c.my_keys()
 
 
-    def key_info(self, key:str = None, netuid='all', timeout=10, update=False, **kwargs):
+    def key_info(self, key:str = None, netuid='all', detail=0, timeout=10, update=False, **kwargs):
         key_info = {
             'balance': c.get_balance(key=key, **kwargs),
             'stake_to': c.get_stake_to(key=key, netuid=netuid, **kwargs),
         }
+        if detail: 
+            pass
+        else: 
+            for netuid, stake_to in key_info['stake_to'].items():
+                key_info['stake_to'][netuid] = sum(stake_to.values())
+
+
         return key_info
 
     def my_total_stake_to( self, 
@@ -3204,7 +3199,7 @@ class Subspace(c.Module):
                         df = True,
                         keys = None,
                         max_age = 1000,
-                        min_stake = 0,
+                        min_stake = 100,
                         features = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee', 'vote_staleness'],
                         sort_by = 'stake_from',
                         **kwargs):
@@ -3314,7 +3309,6 @@ class Subspace(c.Module):
         assert module_info['stake'] > min_stake
         max_num_votes = module_info['stake'] // global_params['min_weight_stake']
         n = int(min(max_num_votes, subnet_params['max_allowed_weights']))
-        
         modules = uids or modules
         if modules == None:
             modules = c.shuffle(self.uids(netuid=netuid, update=update))
@@ -3322,7 +3316,7 @@ class Subspace(c.Module):
         key2name, name2uid = None, None
         for i, module in enumerate(modules):
             if isinstance(module, str):
-                if key2name == None:
+                if key2name == None or name2uid == None:
                     key2name = self.key2name(netuid=netuid, update=update)
                     name2uid = self.name2uid(netuid=netuid, update=update)
                 if module in key2name:
@@ -3589,12 +3583,9 @@ class Subspace(c.Module):
             key2balance = {address2key[k]: v for k,v in key2balance.items()}
         return key2balance
     
-    def my_value(
-                 self, *args, **kwargs
-                 ):
+    def my_value( self, *args, **kwargs ):
         return sum(list(self.key2value( *args, **kwargs).values()))
     
-    my_supply   = my_value
 
     def my_total_stake(self, netuid='all', network = 'main', fmt='j', update=False):
         my_stake_to = self.my_stake_to(netuid=netuid, network=network, fmt=fmt, update=update)

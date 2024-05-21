@@ -1,11 +1,13 @@
 import commune as c
 import json
+from typing import *
+import os
 
 class Coder(c.Module):
     def comment(self,
              fn='coder/call', 
              model = 'model.openai',
-             timeout=40,
+             timeout=20,
              **model_params):
         '''
         ### Function Documentation
@@ -49,7 +51,7 @@ class Coder(c.Module):
         - The `c` object is assumed to be a pre-defined object with methods `connect`, `fn_code`, and `add_docs`.
         - `self.process_response` is assumed to be a method that processes the generated documentation response. Its functionality is not detailed in the provided code.
         '''
-        model = c.m('model.openrouter')()
+        model = c.connect(model, **model_params)
         input = json.dumps({
             'instruction': 'given the code, document the function in a professional manner in the docs section', 
             'code': c.fn_code(fn),
@@ -60,7 +62,7 @@ class Coder(c.Module):
         docs = self.process_response(docs)
 
         # add docs to the function
-        self.add_docs(fn, docs)
+        c.add_docs(fn, docs)
 
         return docs
     
@@ -105,151 +107,98 @@ class Coder(c.Module):
         return response
 
 
-    @classmethod
-    def add_fn_code(cls, fn:str='test_fn', code:str = None):
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_line"]
-        end_line = fn_info["end_line"]
-        module_code = cls.code()
-        lines = module_code.split('\n')
-        if code == None:
-            code = ''
-        new_lines = lines[:start_line] + [code] + lines[end_line:]
-        new_code = '\n'.join(new_lines)
-        return c.put_text(cls.filepath(), new_code)
 
-    @classmethod
-    def rm_docs(cls, fn:str='rm_docs'):
+    def file2fns(self, filepath):
+        '''
         """
-        sup
+        Documentation for `get_fns` function:
+        
+        This function retrieves the list of functions available in a given module.
+        
+        Parameters:
+            - self: The instance of the class that this method is bound to.
+            - module: The name of the module for which the list of functions is to be retrieved.
+        
+        Returns:
+            - fns: A list of function names available in the specified module.
+        '''
+
+        if c.module_exists(filepath):
+            filepath = c.filepath()
+        if not filepath.endswith('.py'):
+            filepath = filepath + '.py'
+        code =  c.get_text(filepath)
+        lines = code.split('\n')
+        fns = []
+        for line in lines:
+            if  '):' in line.strip() and 'def ' in line.split('):')[0].strip():
+                fn = line.split('def ')[1].split('):')[0].split('(')[0]
+                if ' ' in fn or ']' in fn:
+                    continue
+                fns.append(fn)
+                
+
+        return fns
+    
+
+    @property
+    def get_function_default_map(self, include_parents=False):
+        return self.get_function_default_map(obj=self, include_parents=False)
+        
+    @classmethod
+    def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
+        obj = obj if obj else cls
+        default_value_map = {}
+        function_signature = cls.fn_signature_map(obj=obj,include_parents=include_parents)
+        for fn_name, fn in function_signature.items():
+            default_value_map[fn_name] = {}
+            if fn_name in ['self', 'cls']:
+                continue
+            for var_name, var in fn.items():
+                if len(var.split('=')) == 1:
+                    var_type = var
+                    default_value_map[fn_name][var_name] = 'NA'
+ 
+                elif len(var.split('=')) == 2:
+                    var_value = var.split('=')[-1].strip()                    
+                    default_value_map[fn_name][var_name] = eval(var_value)
+        
+        return default_value_map   
+    
+
+
+    def file2file(self, path, **kwargs):
+        '''
         """
-
-        doc_info = cls.fn_docs(fn, include_quotes=True, return_dict=True)
+        Documentation for `file2file` function:
         
-        doc_idx_bounds = doc_info['idx_bounds']
-
-        if doc_idx_bounds == None:
-            return None
-
-        fn_info = cls.fn_info(fn)
-
-        fn_code = fn_info['code']
+        This function reads the content of a file and writes it to another file.
         
-        before_comment_code = fn_code.split('\n')[:doc_idx_bounds[0] - 2]
-       
-        after_comment_code = fn_code.split('\n')[doc_idx_bounds[1]:]
+        Parameters:
+            - self: The instance of the class that this method is bound to.
+            - path: The path to the file to be read.
+            - new_path: The path to the file to be written. If not provided, the content is written to the same file.
         
-        new_fn_code = '\n'.join(before_comment_code + after_comment_code)
-        
-        return c.add_fn_code(fn=fn, code=new_fn_code)
-    
-    def rm_fn(self, fn:str='rm_fn'):
-        return self.add_fn_code(fn, code='')
+        Returns:
+            - success: A boolean value indicating whether the operation was successful.
+        '''
+        content = c.get_text(path)
+        content = self.model.forward(content, **kwargs)
+        c.put_text(path, content)
+        return content
     
 
-    @classmethod 
-    def fn_docs(cls, fn:str='test_fn2', include_quotes=False, return_dict=False):
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-    
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"]
-        '''
-        sup
-        '''
-        end_line = fn_info["end_line"]
-        code = cls.code()
-        lines = code.split('\n')
-        comment_idx_bounds = []
+    @staticmethod
+    def get_files_code(directory):
+        code_dict = {}
 
-        for i, line in enumerate(lines[start_line:end_line]):
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, directory)
 
-            comment_bounds = ['"""', "'''"]
-            for comment_bound in comment_bounds:
-                if  comment_bound in line:
-                    comment_idx_bounds.append(i)
-            if len(comment_idx_bounds) == 2:
-                break
+                with open(file_path, 'r') as f:
+                    code = f.read()
+                    code_dict[relative_path] = code
 
-        if len(comment_idx_bounds) == 0:
-            return {
-                'idx_bounds': None,
-                'text': None,
-            }
-        
-
-        start_line_shift = -1 if include_quotes else 0
-        end_line_shift = 1 if include_quotes else 0
-        idx_bounds = [start_line+comment_idx_bounds[0] + start_line_shift, start_line+comment_idx_bounds[1]+ end_line_shift + 1]
-        comment_text = '\n'.join(lines[idx_bounds[0]:idx_bounds[1]])
-
-        if return_dict:
-            return {
-            'idx_bounds': comment_idx_bounds,
-            'text': comment_text,
-            }
-        return comment_text
-
-    @classmethod
-    def add_lines(cls, idx=0, n=1 ):
-        for i in range(n):
-            cls.add_line(idx=idx)
-
-    @classmethod
-    def add_docs(cls, fn='add_docs', comment="This is a document"):
-        '''
-        This is a document
-        '''
-        '''
-        This is a document
-        '''
-        if '/' in fn:
-            cls = c.module(fn.split('/')[0])
-            fn = fn.split('/')[1]
-
-        
-        fn_info = cls.fn_info(fn)
-        start_line = fn_info["start_code_line"] + 1
-        tab_space = "        "
-        cls.add_line(idx=start_line, text=tab_space+"'''")
-        c.print(comment)
-        for i, line in enumerate(comment.split('\n')):
-            cls.add_line(idx=start_line+i+1, text=tab_space + line)
-        cls.add_line(idx=start_line+len(comment.split('\n')) + 1, text=tab_space + "'''")
-        
-    @classmethod
-    def is_empty_line(cls, idx):
-        line = cls.get_line(idx)
-        return len(line.strip()) == 0
-
-    @classmethod
-    def get_code_line(cls, module=None, idx:int = 0, code:str = None ):
-        cls = c.module(module)
-        if code == None:
-
-            code = cls.code() # get the code
-        lines = code.split('\n')
-        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
-        return lines[idx]
-    
-    @classmethod
-    def imported_modules(cls, module=None):
-        # get the text
-        text = c.module(module or cls.path()).code()
-        imported_modules = []
-        module2line = {}
-        for i,line in enumerate(text.split('\n')):
-            if 'c.module(' in line:
-                imported_module= line.split('c.module(')[1].split(')')[0]
-                imported_module = imported_module.replace("'",'').replace('"','')
-                module2line[imported_module] = i
-
-        # sort the modules by line number
-        modules = c.modules()
-        module2line = {k: v for k, v in sorted(module2line.items(), key=lambda item: item[1]) if k in modules}
-
-        return module2line
+        return code_dict

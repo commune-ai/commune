@@ -186,3 +186,18 @@ class Coder(c.Module):
         c.put_text(path, content)
         return content
     
+
+    @staticmethod
+    def get_files_code(directory):
+        code_dict = {}
+
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, directory)
+
+                with open(file_path, 'r') as f:
+                    code = f.read()
+                    code_dict[relative_path] = code
+
+        return code_dict

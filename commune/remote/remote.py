@@ -163,8 +163,7 @@ class Remote(c.Module):
                 name = f'{user}{cnt}'
         hosts[name] = host
         self.save_hosts(hosts)
-
-        return {'status': 'success', '': f'Host added', }
+        return {'status': 'success', 'msg': f'Host {name} added', 'host': host, 'name': name}
     
     
     def save_hosts(self, hosts=None, path = None):
@@ -203,10 +202,12 @@ class Remote(c.Module):
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
-    def hosts(self, search=None, enable_search_terms: bool = False):
-        hosts = self.load_hosts()
+    def hosts(self, search=None, enable_search_terms: bool = False, path=None):
+        hosts = self.load_hosts(path=path)
         if len(hosts) == 0:
-            assert False, f'No hosts found, please add your hosts to {self.host_data_path}'
+            return {}
+        
+        
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
         if enable_search_terms:

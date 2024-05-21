@@ -2,18 +2,13 @@ import os
 from typing import Union, Optional
 from typing import *
 import torch
-import glob
+import torch
 from torch import nn
-
+import glob
+import numpy as np
 import commune as c
 
- 
-"""
-Examples fdef
 
-
-
-"""
 class Model(nn.Module, c.Module):
 
     def __init__(self,
@@ -495,6 +490,19 @@ class Model(nn.Module, c.Module):
         return params
 
 
+    @classmethod
+    def get_tensor_size(cls, tensor:'torch.Tensor' = None, fmt:str='b') -> float:
+        if tensor is None:
+            tensor = torch.rand(1)
+        tensor_size =  tensor.nelement() * tensor.element_size()
+        return c.format_data_size(tensor_size, fmt=fmt)
+
+    @classmethod
+    def model_shortcuts(cls, **kwargs):
+        return  c.module('hf').getc('shortcuts')
+    
+    
+ 
  
     def num_params(self, trainable:bool = True) -> int:
         total_params = 0
@@ -594,3 +602,11 @@ class Model(nn.Module, c.Module):
                 c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
+
+
+    @classmethod
+    def get_num_params(cls, model:'nn.Module' = None)->int:
+        model = c.resolve_model(model)
+        model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+        num_params = sum([np.prod(p.size()) for p in model_parameters])
+        return num_params

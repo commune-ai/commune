@@ -147,6 +147,7 @@ class c:
     def module_file(cls) -> str:
         # get the file of the module
         return inspect.getfile(cls)
+        
 
     @classmethod
     def module_dirpath(self) -> str:
@@ -430,7 +431,7 @@ class c:
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
         key = c.get_key(key)
         text = cls.get_text(path)
-        r = key.decrypt(text, password=password,key=key, **kwargs)
+        r = key.decrypt(text, password=password, key=key, **kwargs)
         return cls.put_text(path, r)
 
 
@@ -663,39 +664,9 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
-    @classmethod
-    def start_node(cls, *args, **kwargs):
-        return c.module('subspace.chain').start_node(*args, **kwargs)
-    
-    @classmethod
-    def chains(cls, *args, **kwargs):
-        return c.module('subspace.chain')().chains(*args, **kwargs)
 
-    networks = chains
-
-    @classmethod
-    def start_telemetry(cls, *args, **kwargs):
-        return c.module('subspace.chain').start_telemetry(*args, **kwargs)
-
-    @classmethod
-    def start_local_node(cls, *args, **kwargs):
-        return c.module('subspace.chain').start_local_node(*args, **kwargs)
-
-    @classmethod
-    def start_public_nodes(cls, *args, **kwargs):
-        return c.module('subspace.chain').start_public_nodes(*args, **kwargs)
-
-    @classmethod  
-    def start_chain(cls, *args, **kwargs):
-        return c.module('subspace.chain').start_chain(*args, **kwargs)
-    
-    @classmethod
-    def kill_chain(cls, *args, **kwargs):
-        c.module('subspace.chain').kill_chain(*args, **kwargs)
-        return {'success': True, 'msg': 'killed chain'}
     def seconds_per_epoch(self, *args, **kwargs):
         return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
-
     # KEY LAND
     @classmethod
     def add_key(cls, *args, **kwargs):
@@ -1057,8 +1028,7 @@ class c:
         for port in range(*port_range): 
             if not cls.port_used(port=port, ip=ip):
                 available_ports.append(port)
-                
-                
+                  
         return available_ports
     available_ports = get_available_ports
     
@@ -1251,28 +1221,22 @@ class c:
     @classmethod
     def kill_all(cls, network='local', timeout=20, verbose=True):
         futures = []
-        namespace = c.namespace(network=network, update=True)
-        progress = c.tqdm(len(namespace))
-
-
-        for s in c.servers(network=network):
+        servers = c.servers(network=network)
+        n = len(servers)
+        progress = c.tqdm(n)
+        for s in servers:
             c.print(f'Killing {s}', color='red')
             futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
-
         results_list = []
         for f in c.as_completed(futures, timeout=timeout):
             result = f.result()
             c.print(result, verbose=verbose)
+            progress.update(1)
             results_list += [result]
-        
-        namespace = c.namespace(network=network, update=True)
-        progress.update(1)
-
-
-        return {'namespace': namespace}
-
-
-
+        servers = c.servers(network=network, update=True)
+        new_n = len(servers)
+        c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
+        return results_list
     @classmethod
     def path2simple(cls, *args, **kwargs ) -> str:
         return c.module('tree').path2simple(*args, **kwargs)  
@@ -2455,7 +2419,6 @@ class c:
         """
         Resolves the server name
         """
-
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
             module = cls.module_path() if module == None else module
@@ -2473,7 +2436,6 @@ class c:
 
         # ensure that the name is a string
         assert isinstance(name, str), f'Invalid name {name}'
-
         return name
     resolve_name = resolve_server_name
     
@@ -2612,7 +2574,6 @@ class c:
     @classmethod
     def dummy_gen(cls):
         for i in range(10):
-            c.print(i)
             yield i
         
     def info(self , 
@@ -2669,6 +2630,11 @@ class c:
         return info
         
     help = info
+
+    def metadata(self):
+        schema = self.schema()
+        return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
+
 
     
     @classmethod
@@ -3423,7 +3389,7 @@ class c:
     def ip(cls,  max_age=10000, update:bool = False, **kwargs) -> str:
         ip = c.get('ip', None, max_age=max_age, update=update)
         if ip == None:
-            ip =  cls.external_ip(**kwargs)
+            ip =  c.module('network').external_ip(**kwargs)
             c.put('ip', ip)
         return ip
     
@@ -3480,65 +3446,6 @@ class c:
 
     env = get_env
     
-    
-    ### GPU LAND
-    
-    @classmethod
-    def gpus(cls) -> List[int]:
-        import torch
-        available_gpus = [int(i) for i in range(torch.cuda.device_count())]
-        return available_gpus
-    
-    @classmethod
-    def num_gpus(cls):
-        return len(cls.gpus())
-    
-    @classmethod
-    def cuda_available(cls) -> bool:
-        import torch
-        return torch.cuda.is_available()
-    @classmethod
-    def gpu_info_map(cls, device:int = None, fmt='gb') -> Dict[int, Dict[str, float]]:
-        import torch
-        gpu_info = {}
-        for gpu_id in cls.gpus():
-            gpu_id = int(gpu_id)
-            mem_info = torch.cuda.mem_get_info(gpu_id)
-            gpu_info[gpu_id] = {
-                'name': torch.cuda.get_device_name(gpu_id),
-                'free': mem_info[0],
-                'used': (mem_info[1]- mem_info[0]),
-                'total': mem_info[1], 
-                'ratio': mem_info[0]/mem_info[1],
-            }
-            if fmt != None:
-                keys = ['free', 'used', 'total']
-                for k in keys:
-                    gpu_info[gpu_id][k] = c.format_data_size(gpu_info[gpu_id][k], fmt=fmt)
-        if device != None:
-            return gpu_info[device]
-
-        return gpu_info
-
-    @classmethod
-    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
-        import torch
-        return {k:v['total'] for k,v in c.gpu_info().items()}
-
- 
-    @classmethod
-    def total_gpu_memory(cls) -> int:
-        total_gpu_memory = 0
-        for gpu_id, gpu_info in cls.gpu_info_map().items():
-            total_gpu_memory += gpu_info['total']
-        return total_gpu_memory
-
-    @classmethod
-    def used_gpu_memory(cls) -> int:
-        used_gpu_memory = 0
-        for gpu_id, gpu_info in cls.gpu_info_map().items():
-            used_gpu_memory += gpu_info['used'] 
-        return used_gpu_memory
 
 
     def forward(self, a=1, b=2):
@@ -3564,122 +3471,13 @@ class c:
             return f'{x:.2f} {f}'
         else:
             return x
-        
 
     @classmethod
-    def most_free_gpu(cls, 
-                      free_gpu_memory:dict = None,
-                      mode : bool = 'int',
-                      **kwargs) -> Union[int, Dict[str, int]]:
-        """ Returns a dictionary of gpu_id to max memory for each gpu.
-        Args:
-            total_memory (int, optional): Total memory to allocate. Defaults to None.
-            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
-        
-        Returns 
-            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
-        """
-        if free_gpu_memory is None:
-            free_gpu_memory = cls.free_gpu_memory(**kwargs)
-        assert isinstance(free_gpu_memory, dict), f'free_gpu_memory must be a dict, not {type(free_gpu_memory)}'
-        most_available_gpu_tuples = sorted(free_gpu_memory.items(), key=lambda x: x[1] , reverse=True)
-        if mode == 'tuple':
-            return most_available_gpu_tuples[0]
-        elif mode == 'dict': 
-            return {most_available_gpu_tuples[0][0]: most_available_gpu_tuples[0][1]}
-        elif mode == 'int':
-            return most_available_gpu_tuples[0][0]
-        elif mode == 'str':
-            return str(most_available_gpu_tuples[0][0])
-        else:
-            raise ValueError(f'Invalid mode {mode}')
-    
-    
-
-    @classmethod
-    def most_free_gpus(cls, 
-                       n:int=None,
-                      free_gpu_memory:dict = None,
-                      mode : str = 'dict',
-                      fmt:str='b',
-                      **kwargs) -> Union[int, Dict[str, int]]:
-        """ Returns a dictionary of gpu_id to max memory for each gpu.
-        Args:
-            total_memory (int, optional): Total memory to allocate. Defaults to None.
-            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
-        
-        Returns 
-            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
-        """
- 
-        if free_gpu_memory is None:
-            free_gpu_memory = cls.free_gpu_memory(**kwargs)
-        assert isinstance(free_gpu_memory, dict), f'free_gpu_memory must be a dict, not {type(free_gpu_memory)}'
-        most_available_gpu_tuples = sorted(free_gpu_memory.items(), key=lambda x: x[1] , reverse=True)
-
-        if n == None:
-            n = len(most_available_gpu_tuples)
-        if mode == 'dict': 
-            return {most_available_gpu_tuples[i][0]: c.format_data_size(most_available_gpu_tuples[i][1], fmt=fmt) for i in range(n)}
-        elif mode == 'tuple':
-            return [(i,c.format_data_size(most_available_gpu_tuples[i][0], fmt=fmt)) for i in range(n)]
-        else:
-            return [c.format_data_size(most_available_gpu_tuples[i][0], fmt=fmt) for i in range(n)]
-        
-    
-    @classmethod
-    def most_free_gpu_memory(cls, *args, **kwargs) -> int:
-        gpu_id = cls.most_free_gpu()
-        return cls.free_gpu_memory(*args, **kwargs)[gpu_id]
-    
-
-    
-    @classmethod
-    def gpu_info(cls, device:int = None) -> Dict[str, Union[int, float]]:
-        '''
-        Get the gpu info for a given device
-        '''
-        if device is None:
-            device = 0
-        gpu_map = cls.gpu_info_map()
-        if device in gpu_map:
-            return gpu_map[device]
-        else:
-            return gpu_map
+    def resolve_device(cls, *args, **kwargs):
+        return c.module('gpu').resolve_device(*args, **kwargs)
 
     # CPU LAND
-    
-    @classmethod
-    def cpu_count(cls):
-        try:
-            return len(os.sched_getaffinity(0))
-        except AttributeError:
-            # OSX does not have sched_getaffinity
-            return os.cpu_count()
 
-
-    @classmethod
-    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
-        
-        '''
-        Resolves the device that is used the least to avoid memory overflow.
-        '''
-        import torch
-        if device == None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        if device == 'cuda':
-            assert torch.cuda.is_available(), 'Cuda is not available'
-            gpu_id = 0
-            if find_least_used:
-                gpu_id = cls.most_free_gpu()
-                
-            device = f'cuda:{gpu_id}'
-        
-            if verbose:
-                device_info = cls.gpu_info(gpu_id)
-                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
-        return device  
-    
     @classmethod
     def param_keys(cls, model:'nn.Module' = None)->List[str]:
         model = c.resolve_model(model)
@@ -3701,30 +3499,6 @@ class c:
             
         return params_map
     
-
-    
-
-    @classmethod
-    def get_num_params(cls, model:'nn.Module' = None)->int:
-        import numpy as np
-        from torch import nn
-        model = c.resolve_model(model)
-        model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-        num_params = sum([np.prod(p.size()) for p in model_parameters])
-        return num_params
-
-    get_model_params = get_num_params
-    @classmethod
-    def get_tensor_size(cls, tensor:'torch.Tensor' = None, fmt:str='b') -> float:
-        if tensor is None:
-            import torch
-            tensor = torch.rand(1)
-        tensor_size =  tensor.nelement() * tensor.element_size()
-        return c.format_data_size(tensor_size, fmt=fmt)
-
-    @classmethod
-    def model_shortcuts(cls, **kwargs):
-        return  c.module('hf').getc('shortcuts')
     @classmethod
     def resolve_model_shortcut(cls, model):
         model_shortcuts = c.model_shortcuts()
@@ -3737,40 +3511,19 @@ class c:
     def rm_model_shortcut(cls, *args, **kwargs):
         return  c.module('hf').rm_model_shortcut(*args, **kwargs)
     
+    @classmethod
     def add_remote(self, *args, **kwargs):
         return c.module('namespace').add_remote(*args, **kwargs)
     
-
-
-    
-
     @classmethod
     def model_options(cls):
         return list(c.model_shortcuts().keys())
-
-    @classmethod
-    def shortcut2model(cls, shortcut:str):
-        return c.model_shortcuts()[shortcut]
-
-    @staticmethod
-    def get_trainable_params(model:'nn.Module')->List[str]:
-        return c.module('model').get_trainable_params(model)
-
-
-    @classmethod
-    def model_gpus(cls, model, num_shard=2):
-        return list(cls.model_gpu_memory(model,num_shard).keys())     
 
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
             model = c.get_empty_model(model)
         return model
-
-
-    def num_params(self)->int:
-        return self.get_num_params(self)
-    
 
     ### DICT LAND ###
 
@@ -3963,11 +3716,7 @@ class c:
     def dict_get(cls, *args, **kwargs):
         dict_get = c.import_object('commune.utils.dict.dict_get')
         return dict_get(*args, **kwargs)
-    @classmethod
-    def dict_delete(cls, *args, **kwargs):
-        dict_delete = c.import_object('commune.utils.dict.dict_delete')
-        return dict_delete(*args, **kwargs)
-    dict_rm = dict_delete
+    
     @classmethod
     def dict_has(cls, *args, **kwargs):
         dict_has = c.import_object('commune.utils.dict.dict_has')
@@ -4007,7 +3756,6 @@ class c:
     @classmethod
     def dict2str(cls, data: str) -> str:
         return json.dumps(data)
-    
     
     @classmethod
     def dict2bytes(cls, data: str) -> bytes:
@@ -4054,21 +3802,6 @@ class c:
         filepath = cls.filepath()
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
     
-    @classmethod
-    def module2isfolder(cls, module = None) -> bool:
-        modules = c.modules()
-        module2isfolder = {}
-        for m in modules:
-            try: 
-                module2isfolder[m] = c.is_folder_module(m)
-            except Exception as e:
-                c.print(e)
-                module2isfolder[m] = False
-
-        return module2isfolder
-            
-
-
     @classmethod
     def is_folder_module(cls,  module = None) -> bool:
         if module != None:
@@ -4421,7 +4154,20 @@ class c:
     @classmethod
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
+    @classmethod
+    def networks(cls, *args, **kwargs) -> List[str]:
+        return c.module('namespace').networks( *args, **kwargs)
+    @classmethod
+    def network2namespace(self, *args, **kwargs) -> str:
+        return c.module("namespace").network2namespace(*args, **kwargs)
+    all = network2namespace
     
+    def remove_user(self, key: str) -> None:
+        if not hasattr(self, 'users'):
+            self.users = []
+        self.users.pop(key, None)
+    
+
     @classmethod
     def is_encrypted(cls, data, prefix=encrypted_prefix):
         if isinstance(data, str):
@@ -4432,29 +4178,6 @@ class c:
         else:
             return False
     
-    @classmethod
-    def network(cls) -> str:
-        return c.resolve_network()
-    
-    
-    net = network
-    
-    @classmethod
-    def networks(cls, *args, **kwargs) -> List[str]:
-        return c.module('namespace').networks( *args, **kwargs)
-
-    @classmethod
-    def network2namespace(self, *args, **kwargs) -> str:
-        return c.module("namespace").network2namespace(*args, **kwargs)
-    all = network2namespace
-    
-    def remove_user(self, key: str) -> None:
-        if not hasattr(self, 'users'):
-            self.users = []
-        self.users.pop(key, None)
-        
-    
-
     @classmethod
     def fleet(cls,
             module = None, 
@@ -4486,18 +4209,6 @@ class c:
 
         return results
         
-
-    @classmethod
-    def kill_fleet(cls, tag=None, network='local', **kwargs):
-
-        path = cls.resolve_server_name(tag=tag)
-        servers = c.servers(path, network=network)
-        executor = c.module('executor')(mode='process')
-        for server in servers:
-            futures += [executor.submit(fn=cls.kill_server, kwargs={'server_name':p, 'network':network})]
-
-        return c.wait(futures)
-
     executor_cache = {}
     @classmethod
     def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
@@ -4577,7 +4288,6 @@ class c:
         if return_future:
             return futures
         return c.wait(futures)
-
 
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
@@ -4711,24 +4421,7 @@ class c:
             module = cls
         return module.dirpath() == c.pwd()
 
-    @classmethod
-    def server_many(cls, *modules, n=2, **kwargs):
 
-        if isinstance(modules[0], list):
-            modules = modules[0]
-        
-        futures = []
-        for module in modules:
-            future = c.submit(c.serve, kwargs={'module': module, **kwargs})
-            futures.append(future)
-            
-        results = []
-        for future in c.as_completed(futures):
-            result = future.result()
-            c.print(result)
-            results.append(result)
-        return results
-    
     
     @classmethod
     def currnet_module(cls):
@@ -4753,8 +4446,6 @@ class c:
             if 'success' in x and x['success'] == True:
                 return True
         return False
-
-
     
     @classmethod
     def is_int(cls, value) -> bool:
@@ -4778,55 +4469,8 @@ class c:
         except:
             pass
 
-        return o
-        
-    
+        return o 
 
-    @classmethod
-    def resolve_network(cls, network='local'):
-
-        network_shortcuts = {
-            'r': 'remote',
-            'l': 'local',
-            'g': 'global',
-            's': 'subspace',
-            'bt': 'bittensor',
-            'auto': 'autonolous',
-        }
-
-        network = network_shortcuts.get(network, network)
-    
-        return network
-
-    get_network = resolve_network
-    @classmethod
-    def set_network(cls, network:str):
-        old_network = c.network()
-        network = c.resolve_network(network)
-        c.put('network', network)
-
-        return {'success': True, 'msg': f'from {old_network} -> {network}'}
-    
-    setnet = set_network
-
-    @classmethod
-    def switch_network(cls):
-        network = cls.get_network()
-        if network == 'subspace':
-            network = 'local'
-        else:
-            network = 'subspace'
-        return cls.set_network(network)
-
-    switchnet = switch_network
-    
-    @classmethod
-    def get_network(self):
-        return c.get('network', self.default_network)
-
-    getnet = get_network
-    resnet = resolve_network
-    
 
     def update_config(self, k, v):
         self.config[k] = v
@@ -4869,24 +4513,6 @@ class c:
         return [text for text in text_list if filter_text in text]
 
     @classmethod
-    def get_file_contents(cls, class_name = None):
-        if class_name is None:
-            class_name = cls
-        # Get the module that contains the class
-        module = inspect.getmodule(class_name)
-        if module is None:
-            raise ValueError(f"Could not find module for class {class_name}")
-
-        # Get the file path of the module
-        module_file_path = os.path.abspath(module.__file__)
-
-        # Read the contents of the file
-        with open(module_file_path, 'r') as file:
-            file_contents = file.read()
-
-        return file_contents
-
-    @classmethod
     def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
@@ -4902,7 +4528,6 @@ class c:
     
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
     
-
     def rm_lines(self, path:str, start_line:int, end_line:int) -> None:
         # Get the absolute path of the file
         text = c.get_text(path)
@@ -5190,90 +4815,6 @@ class c:
             pwd = c.pwd()
             path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
         return path2text
-        
-
-    @classmethod
-    def model_max_gpu_memory(cls, model, *args, **kwargs):
-        model_size = c.get_model_size(model)
-        return c.max_gpu_memory(model_size,  *args, **kwargs)
-
-    @classmethod
-    def model_max_gpus(cls, model, *args, **kwargs):
-        return list(c.model_max_gpu_memory(model,  *args, **kwargs).keys())
-
-    infer_gpus = model_max_gpus
-
-
-    @classmethod
-    def max_gpu_memory(cls, memory:Union[str,int] = None,
-                       mode:str = 'most_free', 
-                       min_memory_ratio = 0.0,
-                       reserve:bool = False, 
-                       buffer_memory = '5gb',
-                       free_gpu_memory: dict = None,
-                       saturate:bool = False,
-                       fmt:str = 'b',
-                       decimals:int = 3,
-                       **kwargs):
-        
-        memory = cls.resolve_memory(memory)
-        min_memory = min_memory_ratio * memory
-        buffer_memory = c.resolve_memory(buffer_memory) # to bytes
-        
-        assert memory > 0, f'memory must be greater than 0, got {memory}'
-        free_gpu_memory = free_gpu_memory if free_gpu_memory else cls.free_gpu_memory(**kwargs)
-        total_gpu_memory = sum(free_gpu_memory.values())
-        # free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
-        gpus = list(free_gpu_memory.keys()) 
-        total_gpu_memory = total_gpu_memory - buffer_memory*len(gpus)
-        
-        
-        
-        assert memory < total_gpu_memory, f'model size {memory} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
-        unallocated_memory = memory
-        # max_memory = {}
-        max_memory = {}
-        
-        
-        free_gpu_memory = {k:v-buffer_memory for k,v in free_gpu_memory.items()}
-        
-        
-        selected_gpus = []
-        gpu = None
-        gpu_memory = 0
-        while unallocated_memory > 0:
-            if gpu_memory == 0:
-                gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-                gpu_memory =  free_gpu_memory[gpu]
-            
-            if gpu in max_memory:
-                continue
-            
-            if gpu_memory < min_memory:
-                continue
-                
-  
-            allocated_memory = min(gpu_memory, unallocated_memory)
-            unallocated_memory -= allocated_memory
-            max_memory[gpu] = allocated_memory
-            free_gpu_memory[gpu] -= allocated_memory
-            gpu_memory = free_gpu_memory[gpu]
-        max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
-        
-        if reserve:
-            
-            cls.reserve_gpu_memory(max_memory)
-            
-            
-        if saturate:
-            free_gpu_memory = cls.free_gpu_memory()
-            max_memory = {gpu:free_gpu_memory[gpu] for gpu in max_memory.keys()}
-            
-            
-        max_memory = {k:c.round_decimals(c.format_data_size(v, fmt=fmt), decimals=decimals) for k,v in max_memory.items()}
-        
-        return max_memory
-            
 
     @classmethod
     def resolve_module(cls, module=None):
@@ -5341,51 +4882,6 @@ class c:
         assert type(memory) in [float, int], f'memory must be a float or int, got {type(memory)}'
         return memory
             
-
-    @classmethod
-    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, **kwargs):
-        reserved_gpu_memory = {} if refresh else cls.reserved_gpus()
-        if type(gpu_mmory) in [int, float, str]:
-            gpu_memory = cls.max_gpu_memory(gpu_memory, **kwargs)
-        for  gpu, memory in gpu_memory.items():
-            memory = cls.resolve_memory(memory) 
-            gpu = int(gpu)
-            if gpu in reserved_gpu_memory:
-                reserved_gpu_memory[gpu] += memory
-            else:
-                reserved_gpu_memory[gpu] = memory
-        c.put('reserved_gpu_memory', reserved_gpu_memory)
-        return reserved_gpu_memory
-    
-    @classmethod
-    def reserved_gpus(cls,*args, **kwargs) -> Dict[str, int]:
-        reserved_gpus = c.get('reserved_gpu_memory', {})
-        reserved_gpus = {k:int(v) for k,v in reserved_gpus.items() if v > 0} 
-        reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items()}
-        return reserved_gpus  
-    
-    @classmethod
-    def unreserve_gpus(cls,gpu_memory: Union[dict] = None,*args,  **kwargs):
-        if gpu_memory is None:
-            reserved_gpu_memory = {}
-        else:
-            reserved_gpu_memory =cls.reserved_gpus()
-            for  gpu, memory in gpu_memory.items():
-                memory = cls.resolve_memory(memory)
-    
-                if gpu in reserved_gpu_memory:
-                    if memory == -1:
-                        memory = reserved_gpu_memory[gpu]
-                    reserved_gpu_memory[gpu] -= memory
-                
-        c.print(f'unreserving {gpu_memory}')
-        reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
-        c.put('reserved_gpu_memory', reserved_gpu_memory)
-        return cls.reserved_gpus()
-
-    release_gpus = unleash_gpus =  unreserve_gpus
-    reserve_gpu_memory = reserve_gpus
-    unreserve_gpu_memory = unreserve_gpus
 
     def link_cmd(cls, old, new):
         
@@ -5900,20 +5396,7 @@ class c:
     def echo(x):
         return x
     
-    @staticmethod
-    def get_files_code(directory):
-        code_dict = {}
 
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, directory)
-
-                with open(file_path, 'r') as f:
-                    code = f.read()
-                    code_dict[relative_path] = code
-
-        return code_dict
     
     @classmethod
     def pool(cls , n=5, **kwargs):
@@ -5987,12 +5470,11 @@ class c:
                 fn2type[f] = self.classify_fn(getattr(self, f))
         return fn2type
 
-
-    
     @classmethod
     def build(cls, *args, **kwargs): 
         return c.module('docker').build(*args, **kwargs)
     build_image = build
+
     @classmethod
     def has_gpus(cls): 
         return bool(len(c.gpus())>0)
@@ -6222,18 +5704,7 @@ class c:
             return obj
         else:
             return obj.__class__
-    @staticmethod
-    def is_full_function(fn_schema):
-
-        for mode in ['input', 'output']:
-            if len(fn_schema[mode]) > 0:
-                for value_key, value_type in fn_schema[mode].items():
-                    if value_type == None:
-                        return None
-            else:
-                return None
-        return fn_schema 
-
+        
     @staticmethod
     def try_n_times(fn, max_trials:int=10, args:list=[],kwargs:dict={}):
         assert isinstance(fn, callable)
@@ -6767,12 +6238,9 @@ class c:
         return c.module('subspace')().live_keys( *args, **kwargs)
     def dead_keys(self,  *args, **kwargs):
         return c.module('subspace')().dead_keys( *args, **kwargs)
-
-
     @classmethod
     def key2balance(cls, *args, **kwargs):
         return c.module('subspace')().key2balance(*args, **kwargs)
-
     @classmethod
     def nodes(cls, *args, **kwargs):
         return c.module('subspace')().nodes(*args, **kwargs)
@@ -7265,8 +6733,7 @@ class c:
             c.print(m)
             c.restart(m)
 
-        
-    
+
     @classmethod
     def getcwd(cls):
         return os.getcwd()
@@ -7516,9 +6983,6 @@ class c:
 
     def generate(self, *args, **kwargs):
         return 'hey'
-
-
-
 
     @classmethod
     def add_peers(cls, *args, **kwargs):
