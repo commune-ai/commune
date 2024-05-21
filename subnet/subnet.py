@@ -14,12 +14,12 @@ class Subnet(c.Module):
         
 
     @classmethod
-    def test(cls, n=3, sleep_time=5):
+    def test(cls, n=3, sleep_time=4):
         test_vali = 'subnet.vali::test'
         test_miners = [f'subnet.miner::test_{i}' for i in range(n)]
         for miner in test_miners:
             c.serve(miner)
-        c.serve(test_vali, kwargs={'network': 'local', 'search': 'miner::test_'})
+        c.serve(test_vali, kwargs={'network': 'local', 'search': 'miner::test_', 'min_update_interval': 1})
         
         c.print('Sleeping for 3 seconds')
         c.sleep(sleep_time)
