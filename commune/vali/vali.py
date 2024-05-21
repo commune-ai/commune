@@ -143,7 +143,6 @@ class Vali(c.Module):
     
 
 
-
     def epoch(self, batch_size = None, network=None, **kwargs):
 
         self.epochs += 1
@@ -470,7 +469,7 @@ class Vali(c.Module):
                             'staleness',
                             'latency'],
                     path = 'cache/module_infos',
-                    max_age = 3600,
+                    max_age = None,
                     min_weight = 0,
                     network = None,
                     ascending = False,
