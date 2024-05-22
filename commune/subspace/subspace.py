@@ -1155,8 +1155,12 @@ class Subspace(c.Module):
         return ''.join([c.capitalize() for c in chunks])
 
 
-    def query_multi(self, params_batch , substrate=None, module='SubspaceModule', feature='SubnetNames', network='main'):
-        substrate = substrate or self.get_substrate(network=network)
+    def query_multi(self, params_batch , 
+                    substrate=None, 
+                    module='SubspaceModule', 
+                    feature='SubnetNames', 
+                    network='main', 
+                    trials = 6):
 
         # check if the params_batch is a list of lists
         for i,p in enumerate(params_batch):
@@ -1168,8 +1172,17 @@ class Subspace(c.Module):
             params_batch[i] = p
             
         assert isinstance(params_batch, list), f"params_batch should be a list of lists"
-        multi_query = [substrate.create_storage_key(*p) for p in params_batch]
-        results = substrate.query_multi(multi_query)
+        while True:
+            substrate = substrate or self.get_substrate(network=network)
+
+            try:
+                multi_query = [substrate.create_storage_key(*p) for p in params_batch]
+                results = substrate.query_multi(multi_query)
+                break
+            except Exception as e:
+                trials -= 1 
+                if trials == 0: 
+                    raise e
         return results
 
     def blocks_until_vote(self, netuid=0, **kwargs):
@@ -1186,6 +1199,7 @@ class Subspace(c.Module):
                     fmt:str='j', 
                     features  = subnet_features,
                     value_features = ['min_stake', 'max_stake'], 
+                    trials = 6,
                     **kwargs
                     ) -> list:  
 
@@ -1198,7 +1212,7 @@ class Subspace(c.Module):
         if subnet_params == None:
             subnet_params = {}
             multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
-            results = self.query_multi(multi_query)
+            results = self.query_multi(multi_query, trials=trials)
             for idx, (k, v) in enumerate(results):
                 subnet_params[names[idx]] = v.value
             self.put(path, subnet_params)
@@ -1660,6 +1674,8 @@ class Subspace(c.Module):
                 progress_bar.update(1)
         
         return modules
+
+
     
         
     def my_modules(self, search=None, netuid=0, generator=False,  **kwargs):
@@ -2664,14 +2680,14 @@ class Subspace(c.Module):
 
         self.keys()
         futures = []
+        namespace = c.namespace()
         for m in my_modules:
 
             name = m['name']
-            if c.exists(name):
+            if name in namespace:
+                address = namespace[name]
+            else:
                 address = c.serve(name)['address']
-            while not c.exists(name):
-                c.print(name, c.namespace())
-                c.serve
 
             if m['address'] == address and m['name'] == name:
                 c.print(f"Module {m['name']} already up to date")
@@ -2740,6 +2756,8 @@ class Subspace(c.Module):
             'delegation_fee': delegation_fee, # defaults to module.delegate_fee
             'metadata': metadata, # defaults to module.metadata
         }
+
+        c.print(params)
 
         reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
 
@@ -3303,7 +3321,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
         global_params = self.global_params( network=network)
-        subnet_params = self.subnet_params( netuid = netuid )
+        subnet_params = self.subnet_params( netuid = netuid , max_age=None, update=False)
         module_info = self.module_info(key.ss58_address, netuid=netuid)
         min_stake = global_params['min_weight_stake'] * subnet_params['min_allowed_weights']
         assert module_info['stake'] > min_stake
@@ -3639,6 +3657,7 @@ class Subspace(c.Module):
                     unchecked_weight: bool = False,
                     network = network,
                     mode='ws',
+                    trials = 4,
                     max_tip = 10000,
                      **kwargs):
 
@@ -3674,47 +3693,52 @@ class Subspace(c.Module):
 
         self.put_json(paths['pending'], tx_state)
 
-        substrate = self.get_substrate(network=network, mode='ws')
-        call = substrate.compose_call(**compose_kwargs)
+        for t in range(trials):
+            try:
+                substrate = self.get_substrate(network=network, mode='ws')
+                call = substrate.compose_call(**compose_kwargs)
+                if sudo:
+                    call = substrate.compose_call(
+                        call_module='Sudo',
+                        call_function='sudo',
+                        call_params={
+                            'call': call,
+                        }
+                    )
+                if unchecked_weight:
+                    # uncheck the weights for set_code
+                    call = substrate.compose_call(
+                        call_module="Sudo",
+                        call_function="sudo_unchecked_weight",
+                        call_params={
+                            "call": call,
+                            'weight': (0,0)
+                        },
+                    )
+                # get nonce 
+                if tip < max_tip:
+                    tip = tip * 1e9
+                extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
 
-        if sudo:
-            call = substrate.compose_call(
-                call_module='Sudo',
-                call_function='sudo',
-                call_params={
-                    'call': call,
-                }
-            )
-        if unchecked_weight:
-            # uncheck the weights for set_code
-            call = substrate.compose_call(
-                call_module="Sudo",
-                call_function="sudo_unchecked_weight",
-                call_params={
-                    "call": call,
-                    'weight': (0,0)
-                },
-            )
-        # get nonce 
-        if tip < max_tip:
-            tip = tip * 1e9
-        extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
+                response = substrate.submit_extrinsic(extrinsic=extrinsic,
+                                                        wait_for_inclusion=wait_for_inclusion, 
+                                                        wait_for_finalization=wait_for_finalization)
+                if wait_for_finalization:
+                    if process_events:
+                        response.process_events()
 
-        response = substrate.submit_extrinsic(extrinsic=extrinsic,
-                                                wait_for_inclusion=wait_for_inclusion, 
-                                                wait_for_finalization=wait_for_finalization)
+                    if response.is_success:
+                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                    else:
+                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                else:
+                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                break
+            except Exception as e:
+                if t == trials - 1:
+                    raise e
+                
 
-        if wait_for_finalization:
-            if process_events:
-                response.process_events()
-
-            if response.is_success:
-                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
-            else:
-                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
-        else:
-            response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
-        
         tx_state['end_time'] = c.datetime()
         tx_state['status'] = 'completed'
         tx_state['response'] = response

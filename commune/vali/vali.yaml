@@ -2,14 +2,14 @@
 # network
 network: subspace # the network to connect to (bittensor, commune, local) to specify subnet, (subspace.0 or subspace.text)
 netuid: null # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
-sync_interval: 60
+sync_interval: 600
 sample_interval: 0.005 # the sleep interval between sending samples
 search: null # the search for modules in the namespace
 fn : null # the function to filter
 
 # epoch
 mode: thread
-batch_size: 64 # the batch size for the worker
+batch_size: 32 # the batch size for the worker
 workers: 1 # the number of workers
 threads_per_worker: 32
 timeout: 3
