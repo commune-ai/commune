@@ -218,7 +218,8 @@ class Client(c.Module):
         kwargs.update(extra_kwargs)
         timestamp = c.time()
         request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
-        result = asyncio.run(self.send_request(url=url, request=request, headers=headers, timeout=timeout, verbose=verbose, stream=stream))
+        future = asyncio.wait_for(self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream), timeout=timeout)
+        result = asyncio.run(future)
         
         if type(result) in [str, dict, int, float, list, tuple]:
             result = self.serializer.deserialize(result)
@@ -278,6 +279,7 @@ class Client(c.Module):
                 network:str = 'local',
                 key:str = None,
                 stream = False,
+                timeout=40,
                 **extra_kwargs) -> None:
           
         if '//' in module:
@@ -293,6 +295,7 @@ class Client(c.Module):
                            prefix_match=prefix_match, 
                            virtual=False, 
                            key=key)
+
         # if isinstance(kwargs, str):
         #     kwargs = c.str2dict(kwargs)
         if params != None:
@@ -300,7 +303,7 @@ class Client(c.Module):
         if kwargs == None:
             kwargs = {}
         kwargs.update(extra_kwargs)
-        return  module.forward(fn=fn, args=args, kwargs=kwargs, stream=stream)
+        return  module.forward(fn=fn, args=args, kwargs=kwargs, stream=stream, timeout=timeout)
     
     
     @classmethod

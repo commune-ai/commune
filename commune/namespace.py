@@ -210,7 +210,6 @@ class Namespace(c.Module):
             
         return namespace
 
-    update_namespace = build_namespace
     
     @classmethod
     def migrate_namespace(cls, network:str='local'):
@@ -424,7 +423,6 @@ class Namespace(c.Module):
             
         return namespace
 
-    update_namespace = build_namespace
     
     @classmethod
     def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:

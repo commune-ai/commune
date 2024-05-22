@@ -2358,10 +2358,13 @@ class c:
     def add_namespace(cls, *args, **kwargs):
         return c.module("namespace").empty_namespace(*args, **kwargs)
 
-
-    
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
+        return c.module("namespace").update_namespace(network=network, **kwargs)
+    
+    
+    @classmethod
+    def build_namespace(cls, network:str='local',**kwargs):
         return c.module("namespace").update_namespace(network=network, **kwargs)
     
     @classmethod
