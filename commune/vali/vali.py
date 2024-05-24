@@ -60,13 +60,17 @@ class Vali(c.Module):
 
         }
 
+    def start_workers(self):
+        for i in range(self.config.workers):
+            self.start_worker(i)
+
 
     def run_loop(self):
         c.sleep(self.config.initial_sleep)
         # start the workers
         self.start_time = c.time()
-        for i in range(self.config.workers):
-            self.start_worker(i)
+        self.start_workers()
+
         while True:
             c.sleep(self.config.print_interval)
             try:
@@ -77,6 +81,8 @@ class Vali(c.Module):
                 else:
                     if self.vote_staleness > self.config.vote_interval:
                         c.print(self.vote())
+                if run_info['epoch']['sent_staleness'] > self.config.max_sent_staleness:
+                    self.start_workers()
                 c.print(run_info)
 
             except Exception as e:
@@ -116,25 +122,7 @@ class Vali(c.Module):
         return c.time() - self.start_time
     
 
-    def process_result(self, result):
-        w = result.get('w', 0)
-        address = result.get('address', 'unknown')
-        name = result.get('name', 'unknown')
-        if c.is_error(result):
-            self.errors += 1
-        else:
-                    # record the success statistics
-           
-            if result.get('w', 0) > 0:
-                self.successes += 1
-                self.last_success = c.time()
-            else:
-                self.errors += 1
-        c.print(f'Rewarding >>>> {result}',  color='green', verbose=self.config.verbose)
-
-        return result
-
-
+ 
     def worker(self, 
                epochs=1e9,
                id=0):
@@ -155,17 +143,16 @@ class Vali(c.Module):
             cls = c.module('vali.'+vali)
         self = cls(network=network, **kwargs)
         return self.epoch()
-    
 
+    def epoch(self,  **kwargs):
 
-    def epoch(self, 
-             **kwargs):
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses))
-        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker, maxsize=self.config.threads_per_worker)
-        batch_size = self.config.batch_size
+        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker, 
+                                                    maxsize=self.config.threads_per_worker*2)
         progress_bar = c.tqdm(len(module_addresses))
+        
         self.sync(network=self.config.network)
 
         futures = []
@@ -181,12 +168,10 @@ class Vali(c.Module):
                     for future in c.as_completed(futures, timeout=self.config.timeout):
                         result = future.result()
                         futures.remove(future)
-                        result = self.process_result(result)
                         results.append(result)
                         break
                 except Exception as e:
                     pass
-                    
             
         for future in c.as_completed(futures, timeout=self.config.timeout):
             try:
@@ -194,8 +179,8 @@ class Vali(c.Module):
             except Exception as e:
                 result = c.detailed_error(e)
             futures.remove(future)
-            result = self.process_result(result)
             results.append(result)
+
         return results
         
     def network_staleness(self):
@@ -292,6 +277,19 @@ class Vali(c.Module):
 
     module2last_update = {}
 
+    def process_score(self, response):
+        # PROCESS THE RESPONSE
+        if type(response) in [int, float, bool]:
+            # if the response is a number, we want to convert it to a dict
+            response = {'w': float(response)}
+        elif type(response) == dict:
+            response = response
+        else:
+            raise Exception(f'Response must be a number or a boolean, got {response}')
+        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
+
+        return response
+
     def eval(self, module:str, 
             network:str=None, 
             verbose_keys:List[str] = ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness'],
@@ -303,9 +301,6 @@ class Vali(c.Module):
         network = network or self.config.network
         self.sync(network=network)
 
-        # load the module info and calculate the staleness of the module
-        # if the module is stale, we can just return the module info
-
         info = {}
         # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
         if module in self.name2address:
@@ -316,50 +311,36 @@ class Vali(c.Module):
             info['name'] = self.address2name[module]
             info['address'] = module
 
-        self.requests += 1
-        name = info['name']
-        lag = c.time() - self.module2last_update.get(name, 0) # calculate the lag
-
-        if lag < self.config.min_update_interval:
-            seconds_left = self.config.min_update_interval - lag
-            return {'success': False, 'msg': f'{lag} lag is too small please wait for {seconds_left} seconds before calling again'}
-        self.module2last_update[name] = self.last_sent
-        self.last_sent = c.time()
-
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
         path = self.resolve_path(self.storage_path() + f"/{info['name']}")
-        cached_info = self.get(path, {})
-
-        if len(cached_info) > 0 :
-            info = cached_info
-        else:
+        info = self.get(path, {})
+        is_info = bool(isinstance(info, dict) and 'ss58_address' in info)
+        if not is_info:
             info = module.info(timeout=4)
-        assert 'address' in info and 'name' in info, f'Info must have a address key, got {info}'
-        info['staleness'] = c.time() - info.get('timestamp', 0)
-        info['path'] = path
-
+        self.requests += 1
+        name = info['name']
+        address = info['address']
+        key_address = info['ss58_address']
+        c.print(f'Evaluating {name} (address={address},key={key_address})', color='purple')
         start_time = c.time()
-
         response = self.score_module(module)
-        if type(response) in [int, float, bool]:
-            # if the response is a number, we want to convert it to a dict
-            response = {'w': float(response)}
-        elif type(response) == dict:
-            response = response
-        else:
-            raise Exception(f'Response must be a number or a boolean, got {response}')
-        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
-
+        response = self.process_score(resuresponselt)
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
         response['w'] = response['w']  * self.config.alpha + info.get('w', response['w']) * (1 - self.config.alpha)
         response['w'] = c.round(response['w'], 3)
         # merge the info with the response
-        info.update(response)
-        self.put(path, info)
+        if response['w'] > 0:
+            self.successes += 1
+            self.last_success = c.time()
+            info.update(response)
+            self.put(path, info)
+        else:
+            self.errors += 1
         response =  {k:info[k] for k in verbose_keys}
-        return response
+        c.print(f'Rewarding >>>> {result}',  color='green', verbose=self.config.verbose)
+        return result
     
     eval_module = eval
         
@@ -451,11 +432,11 @@ class Vali(c.Module):
                             'staleness',
                             'latency'],
                     path = 'cache/module_infos',
-                    max_age = None,
+                    max_age = 3600,
                     min_weight = 0,
                     network = None,
-                    ascending = False,
-                    sort_by = ['w'],
+                    ascending = True,
+                    sort_by = ['staleness'],
                     to_dict = False,
                     n = 50,
                     page = None,

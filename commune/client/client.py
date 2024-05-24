@@ -25,8 +25,6 @@ class Client(c.Module):
             **kwargs
         ):
         self.loop = c.get_event_loop() if loop == None else loop
-
-        self.set_client(address = address, network=network)
         self.serializer = c.module(serializer)()
         self.key = c.get_key(key)
         self.start_timestamp = c.timestamp()
@@ -34,6 +32,8 @@ class Client(c.Module):
         self.history_path = history_path
         self.debug = debug
         self.default_fn = default_fn
+        self.set_client(address = address, network=network)
+
 
     def prepare_request(self, args: list = None, kwargs: dict = None, params=None, message_type = "v0"):
 
@@ -132,8 +132,7 @@ class Client(c.Module):
                         event_data = json.loads(event_data)['data']
                 return event_data
 
-            if stream:
-                                        
+            if stream:           
                 async def stream_generator(response):
                     try:
                         async for line in response.content:
@@ -143,7 +142,6 @@ class Client(c.Module):
                             yield event
                     except Exception as e:
                         await self.session.close()
-                        await response.close()
                 return stream_generator(response)
             else:
                 result = []  
@@ -194,7 +192,7 @@ class Client(c.Module):
     
 
     def forward(self, *args, **kwargs):
-        return self.loop.run_until_complete(self.aysnc_forward(*args, **kwargs))
+        return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
 
     async def async_forward(self,
         fn: str,
@@ -218,7 +216,7 @@ class Client(c.Module):
             kwargs.update(extra_kwargs)
             timestamp = c.time()
             request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
-            future = await self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream)
+            result = await self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream)
 
             if type(result) in [str, dict, int, float, list, tuple]:
                 result = self.serializer.deserialize(result)
@@ -238,7 +236,8 @@ class Client(c.Module):
 
 
     def __del__(self):
-        self.loop.run_until_complete(self.session.close())
+        if hasattr(self , 'session'):
+            self.loop.run_until_complete(self.session.close())
     
     
     def age(self):
@@ -396,3 +395,7 @@ class Client(c.Module):
         key  = c.get_key(module)
         assert info['ss58_address'] == key.ss58_address
         return {'info': info, 'key': str(key)}
+
+    def __del__(self):
+        if hasattr(self, 'session'):
+            asyncio.run(self.session.close())

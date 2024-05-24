@@ -57,6 +57,12 @@ class ThreadPoolExecutor(c.Module):
     def is_empty(self):
         return self.work_queue.empty()
 
+    @property
+    def is_full(self):
+        return self.work_queue.full()
+
+
+
     
     def submit(self, 
                fn: Callable,
@@ -235,5 +241,6 @@ class ThreadPoolExecutor(c.Module):
         return dict(
             num_threads = len(self.threads),
             num_tasks = self.num_tasks,
-            is_empty = self.is_empty
+            is_empty = self.is_empty,
+            is_full = self.is_full
         )
