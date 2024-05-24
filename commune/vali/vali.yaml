@@ -9,20 +9,21 @@ fn : null # the function to filter
 
 # epoch
 mode: thread
-batch_size: 32 # the batch size for the worker
+batch_size: 64 # the batch size for the worker
 workers: 1 # the number of workers
-threads_per_worker: 32
-timeout: 3
-sleep_time: 0.05
+threads_per_worker: 64
+timeout: 10
+sleep_time: 0.0005
 refresh : True
 start: True
 is_main_worker: True
 debug: False
-min_update_interval: 30 # the minimum interval to update the network
-alpha: 0.5 # the ma average
+min_update_interval: 10 # the minimum interval to update the network
+alpha: 1.0 # the ma average
 max_leaderboard_age: 3600 # the maximum age of the leaderboard 
 max_history: 10
 disable_voting: 1
+max_sent_staleness: 10
 
 # run loop
 initial_sleep : 5 # the initial sleep time before running the loop

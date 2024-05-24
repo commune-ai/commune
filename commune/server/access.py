@@ -57,7 +57,6 @@ class Access(c.Module):
                 r = self.sync_network()
             except Exception as e:
                 r = c.detailed_error(e)
-            c.print(r)
             c.sleep(self.config.sync_interval)
 
     def sync_network(self):
