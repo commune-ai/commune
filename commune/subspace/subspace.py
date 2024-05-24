@@ -1580,7 +1580,9 @@ class Subspace(c.Module):
                     fmt='j',
                     mode = 'http',
                     block = None,
-                    lite = True, **kwargs ) -> 'ModuleInfo':
+                    max_age = None,
+                    lite = True, 
+                    **kwargs ) -> 'ModuleInfo':
         url = self.resolve_url(network=network, mode=mode)
         module_key = module
         if not c.valid_ss58_address(module):
@@ -1655,9 +1657,10 @@ class Subspace(c.Module):
             module_batches = c.wait(futures, timeout=timeout)
             name2module = {}
             for module_batch in module_batches:
-                for m in module_batch:
-                    if isinstance(m, dict) and 'name' in m:
-                        name2module[m['name']] = m
+                if isinstance(module_batch, list):
+                    for m in module_batch:
+                        if isinstance(m, dict) and 'name' in m:
+                            name2module[m['name']] = m
                     
             modules = list(name2module.values())
             return modules
@@ -1690,7 +1693,6 @@ class Subspace(c.Module):
                     c.print(e)
             modules = {k: v for k,v in modules.items() if len(v) > 0 }
             return modules
-        
         modules =  self.get_modules(keys=keys, netuid=netuid, **kwargs)
         return modules
     
