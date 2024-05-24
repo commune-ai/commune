@@ -227,3 +227,13 @@ class ThreadPoolExecutor(c.Module):
         return {'success': True, 'msg': 'thread pool test passed'}
 
         
+
+    @property
+    def is_empty(self):
+        return self.work_queue.empty()
+    def status(self):
+        return dict(
+            num_threads = len(self.threads),
+            num_tasks = self.num_tasks,
+            is_empty = self.is_empty
+        )

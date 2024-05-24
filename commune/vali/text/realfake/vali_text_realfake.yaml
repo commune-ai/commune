@@ -3,5 +3,7 @@ search: model
 target: real
 network: subspace
 netuid: 0
-timeout: 5
+timeout: 10
+verbose: False
+
 

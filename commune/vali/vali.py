@@ -5,16 +5,9 @@ from typing import *
 class Vali(c.Module):
 
     last_sync_time = 0
-    last_sent = 0
-    last_success = 0
-    errors = 0
-    requests = 0
-    successes = 0  
-    epochs = 0
     voting_networks: ['subspace', 'bittensor']
     score_fns = ['score_module', 'score'] # the score functions
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
-    address2last_update = {}
 
     def __init__(self,
                  config:dict=None,
@@ -43,6 +36,30 @@ class Vali(c.Module):
         c.thread(self.run_loop)
 
     init = init_vali
+
+    requests = 0 
+    errors = 0 
+    successes = 0
+    last_sent = 0 
+    last_success = 0
+    epochs = 0
+
+    @property
+    def sent_staleness(self):
+        return c.time()  - self.last_sent
+
+    def epoch_info(self):
+
+        return {
+            'requests': self.requests,
+            'errors': self.errors,
+            'successes': self.successes,
+            'sent_staleness': self.sent_staleness,
+            'epochs': self.epochs,
+            'executor_status': self.executor.status()
+
+        }
+
 
     def run_loop(self):
         c.sleep(self.config.initial_sleep)
@@ -103,16 +120,18 @@ class Vali(c.Module):
         w = result.get('w', 0)
         address = result.get('address', 'unknown')
         name = result.get('name', 'unknown')
-        c.print(f'<Result>:: {name}({address}) --> {w}', color='purple', verbose=self.config.verbose or self.config.debug)
         if c.is_error(result):
-            self.epoch_info['errors'] += 1
+            self.errors += 1
         else:
                     # record the success statistics
+           
             if result.get('w', 0) > 0:
-                self.epoch_info['successes'] += 1
-                self.epoch_info['last_success'] = c.time()
+                self.successes += 1
+                self.last_success = c.time()
             else:
-                self.epoch_info['errors'] += 1
+                self.errors += 1
+        c.print(f'Rewarding >>>> {result}',  color='green', verbose=self.config.verbose)
+
         return result
 
 
@@ -123,12 +142,9 @@ class Vali(c.Module):
             try:
                 t0 = c.time()
                 self.epoch()
+                c.print(self.leaderboard())
                 t1 = c.time()
                 latency = t1 - t0
-                if latency < self.config.min_update_interval:
-                    sleep_time = (self.config.min_update_interval - latency)
-                    c.print(f'Sleeping for {sleep_time} seconds', color='yellow')
-                    c.sleep(sleep_time)
             except Exception as e:
                 c.print('Dawg, theres an error in the epoch')
                 c.print(c.detailed_error(e))
@@ -143,78 +159,45 @@ class Vali(c.Module):
 
 
     def epoch(self, 
-             batch_size = None,
-             network=None, 
-             num_samples = None,
              **kwargs):
-
-        self.epochs += 1
-        
-        if not hasattr(self, 'epoch_info'):
-            self.epoch_info = {
-                'requests': 0,
-                'errors': 0,
-                'successes': 0,
-                'last_sent': 0,
-                'last_success': 0,
-                'batch_size': 0,
-                'epochs': self.epochs,
-                }
-
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses))
-        self.executor = c.module('executor.thread')(max_workers=min(1, batch_size))
+        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker, maxsize=self.config.threads_per_worker)
         batch_size = self.config.batch_size
         progress_bar = c.tqdm(len(module_addresses))
-        if num_samples != None:
-            module_addresses = module_addresses[:num_samples]
-        self.sync(network=network)
+        self.sync(network=self.config.network)
 
         futures = []
         results = []
 
         for module_address in module_addresses:
             c.sleep(self.config.sample_interval)
-            # filter the address
-            if not c.is_address(module_address):
-                c.print(f'{module_address} is not a valid address', verbose=self.config.verbose)
-                continue
-            lag = c.time() - self.address2last_update.get(module_address, 0) # calcu
-            if lag < self.config.min_update_interval:
-                continue
-
-            
-            futures.append(self.executor.submit(self.eval, args=[module_address],timeout=self.config.timeout))
-            self.epoch_info['last_sent'] = c.time()
-            self.epoch_info['requests'] += 1
-            self.address2last_update[module_address] = self.epoch_info['last_sent']
+            future = self.executor.submit(self.eval, kwargs={'module': module_address},timeout=self.config.timeout)
+            futures.append(future)
 
             if len(futures) >= batch_size:
                 try:
                     for future in c.as_completed(futures, timeout=self.config.timeout):
                         result = future.result()
                         futures.remove(future)
-
                         result = self.process_result(result)
-                        results += [result]  
+                        results.append(result)
                         break
                 except Exception as e:
-                    c.print('ERROR',c.detailed_error(e))
-        if len(futures) >= 0:
-            results = self.process_batch(futures)
+                    pass
+                    
+            
+        for future in c.as_completed(futures, timeout=self.config.timeout):
+            try:
+                result = future.result()
+            except Exception as e:
+                result = c.detailed_error(e)
+            futures.remove(future)
+            result = self.process_result(result)
+            results.append(result)
         return results
         
-    def process_batch(self, futures):
-        results = []
-        try:
-            for future in c.as_completed(futures, timeout=self.config.timeout):
-                result = future.result() # result 
-                result = self.process_result(result)
-                results += [result]  
-        except Exception as e:
-            c.print('ERROR',c.detailed_error(e))
-        return results
     def network_staleness(self):
         # return the time since the last sync with the network
         return c.time() - self.last_sync_time
@@ -268,13 +251,15 @@ class Vali(c.Module):
 
         self.n  = len(self.namespace)    
         self.name2address = self.namespace
-        self.address2name = {v: k for k, v in self.namespace.items()}  
+        self.address2name = {k:v for v, k in namespace.items()}
+        self.module2name = {v: k for k, v in self.namespace.items()}  
 
         self.network = network
         self.netuid = netuid
         self.fn = fn
         self.search = search
         self.subnet = subnet
+        
 
         return self.network_info()
     
@@ -304,15 +289,13 @@ class Vali(c.Module):
     
     def next_module(self):
         return c.choice(list(self.namespace.keys()))
-    
+
+    module2last_update = {}
 
     def eval(self, module:str, 
             network:str=None, 
             verbose_keys:List[str] = ['w', 'latency', 'name', 'address', 'ss58_address', 'path',  'staleness'],
             **kwargs):
-        
-
-
         """
         The following evaluates a module sver
         """
@@ -332,8 +315,16 @@ class Vali(c.Module):
             assert module in self.address2name, f"{module} is not found in {self.config.network}"
             info['name'] = self.address2name[module]
             info['address'] = module
-            
-        c.print(f'<Calling>:: {info["name"]}(address={info["address"]})',  color='yellow')
+
+        self.requests += 1
+        name = info['name']
+        lag = c.time() - self.module2last_update.get(name, 0) # calculate the lag
+
+        if lag < self.config.min_update_interval:
+            seconds_left = self.config.min_update_interval - lag
+            return {'success': False, 'msg': f'{lag} lag is too small please wait for {seconds_left} seconds before calling again'}
+        self.module2last_update[name] = self.last_sent
+        self.last_sent = c.time()
 
         # CONNECT TO THE MODULE
         module = c.connect(info['address'], key=self.key)
@@ -343,28 +334,22 @@ class Vali(c.Module):
         if len(cached_info) > 0 :
             info = cached_info
         else:
-            info = module.info(timeout=self.config.timeout)
-
-
+            info = module.info(timeout=4)
         assert 'address' in info and 'name' in info, f'Info must have a address key, got {info}'
         info['staleness'] = c.time() - info.get('timestamp', 0)
         info['path'] = path
 
         start_time = c.time()
-        try:
-            response = self.score_module(module)
-            if type(response) in [int, float, bool]:
-                # if the response is a number, we want to convert it to a dict
-                response = {'w': float(response)}
-            elif type(response) == dict:
-                response = response
-            else:
-                raise Exception(f'Response must be a number or a boolean, got {response}')
-            assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
-        except Exception as e:
-            error = c.detailed_error(e)
-            response = {'w': 0, 'error': error}
-            verbose_keys += ['error']
+
+        response = self.score_module(module)
+        if type(response) in [int, float, bool]:
+            # if the response is a number, we want to convert it to a dict
+            response = {'w': float(response)}
+        elif type(response) == dict:
+            response = response
+        else:
+            raise Exception(f'Response must be a number or a boolean, got {response}')
+        assert type(response['w']) in [int, float], f'Response weight must be a number, got {response["w"]}'
 
         response['timestamp'] = start_time
         response['latency'] = c.time() - response.get('timestamp', 0)
@@ -378,7 +363,6 @@ class Vali(c.Module):
     
     eval_module = eval
         
-
     def storage_path(self, network=None):
         if self.config.get('path', None) != None:
             path = self.config.path
@@ -395,7 +379,6 @@ class Vali(c.Module):
 
         return storage_path
         
-
     def vote_info(self):
         try:
             if not self.is_voting_network():
@@ -412,7 +395,6 @@ class Vali(c.Module):
         }
     
         return info
-    
     
     def calculate_votes(self, 
                   
@@ -446,6 +428,8 @@ class Vali(c.Module):
         votes =self.calculate_votes() 
         weights = votes['weights']
         uids = votes['uids']
+        if not self.config.disable_voting: 
+            return {'success': False, 'msg': 'no voting mode enabled'}
         return self.subspace.set_weights(uids=uids, # passing names as uids, to avoid slot conflicts
                             weights=weights, 
                             key=self.key, 
@@ -569,9 +553,8 @@ class Vali(c.Module):
     def run_info(self):
         return {
             'network': self.network_info(),
-            'epoch': self.epoch_info ,
+            'epoch': self.epoch_info() ,
             'vote': self.vote_info(),
-            'module': self.module_info(),
 
             }
     

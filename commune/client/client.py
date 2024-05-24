@@ -39,7 +39,7 @@ class Client(c.Module):
 
         if isinstance(args, dict):
             kwargs = args
-            args = None
+            argsf = None
 
         if params != None:
             assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
@@ -86,15 +86,14 @@ class Client(c.Module):
         return request
     
     def iter_over_async(self, ait):
-        loop = asyncio.get_event_loop()
         # helper async fn that just gets the next element
         # from the async iterator
         def get_next():
             try:
-                obj = loop.run_until_complete(ait.__anext__())
+                obj = self.loop.run_until_complete(ait.__anext__())
                 return obj
             except StopAsyncIteration:
-                loop.run_until_complete(self.session.close())
+                self.loop.run_until_complete(self.session.close())
                 return 'done'
         # actual sync iterator (implemented using a generator)
         while True:
@@ -194,10 +193,10 @@ class Client(c.Module):
         return url
     
 
-    async def async_forward(self, *args, **kwargs):
-        return self.forward(*args, **kwargs)
+    def forward(self, *args, **kwargs):
+        return self.loop.run_until_complete(self.aysnc_forward(*args, **kwargs))
 
-    def forward(self,
+    async def async_forward(self,
         fn: str,
         args: list = None,
         kwargs: dict = None,
@@ -211,29 +210,35 @@ class Client(c.Module):
         stream = False,
         **extra_kwargs
         ):
-        key = self.resolve_key(key)
-        url = self.prepare_url(address, fn)
-        # resolve the kwargs at least
-        kwargs =kwargs or {}
-        kwargs.update(extra_kwargs)
-        timestamp = c.time()
-        request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
-        future = asyncio.wait_for(self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream), timeout=timeout)
-        result = asyncio.run(future)
-        
-        if type(result) in [str, dict, int, float, list, tuple]:
-            result = self.serializer.deserialize(result)
-            if isinstance(result, dict) and 'data' in result:
-                result = result['data']
-            latency = c.time() - timestamp
-            if self.save_history:
-                output = { 'input': request, 'output': result, 'latency': latency}
-                path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(timestamp)
-                self.put(path, output)
-        else: 
-            result = self.iter_over_async(result)
+        try:
+            key = self.resolve_key(key)
+            url = self.prepare_url(address, fn)
+            # resolve the kwargs at least
+            kwargs =kwargs or {}
+            kwargs.update(extra_kwargs)
+            timestamp = c.time()
+            request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
+            future = await self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream)
 
+            if type(result) in [str, dict, int, float, list, tuple]:
+                result = self.serializer.deserialize(result)
+                if isinstance(result, dict) and 'data' in result:
+                    result = result['data']
+                latency = c.time() - timestamp
+                if self.save_history:
+                    output = { 'input': request, 'output': result, 'latency': latency}
+                    path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(timestamp)
+                    self.put(path, output)
+            else: 
+                result = self.iter_over_async(result)
+
+        except Exception as e:
+            result = c.detailed_error(e)
         return result
+
+
+    def __del__(self):
+        self.loop.run_until_complete(self.session.close())
     
     
     def age(self):
@@ -270,7 +275,8 @@ class Client(c.Module):
 
 
     @classmethod
-    def call(cls, module : str, 
+    def call(cls, 
+                module : str, 
                 fn:str = None,
                 *args,
                 kwargs = None,
@@ -282,10 +288,11 @@ class Client(c.Module):
                 timeout=40,
                 **extra_kwargs) -> None:
           
+        # if '
         if '//' in module:
             module = module.split('//')[-1]
+            mode = module.split('//')[0]
         if '/' in module:
-            # adjust the split
             if fn != None:
                 args = [fn] + list(args)
             module , fn = module.split('/')
@@ -296,16 +303,16 @@ class Client(c.Module):
                            virtual=False, 
                            key=key)
 
-        # if isinstance(kwargs, str):
-        #     kwargs = c.str2dict(kwargs)
         if params != None:
             kwargs = params
+
         if kwargs == None:
             kwargs = {}
+
         kwargs.update(extra_kwargs)
+
         return  module.forward(fn=fn, args=args, kwargs=kwargs, stream=stream, timeout=timeout)
-    
-    
+
     @classmethod
     def call_search(cls, 
                     search : str, 

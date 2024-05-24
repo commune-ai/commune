@@ -17,8 +17,8 @@ class Server(c.Module):
         key = None,
         verbose: bool = False,
         access_module: str = 'server.access',
-        free: bool = False,
         serializer: str = 'serializer',
+        free: bool = False,
         access_token_feature : str = 'access_token',
         save_history:bool= True,
         history_path:str = None , 
@@ -38,10 +38,7 @@ class Server(c.Module):
         self.access_token_feature = access_token_feature
         self.serializer = c.module(serializer)()
         self.set_history_path(history_path)
-        self.set_module(module, key=key, 
-                        name=name, 
-                        port=port, 
-                        access_module=access_module)
+        self.set_module(module, key=key,  name=name,  port=port,  access_module=access_module)
 
     def forward(self, fn:str, input:dict):
         """
@@ -155,7 +152,6 @@ class Server(c.Module):
         self.whitelist = list(set(whitelist + c.whitelist))
         self.blacklist = list(set(blacklist + c.blacklist))
         self.name = module.server_name
-        self.schema = module.schema() 
         self.module = module 
         self.ip = c.ip()
         port = port or c.free_port()
@@ -171,12 +167,16 @@ class Server(c.Module):
         module.address  = self.address
         module.network = self.network
         module.subnet = self.subnet
-        schema = module.schema()
+        self.schema = module.schema() 
         self.key = self.module.key = c.get_key(key or self.name)
         self.access_module = c.module(access_module)(module=self.module)  
         self.set_api()
         return {'success': True, 'msg': f'Set module {module}', 'key': self.key.ss58_address}
 
+    def add_fn(self, name:str, fn: str):
+        assert callable(fn), 'fn not callable'
+        setattr(self.module, name, fn)
+           
     def set_api(self):
 
         self.app = FastAPI()
@@ -231,10 +231,6 @@ class Server(c.Module):
             
         }
 
-
-    
-
-
     def process_result(self,  result):
         if c.is_generator(result):
             from sse_starlette.sse import EventSourceResponse
@@ -267,8 +263,6 @@ class Server(c.Module):
                     yield chunk
             else:
                 yield item
-
-
 
 
     # HISTORY 

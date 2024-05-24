@@ -3634,16 +3634,14 @@ class c:
     def warning(cls, *args, **kwargs):
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
-    
-    
-     
     @classmethod
     def status(cls, *args, **kwargs):
         console = cls.resolve_console()
-        return cls.console.status(*args, **kwargs)
+        return console.status(*args, **kwargs)
     @classmethod
     def log(cls, *args, **kwargs):
-        return cls.console.log(*args, **kwargs)
+        console = cls.resolve_console()
+        return console.log(*args, **kwargs)
     
     @classmethod
     def test_fns(cls, *args, **kwargs):
@@ -4214,11 +4212,11 @@ class c:
         
     executor_cache = {}
     @classmethod
-    def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, **kwargs):
+    def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, maxsize=200, **kwargs):
         if cache:
             if mode in cls.executor_cache:
                 return cls.executor_cache[mode]
-        executor =  c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
+        executor =  c.module(f'executor.{mode}')(max_workers=max_workers, maxsize=maxsize , **kwargs)
         if cache:
             cls.executor_cache[mode] = executor
         return executor
