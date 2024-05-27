@@ -105,7 +105,7 @@ class Vali(c.Module):
                         c.print(self.vote())
 
                 c.print(run_info)
-                c.print(self.leaderboard())
+                # c.print(self.leaderboard())
 
             except Exception as e:
                 c.print(c.detailed_error(e))
@@ -169,10 +169,10 @@ class Vali(c.Module):
 
     def generate_finished_result(self):
         try:
-            for future in c.as_completed(self.futures, timeout=timeout):
+            for future in c.as_completed(self.futures, timeout=self.config.timeout):
                 result = future.result()
                 self.futures.remove(future)  
-                break 
+                return result
         except Exception as e:
             result = c.detailed_error(e)
                 
@@ -323,20 +323,24 @@ class Vali(c.Module):
 
         # CONNECT TO THE MODULE
         info = self.get(path, {})
-        info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
-        info['staleness'] = c.time() - info['past_timestamp']    
-        if info['staleness'] < self.config.max_staleness:
-            self.staleness_count += 1
-            raise {'module': info['name'], 'msg': 'Module is too new and w', 'staleness': info['staleness'], 'w': info.get('w', 0)}
         if 'ss58_address' not in info:
             info = module.info(timeout=self.config.timeout_info)
+        
+        info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
         info['timestamp'] = c.timestamp() # the timestamp
+        info['staleness'] = info['timestamp'] - info['past_timestamp']   
         info['w'] = info.get('w', 0) # the weight from the module
+ 
+        if info['staleness'] < self.config.max_staleness:
+            self.staleness_count += 1
+            timeleft = self.config.max_staleness - info['staleness']
+            raise {'module': info['name'], 'msg': 'Module is too new and w', 'staleness': info['staleness'], 'w': info['w'], 'timeleft': timeleft}
+
         info['past_w'] = info['w'] # for the alpha 
         info['path'] = path # path of saving the module
         info['name'] = name # name of the module cleint
         info['address'] = address # address of the module client
-        info['alpha'] = min(max(self.config.alpha, 1), 0) # ensure alpha is [0,1]
+        info['alpha'] = self.config.alpha # ensure alpha is [0,1]
         setattr(module,'local_info', info) # set the client
         return module
 
@@ -350,12 +354,14 @@ class Vali(c.Module):
             self.last_sent = c.time()
             self.requests += 1
             response = self.score_module(module, **kwargs)
-            response = self.process_response(response, info)
+            response = self.process_response(response=response, info=info)
         except Exception as e:
             response = c.detailed_error(e)
             response['w'] = 0
-            response_str = '('+' '.join([f"{k}={v}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
-            c.print(f'Error :: {response_str}', color='red',  verbose=self.config.verbose or self.config.debug)
+
+            name = info.get('name', module)
+            response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
+            c.print(f'Error (name={name}) --> {response_str}', color='red',  verbose=self.config.verbose)
             self.errors += 1
             self.last_error  = c.time()
 
@@ -374,7 +380,7 @@ class Vali(c.Module):
         # PROCESS THE RESPONSE
         if type(response) in [int, float, bool]:
             # if the response is a number, we want to convert it to a dict
-            response = {'w': float(response)}
+            info = {'w': float(response)}
         elif type(response) == dict:
             response = response
         else:
@@ -392,7 +398,7 @@ class Vali(c.Module):
         if info['w'] > self.config.min_weight_for_storage:
             self.put(info['path'], info)
 
-        c.print(f'Reward(w={info["w"]}, module={info["name"]} address={info["address"]} latency={c.round(info["latency"], 3)} )' , color='green')
+        c.print(f'Reward(w={info["w"]}, module={info["name"]} address={info["address"]} latency={c.round(info["latency"], 3)} staleness={info["staleness"]} )' , color='green')
         self.successes += 1
         self.last_success = c.time()
 

@@ -2419,10 +2419,27 @@ class Subspace(c.Module):
         return response  # put it in storage
     
 
-    def sync(self,*args, **kwargs):
+    def sync(self, netuid='all', max_age=30, timeout=60, **kwargs):
         
-        self.get_balances(update=1)
-        
+        batch = {
+            'stake_from': {'netuid': netuid, 'max_age': max_age},
+            'subnet_params': {'netuid': netuid,  'max_age': max_age},
+            'global_params': {'max_age': max_age},
+        }
+        futures = []
+        for fn, params in batch.items():
+            c.print(dict(fn=fn, params=params))
+            fn = getattr(self, fn)
+            f = c.submit(fn, params=params, timeout=timeout)
+            futures.append(f)
+
+        results = []
+        for f in c.as_completed(futures, timeout=timeout):
+            result = f.result()
+            c.print(result)
+            results.append(result)
+            
+        return results
 
     def check_storage(self, block_hash = None, network=network):
         self.resolve_network(network)
