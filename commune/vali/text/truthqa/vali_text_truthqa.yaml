@@ -2,7 +2,7 @@ network: subspace # global or local network
 netuid: 0
 alpha: 0.9
 timeout: 20
-min_update_interval: 10
+max_staleness: 10
 tag: null
 target: 'answers'
 search: model

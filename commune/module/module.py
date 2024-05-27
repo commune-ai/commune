@@ -2467,6 +2467,8 @@ class c:
             module = cls.module_path()
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
+        if kwargs.get('debug', False):
+            remote = False
         name = server_name or name # name of the server if None, it will be the module name
         name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in name:
@@ -2715,8 +2717,6 @@ class c:
         fn = cls.get_fn(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
-
-           
         for k,v in fn_schema['input'].items():
             v = str(v)
             if v.startswith('<class'):
@@ -6056,6 +6056,10 @@ class c:
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
+
+    @classmethod
+    def update_modules(cls, *args, **kwargs):
+        return c.module('subspace')().update_modules(*args, **kwargs)
     
     @classmethod
     def set_weights(cls, *args, **kwargs):
@@ -6999,6 +7003,7 @@ class c:
         return key.ticket()
     
     def save_ticket(self, key=None, **kwargs):
+        
         key = c.get_key(key)
         return key.save_ticket(**kwargs)
 

@@ -14,7 +14,7 @@ class Watchdog(c.Module):
         c.namespace(update=1)
         c.print('synced')
         self.subspace = c.get_module('subspace')
-        self.subspace.stake_from(netuid='all')
+        self.subspace.stake_from(netuid='all', update=1)
 
 
 
