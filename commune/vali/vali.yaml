@@ -14,7 +14,7 @@ workers: 1 # the number of workers
 
 # thread executor
 threads_per_worker: 64 # the number of threads
-maxsize: 64 # the queue sizze
+maxsize: 128 # the queue sizze (to avoid throttling, have it larger then the number of threads)
 
 # epoch
 timeout_info: 4
