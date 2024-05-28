@@ -104,8 +104,12 @@ class Vali(c.Module):
                     if self.vote_staleness > self.config.vote_interval:
                         c.print(self.vote())
 
+                if self.success_staleness > self.config.max_success_staleness:
+                    c.print('Too many stale successes, restarting workers', color='red')
+                    self.start_workers()
+
+                c.print(self.leaderboard())
                 c.print(run_info)
-                # c.print(self.leaderboard())
 
             except Exception as e:
                 c.print(c.detailed_error(e))
@@ -395,7 +399,7 @@ class Vali(c.Module):
         info['w'] = info['w']  * info['alpha'] + info['past_w'] * (1 - info['alpha'])
         
         # store modules that have a minimum weight to save storage of stale modules
-        if info['w'] > self.config.min_weight_for_storage:
+        if info['w'] > self.config.min_weight:
             self.put(info['path'], info)
 
         c.print(f'Reward(w={info["w"]}, module={info["name"]} address={info["address"]} latency={c.round(info["latency"], 3)} staleness={info["staleness"]} )' , color='green')
@@ -496,12 +500,10 @@ class Vali(c.Module):
                     keys = ['name', 'w', 
                             'staleness',
                             'latency'],
-                    path = 'cache/module_infos',
                     max_age = None,
-                    min_weight = 0,
                     network = None,
                     ascending = True,
-                    sort_by = ['staleness'],
+                    sort_by = ['w'],
                     to_dict = False,
                     n = 50,
                     page = None,
@@ -512,8 +514,8 @@ class Vali(c.Module):
         df = []
         # chunk the jobs into batches
         for path in paths:
-            r = self.get(path, max_age=max_age)
-            if isinstance(r, dict) and 'ss58_address' in r:
+            r = self.get(path, {},  max_age=max_age)
+            if isinstance(r, dict) and 'ss58_address' and  r.get('w', 0) > self.config.min_weight  :
                 r['staleness'] = c.time() - r.get('timestamp', 0)
                 if not self.filter_module(r['name']):
                     continue
@@ -521,13 +523,10 @@ class Vali(c.Module):
             else :
                 # removing the path as it is not a valid module and is too old
                 self.rm(path)
-        self.put(path, df) 
         df = c.df(df) 
         if len(df) == 0:
             return c.df(df)
         df = df.sort_values(by=sort_by, ascending=ascending)
-        if min_weight > 0:
-            df = df[df['w'] > min_weight]
         if n != None:
             if page != None:
                 df = df[page*n:(page+1)*n]

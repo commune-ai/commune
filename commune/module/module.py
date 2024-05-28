@@ -6625,6 +6625,7 @@ class c:
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
+        # unique thread name
         if name == None:
             name = fn.__name__
             cnt = 0
@@ -6634,8 +6635,10 @@ class c:
                     tag = ''
                 name = name + tag_seperator + tag + str(cnt)
         
-        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
+        if name in cls.thread_map:
+            cls.thread_map[name].cancel()
 
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
         # set the time it starts
         setattr(t, 'start_time', c.time())
         t.daemon = daemon
