@@ -108,7 +108,8 @@ class Vali(c.Module):
                     c.print('Too many stale successes, restarting workers', color='red')
                     self.start_workers()
 
-                c.print(self.leaderboard())
+                df = self.leaderboard()
+                c.print(df.sort_by(['staleness'], ascending=False)[:42])
                 c.print(run_info)
 
             except Exception as e:
@@ -456,6 +457,7 @@ class Vali(c.Module):
         leaderboard = df or self.leaderboard(network=network, 
                                        keys=keys, 
                                        to_dict=True)
+        c.print(leaderboard)
         assert len(leaderboard) > 0
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
@@ -505,7 +507,7 @@ class Vali(c.Module):
                     ascending = True,
                     sort_by = ['w'],
                     to_dict = False,
-                    n = 50,
+                    n = None,
                     page = None,
                     **kwargs
                     ):
@@ -526,7 +528,9 @@ class Vali(c.Module):
         df = c.df(df) 
         if len(df) == 0:
             return c.df(df)
+            
         df = df.sort_values(by=sort_by, ascending=ascending)
+
         if n != None:
             if page != None:
                 df = df[page*n:(page+1)*n]
