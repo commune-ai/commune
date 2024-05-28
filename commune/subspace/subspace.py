@@ -1892,11 +1892,13 @@ class Subspace(c.Module):
         return uid2key
     
 
-    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, **kwargs):
+    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, netuids=None , **kwargs):
         uid2key =  self.uid2key(network=network, netuid=netuid, update=update, **kwargs)
-        key2uid = {v:k for k,v in uid2key.items()}
-        if key == 'all':
-            return key2uid
+        reverse_map = lambda x: {v: k for k,v in x.items()}
+        if netuid == 'all':
+            key2uid =  {netuid: reverse_map(_key2uid) for netuid, _key2uid in uid2key.items()  if   netuids == None or netuid in netuids  }
+        else:
+            key2uid = reverse_map(uid2key)
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
             return key2uid[key_ss58]

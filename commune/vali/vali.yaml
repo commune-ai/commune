@@ -3,7 +3,7 @@
 network: subspace # the network to connect to (bittensor, commune, local) to specify subnet, (subspace.0 or subspace.text)
 netuid: 0 # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
 sync_interval: 1000
-sample_interval: 0.005 # the sleep interval between sending samples
+sample_interval: 0.1 # the sleep interval between sending samples
 search: null # the search for modules in the namespace
 fn : null # the function to filter
 
@@ -22,10 +22,10 @@ timeout: 10
 max_staleness: 0  # the minimum interval to update the network
 alpha: 0.5 # the ma average means i value no historical weight from previous moving average. 0 means you dont update anythijng fro the future ([0,1])
 max_leaderboard_age: 3600 # the maximum age of the leaderboard 
-max_sent_staleness: 20
-
+# max_sent_staleness: 20
+max_success_staleness: 100
 # eval
-min_weight_for_storage: 0 # the minimum weight before storage
+min_weight: 0 # the minimum weight before storage
 
 # run loop
 initial_sleep : 5 # the initial sleep time before running the loop
