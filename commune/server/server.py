@@ -42,6 +42,7 @@ class Server(c.Module):
 
     def forward(self, fn:str, input:dict):
         """
+        OPTION 1:
         fn (str): the function to call
         input (dict): the input to the function
             data: the data to pass to the function
@@ -49,7 +50,12 @@ class Server(c.Module):
                 args (optional): the positional arguments to pass to the function
                 timestamp: the timestamp of the request
                 address: the address of the caller (ss58_address)
-            signature: the signature of the request
+                signature: the signature of the request
+        OPTION 2
+
+        input (dict): the input to the function
+            **kwargs, # the params
+            access_token: {timestamp}::{address}::{signature}
    
         """
         user_info = None
@@ -64,14 +70,15 @@ class Server(c.Module):
                 {timestamp}::signature::{signature}::address::{address}
                 """
                 assert self.key.verify(input['access_token']), f"Data not signed with correct key"
-                timestamp = int(input['module_ticket'].split('::signature::')[0])
+                timestamp = int(input['access_token'].split('::signature::')[0])
                 if all([k not in input for k in ['kwargs', 'params', 'args']]):
                     """
                     We assume the data is in the input, and the token
                     """
+                    kwargs = input
+                    kwargspop('access_token')
                     input['kwargs'] = input
 
-            
             if 'params' in input:
                 # if the params are in the input, we want to move them to the data
                 if isinstance(input['params'], dict):
@@ -168,7 +175,7 @@ class Server(c.Module):
         module.network = self.network
         module.subnet = self.subnet
         self.schema = module.schema() 
-        self.key = self.module.key = c.get_key(key or self.name)
+        self.key = self.module.key = c.get_key(key or self.name, create_if_not_exists=True)
         self.access_module = c.module(access_module)(module=self.module)  
         self.set_api()
         return {'success': True, 'msg': f'Set module {module}', 'key': self.key.ss58_address}

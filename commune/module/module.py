@@ -2467,6 +2467,8 @@ class c:
             module = cls.module_path()
         kwargs = kwargs or {}
         kwargs.update(extra_kwargs or {})
+        if kwargs.get('debug', False):
+            remote = False
         name = server_name or name # name of the server if None, it will be the module name
         name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in name:
@@ -2718,8 +2720,6 @@ class c:
         fn = cls.get_fn(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
-
-           
         for k,v in fn_schema['input'].items():
             v = str(v)
             if v.startswith('<class'):
@@ -6059,6 +6059,10 @@ class c:
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
+
+    @classmethod
+    def update_modules(cls, *args, **kwargs):
+        return c.module('subspace')().update_modules(*args, **kwargs)
     
     @classmethod
     def set_weights(cls, *args, **kwargs):
@@ -6624,6 +6628,7 @@ class c:
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
+        # unique thread name
         if name == None:
             name = fn.__name__
             cnt = 0
@@ -6633,8 +6638,10 @@ class c:
                     tag = ''
                 name = name + tag_seperator + tag + str(cnt)
         
-        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
+        if name in cls.thread_map:
+            cls.thread_map[name].cancel()
 
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
         # set the time it starts
         setattr(t, 'start_time', c.time())
         t.daemon = daemon
@@ -7001,6 +7008,7 @@ class c:
         return c.module('ticket')().create(*args, **kwargs)
     
     def save_ticket(self, key=None, **kwargs):
+        
         key = c.get_key(key)
         return key.save_ticket(**kwargs)
 

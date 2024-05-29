@@ -1,29 +1,34 @@
 
 # network
 network: subspace # the network to connect to (bittensor, commune, local) to specify subnet, (subspace.0 or subspace.text)
-netuid: null # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
-sync_interval: 1000
-sample_interval: 0.005 # the sleep interval between sending samples
+netuid: 0 # (OPTIONAL) if you have a voting network with subnets [bittensor, commune]
+sync_interval: 100 # the interval to sync the network
+sample_interval: 0.1 # the sleep interval between sending samples
 search: null # the search for modules in the namespace
 fn : null # the function to filter
 
-# epoch
-mode: thread
+# worker
+mode: thread # the mode of the worker (thread, process, server)
 batch_size: 64 # the batch size for the worker
 workers: 1 # the number of workers
-threads_per_worker: 64
-timeout: 10
-sleep_time: 0.0005
-refresh : True
-start: True
-is_main_worker: True
-debug: False
-min_update_interval: 10 # the minimum interval to update the network
-alpha: 1.0 # the ma average
+
+
+# eval
+timeout_info: 4 # the timeout for the info
+timeout: 10 # the timeout for the epoch
+
+
+# epoch
+
+max_staleness: 0  # the minimum interval to update the network
+alpha: 0.5 # the ma average means i value no historical weight from previous moving average. 0 means you dont update anythijng fro the future ([0,1])
+# max_sent_staleness: 20 
+max_success_staleness: 100 # the maximum staleness for the success
+min_leaderboard_weight: 0 # the minimum weight before storage
 max_leaderboard_age: 3600 # the maximum age of the leaderboard 
-max_history: 10
-disable_voting: 1
-max_sent_staleness: 10
+# thread executor
+threads_per_worker: 64 # the number of threads
+maxsize: 128 # the queue sizze (to avoid throttling, have it larger then the number of threads)
 
 # run loop
 initial_sleep : 5 # the initial sleep time before running the loop
@@ -32,3 +37,6 @@ vote_interval: 100 # the interval to vote (in blocks (8 seconds per block))
 
 # logging
 verbose: True # the verbosity of the logging
+start: True # starts the event loop
+debug: False # for debuging 
+

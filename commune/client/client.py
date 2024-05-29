@@ -93,7 +93,6 @@ class Client(c.Module):
                 obj = self.loop.run_until_complete(ait.__anext__())
                 return obj
             except StopAsyncIteration:
-                self.loop.run_until_complete(self.session.close())
                 return 'done'
         # actual sync iterator (implemented using a generator)
         while True:
@@ -112,7 +111,8 @@ class Client(c.Module):
         # start a client session and send the request
         url = 'http://' + url if not url.startswith('http') else url
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
-        self.session = aiohttp.ClientSession()
+        if not hasattr(self, 'session'):
+            self.session = aiohttp.ClientSession()
         response =  await self.session.post(url, json=request, headers=headers)
         if response.content_type == 'application/json':
             result = await asyncio.wait_for(response.json(), timeout=timeout)
@@ -134,14 +134,11 @@ class Client(c.Module):
 
             if stream:           
                 async def stream_generator(response):
-                    try:
-                        async for line in response.content:
-                            event =  process_stream_line(line)
-                            if event == '':
-                                continue
-                            yield event
-                    except Exception as e:
-                        await self.session.close()
+                    async for line in response.content:
+                        event =  process_stream_line(line)
+                        if event == '':
+                            continue
+                        yield event
                 return stream_generator(response)
             else:
                 result = []  
@@ -159,7 +156,6 @@ class Client(c.Module):
         else:
             raise ValueError(f"Invalid response content type: {response.content_type}")
 
-        await self.session.close()
         
         return result
 

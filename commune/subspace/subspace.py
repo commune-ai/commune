@@ -1583,6 +1583,7 @@ class Subspace(c.Module):
                     max_age = None,
                     lite = True, 
                     **kwargs ) -> 'ModuleInfo':
+
         url = self.resolve_url(network=network, mode=mode)
         module_key = module
         if not c.valid_ss58_address(module):
@@ -1608,6 +1609,8 @@ class Subspace(c.Module):
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
+        module['metadata'] = module.pop('metadata', {})
+
         module['vote_staleness'] = (block or self.block) - module['last_update']
         if lite :
             features = self.module_features + ['stake', 'vote_staleness']
@@ -1889,11 +1892,13 @@ class Subspace(c.Module):
         return uid2key
     
 
-    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, **kwargs):
+    def key2uid(self, key = None, network:str=  'main' ,netuid: int = 0, update=False, netuids=None , **kwargs):
         uid2key =  self.uid2key(network=network, netuid=netuid, update=update, **kwargs)
-        key2uid = {v:k for k,v in uid2key.items()}
-        if key == 'all':
-            return key2uid
+        reverse_map = lambda x: {v: k for k,v in x.items()}
+        if netuid == 'all':
+            key2uid =  {netuid: reverse_map(_key2uid) for netuid, _key2uid in uid2key.items()  if   netuids == None or netuid in netuids  }
+        else:
+            key2uid = reverse_map(uid2key)
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
             return key2uid[key_ss58]
@@ -2416,10 +2421,27 @@ class Subspace(c.Module):
         return response  # put it in storage
     
 
-    def sync(self,*args, **kwargs):
+    def sync(self, netuid='all', max_age=30, timeout=60, **kwargs):
         
-        self.get_balances(update=1)
-        
+        batch = {
+            'stake_from': {'netuid': netuid, 'max_age': max_age},
+            'subnet_params': {'netuid': netuid,  'max_age': max_age},
+            'global_params': {'max_age': max_age},
+        }
+        futures = []
+        for fn, params in batch.items():
+            c.print(dict(fn=fn, params=params))
+            fn = getattr(self, fn)
+            f = c.submit(fn, params=params, timeout=timeout)
+            futures.append(f)
+
+        results = []
+        for f in c.as_completed(futures, timeout=timeout):
+            result = f.result()
+            c.print(result)
+            results.append(result)
+            
+        return results
 
     def check_storage(self, block_hash = None, network=network):
         self.resolve_network(network)
@@ -2727,41 +2749,32 @@ class Subspace(c.Module):
         self.resolve_network(network)
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-        module_info = self.module_info(module, netuid=netuid)
-        ip = c.ip(max_age=max_ip_age)
-        if module_info['key'] == None:
-            return {'success': False, 'msg': 'not registered'}
-        module_info['name'] = module
-        name = name or module_info['name']
-        delegation_fee = fee or delegation_fee or module_info['delegation_fee']
-        assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
-
-        metadata = c.serialize(metadata or {})
-
-        if name != module_info['name']:
-            c.print(f'Changing name from {module_info["name"]} to {name}, we need to serve the new module and swap the keys')
-            c.print(c.mv_key(module_info['name'], name))
-            address = c.serve(name)['address']
-
-        current_address = c.get_namespace().get(name, c.serve(name)['address'])
-
-        if module_info['address'] != current_address:
-            address = current_address
-            c.print(f'Changing address from {module_info["address"]} to {address}')
-        if ip not in address:
-            address = ip + ':'+ address.split(':')[-1]
+        module_info = self.module_info(key.ss58_address, netuid=netuid)
+        assert module_info['name'] == module
+        assert module_info['key'] == key.ss58_address
+            
         params = {
-            'netuid': netuid, # defaults to module.netuid
-             # PARAMS #
-            'name': name, # defaults to module.tage
-            'address': address, # defaults to module.tage
-            'delegation_fee': delegation_fee, # defaults to module.delegate_fee
-            'metadata': metadata, # defaults to module.metadata
+            'name': name , # defaults to module.tage
+            'address': address , # defaults to module.tage
+            'delegation_fee': fee or delegation_fee, # defaults to module.delegate_fee
+            'metadata': c.serialize(metadata or {}), # defaults to module.metadata
         }
 
-        c.print(params)
 
-        reponse  = self.compose_call('update_module',params=params, key=key, nonce=nonce, tip=tip)
+        should_update_module = False
+
+        for k,v in params.items(): 
+            if params[k] == None:
+                params[k] = module_info[k]
+            if k in module_info and params[k] != module_info[k]:
+                should_update_module = True
+
+        if not should_update_module: 
+            return {'success': False, 'message': f"Module {module} is already up to date"}
+               
+        c.print('Updating with', params, color='cyan')
+        params['netuid'] = netuid
+        reponse  = self.compose_call('update_module', params=params, key=key, nonce=nonce, tip=tip)
 
         # IF SUCCESSFUL, MOVE THE KEYS, AS THIS IS A NON-REVERSIBLE OPERATION
 
@@ -2775,12 +2788,12 @@ class Subspace(c.Module):
     #################
     def update_subnet(
         self,
-        netuid: int = None,
+        params: dict,
+        netuid: int,
         key: str = None,
         network = network,
         nonce = None,
         update= True,
-        **params,
     ) -> bool:
             
         self.resolve_network(network)
