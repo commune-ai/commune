@@ -311,10 +311,10 @@ class Keypair(c.Module):
                 path:str,
                 password:str=None, 
                 json:bool=False,
-                create_if_not_exists:bool = True,
+                create_if_not_exists:bool = False,
                 **kwargs):
-        if cls.key_exists(path) == False:
-            if create_if_not_exists == True:
+        if not cls.key_exists(path):
+            if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)
                 c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
             else:
@@ -1519,8 +1519,8 @@ class Keypair(c.Module):
         assert self.verify(sig)
         return {'success':True}
 
-    def ticket(self, key=None, **kwargs):
-        return c.module('ticket')().create(key=self.key, **kwargs)
+    def ticket(self, *args, **kwargs):
+        return c.module('ticket')().create(*args,key=self.key, **kwargs)
 
     def verify_ticket(self, ticket, **kwargs):
         return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
