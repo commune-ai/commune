@@ -30,7 +30,7 @@ class ThreadPoolExecutor(c.Module):
     def __init__(
         self,
         max_workers: int =None,
-        maxsize : int =200 ,
+        maxsize : int = None ,
         thread_name_prefix : str ="",
     ):
         """Initializes a new ThreadPoolExecutor instance.
@@ -39,8 +39,10 @@ class ThreadPoolExecutor(c.Module):
                 execute the given calls.
             thread_name_prefix: An optional name prefix to give our threads.
         """
+        self.start_time = c.time()
 
         max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
+        maxsize = max_workers or None
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             
@@ -61,6 +63,10 @@ class ThreadPoolExecutor(c.Module):
     def is_full(self):
         return self.work_queue.full()
 
+
+    def default_priority_score(self):
+        # older scores are higher priority
+        return 1 # abs((self.start_time - c.time()))
 
 
     

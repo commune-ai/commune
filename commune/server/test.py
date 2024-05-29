@@ -35,15 +35,17 @@ class Test(c.Module):
 
 
     @classmethod
-    def test_serving_with_different_key(cls, module_name = 'storage::test', key='test'):
-        module = c.serve(module_name, key=key)
-        while not c.server_exists(module_name):
-            c.sleep(1)
-            c.print('waiting for server to start')
+    def test_serving_with_different_key(cls, module_name = 'storage::test', key_name='storage::test2'):
+        c.add_key(key_name)
+        module = c.serve(module_name, key=key_name)
+        key = c.get_key(key_name)
+        c.sleep(1)
         module = c.connect(module_name)
         info = module.info()
-        key = c.get_key(key)
+
         assert info['ss58_address'] == key.ss58_address, f"key failed {key.ss58_address} != {info['ss58_address']}"
         c.kill(module_name)
+
+        c.rm_key(key_name)
         return {'success': True, 'msg': 'server test passed'}
 

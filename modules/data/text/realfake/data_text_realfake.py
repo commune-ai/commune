@@ -1,6 +1,18 @@
 import commune as c
 
 class DataTextRealfake(c.Module):
+
+    prompt = '''
+    INPUT (JSON):
+    ```{sample}```
+    QUESTION: 
+
+    WAS THE INPUT REAL (1) OR TAMPERED (0)? -> :
+
+    OUTPUT (answer: int):
+    json```
+    '''
+
     def __init__(self, **kwargs):
         config = self.set_config(kwargs=kwargs)
         self.folder_path = self.resolve_path(config.folder_path)
@@ -69,27 +81,6 @@ class DataTextRealfake(c.Module):
         return sample
 
 
-    def test(self, n=100):
-        t = c.time()
-        for i in range(n):
-            sample = self.sample()
-            msg = {'samples_per_second': i / (c.time() - t)}
-            c.print(msg)
-            
-
-
-    prompt = '''
-    INPUT (JSON):
-    ```{sample}```
-    QUESTION: 
-
-    WAS THE INPUT REAL (1) OR TAMPERED (0)? -> :
-
-    OUTPUT (answer: int):
-    json```
-    '''
-
-
     def parse_output(self, output:dict)-> dict:
         if '0' in output or 'yes' in output.lower():
             return 0
@@ -125,24 +116,3 @@ class DataTextRealfake(c.Module):
                }
 
         return msg
-
-
-    def validate(self, module=None, network=None) -> float:
-        if  isinstance(module, str):
-            module = c.connect(module, prefix_match=True, network=network)
-        if module == None:
-            module = self
-        t = c.time()
-        my_sample = self.sample(real_prob=1)
-        kwargs = {k:my_sample[k] for k in ['input_chars', 'output_chars', 'idx', 'start_index']}
-        kwargs['real_prob'] = 1
-        other_sample = module.sample(**kwargs)
-
-
-        for k in my_sample.keys():
-            if  other_sample[k] != my_sample[k]:
-                return 0.0
-        return 1.0
-
-
-
