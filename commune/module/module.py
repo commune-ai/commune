@@ -2692,6 +2692,9 @@ class c:
             if callable(getattr(module, fn )):
                 schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
 
+        # sort by keys
+        schema = dict(sorted(schema.items()))
+
         return c.copy(schema)
         
 
@@ -6994,9 +6997,8 @@ class c:
         return c.module('subspace.chain')().id()
 
     @classmethod
-    def ticket(self, key=None):
-        key = c.get_key(key)
-        return key.ticket()
+    def ticket(self, *args, **kwargs):
+        return c.module('ticket')().create(*args, **kwargs)
     
     def save_ticket(self, key=None, **kwargs):
         key = c.get_key(key)
