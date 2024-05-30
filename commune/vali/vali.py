@@ -1,6 +1,8 @@
 
 import commune as c
 import os
+import pandas as pd
+
 from typing import *
 
 class Vali(c.Module):
@@ -8,7 +10,6 @@ class Vali(c.Module):
     voting_networks: ['subspace', 'bittensor']
     score_fns = ['score_module', 'score'] # the score functions
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
-    futures = []
 
     def __init__(self,
                  config:dict=None,
@@ -39,7 +40,7 @@ class Vali(c.Module):
         self.config = config
         self.init_metrics()
         self.set_score_fn(score_fn)
-
+        self.futures = []
         c.thread(self.run_loop)
 
     init = init_vali
@@ -455,7 +456,7 @@ class Vali(c.Module):
     
         return info
     
-    def calculate_votes(self, df=None):
+    def calculate_votes(self, df=None, **kwargs):
         network = self.config.network
         keys = ['name', 'w', 'staleness','latency', 'ss58_address']
         leaderboard = df or self.leaderboard(network=network, 
@@ -464,7 +465,7 @@ class Vali(c.Module):
         c.print(leaderboard)
         assert len(leaderboard) > 0
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
-        key2uid = self.subspace.key2uid() if hasattr(self, 'subspace') else {}
+        key2uid = self.subspace.key2uid(**kwargs) if hasattr(self, 'subspace') else {}
         for info in leaderboard:
             ## valid modules have a weight greater than 0 and a valid ss58_address
             if 'ss58_address' in info and info['w'] >= 0:
@@ -509,7 +510,7 @@ class Vali(c.Module):
                     max_age = None,
                     network = None,
                     ascending = True,
-                    sort_by = ['w'],
+                    by = 'w',
                     to_dict = False,
                     n = None,
                     page = None,
@@ -529,11 +530,16 @@ class Vali(c.Module):
             else :
                 # removing the path as it is not a valid module and is too old
                 self.rm(path)
+
         df = c.df(df) 
+        
         if len(df) == 0:
             return c.df(df)
-            
-        df = df.sort_values(by=sort_by, ascending=ascending)
+        
+
+        if isinstance(by, str):
+            by = [by]
+        df = df.sort_values(by=by, ascending=ascending)
 
         if n != None:
             if page != None:
@@ -625,5 +631,41 @@ class Vali(c.Module):
             result = c.call(peer+'/run_info')
             c.print(result)
 
+    @classmethod
+    def test(cls, n=3, sleep_time=5, 
+             miner='miner', 
+             vali='vali', 
+             network='local'):
+        
+        test_miners = [f'{miner}::test_{i}' for i in range(n)]
+        test_vali = f'{vali}::test'
+        modules = test_miners + [test_vali]
+        for m in modules:
+            c.kill(m)
+
+        for m in test_miners + [test_vali]:
+            if m == test_vali:
+                c.print(c.serve(m, kwargs={'network': network, 'search': test_miners[0].split('::')[0]}))
+            else:
+                c.print(c.serve(m)) 
+        while not c.server_exists(test_vali):
+            c.sleep(1)
+            c.print(f'Waiting for {test_vali} to start')
+            c.print(c.get_namespace())
+           
+        c.print(f'Sleeping for {sleep_time} seconds')
+        c.print(c.call(test_vali+'/refresh_leaderboard'))
+        c.sleep(sleep_time)
+
+        leaderboard = c.call(test_vali+'/leaderboard')
+        assert isinstance(leaderboard, pd.DataFrame), leaderboard
+        assert len(leaderboard) >= n, leaderboard
+        c.print(c.call(test_vali+'/refresh_leaderboard'))
+
+        c.print(leaderboard)
+        
+        for miner in test_miners + [test_vali]:
+            c.print(c.kill(miner))
+        return {'success': True, 'msg': 'subnet test passed'}
 
 Vali.run(__name__)

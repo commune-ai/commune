@@ -17,7 +17,6 @@ class Namespace(c.Module):
     def namespace(cls, search=None,
                    network:str = 'local',
                      update:bool = False, 
-                     public:bool = False, 
                      netuid=None, 
                      max_age:int = None, **kwargs) -> dict:
         
@@ -26,8 +25,8 @@ class Namespace(c.Module):
             network = f'subspace.{netuid}'
         
         path = network 
-        
-        namespace = cls.get(path, None, max_age=max_age)
+        namespace = cls.get(path, {}, max_age=max_age)
+
 
         if 'subspace' in network:
             if '.' in network:
@@ -36,32 +35,21 @@ class Namespace(c.Module):
                 netuid = netuid or 0
             if c.is_int(netuid):
                 netuid = int(netuid)
-            c.print(f'Getting namespace {network} with netuid {netuid}')
-
-            # NOTE: WE INTENTIONALLY DEFER TO THE MAX_AGE OF BEING NONE HERE AND DEFER TO SUBSPACE'S MAX_AGE
             namespace = c.module(network)().namespace(search=search, 
                                                  update=update, 
                                                  netuid=netuid,
                                                  **kwargs)
         elif network == 'local':
-            if update or namespace == None:
+            if update or len(namespace) == 0:
                 namespace = cls.build_namespace(network=network)  
+            
    
-        namespace = {} if namespace == None else namespace
-        
+        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
-
-        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
-
-        if public:
-            namespace = {k:v.replace(c.default_ip, c.ip()) for k,v in namespace.items()}
         
         if network == 'local':
-            to_local_ip = lambda x: '0.0.0.0:' + x.split(':')[-1]
-            namespace = {k:to_local_ip(v) for k,v in namespace.items() }
-        
-        namespace = {k:v for k,v in sorted(namespace.items(), key=lambda x: x[0])}
+            namespace = {k: '0.0.0.0:' + v.split(':')[-1] for k,v in namespace.items() }
         
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
 

@@ -2822,33 +2822,22 @@ class c:
 
 
     @classmethod
-    def kill_many(cls, search:str, network='local', parallel=True, timeout=10, n=None, **kwargs):
+    def kill_many(cls, servers, search:str = None, network='local', parallel=True,  timeout=10, **kwargs):
+
+
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
+        futures = []
+        for s in servers:
+            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, imeout=timeout)
+            futures.append(future)
+        results = []
+        for r in c.as_completed(futures, timeout=timeout):
+            results += [r.result()]
 
-
-        n = n or len(servers)
-
-        if n > 0 and n < 1:
-            servers = servers[:int(len(servers)*n)]
-        elif n > 1:
-            servers = servers[:n]
-        
-        assert len(servers) > 0, f'No servers found with search {search}'
-        if parallel:
-            futures = []
-            for s in servers:
-                future = c.submit(c.kill, kwargs={'module':s, **kwargs}, mode='thread', return_future = True, timeout=timeout)
-                futures.append(future)
-
-            results = c.wait(futures, timeout=timeout)
-        else:
-            results = []
-            for s in servers:
-                results.append(c.kill(s, **kwargs))
-
+        return results
             
-        return {'success':True, 'message':f'Killed servers with prefix {search}', 'results': results}
+        return 
         
     delete = kill_server = kill
     def destroy(self):
@@ -5022,7 +5011,7 @@ class c:
     def as_completed(cls , futures:list, timeout:int=10, **kwargs):
         return concurrent.futures.as_completed(futures, timeout=timeout)
     @classmethod
-    def wait(cls, futures:list, timeout:int = 30, generator:bool=False, return_dict:bool = True) -> list:
+    def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         import concurrent.futures
 
 
@@ -5039,10 +5028,12 @@ class c:
         
         future2idx = {future:i for i,future in enumerate(futures)}
 
-        if timeout == None and hasattr(futures[0], 'timeout'):
-            timeout = futures[0].timeout
-
-
+        if timeout == None:
+            if hasattr(futures[0], 'timeout'):
+                timeout = futures[0].timeout
+            else:
+                timeout = 30
+    
         if generator:
             def get_results(futures):
                 try: 
@@ -5070,6 +5061,8 @@ class c:
                     unfinished_futures = [future for future in futures if future in future2idx]
                     c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
                 return results
+
+                
             
         return get_results(futures)
     
