@@ -118,9 +118,6 @@ class SubspaceDashboard(c.Module):
     def dashboard(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
         st.write('# Tokenomics')
-
-
-
         
         with st.expander('Parameters', expanded=False):
             cols = st.columns(2)
@@ -132,8 +129,6 @@ class SubspaceDashboard(c.Module):
             days = st.slider('Days', 1, 3_000, 800, 1)
 
             n = st.number_input('Number of Modules', 1, 1000000, 8400, 1, key=f'n.modules')
-
-            burn_rate = st.slider('Burn Rate', 0.0, 1.0, 0.0, 0.01, key=f'burn.rate')
 
             dividend_rate = st.slider('Dividend Rate', 0.0, 1.0, 0.5, 0.01, key=f'dividend.rate')
 
