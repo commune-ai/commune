@@ -23,11 +23,8 @@ class Namespace(c.Module):
         network = network or 'local'
         if netuid != None:
             network = f'subspace.{netuid}'
-        
-        path = network 
-        namespace = cls.get(path, {}, max_age=max_age)
 
-
+        namespace = cls.get(network, {}, max_age=max_age)
         if 'subspace' in network:
             if '.' in network:
                 network, netuid = network.split('.')
@@ -42,7 +39,7 @@ class Namespace(c.Module):
         elif network == 'local':
             if update or len(namespace) == 0:
                 namespace = cls.build_namespace(network=network)  
-            
+
    
         namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         if search != None:
@@ -194,8 +191,7 @@ class Namespace(c.Module):
             c.print(f'Timeout error {e}', color='red', verbose=verbose)
 
         cls.put_namespace(network, namespace)
-
-            
+        
         return namespace
 
     

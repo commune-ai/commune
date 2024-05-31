@@ -41,6 +41,7 @@ class Vali(c.Module):
         self.init_metrics()
         self.set_score_fn(score_fn)
         self.futures = []
+        self.sync()
         c.thread(self.run_loop)
 
     init = init_vali
@@ -194,7 +195,7 @@ class Vali(c.Module):
     epoch2results = {}
 
     def epoch(self,  **kwargs):
-
+        self.sync_network(**kwargs)
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
 
@@ -313,7 +314,10 @@ class Vali(c.Module):
         return path
 
 
-    def get_module(self, module:str, network:str='local', path=None, update=False, **kwargs):
+    def get_module(self, 
+                   module:str, 
+                   network:str='local',
+                    path=None, update=False, **kwargs):
         network = network or self.config.network
         self.sync(network=network, update=update, **kwargs)
         info = {}
@@ -331,7 +335,7 @@ class Vali(c.Module):
 
         # CONNECT TO THE MODULE
         info = self.get(path, {})
-        if 'ss58_address' not in info:
+        if 'key_address' not in info:
             info = module.info(timeout=self.config.timeout_info)
         
         info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
@@ -352,7 +356,12 @@ class Vali(c.Module):
         setattr(module,'local_info', info) # set the client
         return module
 
-    def eval(self, module:str, network:str=None, update=False, **kwargs):
+    def eval(self, 
+             module:str, 
+             network:str=None, 
+             update=False,
+             verbose_keys= ['w', 'address', 'name', 'key_address'],
+              **kwargs):
         """
         The following evaluates a module sver
         """
@@ -372,8 +381,8 @@ class Vali(c.Module):
             c.print(f'Error (name={name}) --> {response_str}', color='red',  verbose=self.config.verbose)
             self.errors += 1
             self.last_error  = c.time()
-
-        return response
+            
+        return {k:response[k] for k in verbose_keys}
 
 
     def process_response(self, response:dict, info:dict ):
@@ -403,7 +412,7 @@ class Vali(c.Module):
         # resolve the alph
         info['latency'] = c.time() - info['timestamp']
         info['w'] = info['w']  * info['alpha'] + info['past_w'] * (1 - info['alpha'])
-        
+        info['count'] = info.get('count', 0) + 1
         # store modules that have a minimum weight to save storage of stale modules
         if info['w'] > self.config.min_leaderboard_weight:
             self.put(info['path'], info)
@@ -412,7 +421,7 @@ class Vali(c.Module):
         self.successes += 1
         self.last_success = c.time()
 
-        return response
+        return info
 
 
     @property
@@ -458,7 +467,7 @@ class Vali(c.Module):
     
     def calculate_votes(self, df=None, **kwargs):
         network = self.config.network
-        keys = ['name', 'w', 'staleness','latency', 'ss58_address']
+        keys = ['name', 'w', 'staleness','latency', 'key']
         leaderboard = df or self.leaderboard(network=network, 
                                        keys=keys, 
                                        to_dict=True)
@@ -468,11 +477,11 @@ class Vali(c.Module):
         key2uid = self.subspace.key2uid(**kwargs) if hasattr(self, 'subspace') else {}
         for info in leaderboard:
             ## valid modules have a weight greater than 0 and a valid ss58_address
-            if 'ss58_address' in info and info['w'] >= 0:
-                if info['ss58_address'] in key2uid:
-                    votes['keys'] += [info['ss58_address']]
+            if 'key' in info and info['w'] >= 0:
+                if info['key'] in key2uid:
+                    votes['keys'] += [info['key']]
                     votes['weights'] += [info['w']]
-                    votes['uids'] += [key2uid.get(info['ss58_address'], -1)]
+                    votes['uids'] += [key2uid.get(info['key'], -1)]
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
 
         return votes
@@ -522,7 +531,7 @@ class Vali(c.Module):
         # chunk the jobs into batches
         for path in paths:
             r = self.get(path, {},  max_age=max_age)
-            if isinstance(r, dict) and 'ss58_address' and  r.get('w', 0) > self.config.min_leaderboard_weight  :
+            if isinstance(r, dict) and 'key' and  r.get('w', 0) > self.config.min_leaderboard_weight  :
                 r['staleness'] = c.time() - r.get('timestamp', 0)
                 if not self.filter_module(r['name']):
                     continue

@@ -2561,11 +2561,12 @@ class Subspace(c.Module):
         module_key = module_key or c.get_key(name).ss58_address
         netuid2subnet = self.netuid2subnet(max_age=max_age)
         subnet2netuid = {v:k for k,v in netuid2subnet.items()}
-        netuid = netuid or subnet
-        assert isinstance(subnet, str), f"Subnet must be a string"
-        if isinstance(netuid, str):
+        if isinstance(subnet, str):
+            netuid = subnet
+        if isinstance(netuid, ):
             subnet = netuid
             netuid = subnet2netuid.get(netuid, 0)
+        assert isinstance(subnet, str), f"Subnet must be a string"
 
         if netuid in netuid2subnet:
             subnet = netuid2subnet[netuid]
@@ -2576,25 +2577,21 @@ class Subspace(c.Module):
                 return {'success': False, 'msg': 'Subnet not found and not created'}
             
         # require prompt to create new subnet        
-        stake = stake or 0
-        min_register_stake = self.min_register_stake(netuid=netuid, network=network)
-        stake = max(min_register_stake, stake)
-        stake = stake * 1e9
+        stake = (stake or 0) * 1e9
 
         if '0.0.0.0' in address:
-            address = address.replace('0.0.0.0', c.ip(update=1))
+            address = address.replace('0.0.0.0', c.ip())
 
         if len(address) > 32:
             address = address[-32:]
 
-        metadata = c.dict2str(metadata or {})
         params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
                     'module_key': module_key,
-                    'metadata': b'{}',
+                    'metadata': c.str2bytes(c.dict2str(metadata or {})),
                 }
         
         # create extrinsic call
@@ -2629,7 +2626,7 @@ class Subspace(c.Module):
 
         response = self.compose_call(
             module='Balances',
-            fn='transfer',
+            fn='transfer_keep_alive',
             params={
                 'dest': dest, 
                 'value': amount
