@@ -1520,7 +1520,7 @@ class Keypair(c.Module):
         return {'success':True}
 
     def ticket(self, *args, **kwargs):
-        return c.module('ticket')().create(*args,key=self.key, **kwargs)
+        return c.module('ticket')().ticket(*args,key=self.key, **kwargs)
 
     def verify_ticket(self, ticket, **kwargs):
         return c.module('ticket')().verify(ticket, key=self.key, **kwargs)

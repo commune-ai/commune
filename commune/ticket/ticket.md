@@ -6,12 +6,12 @@ timestamp::ticket::signature
 
 by calling 
 
-c.ticket("alice")
+c.ticket(key="alice", data="alice")
 
 the alice key signs the current timestamp and returns the ticket.
 
 
-1713500654.659339::ticket::e0559b535129037a62947c65af35f17c50d29b4a5c31df86b069d8ada5bcbb230f4c1e996393e6721f78d88f9b512b
+1713500654.659339::signature=e0559b535129037a62947c65af35f17c50d29b4a5c31df86b069d8ada5bcbb230f4c1e996393e6721f78d88f9b512b
 6493b5ca743d027091585366875c6bea8e
 
 now to verify the ticket you can do so like this.

@@ -5,11 +5,11 @@ class Ticket(c.Module):
     # THIS CREATES A TOKEN THAT CAN BE USED TO VERIFY THE ORIGIN OF A MESSAGE, AND IS GENERATED CLIENT SIDE
     # THIS USES THE SAME TECHNOLOGY AS ACCESS TOKENS, BUT IS USED FOR CLIENT SIDE VERIFICATION, AND NOT SERVER SIDE
     # THIS GIVES USERS THE ABILITY TO VERIFY THE ORIGIN OF A MESSAGE, AND TO VERIFY THAT THE MESSAGE HAS NOT BEEN TAMPERED WITH
-    #SIGNATURE={SIGNATURE}::ADDRESS=ADDRESS TIMESTAMP=TIMESTAMP DATA=DATA
+    #data={DATA}::address={ADDRESS}::timestamp={TIMESTAMP}::signature={SIGNATURE}
     """
 
-    signature_seperator = '::signature='
 
+    signature_seperator = '::signature='
     max_age = 5
 
     def create(self, data=None, key=None, **kwargs):
@@ -19,21 +19,23 @@ class Ticket(c.Module):
             'timestamp': c.time(),
             'address': key.ss58_address,
         }
-        c.print(ticket_dict)
         data = self.dict2ticket(ticket_dict)
         ticket = key.sign(data, return_string=True, seperator=self.signature_seperator)
         return ticket
     
-
     def dict2ticket(self, ticket):
+        """
+        Convert a dictionary to a ticket string
+        """
         ticket_str = ''
         for i, (k,v) in enumerate(ticket.items()):
             ticket_str +=  (("::" if i > 0 else "") +k + '=' + str(v) )
         return ticket_str
 
-    
-
     def ticket2dict(self, ticket):
+        """
+        Convert a ticket string to a dictionary
+        """
         ticket_dict = {}
         for item in ticket.split('::'):
             k,v = item.split('=')
