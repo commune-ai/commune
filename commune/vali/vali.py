@@ -263,7 +263,7 @@ class Vali(c.Module):
         # RESOLVE THE VOTING NETWORKS
         if 'local' in config.network:
             # local network does not need to be updated as it is atomically updated
-            namespace = c.module('namespace').namespace(search=config.search, update=update)
+            namespace = c.module('namespace').namespace(search=config.search, update=False)
         elif 'subspace' in config.network:
             if '.' in config.network:
                 config.network, config.netuid = config.network.split('.')
@@ -335,7 +335,7 @@ class Vali(c.Module):
 
         # CONNECT TO THE MODULE
         info = self.get(path, {})
-        if 'key_address' not in info:
+        if 'key' not in info:
             info = module.info(timeout=self.config.timeout_info)
         
         info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
@@ -360,7 +360,7 @@ class Vali(c.Module):
              module:str, 
              network:str=None, 
              update=False,
-             verbose_keys= ['w', 'address', 'name', 'key_address'],
+             verbose_keys= ['w', 'address', 'name', 'key'],
               **kwargs):
         """
         The following evaluates a module sver
@@ -591,14 +591,6 @@ class Vali(c.Module):
             futures = [c.submit(c.kill, args=[w])  for w in workers]
             return c.wait(futures, timeout=10)
 
-    @classmethod
-    def test(cls, network='local', search='vali', n=4, sleep_time=5):
-        # modules = [c.serve(f'vali::{i}', network=network) for i in range(n)]
-        c.print(c.serve('vali::test', kwargs=dict(network=network, search=search), wait_for_server=True))
-        leaderboard = c.call('vali::test/leaderboard')
-        c.print(leaderboard)
-        return {'success': True, 'msg': 'Test Passed'}
-        
 
     @property
     def vote_staleness(self):
@@ -641,7 +633,8 @@ class Vali(c.Module):
             c.print(result)
 
     @classmethod
-    def test(cls, n=3, sleep_time=5, 
+    def test(cls, n=3, 
+             sleep_time=8, 
              miner='miner', 
              vali='vali', 
              network='local'):
@@ -661,6 +654,8 @@ class Vali(c.Module):
             c.sleep(1)
             c.print(f'Waiting for {test_vali} to start')
             c.print(c.get_namespace())
+
+        vali = c.connect(test_vali)
            
         c.print(f'Sleeping for {sleep_time} seconds')
         c.print(c.call(test_vali+'/refresh_leaderboard'))

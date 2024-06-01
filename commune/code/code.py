@@ -107,7 +107,7 @@ class Coder(c.Module):
 
 
 
-    def file2fns(self, filepath):
+    def file2fns(self, filepath = '~/commune/utils/dict.py'):
         '''
         """
         Documentation for `get_fns` function:

@@ -24,18 +24,20 @@ class Subspace(c.Module):
                  'get_stake_to', 
                  'get_stake_from']
 
-    module_features = ['key', 
-                       'address', 
-                       'name', 
-                       'emission', 
-                       'incentive', 
-                       'dividends', 
-                       'last_update', 
-                       'stake_from', 
-                       'weights',
-                       'delegation_fee',
-                       'trust', 
-                       'regblock']
+    module_features = [
+        "key",
+        "address",
+        "name",
+        "emission",
+        "incentive",
+        "dividends",
+        "last_update",
+        "stake_from",
+        "weights",
+        "delegation_fee",
+        "trust",
+        "regblock",
+    ]
 
     subnet_features = [
                             "Tempo",
@@ -64,19 +66,28 @@ class Subspace(c.Module):
                             'UnitEmission',
     ] 
 
+    global_features = [
+        "MaxNameLength",
+        "MaxAllowedModules",
+        "MaxAllowedSubnets",
+        "MaxRegistrationsPerBlock",
+        "MinBurn",
+        "MinWeightStake",
+        "UnitEmission",
+    ]
 
-
-    
     module_features = [
-                            'key', 
-                            'name',
-                            'address',
-                            'emission',
-                            'incentive', 
-                            'dividends', 
-                            'last_update', 
-                            'stake_from', 
-                            'delegation_fee']
+        "key",
+        "name",
+        "address",
+        "emission",
+        "incentive",
+        "dividends",
+        "last_update",
+        "stake_from",
+        "delegation_fee",
+    ]
+
     cost = 1
     block_time = 8 # (seconds)
     default_config = c.get_config('subspace', to_munch=False)
@@ -1140,8 +1151,6 @@ class Subspace(c.Module):
             name =  'vote_mode'
         elif name == 'subnet_names':
             name  = 'name'
-        elif name == 'min_stake_global':
-            name =  'min_stake'
             
         return name
         
@@ -1197,7 +1206,7 @@ class Subspace(c.Module):
                     max_age = 1000,
                     fmt:str='j', 
                     features  = subnet_features,
-                    value_features = ['min_stake', 'max_stake'], 
+                    value_features = ['min_stake'], 
                     trials = 6,
                     **kwargs
                     ) -> list:  
@@ -2796,7 +2805,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         subnet_params = self.subnet_params( netuid=netuid , update=update, network=network, fmt='nanos')
         # infer the key if you have it
-        for k in ['max_stake', 'min_stake']:
+        for k in ['min_stake']:
             if k in params:
                 params[k] = params[k] * 1e9
         if key == None:

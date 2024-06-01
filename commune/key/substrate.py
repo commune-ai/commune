@@ -106,7 +106,7 @@ class Keypair(c.Module):
             private_key = key.__dict__.get('private_key', private_key)
             crypto_type = key.__dict__.get('crypto_type', crypto_type)
             derive_path = key.__dict__.get('derive_path', derive_path)
-            ss58_address = key.__dict__.get('ss58_address', ss58_address)
+            ss58_address = key.__dict__.get('key', ss58_address)
             path = key.__dict__.get('path', path)
             public_key = key.__dict__.get('public_key', public_key)
             ss58_format = key.__dict__.get('ss58_format', ss58_format)
@@ -177,22 +177,9 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         cls.put(path, key_json)
-        cls.add_key_address(path, key.ss58_address)
         cls.update()
         return  json.loads(key_json)
     
-    @classmethod
-    def add_key_address(cls, key, address):
-        key2address = cls.key2address(update=False)
-        key2address[key] = address
-        cls.put('key2address', key2address)
-
-    @classmethod
-    def rm_key_address(cls, key):
-        key2address = cls.key2address(update=False)
-        key2address.pop(key, None)
-        cls.put('key2address', key2address)
-
     
     @classmethod
     def update(cls, **kwargs):
@@ -374,9 +361,10 @@ class Keypair(c.Module):
         
 
     @classmethod
-    def key2address(cls, search=None, update=False, **kwargs):
+    def key2address(cls, search=None, max_age=None, update=False, **kwargs):
         path = 'key2address'
-        key2address =  cls.get(path, [],max_age=None, update=update)
+        key2address = []
+        key2address =  cls.get(path, key2address,max_age=max_age, update=update)
         if len(key2address) == 0:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
@@ -454,7 +442,9 @@ class Keypair(c.Module):
         if key not in keys:
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
-        cls.rm_key_address(key)
+        cls.update()
+        assert c.exists(key2path[key]) == False, 'key not deleted'
+
         return {'deleted':[key]}
     
     @property
@@ -557,7 +547,7 @@ class Keypair(c.Module):
                 if password != None:
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
         if '_ss58_address' in state_dict:
-            state_dict['ss58_address'] = state_dict.pop('_ss58_address')
+            state_dict['key'] = state_dict.pop('_ss58_address')
         state_dict = json.dumps(state_dict)
         
         return state_dict
@@ -572,8 +562,8 @@ class Keypair(c.Module):
         for k,v in obj.items():
             if cls.is_encrypted(obj[k]) and password != None:
                 obj[k] = cls.decrypt(data=obj[k], password=password)
-        if 'ss58_address' in obj:
-            obj['_ss58_address'] = obj.pop('ss58_address')
+        if 'key' in obj:
+            obj['_ss58_address'] = obj.pop('key')
         return  cls(**obj)
     
     @classmethod
@@ -875,7 +865,7 @@ class Keypair(c.Module):
 
         return cls.create_from_private_key(private_key, public_key, ss58_format=ss58_format, crypto_type=crypto_type)
 
-    def export_to_encrypted_json(self, passphrase: str, name: str = None) -> dict:
+    def export_to_encrypted_json(self, passphrase: str, name: str = None, path=None) -> dict:
         """
         Export Keypair to PolkadotJS format encrypted JSON file
 
@@ -908,6 +898,7 @@ class Keypair(c.Module):
                 "name": name, "tags": [], "whenCreated": int(time.time())
             }
         }
+    
 
         return json_data
     
@@ -1185,14 +1176,6 @@ class Keypair(c.Module):
     def is_key(cls, key) -> bool:
         return isinstance(key, Keypair)
 
-    def test_signing(self):
-        sig = self.sign('test')
-        assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
-        assert self.verify('test',sig, self.public_key)
-        sig = self.sign('test', return_string=True)
-        assert self.verify(sig, self.public_key)
-        return {'success':True}
-
     encrypted_prefix = 'ENCRYPTED::'
 
     @classmethod
@@ -1307,28 +1290,21 @@ class Keypair(c.Module):
         
 
 
-    def test_key_management(self, key1='test.key' , key2='test2.key'):
-        if self.key_exists(key1):
-            self.rm_key(key1)
-        if self.key_exists(key2):
-            self.rm_key(key2)
-
-
-        self.add_key(key1)
-        k1 = self.get_key(key1)
-        assert self.key_exists(key1), f'Key management failed, key still exists'
-        self.mv_key(key1, key2)
-        k2 = self.get_key(key2)
-        assert k1.ss58_address == k2.ss58_address, f'Key management failed, {k1.ss58_address} != {k2.ss58_address}'
-        assert self.key_exists(key2), f'Key management failed, key does not exist'
-        assert not self.key_exists(key1), f'Key management failed, key still exists'
-        self.mv_key(key2, key1)
-        assert self.key_exists(key1), f'Key management failed, key does not exist'
-        assert not self.key_exists(key2), f'Key management failed, key still exists'
-        self.rm_key(key1)
-        # self.rm_key(key2)
-        assert not self.key_exists(key1), f'Key management failed, key still exists'
-        assert not self.key_exists(key2), f'Key management failed, key still exists'
+    def test_key_management(self):
+        if self.key_exists('test'):
+            self.rm_key('test')
+        key1 = self.get_key('test')
+        assert self.key_exists('test'), f'Key management failed, key still exists'
+        self.mv_key('test', 'test2')
+        key2 = self.get_key('test2')
+        assert key1.ss58_address == key2.ss58_address, f'Key management failed, {key1.ss58_address} != {key2.ss58_address}'
+        assert self.key_exists('test2'), f'Key management failed, key does not exist'
+        assert not self.key_exists('test'), f'Key management failed, key still exists'
+        self.mv_key('test2', 'test')
+        assert self.key_exists('test'), f'Key management failed, key does not exist'
+        assert not self.key_exists('test2'), f'Key management failed, key still exists'
+        self.rm_key('test')
+        assert not self.key_exists('test'), f'Key management failed, key still exists'
         return {'success': True, 'msg': 'test_key_management passed'}
 
     @classmethod
@@ -1527,14 +1503,6 @@ class Keypair(c.Module):
         
     def id_card(self, return_json=True,**kwargs):
         return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
-    
-
-    def test_str_signing(self):
-        sig = self.sign('test', return_string=True)
-        # c.print(''+sig)
-        assert not self.verify('1'+sig)
-        assert self.verify(sig)
-        return {'success':True}
 
     def ticket(self, *args, **kwargs):
         return c.module('ticket')().ticket(*args,key=self.key, **kwargs)
@@ -1542,35 +1510,8 @@ class Keypair(c.Module):
     def verify_ticket(self, ticket, **kwargs):
         return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
     
-    def test_ticket(self):
-        ticket = self.ticket()
-        assert self.verify_ticket(ticket)
-        return {'success':True, 'msg':'test_ticket passed'}
-    def to_mnemonic(self, password=None):
-        from mnemonic import Mnemonic
-        return Mnemonic('english').to_mnemonic(self.private_key)
-    
-
-    def ticket_staleness(self, ticket, **kwargs):
-        
-        return self.verify(ticket, **kwargs)
-    
     def app(self):
         c.module('key.app').app()
-
-
-    def test_move_key(self):
-        self.add_key('testfrom')
-        assert self.key_exists('testfrom')
-        og_key = self.get_key('testfrom')
-        self.mv_key('testfrom', 'testto')
-        assert self.key_exists('testto')
-        assert not self.key_exists('testfrom')
-        new_key = self.get_key('testto')
-        assert og_key.ss58_address == new_key.ss58_address
-        self.rm_key('testto')
-        assert not self.key_exists('testto')
-        return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
 
     @staticmethod
     def is_ss58(address):
@@ -1611,6 +1552,34 @@ class Keypair(c.Module):
         else:
             return False
     
+    def test_signing(self):
+        sig = self.sign('test')
+        assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
+        assert self.verify('test',sig, self.public_key)
+        sig = self.sign('test', return_string=True)
+        assert self.verify(sig, self.public_key)
+        return {'success':True}
+
+    def test_move_key(self):
+        self.add_key('testfrom')
+        assert self.key_exists('testfrom')
+        og_key = self.get_key('testfrom')
+        self.mv_key('testfrom', 'testto')
+        assert self.key_exists('testto')
+        assert not self.key_exists('testfrom')
+        new_key = self.get_key('testto')
+        assert og_key.ss58_address == new_key.ss58_address
+        self.rm_key('testto')
+        assert not self.key_exists('testto')
+        return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
+
+    def test_str_signing(self):
+        sig = self.sign('test', return_string=True)
+        # c.print(''+sig)
+        assert not self.verify('1'+sig)
+        assert self.verify(sig)
+        return {'success':True}
+
 Keypair.run(__name__)
 
 

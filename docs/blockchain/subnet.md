@@ -100,9 +100,6 @@ self_vote
 name
 - the name of your subnet
     
-max_stake
-- the maximum amount of stake a module can have
-
 ```bash
 {
     'tempo': 1, 
@@ -119,7 +116,6 @@ max_stake
     'vote_mode': 'authority',
     'self_vote': True,
     'name': 'subspace',
-    'max_stake': 1000000000000000
 }
 
 ```

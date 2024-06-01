@@ -132,8 +132,6 @@ class SubspaceDashboard(c.Module):
 
             n = st.number_input('Number of Modules', 1, 1000000, 8400, 1, key=f'n.modules')
 
-            burn_rate = st.slider('Burn Rate', 0.0, 1.0, 0.0, 0.01, key=f'burn.rate')
-
             dividend_rate = st.slider('Dividend Rate', 0.0, 1.0, 0.5, 0.01, key=f'dividend.rate')
 
             emission_per_halving = st.number_input('Emission Per Halving', 0, 1_000_000_000, 250_000_000, 1, key=f'emission.per.halving')
