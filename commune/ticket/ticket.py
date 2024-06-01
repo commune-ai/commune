@@ -6,7 +6,7 @@ class Ticket(c.Module):
     # THIS CREATES A TOKEN THAT CAN BE USED TO VERIFY THE ORIGIN OF A MESSAGE, AND IS GENERATED CLIENT SIDE
     # THIS USES THE SAME TECHNOLOGY AS ACCESS TOKENS, BUT IS USED FOR CLIENT SIDE VERIFICATION, AND NOT SERVER SIDE
     # THIS GIVES USERS THE ABILITY TO VERIFY THE ORIGIN OF A MESSAGE, AND TO VERIFY THAT THE MESSAGE HAS NOT BEEN TAMPERED WITH
-    #data={DATA}::address={ADDRESS}::timestamp={TIMESTAMP}::signature={SIGNATURE}
+    #data={DATA}::address={ADDRESS}::time={time}::signature={SIGNATURE}
     """
     signature_seperator = '::signature='
 
@@ -14,7 +14,7 @@ class Ticket(c.Module):
         key = c.get_key(key)
         ticket_dict = {
             'data': data,
-            'timestamp': c.time(),
+            'time': c.time(),
             'address': key.ss58_address,
         }
         data = self.dict2ticket(ticket_dict)
@@ -41,14 +41,14 @@ class Ticket(c.Module):
             for item in ticket.split('::'):
                 k,v = item.split('=')
                 ticket_dict[k] = v
-            ticket_dict['timestamp'] = float(ticket_dict['timestamp'])
+            ticket_dict['time'] = float(ticket_dict['time'])
         return ticket_dict
     
     
     def verify(self, ticket,  max_age:str=5, **kwargs):
         ticket_dict = self.ticket2dict(ticket)
         address = ticket_dict['address']
-        staleness = c.time() - ticket_dict['timestamp']
+        staleness = c.time() - ticket_dict['time']
         c.print(staleness)
 
         if staleness > max_age:

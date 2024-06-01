@@ -46,7 +46,6 @@ class Explorer(c.Module):
             s_modules = modules[s_netuid]
             subnet = subnets[s_netuid]
             subnet['n'] = len(s_modules)
-            subnet['max_stake'] /= 1e9
             total_stake = sum([sum([v/1e9 for k,v in m['stake_from'].items()]) for m in s_modules])
             subnet['total_stake'] = total_stake
             subnet['emission_per_epoch'] = sum([m['emission']/1e9  for m in s_modules])

@@ -37,7 +37,7 @@ class Namespace(c.Module):
                                                  netuid=netuid,
                                                  **kwargs)
         elif network == 'local':
-            if update or len(namespace) == 0:
+            if update:
                 namespace = cls.build_namespace(network=network)  
 
    

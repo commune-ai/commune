@@ -143,26 +143,6 @@ class c:
     def module_file(cls) -> str:
         # get the file of the module
         return inspect.getfile(cls)
-        
-
-    @classmethod
-    def module_dirpath(self) -> str:
-        return  os.path.dirname(self.module_file())
-
-    @classmethod
-    def __module_dir__(cls) -> str :
-        # get the directory of the module
-        return os.path.dirname(cls.module_file())
-    
-    @classmethod
-    def get_module_path(cls, obj=None,  simple:bool=False) -> str:
-        # odd case where the module is a module in streamlit
-        obj = cls.resolve_module(obj)
-        module_path =  inspect.getfile(obj)
-        # convert into simple
-        if simple:
-            module_path = cls.path2simple(module_path)
-        return module_path
     
 
     @classmethod
@@ -258,7 +238,7 @@ class c:
 
     @classmethod
     def config_path(cls) -> str:
-        return cls.get_module_path(simple=False).replace('.py', '.yaml')
+        return cls.filepath().replace('.py', '.yaml')
 
     @classmethod
     def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
@@ -309,8 +289,7 @@ class c:
         return data
         
     get_yaml = load_yaml
-
-
+    
     @classmethod
     def fn2code(cls, search=None, module=None)-> Dict[str, str]:
         module = module if module else cls
@@ -533,10 +512,8 @@ class c:
         config = cls.config()
         if password:
             v = cls.encrypt(v, password=password)
-
         cls.dict_put(config, k, v)
         cls.save_config(config=config)
-
         return {'success': True, 'msg': f'config({k} = {v})'}
     setc = putc
     @classmethod
@@ -655,6 +632,8 @@ class c:
  
     cfg = get_config = config
 
+
+    
     @classmethod
     def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
         from commune.utils.dict import deep2flat
@@ -6405,23 +6384,9 @@ class c:
                         infos[name] = result
         
 
-
-
-
-
-
-
-    def my_stats(self, *args, **kwargs):
-        return c.module('subspace')().my_stats(*args, **kwargs)
-
-    @classmethod
-    def register_dead_keys(cls, *args, **kwargs):
-        return c.module('subspace')().register_dead_keys(*args, **kwargs)
-    
-
     @classmethod
     def shortcuts(cls) -> Dict[str, str]:
-        return c.getc('shortcuts')
+        return c.config()['shortcuts']
 
     @classmethod
     def add_shortcut(cls, shortcut, name) -> Dict[str, str]:
@@ -6436,16 +6401,11 @@ class c:
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
-    
-
 
     @classmethod
     def talk(cls, *args, **kwargs):
         return c.module('model.openrouter')().talk(*args, **kwargs)
-
-    @classmethod
-    def yesno(self, prompt:str):
-        return c.module('model.openrouter')().talk(f"{prompt} give a yes or no response ONLY IN ONE WORD", max_tokens=10)
+    
     ask = a = talk
 
     @classmethod
@@ -6470,6 +6430,7 @@ class c:
             idx = i % num_chunks
             chunks[idx].append(element)
         return chunks
+    
     @classmethod
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
@@ -6576,30 +6537,6 @@ class c:
             result =  inspect.isgeneratorfunction(obj)
         return result
     
-    @classmethod
-    def module2docpath(cls):
-        tree = c.tree()
-        module2docpath = {}
-        for m, p in tree.items():
-
-            dirpath = os.path.dirname(p)
-            docpaths = [f for f in c.ls(dirpath) if f.endswith('.md')]
-            if len(docpaths) > 1:
-                [c.print(f) for f in docpaths]
-            if len(docpaths) > 0:
-                
-                doc_name = docpaths[0].split('/')[-1].split('.')[0]
-                if not (doc_name.startswith(m.replace('.','_')) or doc_name.endswith('_doc')):
-                    continue
-                module2docpath[m] = docpaths[0]
-
-                
-            
-        return module2docpath
-    @classmethod
-    def hello(cls):
-        c.print('hello')
-
     thread_map = {}
     @classmethod
     def thread(cls,fn: Union['callable', str],  

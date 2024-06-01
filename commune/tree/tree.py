@@ -81,8 +81,7 @@ class Tree(c.Module):
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         if include_root:
-            root_tree = cls.root_tree()
-            tree = {**root_tree, **tree}
+            tree = {**tree, **cls.root_tree()}
         return tree
     
 
