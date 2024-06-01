@@ -72,6 +72,6 @@ c staked search=vali netuid=1
 Transfer stake from one module to another, if you dont specify the amount, the default is the entire stake towards the module
 
 ```bash
-c transfer_stake vali.text.truthqa::commie1 vali::project_management amount=0.01 # default netuid=0
+c stake_transfer vali.text.truthqa::commie1 vali::project_management amount=0.01 # default netuid=0
 ```
 

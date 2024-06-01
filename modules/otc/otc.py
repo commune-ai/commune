@@ -120,7 +120,7 @@ class OTC(c.Module):
                 data_field = json.loads(data['data'])
                 #print (data_field)
 
-                address = str(data_field['ss58_address'])
+                address = str(data_field['key'])
                 key_name= str(data_field['path'])
                 dictionary={'address': address, 'key_name': key_name}
             return dictionary

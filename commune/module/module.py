@@ -122,16 +122,12 @@ class c:
     def key(self, key: 'Key'):
         self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
-    
     @classmethod
     def call(cls, *args, **kwargs) -> None:
         return c.module('client').call( *args, **kwargs)
-
     @classmethod
     async def async_call(cls, *args,**kwargs):
         return c.call(*args, **kwargs)
-
-
     @classmethod
     def call_search(cls,*args, **kwargs) -> None:
         return c.m('client').call_search(*args, **kwargs)
@@ -1410,6 +1406,11 @@ class c:
     @classmethod
     def tree(cls, *args, **kwargs) -> List[str]:
         return c.module('tree').tree(*args,  **kwargs) 
+    
+    @classmethod
+    def tree(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').tree(*args,  **kwargs) 
+
 
     @classmethod
     def tree2path(cls, *args, **kwargs) -> List[str]:
@@ -1466,10 +1467,13 @@ class c:
     
     @classmethod
     def simple2objectpath(cls, path:str,path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
+        
+        
         if path in path2objectpath:
             object_path =  path2objectpath[path]
         else:
             object_path =  c.module('tree').simple2objectpath(path, **kwargs)
+
         return object_path
     @classmethod
     def simple2object(cls, path:str, **kwargs) -> str:
@@ -1541,10 +1545,6 @@ class c:
     @classmethod
     def has_module(cls, module):
         return module in c.modules()
-        
-    @classmethod
-    def Vali(cls, *args, **kwargs):
-        return c.module('vali')
     
     @classmethod
     def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
@@ -2492,7 +2492,9 @@ class c:
                     'name': name, 
                     'address':address, 
                     'kwargs':kwargs
-                    }        
+                    } 
+
+        c.print(module, name)       
         module_class = c.module(module)
 
         kwargs.update(extra_kwargs)
@@ -2584,7 +2586,7 @@ class c:
     def info(self , 
              module = None,
              features = ['schema', 'namespace', 'commit_hash', 'hardware','attributes','functions'], 
-             lite_features = ['name', 'address', 'schema', 'ss58_address', 'description'],
+             lite_features = ['name', 'address', 'schema', 'key', 'description'],
              lite = True,
              cost = False,
              **kwargs
@@ -2619,8 +2621,8 @@ class c:
             info['path'] = self.module_path() # get the path of the module
         if 'address' in features:
             info['address'] = self.address.replace(c.default_ip, c.ip(update=False))
-        if 'ss58_address' in features:    
-            info['ss58_address'] = self.key.ss58_address
+        if 'key' in features:    
+            info['key'] = self.key.ss58_address
         if 'code_hash' in features:
             info['code_hash'] = self.chash() # get the hash of the module (code)
         if 'commit_hash' in features:
@@ -3122,8 +3124,8 @@ class c:
 
             
     @classmethod
-    def transfer_stake(cls, *args, **kwargs):
-        return c.module('subspace')().transfer_stake(*args, **kwargs)   
+    def stake_transfer(cls, *args, **kwargs):
+        return c.module('subspace')().stake_transfer(*args, **kwargs)   
 
 
     @classmethod
@@ -7012,7 +7014,7 @@ class c:
     @classmethod
     def verify_ticket(cls, *args, **kwargs):
 
-        return c.get_key().verify_ticket(*args, **kwargs)
+        return c.module('ticket').verify_ticket(*args, **kwargs)
     
     @classmethod
     def load_style(cls):

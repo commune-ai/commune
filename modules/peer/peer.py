@@ -277,7 +277,7 @@ class Peer(c.Module):
     
     
     def keys(self):
-        return [info.get('ss58_address', None)for info in self.infos()]
+        return [info.get('key', None)for info in self.infos()]
     
     @classmethod
     def infos(self, search='module',  network='remote', update=False):
@@ -808,12 +808,12 @@ class Peer(c.Module):
     @classmethod
     def peer2key(cls, search=None, network:str='remote', update=False):
         infos = c.infos(search=search, network=network, update=update)
-        return {v['name']:v['ss58_address'] for v in infos if 'name' in v and 'address' in v}
+        return {v['name']:v['key'] for v in infos if 'name' in v and 'address' in v}
 
     @classmethod
     def peer_addresses(cls, network:str='remote'):
         infos = c.infos(network=network)
-        return {info['ss58_address'] for info in infos if 'ss58_address' in info}
+        return {info['key'] for info in infos if 'key' in info}
     
  
     def check_peers(self, timeout=10):

@@ -1,4 +1,5 @@
 import commune as c
+import json
 
 class Ticket(c.Module):
     description = """
@@ -7,10 +8,7 @@ class Ticket(c.Module):
     # THIS GIVES USERS THE ABILITY TO VERIFY THE ORIGIN OF A MESSAGE, AND TO VERIFY THAT THE MESSAGE HAS NOT BEEN TAMPERED WITH
     #data={DATA}::address={ADDRESS}::timestamp={TIMESTAMP}::signature={SIGNATURE}
     """
-
-
     signature_seperator = '::signature='
-    max_age = 5
 
     def create(self, data=None, key=None, **kwargs):
         key = c.get_key(key)
@@ -36,15 +34,18 @@ class Ticket(c.Module):
         """
         Convert a ticket string to a dictionary
         """
-        ticket_dict = {}
-        for item in ticket.split('::'):
-            k,v = item.split('=')
-            ticket_dict[k] = v
-        ticket_dict['timestamp'] = float(ticket_dict['timestamp'])
+        if ticket.startswith('{'):
+            ticket = json.loads(ticket)
+        if isinstance(ticket, str):
+            ticket_dict = {}
+            for item in ticket.split('::'):
+                k,v = item.split('=')
+                ticket_dict[k] = v
+            ticket_dict['timestamp'] = float(ticket_dict['timestamp'])
         return ticket_dict
     
     
-    def verify(self, ticket,  max_age:str=max_age, **kwargs):
+    def verify(self, ticket,  max_age:str=5, **kwargs):
         ticket_dict = self.ticket2dict(ticket)
         address = ticket_dict['address']
         staleness = c.time() - ticket_dict['timestamp']
@@ -70,13 +71,12 @@ class Ticket(c.Module):
 
     @classmethod
     def test_staleness(cls, key='test', max_age=1):
-        cls.max_age = max_age
         c.add_key(key)
         key = c.get_key(key)
         self = cls()
         ticket = self.create()
         print('waiting for staleness')
-        c.sleep(cls.max_age + 1)
+        c.sleep(max_age + 1)
         key = c.get_key(key)
         c.print(ticket)
         reciept = self.verify(ticket, max_age=max_age)

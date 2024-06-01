@@ -689,7 +689,7 @@ class StreamlitModule(c.Module):
             self.modules[i]['emission'] = self.modules[i]['emission']/1e9
 
         self.key_info = {
-            'ss58_address': self.key.ss58_address,
+            'key': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
             'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
             'stake': sum([v[1] for v in self.state['stake_to'][self.netuid].get(self.key.ss58_address)]),

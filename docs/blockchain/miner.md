@@ -154,7 +154,7 @@ c call model.openai/info
     'signature': 
 '52a8c7ea27ce5ec05cf55c0d086e6aa288004940c52dacdd5a92b944176646094b7d
 dbbc6b1cf2d267366053ef26589f09dc730ef271ad3d18acc9ab4e83538a',
-    'ss58_address': 
+    'key': 
 '5HarzAYD37Sp3vJs385CLvhDPN52Cb1Q352yxZnDZchznPaS',
     'schema': {
         'generate': {

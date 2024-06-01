@@ -43,7 +43,6 @@ class Subspace(c.Module):
                             'MinAllowedWeights',
                            'MaxAllowedWeights',
                             'MaxAllowedUids',
-                            'MinStake',
                             'Founder', 
                            'FounderShare',
                             'IncentiveRatio',
@@ -612,7 +611,7 @@ class Subspace(c.Module):
                     else:
                         key_address = key 
         # if the key has an attribute then its a key
-        elif hasattr(key, 'ss58_address'):
+        elif hasattr(key, 'key'):
             key_address = key.ss58_address
         
         return key_address
@@ -1605,7 +1604,7 @@ class Subspace(c.Module):
         module['address'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
@@ -1650,6 +1649,7 @@ class Subspace(c.Module):
             key_batches = c.chunk(keys, chunk_size=batch_size)
             futures = []
             for key_batch in key_batches:
+                c.print(key_batch)
                 f = c.submit(self.get_modules, kwargs=dict(keys=key_batch,
                                                         block=block, 
                                                         network=network, 
@@ -1658,6 +1658,7 @@ class Subspace(c.Module):
                                                         timeout=timeout))
                 futures += [f]
             module_batches = c.wait(futures, timeout=timeout)
+            c.print(module_batches)
             name2module = {}
             for module_batch in module_batches:
                 if isinstance(module_batch, list):
@@ -2523,7 +2524,7 @@ class Subspace(c.Module):
         name: str , # defaults to module.tage
         address : str = None,
         stake : float = None,
-        netuid = 0,
+        netuid = None,
         subnet: str = 'commune',
         key : str  = None,
         module_key : str = None,
@@ -2559,23 +2560,21 @@ class Subspace(c.Module):
         network =self.resolve_network(network)
         address = address or namespace.get(name,address)
         module_key = module_key or c.get_key(name).ss58_address
-        netuid2subnet = self.netuid2subnet(max_age=max_age)
-        subnet2netuid = {v:k for k,v in netuid2subnet.items()}
-        if isinstance(subnet, str):
-            netuid = subnet
-        if isinstance(netuid, ):
+        subnet2netuid = self.subnet2netuid(update=False)
+
+        if isinstance(netuid, str):
             subnet = netuid
-            netuid = subnet2netuid.get(netuid, 0)
+
         assert isinstance(subnet, str), f"Subnet must be a string"
 
-        if netuid in netuid2subnet:
-            subnet = netuid2subnet[netuid]
-        else:
-            netuid = 0
-            response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
-            if response.lower() not in ["yes", 'y', 'dope']:
-                return {'success': False, 'msg': 'Subnet not found and not created'}
-            
+        if subnet not in subnet2netuid:
+            subnet2netuid = self.subnet2netuid(update=True)
+            if subnet not in subnet2netuid:
+                subnet2netuid[subnet] = len(subnet2netuid)
+                response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
+                if response.lower() not in ["yes", 'y', 'dope']:
+                    return {'success': False, 'msg': 'Subnet not found and not created'}
+                
         # require prompt to create new subnet        
         stake = (stake or 0) * 1e9
 
@@ -2591,7 +2590,7 @@ class Subspace(c.Module):
                     'name': name.encode('utf-8'),
                     'stake': stake,
                     'module_key': module_key,
-                    'metadata': c.str2bytes(c.dict2str(metadata or {})),
+                    'metadata': json.dumps(metadata or {}).encode('utf-8'),
                 }
         
         # create extrinsic call
@@ -2856,7 +2855,7 @@ class Subspace(c.Module):
         return x
                     
     
-    def transfer_stake(
+    def stake_transfer(
             self,
             module_key: str ,
             new_module_key: str ,
@@ -3165,10 +3164,8 @@ class Subspace(c.Module):
     def unstake_all( self, 
                         key: str = None, 
                         netuid = 0,
-                        network = network,
                         existential_deposit = 1) -> Optional['Balance']:
         
-        network = self.resolve_network( network )
         key = self.resolve_key( key )
         netuid = self.resolve_netuid( netuid )
         key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
@@ -3230,7 +3227,7 @@ class Subspace(c.Module):
                         keys = None,
                         max_age = 1000,
                         min_stake = 100,
-                        features = ['name', 'key', 'stake', 'stake_from', 'dividends', 'delegation_fee', 'vote_staleness'],
+                        features = ['name','stake_from', 'dividends', 'delegation_fee',  'key'],
                         sort_by = 'stake_from',
                         **kwargs):
         
@@ -3269,22 +3266,21 @@ class Subspace(c.Module):
         for m in modules:          
             if isinstance(m['stake_from'], dict): 
                 m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
-            m['cstake'] = int(m['stake'])
+            m['stake'] = int(m['stake'])
         if search != None:
             modules = [m for m in modules if search in m['name']]
 
-        modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
 
         if len(modules) == 0: 
             return modules
-        modules = c.df(modules)
-
+        modules = c.df(modules)[features]
         modules = modules.sort_values(sort_by, ascending=False)
         # filter out everything where stake_from > min_stake
         modules = modules[modules['stake_from'] > min_stake]
-        del modules['key']
         if not df:
             modules = modules.to_dict(orient='records')
+            modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
+
 
         if n != None:
             modules = modules[:n]
@@ -3437,7 +3433,7 @@ class Subspace(c.Module):
 
         if infos==None:
             infos = c.infos(search=search, **kwargs)
-            should_register_fn = lambda x: x['ss58_address'] not in keys and x['name'] not in names
+            should_register_fn = lambda x: x['key'] not in keys and x['name'] not in names
             infos = [i for i in infos if should_register_fn(i)]
             c.print(f'Found {infos} modules to register')
         if parallel:
@@ -3447,15 +3443,15 @@ class Subspace(c.Module):
             launcher_keys = list(launcher2balance.keys())
             futures = []
             for i, info in enumerate(infos):
-                if info['ss58_address'] in keys:
+                if info['key'] in keys:
                     continue
                     
                 launcher_key = launcher_keys[i % len(launcher_keys)]
-                c.print(f"Registering {info['name']} with module_key {info['ss58_address']} using launcher {launcher_key}")
+                c.print(f"Registering {info['name']} with module_key {info['key']} using launcher {launcher_key}")
                 f = c.submit(c.register, kwargs=dict(name=info['name'], 
                                                     address= info['address'],
                                                     netuid = netuid,
-                                                    module_key=info['ss58_address'], 
+                                                    module_key=info['key'], 
                                                     key=launcher_key), timeout=timeout)
                 futures+= [f]
 
@@ -3478,7 +3474,7 @@ class Subspace(c.Module):
             for info in infos:
                 r = c.register(name=info['name'], 
                             address= info['address'],
-                            module_key=info['ss58_address'], 
+                            module_key=info['key'], 
                             key=key)
                 c.print(r, color='green')
   
@@ -3796,7 +3792,7 @@ class Subspace(c.Module):
                 raise ValueError(f"Key {key} not found in your keys, please make sure you have it")
             key = c.get_key(key)
 
-        assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
+        assert hasattr(key, 'key'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
     
     

@@ -52,7 +52,7 @@ class Dashboard(c.Module):
         key2index = {k:i for i,k in enumerate(keys)}
         self.key = st.selectbox('Select Key', keys, key2index['module'], key='key.sidebar')
         self.key_info = {
-            'ss58_address': self.key.ss58_address,
+            'key': self.key.ss58_address,
         }
         return self.key
 

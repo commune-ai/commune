@@ -43,7 +43,7 @@ class Test(c.Module):
         module = c.connect(module_name)
         info = module.info()
 
-        assert info['ss58_address'] == key.ss58_address, f"key failed {key.ss58_address} != {info['ss58_address']}"
+        assert info['key'] == key.ss58_address, f"key failed {key.ss58_address} != {info['key']}"
         c.kill(module_name)
 
         c.rm_key(key_name)

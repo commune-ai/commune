@@ -106,7 +106,7 @@ class Keypair(c.Module):
             private_key = key.__dict__.get('private_key', private_key)
             crypto_type = key.__dict__.get('crypto_type', crypto_type)
             derive_path = key.__dict__.get('derive_path', derive_path)
-            ss58_address = key.__dict__.get('ss58_address', ss58_address)
+            ss58_address = key.__dict__.get('key', ss58_address)
             path = key.__dict__.get('path', path)
             public_key = key.__dict__.get('public_key', public_key)
             ss58_format = key.__dict__.get('ss58_format', ss58_format)
@@ -316,7 +316,7 @@ class Keypair(c.Module):
         if not cls.key_exists(path):
             if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)
-                c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
+                c.print(f'key does not exist, generating new key -> {key["key"]}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
         
@@ -547,7 +547,7 @@ class Keypair(c.Module):
                 if password != None:
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
         if '_ss58_address' in state_dict:
-            state_dict['ss58_address'] = state_dict.pop('_ss58_address')
+            state_dict['key'] = state_dict.pop('_ss58_address')
         state_dict = json.dumps(state_dict)
         
         return state_dict
@@ -562,8 +562,8 @@ class Keypair(c.Module):
         for k,v in obj.items():
             if cls.is_encrypted(obj[k]) and password != None:
                 obj[k] = cls.decrypt(data=obj[k], password=password)
-        if 'ss58_address' in obj:
-            obj['_ss58_address'] = obj.pop('ss58_address')
+        if 'key' in obj:
+            obj['_ss58_address'] = obj.pop('key')
         return  cls(**obj)
     
     @classmethod

@@ -258,7 +258,7 @@ class Namespace(c.Module):
         return responses
 
     @classmethod
-    def infos(cls, search=None, network=network, servers=None, features=['ss58_address', 'address', 'name'],   update:str=True, batch_size = 10, timeout=20, hardware=True, namespace=True, schema=True) -> List[str]:
+    def infos(cls, search=None, network=network, servers=None, features=['key', 'address', 'name'],   update:str=True, batch_size = 10, timeout=20, hardware=True, namespace=True, schema=True) -> List[str]:
         path = f'infos/{network}'
         if not update:
             infos = cls.get(path, [])

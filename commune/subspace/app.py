@@ -382,7 +382,7 @@ class SubspaceDashboard(c.Module):
         # st.write(self.state['stake_to'][self.netuid])
         stake_to = self.state['stake_to'][self.netuid].get(self.key.ss58_address)
         self.key_info = {
-            'ss58_address': self.key.ss58_address,
+            'key': self.key.ss58_address,
             'balance': self.state['balances'].get(self.key.ss58_address,0),
             'stake_to': self.state['stake_to'][self.netuid].get(self.key.ss58_address,{}),
             'stake': sum([v[1] for v in stake_to]) if stake_to != None else {},
