@@ -96,11 +96,11 @@ class Storage(commune.Module):
     def key2address(self) -> Dict:
         key2address = {}
         for k, v in self.storage.items():
-            id = v['ss58_address']
+            id = v['key']
             if id  in key2address:
-                key2address[v['ss58_address']] += [k]
+                key2address[v['key']] += [k]
             else:
-                key2address[v['ss58_address']] = [k]
+                key2address[v['key']] = [k]
 
         return key2address
         

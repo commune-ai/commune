@@ -6,7 +6,7 @@
 This validator is the foundation of on-chain and off-chain evaluations over any server/module. This reduces on-chain leaderboards from excluding off-chain members, by allowing anyone to create a validator
 The rules are simple
 
-
+```
 import commune as c
 Vali = c.module('vali')
 class AddVali(Vali):
@@ -14,7 +14,7 @@ class AddVali(Vali):
         self.init_vali(locals())
     def score(self, module, a=1, b=2):
         return int(module.forward(a=a, b=b) == (a + b))
-
+```
 
 
 ### Network
@@ -155,7 +155,7 @@ The run info combines all of the network_info, epoch_info, and vote_info functio
     },
     'vote': {
         'num_uids': 109, # number of uids votedf or
-        'staleness': 84, # staleness of the votes (needs to be within tempo of subnet if you want to get results)
+        'staleness': 84, # staleness of the votes in blocks 
         'key': '5H1T1YFxw6CThLbfQttmcdokaVWfgfCS79rtcjFqF2HWbvtP', # key used to vote (the validator key)
         'network': 'subspace' # the voting network
     }

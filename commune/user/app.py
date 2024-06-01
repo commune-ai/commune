@@ -36,7 +36,7 @@ class UsersApp(c.Module):
             with st.form(key='my_form'):
                 user_info = {}
                 user_info['name'] = st.text_input(label='Name', value='bro')
-                user_info['ss58_address'] = st.text_input(label='Public Key', value=f'0x')
+                user_info['key'] = st.text_input(label='Public Key', value=f'0x')
 
                 # user_info['module_address'] = st.text_input(label='Module Address', value=f'{c.default_ip}')
                 user_info['role'] = st.selectbox(label='Role', options=self.user_roles)
@@ -76,7 +76,7 @@ class UsersApp(c.Module):
         # auth = key.sign('bro')
         # st.write(key.get_key('bro').__dict__)
         # verified = key.verify(auth)
-        # address = auth['ss58_address']
+        # address = auth['key']
         # st.write(key.get_signer(auth))
 
     def st_signin(self):

@@ -4,10 +4,8 @@ import os
 from copy import deepcopy
 
 class Tree(c.Module):
-    tree_folders_path = 'module_tree_folders'
-    root_tree_path = c.libpath
-    root_tree_name = root_tree_path.split('/')[-1]
-    root_trees = [root_tree_path]
+    _tree_cache = {}
+    
     def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
         # c.thread(self.run_loop)
@@ -41,8 +39,6 @@ class Tree(c.Module):
             
         return path
     
-
-    
     def path2tree(self, **kwargs) -> str:
         trees = c.trees()
         path2tree = {}
@@ -51,12 +47,9 @@ class Tree(c.Module):
                 path2tree[path] = tree
         return path2tree
     
-
     @classmethod
     def root_tree(cls, **kwargs):
         return cls.tree(path = c.libpath, include_root=False, **kwargs)
-
-    _tree_cache = {}    
 
     @classmethod
     def is_repo(cls, libpath:str ):
@@ -75,7 +68,7 @@ class Tree(c.Module):
         path = cls.resolve_path(path or c.pwd())
         is_repo = cls.is_repo(path)
         if not is_repo:
-            path = cls.root_tree_path
+            path = c.libpath
         cache_path = path.split('/')[-1]
         if cache_path in cls._tree_cache:
             tree = cls._tree_cache[cache_path]
@@ -158,7 +151,7 @@ class Tree(c.Module):
 
     @classmethod
     def is_pwd_tree(cls):
-        return c.pwd() == cls.root_tree_path
+        return c.pwd() == c.libpath
     
     @classmethod
     def trees(cls):
@@ -178,7 +171,7 @@ class Tree(c.Module):
     @classmethod
     def resolve_tree(cls, tree:str=None):
         if tree == None:    
-            tree = cls.root_tree_name
+            tree = root_tree_path.split('/')[-1]
         return tree
     
     
@@ -186,11 +179,8 @@ class Tree(c.Module):
     @classmethod
     def path2simple(cls, path:str, ignore_prefixes = ['commune', 'modules', 'commune.modules']) -> str:
 
-
         path = os.path.abspath(path)
-
         pwd = c.pwd()
-
         if path.startswith(c.libpath):
             path = path.replace(c.libpath, '')
         elif path.startswith(pwd):
@@ -203,8 +193,6 @@ class Tree(c.Module):
         simple_path = simple_path.replace('/', '.')
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
-
-
         # compress nae
         chunks = simple_path.split('.')
         simple_chunks = []
@@ -230,7 +218,7 @@ class Tree(c.Module):
         for prefix in ignore_prefixes:
             if simple_path.startswith(prefix):
                 simple_path = simple_path.replace(prefix, '')
-        
+
         # remove leading and trailing dots
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
@@ -239,8 +227,6 @@ class Tree(c.Module):
         
         return simple_path
 
-
-    
     @classmethod
     def path_config_exists(cls, path:str) -> bool:
         '''
@@ -268,15 +254,18 @@ class Tree(c.Module):
     
     @classmethod
     def simple2objectpath(cls, simple_path:str, **kwargs) -> str:
-        object_path = cls.simple2path(simple_path, **kwargs)
-        classes =  cls.find_classes(object_path)
-        if object_path.startswith(c.libpath):
-            object_path = object_path[len(c.libpath):]
-        object_path = object_path.replace('.py', '')
-        object_path = object_path.replace('/', '.')
-        if object_path.startswith('.'):
-            object_path = object_path[1:]
-        object_path = object_path + '.' + classes[-1]
+        try:
+            object_path = cls.simple2path(simple_path, **kwargs)
+            classes =  cls.find_classes(object_path)
+            if object_path.startswith(c.libpath):
+                object_path = object_path[len(c.libpath):]
+            object_path = object_path.replace('.py', '')
+            object_path = object_path.replace('/', '.')
+            if object_path.startswith('.'):
+                object_path = object_path[1:]
+            object_path = object_path + '.' + classes[-1]
+        except Exception as e:
+            object_path = simple_path
         return object_path
     
     

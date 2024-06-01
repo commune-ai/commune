@@ -1,4 +1,3 @@
 import commune as c
-access_token = "{timestamp}::{address}::{signature}"
-print(c.module('ticket')().verify(ticket))
-
+vali = c.m('commune.Vali')
+c.print(vali.__dict__)

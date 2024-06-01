@@ -389,7 +389,7 @@ class Client(c.Module):
 
         info = c.call(module+'/info')
         key  = c.get_key(module)
-        assert info['ss58_address'] == key.ss58_address
+        assert info['key'] == key.ss58_address
         return {'info': info, 'key': str(key)}
 
     def __del__(self):

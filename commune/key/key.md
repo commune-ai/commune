@@ -17,7 +17,7 @@ key already exists at alice
 '943fb89150a67192919a43004f87685faba470e754fe4ff0af6a93e7fc54dc0a6cceb6fbc29d610d5486ba78969f609ea83753fb9e32d58df0c67f13
 dfcbbd68',
     'mnemonic': 'quantum belt rival casual benefit obscure sight wool pupil jaguar guide mango',
-    'ss58_address': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
+    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
 }
 Now this generates a random key and if you want to save it to a file you can do so like this.
 
@@ -43,7 +43,7 @@ c add_key alice
 c29d610d5486ba78969f609ea83753fb9e32d58df0c67f13dfcbbd68',
     'mnemonic': 'quantum belt rival casual benefit obscure sight wool 
 pupil jaguar guide mango',
-    'ss58_address': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
+    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
 }
 
 

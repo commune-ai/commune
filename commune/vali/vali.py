@@ -651,8 +651,8 @@ class Vali(c.Module):
         modules = test_miners + [test_vali]
         for m in modules:
             c.kill(m)
-
-        for m in test_miners + [test_vali]:
+            
+        for m in modules:
             if m == test_vali:
                 c.print(c.serve(m, kwargs={'network': network, 'search': test_miners[0].split('::')[0]}))
             else:
