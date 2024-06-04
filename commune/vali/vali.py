@@ -221,7 +221,7 @@ class Vali(c.Module):
                     result = self.generate_finished_result()
                     results.append(result)
                     if c.is_error(result):
-                        c.print(result)
+                        c.print(result, verbose=False)
 
             self.cancel_futures()
         except Exception as e:
@@ -396,7 +396,7 @@ class Vali(c.Module):
             response['w'] = 0
             name = info.get('name', module)
             response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
-            c.print(f'Error (name={name}) --> {response_str}', color='red')
+            c.print(f'Error (name={name}) --> {response_str}', color='red', verbose=self.verbose)
             self.errors += 1
             self.last_error  = c.time()
         

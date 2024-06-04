@@ -1,6 +1,5 @@
 alpha: 0.5
 batch_size: 64
-debug: false
 fn: null
 initial_sleep: 5
 max_leaderboard_age: 3600
@@ -19,6 +18,7 @@ sync_interval: 100
 threads_per_worker: 64
 timeout: 10
 timeout_info: 4
-verbose: true
+verbose: false
+debug: false
 vote_interval: 100
 workers: 1
