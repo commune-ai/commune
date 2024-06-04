@@ -7,7 +7,7 @@ FROM python:3.12-slim-bookworm
 ENV PYTHONUNBUFFERED True
 ARG DEBIAN_FRONTEND=noninteractive
 
-WORKDIR /commune
+WORKDIR /app
 
 RUN usermod -s /bin/bash root
 
@@ -22,11 +22,10 @@ RUN pip install setuptools wheel
 
 #RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
-COPY ./requirements.txt /commune/requirements.txt
+COPY ./requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
-
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2
-COPY . /commune
+COPY . /app
 RUN pip install -e ./
 ENTRYPOINT [ "tail", "-f", "/dev/null"]
