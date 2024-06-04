@@ -51,7 +51,6 @@ class Subspace(c.Module):
                             'TrustRatio',
                             'VoteModeSubnet',
                             'MaxWeightAge',
-                            'MaxStake', 
                             'SubnetNames'
                             ]
     
@@ -104,27 +103,17 @@ class Subspace(c.Module):
     ):
         self.set_config(kwargs=kwargs)
 
-    def resolve_url(self, **kwargs):
+
+    def resolve_url(self, url, **kwargs):
         mode =self.config.network_mode
         if url == None:
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             is_match = lambda x: any([url in x for url in url_search_terms])
+            urls_map = getattr(self.config.urls, self.config.network)
             urls = []
-            for provider, mode2url in self.config.urls.items():
+            for provider, mode2url in urls_map.items():
                 if is_match(provider):
-                    chain = c.module('subspace.chain')
-                    if provider == 'commune':
-                        url = chain.resolve_node_url(url=url, chain=network, mode=mode) 
-                    elif provider == 'local':
-                        url = chain.resolve_node_url(url=url, chain='local', mode=mode)
-                    else:
-                        url = mode2url[mode]
-
-                    if isinstance(url, list):
-                        urls += url
-                    else:
-                        urls += [url] 
-
+                    urls += list(mode2url[mode])
             url = c.choice(urls)
 
         
@@ -171,17 +160,18 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        network = self.resolve_network(network)
-
+        if 'subspace:' in self.config.network:
+            self.config.network = self.config.network.split(':')[1]
         if cache:
             if url in self.url2substrate:
                 return self.url2substrate[url]
 
+        self.network = self.config.network
+        self.url = url
 
         while trials > 0:
             try:
-                url = self.resolve_url(mode=mode)
-
+                url = self.resolve_url(url, mode=mode)
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
                             ss58_format=ss58_format, 
@@ -194,6 +184,7 @@ class Subspace(c.Module):
                             auto_reconnect=auto_reconnect)
                 break
             except Exception as e:
+                c.print('ERROR IN CONNECTION: ', c.detailed_error(e))
                 trials = trials - 1
                 if trials > 0:
                     raise e
@@ -201,10 +192,6 @@ class Subspace(c.Module):
         if cache:
             self.url2substrate[url] = substrate
 
-        self.network = network
-        self.url = url
-        
-    
         return substrate
 
 
@@ -214,9 +201,9 @@ class Subspace(c.Module):
                 trials = 10,
                 url : str = None, 
                 **kwargs):
-        
         self.substrate = self.get_substrate(network=network, url=url, mode=mode, trials=trials , **kwargs)
         response =  {'network': self.network, 'url': self.url}
+
         return response
 
     def __repr__(self) -> str:
@@ -382,7 +369,7 @@ class Subspace(c.Module):
               module:str='SubspaceModule',
               block=None,  
               netuid = None,
-              network: str = network, 
+              network: str = 'main', 
               save= True,
               max_age=1000,
               trials = 4,
@@ -1179,7 +1166,6 @@ class Subspace(c.Module):
         assert isinstance(params_batch, list), f"params_batch should be a list of lists"
         while True:
             substrate = substrate or self.get_substrate(network=network)
-
             try:
                 multi_query = [substrate.create_storage_key(*p) for p in params_batch]
                 results = substrate.query_multi(multi_query)
@@ -1202,35 +1188,25 @@ class Subspace(c.Module):
                     update = False,
                     max_age = 1000,
                     fmt:str='j', 
-                    timeout = 10,
                     features  = subnet_features,
-                    trials = 6,
+                    value_features = [],
                     **kwargs
                     ) -> list:  
 
         netuid = self.resolve_netuid(netuid)
-
         path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
-        futures = []
         if subnet_params == None:
             subnet_params = {}
-            future2name = {}
-            for name, feature in name2feature.items():
-                c.print(f'Querying {name}:{feature} for SubNetwork {netuid}')
-                future = c.submit(self.query, args={'name': feature},  timeout=timeout)
-                future2name[future] = name
-            
-            for f in c.as_completed(future2name, timeout=timeout):
-                name = future2name[f]
-                result = f.result()
-                c.print(result)
-                c.print(f"Got {name} for SubNetwork {netuid}")
-                subnet_params[name] = result
+            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
+            results = self.query_multi(multi_query)
+            for idx, (k, v) in enumerate(results):
+                subnet_params[names[idx]] = v.value
             self.put(path, subnet_params)
-
+        for k in value_features:
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
 
@@ -1295,11 +1271,10 @@ class Subspace(c.Module):
                     network = 'main',
                     block : Optional[int] = None,
                     update = False,
-                    timeout = 30,
                     max_age = 100000,
                     fmt:str='j', 
                     rows:bool = True,
-                    value_features = ['min_stake', 'min_burn', 'unit_emission', 'min_weight_stake'],
+                    value_features = [ 'min_burn', 'unit_emission', 'min_weight_stake'],
                     features  = global_features
                         
                     ) -> list:  
@@ -1315,7 +1290,6 @@ class Subspace(c.Module):
             for idx, (k, v) in enumerate(results):
                 subnet_params[names[idx]] = v.value
             self.put(path, subnet_params)
-
         for k in value_features:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
@@ -1383,20 +1357,18 @@ class Subspace(c.Module):
         return balances
     
     
-    def resolve_network(self, network: Optional[int] = 'subspace:main', new_connection =False, mode='ws', **kwargs) -> int:
+    def resolve_network(self, network: Optional[int] = 'subspace:main',
+                         new_connection =False,
+                         only_name = False,
+                         mode='ws', **kwargs) -> int:
         """
         Resolve the network to use for the current session.
         
         """
         network = network or self.config.network
-        network = network.replace('subspace:', '') # convert subspace:main to main and subspace:local to local
-
         if  not hasattr(self, 'substrate') or new_connection:
             self.set_network(network, **kwargs)
-
-        if network == None:
-            network = self.network
-        
+    
         return network
     
     def resolve_subnet(self, subnet: Optional[int] = None) -> int:
@@ -3702,7 +3674,7 @@ class Subspace(c.Module):
 
         start_time = c.datetime()
         ss58_address = key.ss58_address
-        paths = {m: f'history/{self.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
+        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
         params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
         compose_kwargs = dict(
                 call_module=module,
@@ -3749,11 +3721,11 @@ class Subspace(c.Module):
                         response.process_events()
 
                     if response.is_success:
-                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
                     else:
-                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
                 else:
-                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
                 break
             except Exception as e:
                 if t == trials - 1:
