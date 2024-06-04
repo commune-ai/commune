@@ -19,17 +19,15 @@ class Test(c.Module):
 
     @classmethod
     def test_serving(cls):
-        server_name = 'module::test'
-        module = c.serve(server_name)
-        c.wait_for_server(server_name)
+        server_name = 'module'
+        # module = c.serve(server_name)
+        # c.wait_for_server(server_name)
         
-        module = c.connect(server_name)
+        module = c.connect(server_name, key='module')
 
         module.put("hey",1)
         v = module.get("hey")
-        c.print(v)
-        assert v == 1, f"get failed {module.get('hey')}"
-        
+        assert v == 1, f"get failed {v}"
         c.kill(server_name)
         return {'success': True, 'msg': 'server test passed'}
 

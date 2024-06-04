@@ -29,7 +29,7 @@ class Explorer(c.Module):
 
         @st.cache_data(show_spinner=False)
         def get_state(network):
-            return c.get_state(network, netuid='all')
+            return self.get_state(network, netuid='all')
 
         state  =  get_state(self.network)
         subnets = state['subnets']
@@ -120,6 +120,33 @@ class Explorer(c.Module):
             with tab:
                 getattr(self, f'{tab_name}_dashboard')()
         
+
+        
+    @classmethod
+    def get_state(cls, network='main', netuid='all', update=True, path='state'):
+        t1 = c.time()
+        if not update:
+            state = cls.get(path, default=None)
+            if state != None:
+                return state
+            
+        subspace = c.module('subspace')(network=network)
+
+        state = {
+            'subnets': subspace.subnet_params(netuid=netuid),
+            'modules': subspace.modules(netuid=netuid),
+            'balances': subspace.balances(),
+            'stake_to': subspace.stake_to(netuid=netuid),
+        }
+
+        state['total_balance'] = sum(state['balances'].values())/1e9
+        state['key2address'] = c.key2address()
+        state['lag'] = c.lag()
+        state['block_time'] = 8
+        c.print(f'get_state took {c.time() - t1:.2f} seconds')
+        cls.put(path, state)
+        return state
+      
  
 
 Explorer.run(__name__)

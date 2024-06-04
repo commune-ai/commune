@@ -610,3 +610,19 @@ class Model(nn.Module, c.Module):
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
+    
+    @classmethod
+    def get_sample_schema(cls, x:dict) -> dict:
+        import torch
+        '''
+        
+        '''
+        sample_schema = {}
+        for k,v in x.items():
+            if isinstance(v, torch.Tensor):
+                sample_schema = dict(
+                    shape=list(v.shape),
+                    dtype= str(v.dtype)
+                )
+        return sample_schema    
+    

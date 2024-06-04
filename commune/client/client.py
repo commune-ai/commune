@@ -82,7 +82,8 @@ class Client(c.Module):
             request = self.serializer.serialize(input)
         else:
             raise ValueError(f"Invalid message_type: {message_type}")
-    
+
+        c.print(f"📡 Sending request {request}📡", color='green')
         return request
     
     def iter_over_async(self, ait):

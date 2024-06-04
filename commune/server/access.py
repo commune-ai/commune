@@ -9,11 +9,10 @@ class Access(c.Module):
 
     def __init__(self, 
                 module : Union[c.Module, str] = None, # the module or any python object
-                network: str =  'main', # mainnet
+                network: str =  'subspace:main', # mainnet
                 netuid: int = 0, # subnet id
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100.0,  # 1 call per every N tokens staked per timescale
-                stakfrom2rate = 100, 
                 max_rate: int =  1000.0, # 1 call per every N tokens staked per timescale
                 role2rate: dict =  {}, # role to rate map, this overrides the default rate,
                 state_path = f'state_path', # the path to the state
@@ -31,6 +30,7 @@ class Access(c.Module):
         self.state_path = state_path
         if refresh:
             self.rm_state()
+
         self.last_time_synced = c.time()
         self.state = {'sync_time': 0, 
                       'stake_from': {}, 
@@ -45,7 +45,7 @@ class Access(c.Module):
         if isinstance(module, str):
             module = c.module(module)()
         self.module = module
-
+        c.print(f'🚀 Access module set to {module} 🚀\033', color='yellow')
         self.whitelist =  list(set(self.module.whitelist + c.whitelist))
         self.blacklist =  list(set(self.module.blacklist + c.blacklist))
 
@@ -59,14 +59,17 @@ class Access(c.Module):
                 r = c.detailed_error(e)
             c.sleep(self.config.sync_interval)
 
-    def sync_network(self):
+    def sync_network(self, update=False, max_age=None):
         state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
         time_since_sync = c.time() - state.get('sync_time', 0)
         self.key2address = c.key2address()
         self.address2key = c.address2key()
         if time_since_sync > self.config.sync_interval:
+            if 'subspace:' in self.config.network:
+                self.config.network = self.config.network.replace('subspace:', '')
             self.subspace = c.module('subspace')(network=self.config.network)
-            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=self.config.max_age)
+            max_age = max_age or self.config.max_age
+            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=max_age)
             self.state = state
             self.put(self.state_path, self.state)
             c.print(f'🔄 Synced {self.state_path} 🔄\033', color='yellow')
@@ -115,7 +118,6 @@ class Access(c.Module):
         current_time = c.time()
 
         # sync of the state is not up to date 
-        self.sync_network()
 
         # get the rate limit for the user
         role2rate = self.state.get('role2rate', {})
@@ -165,6 +167,7 @@ class Access(c.Module):
        
         # update the user info
         user_info['rate_limit'] = rate_limit
+        user_info['key'] = address
         user_info['period'] = period
         user_info['role'] = role
         user_info['fn2requests'] = user_info.get('fn2requests', {})

@@ -20,4 +20,5 @@ shortcuts:
   store: storage
   tg: textgen
   wombo: w
+  router: model.openrouter
 tag: null

@@ -9,7 +9,7 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "",
+                model: str = "openai/gpt-4o-2024-05-13",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
