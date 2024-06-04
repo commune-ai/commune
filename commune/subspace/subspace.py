@@ -104,11 +104,8 @@ class Subspace(c.Module):
     ):
         self.set_config(kwargs=kwargs)
 
-    network_mode = 'ws'
-
-    def resolve_url(self, url:str = None, network:str = None, mode=None , **kwargs):
-        network = network or self.config.network
-        mode = mode or self.config.network_mode
+    def resolve_url(self, **kwargs):
+        mode =self.config.network_mode
         if url == None:
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             is_match = lambda x: any([url in x for url in url_search_terms])
@@ -148,7 +145,7 @@ class Subspace(c.Module):
                 auto_reconnect=True, 
                 trials:int = 10,
                 cache:bool = True,
-                mode = 'http',):
+                mode = 'http'):
 
         
         '''
@@ -174,9 +171,7 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-
-
-        network = network or self.config.network
+        network = self.resolve_network(network)
 
         if cache:
             if url in self.url2substrate:
@@ -185,7 +180,7 @@ class Subspace(c.Module):
 
         while trials > 0:
             try:
-                url = self.resolve_url(url, mode=mode, network=network)
+                url = self.resolve_url(mode=mode)
 
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
@@ -209,6 +204,7 @@ class Subspace(c.Module):
         self.network = network
         self.url = url
         
+    
         return substrate
 
 
@@ -216,8 +212,9 @@ class Subspace(c.Module):
                 network:str = 'main',
                 mode = 'http',
                 trials = 10,
-                url : str = None, **kwargs):
-               
+                url : str = None, 
+                **kwargs):
+        
         self.substrate = self.get_substrate(network=network, url=url, mode=mode, trials=trials , **kwargs)
         response =  {'network': self.network, 'url': self.url}
         return response
@@ -578,9 +575,9 @@ class Subspace(c.Module):
     #####################################
 
     """ Returns network SubnetN hyper parameter """
-    def n(self,  netuid: int = 0, network = 'main' ,block: Optional[int] = None, update=True, **kwargs ) -> int:
+    def n(self,  netuid: int = 0, network = 'main' ,block: Optional[int] = None, max_age=100, update=False, **kwargs ) -> int:
         if netuid == 'all':
-            return sum(self.query_map('N', block=block , update=update, network=network, **kwargs).values())
+            return sum(self.query_map('N', block=block , update=update, max_age=max_age, network=network, **kwargs).values())
         else:
             return self.query( 'N', params=[netuid], block=block , update=update, network=network, **kwargs)
 
@@ -1205,8 +1202,8 @@ class Subspace(c.Module):
                     update = False,
                     max_age = 1000,
                     fmt:str='j', 
+                    timeout = 10,
                     features  = subnet_features,
-                    value_features = ['min_stake'], 
                     trials = 6,
                     **kwargs
                     ) -> list:  
@@ -1217,20 +1214,25 @@ class Subspace(c.Module):
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
+        futures = []
         if subnet_params == None:
             subnet_params = {}
-            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
-            results = self.query_multi(multi_query, trials=trials)
-            for idx, (k, v) in enumerate(results):
-                subnet_params[names[idx]] = v.value
+            future2name = {}
+            for name, feature in name2feature.items():
+                c.print(f'Querying {name}:{feature} for SubNetwork {netuid}')
+                future = c.submit(self.query, args={'name': feature},  timeout=timeout)
+                future2name[future] = name
+            
+            for f in c.as_completed(future2name, timeout=timeout):
+                name = future2name[f]
+                result = f.result()
+                c.print(result)
+                c.print(f"Got {name} for SubNetwork {netuid}")
+                subnet_params[name] = result
             self.put(path, subnet_params)
 
-        for k in value_features:
-            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
-
-        return subnet_params
 
 
     subnet = subnet_params
@@ -1381,7 +1383,14 @@ class Subspace(c.Module):
         return balances
     
     
-    def resolve_network(self, network: Optional[int] = None, new_connection =False, mode='ws', **kwargs) -> int:
+    def resolve_network(self, network: Optional[int] = 'subspace:main', new_connection =False, mode='ws', **kwargs) -> int:
+        """
+        Resolve the network to use for the current session.
+        
+        """
+        network = network or self.config.network
+        network = network.replace('subspace:', '') # convert subspace:main to main and subspace:local to local
+
         if  not hasattr(self, 'substrate') or new_connection:
             self.set_network(network, **kwargs)
 
@@ -2528,6 +2537,7 @@ class Subspace(c.Module):
         min_burn = self.min_burn( network=network, fmt=fmt)
         min_stake = self.min_stake(netuid=netuid, network=network, fmt=fmt)
         return min_stake + min_burn
+    
     def register(
         self,
         name: str , # defaults to module.tage
@@ -2541,12 +2551,10 @@ class Subspace(c.Module):
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         module : str = None,
-        serve: bool = False,
         metadata = None,
         nonce=None,
         tag = None,
         ensure_server = True,
-        max_age = 1000,
     **kwargs
     ) -> bool:
 
@@ -2555,28 +2563,24 @@ class Subspace(c.Module):
         if tag != None:
             name = f'{module}::{tag}'
         # resolve module name and tag if they are in the server_name
-        serve_info = None
-        if ensure_server :
-            while not c.server_exists(name):
-                if serve_info == None:
-                    if name in c.modules():
-                        serve_info =  c.serve(name, **kwargs)
-                        address = serve_info['address']
-                    else:
-                        address = '0.0.0.0:8888'
-                        break
-        namespace = c.get_namespace()
+        if not c.server_exists(name):
+            address = c.serve(name)['address'] 
+        else:
+            address = c.namespace().get(name,address)
+
         network =self.resolve_network(network)
-        address = address or namespace.get(name,address)
         module_key = module_key or c.get_key(name).ss58_address
         subnet2netuid = self.subnet2netuid(update=False)
+        netuid2subnet = self.netuid2subnet(update=False)    
 
         if isinstance(netuid, str):
             subnet = netuid
+        if isinstance(netuid, int):
+            subnet = netuid2subnet[netuid]
 
         assert isinstance(subnet, str), f"Subnet must be a string"
 
-        if subnet not in subnet2netuid:
+        if not subnet in subnet2netuid:
             subnet2netuid = self.subnet2netuid(update=True)
             if subnet not in subnet2netuid:
                 subnet2netuid[subnet] = len(subnet2netuid)
@@ -3829,7 +3833,29 @@ class Subspace(c.Module):
         modules = self.get_modules(netuid=0)
         return modules 
 
+    def launcher_keys(self, netuid=0, min_stake=500, **kwargs):
+        keys = c.keys()
+        key2balance =  c.key2balance(netuid=netuid,**kwargs)
+        key2balance = {k: v for k,v in key2balance.items() if v > min_stake}
+        return [k for k in keys]
+    
+    def load_launcher_keys(self, amount=600, **kwargs):
+        launcher_keys = self.launcher_keys()
+        key2address = c.key2address()
+        destinations = []
+        amounts = []
+        launcher2balance = c.get_balances(launcher_keys)
+        for k in launcher_keys:
+            k_address = key2address[k]
+            amount_needed = amount - launcher2balance.get(k_address, 0)
+            if amount_needed > 0:
+                destinations.append(k_address)
+                amounts.append(amount_needed)
+            else:
+                c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')
 
+        return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
+    
             
     
 

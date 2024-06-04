@@ -81,6 +81,7 @@ class Vali(c.Module):
         }
 
     def start_workers(self):
+        c.print('Starting workers', color='cyan')
         for i in range(self.config.workers):
             self.start_worker(i)
 
@@ -195,28 +196,36 @@ class Vali(c.Module):
     epoch2results = {}
 
     def epoch(self,  **kwargs):
-        self.sync_network(**kwargs)
-        module_addresses = c.shuffle(list(self.namespace.values()))
-        c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
+    
+        try:
+            self.epochs += 1
+            self.sync_network(**kwargs)
+            module_addresses = c.shuffle(list(self.namespace.values()))
+            c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
 
-        batch_size = min(self.config.batch_size, len(module_addresses)//4)
-        self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker,  maxsize=self.config.maxsize)
-        progress_bar = c.tqdm(len(module_addresses))
-        
-        self.sync(network=self.config.network)
+            batch_size = min(self.config.batch_size, len(module_addresses)//4)
+            self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker,  maxsize=self.config.maxsize)
+            
+            self.sync(network=self.config.network)
 
-        results = []
-        timeout = self.config.timeout
+            results = []
+            timeout = self.config.timeout
+            c.print(len(module_addresses))
 
-        for module_address in module_addresses:
-            c.sleep(self.config.sample_interval)
-            if not self.executor.is_full:
-                future = self.executor.submit(self.eval, kwargs={'module': module_address},timeout=timeout)
-                self.futures.append(future)
-            if len(self.futures) >= batch_size:
-                results.append(self.generate_finished_result())   
+            for module_address in module_addresses:
+                c.sleep(self.config.sample_interval)
+                if not self.executor.is_full:
+                    future = self.executor.submit(self.eval, kwargs={'module': module_address},timeout=timeout)
+                    self.futures.append(future)
+                if len(self.futures) >= batch_size:
+                    result = self.generate_finished_result()
+                    results.append(result)
+                    if c.is_error(result):
+                        c.print(result)
 
-        self.cancel_futures()
+            self.cancel_futures()
+        except Exception as e:
+            c.print(c.detailed_error(e))
 
         return results
 
@@ -241,6 +250,7 @@ class Vali(c.Module):
                      netuid:int=None, 
                      update = False,
                      fn : str = None,
+                     max_age:int = None,
                      **kwargs):
 
         if self.network_staleness() < self.config.sync_interval and not update:
@@ -271,7 +281,8 @@ class Vali(c.Module):
             if isinstance(config.netuid, str):
                 config.netuid = self.subspace.subnet2netuid(config.netuid)
             self.subspace = c.module('subspace')(network=config.network)
-            namespace = self.subspace.namespace(netuid=config.netuid, max_age=config.sync_interval)  
+            max_age = max_age or self.config.sync_interval
+            namespace = self.subspace.namespace(netuid=config.netuid, max_age=max_age)  
         else:
             raise Exception(f'Invalid network {config.network}')
         self.namespace = namespace
@@ -306,6 +317,10 @@ class Vali(c.Module):
 
     module2last_update = {}
 
+    def is_info(info, expected_dict_keyes = ['w', 'address', 'name', 'key']):
+        is_info = isinstance(info, dict) and all([k in info for k in expected_dict_keyes])
+        return is_info
+
 
     def get_module_path(self, module):
         if module in self.address2name:
@@ -332,27 +347,28 @@ class Vali(c.Module):
             address = module
         path = self.get_module_path(module)
         module = c.connect(address, key=self.key)
-
-        # CONNECT TO THE MODULE
         info = self.get(path, {})
-        if 'key' not in info:
+
+        if not self.is_info(info):
             info = module.info(timeout=self.config.timeout_info)
-        
         info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
         info['timestamp'] = c.timestamp() # the timestamp
         info['staleness'] = info['timestamp'] - info['past_timestamp']   
         info['w'] = info.get('w', 0) # the weight from the module
- 
-        if info['staleness'] < self.config.max_staleness:
-            self.staleness_count += 1
-            timeleft = self.config.max_staleness - info['staleness']
-            raise {'module': info['name'], 'msg': 'Module is too new and w', 'staleness': info['staleness'], 'w': info['w'], 'timeleft': timeleft}
-
         info['past_w'] = info['w'] # for the alpha 
         info['path'] = path # path of saving the module
         info['name'] = name # name of the module cleint
         info['address'] = address # address of the module client
         info['alpha'] = self.config.alpha # ensure alpha is [0,1]
+        if info['staleness'] < self.config.max_staleness:
+            self.staleness_count += 1
+            raise {'module': info['name'], 
+                'msg': 'Module is too new and w', 
+                'staleness': info['staleness'], 
+                'w': info['w'], 
+                'timeleft': self.config.max_staleness - info['staleness'], 
+                }
+
         setattr(module,'local_info', info) # set the client
         return module
 
@@ -365,6 +381,7 @@ class Vali(c.Module):
         """
         The following evaluates a module sver
         """
+        info = {}
         try:
             module = self.get_module(module=module, network=network, update=update)
             info = module.local_info
@@ -372,17 +389,18 @@ class Vali(c.Module):
             self.requests += 1
             response = self.score_module(module, **kwargs)
             response = self.process_response(response=response, info=info)
+            response = {k:response[k] for k in verbose_keys}
+
         except Exception as e:
             response = c.detailed_error(e)
             response['w'] = 0
-
             name = info.get('name', module)
             response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
-            c.print(f'Error (name={name}) --> {response_str}', color='red',  verbose=self.config.verbose)
+            c.print(f'Error (name={name}) --> {response_str}', color='red')
             self.errors += 1
             self.last_error  = c.time()
-            
-        return {k:response[k] for k in verbose_keys}
+        
+        return response
 
 
     def process_response(self, response:dict, info:dict ):
@@ -417,7 +435,7 @@ class Vali(c.Module):
         if info['w'] > self.config.min_leaderboard_weight:
             self.put(info['path'], info)
 
-        c.print(f'Reward(w={info["w"]}, module={info["name"]} address={info["address"]} latency={c.round(info["latency"], 3)} staleness={info["staleness"]} )' , color='green')
+        c.print(f'Result(w={info["w"]}, name={info["name"]} latency={c.round(info["latency"], 3)} staleness={info["staleness"]} )' , color='green')
         self.successes += 1
         self.last_success = c.time()
 
@@ -471,7 +489,6 @@ class Vali(c.Module):
         leaderboard = df or self.leaderboard(network=network, 
                                        keys=keys, 
                                        to_dict=True)
-        c.print(leaderboard)
         assert len(leaderboard) > 0
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid(**kwargs) if hasattr(self, 'subspace') else {}
@@ -515,7 +532,7 @@ class Vali(c.Module):
     def leaderboard(self,
                     keys = ['name', 'w', 
                             'staleness',
-                            'latency'],
+                            'latency', 'address'],
                     max_age = None,
                     network = None,
                     ascending = True,
@@ -544,8 +561,6 @@ class Vali(c.Module):
         
         if len(df) == 0:
             return c.df(df)
-        
-
         if isinstance(by, str):
             by = [by]
         df = df.sort_values(by=by, ascending=ascending)

@@ -455,6 +455,7 @@ class c:
             default: Any=None, 
             mode:str = 'json',
             max_age:str = None,
+            max_timeout: str = None,
             cache :bool = False,
             full :bool = False,
             key: 'Key' = None,
@@ -1123,10 +1124,7 @@ class c:
             
             if cls.port_available(port=port, ip=ip):
                 return port
-        
-    
-    
-
+            
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
     get_available_port = free_port
@@ -1387,8 +1385,12 @@ class c:
         return c.module('tree').tree(*args,  **kwargs) 
     
     @classmethod
-    def tree(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').tree(*args,  **kwargs) 
+    def local_tree(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').local_tree(*args,  **kwargs) 
+    
+    @classmethod
+    def build_tree(cls, *args, **kwargs) -> List[str]:
+        return c.module('tree').local_tree(*args,  **kwargs) 
 
 
     @classmethod
@@ -2810,15 +2812,16 @@ class c:
         servers = [s for s in servers if  search in s]
         futures = []
         for s in servers:
+            c.print(f'Killing {s}', color='red')
             future = c.submit(c.kill, kwargs={'module':s, **kwargs}, imeout=timeout)
             futures.append(future)
         results = []
         for r in c.as_completed(futures, timeout=timeout):
             results += [r.result()]
 
+        c.print(f'Killed {len(results)} servers', color='red')
+
         return results
-            
-        return 
         
     delete = kill_server = kill
     def destroy(self):
@@ -4370,7 +4373,6 @@ class c:
     @classmethod
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)
-        return port_range
 
     @classmethod
     def check_module(cls, module:str):
@@ -5164,51 +5166,6 @@ class c:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
         return {'success': True, 'msg': f'Copied {path1} to {path2}'}
     
-
-    # def cp_module(self, module:str, new_module:str = None, refresh:bool = False):
-    #     if refresh:c
-    #         self.rm_module(new_module)
-    
-    @classmethod
-    def get_sample_schema(cls, x:dict) -> dict:
-        import torch
-        '''
-        
-        '''
-        sample_schema = {}
-        for k,v in x.items():
-            if isinstance(v, torch.Tensor):
-                sample_schema = dict(
-                    shape=list(v.shape),
-                    dtype= str(v.dtype)
-                )
-        return sample_schema    
-    
-
-    
-    @classmethod
-    def learn(cls, *args, **kwargs):
-        return c.module('model.hf').learn(*args, **kwargs)
-        
-    @classmethod
-    def mine(cls,*args, **kwargs):
-        kwargs['remote'] = kwargs.get('remote', True)
-        return c.module('bittensor').mine(*args, **kwargs)
-    
-    @classmethod
-    def train_fleet(cls, *args, **kwargs):
-        kwargs['remote'] = kwargs.get('remote', True)
-        return c.module('model.hf').train_fleet(*args, **kwargs)
-    
-    @classmethod
-    def miners(cls, *args, **kwargs):
-        return c.module('bittensor').miners(*args, **kwargs)
-    
-    @classmethod
-    def check_miners(cls, *args, module='bittensor', **kwargs):
-        return c.module(module).check_miners( *args, **kwargs)
-    
-    
     @classmethod
     def shuffle(cls, x:list)->list:
         if len(x) == 0:
@@ -5272,18 +5229,8 @@ class c:
         return {v:k for k,v in x.items()}
 
     @classmethod
-    def pd(cls):
-        '''
-        import pandas
-        '''
-        return cls.import_module('pandas')
-
-    @classmethod
-    def df(cls, *args, **kwargs):
-        df =  c.import_object('pandas.DataFrame')
-        if len(args) > 0 or len(kwargs) > 0:
-            df = df(*args, **kwargs)
-        return df
+    def df(cls, x, **kwargs):
+        return c.import_object('pandas.DataFrame')(x, **kwargs)
 
     @classmethod
     def torch(cls):
@@ -5293,22 +5240,6 @@ class c:
     def tensor(cls, *args, **kwargs):
         return c.import_object('torch.tensor')(*args, **kwargs)
 
-    @staticmethod
-    def json2df(json_data):
-        """
-        Convert JSON data to a pandas DataFrame.
-        
-        Args:
-            json_data (str): JSON data representing a DataFrame.
-            
-        Returns:
-            pandas.DataFrame: DataFrame created from the JSON data.
-        """
-                
-        import pandas as pd
-        import json
-        dataframe = pd.read_json(json_data)
-        return dataframe
     
     @staticmethod
     def ss58_encode(*args, **kwargs):
@@ -5373,8 +5304,6 @@ class c:
     @staticmethod
     def echo(x):
         return x
-    
-
     
     @classmethod
     def pool(cls , n=5, **kwargs):
@@ -6571,7 +6500,7 @@ class c:
                 name = name + tag_seperator + tag + str(cnt)
         
         if name in cls.thread_map:
-            cls.thread_map[name].cancel()
+            cls.thread_map[name].join()
 
         t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
         # set the time it starts
@@ -7000,32 +6929,7 @@ class c:
 
     def set_page_config(self,*args, **kwargs):
         return c.module('streamlit').set_page_config(*args, **kwargs)
-        
-    @classmethod
-    def get_state(cls, network='main', netuid='all', update=True, path='state'):
-        t1 = c.time()
-        if not update:
-            state = cls.get(path, default=None)
-            if state != None:
-                return state
-            
-        subspace = c.module('subspace')(network=network)
-
-        state = {
-            'subnets': subspace.subnet_params(netuid=netuid),
-            'modules': subspace.modules(netuid=netuid),
-            'balances': subspace.balances(),
-            'stake_to': subspace.stake_to(netuid=netuid),
-        }
-
-        state['total_balance'] = sum(state['balances'].values())/1e9
-        state['key2address'] = c.key2address()
-        state['lag'] = c.lag()
-        state['block_time'] = 8
-        c.print(f'get_state took {c.time() - t1:.2f} seconds')
-        cls.put(path, state)
-        return state
-        
+  
     @classmethod
     def eval(cls, module, vali=None,  **kwargs):
         vali = c.module('vali')() if vali == None else c.module(vali)
@@ -7065,37 +6969,6 @@ class c:
         port_range = c.port_range()
         x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
         return x
-
-    @classmethod
-    def launcher_keys(cls, netuid=0, min_stake=500, **kwargs):
-        keys = c.keys()
-        key2balance =  c.key2balance(**kwargs)
-        key2balance = {k: v for k,v in key2balance.items() if v > min_stake}
-        return [k for k in keys]
-    
-    @classmethod
-    def top_launchers(cls, amount=600, **kwargs):
-        launcher_keys = cls.launcher_keys()
-        key2address = c.key2address()
-        destinations = []
-        amounts = []
-        launcher2balance = c.get_balances(launcher_keys)
-        for k in launcher_keys:
-            k_address = key2address[k]
-            amount_needed = amount - launcher2balance.get(k_address, 0)
-            if amount_needed > 0:
-                destinations.append(k_address)
-                amounts.append(amount_needed)
-            else:
-                c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')
-
-        return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
-    
-    load_launcher_keys = top_launchers
-    @classmethod
-    def launcher2balance(cls):
-        keys = cls.launcher_keys()
-        return c.get_balances(keys)
     
 Module = c
 

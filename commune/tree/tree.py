@@ -9,6 +9,7 @@ class Tree(c.Module):
     def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
         # c.thread(self.run_loop)
+    
 
     @classmethod
     def simple2path(cls, path:str, tree = None, update=False,     ignore_prefixes = ['commune', 'modules', 'commune.modules'], **kwargs) -> bool:
@@ -84,7 +85,9 @@ class Tree(c.Module):
             tree = {**tree, **cls.root_tree()}
         return tree
     
-
+    @classmethod
+    def local_tree(cls, **kwargs):
+        return cls.build_tree(c.pwd(), **kwargs)
     
 
     @classmethod

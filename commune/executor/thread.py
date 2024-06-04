@@ -42,7 +42,7 @@ class ThreadPoolExecutor(c.Module):
         self.start_time = c.time()
 
         max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
-        maxsize = max_workers or None
+        maxsize = max_workers * 10 or None
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             
