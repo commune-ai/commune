@@ -41,7 +41,7 @@ class Vali(c.Module):
         self.init_metrics()
         self.set_score_fn(score_fn)
         self.futures = []
-        self.sync()
+        c.print(self.sync())
         c.thread(self.run_loop)
 
     init = init_vali
@@ -297,7 +297,7 @@ class Vali(c.Module):
         self.fn = fn
         self.search = search
         self.config = config
-        
+        c.print(f'Synced network {config.network} with {self.n} modules', color='green')
         return self.network_info()
     
     sync = set_network = sync_network

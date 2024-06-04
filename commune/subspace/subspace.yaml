@@ -9,9 +9,9 @@ frontend:
     frontend: http://165.22.186.112:50107
     shard: ws://165.22.186.112:50090/submit 0
 key: null
-local: true
+local: false
 loop: false
-network: subspace:main
+network: main
 netuid: 0
 mode: http
 retry_params:
@@ -33,7 +33,7 @@ supported_schemas:
 - Ed25519
 token_decimals: 9
 url: null
-url_search: onfinality
+url_search: commies,onfinality
 urls:
   main:
     commies:
@@ -47,12 +47,13 @@ urls:
       - wss://commune-api-node-2.communeai.net/
       - wss://commune-api-node-3.communeai.net/
       - wss://commune-api-node-4.communeai.net/
-    comstats:
-      http: https://api.comstats.io
-      ws: wss://api.com
     local: 
-      http: http://0.0.0.0:9944
-      ws: ws://0.0.0.0:9944
+      http: 
+      - http://0.0.0.0:9944
+      ws: 
+      - ws://0.0.0.0:9944
     onfinality:
-      http: https://commune.api.onfinality.io/public-http
-      ws: wss://commune.api.onfinality.io/public-ws
+      http: 
+      - https://commune.api.onfinality.io/public-http
+      ws: 
+      - wss://commune.api.onfinality.io/public-ws

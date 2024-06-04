@@ -35,7 +35,7 @@ class Client(c.Module):
         self.set_client(address = address, network=network)
 
 
-    def prepare_request(self, args: list = None, kwargs: dict = None, params=None, message_type = "v0"):
+    def process_input(self, args: list = None, kwargs: dict = None, params=None, message_type = "v0"):
 
         if isinstance(args, dict):
             kwargs = args
@@ -70,21 +70,21 @@ class Client(c.Module):
                         "kwargs": kwargs,
                         "timestamp": c.timestamp(),
                         }
-            request = self.serializer.serialize(input)
-            request = self.key.sign(request, return_json=True)
+            input = self.serializer.serialize(input)
+            input = self.key.sign(input, return_json=True)
             # key emoji 
         elif message_type == "v1":
-
-            inputs = {'params': kwargs,
-                      'ticket': self.key.ticket() }
+            input = {
+                'params': kwargs,
+                'access_token': self.key.ticket()
+            }
             if len(args) > 0:
-                inputs['args'] = args
-            request = self.serializer.serialize(input)
+                input['args'] = args
+            input = self.serializer.serialize(input)
         else:
             raise ValueError(f"Invalid message_type: {message_type}")
 
-        c.print(f"📡 Sending request {request}📡", color='green')
-        return request
+        return input
     
     def iter_over_async(self, ait):
         # helper async fn that just gets the next element
@@ -103,6 +103,26 @@ class Client(c.Module):
             yield obj
         
     
+    def process_stream_line(self, line ):
+        STREAM_PREFIX = 'data: '
+        event_data = line.decode('utf-8')
+        event_data = event_data[len(STREAM_PREFIX):] if event_data.startswith(STREAM_PREFIX) else event_data
+        event_data = event_data.strip() # remove leading and trailing whitespaces
+        if event_data == "": # skip empty lines if the event data is empty
+            return ''
+        if isinstance(event_data, str):
+            if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
+                event_data = json.loads(event_data)['data']
+        return event_data
+
+
+    async def stream_generator(self, response):
+        async for line in response.content:
+            event =  self.process_stream_line(line)
+            if event == '':
+                continue
+            yield event
+
     async def send_request(self, url:str, 
                            request: dict, 
                            headers=None, 
@@ -110,7 +130,6 @@ class Client(c.Module):
                            stream = False,
                            verbose=False):
         # start a client session and send the request
-        url = 'http://' + url if not url.startswith('http') else url
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
         if not hasattr(self, 'session'):
             self.session = aiohttp.ClientSession()
@@ -120,31 +139,12 @@ class Client(c.Module):
         elif response.content_type == 'text/plain':
             result = await asyncio.wait_for(response.text(), timeout=timeout)
         elif response.content_type == 'text/event-stream':
-            STREAM_PREFIX = 'data: '
-
-            def process_stream_line(line ):
-                event_data = line.decode('utf-8')
-                event_data = event_data[len(STREAM_PREFIX):] if event_data.startswith(STREAM_PREFIX) else event_data
-                event_data = event_data.strip() # remove leading and trailing whitespaces
-                if event_data == "": # skip empty lines if the event data is empty
-                    return ''
-                if isinstance(event_data, str):
-                    if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
-                        event_data = json.loads(event_data)['data']
-                return event_data
-
             if stream:           
-                async def stream_generator(response):
-                    async for line in response.content:
-                        event =  process_stream_line(line)
-                        if event == '':
-                            continue
-                        yield event
-                return stream_generator(response)
+                return self.stream_generator(response)
             else:
                 result = []  
                 async for line in response.content:
-                    event =  process_stream_line(line)
+                    event =  self.process_stream_line(line)
                     if event == '':
                         continue
                     result += [event]
@@ -179,23 +179,48 @@ class Client(c.Module):
             key = c.get_key(key)
         return key
     
-    def prepare_url(self, address, fn):
+    def resolve_url(self, address:str, fn:str):
+        """
+        params: 
+            address: str : the address of the server
+            fn: str : the function name
+        returns:
+            url: str : the url to call
+        """
         address = address or self.address
         fn = fn or self.default_fn
         if '/' in address.split('://')[-1]:
             address = address.split('://')[-1]
         url = f"{address}/{fn}/"
+        url = 'http://' + url if not url.startswith('http://') else url
+
         return url
     
 
     def forward(self, *args, **kwargs):
         return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
 
+    def process_output(self, output):
+        """
+        params:
+            request: dict : the request that was sent
+            result: any : the result that was returned
+
+        """
+        if type(output) in [str, dict, int, float, list, tuple, set, bool, type(None)]:
+            output = self.serializer.deserialize(output)
+            if isinstance(output, dict) and 'data' in output:
+                output = output['data']
+        else: 
+            output = self.iter_over_async(output)
+        
+        return output
+
     async def async_forward(self,
         fn: str,
+        params: dict = None,
         args: list = None,
         kwargs: dict = None,
-        params: dict = None,
         address : str = None,
         timeout: int = 10,
         headers : dict ={'Content-Type': 'application/json'},
@@ -205,37 +230,44 @@ class Client(c.Module):
         stream = False,
         **extra_kwargs
         ):
+
+        """
+        params: 
+            fn: str : the function name
+            params: dict : the parameters to pass to the function
+            args: list : the arguments to pass to the function
+            kwargs: dict : the keyword arguments to pass to the function
+            address: str : the address of the server
+            timeout: int : the timeout for the request
+            headers: dict : the headers to pass to the request
+            message_type: str : the message type to use
+            key: str : the key to use
+            verbose: bool : whether to print the request
+            stream: bool : whether to stream the response
+            ----------
+            **extra_kwargs: dict : extra kwargs to pass to the request
+        """
+
         try:
             key = self.resolve_key(key)
-            url = self.prepare_url(address, fn)
-            # resolve the kwargs at least
-            kwargs =kwargs or {}
-            kwargs.update(extra_kwargs)
-            timestamp = c.time()
-            request = self.prepare_request(args=args, kwargs=kwargs, params=params, message_type=message_type)
-            result = await self.send_request(url=url, request=request, headers=headers, verbose=verbose, stream=stream)
+            url = self.resolve_url(address, fn)
+            kwargs ={**(kwargs or {}), **extra_kwargs}
+            input = self.process_input(args=args, kwargs=kwargs, params=params, message_type=message_type)
+            output = await asyncio.wait_for(self.send_request(url=url, request=input, headers=headers, verbose=verbose, stream=stream), timeout=timeout)
+            output = self.process_output(output)
 
-            if type(result) in [str, dict, int, float, list, tuple]:
-                result = self.serializer.deserialize(result)
-                if isinstance(result, dict) and 'data' in result:
-                    result = result['data']
-                latency = c.time() - timestamp
-                if self.save_history:
-                    output = { 'input': request, 'output': result, 'latency': latency}
-                    path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(timestamp)
-                    self.put(path, output)
-            else: 
-                result = self.iter_over_async(result)
-
+            if self.save_history:
+                path =  self.history_path+ '/' + self.key.ss58_address + '/' + self.address+ '/'+  str(c.timestamp())
+                self.put(path, { 'input': input, 'output': output })
         except Exception as e:
-            result = c.detailed_error(e)
-        return result
+            output = c.detailed_error(e)
+
+        return output
 
 
     def __del__(self):
         if hasattr(self , 'session'):
             self.loop.run_until_complete(self.session.close())
-    
     
     def age(self):
         return  self.start_timestamp - c.timestamp()
