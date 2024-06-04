@@ -104,19 +104,20 @@ class Subspace(c.Module):
         self.set_config(kwargs=kwargs)
 
 
-    def resolve_url(self, url, **kwargs):
+    def resolve_url(self, url, network=None, **kwargs):
+        network = network or self.config.network
         mode =self.config.network_mode
         if url == None:
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             is_match = lambda x: any([url in x for url in url_search_terms])
-            urls_map = getattr(self.config.urls, self.config.network)
+            urls_map = getattr(self.config.urls, network)
             urls = []
             for provider, mode2url in urls_map.items():
                 if is_match(provider):
                     urls += list(mode2url[mode])
             url = c.choice(urls)
 
-        
+        c.print(url)
         return url
     
     url2substrate = {}
@@ -160,18 +161,15 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        if 'subspace:' in self.config.network:
-            self.config.network = self.config.network.split(':')[1]
+
         if cache:
             if url in self.url2substrate:
                 return self.url2substrate[url]
 
-        self.network = self.config.network
-        self.url = url
 
         while trials > 0:
             try:
-                url = self.resolve_url(url, mode=mode)
+                url = self.resolve_url(url, mode=mode, network=network)
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
                             ss58_format=ss58_format, 
@@ -188,6 +186,7 @@ class Subspace(c.Module):
                 trials = trials - 1
                 if trials > 0:
                     raise e
+                
         
         if cache:
             self.url2substrate[url] = substrate
