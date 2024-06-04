@@ -1,3 +1,4 @@
 import commune as c
-vali = c.m('commune.Vali')
-c.print(vali.__dict__)
+vali = c.m('server.test')()
+c.print(vali.test_serving())
+

@@ -19,11 +19,10 @@ class Test(c.Module):
 
     @classmethod
     def test_serving(cls):
-        server_name = 'module'
-        # module = c.serve(server_name)
-        # c.wait_for_server(server_name)
-        
-        module = c.connect(server_name, key='module')
+        server_name = 'module::test'
+        module = c.serve(server_name)
+        c.wait_for_server(server_name)
+        module = c.connect(server_name)
 
         module.put("hey",1)
         v = module.get("hey")
