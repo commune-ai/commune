@@ -198,6 +198,7 @@ Make sure you install pytest
 ```bash
 pip install pytest
 ```
+ensure you are in the commune repo
 
 ```bash
 pytest commune

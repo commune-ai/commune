@@ -38,7 +38,7 @@ class OpenRouterModule(c.Module):
         return self.forward(text, **kwargs)
     ask = talk
 
-    def forward(self, text: str, text_only:bool = True, model=None, history=None, max_tokens=4000, **kwargs ):
+    def forward(self, text: str, text_only:bool = True, stream = True,  model=None, history=None, max_tokens=4000, **kwargs ):
         
         model = model or self.model
         history = history or []
@@ -47,6 +47,7 @@ class OpenRouterModule(c.Module):
 
         data = {
                 "model": model, 
+                'streaming': stream,
                 "messages": history + [{"role": self.role, "content": text} ],
                 'max_tokens': max_tokens,
                 **kwargs
@@ -58,12 +59,14 @@ class OpenRouterModule(c.Module):
                 "Authorization": f"Bearer {self.api_key}",
                 "HTTP-Referer": self.http_referer, 
                 "X-Title": self.x_title, 
+    
             },
 
             data=json.dumps(data)
             )
-        response = json.loads(response.text)
 
+
+        response = json.loads(response.text)
         if 'choices' not in response:
             return response
         output_text = response["choices"][0]["message"]["content"]
