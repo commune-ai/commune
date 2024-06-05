@@ -1196,6 +1196,10 @@ class Subspace(c.Module):
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
+        if netuid == 'all':
+            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
+            futures = [c.submit(c.query_map, kwargs=dict(name=f, netuid=netuid)) for f in name2feature.values()]
+            results = c.wait(futures)
         if subnet_params == None:
             subnet_params = {}
             multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]

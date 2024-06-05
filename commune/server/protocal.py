@@ -1,6 +1,7 @@
 
 
 import commune as c
+from typing import *
 
 class Protocal(c.Module):
 
