@@ -9,12 +9,13 @@ class OpenRouterModule(c.Module):
 
     def __init__(self,
                 url:str = "https://openrouter.ai/api/v1/chat/completions",
-                model: str = "openai/gpt-4o-2024-05-13",
+                model: str = "openai/gpt-4o",
                 role: str = "user",
                 http_referer: str = "http://localhost:3000",
                 api_key: str = 'OPEN_ROUTER_API_KEY',
                 x_title: str = "Communne",
                 max_history: int = 100,
+                search: str = None,
                 **kwargs
                 ):
         self.url = url
@@ -26,6 +27,7 @@ class OpenRouterModule(c.Module):
         self.http_referer = http_referer
         self.x_title = x_title
         self.max_history = max_history
+
 
     def set_model(self, model:str):
         self.model = model
@@ -109,6 +111,15 @@ class OpenRouterModule(c.Module):
             models =  [m for m in models if search in m['id']]
         return {m['id']:m for m in models}
     
+    @classmethod
+    def filter_models(cls, models, search:str = None):
+        if ',' in search:
+            search = [s.strip() for s in search.split(',')]
+        else:
+            search = [search]
+        models = [m for m in models if any([s in m['id'] for s in search])]
+        return [m for m in models]
+    
     
     @classmethod
     def models(cls, search:str = None, names=True):
@@ -117,8 +128,7 @@ class OpenRouterModule(c.Module):
         response = requests.get(url)
         models = json.loads(response.text)['data']  
 
-        if search != None:
-            models =  [m for m in models if search in m['id']]
+        models = cls.filter_models(models, search=search)
         if names:
             models = [m['id'] for m in models]
         return models

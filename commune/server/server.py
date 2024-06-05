@@ -38,24 +38,20 @@ class Server(c.Module):
         # RESOLVE THE WHITELIST AND BLACKLIST
         module.whitelist = list(set((module.whitelist if hasattr(module, 'whitelist') else [] ) + c.whitelist))
         module.blacklist = list(set((self.blacklist if hasattr(self, 'blacklist') else []) + c.blacklist))
-        self.name = module.server_name = name or module.server_name
+        module.name = module.server_name = name or module.server_name
         port = port or c.free_port()
         while c.port_used(port):
             port =  c.free_port()
-        self.port = module.port = port
-        
-        self.ip = module.ip = c.ip()
-        self.address = module.address = f"{module.ip}:{module.port}"
-        self.network = module.network = network
-        self.schema = module.schema() if hasattr(module, 'schema') else c.get_schema(module)
+        module.port = port
+        module.ip = c.ip()
+        module.address = f"{module.ip}:{module.port}"
+        module.network = network
         module.key = c.get_key(key or self.name, create_if_not_exists=True)
-        self.protocal = c.module(protocal)(module=module, 
+        self.protocal = c.module(protocal)(module=module,     
                                            history_path=self.resolve_path(history_path or f'history/{self.name}'),
                                            save_history = save_history,
                                              **kwargs)
-        self.ip = module.ip
-        self.port = module.port
-        self.module = module 
+        self.module = self.protocal.module 
 
         self.set_api()
 
@@ -81,17 +77,17 @@ class Server(c.Module):
         
         # start the server
         try:
-            c.print(f' Served(name={self.name}, address={self.address}, key=🔑{self.key}🔑 ) 🚀 ', color='purple')
-            c.register_server(name=self.name, address = self.address, network=self.network)
-            uvicorn.run(self.app, host='0.0.0.0', port=self.port, loop="asyncio")
+            c.print(f' Served(name={self.module.name}, address={self.module.address}, key=🔑{self.module.key}🔑 ) 🚀 ', color='purple')
+            c.register_server(name=self.module.name, address = self.module.address, network=self.module.network)
+            uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop="asyncio")
         except Exception as e:
             c.print(e, color='red')
         finally:
-            c.deregister_server(self.name, network=self.network)
+            c.deregister_server(self.name, network=self.module.network)
 
     def info(self) -> Dict:
         return {
-            'name': self.name,
+            'name': self.module.name,
             'address': self.module.address,
             'key': self.module.key.ss58_address,
             'network': self.module.network,
@@ -102,66 +98,15 @@ class Server(c.Module):
 
     def wait_for_server(self, timeout=10):
         return c.wait_for_server(self.name, timeout=timeout)
-
     
     def __del__(self):
         c.deregister_server(self.name)
     
-    @classmethod
-    def serve(cls, 
-              module:Any ,
-              kwargs:dict = None,  # kwargs for the module
-              tag:str=None,
-              server_network = 'local',
-              port :int = None, # name of the server if None, it will be the module name
-              name = None, # name of the server if None, it will be the module name
-              refresh:bool = True, # refreshes the server's key
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              tag_seperator:str='::',
-              max_workers:int = None,
-              free: bool = False,
-              mnemonic = None, # mnemonic for the server
-              key = None,
-              **extra_kwargs
-              ):
-        
-        # RESOLVE THE NAME 
-        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
-        if tag_seperator in name:
-            module, tag = name.split(tag_seperator)
-        # RESOLVE TE KWARGS
-        kwargs = kwargs or {}
-        kwargs.update(extra_kwargs or {})
-
-        module_class = c.module(module)
-        kwargs.update(extra_kwargs)
-        if mnemonic != None:
-            c.add_key(name, mnemonic)
-
-        module = module_class(**kwargs)
-        module.server_name = name
-        module.tag = tag
-        address = c.get_address(name, network=server_network)
-        if address != None and ':' in address:
-            port = address.split(':')[-1]   
-
-        if c.server_exists(name, network=server_network) and not refresh: 
-            return {'success':True, 'message':f'Server {name} already exists'}
-        
-        server = c.module(f'server')(module=module, 
-                            name=name,  
-                            port=port, 
-                            network=server_network, 
-                            max_workers=max_workers, 
-                            free=free, 
-                            key=key)
-
-        return  server.info()
 
 
     @classmethod
-    def resolve_server_name(cls, 
-                            module:str = None, 
+    def resolve_server_name_tag(cls, 
+                            module:str, 
                             tag:str=None, 
                             name:str = None,  
                             tag_seperator:str='::', 
@@ -171,8 +116,6 @@ class Server(c.Module):
         """
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
-            module = cls.module_path() if module == None else module
-
             # module::tag
             if tag_seperator in module:
                 module, tag = module.split(tag_seperator)
@@ -183,10 +126,9 @@ class Server(c.Module):
                 tag = None
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
-
         # ensure that the name is a string
         assert isinstance(name, str), f'Invalid name {name}'
-        return name
+        return name, tag
 
     
     @classmethod
@@ -207,5 +149,64 @@ class Server(c.Module):
             results.append(result)
         return results
     serve_batch = serve_many
+
+
+    @classmethod
+    def serve(cls, 
+              module:Any ,
+              kwargs:dict = None,  # kwargs for the module
+              tag:str=None,
+              server_network = 'local',
+              port :int = None, # name of the server if None, it will be the module name
+              server_name:str=None, # name of the server if None, it will be the module name
+              name = None, # name of the server if None, it will be the module name
+              refresh:bool = True, # refreshes the server's key
+              tag_seperator:str='::',
+              max_workers:int = None,
+              free: bool = False,
+              mnemonic = None, # mnemonic for the server
+              key = None,
+              **extra_kwargs
+              ):
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs or {})
+        name = server_name or name # name of the server if None, it will be the module name
+        if '::' in module:
+            name = module
+            module, tag = module.split('::')
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
+        namespace = c.namespace(network=server_network)
+        if port == None and name in namespace:
+            address = namespace.get(name, None)
+            port = int(address.split(':')[-1]) if address else c.free_port()
+        if port == None:
+            port = c.free_port()
+            
+        module_class = c.module(module)
+
+        if mnemonic != None:
+            c.add_key(server_name, mnemonic)
+        key = key or server_name
+        if not c.key_exists(key):
+            c.add_key(key)
+        self = module_class(**kwargs)
+        if c.server_exists(server_name, network=server_network) and not refresh: 
+            return {'success':True, 'message':f'Server {server_name} already exists'}
+        else:
+            c.kill(server_name, network=server_network)
+        
+        c.module(f'server')(module=self, 
+                                          name=name, 
+                                          port=port, 
+                                          network=server_network, 
+                                          max_workers=max_workers, 
+                                          free=free, 
+                                          key=key)
+
+        return  {'success':True, 
+                     'address':  f'{c.default_ip}:{port}' , 
+                     'name':name, 
+                     'kwargs': kwargs,
+                     'module':module}
 
 Server.run(__name__)

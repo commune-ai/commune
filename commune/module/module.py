@@ -2551,19 +2551,6 @@ class c:
         else:
             return False
 
-    def set_server_name(self, name:str, **kwargs):
-        if hasattr(self, 'server_name'):
-            c.deregister_server(name)
-        self.server_name = name
-        c.print(f'Server name set to {name}', color='yellow')
-        c.register_server(name, self.address, **kwargs)
-        return {'success':True, 'message':f'Server name set to {name}'}
-        
-    @classmethod
-    def dummy_gen(cls):
-        for i in range(10):
-            yield i
-        
     def info(self , 
              module = None,
              features = ['schema', 'namespace', 'commit_hash', 'hardware','attributes','functions'], 
@@ -2624,7 +2611,6 @@ class c:
         return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
 
 
-    
     @classmethod
     def hardware(cls, fmt:str = 'gb', **kwargs):
         return c.module('os').hardware(fmt=fmt, **kwargs)
@@ -2785,7 +2771,7 @@ class c:
         servers = c.servers()
         for m in delete_modules:
             if m in servers:
-                c.deregister_server(m)
+                c.deregister_server(m, network=network)
 
         return {'server_killed': delete_modules, 'update': update}
 
