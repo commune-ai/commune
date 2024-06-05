@@ -430,6 +430,7 @@ class Vali(c.Module):
         # resolve the alph
         info['latency'] = c.time() - info['timestamp']
         info['w'] = info['w']  * info['alpha'] + info['past_w'] * (1 - info['alpha'])
+        info['history'] = info.get('history', []) + [{'w': info['w'], 'timestamp': info['timestamp']}]
         info['count'] = info.get('count', 0) + 1
         # store modules that have a minimum weight to save storage of stale modules
         if info['w'] > self.config.min_leaderboard_weight:

@@ -81,6 +81,8 @@ Run the validator on the subspace network
 ```python
 import commune as c
 c.serve('vali.text.realfake::tang', network='subspace', netuid=0)
+# or 
+c.serve('vali.text.realfake::tang', network='subspace.0')
 ```
 
 Ensure you have the module registered on the network
