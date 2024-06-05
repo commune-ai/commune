@@ -5,10 +5,10 @@ import commune as c
 class Protocal(c.Module):
 
     def __init__(self, 
-                module,
-                serializer='serializer', 
+                module: Union[c.Module, object] = None,
                 max_request_staleness=5, 
                 chunk_size=1000, 
+                serializer = 'serializer', 
                 access_module='server.access',
                 history_module='server.history',
                 history_path='history',
