@@ -46,9 +46,9 @@ class Server(c.Module):
         module.ip = c.ip()
         module.address = f"{module.ip}:{module.port}"
         module.network = network
-        module.key = c.get_key(key or self.name, create_if_not_exists=True)
+        module.key = c.get_key(key or module.name, create_if_not_exists=True)
         self.protocal = c.module(protocal)(module=module,     
-                                           history_path=self.resolve_path(history_path or f'history/{self.name}'),
+                                           history_path=self.resolve_path(history_path or f'history/{module.name}'),
                                            save_history = save_history,
                                              **kwargs)
         self.module = self.protocal.module 
