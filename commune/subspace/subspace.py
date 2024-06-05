@@ -165,11 +165,10 @@ class Subspace(c.Module):
         if cache:
             if url in self.url2substrate:
                 return self.url2substrate[url]
-
-
         while trials > 0:
+            url = self.resolve_url(url, network=network, mode=mode)
+
             try:
-                url = self.resolve_url(url, mode=mode, network=network)
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
                             ss58_format=ss58_format, 
@@ -187,7 +186,7 @@ class Subspace(c.Module):
                 if trials > 0:
                     raise e
                 
-        
+        self.url = url
         if cache:
             self.url2substrate[url] = substrate
 

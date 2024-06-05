@@ -33,7 +33,7 @@ supported_schemas:
 - Ed25519
 token_decimals: 9
 url: null
-url_search: commies,onfinality
+url_search: commies
 urls:
   main:
     commies:

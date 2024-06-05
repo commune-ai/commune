@@ -15,11 +15,10 @@ class Network(c.Module):
     Handles interactions with the subspace chain.
     """
 
-    def resolve_url(self, url:str = None, network:str = network, mode=None , **kwargs):
+    def resolve_url(self, url:str = None, network:str = None, mode=None , **kwargs):
         mode = mode or self.config.network_mode
-        network = 'network' or self.config.network
+        network = network or self.config.network
         if url == None:
-            
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             is_match = lambda x: any([url in x for url in url_search_terms])
             urls = []
@@ -41,8 +40,6 @@ class Network(c.Module):
             url = c.choice(urls)
         
         url = url.replace(c.ip(), '0.0.0.0')
-        
-
         return url
     
     url2substrate = {}
@@ -89,36 +86,39 @@ class Network(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
+        substrate = None
+        url = self.resolve_url(url, mode=mode)
+        self.url = url
+        self.network = network
         if cache:
             if url in self.url2substrate:
-                return self.url2substrate[url]
+                substrate = self.url2substrate[url]
 
+        if substrate == None:
+            while trials > 0:
+                try:
 
-        while trials > 0:
-            try:
-                url = self.resolve_url(url, mode=mode, network=network)
+                    substrate= SubstrateInterface(url=url, 
+                                websocket=websocket, 
+                                ss58_format=ss58_format, 
+                                type_registry=type_registry, 
+                                type_registry_preset=type_registry_preset, 
+                                cache_region=cache_region, 
+                                runtime_config=runtime_config, 
+                                ws_options=ws_options, 
+                                auto_discover=auto_discover, 
+                                auto_reconnect=auto_reconnect)
+                    break
+                except Exception as e:
+                    trials = trials - 1
+                    if trials > 0:
+                        raise e
+            
+            if cache:
+                self.url2substrate[url] = substrate
 
-                substrate= SubstrateInterface(url=url, 
-                            websocket=websocket, 
-                            ss58_format=ss58_format, 
-                            type_registry=type_registry, 
-                            type_registry_preset=type_registry_preset, 
-                            cache_region=cache_region, 
-                            runtime_config=runtime_config, 
-                            ws_options=ws_options, 
-                            auto_discover=auto_discover, 
-                            auto_reconnect=auto_reconnect)
-                break
-            except Exception as e:
-                trials = trials - 1
-                if trials > 0:
-                    raise e
-        
-        if cache:
-            self.url2substrate[url] = substrate
+        self.substrate = substrate
 
-        self.network = network
-        self.url = url
         
         return substrate
 
@@ -127,13 +127,9 @@ class Network(c.Module):
                 network:str = 'main',
                 mode = 'http',
                 trials = 10,
-                url : str = None, **kwargs):
-               
+                url : str = None, **kwargs):   
         self.substrate = self.get_substrate(network=network, url=url, mode=mode, trials=trials , **kwargs)
-        response =  {'network': self.network, 'url': self.url}
-        c.print(response)
-        
-        return response
+        return {'network': self.network, 'url': self.url}
 
    
 
