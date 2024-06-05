@@ -3,7 +3,7 @@ batch_size: 64
 fn: null
 initial_sleep: 5
 max_leaderboard_age: 3600
-max_staleness: 1
+max_staleness: 60
 max_success_staleness: 100
 maxsize: 128
 min_leaderboard_weight: 0
