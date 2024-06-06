@@ -38,16 +38,8 @@ class Vali(c.Module):
         config.verbose = bool(config.verbose or config.debug)
         c.print(f'Initialized Vali with {config}', color='yellow')
         self.config = config
-        self.init_metrics()
         self.set_score_fn(score_fn)
         self.futures = []
-        c.print(self.sync())
-        c.thread(self.run_loop)
-
-    init = init_vali
-
-    def init_metrics(self):
-        
         # COUNT METRICS
         self.requests = 0 
         self.errors = 0 
@@ -60,10 +52,18 @@ class Vali(c.Module):
         self.last_sent = 0 
         self.last_success = 0
 
+        c.print(self.sync())
+        c.thread(self.run_loop)
+
+    init = init_vali
 
     @property
     def sent_staleness(self):
         return c.time()  - self.last_sent
+
+    @property
+    def success_staleness(self):
+        return c.time() - self.last_success
 
     def epoch_info(self):
 
@@ -89,6 +89,10 @@ class Vali(c.Module):
     @property
     def lifetime(self):
         return c.time() - self.start_time
+    
+    @property
+    def is_voting_network(self):
+        return not 'subspace' in self.config.network and 'bittensor' not in self.config.network
 
 
     def run_loop(self):
@@ -96,23 +100,17 @@ class Vali(c.Module):
         c.sleep(self.config.initial_sleep)
         self.start_time = c.time()
         self.start_workers()
-        too_stale_count = 0
 
         while True:
-            c.sleep(self.config.print_interval)
+            c.sleep(self.config.run_step_interval)
             try:
                 self.sync()
                 run_info = self.run_info()
-                if not 'subspace' in self.config.network and 'bittensor' not in self.config.network:
-                    c.print({'success': False, 'msg': 'Not a voting network', 'network': self.config.network})
-                else:
-                    if self.vote_staleness > self.config.vote_interval:
+                if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
                         c.print(self.vote())
-
                 if self.success_staleness > self.config.max_success_staleness:
                     c.print('Too many stale successes, restarting workers', color='red')
                     self.start_workers()
-
                 df = self.leaderboard()
                 c.print(df.sort_values(by=['staleness'], ascending=False)[:42])
                 c.print(run_info)
@@ -238,10 +236,14 @@ class Vali(c.Module):
     def is_voting_network(self):
         return 'subspace' in self.config.network or 'bittensor' in self.config.network
     
-    def filter_module(self, module:str):
-        if  self.config.search == None or self.config.search in module:
-            return True
-        return False
+    def filter_module(self, module:str, search=None):
+        search = search or self.config.search
+        if ',' in search:
+            search_list = search.split(',')
+        else:
+            search_list = [search]
+        
+        return all([s in module for s in search_list])
 
     
     def sync_network(self, 
@@ -441,11 +443,6 @@ class Vali(c.Module):
         self.last_success = c.time()
 
         return info
-
-
-    @property
-    def success_staleness(self):
-        return c.time() - self.last_success
 
     
     eval_module = eval

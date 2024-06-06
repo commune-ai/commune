@@ -1,0 +1,11 @@
+.button {
+    -webkit-tap-highlight-color: transparent;
+    align-items: center;
+    display: flex;
+    justify-content: center;
+    width: 30%;
+    height: 100%;
+    color:#32CD32;
+    border-radius: 50%;
+    transition: background var(--ifm-transition-fast);
+}

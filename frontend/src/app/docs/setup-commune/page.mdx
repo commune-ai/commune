@@ -1,0 +1,104 @@
+# Setup Commune
+
+To setup commune clone the repo and run the following commands
+
+1. **Clone the Commune Repository**: Open your terminal or command prompt and clone the Commune repository from GitHub:
+
+```
+git clone https://github.com/commune-ai/commune.git
+```
+
+2. **Pull the Submodules**: Navigate to the cloned Commune repository and pull the submodules:
+
+```bash
+cd commune
+make pull # or git submodule update --init --recursive --force
+```
+
+# Now you have two paths, you can either run commune with docker or without docker
+
+Please note that running commune outside of docker will require you to install the dependencies yourself.
+If you are running commune with docker, you can skip to the next section.
+
+## Setting up Commune With Docker
+
+Ensure that you have Docker installed on your machine. If you don't, you can follow the official Docker installation guide for your operating system.
+
+3. **Build the Docker Image**: Navigate to the cloned Commune repository and build the Docker image using the provided `Dockerfile`, This can be done via the docker-compsoe file.:
+
+```
+docker-compose up # or docker build -t commune .
+```
+
+4. **Run Commune in Docker**: Start a Docker container with the Commune image:
+
+```
+docker-compose up
+```
+
+5. **Enter the Docker Container**: Enter the Docker container:
+
+```bash
+make enter # or docker exec -it commune bash
+```
+
+To exit the container, run the following command:
+
+```bash
+exit
+```
+
+To run commands inside the container, you can use the following command:
+
+```bash
+docker exec -it commune bash -c "c modules"
+```
+
+To Kill the container, run the following command:
+
+```bash
+docker-compose down
+```
+
+Congratulations! Commune is now set up and running inside a Docker container.
+
+## Setting up Commune Without Docker
+
+2. **Install Dependencies**: Navigate to the cloned Commune repository and install the required dependencies:
+
+```
+cd commune
+pip install -e ./
+```
+
+3. **install npm pm2**
+   This is required for the webserver to run
+
+```bash
+chmod +x ./scripts/* # make sure the scripts are executable
+sudo ./scripts/install_npm_env.sh # install npm and pm2 (sudo may not be required)
+```
+
+4. Check if commune is installed correctly, try running the following command
+
+```bash
+c modules
+```
+
+That's it! Commune is now set up and ready to roll on your local machine.
+
+Whether you choose to set up Commune with Docker or without it, you're all set to leverage the power of Commune and connect your Python objects in a collaborative ecosystem. Have fun exploring the possibilities and making the most out of Commune!
+
+Note: Make sure to follow the official Commune documentation for detailed instructions and additional configuration options.
+
+## Ensure the port range is open or change the port range to a range of open ports for your module to be served on
+
+```bash
+
+# check the port range
+c port_range
+```
+
+```bash
+c set_port_range 8000 9000 # set the port range to 8000-9000
+```

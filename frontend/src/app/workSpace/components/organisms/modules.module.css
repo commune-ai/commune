@@ -1,0 +1,27 @@
+.content {
+  width: 20%;
+  gap: 1vw;
+  padding: 1vw;
+}
+
+.modulesList {
+  width: 100%;
+  height: 1500px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  overflow-y: scroll;
+  gap: 1vw;
+  padding: 0;
+}
+
+.modulesList::-webkit-scrollbar {
+  display: none;
+}
+
+.Polkadot {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

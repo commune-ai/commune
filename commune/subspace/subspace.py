@@ -104,7 +104,7 @@ class Subspace(c.Module):
         self.set_config(kwargs=kwargs)
 
 
-    def resolve_url(self, url, network=None, **kwargs):
+    def resolve_url(self, url = None, network=None, **kwargs):
         network = network or self.config.network
         mode =self.config.network_mode
         if url == None:

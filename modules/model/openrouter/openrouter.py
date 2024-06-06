@@ -100,7 +100,6 @@ class OpenRouterModule(c.Module):
         assert isinstance(response, str)
         return {"status": "success", "response": response, 'latency': latency, 'model': model , 'tokens_per_second': tokens_per_second}
     
-
     def test_models(self, search=None, timeout=10, models=None):
         models = models or self.models(search=search)
         futures = [c.submit(self.test, kwargs=dict(model=m['id']), timeout=timeout) for m in models]
@@ -116,6 +115,8 @@ class OpenRouterModule(c.Module):
     
     @classmethod
     def filter_models(cls, models, search:str = None):
+        if search == None:
+            return models
         if ',' in search:
             search = [s.strip() for s in search.split(',')]
         else:
@@ -125,12 +126,16 @@ class OpenRouterModule(c.Module):
     
     
     @classmethod
-    def models(cls, search:str = None, names=True):
+    def models(cls, search:str = None, names=True, path='models', max_age=1000, update=False):
         c.print('Updating models...', color='yellow')
-        url = 'https://openrouter.ai/api/v1/models'
-        response = requests.get(url)
-        models = json.loads(response.text)['data']  
 
+        models = cls.get(path, None, max_age=max_age, update=update)
+
+        if models == None:
+            url = 'https://openrouter.ai/api/v1/models'
+            response = requests.get(url)
+            models = json.loads(response.text)['data']  
+            cls.put(path, models)
         models = cls.filter_models(models, search=search)
         if names:
             models = [m['id'] for m in models]
@@ -168,4 +173,7 @@ class OpenRouterModule(c.Module):
         except Exception as e:
             c.print(f"Error: {e}", color='red')
         return model2response
+    
+
+
 

@@ -1,0 +1,16 @@
+.ant-modal-content {
+    background-color: #242526 !important;
+}
+
+.ant-modal-header {
+    background-color: #242526 !important;
+}
+
+.ant-modal-title {
+    text-align: center;
+    -webkit-text-fill-color: white !important;
+}
+
+.ant-form-item-required {
+    -webkit-text-fill-color: white;
+}

@@ -1,0 +1,23 @@
+
+.active {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--ifm-color-primary);
+    transition: color var(--ifm-transition-fast) var(--ifm-transition-timing-default);
+}
+
+.menuLink {
+    display: flex;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.25rem;
+}
+.menuLink:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.list {
+    padding: 0;
+    padding-left: 0.75rem;
+}
+.listItem:not(:first-child) {
+    margin: 0.25rem;
+}

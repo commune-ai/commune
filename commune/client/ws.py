@@ -58,11 +58,15 @@ class WSClient(c.Module):
         result = loop.run_until_complete(future)
         return result
     
-
-    @staticmethod
-    async def recv(address):
+    
+    async def recv(self, address):
         chunks = []
         async with websockets.connect(address) as websocket:
             chunk = await websocket.recv(address)
             chunks.append(chunk)
         return chunks
+    
+
+    def test(self):
+        print('testing')
+        c.thread(self.async_forward, 'hello', self.address)

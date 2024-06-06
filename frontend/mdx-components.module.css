@@ -1,0 +1,70 @@
+.h1 {
+    font-size: 3rem;
+}
+
+.h2 {
+    font-size: 2rem;
+}
+
+.h3 {
+    font-size: 1.5rem;
+}
+
+.p {
+    padding-bottom: 1.25rem;
+    font-size: 1.2rem;
+}
+
+.a {
+    color: var(--ifm-color-primary);
+}
+.a:hover {
+    text-decoration: underline;
+}
+
+.ol {
+    list-style: decimal;
+}
+.ul {
+    list-style: disc;
+}
+.li {
+    margin-top: 0.25rem;
+}
+
+.pre {
+    margin: 0 0 1.25rem;
+    padding: 0;
+    background-color: #f6f8fa;
+    border-radius: 0.4rem;
+    color: inherit;
+    font: var(--ifm-code-font-size) / 1.45 var(--ifm-font-family-monospace);
+    overflow: auto;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
+
+    float: left;
+    min-width: 100%;
+    padding: 1rem;
+}
+
+.code {
+    font: inherit;
+    background-color: rgb(246, 247, 248);
+    border: 0.1rem solid rgba(0, 0, 0, 0.1);
+    border-radius: var(--ifm-global-radius);
+    font-family: var(--ifm-font-family-monospace);
+    font-size: var(--ifm-code-font-size);
+    padding: 0.1rem;
+    vertical-align: middle;
+}
+.pre > .code {
+    border: none;
+}
+
+.hr {
+    width: 100%;
+    background-color: rgb(190, 195, 201);
+    border: 0;
+    height: 1px;
+    margin: 1.5rem 0;
+}

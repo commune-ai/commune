@@ -1,0 +1,95 @@
+.variables {
+    --ifm-footer-color: var(--ifm-footer-link-color);
+    --ifm-footer-link-color: var(--ifm-color-secondary);
+    --ifm-footer-title-color: var(--ifm-color-white);
+    --ifm-global-spacing: 1rem;
+    --ifm-h4-font-size: 1rem;
+    --ifm-list-margin: 1rem;
+    --ifm-heading-line-height: 1.25;
+    --ifm-footer-link-hover-color: var(--ifm-color-primary);
+    --ifm-container-width: 1140px;
+    --ifm-container-width-xl: 1320px;
+    --ifm-spacing-horizontal: var(--ifm-global-spacing);
+    --ifm-spacing-vertical: var(--ifm-global-spacing);
+    --ifm-heading-margin-bottom: var(--ifm-spacing-vertical);
+    --ifm-font-family-base: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
+
+.footer {
+    composes: variables;
+    background-color: var(--ifm-footer-background-color);
+    color: var(--ifm-footer-color);
+    padding: calc(var(--ifm-spacing-horizontal) * 2) calc(var(--ifm-spacing-vertical) * 2);
+    font-family: var(--ifm-font-family-base);
+}
+
+@media (min-width: 1400px) {
+    .container {
+        max-width: 1400px;
+    }
+}
+
+.container {
+    width: 100%;
+    margin-right: auto;
+    margin-left: auto;
+    padding-right: 2rem;
+    padding-left: 2rem;
+}
+
+.row {
+    composes: variables;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 calc(var(--ifm-spacing-horizontal) * -1);
+}
+
+.col {
+    composes: variables;
+    --ifm-col-width: 100%;
+    flex: 1 0;
+    margin-left: 0;
+    max-width: var(--ifm-col-width);
+    padding: 0 var(--ifm-spacing-horizontal);
+    width: 100%;
+}
+
+.title {
+    composes: variables;
+    color: var(--ifm-footer-title-color);
+    font: bold var(--ifm-h4-font-size) / var(--ifm-heading-line-height) var(--ifm-font-family-base);
+    margin-bottom: var(--ifm-heading-margin-bottom);
+}
+
+.list {
+    composes: variables;
+    margin-bottom: 0;
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 var(--ifm-list-margin);
+}
+
+.item {
+    margin-top: 0;
+}
+
+.link {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--ifm-footer-link-color);
+    line-height: 2;
+    text-decoration: var(--ifm-link-decoration);
+    transition: color var(--ifm-transition-fast) var(--ifm-transition-timing-default);
+}
+
+.link:hover {
+    color: var(--ifm-footer-link-hover-color);
+    text-decoration: var(--ifm-link-hover-decoration);
+}
+
+.copyright {
+    text-align: center;
+    color: var(--ifm-footer-link-color);
+}

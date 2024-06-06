@@ -1,0 +1,7 @@
+@font-face {
+    font-family: 'Retro-Font';
+    src: local('retrofont'),
+        url('/public/fonts/VCR_OSD_MONO.ttf') format('ttf');
+    font-weight: normal;
+    font-style: normal;
+}
