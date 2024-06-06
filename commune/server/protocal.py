@@ -9,6 +9,7 @@ class Protocal(c.Module):
 
     def __init__(self, 
                 module: Union[c.Module, object] = None,
+                name = None,
                 max_request_staleness=5, 
                 serializer = 'serializer', 
                 access_module='server.access',
@@ -20,7 +21,7 @@ class Protocal(c.Module):
                 **kwargs
                 ):
         self.max_request_staleness = max_request_staleness
-        self.set_module(module=module, key=key)
+        self.set_module(module=module, key=key, name=name)
         self.ticket_module = c.module(ticket_module)()
         self.access_module = c.module(access_module)(module=self.module)
         self.save_history = save_history
@@ -44,6 +45,7 @@ class Protocal(c.Module):
         module.address = f"{module.ip}:{module.port}"
         module.network = network
         module.key = c.get_key(key or module.name, create_if_not_exists=True)
+        self.module = module
 
 
                 
@@ -150,21 +152,12 @@ class Protocal(c.Module):
 
     def process_output(self,  result):
         if c.is_generator(result):
-
             def generator_wrapper(generator):
-                """
-                This function wraps a generator in a format that the eventsource response can understand
-                """
                 for item in generator:
-                    # we wrap the item in a json object, just like the serializer does
                     yield self.serializer.serialize(item)
             return EventSourceResponse(generator_wrapper(result))
-        
         else:
-            # if we are not using sse, then we can do this with json
-            result = self.serializer.serialize(result)
-            result = self.key.sign(result, return_json=True)
-            return result
+            return self.serializer.serialize(result)
 
     def forward(self, fn:str, input:dict):
         try:
@@ -178,11 +171,10 @@ class Protocal(c.Module):
 
         # process the output
         if self.save_history:
-            output = {**input,
+            self.history_module.add_history({**input,
                 'output': output,
                 'latency': c.time() - input['timestamp'],
                 'datetime': c.time2datetime(input['timestamp']),
-            }
-            self.history_module.add_history(output)
+            })
 
         return output

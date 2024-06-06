@@ -2124,8 +2124,7 @@ class c:
         
         if obj is None:
             obj = cls
-        if all([hasattr(obj, k) for k in ['module_class', 'root_module_class', 'set_config', '']]):
-            module_class = obj.module_class()
+        if all([hasattr(obj, k) for k in ['info', 'schema', 'set_config', 'config']]):
             return True
             
         return False
@@ -2430,6 +2429,7 @@ class c:
     def serve(cls, 
               module:Any = None ,
               kwargs:dict = None,  # kwargs for the module
+              params = None, # kwargs for the module
               tag:str=None,
               server_network = 'local',
               port :int = None, # name of the server if None, it will be the module name
@@ -2444,18 +2444,18 @@ class c:
               key = None,
               **extra_kwargs
               ):
-        if c.is_module(module):
-            cls = module
         if module == None:
             module = cls.module_path()
-        kwargs = kwargs or {}
+        kwargs = params or kwargs or {}
         kwargs.update(extra_kwargs or {})
-        if kwargs.get('debug', False):
-            remote = False
-        name = server_name or name # name of the server if None, it will be the module name
-        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
+        if name == None:
+            name = module
         if tag_seperator in name:
             module, tag = name.split(tag_seperator)
+        else:
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
@@ -2466,14 +2466,12 @@ class c:
         if remote:
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
-            # REMOVE THE LOCALS FROM THE REMOTE KWARGS THAT ARE NOT NEEDED
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
-            address = c.ip() + ':' + str(remote_kwargs['port'])
+            cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
             return {'success':True, 
                     'name': name, 
-                    'address':address, 
+                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
                     'kwargs':kwargs
                     } 
 
