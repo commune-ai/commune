@@ -38,7 +38,7 @@ class OpenRouterModule(c.Module):
         return self.forward(text, **kwargs)
     ask = talk
 
-    def forward(self, text: str, text_only:bool = True, stream = True,  model=None, history=None, max_tokens=4000, **kwargs ):
+    def forward(self, text: str, text_only:bool = True, stream = False,  model=None, history=None, max_tokens=4000, **kwargs ):
         
         model = model or self.model
         history = history or []
@@ -65,7 +65,6 @@ class OpenRouterModule(c.Module):
             data=json.dumps(data)
             )
 
-
         response = json.loads(response.text)
         if 'choices' not in response:
             return response
@@ -73,8 +72,7 @@ class OpenRouterModule(c.Module):
 
         if text_only:
             return output_text
-            
-
+        
         return response
     
     prompt = generate = forward
@@ -124,14 +122,11 @@ class OpenRouterModule(c.Module):
         models = [m for m in models if any([s in m['id'] for s in search])]
         return [m for m in models]
     
-    
     @classmethod
     def models(cls, search:str = None, names=True, path='models', max_age=1000, update=False):
-        c.print('Updating models...', color='yellow')
-
-        models = cls.get(path, None, max_age=max_age, update=update)
-
+        models = cls.get(path, None , max_age=max_age, update=update)
         if models == None:
+            c.print('Updating models...', color='yellow')
             url = 'https://openrouter.ai/api/v1/models'
             response = requests.get(url)
             models = json.loads(response.text)['data']  
