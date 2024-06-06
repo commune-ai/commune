@@ -15,7 +15,7 @@ class Server(c.Module):
         port: Optional[int] = None,
         key = None,
         protocal = 'server.protocal',
-        save_history:bool= False,
+        save_history:bool= True,
         history_path:str = None , 
         nest_asyncio = True,
         new_loop = True,
@@ -32,28 +32,35 @@ class Server(c.Module):
 
         if new_loop:
             c.new_event_loop(nest_asyncio=nest_asyncio)
-        module = module or 'module'
-        if isinstance(module, str):
-            module = c.module(module)()
-        # RESOLVE THE WHITELIST AND BLACKLIST
-        module.whitelist = list(set((module.whitelist if hasattr(module, 'whitelist') else [] ) + c.whitelist))
-        module.blacklist = list(set((self.blacklist if hasattr(self, 'blacklist') else []) + c.blacklist))
-        module.name = module.server_name = name or module.server_name
-        port = port or c.free_port()
-        while c.port_used(port):
-            port =  c.free_port()
-        module.port = port
-        module.ip = c.ip()
-        module.address = f"{module.ip}:{module.port}"
-        module.network = network
-        module.key = c.get_key(key or module.name, create_if_not_exists=True)
+        self.set_module(module=module, 
+                        name=name, 
+                        port=port, 
+                        key=key, 
+                        protocal=protocal, 
+                        save_history=save_history,
+                        history_path=history_path,
+                        network=network, **kwargs
+                        )
+        self.set_api()
+
+    def set_module(self, 
+                   module: Union[c.Module, object] = None, 
+                   name: str = None, 
+                   port: Optional[int] = None, 
+                   key = None, 
+                   protocal = 'server.protocal', 
+                   save_history:bool= False, 
+                   history_path:str = None, 
+                   network:str = 'local',
+                   **kwargs
+                   ):
         self.protocal = c.module(protocal)(module=module,     
-                                           history_path=self.resolve_path(history_path or f'history/{module.name}'),
+                                           history_path=self.resolve_path(history_path or f'history/{module.server_name}'),
                                            save_history = save_history,
                                              **kwargs)
         self.module = self.protocal.module 
-
-        self.set_api()
+        response = {'name':self.module.name, 'address': self.module.address, 'port':self.module.port, 'key':self.module.key.ss58_address, 'network':self.module.network, 'success':True}
+        return response
 
     def add_fn(self, name:str, fn: str):
         assert callable(fn), 'fn not callable'
@@ -96,41 +103,10 @@ class Server(c.Module):
             'blacklist': self.module.blacklist,            
         }
 
-    def wait_for_server(self, timeout=10):
-        return c.wait_for_server(self.name, timeout=timeout)
-    
     def __del__(self):
         c.deregister_server(self.name)
     
 
-
-    @classmethod
-    def resolve_server_name_tag(cls, 
-                            module:str, 
-                            tag:str=None, 
-                            name:str = None,  
-                            tag_seperator:str='::', 
-                            **kwargs):
-        """
-        Resolves the server name
-        """
-        # if name is not specified, use the module as the name such that module::tag
-        if name == None:
-            # module::tag
-            if tag_seperator in module:
-                module, tag = module.split(tag_seperator)
-            if tag_seperator in module: 
-                module, tag = module.split(tag_seperator)
-            name = module
-            if tag in ['None','null'] :
-                tag = None
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
-        # ensure that the name is a string
-        assert isinstance(name, str), f'Invalid name {name}'
-        return name, tag
-
-    
     @classmethod
     def serve_many(cls, modules:list, **kwargs):
 
@@ -174,6 +150,7 @@ class Server(c.Module):
         if '::' in module:
             name = module
             module, tag = module.split('::')
+        name = name or module
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         namespace = c.namespace(network=server_network)
         if port == None and name in namespace:
@@ -208,5 +185,9 @@ class Server(c.Module):
                      'name':name, 
                      'kwargs': kwargs,
                      'module':module}
+    
+    @classmethod
+    def history(cls, **kwargs):
+        return c.ls(c.resolve_path('history'))
 
 Server.run(__name__)

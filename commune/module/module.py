@@ -455,7 +455,6 @@ class c:
             default: Any=None, 
             mode:str = 'json',
             max_age:str = None,
-            max_timeout: str = None,
             cache :bool = False,
             full :bool = False,
             key: 'Key' = None,
@@ -502,7 +501,6 @@ class c:
         # local cache
         if cache:
             cls.cache[k] = data
-
         return data
 
     @classmethod
@@ -528,7 +526,6 @@ class c:
    
     delc = rmc
     
-
     @classmethod
     def popc(cls, key:str):
         config = cls.config()
@@ -649,6 +646,11 @@ class c:
         return c.module('key').add_key(*args, **kwargs)
     
     @classmethod
+    def from_password(cls, password:str, **kwargs):
+        return c.module('key').create_from_uri(password, **kwargs)
+    
+    pwd2key = password2key = from_password
+    @classmethod
     def getmem(self, *args, **kwargs):
         return c.module('key').getmem(*args, **kwargs)
     mem = getmem
@@ -676,8 +678,7 @@ class c:
     @classmethod
     def pwd2key(cls, *args, **kwargs):
         return c.module('key').pwd2key(*args, **kwargs)
-
-    password2key = pwd2key        
+    str2key = password2key = pwd2key        
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):
@@ -847,6 +848,7 @@ class c:
             x = list(x)
         mean = c.mean(x)
         return (sum([(i - mean)**p for i in x]) / len(x))**(1/p)
+    std = stdev
     
     # def test_stats(self, x:list):c
     #     mean = self.mean(x)

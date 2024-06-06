@@ -2,29 +2,50 @@
 
 import commune as c
 from typing import *
+from sse_starlette.sse import EventSourceResponse
+
 
 class Protocal(c.Module):
 
     def __init__(self, 
                 module: Union[c.Module, object] = None,
                 max_request_staleness=5, 
-                chunk_size=1000, 
                 serializer = 'serializer', 
                 access_module='server.access',
                 history_module='server.history',
+                ticket_module = 'ticket',
                 history_path='history',
                 save_history=False,
                 key=None,
                 **kwargs
                 ):
         self.max_request_staleness = max_request_staleness
-        self.chunk_size = chunk_size
-        self.key = c.get_key(key)
-        self.module = module
+        self.set_module(module=module, key=key)
+        self.ticket_module = c.module(ticket_module)()
         self.access_module = c.module(access_module)(module=self.module)
         self.save_history = save_history
         self.history_module = c.module(history_module)(history_path=history_path)
         self.serializer = c.module(serializer)()
+        self.unique_id_map = {}
+
+    def set_module(self, module, key, name, port:int= None, network:str='local', **kwargs):
+        module = module or 'module'
+        if isinstance(module, str):
+            module = c.module(module)()
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        module.whitelist = list(set((module.whitelist if hasattr(module, 'whitelist') else [] ) + c.whitelist))
+        module.blacklist = list(set((module.blacklist if hasattr(module, 'blacklist') else []) + c.blacklist))
+        module.name = module.server_name = name or module.server_name
+        port = port or c.free_port()
+        while c.port_used(port):
+            port =  c.free_port()
+        module.port = port
+        module.ip = c.ip()
+        module.address = f"{module.ip}:{module.port}"
+        module.network = network
+        module.key = c.get_key(key or module.name, create_if_not_exists=True)
+
+
                 
     def resolve_input_v1(self, input):
         """
@@ -49,18 +70,16 @@ class Protocal(c.Module):
         address = input['address']
         input = self.serializer.deserialize(input['data'])
         input['address'] = address
-        # check the request staleness
-        assert  c.timestamp() - input.get('timestamp', 0) < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        # check the request staleness    
+        request_staleness = c.timestamp() - input.get('timestamp', 0) 
+        assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
         if 'params' in input:
-            # if the params are in the input, we want to move them to the data
             if isinstance(input['params'], dict):
-                input['kwargs'] = input['params']
+                input['kwargs'] = input.pop('params')
             elif isinstance(input['params'], list):
-                input['args'] = input['params']
-            del input['params']
+                input['args'] = input.pop('params')
 
-        
         return {'args': input.get('args', []),
                 'kwargs': input.get('kwargs', {}), 
                 'address': input.get('address', None),
@@ -70,6 +89,7 @@ class Protocal(c.Module):
     def resolve_input_v2(self, input, access_feature='access_ticket'):
         """
         **kwargs: the params
+        0.0.0.0:8888/{fn}/{'text': 'hello', 'access_token': 'token'}
         or args=[] and kwargs={} as the input
         params can be used in place for args and kwargs
         module_tikcet: time={time}::address={address}::signature={signature}
@@ -81,28 +101,25 @@ class Protocal(c.Module):
         is_input_v2 = bool(access_feature in input)
         if not is_input_v2:
             return input
-    
-        access_ticket = input[access_feature]
-        access_ticket_dict = {t.split('=')[0]:t.split('=')[1] for t  in access_ticket.split('::')}
+        
+        access_ticket = input.pop(access_feature, None)
+        assert self.ticket_module.verify(access_ticket), f"Data not signed with correct key"
+        access_ticket_dict = self.ticket_module.ticket2dict(access_ticket)
         # check the request staleness
-        request_staleness = c.timestamp() - access_ticket_dict.get('time', 0)
+        request_staleness = c.timestamp() - access_ticket_dict.get('timestamp', 0)
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
         assert c.verify_ticket(access_ticket), f"Data not signed with correct key"
         """
         We assume the data is in the input, and the token
         """
         if 'params' in input:
-            # if the params are in the input, we want to move them to the data
             if isinstance(input['params'], dict):
-                input['kwargs'] = input['params']
+                input['kwargs'] = input.pop('params')
             elif isinstance(input['params'], list):
-                input['args'] = input['params']
-            del input['params']
+                input['args'] = input.pop('params')
 
-        if 'args' and 'kwargs' in input and len(input) == 2:
-            input =  {'args': input['args'], 'kwargs': input['kwargs']}
-        else:
-            input = {'args': [], 'kwargs': input}
+        if 'args' in input or 'kwargs' in input:
+            input =  {'args': input.get('args', []), 'kwargs': input.get('kwargs', {})}
         
         input['timestamp'] = c.timestamp()
         input['address'] = access_ticket_dict.get('address', '0x0')
@@ -126,41 +143,28 @@ class Protocal(c.Module):
         assert 'address' in input, f'address not in input'
         assert 'timestamp' in input, f'timestamp not in input'
 
+        # check if the request has already been processed
+        # unique_id = 'address='+input['address'] + '::timestamp='+ str(input['timestamp'])
+        # assert unique_id not in self.unique_id_map, f"Request already processed"
+        # self.unique_id_map[unique_id] = True
 
     def process_output(self,  result):
         if c.is_generator(result):
-            from sse_starlette.sse import EventSourceResponse
-            # for sse we want to wrap the generator in an eventsource response
-            result = self.generator_wrapper(result)
-            return EventSourceResponse(result)
+
+            def generator_wrapper(generator):
+                """
+                This function wraps a generator in a format that the eventsource response can understand
+                """
+                for item in generator:
+                    # we wrap the item in a json object, just like the serializer does
+                    yield self.serializer.serialize(item)
+            return EventSourceResponse(generator_wrapper(result))
+        
         else:
             # if we are not using sse, then we can do this with json
             result = self.serializer.serialize(result)
             result = self.key.sign(result, return_json=True)
             return result
-        
-    
-    def generator_wrapper(self, generator):
-        """
-        This function wraps a generator in a format that the eventsource response can understand
-        """
-
-        for item in generator:
-
-            # we wrap the item in a json object, just like the serializer does
-            item = self.serializer.serialize({'data': item})
-            item_size = len(str(item))
-            # we need to add a chunk start and end to the item
-            if item_size > self.chunk_size:
-                # if the item is too big, we need to chunk it
-                chunks =[item[i:i+self.chunk_size] for i in range(0, item_size, self.chunk_size)]
-                # we need to yield the chunks in a format that the eventsource response can understand
-                for chunk in chunks:
-                    yield chunk
-            else:
-                yield item
-
-
 
     def forward(self, fn:str, input:dict):
         try:

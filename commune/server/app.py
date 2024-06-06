@@ -2,13 +2,14 @@
 import commune as c
 import streamlit as st
 import pandas as pd
+import json
 
 class ServerDashboard(c.Module):
 
     def history_dashboard(self):
 
 
-        history_paths = self.history()
+        history_paths = c.module('server')().history()
         history = []
         import os
         for h in history_paths:
@@ -41,7 +42,7 @@ class ServerDashboard(c.Module):
         self.plot_dashboard(df=df, key='dam', select_columns=False)
 
     @classmethod
-    def dashboard(cls, network = None, key= None):
+    def app(cls, network = None, key= None):
         import pandas as pd
         self = cls()
         
@@ -83,17 +84,15 @@ class ServerDashboard(c.Module):
         launcher_namespace = c.namespace(search='module::', namespace='remote')
         launcher_addresses = list(launcher_namespace.values())
 
-        pages = ['serve', 'code', 'history', 'playground']
+        pages = ['serve_dashboard', 'history_dashboard', 'playground_dashboard']
         # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
 
         tabs = st.tabs(pages)
 
-        with tabs[0]:
-            self.serve_dashboard(module=self.module)
-        with tabs[1]:
-            self.code_dashboard()
-        with tabs[2]:
-            self.history_dashboard()
+        for i, page in enumerate(pages):
+            st.write(page)
+            with tabs[i]:
+                getattr(self, page)()
 
         # for i, page in enumerate(pages):
         #     with tabs[i]:
@@ -169,6 +168,41 @@ class ServerDashboard(c.Module):
 
         # stake_per_call_per_minute = st.slider('stake_per_call', 0, 100, 10)
         # call_weight = st.slider('call_weight', 0, 100, 10)
+
+    
+    def serve_dashboard(self, default_model='model.openrouter'):
+    
+        modules = c.modules()
+        module2idx = {m:i for i,m in enumerate(modules)}
+        select_module = st.selectbox('Select a Module', modules, module2idx[default_model], key='select_module')
+        module = c.module(select_module)
+
+        with st.expander('Parameters', expanded=False):
+            config = module.config()
+            cols = st.columns(3)
+            for i, (k,v) in enumerate(config.items()):
+                with cols[i % len(cols)]:
+                    k_type = type(v)
+                    config[k] = st.text_input(f'{k}', str(v), key=f'{k}')
+                    type_str = str(k_type).split("'")[1]
+                    if config[k] != None:
+                        if type_str == 'int':
+                            config[k] = int(config[k])
+                        if type_str == 'float':
+                            config[k] = float(config[k])
+                        if type_str == 'bool':
+                            config[k] = bool(config[k])
+                        if type_str == 'list':
+                            config[k] = json.loads(config[k])
+                        if type_str == 'dict':
+                            config[k] = json.loads(config[k])
+
+        cols = st.columns(2)
+        name = st.text_input('Server Name', module.module_path())
+        serve_button = st.button('Deploy Server')
+        if serve_button:
+            result = c.serve(name, kwargs=config)
+            st.write(result)
 
 
 

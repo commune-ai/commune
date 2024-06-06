@@ -10,38 +10,64 @@ class Ticket(c.Module):
     """
     signature_seperator = '::signature='
 
-    def create(self, data=None, key=None, **kwargs):
+    def create(self, data=None, key=None, json_str=False, **kwargs):
+        """
+        params:
+            data: dict: data to be signed
+            key: str: key to sign with
+            json_str: bool: if True, the ticket will be returned as a json string
+            
+        """
         key = c.get_key(key)
         ticket_dict = {
             'data': data,
             'time': c.time(),
             'address': key.ss58_address,
         }
-        data = self.dict2ticket(ticket_dict)
-        ticket = key.sign(data, return_string=True, seperator=self.signature_seperator)
+        data = self.dict2ticket(ticket_dict, json_str=json_str)
+        ticket = key.sign(data, 
+                          return_string=True, 
+                          seperator=self.signature_seperator, **kwargs)
         return ticket
     
-    def dict2ticket(self, ticket):
+    def dict2ticket(self, ticket, json_str=False):
         """
         Convert a dictionary to a ticket string
         """
-        ticket_str = ''
-        for i, (k,v) in enumerate(ticket.items()):
-            ticket_str +=  (("::" if i > 0 else "") +k + '=' + str(v) )
+        if json_str:
+            return json.dumps(ticket)
+        else:
+            ticket_str = ''
+            for i, (k,v) in enumerate(ticket.items()):
+                ticket_str +=  (("::" if i > 0 else "") +k + '=' + str(v) )
+
         return ticket_str
+
+    def ticket2address(self, ticket):
+        """
+        Get the address from a ticket
+        """
+        ticket_dict = self.ticket2dict(ticket)
+        return ticket_dict['address']
 
     def ticket2dict(self, ticket):
         """
         Convert a ticket string to a dictionary
         """
         if ticket.startswith('{'):
-            ticket = json.loads(ticket)
-        if isinstance(ticket, str):
+            ticket_splits = ticket.split(self.signature_seperator)
+            signature = ticket_splits[1]
+            ticket = ticket_splits[0]
+            c.print(ticket, 'ticket')
+            ticket_dict = json.loads(ticket)
+            ticket_dict['signature'] = signature
+        else:
             ticket_dict = {}
             for item in ticket.split('::'):
                 k,v = item.split('=')
                 ticket_dict[k] = v
             ticket_dict['time'] = float(ticket_dict['time'])
+            
         return ticket_dict
     
     
@@ -49,11 +75,8 @@ class Ticket(c.Module):
         ticket_dict = self.ticket2dict(ticket)
         address = ticket_dict['address']
         staleness = c.time() - ticket_dict['time']
-        c.print(staleness)
-
         if staleness > max_age:
             return False
-        c.print(ticket)
         return c.verify(ticket, address=address, seperator=self.signature_seperator,  **kwargs)
 
     @classmethod
@@ -70,18 +93,17 @@ class Ticket(c.Module):
     
 
     @classmethod
-    def test_staleness(cls, key='test', max_age=1):
+    def test_staleness(cls, key='test', max_age=0.5):
         c.add_key(key)
         key = c.get_key(key)
         self = cls()
-        ticket = self.create()
+        ticket = self.create(key=key)
+        assert self.ticket2address(ticket) == key.ss58_address, f"{self.ticket2address(ticket)} != {key.ss58_address}"
         print('waiting for staleness')
-        c.sleep(max_age + 1)
+        c.sleep(max_age + 0.1)
         key = c.get_key(key)
-        c.print(ticket)
-        reciept = self.verify(ticket, max_age=max_age)
-        assert not reciept, 'Failed to verify'
-        return {'success': True, 'ticket': ticket, 'key': str(key), 'reciept': reciept}
+        assert not self.verify(ticket, max_age=max_age), 'Failed to verify'
+        return {'success': True, 'ticket': ticket, 'key': str(key)}
 
     def qr(self,filename='ticket.png'):
         return c.module('qrcode').text2qrcode(self.ticket(), filename=filename)

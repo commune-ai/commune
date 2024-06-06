@@ -1,0 +1,15 @@
+.searchInput {
+    width: 100%;
+    background-color: transparent;
+    outline: none;
+    border: none;
+    font-size: 1.5rem;
+    line-height: 3rem;
+}
+.searchInput::placeholder {
+    color: rgb(117, 117, 117);
+}
+
+.inputWrapper {
+    width: 100%;
+}

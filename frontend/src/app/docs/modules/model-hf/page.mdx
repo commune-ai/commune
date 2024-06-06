@@ -1,0 +1,62 @@
+---
+id: model-hf
+title: Model Transformer
+sidebar_position: 3
+slug: /model-hf
+sidebar_label: Model Transformer
+---
+
+# Model.Transformer
+
+This module involves wrapping over the huggingface transformers library. It will allow you to deploy any model in hugginface.
+
+## Serving
+
+```bash
+c model.transformer serve tag=10 model=vicuna.7b
+```
+
+```python
+import commune as c
+c.serve('model.hf', tag=10, model='vicuna.7b')
+```
+
+We use shortcuts when calling models, so for instance vicuna.7b refers to lmsys/vicuna-7b-v1.3. To add a shortcut, go into the config and add the shortcut.
+
+At the moment, serving the model.transformer has a default name of model.\{moodelname\}, which in this case is.
+
+```
+model.vicuna.7b
+```
+
+We did this by overriding the def serve in the model.transformers module to have a more custom serve. Check it out through
+
+```python
+c.module('model.trasnformer').fn_code('serve')
+```
+
+### GPU ALLOCATION
+
+Commune will find the most avaiable gpus and allocate the model to the least used one. This is done through `c.infer_device_map(model)`. You can also setup the layers on specific gpus with the decive_map (default to 'auto')
+
+```yaml
+shortcuts:
+  vicuna.7b: lmsys/vicuna-7b-v1.3
+```
+
+## Register on Commune
+
+To register the module
+
+```bash
+c model.transformer register tag=10 model=vicuna.7b
+```
+
+```python
+import commune as c
+c.register('model.hf', tag=10, model=vicuna.7b)
+```
+
+## Calling it
+
+c.connect('model.vicuna7b')

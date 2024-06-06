@@ -1,0 +1,102 @@
+# Key basics
+
+````markdown
+# Key Management
+
+In this tutorial, we'll explore the usage of the `commune` Python package for managing keys, balances, stakes, and key statistics.
+
+## Getting Started
+
+First, you need to import the `commune` module:
+
+```python
+import commune as c
+```
+````
+
+## Listing Keys
+
+To start, let's list all the available keys using the `keys()` function:
+
+```python
+c.keys()
+```
+
+## Adding and Removing Keys
+
+You can add and remove keys with the following steps:
+
+### Adding a New Key
+
+To add a new key, use the `add_key()` function:
+
+```python
+c.add_key('fam')
+```
+
+### Removing a Key
+
+To remove a key, use the `rm_key()` function:
+
+```python
+c.rm_key('demo')  # Replace 'demo' with the key you want to remove
+```
+
+## Saving and Loading Keys
+
+You can save and load keys for future use:
+
+### Saving Keys
+
+To save the keys, use the `save_keys()` function:
+
+```python
+c.save_keys()
+```
+
+### Loading Keys
+
+To load the saved keys, use the `load_keys()` function:
+
+```python
+c.load_keys()
+```
+
+## Retrieving Balances and Stakes
+
+You can retrieve balance and stake information for a specific key:
+
+### Balance
+
+To get the balance for a key, use the `get_balance()` function:
+
+```python
+c.get_balance('fam')  # Replace 'fam' with the key name
+```
+
+### Stake
+
+To get the stake for a key, use the `get_stake()` function:
+
+```python
+c.get_stake('fam')  # Replace 'fam' with the key name
+```
+
+## Retrieving Key Statistics
+
+You can also retrieve key statistics for each subnet associated with a key:
+
+```python
+c.key_stats('fam')  # Replace 'fam' with the key name
+```
+
+## Conclusion
+
+In this tutorial, you learned how to use the `commune` Python package to manage keys, balances, stakes, and key statistics. Feel free to explore further and adapt these concepts to your specific use cases.
+
+Remember to refer to the official documentation of the `commune` package for more detailed information and additional features.
+
+```
+
+Feel free to adjust the formatting or wording to better match your preferred style or context!
+```

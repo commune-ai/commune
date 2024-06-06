@@ -1,0 +1,22 @@
+.custom-modal .ant-modal-content {
+    background-color: black;
+}
+
+.custom-modal .ant-modal-header {
+    background-color: black;
+    border-bottom: none;
+}
+
+.custom-modal .ant-modal-title {
+    color: white;
+    /* Adjust the title color for better visibility */
+}
+
+.custom-modal .ant-modal-body {
+    background-color: black;
+}
+
+.custom-modal .ant-modal-footer {
+    background-color: black;
+    border-top: none;
+}
