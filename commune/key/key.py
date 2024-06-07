@@ -1011,7 +1011,7 @@ class Keypair(c.Module):
         if isinstance(data, dict):
 
             signature = data.pop('signature')
-            public_key = c.ss58_decode(data['address'])
+            public_key = self.ss58_decode(data['address'])
             if 'data' in data:
                 data = data.pop('data')
             
@@ -1019,12 +1019,12 @@ class Keypair(c.Module):
                 data = c.python2str(data)
 
         if address != None:
-            public_key = c.ss58_decode(address)
+            public_key = self.ss58_decode(address)
         if public_key == None:
             public_key = public_key or self.public_key
         else:
             if self.is_ss58(public_key):
-                public_key = c.ss58_decode(public_key)
+                public_key = self.ss58_decode(public_key)
 
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
@@ -1166,32 +1166,12 @@ class Keypair(c.Module):
         key = cls.create_from_uri('//Alice')
         c.print(c.module('bittensor').get_balance(key.ss58_address))
         
-    @classmethod
-    def test(cls):
-        self = cls.create_from_uri('//Alice')
-        module_fns = c.fns()
-        test_fns = [fn for fn in dir(self) if fn.startswith('test_') and fn not in module_fns ]
-        num_tests = len(test_fns)
-        results = {}
-        for i, fn in enumerate(test_fns):
-            try:
-                result =  getattr(self, fn)()
-            except Exception as e:
-                result = c.detailed_error(e)
-                c.print(f'Failed ({i+1}/{num_tests}) {fn} due to {e}', color='red')
-            results[fn] = result
-        return {'success':True, 'msg': 'all tests passed', 'results':results}
+    # @classmethod
+    # def test(cls):
+    #     return c.module('key.test')().test()
     @classmethod
     def is_key(cls, key) -> bool:
         return isinstance(key, Keypair)
-
-    def test_signing(self):
-        sig = self.sign('test')
-        assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
-        assert self.verify('test',sig, self.public_key)
-        sig = self.sign('test', return_string=True)
-        assert self.verify(sig, self.public_key)
-        return {'success':True}
 
     encrypted_prefix = 'ENCRYPTED::'
 
@@ -1215,18 +1195,6 @@ class Keypair(c.Module):
         return data.startswith(cls.encrypted_prefix)
     
     
-    @classmethod
-    def test_key_encryption(cls, password='1234'):
-        path = 'test.enc'
-        c.add_key('test.enc', refresh=True)
-        assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
-        cls.encrypt_key(path, password=password)
-        assert cls.is_key_encrypted(path) == True, f'file {path} is not encrypted'
-        cls.decrypt_key(path, password=password)
-        assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
-        cls.rm(path)
-        assert not c.exists(path), f'file {path} not deleted'
-        return {'success': True, 'msg': 'test_key_encryption passed'}
 
     @classmethod
     def decrypt_key(cls, path = 'test.enc', password=None):
@@ -1266,70 +1234,8 @@ class Keypair(c.Module):
         return {'success': True }
 
 
-    
-    def test_encryption_file(self, filepath='tests/dummy', value='test'):
-        filepath = self.resolve_path(filepath)      
-        c.put(filepath, value)
-        decode = c.get(filepath)
-        self.encrypt_file(filepath) # encrypt file
-        decode = self.decrypt_file(filepath) # decrypt file
-        decode = c.get(filepath)
-        
-        assert decode == value, f'encryption failed, {decode} != {value}'
-        c.rm(filepath)
-        assert not c.exists(filepath), f'file {filepath} not deleted'
-        return {'success': True,
-                'filepath': filepath,
-                
-                'msg': 'test_encryption_file passed'}
-    
-    
-    @classmethod
-    def test_encryption(cls,value = 10):
-        key = cls.new_key()
-        enc = key.encrypt(value)
-        dec = key.decrypt(enc)
-        assert dec == value, f'encryption failed, {dec} != {value}'
-        return {'encrypted':enc, 'decrypted': dec}
 
 
-    def test_key_encryption(self, test_key='test.key'):
-        key = self.add_key(test_key, refresh=True)
-        og_key = self.get_key(test_key)
-        r = self.encrypt_key(test_key)
-        self.decrypt_key(test_key, password=r['password'])
-        key = self.get_key(test_key)
-
-        assert key.ss58_address == og_key.ss58_address, f'key encryption failed, {key.ss58_address} != {self.ss58_address}'
-
-        return {'success': True, 'msg': 'test_key_encryption passed'}
-        
-        
-
-
-    def test_key_management(self, key1='test.key' , key2='test2.key'):
-        if self.key_exists(key1):
-            self.rm_key(key1)
-        if self.key_exists(key2):
-            self.rm_key(key2)
-
-
-        self.add_key(key1)
-        k1 = self.get_key(key1)
-        assert self.key_exists(key1), f'Key management failed, key still exists'
-        self.mv_key(key1, key2)
-        k2 = self.get_key(key2)
-        assert k1.ss58_address == k2.ss58_address, f'Key management failed, {k1.ss58_address} != {k2.ss58_address}'
-        assert self.key_exists(key2), f'Key management failed, key does not exist'
-        assert not self.key_exists(key1), f'Key management failed, key still exists'
-        self.mv_key(key2, key1)
-        assert self.key_exists(key1), f'Key management failed, key does not exist'
-        assert not self.key_exists(key2), f'Key management failed, key still exists'
-        self.rm_key(key1)
-        # self.rm_key(key2)
-        assert not self.key_exists(key1), f'Key management failed, key still exists'
-        assert not self.key_exists(key2), f'Key management failed, key still exists'
-        return {'success': True, 'msg': 'test_key_management passed'}
 
     @classmethod
     def getmem(cls, key):
@@ -1529,12 +1435,6 @@ class Keypair(c.Module):
         return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
     
 
-    def test_str_signing(self):
-        sig = self.sign('test', return_string=True)
-        # c.print(''+sig)
-        assert not self.verify('1'+sig)
-        assert self.verify(sig)
-        return {'success':True}
 
     def ticket(self, *args, **kwargs):
         return c.module('ticket')().ticket(*args,key=self.key, **kwargs)
@@ -1542,10 +1442,8 @@ class Keypair(c.Module):
     def verify_ticket(self, ticket, **kwargs):
         return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
     
-    def test_ticket(self):
-        ticket = self.ticket()
-        assert self.verify_ticket(ticket)
-        return {'success':True, 'msg':'test_ticket passed'}
+
+    
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic
         return Mnemonic('english').to_mnemonic(self.private_key)
@@ -1558,19 +1456,6 @@ class Keypair(c.Module):
     def app(self):
         c.module('key.app').app()
 
-
-    def test_move_key(self):
-        self.add_key('testfrom')
-        assert self.key_exists('testfrom')
-        og_key = self.get_key('testfrom')
-        self.mv_key('testfrom', 'testto')
-        assert self.key_exists('testto')
-        assert not self.key_exists('testfrom')
-        new_key = self.get_key('testto')
-        assert og_key.ss58_address == new_key.ss58_address
-        self.rm_key('testto')
-        assert not self.key_exists('testto')
-        return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
 
     @staticmethod
     def is_ss58(address):
@@ -1610,7 +1495,182 @@ class Keypair(c.Module):
             return bool(data.get('encrypted', False) == True)
         else:
             return False
+        
+    @staticmethod
+    def ss58_encode(*args, **kwargs):
+        return ss58_encode(*args, **kwargs)
+    @staticmethod
+    def ss58_decode(*args, **kwargs):
+        return ss58_decode(*args, **kwargs)
     
+
+    def test_encryption_file(self, filepath='tests/dummy', value='test'):
+        filepath = self.resolve_path(filepath)      
+        c.put(filepath, value)
+        decode = c.get(filepath)
+        self.encrypt_file(filepath) # encrypt file
+        decode = self.decrypt_file(filepath) # decrypt file
+        decode = c.get(filepath)
+        
+        assert decode == value, f'encryption failed, {decode} != {value}'
+        c.rm(filepath)
+        assert not c.exists(filepath), f'file {filepath} not deleted'
+        return {'success': True,
+                'filepath': filepath,
+                'msg': 'test_encryption_file passed'}
+    
+
+    
+    @classmethod
+    def test_encryption(cls,value = 10):
+        key = cls.new_key()
+        enc = key.encrypt(value)
+        dec = key.decrypt(enc)
+        assert dec == value, f'encryption failed, {dec} != {value}'
+        return {'encrypted':enc, 'decrypted': dec}
+
+    def test_key_encryption(self, test_key='test.key'):
+        key = self.add_key(test_key, refresh=True)
+        og_key = self.get_key(test_key)
+        r = self.encrypt_key(test_key)
+        self.decrypt_key(test_key, password=r['password'])
+        key = self.get_key(test_key)
+
+        assert key.ss58_address == og_key.ss58_address, f'key encryption failed, {key.ss58_address} != {self.ss58_address}'
+
+        return {'success': True, 'msg': 'test_key_encryption passed'}
+        
+        
+
+
+
+    def test_key_management(self, key1='test.key' , key2='test2.key'):
+        if self.key_exists(key1):
+            self.rm_key(key1)
+        if self.key_exists(key2):
+            self.rm_key(key2)
+
+
+        self.add_key(key1)
+        k1 = self.get_key(key1)
+        assert self.key_exists(key1), f'Key management failed, key still exists'
+        self.mv_key(key1, key2)
+        k2 = self.get_key(key2)
+        assert k1.ss58_address == k2.ss58_address, f'Key management failed, {k1.ss58_address} != {k2.ss58_address}'
+        assert self.key_exists(key2), f'Key management failed, key does not exist'
+        assert not self.key_exists(key1), f'Key management failed, key still exists'
+        self.mv_key(key2, key1)
+        assert self.key_exists(key1), f'Key management failed, key does not exist'
+        assert not self.key_exists(key2), f'Key management failed, key still exists'
+        self.rm_key(key1)
+        # self.rm_key(key2)
+        assert not self.key_exists(key1), f'Key management failed, key still exists'
+        assert not self.key_exists(key2), f'Key management failed, key still exists'
+        return {'success': True, 'msg': 'test_key_management passed'}
+
+
+
+    def test_str_signing(self):
+        sig = self.sign('test', return_string=True)
+        # c.print(''+sig)
+        assert not self.verify('1'+sig)
+        assert self.verify(sig)
+        return {'success':True}
+
+    def test_ticket(self):
+        ticket = self.ticket()
+        assert self.verify_ticket(ticket)
+        return {'success':True, 'msg':'test_ticket passed'}
+    
+
+
+    def test_signing(self):
+        sig = self.sign('test')
+        assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
+        assert self.verify('test',sig, self.public_key)
+        sig = self.sign('test', return_string=True)
+        assert self.verify(sig, self.public_key)
+        return {'success':True}
+
+
+    @classmethod
+    def test_key_encryption(cls, password='1234'):
+        path = 'test.enc'
+        c.add_key('test.enc', refresh=True)
+        assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
+        cls.encrypt_key(path, password=password)
+        assert cls.is_key_encrypted(path) == True, f'file {path} is not encrypted'
+        cls.decrypt_key(path, password=password)
+        assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
+        cls.rm(path)
+        assert not c.exists(path), f'file {path} not deleted'
+        return {'success': True, 'msg': 'test_key_encryption passed'}
+
+
+
+    def test_move_key(self):
+        self.add_key('testfrom')
+        assert self.key_exists('testfrom')
+        og_key = self.get_key('testfrom')
+        self.mv_key('testfrom', 'testto')
+        assert self.key_exists('testto')
+        assert not self.key_exists('testfrom')
+        new_key = self.get_key('testto')
+        assert og_key.ss58_address == new_key.ss58_address
+        self.rm_key('testto')
+        assert not self.key_exists('testto')
+        return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
+
+
+    def test_ss58_encoding(self):
+        Keypair = c.module('key')
+        keypair = Keypair.create_from_uri('//Alice')
+        ss58_address = keypair.ss58_address
+        public_key = keypair.public_key
+        assert keypair.ss58_address == self.ss58_encode(public_key, ss58_format=42)
+        assert keypair.ss58_address == self.ss58_encode(public_key, ss58_format=42)
+        assert keypair.public_key.hex() == self.ss58_decode(ss58_address)
+        assert keypair.public_key.hex() == self.ss58_decode(ss58_address)
+        return {'success':True}
+
+    @classmethod
+    def test(cls,
+              module=None,
+              timeout=60, 
+              trials=3, 
+              parallel=False,
+              ):
+        self = cls()
+ 
+        fn2result = {}
+        def process_result(fn, result, fn2result):
+            fn2result[fn] = result
+            if 'success' in result and result['success'] == False:
+                c.print(f'{fn} failed')
+            else:
+                c.print(f'{fn} result: {result}')
+            return fn2result
+        
+
+        if parallel:
+            future2fn = {}
+            for fn in self.test_fns():
+                c.print(f'testing {fn}')
+                f = c.submit(getattr(self, fn), timeout=timeout)
+                future2fn[f] = fn
+            for f in c.as_completed(future2fn, timeout=timeout):
+                fn2result = process_result(fn=future2fn.pop(f), 
+                                           result=f.result(), 
+                                           fn2result=fn2result)
+        else:
+            for fn in self.test_fns():
+                fn2result = process_result(fn=fn, 
+                                           result=getattr(self, fn)(),
+                                           fn2result=fn2result)
+
+                
+        return fn2result
+
 Keypair.run(__name__)
 
 

@@ -11,6 +11,8 @@ def test_server():
     c.module('server').test()
 def test_validator():
     c.module('vali').test()
+def test_subspace():
+    assert c.module('subspace').test()
 
     
 

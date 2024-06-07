@@ -1,4 +1,5 @@
 import commune as c
-vali = c.m('server.test')()
-c.print(vali.test_serving())
+ticket = c.ticket()
+c.print(c.config(), 'fam')
+c.print(c.verify_ticket(ticket))
 
