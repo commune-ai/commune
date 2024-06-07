@@ -14,7 +14,7 @@ print_interval: 5
 sample_interval: 0.1
 search: null
 start: true
-sync_interval: 100
+sync_interval: 1000
 threads_per_worker: 64
 timeout: 10
 timeout_info: 4

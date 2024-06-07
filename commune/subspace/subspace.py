@@ -144,11 +144,12 @@ class Subspace(c.Module):
 
 
     def set_network(self, 
-                network:str = 'main',
+                network:str = None,
                 mode = 'http',
                 trials = 10,
                 url : str = None, 
                 **kwargs):
+        self.network = self.config.network = network or self.config.network
         self.substrate = self.get_substrate(network=network, url=url, mode=mode, trials=trials , **kwargs)
         response =  {'network': self.network, 'url': self.url}
 
@@ -1307,14 +1308,17 @@ class Subspace(c.Module):
         return balances
     
     
-    def resolve_network(self, network: Optional[int] = 'subspace:main',
-                         new_connection =False,
-                         only_name = False,
-                         mode='ws', **kwargs) -> int:
+    def resolve_network(self, 
+                        network: Optional[int] = 'subspace:main',
+                        spliters: List[str] = [':', '::'], 
+                        **kwargs) -> int:
         """
         Resolve the network to use for the current session.
         
         """
+        for spliter in spliters:
+            if spliter in str(network):
+                network = network.split(spliter)[-1]
         network = network or self.config.network
         return network
     

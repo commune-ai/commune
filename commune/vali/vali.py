@@ -36,24 +36,25 @@ class Vali(c.Module):
         config = self.set_config(config, kwargs=kwargs)
         config = c.dict2munch({**Vali.config(), **config})
         config.verbose = bool(config.verbose or config.debug)
-        c.print(f'Initialized Vali with {config}', color='yellow')
-        self.config = config
         self.set_score_fn(score_fn)
-        self.futures = []
-        # COUNT METRICS
-        self.requests = 0 
-        self.errors = 0 
-        self.successes = 0
-        self.epochs = 0
-        self.staleness_count = 0
-        # timestamp metrics
-        self.last_sync_time = 0
-        self.last_error = 0
-        self.last_sent = 0 
-        self.last_success = 0
-
+        self.init_state()
+        self.config = config
         c.print(self.sync())
         c.thread(self.run_loop)
+
+    def init_state(self):     
+        self.futures = [] # futures for the executor 
+        # COUNT METRICS
+        self.requests = 0  # the number of requests
+        self.errors = 0  # the number of errors
+        self.successes = 0 # the number of successes
+        self.epochs = 0 # the number of epochs
+        self.staleness_count = 0 # the number of staleness
+        # timestamp metrics
+        self.last_sync_time = 0 # the last time the network was synced
+        self.last_error = 0 # the last time an error occured
+        self.last_sent = 0  # the last time a request was sent
+        self.last_success = 0 # the last time a success was made
 
     init = init_vali
 
@@ -238,12 +239,11 @@ class Vali(c.Module):
     
     def filter_module(self, module:str, search=None):
         search = search or self.config.search
-        if ',' in search:
+        if ',' in str(search):
             search_list = search.split(',')
         else:
             search_list = [search]
-        
-        return all([s in module for s in search_list])
+        return all([s == None or s in module  for s in search_list ])
 
     
     def sync_network(self, 
@@ -449,9 +449,8 @@ class Vali(c.Module):
         
     def storage_path(self, network=None):
         # the set storage path in config.path is set, then the modules are saved in that directory
-        if self.config.get('path', None) != None:
-            path = self.config.path
-        else:
+        path = self.config.get('path', None) or self.config.get('storage_path', None)
+        if path == None:
             network = network or self.config.network
             if 'subspace' in network:
                 network_str = f'{network}.{self.config.netuid}'
@@ -472,14 +471,12 @@ class Vali(c.Module):
         except Exception as e:
             votes = {'uids': [], 'weights': []}
             c.print(c.detailed_error(e))
-        info = {
+        return {
             'num_uids': len(votes.get('uids', [])),
             'staleness': self.vote_staleness,
             'key': self.key.ss58_address,
             'network': self.config.network,
         }
-    
-        return info
     
     def calculate_votes(self, df=None, **kwargs):
         network = self.config.network
