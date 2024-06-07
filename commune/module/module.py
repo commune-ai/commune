@@ -2477,20 +2477,17 @@ class c:
                     'kwargs':kwargs
                     } 
 
-        c.print(module, name)       
         module_class = c.module(module)
 
         kwargs.update(extra_kwargs)
+        
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
             
         self = module_class(**kwargs)
-        self.server_name = name
-        self.tag = tag
 
         address = c.get_address(name, network=server_network)
-        if address != None and ':' in address:
-            port = address.split(':')[-1]   
+
 
         if c.server_exists(server_name, network=server_network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}

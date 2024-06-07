@@ -32,6 +32,13 @@ class Test(c.Module):
         return {'msg': 'module_params test passed', 'success': True, 'module_info': module_info}
 
 
+    def test_substrate(self):
+        for i in range(3):
+            t1 = c.time()
+            c.print(c.module('subspace')().substrate)
+            t2 = c.time()
+            c.print(f'{t2-t1:.2f} seconds')
+
 
 
 
