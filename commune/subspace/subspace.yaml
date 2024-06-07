@@ -21,13 +21,42 @@ retry_params:
   tries: 2
 save_interval: 1800
 subnet: commune
-subnet_params:
-- name
-- tempo
-- immunity_period
-- min_allowed_weights
-- max_allowed_uids
-- founder
+global_features: [
+        "MaxNameLength",
+        "MaxAllowedModules",
+        "MaxAllowedSubnets",
+        "MaxRegistrationsPerBlock",
+        "MinBurn",
+        "MinWeightStake",
+        "UnitEmission",
+    ]
+
+subnet_features : [
+                            "Tempo",
+                           'ImmunityPeriod',
+                            'MinAllowedWeights',
+                           'MaxAllowedWeights',
+                            'MaxAllowedUids',
+                            'Founder', 
+                           'FounderShare',
+                            'IncentiveRatio',
+                            'TrustRatio',
+                            'VoteModeSubnet',
+                            'MaxWeightAge',
+                            'SubnetNames'
+                            ]
+    
+module_features : [
+        "key",
+        "name",
+        "address",
+        "emission",
+        "incentive",
+        "dividends",
+        "last_update",
+        "stake_from",
+        "delegation_fee",
+    ]
 supported_schemas:
 - Sr25519
 - Ed25519

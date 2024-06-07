@@ -24,75 +24,12 @@ class Subspace(c.Module):
                  'get_stake_to', 
                  'get_stake_from']
 
-    module_features = [
-        "key",
-        "address",
-        "name",
-        "emission",
-        "incentive",
-        "dividends",
-        "last_update",
-        "stake_from",
-        "weights",
-        "delegation_fee",
-        "trust",
-        "regblock",
-    ]
-
-    subnet_features = [
-                            "Tempo",
-                           'ImmunityPeriod',
-                            'MinAllowedWeights',
-                           'MaxAllowedWeights',
-                            'MaxAllowedUids',
-                            'Founder', 
-                           'FounderShare',
-                            'IncentiveRatio',
-                            'TrustRatio',
-                            'VoteModeSubnet',
-                            'MaxWeightAge',
-                            'SubnetNames'
-                            ]
-    
-    global_features = [  'BurnRate',
-                         'MaxNameLength',
-                            'MaxAllowedModules',
-                            'MaxAllowedSubnets',
-                            'MaxRegistrationsPerBlock', 
-                            'MinBurn',
-                            'MinStakeGlobal',
-                            'MinWeightStake',
-                            'UnitEmission',
-    ] 
-
-    global_features = [
-        "MaxNameLength",
-        "MaxAllowedModules",
-        "MaxAllowedSubnets",
-        "MaxRegistrationsPerBlock",
-        "MinBurn",
-        "MinWeightStake",
-        "UnitEmission",
-    ]
-
-    module_features = [
-        "key",
-        "name",
-        "address",
-        "emission",
-        "incentive",
-        "dividends",
-        "last_update",
-        "stake_from",
-        "delegation_fee",
-    ]
 
     cost = 1
     block_time = 8 # (seconds)
     default_config = c.get_config('subspace', to_munch=False)
     token_decimals = 9
     network = default_config['network']
-    chain = network
     libpath = chain_path = c.libpath + '/subspace'
     netuid = 0
     local = default_config['local']
@@ -104,25 +41,39 @@ class Subspace(c.Module):
         self.set_config(kwargs=kwargs)
 
 
-    def resolve_url(self, url = None, network=None, **kwargs):
-        network = network or self.config.network
-        mode =self.config.network_mode
-        if url == None:
+    def resolve_url(self, url = None, network=None, mode=None, **kwargs):
+
+        def is_match(x):
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
-            is_match = lambda x: any([url in x for url in url_search_terms])
+            return any([url in x for url in url_search_terms])
+        
+        network = network or self.config.network
+        mode = mode or self.config.network_mode
+        search = self.config.url_search
+        if url == None:
             urls_map = getattr(self.config.urls, network)
             urls = []
             for provider, mode2url in urls_map.items():
                 if is_match(provider):
                     urls += list(mode2url[mode])
             url = c.choice(urls)
-
-        c.print(url)
         return url
+    
+
+    _substrate = None
+    @property
+    def substrate(self):
+        if self._substrate == None:
+            self._substrate = self.get_substrate()
+        return self._substrate
+    
+    @substrate.setter
+    def substrate(self, value):
+        self._substrate = value
     
     url2substrate = {}
     def get_substrate(self, 
-                network:str = 'main',
+                network:str = None,
                 url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
@@ -161,13 +112,12 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-
+        network = self.resolve_network(network)
+        url = self.resolve_url(url, network=network, mode=mode)
         if cache:
             if url in self.url2substrate:
                 return self.url2substrate[url]
         while trials > 0:
-            url = self.resolve_url(url, network=network, mode=mode)
-
             try:
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
@@ -442,6 +392,12 @@ class Subspace(c.Module):
     
     
 
+    def resolve_storage_name(self, name):
+        if name[0].islower():
+            _splits = name.split('_')
+            name = _splits[0].capitalize() + ''.join([s[0].capitalize() + s[1:] for s in _splits[1:]])
+        return name
+
     def query_map(self, name: str = 'StakeFrom', 
                   params: list = None,
                   block: Optional[int] = None, 
@@ -458,17 +414,13 @@ class Subspace(c.Module):
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         # if all lowercase then we want to capitalize the first letter
-        if name[0].islower():
-            _splits = name.split('_')
-            name = _splits[0].capitalize() + ''.join([s[0].capitalize() + s[1:] for s in _splits[1:]])
+
         if name  == 'Account':
             module = 'System'
-        network = self.resolve_network(network, new_connection=False, mode=mode)
-
+        network = self.resolve_network(network)
         path = f'query/{network}/{module}.{name}'
         # resolving the params
         params = params or []
-
         is_single_subnet = bool(netuid != 'all' and netuid != None)
         if is_single_subnet:
             params = [netuid] + params
@@ -476,24 +428,16 @@ class Subspace(c.Module):
             params = [params]
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
-        path = path+"::block::"
-        paths = self.glob(path + '*')
-        update = update or len(paths) == 0 or block != None
-        if not update:
-            last_path = sorted(paths, reverse=True)[0]
-            value = self.get(last_path, None , max_age=max_age)
-        else:
-            value = None
+
+        value = self.get(path, None , max_age=max_age)
 
         if value == None:
             # block = block or self.block
             path = path + f'{block}'
-            network = self.resolve_network(network)
             # if the value is a tuple then we want to convert it to a list
     
             while trials > 0:
                 try:
-
                     substrate = self.get_substrate(network=network, mode=mode)
                     qmap =  substrate.query_map(
                         module=module,
@@ -508,8 +452,7 @@ class Subspace(c.Module):
                     trials = trials - 1
                     if trials == 0:
                         raise e
-                
-
+                    
             new_qmap = {} 
             progress_bar = c.progress(qmap, desc=f'Querying {name} ma')
             for (k,v) in qmap:
@@ -1186,10 +1129,12 @@ class Subspace(c.Module):
                     update = False,
                     max_age = 1000,
                     fmt:str='j', 
-                    features  = subnet_features,
+                    features  = None,
                     value_features = [],
                     **kwargs
                     ) -> list:  
+        
+        features = features or self.config.subnet_features
 
         netuid = self.resolve_netuid(netuid)
         path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
@@ -1269,6 +1214,7 @@ class Subspace(c.Module):
     
     
 
+
     def global_params(self, 
                     network = 'main',
                     block : Optional[int] = None,
@@ -1277,9 +1223,11 @@ class Subspace(c.Module):
                     fmt:str='j', 
                     rows:bool = True,
                     value_features = [ 'min_burn', 'unit_emission', 'min_weight_stake'],
-                    features  = global_features
+                    features  = None
                         
                     ) -> list:  
+        
+        features = features or self.config.global_features
 
         path = f'query/{network}/SubspaceModule.GlobalParams'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
@@ -1368,9 +1316,6 @@ class Subspace(c.Module):
         
         """
         network = network or self.config.network
-        if  not hasattr(self, 'substrate') or new_connection:
-            self.set_network(network, **kwargs)
-    
         return network
     
     def resolve_subnet(self, subnet: Optional[int] = None) -> int:
@@ -1576,6 +1521,7 @@ class Subspace(c.Module):
                     **kwargs ) -> 'ModuleInfo':
 
         url = self.resolve_url(network=network, mode=mode)
+        c.print(url)
         module_key = module
         if not c.valid_ss58_address(module):
             module_key = self.name2key(name=module, network=network, netuid=netuid, **kwargs)
@@ -1604,7 +1550,7 @@ class Subspace(c.Module):
 
         module['vote_staleness'] = (block or self.block) - module['last_update']
         if lite :
-            features = self.module_features + ['stake', 'vote_staleness']
+            features = self.config.module_features + ['stake', 'vote_staleness']
             module = {f: module[f] for f in features}
         assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
         return module
@@ -1731,7 +1677,7 @@ class Subspace(c.Module):
                 netuid: int = 0,
                 block: Optional[int] = None,
                 fmt='nano', 
-                features : List[str] = module_features,
+                features : List[str] = None,
                 timeout = 100,
                 max_age=1000,
                 subnet = None,
@@ -1739,6 +1685,8 @@ class Subspace(c.Module):
                 vector_features =['dividends', 'incentive', 'trust', 'last_update', 'emission'],
                 **kwargs
                 ) -> Dict[str, 'ModuleInfo']:
+        
+        features = features or self.config.module_features
     
 
         name2feature = {

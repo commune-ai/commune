@@ -743,6 +743,8 @@ class c:
            port=8501, 
            public:bool = False, 
            remote:bool = False):
+        if c.module_exists(module + '.app'):
+            module = module + '.app'
         kwargs = c.locals2kwargs(locals())
         return c.module('app')().start(**kwargs)
     
@@ -3610,25 +3612,44 @@ class c:
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     
     @classmethod
-    def test(cls, module=None, timeout=60, trials=3):
+    def test(cls,
+              module=None,
+              timeout=60, 
+              trials=3, 
+              parallel=True,
+              ):
         module = module or cls.module_path()
         if c.module_exists(module + '.test'):
             c.print('FOUND TEST MODULE', color='yellow')
             module = module + '.test'
         cls = c.module(module)
         self = cls()
-        future2fn = {}
-        for fn in self.test_fns():
-            c.print(f'testing {fn}')
-            f = c.submit(getattr(self, fn), timeout=timeout)
-            future2fn[f] = fn
+ 
         fn2result = {}
-        for f in c.as_completed(future2fn, timeout=timeout):
-            fn = future2fn[f]
-            result = f.result()
-            c.print(f'{fn} result: {result}')
-            assert result['success'], f'{fn} failed, {result}'
+        def process_result(fn, result, fn2result):
             fn2result[fn] = result
+            assert not c.is_error(result), f'{fn} failed, {result}'
+            c.print(f'{fn} result: {result}')
+            return fn2result
+        
+
+        if parallel:
+            future2fn = {}
+            for fn in self.test_fns():
+                c.print(f'testing {fn}')
+                f = c.submit(getattr(self, fn), timeout=timeout)
+                future2fn[f] = fn
+            for f in c.as_completed(future2fn, timeout=timeout):
+                fn2result = process_result(fn=future2fn.pop(f), 
+                                           result=f.result(), 
+                                           fn2result=fn2result)
+        else:
+            for fn in self.test_fns():
+                fn2result = process_result(fn=fn, 
+                                           result=getattr(self, fn)(),
+                                           fn2result=fn2result)
+
+                
         return fn2result
 
     ### TIME LAND ###
@@ -4402,10 +4423,14 @@ class c:
     
     @classmethod
     def is_error(cls, x:Any):
+        """
+        The function checks if the result is an error
+        The error is a dictionary with an error key set to True
+        """
         if isinstance(x, dict):
-            if 'error' in x:
+            if 'error' in x and x['error'] == True:
                 return True
-            if 'success' in x and x['success'] == True:
+            if 'success' in x and x['success'] == False:
                 return True
         return False
     
@@ -5229,13 +5254,10 @@ class c:
     
     @staticmethod
     def ss58_encode(*args, **kwargs):
-        from scalecodec.utils.ss58 import ss58_encode, ss58_decode
-        return ss58_encode(*args, **kwargs)
+        return c.module('key').ss58_encode(*args, **kwargs)
     @staticmethod
     def ss58_decode(*args, **kwargs):
-        from scalecodec.utils.ss58 import  ss58_decode
-        return ss58_decode(*args, **kwargs)
-
+        return c.module('key').ss58_decode(*args, **kwargs)
     @classmethod
     def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
         fns = cls.fns(search=search)
@@ -6301,7 +6323,9 @@ class c:
 
     @classmethod
     def shortcuts(cls) -> Dict[str, str]:
-        return c.config()['shortcuts']
+        config = c.get_config()
+        return config['shortcuts']
+
 
     @classmethod
     def add_shortcut(cls, shortcut, name) -> Dict[str, str]:
@@ -6851,8 +6875,12 @@ class c:
         return c.module('subspace.chain')().id()
 
     @classmethod
-    def ticket(self, *args, **kwargs):
+    def ticket(cls, *args, **kwargs):
         return c.module('ticket')().create(*args, **kwargs)
+
+    @classmethod
+    def ticket2dict(cls, ticket):
+        return c.module('ticket')().ticket2dict(ticket)
     
     def save_ticket(self, key=None, **kwargs):
         
@@ -6866,7 +6894,7 @@ class c:
     @classmethod
     def verify_ticket(cls, *args, **kwargs):
 
-        return c.module('ticket').verify_ticket(*args, **kwargs)
+        return c.module('ticket')().verify(*args, **kwargs)
     
     @classmethod
     def load_style(cls):
