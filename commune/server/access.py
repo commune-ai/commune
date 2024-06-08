@@ -19,13 +19,13 @@ class Access(c.Module):
                 refresh: bool = False,
                 stake_from_weight = 1.0, # the weight of the staker
                 max_age = 30, # max age of the state in seconds
-                sync_interval: int =  60, #  1000 seconds per sync with the network
+                max_staleness: int =  60, #  1000 seconds per sync with the network
 
                 **kwargs):
         
         self.set_config(locals())
         self.user_module = c.module("user")()
-        self.state_path = state_path
+        self.state_path = self.resolve_path(state_path)
         if refresh:
             self.rm_state()
         self.last_time_synced = c.time()
@@ -35,7 +35,6 @@ class Access(c.Module):
                       'fn_info': {}}
         
         self.set_module(module)
-
         c.thread(self.run_loop)
 
     def set_module(self, module):
@@ -52,30 +51,35 @@ class Access(c.Module):
             except Exception as e:
                 r = c.detailed_error(e)
             c.print(r)
-            c.sleep(self.config.sync_interval)
+            c.sleep(self.config.max_staleness)
 
 
-    def sync_network(self, update=False, max_age=None):
-        state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
-        time_since_sync = c.time() - state.get('sync_time', 0)
+    def sync_network(self, update=False, max_age=None, netuid=None, network=None):
+        state = self.get(self.state_path, {}, max_age=self.config.max_staleness)
+        netuid = netuid or self.config.netuid
+        network = network or self.config.network
+        staleness = c.time() - state.get('sync_time', 0)
         self.key2address = c.key2address()
         self.address2key = c.address2key()
-        response = {'msg': f'synced {self.state_path}', 
-                    'until_sync': int(self.config.sync_interval - time_since_sync),
-                    'time_since_sync': int(time_since_sync)}
+        response = { 
+                    'path': self.state_path,
+                    'max_staleness':  self.config.max_staleness,
+                    'network': network,
+                    'netuid': netuid,
+                    'staleness': int(staleness), 
+                    'datetime': c.datetime()}
         
-        if time_since_sync < self.config.sync_interval:
+        if staleness < self.config.max_staleness:
             response['msg'] = 'synced too earlly'
             return response
-        
-        self.subspace = c.module('subspace')(network=self.config.network)
+        else:
+            response['msg'] =  'Synced with the network'
+            response['staleness'] = 0
+        self.subspace = c.module('subspace')(network=network)
         max_age = max_age or self.config.max_age
-        state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=update, max_age=max_age)
+        state['stakes'] = self.subspace.stakes(fmt='j', netuid=netuid, update=update, max_age=max_age)
         self.state = state
         self.put(self.state_path, self.state)
-        c.print(f'🔄 Synced {self.state_path} at {c.datetime()} 🔄\033', color='yellow')
-
-
         return response
 
     def forward(self, fn: str = 'info' , input:dict = None, address=None) -> dict:

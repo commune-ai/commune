@@ -6,7 +6,7 @@ from typing import *
 
 class Vali(c.Module):
 
-    voting_networks: ['subspace', 'bittensor']
+    voting_networks= ['subspace', 'bittensor']
     score_fns = ['score_module', 'score'] # the score functions
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
 
@@ -44,6 +44,7 @@ class Vali(c.Module):
     def init_state(self):     
         self.futures = [] # futures for the executor 
         # COUNT METRICS
+        self.last_start_time = 0 # the last time a worker was started
         self.requests = 0  # the number of requests
         self.errors = 0  # the number of errors
         self.successes = 0 # the number of successes
@@ -93,6 +94,10 @@ class Vali(c.Module):
     @property
     def is_voting_network(self):
         return not 'subspace' in self.config.network and 'bittensor' not in self.config.network
+    
+    @property
+    def last_start_staleness(self):
+        return c.time() - self.last_start_time
 
 
     def run_loop(self):
@@ -108,12 +113,14 @@ class Vali(c.Module):
                 run_info = self.run_info()
                 if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
                         c.print(self.vote())
-                if self.success_staleness > self.config.max_success_staleness:
+                if self.success_staleness > self.config.max_success_staleness and self.last_start_staleness > self.config.max_success_staleness:
                     c.print('Too many stale successes, restarting workers', color='red')
                     self.start_workers()
                 df = self.leaderboard()
-                c.print(df.sort_values(by=['staleness'], ascending=False)[:42])
+                if len(df) > 0:
+                    c.print(df.sort_values(by=['staleness'], ascending=False)[:42])
                 c.print(run_info)
+                c.print(df)
 
             except Exception as e:
                 c.print(c.detailed_error(e))
@@ -128,6 +135,7 @@ class Vali(c.Module):
 
 
     def start_worker(self, id = 0, **kwargs):
+        self.last_start_time = c.time()
         worker_name = self.worker_name(id)
         if self.config.mode == 'thread':
             worker = c.thread(self.worker, kwargs=kwargs, name=worker_name)
@@ -154,24 +162,14 @@ class Vali(c.Module):
 
  
     def worker(self, 
-               epochs=1e9,
-               id=0):
+               epochs=1e9):
         for epoch in range(int(epochs)): 
             try:
-                t0 = c.time()
-                self.epoch()
-                t1 = c.time()
-                latency = t1 - t0
+                result = self.epoch()
             except Exception as e:
-                c.print('Dawg, theres an error in the epoch')
-                c.print(c.detailed_error(e))
-
-    @classmethod
-    def run_epoch(cls, network='local', vali=None, **kwargs):
-        if vali != None:
-            cls = c.module('vali.'+vali)
-        self = cls(network=network, **kwargs)
-        return self.epoch()
+                result = c.detailed_error(e)
+            c.print(f'Leaderboard epoch={self.epochs})'  , color='yellow')
+            c.print(self.leaderboard())
 
 
 
@@ -193,6 +191,14 @@ class Vali(c.Module):
 
     epoch2results = {}
 
+    @classmethod
+    def run_epoch(cls, network='local', vali=None, **kwargs):
+        if vali != None:
+            cls = c.module('vali.'+vali)
+        self = cls(network=network, **kwargs)
+        return self.epoch()
+
+
     def epoch(self,  **kwargs):
     
         try:
@@ -200,7 +206,6 @@ class Vali(c.Module):
             self.sync_network(**kwargs)
             module_addresses = c.shuffle(list(self.namespace.values()))
             c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
-
             batch_size = min(self.config.batch_size, len(module_addresses)//4)
             self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker,  maxsize=self.config.maxsize)
             
@@ -223,7 +228,7 @@ class Vali(c.Module):
 
             self.cancel_futures()
         except Exception as e:
-            c.print(c.detailed_error(e))
+            c.print(c.detailed_error(e), color='red')
 
         return results
 
@@ -346,16 +351,18 @@ class Vali(c.Module):
             assert module in self.address2name, f"{module} is not found in {self.config.network}"
             name = self.address2name[module]
             address = module
+
+        assert name != self.server_name, f'Cannot call the server name {self.server_name}'
         path = self.get_module_path(module)
         module = c.connect(address, key=self.key)
         info = self.get(path, {})
 
         if not self.is_info(info):
             info = module.info(timeout=self.config.timeout_info)
-        info['past_timestamp'] = info.get('timestamp', 0) # for the stalnesss
+        info['staleness'] = c.time()- info.get('timestamp', 0)   
         info['timestamp'] = c.timestamp() # the timestamp
-        info['staleness'] = info['timestamp'] - info['past_timestamp']   
         info['w'] = info.get('w', 0) # the weight from the module
+        info['count'] = info.get('count', 0) # the number of times the module has been called
         info['past_w'] = info['w'] # for the alpha 
         info['path'] = path # path of saving the module
         info['name'] = name # name of the module cleint
@@ -377,7 +384,7 @@ class Vali(c.Module):
              module:str, 
              network:str=None, 
              update=False,
-             verbose_keys= ['w', 'address', 'name', 'key'],
+             verbose_keys= ['w', 'address', 'name', 'key', 'count'],
               **kwargs):
         """
         The following evaluates a module sver
@@ -388,6 +395,7 @@ class Vali(c.Module):
             info = module.local_info
             self.last_sent = c.time()
             self.requests += 1
+            c.print(info, 'INFO')
             response = self.score_module(module, **kwargs)
             response = self.process_response(response=response, info=info)
             response = {k:response[k] for k in verbose_keys}
@@ -437,7 +445,7 @@ class Vali(c.Module):
         if info['w'] > self.config.min_leaderboard_weight:
             self.put(info['path'], info)
 
-        c.print(f'Result(w={info["w"]}, name={info["name"]} latency={c.round(info["latency"], 3)} staleness={info["staleness"]} )' , color='green')
+        c.print(f'Result(w={info["w"]}, name={info["name"]} latency={c.round(info["latency"], 3)} count={info["count"]} )' , color='green')
         self.successes += 1
         self.last_success = c.time()
 
@@ -465,7 +473,10 @@ class Vali(c.Module):
     def vote_info(self):
         try:
             if not self.is_voting_network():
-                return {'success': False, 'msg': 'Not a voting network', 'network': self.config.network}
+                return {'success': False, 
+                        'msg': 'Not a voting network' , 
+                        'network': self.config.network , 
+                        'voting_networks': self.voting_networks ,}
             votes = self.calculate_votes()
         except Exception as e:
             votes = {'uids': [], 'weights': []}
@@ -524,9 +535,7 @@ class Vali(c.Module):
             return {}
     
     def leaderboard(self,
-                    keys = ['name', 'w', 
-                            'staleness',
-                            'latency', 'address'],
+                    keys = ['name', 'w',  'staleness', 'latency', 'count', 'address'],
                     max_age = None,
                     network = None,
                     ascending = True,

@@ -18,13 +18,13 @@ class Test(c.Module):
     
 
     @classmethod
-    def test_serving(cls):
-        server_name = 'module::test'
+    def test_serving(cls, server_name = 'module::test'):
+        if server_name in c.servers():
+            c.kill(server_name)
         module = c.serve(server_name)
         c.wait_for_server(server_name)
         module = c.connect(server_name)
-
-        module.put("hey",1)
+        r = module.put("hey",1)
         v = module.get("hey")
         assert v == 1, f"get failed {v}"
         c.kill(server_name)

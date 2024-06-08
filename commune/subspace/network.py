@@ -87,37 +87,38 @@ class Network(c.Module):
                 
         '''
         substrate = None
-        url = self.resolve_url(url, mode=mode)
-        self.url = url
-        self.network = network
-        if cache:
-            if url in self.url2substrate:
-                substrate = self.url2substrate[url]
 
-        if substrate == None:
-            while trials > 0:
-                try:
 
-                    substrate= SubstrateInterface(url=url, 
-                                websocket=websocket, 
-                                ss58_format=ss58_format, 
-                                type_registry=type_registry, 
-                                type_registry_preset=type_registry_preset, 
-                                cache_region=cache_region, 
-                                runtime_config=runtime_config, 
-                                ws_options=ws_options, 
-                                auto_discover=auto_discover, 
-                                auto_reconnect=auto_reconnect)
+        while trials > 0:
+            try:
+                url = self.resolve_url(url, mode=mode)
+                if cache:
+                    if url in self.url2substrate:
+                        substrate = self.url2substrate[url]
+                if substrate != None:
                     break
-                except Exception as e:
-                    trials = trials - 1
-                    if trials > 0:
-                        raise e
-            
-            if cache:
-                self.url2substrate[url] = substrate
+                substrate= SubstrateInterface(url=url, 
+                            websocket=websocket, 
+                            ss58_format=ss58_format, 
+                            type_registry=type_registry, 
+                            type_registry_preset=type_registry_preset, 
+                            cache_region=cache_region, 
+                            runtime_config=runtime_config, 
+                            ws_options=ws_options, 
+                            auto_discover=auto_discover, 
+                            auto_reconnect=auto_reconnect)
+                if cache:
+                    self.url2substrate[url] = substrate
+                break
+            except Exception as e:
+                trials = trials - 1
+                if trials > 0:
+                    raise e
+        
+
 
         self.substrate = substrate
+        self.url = url
 
         
         return substrate
@@ -139,7 +140,6 @@ class Network(c.Module):
               module:str='SubspaceModule',
               block=None,  
               netuid = None,
-              network: str = network, 
               save= True,
               max_age=1000,
               mode = 'http',

@@ -41,13 +41,15 @@ class Subspace(c.Module):
 
 
     def resolve_url(self, url = None, mode='http', **kwargs):
+        
+        network = self.resolve_network()
         def is_match(x):
             url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
             return any([url in x for url in url_search_terms])
         mode =  mode or self.config.network_mode
         assert mode in ['http', 'ws', 'wss', 'https']
         if url == None:
-            urls_map = getattr(self.config.urls,  self.config.network)
+            urls_map = getattr(self.config.urls,  network)
             urls = []
             for provider, mode2url in urls_map.items():
                 if is_match(provider):
@@ -60,7 +62,7 @@ class Subspace(c.Module):
     @property
     def substrate(self):
         if self._substrate == None:
-            self._substrate = self.get_substrate()
+            self.set_network()
         return self._substrate
     
     @substrate.setter
@@ -69,7 +71,6 @@ class Subspace(c.Module):
     
     url2substrate = {}
     def get_substrate(self, 
-                network:str = None,
                 url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
@@ -144,18 +145,24 @@ class Subspace(c.Module):
                 trials = 10,
                 url : str = None, 
                 **kwargs):
-        network = self.resolve_network(network)
-        self.network = self.config.network
+        self.network = self.resolve_network(network)
         self.substrate = self.get_substrate( url=url, mode=mode, trials=trials , **kwargs)
         response =  {'network': self.network, 'url': self.url}
 
         return response
+    @property
+    def network(self):
+        return self.resolve_network(self.config.network)
+
+    @network.setter
+    def network(self, value):
+        self.config.network = value
 
     def __repr__(self) -> str:
-        return f'<Subspace: network={self.network}>'
+        return f'<Subspace: network={self.config.network}>'
     def __str__(self) -> str:
 
-        return f'<Subspace: network={self.network}>'
+        return f'<Subspace: network={self.config.network}>'
 
 
     
@@ -398,7 +405,7 @@ class Subspace(c.Module):
                   page_size=1000,
                   max_results=100000,
                   module='SubspaceModule',
-                  update: bool = True,
+                  update: bool = False,
                   max_age : str = 1000, # max age in seconds
                   mode = 'ws',
                   trials = 4,
@@ -420,7 +427,7 @@ class Subspace(c.Module):
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
 
-        value = self.get(path, None , max_age=max_age)
+        value = self.get(path, None , max_age=max_age, update=update)
 
         if value == None:
             # block = block or self.block
@@ -493,7 +500,7 @@ class Subspace(c.Module):
     #####################################
 
     """ Returns network SubnetN hyper parameter """
-    def n(self,  netuid: int = 0, network = 'main' ,block: Optional[int] = None, max_age=100, update=False, **kwargs ) -> int:
+    def n(self,  netuid: int = 0,block: Optional[int] = None, max_age=100, update=False, **kwargs ) -> int:
         if netuid == 'all':
             return sum(self.query_map('N', block=block , update=update, max_age=max_age,  **kwargs).values())
         else:
@@ -503,7 +510,7 @@ class Subspace(c.Module):
     #### Account functions ###
     
     """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = 0, block: Optional[int] = None, fmt:str='nano', max_age = 100, update=False, **kwargs) -> int:
+    def stakes(self, netuid: int = 0, fmt:str='nano', max_age = 100, update=False, **kwargs) -> int:
         stakes =  self.query_map('Stake', netuid=netuid, update=update, max_age=max_age, **kwargs)
         if netuid == 'all':
             subnet2stakes = c.copy(stakes)
@@ -774,15 +781,7 @@ class Subspace(c.Module):
 
 
     
-   
-    @classmethod
-    def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
-        # returns a list of archived blocks 
-        
-        blocks =  [f.split('.B')[-1].split('.json')[0] for f in cls.glob(f'archive/{network}/state.B*')]
-        blocks = [int(b) for b in blocks]
-        sorted_blocks = sorted(blocks, reverse=reverse)
-        return sorted_blocks
+
 
     def subnet_exists(self, subnet:str) -> bool:
         subnets = self.subnets()
@@ -981,7 +980,6 @@ class Subspace(c.Module):
     
     def subnet_params(self, 
                     netuid=0,
-                    network = 'main',
                     update = False,
                     max_age = 1000,
                     fmt:str='j', 
@@ -993,7 +991,7 @@ class Subspace(c.Module):
         features = features or self.config.subnet_features
 
         netuid = self.resolve_netuid(netuid)
-        path = f'query/{network}/SubspaceModule.SubnetParams.{netuid}'          
+        path = f'query/{self.network}/SubspaceModule.SubnetParams.{netuid}'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
@@ -1072,12 +1070,9 @@ class Subspace(c.Module):
 
 
     def global_params(self, 
-                    network = 'main',
-                    block : Optional[int] = None,
                     update = False,
                     max_age = 100000,
                     fmt:str='j', 
-                    rows:bool = True,
                     value_features = [ 'min_burn', 'unit_emission', 'min_weight_stake'],
                     features  = None
                         
@@ -1085,7 +1080,7 @@ class Subspace(c.Module):
         
         features = features or self.config.global_features
 
-        path = f'query/{network}/SubspaceModule.GlobalParams'          
+        path = f'query/{self.network}/SubspaceModule.GlobalParams'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
         name2feature = dict(zip(names, features))
@@ -1160,18 +1155,19 @@ class Subspace(c.Module):
     
     
     def resolve_network(self, 
-                        network: Optional[int] = 'subspace:main',
+                        network: Optional[int] = None,
                         spliters: List[str] = [ '::', ':'], 
                         **kwargs) -> int:
         """
         Resolve the network to use for the current session.
         
         """
+        network = network or self.config.network
+
         for spliter in spliters:
             if spliter in str(network):
                 network = network.split(spliter)[-1]
                 break
-        network = network or self.config.network
         if network == 'subspace':
             network = 'main'
         return network
@@ -1281,10 +1277,7 @@ class Subspace(c.Module):
             
         return name2uid
 
-    @classmethod
-    def get_feature(cls, feature='names', network='main', netuid=0, update=False, max_age=1000, **kwargs):
-        return getattr(cls(network=network), feature)(netuid=netuid, update=update, max_age=max_age, **kwargs)
-        
+
     def name2key(self, name:str=None, 
                  max_age=1000, 
                  timeout=30, 
@@ -1338,8 +1331,7 @@ class Subspace(c.Module):
         return self.subnet(netuid=netuid)['emission']*self.epoch_time(netuid=netuid)
 
     def get_block(self,  block_hash=None, max_age=8): 
-        network = network or 'main'
-        path = f'cache/{network}.block'
+        path = f'cache/{self.network}.block'
         block = self.get(path, None, max_age=max_age)
         if block == None:
             block_header = self.substrate.get_block( block_hash=block_hash)['header']
@@ -1372,7 +1364,6 @@ class Subspace(c.Module):
                     **kwargs ) -> 'ModuleInfo':
 
         url = self.resolve_url( mode=mode)
-        c.print(url)
         module_key = module
         if not c.valid_ss58_address(module):
             module_key = self.name2key(name=module,  netuid=netuid, **kwargs)
@@ -1561,7 +1552,7 @@ class Subspace(c.Module):
 
         netuid = self.resolve_netuid(netuid or subnet)
         state = {}
-        path = f'query/{network}/SubspaceModule.Modules:{netuid}'
+        path = f'query/{self.network}/SubspaceModule.Modules:{netuid}'
         modules = self.get(path, None, max_age=max_age)
         if modules == None:
 
@@ -1765,17 +1756,17 @@ class Subspace(c.Module):
         return namespace
 
     
-    def weights(self,  netuid = 0,  network = 'main', update=False, **kwargs) -> list:
-        weights =  self.query_map('Weights',netuid=netuid, network = network, update=update, **kwargs)
+    def weights(self,  netuid = 0,  update=False, **kwargs) -> list:
+        weights =  self.query_map('Weights',netuid=netuid, update=update, **kwargs)
 
         return weights
 
-    def proposals(self, netuid = netuid, block=None,  nonzero:bool=False, update:bool = False,  **kwargs):
-        proposals = [v for v in self.query_map('Proposals', network = 'main', block=block, update=update, **kwargs)]
+    def proposals(self,  block=None,  nonzero:bool=False, update:bool = False,  **kwargs):
+        proposals = [v for v in self.query_map('Proposals', block=block, update=update, **kwargs)]
         return proposals
 
-    def save_weights(self, nonzero:bool = False, network = "main",**kwargs) -> list:
-        self.query_map('Weights',network = 'main', update=True, **kwargs)
+    def save_weights(self, **kwargs) -> list:
+        self.query_map('Weights', update=True, **kwargs)
         return {'success': True, 'msg': 'Saved weights'}
 
     def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
@@ -1786,7 +1777,7 @@ class Subspace(c.Module):
         pending_deregistrations = self.pending_deregistrations(netuid=netuid, **kwargs)
         return len(pending_deregistrations)
         
-    def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
+    def emissions(self, netuid = 0, block=None, update=False, **kwargs):
 
         return self.query_vector('Emission',  netuid=netuid, block=block, update=update, **kwargs)
     
@@ -1795,7 +1786,6 @@ class Subspace(c.Module):
     def incentives(self, 
                   netuid = 0, 
                   block=None,  
-                  network = "main", 
                   update:bool = False, 
                   **kwargs):
         return self.query_vector('Incentive', netuid=netuid,  block=block, update=update, **kwargs)
@@ -1804,7 +1794,6 @@ class Subspace(c.Module):
     def trust(self, 
                   netuid = 0, 
                   block=None,  
-                  network = "main", 
                   update:bool = False, 
                   **kwargs):
         return self.query_vector('Trust', netuid=netuid,  block=block, update=update, **kwargs)
@@ -1823,7 +1812,7 @@ class Subspace(c.Module):
     def last_update(self, netuid = 0, update=False, **kwargs):
         return self.query_vector('LastUpdate', netuid=netuid,   update=update, **kwargs)
 
-    def dividends(self, netuid = 0, network = 'main',  update=False, **kwargs):
+    def dividends(self, netuid = 0, update=False, **kwargs):
         return  self.query_vector('Dividends', netuid=netuid,   update=update,  **kwargs)
             
 
@@ -1838,10 +1827,11 @@ class Subspace(c.Module):
     def stake_from(self, netuid = 0,
                     block=None, 
                     update=False,
-                    
-                    fmt='nano', **kwargs) -> List[Dict[str, Union[str, int]]]:
+                    max_age=10000,
+                    fmt='nano', 
+                    **kwargs) -> List[Dict[str, Union[str, int]]]:
         
-        stake_from = self.query_map('StakeFrom', netuid=netuid, block=block, update=update,  **kwargs)
+        stake_from = self.query_map('StakeFrom', netuid=netuid, block=block, update=update, max_age=max_age,  **kwargs)
         format_tuples = lambda x: [[_k, self.format_amount(_v, fmt=fmt)] for _k,_v in x]
         if netuid == 'all':
             stake_from = {netuid: {k: format_tuples(v) for k,v in stake_from[netuid].items()} for netuid in stake_from}
@@ -2005,7 +1995,7 @@ class Subspace(c.Module):
                      update=True,  
                      **kwargs):
         
-        path = f'history/{network}.{netuid}.json'
+        path = f'history/{self.network}.{netuid}.json'
 
         archive_history = []
         if not update:
@@ -2045,7 +2035,6 @@ class Subspace(c.Module):
     def stats(self, 
               search = None,
               netuid=0,  
-              network = network,
               df:bool=True, 
               update:bool = False ,  
               features : list = ['name', 'emission','incentive', 'dividends', 'stake', 'vote_staleness', 'serving', 'address'],
@@ -2151,7 +2140,7 @@ class Subspace(c.Module):
 
         block = block or self.block
 
-        path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
+        path = f'state_dict/{self.network}.block-{block}-time-{int(c.time())}'
 
         feature2params = {}
 
@@ -2241,22 +2230,6 @@ class Subspace(c.Module):
             state = c.get(v)
             c.print(k, state['balances'].get(addy, 0))
         
-
-    def test_balance(self,  n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10, key=None):
-        key = c.get_key(key)
-
-        balance = self.get_balance()
-        assert balance > 0, f'balance must be greater than 0, not {balance}'
-        balance = int(balance * 0.5)
-        c.print(f'testing network {network} with {n} transfers of {balance} each')
-
-
-    @classmethod
-    def fix(cls):
-        avoid_ports = []
-        free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
-        avoid_ports += free_ports
-
     def num_holders(self, **kwargs):
         balances = self.balances(**kwargs)
         return len(balances)
@@ -2264,8 +2237,6 @@ class Subspace(c.Module):
     def total_balance(self, **kwargs):
         balances = self.balances(**kwargs)
         return sum(balances.values())
-    
-
     
     """
     
@@ -2888,21 +2859,7 @@ class Subspace(c.Module):
         response = self.compose_call('remove_stake_multiple', params=params, key=key)
 
         return response
-                    
-    def unstake2key( self,
-                    modules = 'all',
-                    netuid = 0,
-                    network = network,
-                    to = None):
-        if modules == 'all':
-            modules = self.my_modules()
-        else:
-            assert isinstance(modules, list), f"Modules must be a list of module names"
-            for m in modules:
-                assert m in self.my_modules_names(), f"Module {m} not found in your modules"
-            modules = [m for m in self.my_modules() if m['name'] in modules or m['key'] in modules]
-        c.print(f'Unstaking {len(modules)} modules')
-
+    
     def unstake_all( self, 
                         key: str = None, 
                         netuid = 0,
@@ -2964,7 +2921,6 @@ class Subspace(c.Module):
                         update = False,
                         n = None,
                         netuid = 0, 
-                        network = 'main',
                         df = True,
                         keys = None,
                         max_age = 1000,
@@ -3348,30 +3304,32 @@ class Subspace(c.Module):
         return sum(list(self.key2value( *args, **kwargs).values()))
     
 
-    def my_total_stake(self, netuid='all', network = 'main', fmt='j', update=False):
+    def my_total_stake(self, netuid='all', fmt='j', update=False):
         my_stake_to = self.my_stake_to(netuid=netuid,  fmt=fmt, update=update)
         return sum([sum(list(v.values())) for k,v in my_stake_to.items()])
 
     def check_valis(self, **kwargs):
         return self.check_servers(search='vali', **kwargs)
     
-    def check_servers(self, search='vali',update:bool=False, netuid=0, min_lag=100, timeout=30, remote=False, **kwargs):
+    def check_servers(self, search='vali',update:bool=False, netuid=0, max_staleness=100, timeout=30, remote=False, **kwargs):
         if remote:
             kwargs = c.locals2kwargs(locals())
             return self.remote_fn('check_servers', kwargs=kwargs)
         module_stats = self.stats(search=search, netuid=netuid, df=False, update=update)
         module2stats = {m['name']:m for m in module_stats}
-        block = self.block
         response_batch = {}
         c.print(f"Checking {len(module2stats)} {search} servers")
         for module, stats in module2stats.items():
             # check if the module is serving
-            lag = stats['vote_staleness']
-            port = int(stats['address'].split(':')[-1])
-            if not c.server_exists(module) or lag > min_lag:
-                c.print(f"Server {module} is not serving or has a lag of {lag} > {min_lag}")
+            should_serve = not c.server_exists(module) or stats['vote_staleness'] > max_staleness
+            if should_serve:
+
+                c.print(f"Serving {module}")
+                port = int(stats['address'].split(':')[-1])
                 response_batch[module]  = c.submit(c.serve, 
-                                                    kwargs=dict(module=module, network=f'subspace.{netuid}', port=port),
+                                                    kwargs=dict(module=module, 
+                                                                network=f'subspace.{netuid}', 
+                                                                port=port),
                                                     timeout=timeout)
 
         futures = list(response_batch.values())
@@ -3398,7 +3356,6 @@ class Subspace(c.Module):
                     nonce: int = None,
                     remote_module: str = None,
                     unchecked_weight: bool = False,
-                    network = network,
                     mode='ws',
                     trials = 4,
                     max_tip = 10000,
@@ -3492,7 +3449,7 @@ class Subspace(c.Module):
     def tx_history(self, key:str=None, mode='complete', **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
         assert mode in ['pending', 'complete']
-        pending_path = f'history/{network}/{key_ss58}/{mode}'
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
         return self.glob(pending_path)
     
     def pending_txs(self, key:str=None, **kwargs):
@@ -3507,7 +3464,7 @@ class Subspace(c.Module):
     def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending',  **kwargs):
         key_ss58 = self.resolve_key_ss58(key)
         assert mode in ['pending', 'complete']
-        pending_path = f'history/{network}/{key_ss58}/{mode}'
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
         return pending_path
     
     def resolve_key(self, key = None):
@@ -3528,31 +3485,8 @@ class Subspace(c.Module):
 
         assert hasattr(key, 'key'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
-    
-    
-    def unstake2key(self, key=None):
-        key2stake = self.key2stake()
-        c.print(key2stake)
 
 
-    def test_subnet_storage(self):
-
-        all_subnet_params = self.subnet_params(netuid='all')
-        assert isinstance(all_subnet_params, list)
-        for subnet_params in all_subnet_params: 
-            assert isinstance(subnet_params, dict)
-        subnet_params = self.subnet_params(netuid=10)
-        assert isinstance(subnet_params, dict)
-        return {'success': True, 'msg': 'All subnet params are dictionaries', 'n': len(all_subnet_params)}
-    
-    def test_global_storage(self):
-        global_params = self.global_params(fmt='j')
-        assert isinstance(global_params, dict)
-        return global_params
-    
-    def test_module_storage(self):
-        modules = self.get_modules(netuid=0)
-        return modules 
 
     def launcher_keys(self, netuid=0, min_stake=500, **kwargs):
         keys = c.keys()
@@ -3578,6 +3512,10 @@ class Subspace(c.Module):
         return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
     
             
+    @classmethod
+    def get_feature(cls, feature='names', network='main', netuid=0, update=False, max_age=1000, **kwargs):
+        return getattr(cls(network=network), feature)(netuid=netuid, update=update, max_age=max_age, **kwargs)
+        
     
 
 
