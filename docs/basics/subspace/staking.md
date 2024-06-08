@@ -1,10 +1,11 @@
 # Staking 
+
 ## Stake Tokens
 
 To stake on a module, you can use the following commands:
 
 ```
-c.stake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S, amount=100,  key='module')
+c.stake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S, amount=100,  key='module', netuid=0)
 ```
 
 ## Unstake Tokens
@@ -54,12 +55,17 @@ or if you want to specify the same amount, just do the amounts as an integer
 ```bash 
 c.stake_many(modules=[model1,model2], amounts=10)
 ```
+## Stake Transfer
+
+```bash
+c stake_transfer vali.text.truthqa::commie1 vali::project_management amount=0.01 # default netuid=0
+```
 
 
 ## List Your Staked Modules 
 
 
-c staked search=vali netuid=1
+c staked netuid=1
 
     dividends                    stake_from    delegation_fee          stake    vote_staleness
 11  vali.text.truthqa::commie1   0.016297      836737               5  1543452              49
@@ -70,8 +76,4 @@ c staked search=vali netuid=1
 
 
 Transfer stake from one module to another, if you dont specify the amount, the default is the entire stake towards the module
-
-```bash
-c stake_transfer vali.text.truthqa::commie1 vali::project_management amount=0.01 # default netuid=0
-```
 
