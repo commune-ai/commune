@@ -12,39 +12,44 @@ class cli(c.Module):
                  args = None,
                 module = 'module',
                 verbose = True,
+                history_module = 'history',
+                path = 'history',
                 save: bool = True):
+        self.verbose = verbose
+        self.save = save
+        self.history_module = c.module(history_module)(folder_path=self.resolve_path(path))
         self.base_module = c.module(module)
+        self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
         args = args or self.argv()
+        self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
+        self.process_output(output)
 
+    def process_output(self, output):
         if c.is_generator(output):
             for output_item in output:
                 if isinstance(c, Munch):
                     output_item = output_item.toDict()
-                c.print(output_item,  verbose=verbose)
+                c.print(output_item,  verbose=self.verbose)
         else:
             if isinstance(output, Munch):
                 output = output.toDict()
-            c.print(output, verbose=verbose)
+            c.print(output, verbose=self.verbose)
         
-        if save and c.jsonable(output):
-            self.history_module().add({'input': 'c ' + ' '.join(args), 'output': output})
+        if self.save and c.jsonable(output):
+            self.history_module.add({'input': self.input_str, 'output': output})
+        return output
+
+
 
     def get_output(self, args):
 
-        args, kwargs = self.parse_args(args)
 
-
-        base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
-        # is it a fucntion, assume it is for the module
-        # handle module/function
-        is_fn = args[0] in base_module_attributes
-
-
+        is_fn = args[0] in self.base_module_attributes
         if '/' in args[0]:
             args = args[0].split('/') + args[1:]
             is_fn = False
-
+    
         if is_fn:
             # is a function
             module = self.base_module
@@ -54,12 +59,12 @@ class cli(c.Module):
             if isinstance(module, str):
                 module = c.module(module)
             fn = args.pop(0)
-
-
         if module.classify_fn(fn) == 'self':
-            module = module()
-            
+            module = module() 
         fn_obj = getattr(module, fn)
+
+        args, kwargs = self.parse_args(args)
+        
 
         if callable(fn_obj):
             output = fn_obj(*args, **kwargs)
@@ -67,8 +72,6 @@ class cli(c.Module):
             output =  getattr(module(), fn)
         else: 
             output = fn_obj  
-        if callable(fn):
-            output = fn(*args, **kwargs)
 
         return output
         
@@ -78,7 +81,6 @@ class cli(c.Module):
     def parse_args(cls, argv = None):
         if argv is None:
             argv = cls.argv()
-
         args = []
         kwargs = {}
         parsing_kwargs = False
@@ -89,13 +91,13 @@ class cli(c.Module):
             #     args.append(cls.determine_type(arg))
             if '=' in arg:
                 parsing_kwargs = True
-                key, value = arg.split('=', 1)
+                key, value = arg.split('=')
                 # use determine_type to convert the value to its actual type
                 kwargs[key] = cls.determine_type(value)
+
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
                 args.append(cls.determine_type(arg))
-
         return args, kwargs
 
     @classmethod
@@ -143,10 +145,6 @@ class cli(c.Module):
                 except ValueError:
                     return x
                 
-
-    @classmethod
-    def history_module(cls, path='history'):
-        return c.m('history')(folder_path=cls.resolve_path(path))
 
     @classmethod
     def history(cls,**kwargs):

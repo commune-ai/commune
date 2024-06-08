@@ -179,7 +179,8 @@ class Tree(c.Module):
     
 
     @classmethod
-    def path2simple(cls, path:str, ignore_prefixes = ['commune', 'modules', 'commune.modules']) -> str:
+    def path2simple(cls, path:str, 
+                    ignore_prefixes = ['commune', 'modules', 'commune.modules']) -> str:
 
         path = os.path.abspath(path)
         pwd = c.pwd()
@@ -199,6 +200,8 @@ class Tree(c.Module):
         chunks = simple_path.split('.')
         simple_chunks = []
         simple_path = ''
+
+        # we want to remove redundant chunks
         for i, chunk in enumerate(chunks):
             if len(simple_chunks)>0:
                 if chunk in simple_chunks:
@@ -217,6 +220,7 @@ class Tree(c.Module):
         if suffix.endswith('_module'):
             simple_path = '.'.join(simple_path.split('.')[:-1])
         # remove prefixes from commune
+            
         for prefix in ignore_prefixes:
             if simple_path.startswith(prefix):
                 simple_path = simple_path.replace(prefix, '')
@@ -230,12 +234,12 @@ class Tree(c.Module):
         return simple_path
 
     @classmethod
-    def path_config_exists(cls, path:str) -> bool:
+    def path_config_exists(cls, path:str, extension='.py', config_extensions=['.yaml', '.yml']) -> bool:
         '''
         Checks if the path exists
         '''
-        for ext in ['.yaml', '.yml']:
-            if os.path.exists(path.replace('.py', ext)):
+        for ext in config_extensions:
+            if os.path.exists(path.replace(extension, ext)):
                 return True
         return False
     

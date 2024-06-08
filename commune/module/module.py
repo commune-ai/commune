@@ -1836,7 +1836,7 @@ class c:
             return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
             c.rmdir(path)
-        else:
+        if os.path.isfile(path):
             os.remove(path)
         assert not os.path.exists(path), f'{path} was not removed'
 
@@ -3001,8 +3001,9 @@ class c:
         return (process.memory_info().rss // 1024) / scale
 
     @classmethod
-    def argparse(cls, verbose: bool = False, version=1):
-        if version == 1:
+    def argparse(cls, verbose: bool = False, **kwargs):
+        argv = ' '.join(c.argv())
+        if ' --' in argv or ' -' in argv:
             parser = argparse.ArgumentParser(description='Argparse for the module')
             parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
             parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
@@ -3020,13 +3021,17 @@ class c:
             if len(args.params) > len(args.kwargs):
                 args.kwargs = args.params
             args.args = json.loads(args.args.replace("'",'"'))
-        elif version == 2:
-            args = c.parseargs()
-
+        else:
+            args = c.parse_args()
         return args
 
     @classmethod
-    def run(cls, name:str = None, verbose:bool = False, version=1) -> Any: 
+    def parse_args(cls, argv = None, **kwargs):
+        return c.module('cli').parse_args(argv=argv)
+
+    @classmethod
+    def run(cls, name:str = None,
+            version=1) -> Any: 
         is_main =  name == '__main__' or name == None or name == cls.__name__
         if not is_main:
             return {'success':False, 'message':f'Not main module {name}'}
@@ -3605,11 +3610,13 @@ class c:
     @classmethod
     def test(cls,
               module=None,
-              timeout=60, 
+              timeout=70, 
               trials=3, 
               parallel=True,
               ):
         module = module or cls.module_path()
+        if module == 'module':
+            return c.cmd('pytest commune', verbose=True)
         if c.module_exists(module + '.test'):
             c.print('FOUND TEST MODULE', color='yellow')
             module = module + '.test'
@@ -4700,74 +4707,32 @@ class c:
     @classmethod
     def new_module( cls,
                    module : str ,
-                   repo : str = None,
-                   base_module : str = 'demo',
-                   tree : bool = 'commune',
-                   overwrite : bool  = True,
-                   **kwargs):
+                   base_module : str = 'demo', 
+                   folder_module : bool = False,
+                   update=1
+                   ):
         
-        """ Makes directories for path.
-        """
-        if module == None: 
-            assert repo != None, 'repo must be specified if module is not specified'
-            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-        tree_path = c.tree2path().get(tree)
-        
-        class_name = ''
-        for m in module.split('.'):
-            class_name += m[0].upper() + m[1:] # capitalize first letter
-
-        if c.module_exists(module): 
-            if overwrite:
-                module_path = c.module(module).dirpath() if c.is_file_module(module) else c.module(module).filepath()
-                c.rm(module_path)
-            else:
-                return {'success': False,
-                        'path': module_path,
-                         'msg': f' module {module} already exists, set overwrite=True to overwrite'}
-
-        # get the code ready from the base module
-        c.print(f'Getting {base_module}')
         base_module = c.module(base_module)
-        is_folder_module = base_module.is_folder_module()
-
-        base_module_class = base_module.class_name()
-        module_class_name = ''.join([m[0].upper() + m[1:] for m in module.split('.')])
-
-        # build the path2text dictionary 
-        if is_folder_module:
-            dirpath = tree_path + '/'+ module.replace('.','/') + '/'
-            base_dirpath = base_module.dirpath()
-            path2text = c.path2text( base_module.dirpath())
-            path2text = {k.replace(base_dirpath +'/',dirpath ):v for k,v in path2text.items()}         
-        else:
-            module_path = tree_path + '/'+ module.replace('.','/') + '.py'
-            code = base_module.code()
-            path2text = {module_path: code}
-
-        og_path2text = c.copy(path2text)
-        for path, text in og_path2text.items():
-            file_type = path.split('.')[-1]
-            is_module_python_file = (file_type == 'py' and 'class ' + base_module_class in text)
-
-            if is_folder_module:
-                if file_type ==  'yaml' or is_module_python_file:
-                    path_filename = path.split('/')[-1]
-                    new_filename = module.replace('.', '_') + '.'+ file_type
-                    path = path[:-len(path_filename)] + new_filename
-
-
-            if is_module_python_file:
-                text = text.replace(base_module_class, module_class_name)
-
-            path2text[path] = text
-            c.put_text(path, text)
-            c.print(f'Created {path} :: {module}')
-       
-        assert c.module_exists(module), f'Failed to create module {module}'
+        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in module.split('.')])
+        base_module_class_name = base_module.class_name()
+        base_module_code = base_module.code().replace(base_module_class_name, module_class_name)
+        pwd = c.pwd()
+        path = os.path.join(pwd, module.replace('.', '/'))
+        if folder_module:
+            dirpath = path
+            filename = module.replace('.', '_')
+            path = os.path.join(path, filename)
         
+        path = path + '.py'
+        dirpath = os.path.dirname(path)
+        if os.path.exists(path) and not update:
+            return {'success': True, 'msg': f'Module {module} already exists', 'path': path}
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
 
-        return {'success': True, 'msg': f'Created module {module}', 'path': path, 'paths': list(c.path2text(c.module(module).dirpath()).keys())}
+        c.put_text(path, base_module_code)
+        
+        return {'success': True, 'msg': f'Created module {module}', 'path': path}
     
     add_module = new_module
     
