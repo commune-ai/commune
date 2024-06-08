@@ -256,12 +256,16 @@ class Tree(c.Module):
     
     @classmethod
     def simple2objectpath(cls, simple_path:str, **kwargs) -> str:
+        pwd = c.pwd()
         try:
             object_path = cls.simple2path(simple_path, **kwargs)
             classes =  cls.find_classes(object_path)
             if object_path.startswith(c.libpath):
                 object_path = object_path[len(c.libpath):]
             object_path = object_path.replace('.py', '')
+            if object_path.startswith(pwd):
+                object_path = object_path[len(pwd):]
+
             object_path = object_path.replace('/', '.')
             if object_path.startswith('.'):
                 object_path = object_path[1:]

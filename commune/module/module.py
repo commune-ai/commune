@@ -279,13 +279,11 @@ class c:
         '''
         import yaml
         path = cls.resolve_path(path)
-
         try:
             with open(path, 'r') as file:
                 data = yaml.safe_load(file)
         except:
             data = default
-
         return data
         
     get_yaml = load_yaml
@@ -372,23 +370,16 @@ class c:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-
         if path == None: 
             path = cls.config_path()
         else:
-            module_tree = c.tree()
-            path = module_tree[path].replace('.py', '.yaml')
-            
+            path = c.tree().get(path, path).replace('.py', '.yaml')
         config = cls.load_yaml(path)
 
-        # convert to munch
-        if config == None:
-            config = {}
-
+        config = config or {} 
         # convert to munch
         if to_munch:
             config =  cls.dict2munch(config)
-        
         return config
     
     
@@ -775,12 +766,18 @@ class c:
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
+        pwd = c.pwd()
         try:
             return import_module(import_path)
         except Exception as e:
             import sys
-            sys.path.append(c.pwd())
-            return import_module(import_path)
+            sys.path.append(pwd)
+            sys.path = list(set(sys.path))
+            try:
+                return import_module(import_path)
+            except Exception as e:
+                print(f'Error: {e}')
+                raise e
         
     def can_import_module(self, module:str) -> bool:
         '''
@@ -1322,7 +1319,6 @@ class c:
         try:
             module = c.simple2object(path)
         except Exception as e:
-            raise e
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
@@ -1450,19 +1446,17 @@ class c:
     def simple2path(cls, path:str, **kwargs) -> str:
         return c.module('tree').simple2path(path, **kwargs)
     
+
     @classmethod
-    def simple2objectpath(cls, path:str,path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
+    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
         
         
         if path in path2objectpath:
-            object_path =  path2objectpath[path]
+            path =  path2objectpath[path]
         else:
-            object_path =  c.module('tree').simple2objectpath(path, **kwargs)
+            path =  c.module('tree').simple2objectpath(path, **kwargs)
 
-        return object_path
-    @classmethod
-    def simple2object(cls, path:str, **kwargs) -> str:
-        path = c.simple2objectpath(path, **kwargs)
+        
         try:
             return c.import_object(path)
         except Exception as e:

@@ -4,6 +4,10 @@ import commune as c
 from typing import *
 from sse_starlette.sse import EventSourceResponse
 
+import commune as c
+from typing import *
+
+
 
 class Protocal(c.Module):
 
@@ -16,11 +20,12 @@ class Protocal(c.Module):
                 history_module='server.history',
                 ticket_module = 'ticket',
                 history_path='history',
+                network = 'local',
                 save_history=False,
                 key=None,
                 **kwargs
                 ):
-        self.max_request_staleness = max_request_staleness
+        self.set_config(locals())
         self.set_module(module=module, key=key, name=name)
         self.ticket_module = c.module(ticket_module)()
         self.access_module = c.module(access_module)(module=self.module)
@@ -74,7 +79,7 @@ class Protocal(c.Module):
         input['address'] = address
         # check the request staleness    
         request_staleness = c.timestamp() - input.get('timestamp', 0) 
-        assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        assert  request_staleness < self.config.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.config.max_request_staleness})  seconds old"
 
         if 'params' in input:
             if isinstance(input['params'], dict):
@@ -109,7 +114,7 @@ class Protocal(c.Module):
         access_ticket_dict = self.ticket_module.ticket2dict(access_ticket)
         # check the request staleness
         request_staleness = c.timestamp() - access_ticket_dict.get('timestamp', 0)
-        assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        assert request_staleness < self.config.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.config.max_request_staleness})  seconds old"
         assert c.verify_ticket(access_ticket), f"Data not signed with correct key"
         """
         We assume the data is in the input, and the token
@@ -122,18 +127,17 @@ class Protocal(c.Module):
 
         if 'args' in input or 'kwargs' in input:
             input =  {'args': input.get('args', []), 'kwargs': input.get('kwargs', {})}
-        
         input['timestamp'] = c.timestamp()
         input['address'] = access_ticket_dict.get('address', '0x0')
         return input
 
-    def process_input(self,fn, input):
+    def process_input(self, fn, input):
         # you can verify the input with the server key class
         input = self.resolve_input_v1(input)
         input = self.resolve_input_v2(input)
         input['fn'] = fn
         self.check_input(input)
-        user_info = self.access_module.verify(fn=input['fn'], address=input['address'])
+        user_info = self.access_module.forward(fn=input['fn'], address=input['address'])
         assert user_info['success'], f"{user_info}"
         return input
     
@@ -164,17 +168,24 @@ class Protocal(c.Module):
             input = self.process_input(fn, input)   
             fn_obj = getattr(self.module, fn)
             output = fn_obj(*input['args'], **input['kwargs']) if callable(fn_obj) else fn_obj
+            c.print(input)
+            # process the output
+            if self.save_history:
+                self.history_module.add_history({**input,
+                    'output': output,
+                    'latency': c.time() - input['timestamp'],
+                    'datetime': c.time2datetime(input['timestamp']),
+                })
             output = self.process_output(output)
         except Exception as e:
             output = c.detailed_error(e)
             c.print(output, color='red')
 
-        # process the output
-        if self.save_history:
-            self.history_module.add_history({**input,
-                'output': output,
-                'latency': c.time() - input['timestamp'],
-                'datetime': c.time2datetime(input['timestamp']),
-            })
 
         return output
+    
+
+
+
+
+            

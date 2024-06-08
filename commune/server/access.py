@@ -9,8 +9,8 @@ class Access(c.Module):
 
     def __init__(self, 
                 module : Union[c.Module, str] = None, # the module or any python object
-                network: str =  'subspace:main', # mainnet
-                netuid: int = 0, # subnet id
+                network: str =  'subspace', # mainnet
+                netuid: int = 'all', # subnet id
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100.0,  # 1 call per every N tokens staked per timescale
                 max_rate: int =  1000.0, # 1 call per every N tokens staked per timescale
@@ -25,31 +25,25 @@ class Access(c.Module):
         
         self.set_config(locals())
         self.user_module = c.module("user")()
-        self.address2key = c.address2key()
-        self.set_module(module)
         self.state_path = state_path
         if refresh:
             self.rm_state()
-
         self.last_time_synced = c.time()
         self.state = {'sync_time': 0, 
                       'stake_from': {}, 
                       'role2rate': role2rate, 
                       'fn_info': {}}
+        
+        self.set_module(module)
 
         c.thread(self.run_loop)
 
-        
-    def set_module(self, module: c.Module):
-        module = module or c.module('module')()
+    def set_module(self, module):
         if isinstance(module, str):
             module = c.module(module)()
         self.module = module
-        c.print(f'🚀 Access module set to {module} 🚀\033', color='yellow')
-        self.whitelist =  list(set(self.module.whitelist + c.whitelist))
-        self.blacklist =  list(set(self.module.blacklist + c.blacklist))
+        return module
 
-        return {'success': True, 'msg': f'set module to {module}'}
     
     def run_loop(self):
         while True:
@@ -57,33 +51,34 @@ class Access(c.Module):
                 r = self.sync_network()
             except Exception as e:
                 r = c.detailed_error(e)
+            c.print(r)
             c.sleep(self.config.sync_interval)
+
 
     def sync_network(self, update=False, max_age=None):
         state = self.get(self.state_path, {}, max_age=self.config.sync_interval)
         time_since_sync = c.time() - state.get('sync_time', 0)
         self.key2address = c.key2address()
         self.address2key = c.address2key()
-        if time_since_sync > self.config.sync_interval:
-            if 'subspace:' in self.config.network:
-                self.config.network = self.config.network.replace('subspace:', '')
-            self.subspace = c.module('subspace')(network=self.config.network)
-            max_age = max_age or self.config.max_age
-            state['stakes'] = self.subspace.stakes(fmt='j', netuid='all', update=False, max_age=max_age)
-            self.state = state
-            self.put(self.state_path, self.state)
-            c.print(f'🔄 Synced {self.state_path} 🔄\033', color='yellow')
-
-        response = {'success': True, 
-                    'msg': f'synced {self.state_path}', 
+        response = {'msg': f'synced {self.state_path}', 
                     'until_sync': int(self.config.sync_interval - time_since_sync),
                     'time_since_sync': int(time_since_sync)}
+        
+        if time_since_sync < self.config.sync_interval:
+            response['msg'] = 'synced too earlly'
+            return response
+        
+        self.subspace = c.module('subspace')(network=self.config.network)
+        max_age = max_age or self.config.max_age
+        state['stakes'] = self.subspace.stakes(fmt='j', netuid=self.config.netuid, update=update, max_age=max_age)
+        self.state = state
+        self.put(self.state_path, self.state)
+        c.print(f'🔄 Synced {self.state_path} at {c.datetime()} 🔄\033', color='yellow')
+
+
         return response
 
-    def verify(self, 
-               address='5FNBuR2yVf4A1v5nt3w5oi4ScorraGRjiSVzkXBVEsPHaGq1', 
-               fn: str = 'info' ,
-              input:dict = None) -> dict:
+    def forward(self, fn: str = 'info' , input:dict = None, address=None) -> dict:
         """
         input : dict 
             fn : str
@@ -91,18 +86,18 @@ class Access(c.Module):
 
         returns : dict
         """
-        if input is not None:
-            address = input.get('address', address)
-            fn = input.get('fn', fn)
+        input = input or {}
+        address = input.get('address', address)
+        assert address, f'address not in input or as an argument'
+        fn = input.get('fn', fn)
 
         # ONLY THE ADMIN CAN CALL ANY FUNCTION, THIS IS A SECURITY FEATURE
         # THE ADMIN KEYS ARE STORED IN THE CONFIG
         if c.is_admin(address):
             return {'success': True, 'msg': f'is verified admin'}
-
         
-        assert fn in self.whitelist , f"Function {fn} not in whitelist={self.whitelist}"
-        assert fn not in self.blacklist, f"Function {fn} is blacklisted={self.blacklist}" 
+        assert fn in self.module.whitelist , f"Function {fn} not in whitelist={self.module.whitelist}"
+        assert fn not in self.module.blacklist, f"Function {fn} is blacklisted={self.module.blacklist}" 
         
         if address in self.address2key:
             return {'success': True, 'msg': f'address {address} is a local key'}
@@ -142,7 +137,6 @@ class Access(c.Module):
         
         rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
 
-
         # STEP 3: CHECK THE MAX RATE
         max_rate = fn2info.get('max_rate', self.config.max_rate)
         rate_limit = min(rate_limit, max_rate) # cap the rate limit at the max rate
@@ -181,11 +175,7 @@ class Access(c.Module):
         self.state['user_info'][address] = user_info
         # check the rate limit
         return user_info
-
-    @classmethod
-    def get_access_state(cls, module):
-        access_state = cls.get(module)
-        return access_state
+    verify = forward
 
     @classmethod
     def test_whitelist(cls, key='vali::fam', base_rate=2, fn='info'):
@@ -194,7 +184,7 @@ class Access(c.Module):
 
         for i in range(base_rate*3):    
             t1 = c.time()
-            result = module.verify(**{'address': key.ss58_address, 'fn': 'info'})
+            result = module.forward(**{'address': key.ss58_address, 'fn': 'info'})
             t2 = c.time()
             c.print(f'🚨 {t2-t1} seconds... 🚨\033', color='yellow')
     

@@ -5,6 +5,7 @@ class KeyDashboard(c.Module):
 
     def __init__(self, state: dict=None):
 
+
         self.keys = c.keys()
         self.key2index = {k:i for i,k in enumerate(self.keys)}
   
@@ -45,16 +46,21 @@ class KeyDashboard(c.Module):
                 c.rm_keys(rm_keys)
 
     @classmethod
-    def dashboard(cls, *args, **kwargs):
+    def app(cls, *args, **kwargs):
         self = cls(*args, **kwargs)
 
         for k in ['select', 'create', 'rename', 'remove']:
             fn_name = k + '_key'
             with st.expander(fn_name.capitalize().replace('_',' ')):
                 getattr(self, fn_name)()
-
         return self.key
 
 
-KeyDashboard.run(__name__)
+
+    def ticket(self, *args, **kwargs):
+        data = st.text_input('Data', 'None')
+        return self.key.ticket(data)
+
+
+b = KeyDashboard.run(__name__)
 
