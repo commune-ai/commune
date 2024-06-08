@@ -2273,6 +2273,9 @@ class c:
     def server2info(cls, *args, **kwargs) -> List[str]:
         return c.module("namespace").server2info(*args, **kwargs)
     
+
+
+    
     @classmethod
     def has_server(cls, *args, **kwargs):
         return c.module("namespace").has_server(*args, **kwargs)
@@ -3608,6 +3611,11 @@ class c:
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     
     @classmethod
+    def has_test_module(cls, module=None):
+        module = module or cls.module_path()
+        return c.module_exists(cls.module_path() + '.test')
+    
+    @classmethod
     def test(cls,
               module=None,
               timeout=70, 
@@ -3617,7 +3625,7 @@ class c:
         module = module or cls.module_path()
         if module == 'module':
             return c.cmd('pytest commune', verbose=True)
-        if c.module_exists(module + '.test'):
+        if cls.has_test_module(module):
             c.print('FOUND TEST MODULE', color='yellow')
             module = module + '.test'
         cls = c.module(module)

@@ -109,12 +109,12 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        url = self.resolve_url(url, mode=mode)
-        if cache:
-            if url in self.url2substrate:
-                return self.url2substrate[url]
         while trials > 0:
             try:
+                url = self.resolve_url(url, mode=mode)
+                if cache:
+                    if url in self.url2substrate:
+                        substrate = self.url2substrate[url]
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
                             ss58_format=ss58_format, 
