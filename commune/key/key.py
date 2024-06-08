@@ -116,9 +116,10 @@ class Keypair(c.Module):
 
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
-        self.derive_path = None
+        self.derive_path = derive_path
         self.path = path 
         self.ss58_format = ss58_format
+    
 
 
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
@@ -275,10 +276,6 @@ class Keypair(c.Module):
         cls.add_key(**key_info)
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
-
-    @classmethod
-    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
-        return cls.load_mems(path, verbose=verbose, refresh=refresh, **kwargs)
 
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):

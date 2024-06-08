@@ -2,7 +2,6 @@
 import commune as c
 import os
 import pandas as pd
-
 from typing import *
 
 class Vali(c.Module):
@@ -447,7 +446,7 @@ class Vali(c.Module):
     
     eval_module = eval
         
-    def storage_path(self, network=None):
+    def storage_path(self, network:Optional[str]=None):
         # the set storage path in config.path is set, then the modules are saved in that directory
         path = self.config.get('path', None) or self.config.get('storage_path', None)
         if path == None:

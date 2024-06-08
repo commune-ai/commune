@@ -6,10 +6,10 @@ from pkg_resources import parse_requirements
 
 here = path.abspath(path.dirname(__file__))
 
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
+with open(f'{here}/README.md', encoding='utf-8') as f:
     long_description = f.read()
-    
-with open('commune/requirements.txt') as requirements_file:
+
+with open(f'{here}/commune/requirements.txt') as requirements_file:
     install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
 
 setup(
