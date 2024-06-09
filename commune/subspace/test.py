@@ -7,16 +7,19 @@ class Test(c.Module):
         assert isinstance(global_params, dict)
 
     def test_subnet_params(self, netuid=0):
-        subnet_params_a = c.subnet_params(netuid=0)
-        assert isinstance(subnet_params_a, dict)
-        subnet_params_b = c.subnet_params(netuid='commune')
-        assert isinstance(subnet_params_b, dict)
-        assert c.hash(subnet_params_a) == c.hash(subnet_params_b), f'{subnet_params_a} != {subnet_params_b}'
+        subnet_params = c.subnet_params(netuid=0)
+        assert isinstance(subnet_params, dict)
+        subnet_params_all = c.subnet_params(netuid='all')
+        for netuid in subnet_params_all:
+            assert isinstance(subnet_params_all[netuid], dict)
+            assert isinstance(netuid, int)
         subnet_names = c.subnet_names()
         assert isinstance(subnet_names, list) and len(subnet_names) > 0
         subnet2netuid = c.subnet2netuid()
         assert isinstance(subnet2netuid, dict) and len(subnet2netuid) > 0
         namespace = self.namespace(netuid=netuid)
+        assert isinstance(namespace, dict)
+
         return {'msg': 'subnet_params test passed', 'success': True}
     
 

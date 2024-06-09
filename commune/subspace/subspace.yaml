@@ -26,7 +26,6 @@ global_features: [
         "MaxAllowedModules",
         "MaxAllowedSubnets",
         "MaxRegistrationsPerBlock",
-        "MinBurn",
         "MinWeightStake",
         "UnitEmission",
     ]
@@ -41,8 +40,6 @@ subnet_features : [
                            'FounderShare',
                             'IncentiveRatio',
                             'TrustRatio',
-                            'VoteModeSubnet',
-                            'MaxWeightAge',
                             'SubnetNames'
                             ]
     

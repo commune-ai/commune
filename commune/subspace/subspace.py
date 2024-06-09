@@ -319,16 +319,17 @@ class Subspace(c.Module):
               module:str='SubspaceModule',
               block=None,  
               netuid = None,
-              network: str = 'main', 
               save= True,
               max_age=1000,
               trials = 4,
               mode = 'ws',
+              feature = None,
             update=False):
         
         """
         query a subspace storage function with params and block.
         """
+        name = feature or name # feature is an alias for name
 
         path = f'query/{self.config.network}/{module}.{name}'
     
@@ -362,8 +363,6 @@ class Subspace(c.Module):
                 if trials == 0:
                     raise e
         
-
-
         # if the value is a tuple then we want to convert it to a list
         if save:
             self.put(path, value)
@@ -982,6 +981,7 @@ class Subspace(c.Module):
                     netuid=0,
                     update = False,
                     max_age = 1000,
+                    timeout=40,
                     fmt:str='j', 
                     features  = None,
                     value_features = [],
@@ -989,23 +989,76 @@ class Subspace(c.Module):
                     ) -> list:  
         
         features = features or self.config.subnet_features
-
         netuid = self.resolve_netuid(netuid)
         path = f'query/{self.network}/SubspaceModule.SubnetParams.{netuid}'          
         subnet_params = self.get(path, None, max_age=max_age, update=update)
         names = [self.feature2name(f) for f in features]
+        future2name = {}
         name2feature = dict(zip(names, features))
+        for name, feature in name2feature.items():
+            if netuid == 'all':
+                query_kwargs = dict(name=feature, block=None, max_age=max_age, update=update)
+                fn = c.query_map
+            else:
+                query_kwargs = dict(name=feature, 
+                                    netuid=netuid,
+                                     block=None, 
+                                     max_age=max_age, 
+                                     update=update)
+                fn = c.query
+            f = c.submit(fn, kwargs=query_kwargs, timeout=timeout)
+            future2name[f] = name
+        
+        subnet_params = {}
+
+        for f in c.as_completed(future2name, timeout=timeout):
+            result = f.result()
+            c.print(result)
+            subnet_params[future2name.pop(f)] = result
+        for k in value_features:
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+
         if netuid == 'all':
-            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
-            futures = [c.submit(c.query_map, kwargs=dict(name=f, netuid=netuid)) for f in name2feature.values()]
-            results = c.wait(futures)
-        if subnet_params == None:
-            subnet_params = {}
-            multi_query = [("SubspaceModule", f, [netuid]) for f in name2feature.values()]
-            results = self.query_multi(multi_query)
-            for idx, (k, v) in enumerate(results):
-                subnet_params[names[idx]] = v.value
-            self.put(path, subnet_params)
+            subnet_params_keys = list(subnet_params.keys())
+            for k in subnet_params_keys:
+                netuid2value = subnet_params.pop(k)
+                for netuid, value in netuid2value.items():
+                    if netuid not in subnet_params:
+                        subnet_params[netuid] = {}
+                    subnet_params[netuid][k] = value
+        return subnet_params
+
+
+
+
+    
+    def global_params(self, 
+                    update = False,
+                    max_age = 1000,
+                    timeout=30,
+                    fmt:str='j', 
+                    features  = None,
+                    value_features = [],
+                    path = f'global_params',
+                    **kwargs
+                    ) -> list:  
+        
+        features = features or self.config.global_features
+        subnet_params = self.get(path, None, max_age=max_age, update=update)
+        names = [self.feature2name(f) for f in features]
+        future2name = {}
+        name2feature = dict(zip(names, features))
+        for name, feature in name2feature.items():
+            c.print(f'Getting {name} for {feature}')
+            query_kwargs = dict(name=feature, params=[], block=None, max_age=max_age, update=update)
+            f = c.submit(self.query, kwargs=query_kwargs, timeout=timeout)
+            future2name[f] = name
+        
+        subnet_params = {}
+
+        for f in c.as_completed(future2name):
+            result = f.result()
+            subnet_params[future2name.pop(f)] = result
         for k in value_features:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
@@ -1067,34 +1120,6 @@ class Subspace(c.Module):
         return age
     
     
-
-
-    def global_params(self, 
-                    update = False,
-                    max_age = 100000,
-                    fmt:str='j', 
-                    value_features = [ 'min_burn', 'unit_emission', 'min_weight_stake'],
-                    features  = None
-                        
-                    ) -> list:  
-        
-        features = features or self.config.global_features
-
-        path = f'query/{self.network}/SubspaceModule.GlobalParams'          
-        subnet_params = self.get(path, None, max_age=max_age, update=update)
-        names = [self.feature2name(f) for f in features]
-        name2feature = dict(zip(names, features))
-        if subnet_params == None:
-            subnet_params = {}
-            multi_query = [("SubspaceModule", f, []) for f in name2feature.values()]
-            results = self.query_multi(multi_query)
-            for idx, (k, v) in enumerate(results):
-                subnet_params[names[idx]] = v.value
-            self.put(path, subnet_params)
-        for k in value_features:
-            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
-        return subnet_params
-
 
     def balance(self,
                  key: str = None ,
@@ -1218,7 +1243,7 @@ class Subspace(c.Module):
 
     subnet_namespace = subnet2netuid
 
-    def resolve_netuid(self, netuid: int = None,  update=False) -> int:
+    def resolve_netuid(self, netuid: int = None) -> int:
         '''
         Resolves a netuid to a subnet name.
         '''
@@ -3517,6 +3542,7 @@ class Subspace(c.Module):
         return getattr(cls(network=network), feature)(netuid=netuid, update=update, max_age=max_age, **kwargs)
         
     
+
 
 
 Subspace.run(__name__)
