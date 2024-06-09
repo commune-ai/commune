@@ -601,4 +601,29 @@ class OsModule(c.Module):
             c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
         return {'success': True, 'msg': f'killed port {port}'}
 
-    
+
+    @classmethod 
+    def chmod_scripts(cls):
+        c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
+
+    def install_docker_gpus(self):
+        self.chmod_scripts()
+        c.cmd(f'{c.libpath}/scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+
+    def install_docker(self):
+        self.chmod_scripts()
+        c.cmd(f'{c.libpath}/scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
+
+    @classmethod
+    def install_rust(cls, sudo=True) :
+        cls.chmod_scripts()
+        c.cmd(f'{c.libpath}/scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+
+    @classmethod
+    def install_npm(cls, sudo=False) :
+        c.cmd('apt install npm', sudo=sudo)
+
+    @classmethod
+    def install_pm2(cls, sudo=True) :
+        c.cmd('npm install pm2 -g', sudo=sudo)
+        

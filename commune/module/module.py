@@ -19,6 +19,8 @@ nest_asyncio.apply()
 
 # AGI BEGINS 
 class c:
+
+    
     whitelist = ['info',
                 'schema',
                 'server_name',
@@ -628,73 +630,7 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
-
-    def seconds_per_epoch(self, *args, **kwargs):
-        return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
-    # KEY LAND
-    @classmethod
-    def add_key(cls, *args, **kwargs):
-        return c.module('key').add_key(*args, **kwargs)
-    
-    @classmethod
-    def from_password(cls, password:str, **kwargs):
-        return c.module('key').create_from_uri(password, **kwargs)
-    
-    pwd2key = password2key = from_password
-    @classmethod
-    def getmem(self, *args, **kwargs):
-        return c.module('key').getmem(*args, **kwargs)
-    mem = getmem
-
-    # KEY LAND
-    @classmethod
-    def mv_key(cls, *args, **kwargs):
-        return c.module('key').mv_key(*args, **kwargs)
-    
-    @classmethod
-    def mems(cls, *args, **kwargs):
-        return c.module('key').mems(*args, **kwargs)
-
-    # KEY LAND
-    @classmethod
-    def switch_key(cls, *args, **kwargs):
-        return c.module('key').switch_key(*args, **kwargs)
-    
-    @classmethod
-    def module_info(cls, *args, **kwargs):
-        return c.module('subspace')().module_info(*args, **kwargs)
-    
-    minfo = module_info
-
-    @classmethod
-    def pwd2key(cls, *args, **kwargs):
-        return c.module('key').pwd2key(*args, **kwargs)
-    str2key = password2key = pwd2key        
-    # KEY LAND
-    @classmethod
-    def rename_key(cls, *args, **kwargs):
-        return c.module('key').rename_key(*args, **kwargs)
-    mv_key = rename_key
-    @classmethod
-    def add_keys(cls, *args, **kwargs):
-        return c.module('key').add_keys(*args, **kwargs)
-    @classmethod
-    def key_exists(cls, *args, **kwargs):
-        return c.module('key').key_exists(*args, **kwargs)
-    @classmethod
-    def ls_keys(cls, *args, **kwargs):
-        return c.module('key').ls_keys(*args, **kwargs)
-    @classmethod
-    def rm_key(cls, *args, **kwargs):
-        return c.module('key').rm_key(*args, **kwargs)
-    @classmethod
-    def key_encrypted(cls, *args, **kwargs):
-        return c.module('key').key_encrypted(*args, **kwargs)
-
-    @classmethod
-    def encrypt_key(cls, *args, **kwargs):
-        return c.module('key').encrypt_key(*args, **kwargs)
-        
+  
 
     @classmethod
     def add_args( cls, config: dict , prefix: str = None , parser: argparse.ArgumentParser = None ):
@@ -805,8 +741,6 @@ class c:
     
     imp = get_object = importobj = import_object
 
-
-
     @classmethod
     def module_exists(cls, module:str, **kwargs) -> bool:
         '''
@@ -815,7 +749,6 @@ class c:
         return module in c.modules(**kwargs)
 
 
-    
     @classmethod
     def modules(cls, search=None, mode='local', tree='commune', **kwargs)-> List[str]:
         if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
@@ -1211,22 +1144,7 @@ class c:
         new_n = len(servers)
         c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
         return results_list
-    @classmethod
-    def path2simple(cls, *args, **kwargs ) -> str:
-        return c.module('tree').path2simple(*args, **kwargs)  
-    @classmethod
-    def path2objectpath(cls, path:str = None, tree=None) -> str:
-        return c.module('tree').path2objectpath(path=path, tree=tree)
-    
-    @classmethod
-    def tree_paths(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').tree_paths(*args, **kwargs)  
-    
-    
-    @classmethod
-    def tree_names(cls):
-        return c.module('tree').tree_names()
-    
+
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
 
@@ -1378,42 +1296,6 @@ class c:
         
         return new_d
     
-
-
-    @classmethod
-    def tree(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').tree(*args,  **kwargs) 
-    
-    @classmethod
-    def local_tree(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').local_tree(*args,  **kwargs) 
-    
-    @classmethod
-    def build_tree(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').local_tree(*args,  **kwargs) 
-
-
-    @classmethod
-    def tree2path(cls, *args, **kwargs) -> List[str]:
-        return c.module('tree').tree2path( *args, **kwargs)
-
-    
-    @classmethod
-    def trees(cls):
-        return c.m('tree').trees()
-    
-    @classmethod
-    def add_tree(cls, *args, **kwargs):
-        return c.m('tree').add_tree(*args, **kwargs)
-
-    @classmethod
-    def add_tree(cls, *args, **kwargs):
-        return c.m('tree').add_tree(*args, **kwargs)
-    
-    @classmethod
-    def rm_tree(cls, *args, **kwargs):
-        return c.m('tree').rm_tree(*args, **kwargs)
-
     def repo2module(self, repo:str, name=None, template_module='demo', **kwargs):
         if not repo_path.startswith('/') and not repo_path.startswith('.') and not repo_path.startswith('~'):
             repo_path = os.path.abspath('~/' + repo_path)
@@ -1503,7 +1385,6 @@ class c:
         return modules
 
 
-    available_modules  = module_tree = tree
     @classmethod
     def list_modules(cls, search=None):
         modules = list(cls.module_tree(search).keys())
@@ -2347,27 +2228,7 @@ class c:
     @classmethod
     def build_namespace(cls, network:str='local',**kwargs):
         return c.module("namespace").update_namespace(network=network, **kwargs)
-    
-    @classmethod
-    def update_subnet(cls, *args, **kwargs):
-        return c.module("subspace")().update_subnet(*args, **kwargs)
-    
-    @classmethod
-    def subnet_params(cls, *args, **kwargs):
-        return c.module("subspace")().subnet_params(*args, **kwargs)
 
-    @classmethod
-    def my_subnets(cls, *args, **kwargs):
-        return c.module("subspace")().my_subnets(*args, **kwargs)
-    
-    @classmethod
-    def global_params(cls, *args, **kwargs):
-        return c.module("subspace")().global_params(*args, **kwargs)
-    
-    @classmethod
-    def subnet_names(cls, *args, **kwargs):
-        return c.module("subspace")().subnet_names(*args, **kwargs)
-    
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
         namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
@@ -2885,18 +2746,6 @@ class c:
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
     
-    @classmethod
-    def register(cls,  *args, **kwargs ):
-        return  c.module('subspace')().register(*args, **kwargs)
-
-    @classmethod
-    def key_stats(cls, *args, **kwargs):
-        return c.module('subspace')().key_stats(*args, **kwargs)
-
-    @classmethod
-    def key2stats(cls, *args, **kwargs):
-        return c.module('subspace')().key_stats(*args, **kwargs)
-
     @staticmethod
     def detailed_error(e) -> dict:
         import traceback
@@ -3087,15 +2936,6 @@ class c:
             assert mode in default_modes, f'{mode} not in {default_modes}'
             methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
             
-    @classmethod
-    def transfer_multiple(cls, *args, **kwargs):
-        return c.module('subspace')().transfer_multiple(*args, **kwargs)   
-
-            
-    @classmethod
-    def stake_transfer(cls, *args, **kwargs):
-        return c.module('subspace')().stake_transfer(*args, **kwargs)   
-
 
     @classmethod
     def transfer_fn_code(cls, module1= 'module',
@@ -3476,11 +3316,7 @@ class c:
     @classmethod
     def rm_model_shortcut(cls, *args, **kwargs):
         return  c.module('hf').rm_model_shortcut(*args, **kwargs)
-    
-    @classmethod
-    def add_remote(self, *args, **kwargs):
-        return c.module('namespace').add_remote(*args, **kwargs)
-    
+
     @classmethod
     def model_options(cls):
         return list(c.model_shortcuts().keys())
@@ -4144,13 +3980,6 @@ class c:
     @classmethod
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
-    @classmethod
-    def networks(cls, *args, **kwargs) -> List[str]:
-        return c.module('namespace').networks( *args, **kwargs)
-    @classmethod
-    def network2namespace(self, *args, **kwargs) -> str:
-        return c.module("namespace").network2namespace(*args, **kwargs)
-    all = network2namespace
     
     def remove_user(self, key: str) -> None:
         if not hasattr(self, 'users'):
@@ -4304,10 +4133,6 @@ class c:
         import copy
         return copy.deepcopy(data)
 
-    @classmethod
-    def mv_key(cls, key:str, new_key:str):
-        return c.module('key').mv_key(key, new_key)
-    
     @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null' or x == 'None':
@@ -4970,9 +4795,6 @@ class c:
         return concurrent.futures.as_completed(futures, timeout=timeout)
     @classmethod
     def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
-        import concurrent.futures
-
-
         is_singleton = bool(not isinstance(futures, list))
 
         futures = [futures] if is_singleton else futures
@@ -5020,8 +4842,6 @@ class c:
                     c.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
                 return results
 
-                
-            
         return get_results(futures)
     
     @staticmethod
@@ -5030,7 +4850,6 @@ class c:
 
     @staticmethod
     def as_completed( futures, timeout=10, **kwargs):
-        import concurrent.futures
         return concurrent.futures.as_completed(futures, timeout=timeout, **kwargs)
 
     @classmethod
@@ -5215,13 +5034,6 @@ class c:
     def tensor(cls, *args, **kwargs):
         return c.import_object('torch.tensor')(*args, **kwargs)
 
-    
-    @staticmethod
-    def ss58_encode(*args, **kwargs):
-        return c.module('key').ss58_encode(*args, **kwargs)
-    @staticmethod
-    def ss58_decode(*args, **kwargs):
-        return c.module('key').ss58_decode(*args, **kwargs)
     @classmethod
     def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
         fns = cls.fns(search=search)
@@ -5888,99 +5700,6 @@ class c:
         else:
             raise ValueError(f'unknown mode {mode}')
         return 
-    
-    ## SUBSPACE FNS
-    @classmethod
-    def is_registered(cls, *args, **kwargs):
-        return c.module('subspace')().is_registered(*args, **kwargs)
-    
-    @classmethod
-    def transfer(cls, *args, **kwargs):
-        return c.module('subspace')().transfer(*args, **kwargs)
-
-    @classmethod
-    def is_repo(cls, path='.'):
-        return c.module('repo')().is_repo(path)
-    
-    @classmethod
-    def staked(cls, *args, **kwargs):
-        return c.module('subspace')().staked(*args, **kwargs)
-
-    @classmethod
-    def stake_transfer(cls, *args, **kwargs):
-        return c.module('subspace')().stake_transfer(*args, **kwargs)
-
-    @classmethod
-    def add_profit_shares(cls, *args, **kwargs):
-        return c.module('subspace')().add_profit_shares(*args, **kwargs)
-
-    @classmethod
-    def profit_shares(cls, *args, **kwargs):
-        return c.module('subspace')().profit_shares(*args, **kwargs)
-
-
-    send = transfer
-
-    @classmethod
-    def block(self, *args, **kwargs):
-        return c.module('subspace')().block
-
-    @classmethod
-    def total_supply(self, *args, **kwargs):
-        return c.module('subspace')().total_supply(*args, **kwargs)
-    
-    
-
-    @classmethod
-    def update_module(cls, *args, **kwargs):
-        return c.module('subspace')().update_module(*args, **kwargs)
-
-    @classmethod
-    def update_modules(cls, *args, **kwargs):
-        return c.module('subspace')().update_modules(*args, **kwargs)
-    
-    @classmethod
-    def set_weights(cls, *args, **kwargs):
-        return c.module('subspace')().vote(*args, **kwargs)
-    vote = set_weights
-    @classmethod
-    def set_weights(cls, *args, **kwargs):
-        return c.module('subspace')().vote(*args, **kwargs)
-
-    @classmethod
-    def vote_loop(cls, *args, **kwargs):
-        return c.module('vali.parity').vote_loop(*args, **kwargs)
-    
-    voteloop = vote_loop 
-
-    
-
-    @classmethod
-    def self_vote(cls, *args, **kwargs):
-        return c.module('subspace')().self_vote(*args, **kwargs)
-    @classmethod
-    def self_vote_pool(cls, *args, **kwargs):
-        return c.module('subspace')().self_vote_pool(*args, **kwargs)
-    
-    @classmethod
-    def stake(cls, *args, **kwargs):
-        return c.module('subspace')().stake(*args, **kwargs)
-    
-    @classmethod
-    def my_stake_from(cls, *args, **kwargs):
-        return c.module('subspace')().my_stake_from(*args, **kwargs)
-    
-    @classmethod
-    def my_stake_to(cls, *args, **kwargs):
-        return c.module('subspace')().my_stake_to(*args, **kwargs)
-    
-
-    @classmethod
-    def stake_many(cls, *args, **kwargs):
-        return c.module('subspace')().stake_many(*args, **kwargs)
-    @classmethod
-    def transfer_many(cls, *args, **kwargs):
-        return c.module('subspace')().transfer_many(*args, **kwargs)
 
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
@@ -6045,218 +5764,9 @@ class c:
     wallets = my_keys
 
     @classmethod
-    def balance(cls, *args, **kwargs):
-        return c.module('subspace')().balance(*args, **kwargs)
-    @classmethod
-    def balances(cls, *args, **kwargs):
-        return c.module('subspace')().balance(*args, **kwargs)
-
-
-    @classmethod
-    def get_balance(cls, *args, **kwargs):
-        return c.module('subspace')().get_balance(*args, **kwargs)
-    @classmethod
-    def get_balances(cls, *args, **kwargs):
-        return c.module('subspace')().get_balances(*args, **kwargs)
-
-    @classmethod
-    def key2balances(cls, *args, **kwargs):
-        return c.module('subspace')().key2balances(*args, **kwargs)
-
-    @classmethod
-    def my_keys(cls, *args, **kwargs):
-        return c.module('subspace')().my_keys(*args, **kwargs)
-    
-    @classmethod
-    def key_info(cls, *args, **kwargs):
-        return c.module('key').key_info(*args, **kwargs)
-
-
-
-    @classmethod
-    def key2mem(cls, *args, **kwargs):
-        return c.module('key').key2mem(*args, **kwargs)
-    @classmethod
-    def key_info_map(cls, *args, **kwargs):
-        return c.module('key').key_info_map(*args, **kwargs)
-    
-
-
-    @staticmethod
-    def valid_ss58_address(address:str):
-        return c.module('key').valid_ss58_address(str(address))
-    is_valid_ss58_address = valid_ss58_address
-
-    @classmethod
-    def node_keys(cls, *args, **kwargs):
-        return c.module('subspace').node_keys(*args, **kwargs)
-
-    @classmethod
-    def add_node(cls, *args, **kwargs):
-        return c.module('subspace').add_node(*args, **kwargs)
-
-    @classmethod
-    def add_node_key(cls, *args, **kwargs):
-        return c.module('subspace').add_node_key(*args, **kwargs)
-    
-
-    @classmethod
-    def snap(cls, *args, **kwargs):
-        return c.module('subspace')().snap(*args, **kwargs)
-
-    @classmethod
-    def save(cls, *args, **kwargs):
-        return c.module('subspace')().save(*args, **kwargs)
-    
-    def key2balance(self,  *args, **kwargs):
-        return c.module('subspace')().key2balance( *args, **kwargs)
-    
-    def key2value(self,  *args, **kwargs):
-        return c.module('subspace')().key2value( *args, **kwargs)
-
-    def key2stake(self,  *args, **kwargs):
-        return c.module('subspace')().key2stake( *args, **kwargs)
-
-    def live_keys(self,  *args, **kwargs):
-        return c.module('subspace')().live_keys( *args, **kwargs)
-    def dead_keys(self,  *args, **kwargs):
-        return c.module('subspace')().dead_keys( *args, **kwargs)
-    @classmethod
-    def key2balance(cls, *args, **kwargs):
-        return c.module('subspace')().key2balance(*args, **kwargs)
-    @classmethod
     def nodes(cls, *args, **kwargs):
         return c.module('subspace')().nodes(*args, **kwargs)
-    @classmethod
-    def kill_nodes(cls, *args, **kwargs):
-        return c.module('subspace')().kill_nodes(*args, **kwargs)
     
-
-    @classmethod
-    def cj(cls, *args, **kwargs):
-        return c.module('subspace')().cj(*args, **kwargs)
-    j = cj
-    
-
-   
-    @classmethod
-    def n(self, *args, **kwargs):
-        return c.module('subspace')().n(*args, **kwargs)
-
-    @classmethod
-    def query_map(self, *args, **kwargs):
-        return c.module('subspace')().query_map(*args, **kwargs)
-    
-    @classmethod
-    def upgrade_proto(cls, verbose:bool = True):
-        c.cmd('pip install --upgrade protobuf', verbose=verbose)
-        c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
-
-    @classmethod
-    def upgrade(cls, lib):
-        c.cmd(f'pip install --upgrade {lib}', verbose=True)
-        
-    @classmethod
-    def fix_proto(cls):
-        cls.upgrade_proto()
-        cls.build_proto()
-
-    # SUBSPACE LAND
-    @classmethod
-    def register_servers(cls, *args, **kwargs):
-        return c.module('subspace')().register_servers(*args, **kwargs)
-    reg_servers = register_servers
-
-    @classmethod
-    def registered_servers(cls, *args, **kwargs):
-        return c.module('subspace')().registered_servers(*args, **kwargs)
-    reged_servers = registered_servers    
-        
-    @classmethod
-    def unregistered_servers(cls, *args, **kwargs):
-        return c.module('subspace')().unregistered_servers(*args, **kwargs)
-    unreged_servers = unregistered_servers
-        
-    @classmethod
-    def subnets(cls, *args, **kwargs):
-        return c.module('subspace')().subnets(*args, **kwargs)
-    
-    @classmethod
-    def subnet2netuid(cls, *args, **kwargs):
-        return c.module('subspace')().subnet2netuid(*args, **kwargs)
-    
-    @classmethod
-    def netuid2subnet(cls, *args, **kwargs):
-        return c.module('subspace')().netuid2subnet(*args, **kwargs)
-    
-
-    @classmethod
-    def subnet(cls, *args, **kwargs):
-        return c.module('subspace')().subnet(*args, **kwargs)
-
-    @classmethod
-    def netuids(cls, *args, **kwargs):
-        return c.module('subspace')().netuids(*args, **kwargs)
-    
-    def glob_hash(self, path=None, **kwargs):
-        
-        glob_dict = c.glob(path, **kwargs)
-        glob_hash = c.hash(glob_dict)
-        c.put('glob_hash', glob_hash)
-    
-    @classmethod
-    def my_subnets(cls, *args, **kwargs):
-        return c.module('subspace')().my_subnets(*args, **kwargs)
-
-    @classmethod
-    def networth(cls, *args, **kwargs):
-        return c.module('subspace')().networth(*args, **kwargs)
-    total_tokens = networth
-    @classmethod
-    def key2balance(cls, *args, **kwargs):
-        return c.module('subspace')().key2balance(*args, **kwargs)
-    
-    @classmethod
-    def key2tokens(cls, *args, **kwargs):
-        return c.module('subspace')().key2tokens(*args, **kwargs)
-    @classmethod
-    def key2stake(cls, *args, **kwargs):
-        return c.module('subspace')().key2stake(*args, **kwargs)
-        
-    @classmethod
-    def update_network(cls, *args, **kwargs):
-        return c.module('subspace')().update_network(*args, **kwargs)
-    
-    @classmethod
-    def update_global(cls, *args, **kwargs):
-        return c.module('subspace')().update_global(*args, **kwargs)
-    
-    @classmethod
-    def market_cap(cls, *args, **kwargs):
-        return c.module('subspace')().market_cap(*args, **kwargs)
-    mcap = market_cap
-    @classmethod
-    def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **kwargs)
-    @classmethod
-    def stats(cls, *args, **kwargs):
-        return c.module('subspace')().stats(*args, **kwargs)
-
-    @classmethod
-    def vstats(cls, *args, **kwargs):
-        return c.module('vali').all_stats(*args, **kwargs)
-    @classmethod
-    def valis(cls, network=None):
-        return c.servers('vali', network=network)
-    
-    @classmethod
-    def check_valis(cls, *args, **kwargs):
-        return c.module('subspace')().check_valis(*args, **kwargs)
-    
-    @classmethod
-    def check_servers(cls, *args, **kwargs):
-        return c.module('subspace')().check_servers(*args, **kwargs)
-
     @classmethod
     def scan(cls, 
                  search=None, 
@@ -6310,11 +5820,6 @@ class c:
         return c.module('model.openrouter')().talk(*args, **kwargs)
     
     ask = a = talk
-
-    @classmethod
-    def containers(cls):
-        return c.module('docker').containers()
-
     @staticmethod
     def chunk(sequence:list = [0,2,3,4,5,6,6,7],
             chunk_size:int=4,
@@ -6337,35 +5842,6 @@ class c:
     @classmethod
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
-    
-    @classmethod 
-    def chmod_scripts(cls):
-        c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
-
-    def install_docker_gpus(self):
-        self.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
-
-    def install_docker(self):
-        self.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
-
-    @classmethod
-    def install_rust(cls, sudo=True) :
-        cls.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
-
-    @classmethod
-    def install_npm(cls, sudo=False) :
-        c.cmd('apt install npm', sudo=sudo)
-
-    @classmethod
-    def install_pm2(cls, sudo=True) :
-        c.cmd('npm install pm2 -g', sudo=sudo)
-
-    @classmethod
-    def install_python(cls, sudo=True) :
-        c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
 
     def cancel(self, futures):
         for f in futures:
@@ -6802,11 +6278,6 @@ class c:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
     
-
-    @classmethod
-    def lag(cls,  *args, **kwargs):
-        return c.module('subspace').lag(*args, **kwargs)
-
     @classmethod
     def loops(cls, **kwargs):
         return c.pm2ls('loop', **kwargs)
@@ -6880,56 +6351,11 @@ class c:
     ########
    
     @classmethod
-    def document(cls, fn):
-        '''
-        ## Documentation
-        
-        ### `docu` method
-        
-        ```python
-        @classmethod
-        def docu(cls, fn):
-            return c.module('agent.coder')().document_fn(fn)
-        ```
-        
-        #### Description:
-        This class method is responsible for documenting a given function `fn`.
-        
-        #### Parameters:
-        - `fn`: A function object that needs to be documented.
-        
-        #### Returns:
-        - Returns the documentation of the provided function `fn` as generated by the `document_fn` method of the `agent.coder
-        '''
-        return c.module('coder')().document_fn(fn)
-
-    comment = document
-
-    def set_page_config(self,*args, **kwargs):
-        return c.module('streamlit').set_page_config(*args, **kwargs)
-  
-    @classmethod
     def eval(cls, module, vali=None,  **kwargs):
         vali = c.module('vali')() if vali == None else c.module(vali)
         return c.eval(module, **kwargs)
     
-    @classmethod
-    def run_epoch(self, *args, vali=None, **kwargs):
-        vali = c.module('vali')() if vali == None else c.module(vali)
-        return vali.run_epoch(*args, **kwargs)
 
-    @classmethod
-    def comment(self,fn:str='module/ls'):
-        return c.module('code')().comment(fn)
-
-    @classmethod
-    def host2ssh(cls, *args, **kwarg):
-        return c.module('remote').host2ssh(*args, **kwarg)
-
-    @classmethod
-    def imported_modules(self, module:str = None):
-        return c.module('code').imported_modules(module=module)
-    
     def server2fn(self, *args, **kwargs ):
         servers = c.servers(*args, **kwargs)
         futures = []
@@ -6947,9 +6373,172 @@ class c:
         port_range = c.port_range()
         x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
         return x
-    
-Module = c
 
+    @classmethod
+    def enable_routes(cls, verbose=True):
+        t0 = c.time()
+        for m, fns in c.module_routes.items():
+            from functools import partial
+            def fn_generator(*args, fn, module, **kwargs):
+                module = c.module(module)()
+                return getattr(module, fn)(*args, **kwargs)
+            for fn in fns:
+                fn_obj = partial(fn_generator, fn=fn, module=m )
+                fn_obj.__name__ = fn
+                setattr(cls, fn, fn_obj)
+                
+        t1 = c.time()
+    
+        if verbose:
+            c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
+
+    module_routes = {
+        'vali': [
+            'run_epoch',
+
+        ],
+        'streamlit': [
+            'set_page_config',
+        ],
+        'code': [
+            'imported_modules', 
+            'comment'
+        ], 
+        'remote': [
+            'host2ssh', 
+            
+        ],
+        'subspace': ['subnet_params', 
+                     'query', 
+                     'my_subnets', 
+                     'global_params', 
+                     'subnet_names' 
+                     'update_subnet', 
+                     'get_balances',
+                     'get_balance',
+                     'my_subnets',
+                     'balances',
+                     'balance',
+                     'global_params'
+                     'register', 
+                     'key_stats',
+                     'key2stats',
+                     'my_keys',
+                     'node_keys',
+                     'add_node',
+                     'add_node_key',
+                     'snap',
+                     'save',
+                     'key2balances',
+                     'key2balance'
+                     'key2value', 
+                     'key2stake',
+                     'live_keys',
+                     'seconds_per_epoch'
+                     'is_registered'
+                     'transfer_multiple',
+                     'stake_transfer',
+                     'subnet2netuid',
+                     'netuid2subnet'
+                     'subnets',
+                     'subnet',
+                     'netuids',
+                     'unregistered_servers',
+                     'query_map',
+                     'key2tokens',
+                     'key2stake',
+                     'update_network', 
+                     'update_global',
+                     'my_subnets', 
+                     'register_servers'
+                     'registered_servers',
+                     'n', 
+                     'stats',
+                     'vstats', 
+                     'valis',
+                     'check_valis',
+                     'check_servers',
+                     'kill_nodes',
+                     'lag',
+                     'transfer',
+                     'staked', 
+                     'add_profit_shares',
+                     'profit_shares', 
+                     'block',
+                     'total_supply',
+                     'update_module',
+                     'update_modules',
+                     'set_weights',
+                     'stake',
+                     'total_supply', 
+                     'my_stake_from',
+                     'my_stake_to',
+                     'stake_many',
+                     'transfer_many',
+                     'subnet_names'
+
+                     ],
+        'tree': [
+                 'tree', 
+                 'trees', 
+                 'local_tree', 
+                 'build_tree', 
+                 'tree2path', 
+                 'trees',
+                 'add_tree', 
+                 'rm_tree', 
+                 'tree2path',
+                 'path2simple', 
+                 'path2objectpath', 
+                 'tree_paths', 
+                 'tree_names'
+                 ], 
+        'namespace': [
+            'add_remote', 
+            'networks', 
+            'network2namespace'
+        ],
+        'key': [
+            'ss58_encode', 
+            'ss58_decode',
+            'key2mem', 
+            'key_info_map', 
+            'key_info',
+            'valid_ss58_address',
+            'add_key',
+            'from_password',
+            'str2key', 
+            'pwd2key',
+            'getmem',
+            'mem',
+            'mems',
+            'switch_key',
+            'module_info',
+            'rename_kefy', 
+            'mv_key',
+            'add_keys',
+            'key_exists',
+            'ls_keys',
+            'rm_key',
+            'key_encrypted',
+            'encrypt_key',
+            'staked',
+            'encrypt_key',   
+        ],
+        'repo': [
+            'is_repo',
+        ],
+
+        'docker': [
+            'containers',
+            ]
+
+    }   
+    
+    
+
+c.enable_routes()
+Module = c # Module is alias of c
 Module.run(__name__)
     
 
