@@ -125,16 +125,11 @@ class c:
     def key(self, key: 'Key'):
         self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
-    @classmethod
-    def call(cls, *args, **kwargs) -> None:
-        return c.module('client').call( *args, **kwargs)
+
     @classmethod
     async def async_call(cls, *args,**kwargs):
         return c.call(*args, **kwargs)
-    @classmethod
-    def call_search(cls,*args, **kwargs) -> None:
-        return c.m('client').call_search(*args, **kwargs)
-
+    
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
 
@@ -282,11 +277,9 @@ class c:
         '''
         import yaml
         path = cls.resolve_path(path)
-        try:
-            with open(path, 'r') as file:
-                data = yaml.safe_load(file)
-        except:
-            data = default
+        with open(path, 'r') as file:
+            data = yaml.load(file, Loader=yaml.FullLoader)
+
         return data
         
     get_yaml = load_yaml
@@ -685,17 +678,12 @@ class c:
     @classmethod
     def rcmd(cls, *args, **kwargs):
         return c.module('remote').cmd(*args, **kwargs)
-    @classmethod
-    def rpwd(cls, *args, **kwargs):
-        return c.module('remote')().pwd(*args, **kwargs)
-    pw = rpwd
+    
     @classmethod
     def cmd(cls, *args,**kwargs):
         return c.module('os').cmd( *args, **kwargs)
     run_command = shell = cmd 
-
- 
-
+    
     @classmethod
     def sys_path(cls, *args, **kwargs):
         return c.module('os').sys_path(*args, **kwargs)
@@ -1793,19 +1781,6 @@ class c:
         return cls.namespace_local().get(name, {})
 
     @classmethod
-    def connect(cls,
-                module:str, 
-                network : str = 'local',
-                mode = 'http',
-                virtual:bool = True, 
-                **kwargs):
-        
-        return c.module( f'client').connect(module=module, 
-                                       virtual=virtual, 
-                                       network=network,
-                                       **kwargs)
-
-    @classmethod
     async def async_connect(cls, *args, **kwargs):
         return c.connect(*args, **kwargs)
      
@@ -2758,9 +2733,6 @@ class c:
             args = c.parse_args()
         return args
 
-    @classmethod
-    def parse_args(cls, argv = None, **kwargs):
-        return c.module('cli').parse_args(argv=argv)
 
     @classmethod
     def run(cls, name:str = None) -> Any: 
@@ -6203,7 +6175,188 @@ class c:
         return x
 
     routes_enabled = False
-    
+
+
+    @classmethod
+    def module_routes(cls):
+
+        module_routes = { 
+        
+        'vali': [
+                    'run_epoch',
+                ],
+        'tree': [
+                    'tree', 
+                    'trees', 
+                    'local_tree', 
+                    'build_tree', 
+                    'tree2path', 
+                    'trees',
+                    'add_tree', 
+                    'rm_tree', 
+                    'tree2path',
+                    'path2simple', 
+                    'simple2path',
+                    'path2objectpath', 
+                    'tree_paths', 
+                    'tree_names'
+                    ],
+        'cli': [
+                    'parse_args',
+                ],
+        'streamlit': [
+                    'set_page_config',
+                ],
+        'docker': [
+                    'containers',
+                ],
+        'client': [
+                    'call', 
+                    'call_search', 
+                    'connect'
+                ],
+        'repo': [
+                    'is_repo',
+                ],
+        'key': [
+                    'ss58_encode', 
+                    'ss58_decode',
+                    'key2mem', 
+                    'key_info_map', 
+                    'key_info',
+                    'valid_ss58_address',
+                    'add_key',
+                    'from_password',
+                    'str2key', 
+                    'pwd2key',
+                    'getmem',
+                    'mem',
+                    'mems',
+                    'switch_key',
+                    'module_info',
+                    'rename_kefy', 
+                    'mv_key',
+                    'add_key',
+                    'add_keys',
+                    'key_exists',
+                    'ls_keys',
+                    'rm_key',
+                    'key_encrypted',
+                    'encrypt_key',
+                    'staked',
+                    'encrypt_key',   
+                    'get_keys', 
+                    'rm_keys',
+                    'key2address',
+                    'key_addresses',
+                    'is_key',
+                    'new_key',
+                    'save_keys',
+                    'load_key',
+                    'load_keys', 
+                    'get_signer' ],
+        'remote': [ 'host2ssh' ],
+
+        'subspace': [ 'subnet_params', 
+                            'query', 
+                            'my_subnets', 
+                            'global_params', 
+                            'subnet_names',
+                            'update_subnet', 
+                            'get_balances',
+                            'get_balance',
+                            'my_subnets',
+                            'balances',
+                            'balance',
+                            'global_params',
+                            'register', 
+                            'key_stats',
+                            'key2stats',
+                            'my_keys',
+                            'node_keys',
+                            'add_node',
+                            'add_node_key',
+                            'snap',
+                            'save',
+                            'key2balances',
+                            'key2balance',
+                            'key2value', 
+                            'key2stake',
+                            'live_keys',
+                            'seconds_per_epoch'
+                            'is_registered',
+                            'transfer_multiple',
+                            'stake_transfer',
+                            'subnet2netuid',
+                            'netuid2subnet',
+                            'subnets',
+                            'subnet',
+                            'netuids',
+                            'unregistered_servers',
+                            'query_map',
+                            'key2tokens',
+                            'key2stake',
+                            'update_network', 
+                            'update_global',
+                            'my_subnets', 
+                            'register_servers',
+                            'registered_servers',
+                            'n', 
+                            'stats',
+                            'vstats', 
+                            'valis',
+                            'check_valis',
+                            'check_servers',
+                            'kill_nodes',
+                            'lag',
+                            'transfer',
+                            'staked', 
+                            'add_profit_shares',
+                            'profit_shares', 
+                            'block',
+                            'total_supply',
+                            'update_module',
+                            'update_modules',
+                            'set_weights',
+                            'stake',
+                            'total_supply', 
+                            'my_stake_from',
+                            'my_stake_to',
+                            'stake_many',
+                            'transfer_many' ],
+        'namespace': [
+                    'add_remote', 
+                    'networks', 
+                    'network2namespace', 
+                    'register_server',
+                    'deregister_server',
+                    'server_exists', 
+                    'add_server',
+                    'has_server',
+                    'add_servers', 
+                    'rm_servers',
+                    'rm_server',
+                    'remote_servers',
+                    'namespace', 
+                    'rm_namespace',
+                    'empty_namespace',
+                    'add_namespace',
+                    'update_namespace',
+                    'build_namespace',
+                    'put_namespace',
+                    'get_namespace',
+                    'server2info', 
+                    'infos', 
+                    'get_address', 
+                    'servers',
+                    'name2address'
+                ]
+        }
+        return module_routes
+
+
+
+            
 
         
     @classmethod
@@ -6211,7 +6364,7 @@ class c:
         if cls.routes_enabled:
             return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
-        for m, fns in c.module_routes.items():
+        for m, fns in c.module_routes().items():
             from functools import partial
             def fn_generator(*args, fn, module, **kwargs):
                 module = c.module(module)()
@@ -6227,190 +6380,7 @@ class c:
             c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
 
-    module_routes =  {
-        'vali': [
-            'run_epoch',
 
-        ],
-        'streamlit': [
-            'set_page_config',
-        ],
-        'code': [
-            'imported_modules', 
-            'comment'
-        ], 
-        'remote': [
-            'host2ssh', 
-            
-        ],
-        'subspace': ['subnet_params', 
-                     'query', 
-                     'my_subnets', 
-                     'global_params', 
-                     'subnet_names',
-                     'update_subnet', 
-                     'get_balances',
-                     'get_balance',
-                     'my_subnets',
-                     'balances',
-                     'balance',
-                     'global_params'
-                     'register', 
-                     'key_stats',
-                     'key2stats',
-                     'my_keys',
-                     'node_keys',
-                     'add_node',
-                     'add_node_key',
-                     'snap',
-                     'save',
-                     'key2balances',
-                     'key2balance',
-                     'key2value', 
-                     'key2stake',
-                     'live_keys',
-                     'seconds_per_epoch'
-                     'is_registered',
-                     'transfer_multiple',
-                     'stake_transfer',
-                     'subnet2netuid',
-                     'netuid2subnet',
-                     'subnets',
-                     'subnet',
-                     'netuids',
-                     'unregistered_servers',
-                     'query_map',
-                     'key2tokens',
-                     'key2stake',
-                     'update_network', 
-                     'update_global',
-                     'my_subnets', 
-                     'register_servers',
-                     'registered_servers',
-                     'n', 
-                     'stats',
-                     'vstats', 
-                     'valis',
-                     'check_valis',
-                     'check_servers',
-                     'kill_nodes',
-                     'lag',
-                     'transfer',
-                     'staked', 
-                     'add_profit_shares',
-                     'profit_shares', 
-                     'block',
-                     'total_supply',
-                     'update_module',
-                     'update_modules',
-                     'set_weights',
-                     'stake',
-                     'total_supply', 
-                     'my_stake_from',
-                     'my_stake_to',
-                     'stake_many',
-                     'transfer_many',
-
-                     ],
-        'tree': [
-                 'tree', 
-                 'trees', 
-                 'local_tree', 
-                 'build_tree', 
-                 'tree2path', 
-                 'trees',
-                 'add_tree', 
-                 'rm_tree', 
-                 'tree2path',
-                 'path2simple', 
-                 'simple2path',
-                 'path2objectpath', 
-                 'tree_paths', 
-                 'tree_names'
-                 ], 
-        'namespace': [
-            'add_remote', 
-            'networks', 
-            'network2namespace', 
-            'register_server',
-            'deregister_server',
-            'server_exists', 
-            'add_server',
-            'has_server',
-            'add_servers', 
-            'rm_servers',
-            'rm_server',
-            'remote_servers',
-            'namespace', 
-            'rm_namespace',
-            'empty_namespace',
-            'add_namespace',
-            'update_namespace',
-            'build_namespace',
-            'put_namespace',
-            'get_namespace',
-            'server2info', 
-            'infos', 
-            'get_address', 
-            'servers',
-            'name2address'
-
-            
-
-
-
-        ],
-        'key': [
-            'ss58_encode', 
-            'ss58_decode',
-            'key2mem', 
-            'key_info_map', 
-            'key_info',
-            'valid_ss58_address',
-            'add_key',
-            'from_password',
-            'str2key', 
-            'pwd2key',
-            'getmem',
-            'mem',
-            'mems',
-            'switch_key',
-            'module_info',
-            'rename_kefy', 
-            'mv_key',
-            'add_key',
-            'add_keys',
-            'key_exists',
-            'ls_keys',
-            'rm_key',
-            'key_encrypted',
-            'encrypt_key',
-            'staked',
-            'encrypt_key',   
-            'get_keys', 
-            'rm_keys',
-            'key2address',
-            'key_addresses',
-            'is_key',
-            'new_key',
-            'save_keys',
-            'load_key',
-            'load_keys', 
-            'get_signer',
-            
-
-
-        ],
-        'repo': [
-            'is_repo',
-        ],
-
-        'docker': [
-            'containers',
-            ]
-
-    }   
-    
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

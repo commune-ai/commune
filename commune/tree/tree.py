@@ -4,15 +4,15 @@ import os
 from copy import deepcopy
 
 class Tree(c.Module):
-    _tree_cache = {}
-    
+    tree_cache = {} # cache for tree
+
     def __init__(self, **kwargs):
         self.set_config(kwargs=locals())
         # c.thread(self.run_loop)
     
 
     @classmethod
-    def simple2path(cls, path:str, tree = None, update=False,     ignore_prefixes = ['commune', 'modules', 'commune.modules'], **kwargs) -> bool:
+    def simple2path(cls, path:str, tree = None, **kwargs) -> bool:
         pwd = c.pwd()
         simple_path = path
         path = c.pwd() + '/' + path.replace('.', '/')
@@ -71,13 +71,13 @@ class Tree(c.Module):
         if not is_repo:
             path = c.libpath
         cache_path = path.split('/')[-1]
-        if cache_path in cls._tree_cache:
-            tree = cls._tree_cache[cache_path]
+        if cache_path in cls.tree_cache:
+            tree = cls.tree_cache[cache_path]
         else:
             tree =  c.get(cache_path, {}, max_age=max_age, update=update)
         if len(tree) == 0:
             tree = cls.build_tree(path)
-            cls._tree_cache[cache_path] = tree
+            cls.tree_cache[cache_path] = tree
             cls.put(cache_path, tree)
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
@@ -179,8 +179,7 @@ class Tree(c.Module):
     
 
     @classmethod
-    def path2simple(cls, path:str, 
-                    ignore_prefixes = ['commune', 'modules', 'commune.modules']) -> str:
+    def path2simple(cls,  path:str,   ignore_prefixes = ['commune', 'modules', 'router']) -> str:
 
         path = os.path.abspath(path)
         pwd = c.pwd()
@@ -196,18 +195,14 @@ class Tree(c.Module):
         simple_path = simple_path.replace('/', '.')
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
-        # compress nae
         chunks = simple_path.split('.')
         simple_chunks = []
         simple_path = ''
-
         # we want to remove redundant chunks
-        for i, chunk in enumerate(chunks):
-            if len(simple_chunks)>0:
-                if chunk in simple_chunks:
-                    continue
-            simple_chunks += [chunk]
-            simple_path = '.'.join(simple_chunks)
+        for chunk in chunks:
+            if chunk not in simple_chunks:
+                simple_chunks += [chunk]
+        simple_path = '.'.join(simple_chunks)
 
         # FOR DIRECTORY MODULES: remove suffixes (e.g. _module, module, etc. or )
         suffix =  simple_path.split('.')[-1]
@@ -217,13 +212,15 @@ class Tree(c.Module):
             new_simple_path = '.'.join(simple_path.split('.')[:-1])
             if all([s.lower() in new_simple_path for s in suffix_chunks]):
                 simple_path = '.'.join(simple_path.split('.')[:-1])
-        if suffix.endswith('_module'):
+        if suffix.endswith('_module') \
+            or suffix.endswith('module.py') \
+            or suffix == '__init__.py':
             simple_path = '.'.join(simple_path.split('.')[:-1])
         # remove prefixes from commune
-            
         for prefix in ignore_prefixes:
             if simple_path.startswith(prefix):
                 simple_path = simple_path.replace(prefix, '')
+
 
         # remove leading and trailing dots
         if simple_path.startswith('.'):
