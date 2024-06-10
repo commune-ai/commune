@@ -52,7 +52,7 @@ class Namespace(c.Module):
 
         return namespace
     
-    namespace = namespace
+    get_namespace = namespace
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:

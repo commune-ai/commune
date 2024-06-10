@@ -223,8 +223,6 @@ class Vali(c.Module):
                 if len(self.futures) >= batch_size:
                     result = self.generate_finished_result()
                     results.append(result)
-                    if c.is_error(result):
-                        c.print(result, verbose=False)
 
             self.cancel_futures()
         except Exception as e:
@@ -395,7 +393,6 @@ class Vali(c.Module):
             info = module.local_info
             self.last_sent = c.time()
             self.requests += 1
-            c.print(info, 'INFO')
             response = self.score_module(module, **kwargs)
             response = self.process_response(response=response, info=info)
             response = {k:response[k] for k in verbose_keys}
