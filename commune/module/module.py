@@ -7,6 +7,7 @@ from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
 from rich.console import Console
 import json
+
 from glob import glob
 import sys
 import argparse
@@ -1323,27 +1324,13 @@ class c:
         # build the tree
         c.build_tree(update=True)
 
-
-    @classmethod
-    def simple2path(cls, path:str, **kwargs) -> str:
-        return c.module('tree').simple2path(path, **kwargs)
-    
-
     @classmethod
     def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
-        
-        
         if path in path2objectpath:
             path =  path2objectpath[path]
         else:
             path =  c.module('tree').simple2objectpath(path, **kwargs)
-
-        
-        try:
-            return c.import_object(path)
-        except Exception as e:
-            c.print(path)
-            raise e
+        return c.import_object(path)
         
 
     
@@ -2119,12 +2106,7 @@ class c:
     
     # NAMESPACE::MODULE
     namespace_module = 'module.namespace'
-    @classmethod
-    def name2address(cls, name:str, network:str='local') -> str:
-        return c.module("namespace").name2address(name=name, network=network)
-    @classmethod
-    def servers(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").servers(*args, **kwargs)
+    
     @classmethod
     def server2key(self, *args, **kwargs):
         servers = c.servers()
@@ -2133,113 +2115,12 @@ class c:
         return server2key
 
     @classmethod
-    def rservers(cls, *args, **kwargs) -> List[str]:
-        return c.module("remote").servers(*args, **kwargs)
-
-    
-    @classmethod
-    def get_address(cls, module, **kwargs):
-        address = c.module("namespace").get_address(module, **kwargs)
-        return address
-    @classmethod
     def get_port(cls, module, **kwargs):
         address =  cls.get_address(module, **kwargs)
         if address == None:
             return None
         return int(address.split(':')[-1])
-    @classmethod
-    def infos(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").infos(*args, **kwargs)
-    @classmethod
-    def server2info(cls, *args, **kwargs) -> List[str]:
-        return c.module("namespace").server2info(*args, **kwargs)
     
-
-
-    
-    @classmethod
-    def has_server(cls, *args, **kwargs):
-        return c.module("namespace").has_server(*args, **kwargs)
-    @classmethod
-    def server_exists(cls, name:str, network:str = 'local',  prefix_match:bool=False, **kwargs) -> bool:
-
-        return c.module("namespace").server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
-    @classmethod
-    def register_server(cls, name: str, address:str, network='local')-> dict:
-        return c.module("namespace").register_server(name=name, address=address, network=network)
-
-    @classmethod
-    def deregister_server(cls, name: str, network:str = 'local')-> dict:
-        return c.module("namespace").deregister_server(name=name, network=network)
-    @classmethod
-    def add_server(cls, *args, **kwargs):
-        return c.module("namespace").add_server(*args, **kwargs)
-    @classmethod
-    def add_servers(cls, *args, **kwargs):
-        return c.module("namespace").add_servers(*args, **kwargs)
-
-    @classmethod
-    def readd_servers(cls, *args, **kwargs):
-        return c.module("namespace").readd_servers(*args, **kwargs)
-    @classmethod
-    def rm_server(cls, *args, **kwargs):
-        return c.module("namespace").rm_server(*args, **kwargs)
-
-    @classmethod
-    def remote_servers(cls, *args, **kwargs):
-        return c.module("namespace").remote_servers(*args, **kwargs)
-
-    @classmethod
-    def namespace(cls,
-                  search:str = None,
-                  network:str='local',
-                  update: bool = False,
-                   **kwargs):
-        namespace =  c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
-        return namespace
-    
-
-    get_namespace = namespace
-    @classmethod
-    def rm_namespace(cls, *args, **kwargs):
-        """
-        remove the namespace
-        """
-        return c.module("namespace").rm_namespace(*args, **kwargs)
-
-
-
-    @classmethod
-    def empty_namespace(cls, *args, **kwargs):
-        """
-        empty the namespace
-        """
-        return c.module("namespace").empty_namespace(*args, **kwargs)
-
-    @classmethod
-    def add_namespace(cls, *args, **kwargs):
-        return c.module("namespace").empty_namespace(*args, **kwargs)
-
-    @classmethod
-    def update_namespace(cls, network:str='local',**kwargs):
-        return c.module("namespace").update_namespace(network=network, **kwargs)
-    
-    
-    @classmethod
-    def build_namespace(cls, network:str='local',**kwargs):
-        return c.module("namespace").update_namespace(network=network, **kwargs)
-
-    @classmethod
-    def put_namespace(cls,network:str, namespace:dict, **kwargs):
-        namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
-        return namespace
-    
-    @classmethod
-    def rm_namespace(cls,network:str, **kwargs):
-        namespace = c.module("namespace").rm_namespace(network=network, **kwargs)
-        return namespace
-    
-
     def add_fn(self, fn, name=None):
         if name == None:
             name = fn.__name__
@@ -2882,12 +2763,11 @@ class c:
         return c.module('cli').parse_args(argv=argv)
 
     @classmethod
-    def run(cls, name:str = None,
-            version=1) -> Any: 
+    def run(cls, name:str = None) -> Any: 
         is_main =  name == '__main__' or name == None or name == cls.__name__
         if not is_main:
             return {'success':False, 'message':f'Not main module {name}'}
-        args = cls.argparse(version=version)
+        args = cls.argparse()
 
         if args.function == '__init__':
             return cls(*args.args, **args.kwargs)     
@@ -3649,30 +3529,6 @@ class c:
     
     server_restart = restart_server
     
-    # KEY LAND
-
-               
-    @classmethod
-    def get_keys(cls,*args, **kwargs ):
-        return c.module('key').get_keys(*args, **kwargs )
-    
-    @classmethod
-    def rm_keys(cls,*args, **kwargs ):
-        return c.module('key').rm_keys(*args, **kwargs )
-
-    @classmethod
-    def key2address(cls,*args, **kwargs ):
-        return c.module('key').key2address(*args, **kwargs )
-    
-    @classmethod
-    def key_addresses(cls,*args, **kwargs ):
-        return c.module('key').addresses(*args, **kwargs )
-    k2a = key2address
-
-    @classmethod
-    def is_key(self, key:str) -> bool:
-        return c.module('key').is_key(key)
-
     @classmethod
     def root_key(cls):
         return c.get_key()
@@ -3936,34 +3792,7 @@ class c:
         if key == None:
             key = cls.module_path()
         return key
-    def create_key(cls , key = None):
-        key = cls.resolve_keypath(key)
-        return c.module('key').create_key(key)
     
-    @classmethod
-    def add_key(cls, key, *args,  **kwargs):
-        return c.module('key').add_key(key, *args, **kwargs)
-    
-    @classmethod
-    def new_key(cls,  *args,  **kwargs):
-        return c.module('key').new_key( *args, **kwargs)
-    
-
-    @classmethod
-    def save_keys(cls, *args,  **kwargs):
-        return c.module('key').save_keys(*args, **kwargs)
-    savemems = savekeys = save_keys
-
-    @classmethod
-    def load_keys(cls, *args,  **kwargs):
-        return c.module('key').load_keys(*args, **kwargs)
-    loadmems = loadkeys = load_keys
-
-    @classmethod
-    def load_key(cls, *args,  **kwargs):
-        return c.module('key').load_key(*args, **kwargs)
-
-
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
         signature =  key.sign(data, **kwargs)
@@ -3972,10 +3801,6 @@ class c:
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
         key = c.get_key(key)
         return key.verify(auth, **kwargs)
-    
-    @classmethod
-    def get_signer(cls, data:dict ) -> bool:        
-        return c.module('key').get_signer(data)
     
     @classmethod
     def start(cls, *args, **kwargs):
@@ -5793,12 +5618,15 @@ class c:
                     c.print(result)
                     if 'error' not in result:
                         infos[name] = result
-        
-
+    cache_shortcuts = None
     @classmethod
     def shortcuts(cls) -> Dict[str, str]:
+        if cls.cache_shortcuts != None:
+            return cls.cache_shortcuts
+        
         config = c.get_config()
-        return config['shortcuts']
+        cls.cache_shortcuts =  config['shortcuts']
+        return cls.cache_shortcuts
 
 
     @classmethod
@@ -6374,8 +6202,14 @@ class c:
         x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
         return x
 
+    routes_enabled = False
+    
+
+        
     @classmethod
     def enable_routes(cls, verbose=True):
+        if cls.routes_enabled:
+            return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
         for m, fns in c.module_routes.items():
             from functools import partial
@@ -6391,8 +6225,9 @@ class c:
     
         if verbose:
             c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
+        cls.routes_enabled = True
 
-    module_routes = {
+    module_routes =  {
         'vali': [
             'run_epoch',
 
@@ -6412,7 +6247,7 @@ class c:
                      'query', 
                      'my_subnets', 
                      'global_params', 
-                     'subnet_names' 
+                     'subnet_names',
                      'update_subnet', 
                      'get_balances',
                      'get_balance',
@@ -6430,16 +6265,16 @@ class c:
                      'snap',
                      'save',
                      'key2balances',
-                     'key2balance'
+                     'key2balance',
                      'key2value', 
                      'key2stake',
                      'live_keys',
                      'seconds_per_epoch'
-                     'is_registered'
+                     'is_registered',
                      'transfer_multiple',
                      'stake_transfer',
                      'subnet2netuid',
-                     'netuid2subnet'
+                     'netuid2subnet',
                      'subnets',
                      'subnet',
                      'netuids',
@@ -6450,7 +6285,7 @@ class c:
                      'update_network', 
                      'update_global',
                      'my_subnets', 
-                     'register_servers'
+                     'register_servers',
                      'registered_servers',
                      'n', 
                      'stats',
@@ -6475,7 +6310,6 @@ class c:
                      'my_stake_to',
                      'stake_many',
                      'transfer_many',
-                     'subnet_names'
 
                      ],
         'tree': [
@@ -6489,6 +6323,7 @@ class c:
                  'rm_tree', 
                  'tree2path',
                  'path2simple', 
+                 'simple2path',
                  'path2objectpath', 
                  'tree_paths', 
                  'tree_names'
@@ -6496,7 +6331,34 @@ class c:
         'namespace': [
             'add_remote', 
             'networks', 
-            'network2namespace'
+            'network2namespace', 
+            'register_server',
+            'deregister_server',
+            'server_exists', 
+            'add_server',
+            'has_server',
+            'add_servers', 
+            'rm_servers',
+            'rm_server',
+            'remote_servers',
+            'namespace', 
+            'rm_namespace',
+            'empty_namespace',
+            'add_namespace',
+            'update_namespace',
+            'build_namespace',
+            'put_namespace',
+            'get_namespace',
+            'server2info', 
+            'infos', 
+            'get_address', 
+            'servers',
+            'name2address'
+
+            
+
+
+
         ],
         'key': [
             'ss58_encode', 
@@ -6516,6 +6378,7 @@ class c:
             'module_info',
             'rename_kefy', 
             'mv_key',
+            'add_key',
             'add_keys',
             'key_exists',
             'ls_keys',
@@ -6524,6 +6387,19 @@ class c:
             'encrypt_key',
             'staked',
             'encrypt_key',   
+            'get_keys', 
+            'rm_keys',
+            'key2address',
+            'key_addresses',
+            'is_key',
+            'new_key',
+            'save_keys',
+            'load_key',
+            'load_keys', 
+            'get_signer',
+            
+
+
         ],
         'repo': [
             'is_repo',
@@ -6535,8 +6411,6 @@ class c:
 
     }   
     
-    
-
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
