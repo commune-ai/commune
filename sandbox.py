@@ -1,5 +1,8 @@
 import commune as c
-b = 1
-c.print(c.module('rvb'))
 
+class Sandbox(c.Module):
+    def store_something(self, x=1):
+        self.put('something', x)
 
+    def get_something(self):
+        return self.get('something')
