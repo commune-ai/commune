@@ -5038,7 +5038,7 @@ class c:
         Args;
             obj: the class to get the functions from
             include_parents: whether to include the parent functions
-            include_hidden: whether to include hidden functions (starts and begins with "__")
+            include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
         
         if obj == None:
@@ -6323,7 +6323,7 @@ class c:
                             'my_stake_from',
                             'my_stake_to',
                             'stake_many',
-                            'transfer_many' ],
+                            'transfer_many', 'send' ],
         'namespace': [
                     'add_remote', 
                     'networks', 

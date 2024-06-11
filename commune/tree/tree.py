@@ -21,7 +21,20 @@ class Tree(c.Module):
             for p in paths_in_dir:
                 if p.endswith('.py'):
                     filename = p.split('.')[0].split('/')[-1]
-                    if filename == simple_path:
+                    simple_path = simple_path.replace('.', '_')
+                    filename_options = [simple_path, simple_path + '_module', 'module_'+ simple_path , 'main', '__init__']
+                    for filename_option in filename_options:
+                        possible_path = path + '/' + filename_option 
+                        if not possible_path.endswith('.py'):
+                            possible_path = possible_path + '.py'
+                        if os.path.exists(possible_path):
+                            c.print(possible_path)
+                            path = possible_path
+                            break
+
+                        filename_option
+                        
+                    if filename in [simple_path]:
                         path =  path +'/'+ p
                         break
 
@@ -92,6 +105,7 @@ class Tree(c.Module):
 
     @classmethod
     def build_tree(cls, tree_path:str = './', **kwargs):
+        t1 = c.time()
         tree_path = cls.resolve_path(tree_path)
         module_tree = {}
         for root, dirs, files in os.walk(tree_path):
@@ -100,6 +114,9 @@ class Tree(c.Module):
                     path = os.path.join(root, file)
                     simple_path = cls.path2simple(path)
                     module_tree[simple_path] = path
+
+        latency = c.time() - t1
+        c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}', color='cyan')
 
         return module_tree
     @classmethod
@@ -179,7 +196,10 @@ class Tree(c.Module):
     
 
     @classmethod
-    def path2simple(cls,  path:str,   ignore_prefixes = ['commune', 'modules', 'router']) -> str:
+    def path2simple(cls,  
+                    path:str,   
+                    ignore_prefixes = ['commune', 'modules', 'router'],
+                    ignore_suffixes = ['.module']) -> str:
 
         path = os.path.abspath(path)
         pwd = c.pwd()
@@ -191,7 +211,7 @@ class Tree(c.Module):
             simple_path = os.path.dirname(simple_path)
         else:
             simple_path = path
-        simple_path = simple_path.replace('.py', '')
+        simple_path = simple_path.replace('.py', '') # remove suffix
         simple_path = simple_path.replace('/', '.')
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
@@ -228,6 +248,12 @@ class Tree(c.Module):
         if simple_path.endswith('.'):
             simple_path = simple_path[:-1]
         
+        for suffix in ignore_suffixes:
+            if simple_path.endswith(suffix) and simple_path != suffix:
+                c.print(simple_path)
+                simple_path = simple_path[:-len(suffix)]
+                c.print(simple_path)
+                break
         return simple_path
 
     @classmethod
