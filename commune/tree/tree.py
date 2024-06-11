@@ -106,6 +106,7 @@ class Tree(c.Module):
         t1 = c.time()
         tree_path = cls.resolve_path(tree_path)
         module_tree = {}
+        cache_path = tree_path.split('/')[-1]
         for root, dirs, files in os.walk(tree_path):
             for file in files:
                 if file.endswith('.py') and '__init__' not in file and not file.split('/')[-1].startswith('_'):
@@ -115,8 +116,9 @@ class Tree(c.Module):
 
         latency = c.time() - t1
         c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}', color='cyan')
-        cls.tree_cache[tree_path] = module_tree
-        cls.put(tree_path, module_tree)
+
+        cls.tree_cache[cache_path] = module_tree
+        cls.put(cache_path, module_tree)
         return module_tree
     @classmethod
     def tree_paths(cls, update=False, **kwargs) -> List[str]:
@@ -249,9 +251,7 @@ class Tree(c.Module):
         
         for suffix in ignore_suffixes:
             if simple_path.endswith(suffix) and simple_path != suffix:
-                c.print(simple_path)
                 simple_path = simple_path[:-len(suffix)]
-                c.print(simple_path)
                 break
         return simple_path
 
