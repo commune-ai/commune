@@ -90,8 +90,6 @@ class Tree(c.Module):
             tree =  c.get(cache_path, {}, max_age=max_age, update=update)
         if len(tree) == 0:
             tree = cls.build_tree(path)
-            cls.tree_cache[cache_path] = tree
-            cls.put(cache_path, tree)
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         if include_root:
@@ -104,7 +102,7 @@ class Tree(c.Module):
     
 
     @classmethod
-    def build_tree(cls, tree_path:str = './', **kwargs):
+    def build_tree(cls, tree_path:str = './',  **kwargs):
         t1 = c.time()
         tree_path = cls.resolve_path(tree_path)
         module_tree = {}
@@ -117,7 +115,8 @@ class Tree(c.Module):
 
         latency = c.time() - t1
         c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}', color='cyan')
-
+        cls.tree_cache[tree_path] = module_tree
+        cls.put(tree_path, module_tree)
         return module_tree
     @classmethod
     def tree_paths(cls, update=False, **kwargs) -> List[str]:

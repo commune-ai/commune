@@ -73,19 +73,24 @@ class App(c.Module):
         submit = cols[1].button('Attack the model')
 
         if submit:
-            red_response = self.model.forward(text, model=model)
-            cols = st.columns(2)
-            with cols[0]:
-                st.write('Red Model Response')
+
+            with st.status('Attacking the model'):
+                red_response = self.model.forward(text, model=model)
+
+            with st.expander('Red Model Response'):
                 st.write(red_response)
-            response = self.blue_model.score(red_response)
+            with st.status('Blue Model Response'):
+                response = self.blue_model.score(red_response)# dict where mean is the score
+            # plot mean in plotly in a pie chart between 0 and 1 where i can see it if it is 0
+            # how do i have red for jailbreak and blue for not jailbreak
+            plot = px.pie(values=[response['mean'], 1-response['mean']], names=['Jailbreak', 'Not Jailbreak'], title='Jailbreak Score')
+            plot.update_traces(marker=dict(colors=['red', 'blue']))
+            st.plotly_chart(plot)
+        
             response['model'] = model
             response['address'] = self.key.ss58_address
             path = self.derive_path(address=self.key.ss58_address, model=model)
             self.put_json(path, response)
-            with cols[1]:
-                st.write('Blue Model Response')
-                st.write(response)
 
     def my_history(self, columns=['mean', 'timestamp', 'model', 'address'], sort_by='timestamp', ascending=False, model=None):
         df = c.df(self.get_history(model=model))
