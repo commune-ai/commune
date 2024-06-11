@@ -12,7 +12,7 @@ class App(c.Module):
         if score_module != None:
             self.score_model = c.module(score_module)()
         else:
-            self.score_model =  c.import_object('score_model.JailbreakScoreModel')()
+            self.score_model =  c.import_object('redvblue.score_model.JailbreakScoreModel')()
         
     def signin(self):
         st.write('## Sign In')
@@ -58,37 +58,44 @@ class App(c.Module):
         return [self.rm(path) for path in self.global_history_paths()]
     
 
+    def defend_model(self):
+        pass
 
 
 
-    def arena(self):
-
-        cols = st.columns([3,1])
-        model = cols[0].selectbox('Select a model', self.score_model.models())
+    def attack_model(self):
+        st.write('## Attack Model')
+        with st.expander('Description'):
+            st.write('''
+            This is the attack model section. In this section, you can attack the model by providing a red team prompt and the model will respond with a prediction. 
+            The prediction will be scored by the blue team model and the result will be displayed. The higher the score, the more likely the model is to be jailbroken.
+            ''')
+        c.load_style()
+        model = st.selectbox('Select a model', self.score_model.models())
         text = st.text_area('Red Team Prompt')
-        for i in range(2):
-            cols[1].write('\n')
-        submit = cols[1].button('Submit Attack')
+        cols = st.columns([1,1])
+
+        submit_attack = cols[0].button('Submit Attack')
         cancel_attack = cols[1].button('Cancel Attack')
-        attack_model = submit and not cancel_attack
+        attack_model = submit_attack and not cancel_attack
         if attack_model:
-            with st.status('Attacking the model', expanded=True):
+            with st.status('Attacking the model', expanded=False):
                 red_response = self.model.forward(text, model=model)
                 st.write(red_response)
-            with st.status('Blue Model Response', expanded=True):
+            with st.status('Blue Model Response', expanded=False):
                 result = self.score_model.score(red_response)# dict where mean is the score
                 result['model'] = model
                 result['address'] = self.key.ss58_address
                 self.save_result(result)
                 # remove the legend
-                
-                plot = px.pie(values=[result['mean'], 1-result['mean']], names=['Jailbreak', 'Not Jailbreak'], title='Jailbreak Score')
-                plot.update_traces(textinfo='percent+label', marker=dict(colors=['red', 'blue']))
-                plot = plot.update_layout(showlegend=False)
-                plot.update_traces(marker=dict(colors=['red', 'blue']))
-                # have the plot fix the size of the plot
-                plot.update_layout(autosize=False, width=500, height=500)
-                st.plotly_chart(plot)
+            
+            plot = px.pie(values=[result['mean'], 1-result['mean']], names=['Jailbreak', 'Not Jailbreak'])
+            plot.update_traces(textinfo='percent+label', marker=dict(colors=['red', 'blue']))
+            plot = plot.update_layout(showlegend=False)
+            plot.update_traces(marker=dict(colors=['red', 'blue']))
+            # have the plot fix the size of the plot
+            plot.update_layout(autosize=False, width=500, height=500)
+            st.plotly_chart(plot)
 
     def save_result(self, response):
         model = response['model']
@@ -140,13 +147,20 @@ class App(c.Module):
         # group based on address
 
         df = df
-        with st.expander('Global'):
+        with st.expander('History'):
             st.write(df)
 
-        with st.expander('Best Users'): 
-            df = df.groupby('address')['mean'].agg(['mean']).reset_index()
-            df = df.sort_values('mean', ascending=False)
-            st.write(df)
+        with st.expander('Best Redteamers'): 
+            st.write('The following are the best red teamers based on the mean score of their attacks. The mean score is the average score of all the attacks made by the user. The standard deviation is the standard deviation of the scores. The count is the number of attacks made by the user.')
+            user_df = df.groupby('address')['mean'].agg(['mean', 'std', 'count']).reset_index()
+            user_df = user_df.sort_values('mean', ascending=False)
+            st.write(user_df)
+
+        with st.expander('Least Jailbroken Models'): 
+            st.write('The following are the least jailbroken models based on the mean score of the attacks. The mean score is the average score of all the attacks made on the model. The standard deviation is the standard deviation of the scores. The count is the number of attacks made on the model.')
+            model_df = df.groupby('model')['mean'].agg(['mean', 'std', 'count']).reset_index()
+            model_df = model_df.sort_values('mean', ascending=False)
+            st.write(model_df)
     def sidebar(self, sidebar=True):
         if sidebar:
             with st.sidebar:
@@ -155,17 +169,8 @@ class App(c.Module):
         self.signin()
 
 
-
-
-
-
-
-
-
     def rules(self):
-        st.write('## Description')
-        st.write(' Increase the score of the red model by making it respond innapropriately')  
-
+        st.write(self.description)
 
     def top_header(self):
         # have a random image
@@ -176,11 +181,15 @@ class App(c.Module):
     def app(self):
         self.sidebar()
         self.top_header()
-        fns = [ 'arena', 'stats', 'rules']
+        fns = [ 'attack_model', 'stats', 'rules']
         tabs = st.tabs(fns)
         for i, fn in enumerate(fns):
             with tabs[i]:
                 getattr(self, fn)()
+
+    @property
+    def description(self):
+        return self.get_text(f'{self.dirpath()}/README.md')
 
 
 App.run(__name__)
