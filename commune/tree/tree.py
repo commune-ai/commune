@@ -36,14 +36,12 @@ class Tree(c.Module):
         if os.path.exists(filepath):
             full_path = filepath 
         else:
-            root_tree = cls.root_tree()
-            tree = cls.tree()
-            tree.update(root_tree)
-            is_module_in_tree = bool(simple_path in tree)
-            if not is_module_in_tree:
-                c.print(f'Path not found in tree: {simple_path}', color='red')
-                tree = cls.tree(update=True, include_root=True)
-                tree.update(root_tree)
+            tree = c.tree()
+            # is_module_in_tree = bool(simple_path in tree)
+            # if not is_module_in_tree:
+            #     c.print(f'Path not found in tree: {simple_path}', color='red')
+            #     tree = cls.tree(update=True, include_root=True)
+            #     tree.update(root_tree)
             full_path = tree[simple_path]
         
         return full_path
@@ -72,8 +70,10 @@ class Tree(c.Module):
                 update = False,
                 max_age = None, 
                 include_root = False,
+                verbose = False,
                 **kwargs
                 ) -> List[str]:
+        t0 = c.time()
         path = cls.resolve_path(path or c.pwd())
         is_repo = cls.is_repo(path)
         if not is_repo:
@@ -82,13 +82,18 @@ class Tree(c.Module):
         if cache_path in cls.tree_cache:
             tree = cls.tree_cache[cache_path]
         else:
-            tree =  c.get(cache_path, {}, max_age=max_age, update=update)
-        if len(tree) == 0:
+            tree =  cls.get(cache_path, {}, max_age=max_age, update=update)
+        if len(tree) == 0 :
             tree = cls.build_tree(path)
+            cls.tree_cache[cache_path] = tree
+            cls.put(cache_path, tree)
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         if include_root:
             tree = {**tree, **cls.root_tree()}
+        latency = c.time() - t0
+        if verbose:
+            c.print(f'Tree  path={path} latency={latency}, n={len(tree)}', color='cyan')
         return tree
     
     @classmethod
@@ -111,9 +116,6 @@ class Tree(c.Module):
 
         latency = c.time() - t1
         c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}', color='cyan')
-
-        cls.tree_cache[cache_path] = module_tree
-        cls.put(cache_path, module_tree)
         return module_tree
     @classmethod
     def tree_paths(cls, update=False, **kwargs) -> List[str]:
