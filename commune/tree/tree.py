@@ -15,43 +15,38 @@ class Tree(c.Module):
     def simple2path(cls, path:str, tree = None, **kwargs) -> bool:
         pwd = c.pwd()
         simple_path = path
-        path = c.pwd() + '/' + path.replace('.', '/')
-        if os.path.isdir(path):
-            paths_in_dir = os.listdir(path)
+        dirpath = pwd + '/' + path.replace('.', '/')
+        if os.path.isdir(dirpath):
+            paths_in_dir = os.listdir(dirpath)
             for p in paths_in_dir:
                 if p.endswith('.py'):
-                    filename = p.split('.')[0].split('/')[-1]
-                    simple_path = simple_path.replace('.', '_')
-                    filename_options = [simple_path, simple_path + '_module', 'module_'+ simple_path , 'main', '__init__']
-                    for filename_option in filename_options:
-                        possible_path = path + '/' + filename_option 
-                        if not possible_path.endswith('.py'):
-                            possible_path = possible_path + '.py'
-                        if os.path.exists(possible_path):
-                            c.print(possible_path)
-                            path = possible_path
-                            break
-
-                        filename_option
-                        
-                    if filename in [simple_path]:
-                        path =  path +'/'+ p
-                        break
-
-        if os.path.exists(path + '.py'):
-            path =  path + '.py'
+                    simple_path_filename = simple_path.replace('.', '_')
+                    path_options = [
+                                    simple_path_filename, 
+                                    simple_path_filename + '_module', 
+                                    'module_'+ simple_path_filename , 
+                                    'main', 
+                                    '__init__'
+                                    ]
+                    path_options = [f if f.endswith('.py') else f + '.py'  for f in path_options ]
+                    for path_option in path_options:
+                        if os.path.exists(path_option):
+                            return path_option
+        filepath = pwd + '/' + (path if path.endswith('.py') else path + '.py')
+        if os.path.exists(filepath):
+            full_path = filepath 
         else:
             root_tree = cls.root_tree()
             tree = cls.tree()
             tree.update(root_tree)
             is_module_in_tree = bool(simple_path in tree)
             if not is_module_in_tree:
+                c.print(f'Path not found in tree: {simple_path}', color='red')
                 tree = cls.tree(update=True, include_root=True)
                 tree.update(root_tree)
-
-            path = tree[simple_path]
-            
-        return path
+            full_path = tree[simple_path]
+        
+        return full_path
     
     def path2tree(self, **kwargs) -> str:
         trees = c.trees()

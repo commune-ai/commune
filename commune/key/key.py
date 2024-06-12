@@ -323,6 +323,9 @@ class Keypair(c.Module):
                 json:bool=False,
                 create_if_not_exists:bool = False,
                 **kwargs):
+        if hasattr(path, 'ss58_address'):
+            key = path
+            return key
         if not cls.key_exists(path):
             if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)

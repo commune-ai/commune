@@ -6,23 +6,17 @@ import streamlit as st
 import plotly.express as px
 import datetime
 
-class App(c.Module):
-    def __init__(self, model = 'model.openrouter', score_module=None):
+class Red(c.Module):
+    def __init__(self, model = 'model.openrouter', 
+                 score_module='redvblue.score_model.JailbreakScoreModel', 
+                 key=None
+                 ):
         self.model = c.module(model)()
         if score_module != None:
             self.score_model = c.module(score_module)()
         else:
-            self.score_model =  c.import_object('redvblue.score_model.JailbreakScoreModel')()
-        
-    @classmethod
-    def signin(cls, module):
-        st.write('## Sign In')
-        secret = st.text_input('What is your secret?', 'sup', type='password')
-        key = c.pwd2key(secret)
-        st.write('My Public Address')
-        st.code(key.ss58_address)
-        module.key = key
-        return module.key
+            self.score_model =  c.import_object(score_module)()
+        self.key = key
     
     def add_history(self, text):
         return self.put(f'history/{self.key.ss58_address}', text)
@@ -44,18 +38,9 @@ class App(c.Module):
             for fp in self.ls(user_folder):
                 history_paths += [fp]
         return history_paths
-    
 
 
-    def defend_model(self):
-        pass
-
-    def blue_team(self):
-        st.write('## Blue Team')
-
-
-
-    def red_team(self):
+    def app(self):
         st.write('## Red Team')
         with st.expander('Description'):
             st.write('''
