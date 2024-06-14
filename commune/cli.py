@@ -13,6 +13,7 @@ class cli(c.Module):
                 module = 'module',
                 verbose = True,
                 history_module = 'history',
+                forget_fns = ['module.key_info', 'module.save_keys'], 
                 path = 'history',
                 save: bool = True):
         self.verbose = verbose
@@ -42,31 +43,36 @@ class cli(c.Module):
 
 
 
-    def get_output(self, args):
+    def get_output(self, argv):
 
-
-        is_fn = args[0] in self.base_module_attributes
-        if '/' in args[0]:
-            args = args[0].split('/') + args[1:]
+        """
+        the cli works as follows 
+        c {module}/{fn} arg1 arg2 arg3 ... argn
+        if you are calling a function ont he module function (the root module), it is not necessary to specify the module
+        c {fn} arg1 arg2 arg3 ... argn
+        """
+        if '/' in argv[0]:
+            argv = argv[0].split('/') + argv[1:]
             is_fn = False
+        else:
+            is_fn = argv[0] in self.base_module_attributes
     
         if is_fn:
             # is a function
             module = self.base_module
-            fn = args.pop(0)
+            fn = argv.pop(0)
         else:
-            module = args.pop(0)
+            module = argv.pop(0)
             if isinstance(module, str):
                 module = c.module(module)
-            fn = args.pop(0)
+            fn = argv.pop(0)
+    
         if module.classify_fn(fn) == 'self':
             module = module() 
         fn_obj = getattr(module, fn)
 
-        args, kwargs = self.parse_args(args)
-        
-
         if callable(fn_obj):
+            args, kwargs = self.parse_args(argv)
             output = fn_obj(*args, **kwargs)
         elif c.is_property(fn_obj):
             output =  getattr(module(), fn)
