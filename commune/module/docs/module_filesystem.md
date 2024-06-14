@@ -52,11 +52,34 @@ The root module cli is just no module in c {module}/{function} {args}
 So if you want to store a value in the root module, you can do the following
 
 ```bash
-c put a 1
-{'k': 'a', 'data_size': 28, 'encrypted': False, 'timestamp': 1718133738}
+c fn_schema put
+
+{
+    'input': { # the input of the function
+        'k': {'type': 'str', 'default': None},
+        'v': {'type': 'any', 'default': None},
+        'mode': {'type': 'bool', 'default': 'json'},
+        'encrypt': {'type': 'bool', 'default': False},
+        'verbose': {'type': 'bool', 'default': False},
+        'password': {'type': 'str', 'default': None}
+    },
+    'output': 'any', # the output of the function (OPTIONAL AND NOT VERY USEFUL)
+    'docs': '\n        Puts a value in the config\n        ', # the docls 
+    'type': 'cls' # cls means class method (self, static, class are the 3 python methods for a class)
+}
 ```
 
 ```bash
-c get a 1
+c put k=a v=1
+
+{'k': 'a', 'data_size': 28, 'encrypted': False, 'timestamp': 1718133738}
+```
+Not sure what this does?
+call the schema of it
+c schema put
+
+
+```bash
+c get k=a 1
 1
 ```

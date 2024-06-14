@@ -1,103 +1,96 @@
-network: test
-netuid: 0
-subnet: commune
-mode: http
-run_loop: False
-network_mode: ws
+block_time: 8
+global_features:
+- MaxNameLength
+- MaxAllowedModules
+- MaxAllowedSubnets
+- MaxRegistrationsPerBlock
+- MinWeightStake
+- UnitEmission
 local: false
-
+loop: false
+mode: http
+module_features:
+- key
+- name
+- address
+- emission
+- incentive
+- dividends
+- last_update
+- stake_from
+- delegation_fee
+netuid: 0
+network: test
+network_mode: ws
+retry_params:
+  backoff: 2
+  delay: 2
+  max_delay: 4
+  tries: 2
+run_loop: false
+save_interval: 1800
+subnet: commune
+subnet_features:
+- Tempo
+- ImmunityPeriod
+- MinAllowedWeights
+- MaxAllowedWeights
+- MaxAllowedUids
+- Founder
+- FounderShare
+- IncentiveRatio
+- TrustRatio
+- SubnetNames
+supported_schemas:
+- Sr25519
+- Ed25519
+token_decimals: 9
 url: null
-url_search: commune-api-node-1 # search for the best node
+url_search: commune-api-node-1
 urls:
   main:
-    http: ["https://commune.api.onfinality.io/public-http",
-        "wss://commune-api-node-0.communeai.net",
-        "wss://commune-api-node-1.communeai.net",
-        "wss://commune-api-node-2.communeai.net",
-        "wss://commune-api-node-3.communeai.net",
-        "wss://commune-api-node-4.communeai.net",
-        "wss://commune-api-node-5.communeai.net",
-        "wss://commune-api-node-6.communeai.net",
-        "wss://commune-api-node-7.communeai.net",
-        "wss://commune-api-node-8.communeai.net",
-        "wss://commune-api-node-9.communeai.net",
-        "wss://commune-api-node-10.communeai.net",
-        "wss://commune-api-node-11.communeai.net",
-        "wss://commune-api-node-12.communeai.net",
-        "wss://commune-api-node-13.communeai.net",
-        "wss://commune-api-node-14.communeai.net",
-        "wss://commune-api-node-15.communeai.net",
-        "wss://commune-api-node-16.communeai.net",
-        "wss://commune-api-node-17.communeai.net",
-        "wss://commune-api-node-18.communeai.net",
-        "wss://commune-api-node-19.communeai.net",
-        "wss://commune-api-node-20.communeai.net",
-        "wss://commune-api-node-21.communeai.net",
-        "wss://commune-api-node-22.communeai.net",
-        "wss://commune-api-node-23.communeai.net",
-        "wss://commune-api-node-24.communeai.net",
-        "wss://commune-api-node-25.communeai.net",
-        "wss://commune-api-node-26.communeai.net",
-        "wss://commune-api-node-27.communeai.net",
-        "wss://commune-api-node-28.communeai.net",
-        "wss://commune-api-node-29.communeai.net",
-        "wss://commune-api-node-30.communeai.net",
-        "wss://commune-api-node-31.communeai.net",
-    ]
-    ws: 
+    http:
+    - https://commune.api.onfinality.io/public-http
+    - wss://commune-api-node-0.communeai.net
+    - wss://commune-api-node-1.communeai.net
+    - wss://commune-api-node-2.communeai.net
+    - wss://commune-api-node-3.communeai.net
+    - wss://commune-api-node-4.communeai.net
+    - wss://commune-api-node-5.communeai.net
+    - wss://commune-api-node-6.communeai.net
+    - wss://commune-api-node-7.communeai.net
+    - wss://commune-api-node-8.communeai.net
+    - wss://commune-api-node-9.communeai.net
+    - wss://commune-api-node-10.communeai.net
+    - wss://commune-api-node-11.communeai.net
+    - wss://commune-api-node-12.communeai.net
+    - wss://commune-api-node-13.communeai.net
+    - wss://commune-api-node-14.communeai.net
+    - wss://commune-api-node-15.communeai.net
+    - wss://commune-api-node-16.communeai.net
+    - wss://commune-api-node-17.communeai.net
+    - wss://commune-api-node-18.communeai.net
+    - wss://commune-api-node-19.communeai.net
+    - wss://commune-api-node-20.communeai.net
+    - wss://commune-api-node-21.communeai.net
+    - wss://commune-api-node-22.communeai.net
+    - wss://commune-api-node-23.communeai.net
+    - wss://commune-api-node-24.communeai.net
+    - wss://commune-api-node-25.communeai.net
+    - wss://commune-api-node-26.communeai.net
+    - wss://commune-api-node-27.communeai.net
+    - wss://commune-api-node-28.communeai.net
+    - wss://commune-api-node-29.communeai.net
+    - wss://commune-api-node-30.communeai.net
+    - wss://commune-api-node-31.communeai.net
+    ws:
     - wss://commune.api.onfinality.io/public-ws
     - wss://commune-api-node-1.communeai.net/
     - wss://commune-api-node-2.communeai.net/
     - wss://commune-api-node-3.communeai.net/
     - wss://commune-api-node-4.communeai.net/
   test:
-    ws:
-    - wss://testnet-commune-api-node-0.communeai.net
     http:
     - https://testnet-commune-api-node-0.communeai.net
-
-global_features: [
-        "MaxNameLength",
-        "MaxAllowedModules",
-        "MaxAllowedSubnets",
-        "MaxRegistrationsPerBlock",
-        "MinWeightStake",
-        "UnitEmission",
-    ]
-
-subnet_features : [
-                            "Tempo",
-                           'ImmunityPeriod',
-                            'MinAllowedWeights',
-                           'MaxAllowedWeights',
-                            'MaxAllowedUids',
-                            'Founder', 
-                           'FounderShare',
-                            'IncentiveRatio',
-                            'TrustRatio',
-                            'SubnetNames'
-                            ]
-    
-module_features : [
-        "key",
-        "name",
-        "address",
-        "emission",
-        "incentive",
-        "dividends",
-        "last_update",
-        "stake_from",
-        "delegation_fee",
-    ]
-
-token_decimals: 9
-block_time: 8
-loop: false
-retry_params:
-  backoff: 2
-  delay: 2
-  max_delay: 4
-  tries: 2
-
-save_interval: 1800
-supported_schemas: [Sr25519, Ed25519]
+    ws:
+    - wss://testnet-commune-api-node-0.communeai.net

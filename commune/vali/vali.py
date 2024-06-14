@@ -231,7 +231,7 @@ class Vali(c.Module):
         return results
 
 
-        
+    @property
     def network_staleness(self):
         # return the time since the last sync with the network
         return c.time() - self.last_sync_time
@@ -248,7 +248,7 @@ class Vali(c.Module):
         return all([s == None or s in module  for s in search_list ])
 
     
-    def sync_network(self, 
+    def set_network(self, 
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
@@ -257,9 +257,9 @@ class Vali(c.Module):
                      max_age:int = None,
                      **kwargs):
 
-        if self.network_staleness() < self.config.sync_interval and not update:
+        if self.network_staleness < self.config.sync_interval and not update:
             return {'msg': 'Alredy Synced network Within Interval', 
-                    'staleness': self.network_staleness(), 
+                    'staleness': self.network_staleness, 
                     'sync_interval': self.config.sync_interval,
                     'network': self.config.network, 
                     'netuid': self.config.netuid, 
@@ -278,7 +278,7 @@ class Vali(c.Module):
         if 'local' in config.network:
             # local network does not need to be updated as it is atomically updated
             namespace = c.module('namespace').namespace(search=config.search, update=False)
-        elif 'subspace' in config.network:
+        elif config.network in ['subspace', 'main', 'test']:
             if '.' in config.network:
                 config.network, config.netuid = config.network.split('.')
             # convert the subnet to a netuid
@@ -295,7 +295,6 @@ class Vali(c.Module):
         self.name2address = self.namespace
         self.address2name = {k:v for v, k in namespace.items()}
         self.module2name = {v: k for k, v in self.namespace.items()}  
-
         self.network = network
         self.netuid = netuid
         self.fn = fn
@@ -304,7 +303,7 @@ class Vali(c.Module):
         c.print(f'Synced network {config.network} with {self.n} modules', color='green')
         return self.network_info()
     
-    sync = set_network = sync_network
+    sync = sync_network = set_network 
 
     @property
     def verbose(self):
@@ -376,6 +375,7 @@ class Vali(c.Module):
                 }
 
         setattr(module,'local_info', info) # set the client
+
         return module
 
     def eval(self, 
@@ -624,7 +624,7 @@ class Vali(c.Module):
             'netuid': self.config.netuid, 
             'n': self.n,
             'fn': self.config.fn,
-            'staleness': self.network_staleness(),
+            'staleness': self.network_staleness,
 
         }
 
