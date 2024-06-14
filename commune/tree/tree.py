@@ -76,6 +76,7 @@ class Tree(c.Module):
                 include_root = False,
                 verbose = True,
                 cache = True,
+                save = True,
                 **kwargs
                 ) -> List[str]:
         tree = {}
@@ -86,7 +87,7 @@ class Tree(c.Module):
         cache_path = path.split('/')[-1]
         # the tree is cached in memory to avoid repeated reads from storage
         # if the tree is in the cache and the max_age is not None, we want to check the age of the cache
-        use_tree_cache = bool(cache and cache_path in cls.tree_cache and not update)
+        use_tree_cache = bool(cache and cache_path in cls.tree_cache) and not update
         if use_tree_cache:
             tree_data = cls.tree_cache[cache_path]
             assert all([k in tree_data for k in ['data', 'timestamp']]), 'Invalid tree cache'
@@ -104,9 +105,9 @@ class Tree(c.Module):
                 # if the tree is not in the storage cache, we want to build it and store it
                 mode = 'build'
                 tree = cls.build_tree(path)
-                if cache:
-                    cls.tree_cache[cache_path] = {'data': tree, 'timestamp': timestamp}
+                cls.tree_cache[cache_path] = {'data': tree, 'timestamp': timestamp}
                 cls.put(cache_path, tree)
+        
         assert mode != None, 'Invalid mode'
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
@@ -117,6 +118,7 @@ class Tree(c.Module):
             latency = c.time() - timestamp
             c.print(f'Tree  path={path} latency={latency}, n={len(tree)} mode={mode}', color='cyan')
         return tree
+    
     
     @classmethod
     def local_tree(cls, **kwargs):

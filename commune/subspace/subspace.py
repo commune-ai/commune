@@ -1022,7 +1022,6 @@ class Subspace(c.Module):
 
         for f in c.as_completed(future2name, timeout=timeout):
             result = f.result()
-            c.print(result)
             subnet_params[future2name.pop(f)] = result
         for k in value_features:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
@@ -1072,13 +1071,7 @@ class Subspace(c.Module):
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
-
-
     subnet = subnet_params
-
-
-
-
 
     def subnet2params( self,  block: Optional[int] = None ) -> Optional[float]:
         netuids = self.netuids()
