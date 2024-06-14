@@ -323,6 +323,9 @@ class Keypair(c.Module):
                 json:bool=False,
                 create_if_not_exists:bool = False,
                 **kwargs):
+        if hasattr(path, 'ss58_address'):
+            key = path
+            return key
         if not cls.key_exists(path):
             if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)
@@ -1172,11 +1175,11 @@ class Keypair(c.Module):
 
     encrypted_prefix = 'ENCRYPTED::'
 
+
     @classmethod
     def encrypt_key(cls, path = 'test.enc', password=None):
-        assert cls.exists(path), f'file {path} does not exist'
-        if password == None:
-            password = cls.generate_mnemonic()
+        assert cls.key_exists(path), f'file {path} does not exist'
+        password = password or c.hash(cls.generate_mnemonic())
         data = cls.get(path)
         enc_text =  c.encrypt(data, password=password)
         enc_text = f'{cls.encrypted_prefix}{enc_text}'

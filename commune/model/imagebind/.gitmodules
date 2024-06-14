@@ -1,0 +1,3 @@
+[submodule ".datasets/dreambooth"]
+	path = .datasets/dreambooth
+	url = https://github.com/google/dreambooth.git

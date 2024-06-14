@@ -4,28 +4,26 @@ import json
 
 
 class App(c.Module):
+    port_range = [8501, 8600]
 
     def start(self,
            module:str = 'app', 
            fn='app', 
-           port=8501, 
-           public:bool = False, 
-           remote:bool = False, 
-           kwargs=None):
+           port=None, 
+           remote:bool = True, 
+           kwargs=None, 
+           **extra_kwargs):
         kwargs = kwargs or {}
-        if public:
-            port = c.free_port()
-
+        port = port or c.free_port()
         while c.port_used(port):
             c.print(f'Port {port} is already in use', color='red')
             port = port + 1
         if remote:
             remote_kwargs = c.locals2kwargs(locals())
+            remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
-            c.remote_fn(module=module, fn='st', kwargs=remote_kwargs)
-            ip = c.ip()
-            url = f'http://{ip}:{port}'
-
+            c.remote_fn(module=module, fn='start_app', name=module+"::app", kwargs=remote_kwargs)
+            url = f'http://0.0.0.0:{port}'
             return {'success': True, 
                     'msg': f'running {module} on {port}', 
                     'url': url}

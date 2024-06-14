@@ -15,3 +15,6 @@ services:
       - 50050-50250:50050-50250
 
     restart: unless-stopped
+
+    command: tail -f /dev/null
+    entrypoint: source $(poetry env info --path)/bin/activate

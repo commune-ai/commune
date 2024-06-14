@@ -7,7 +7,7 @@
 [![Website Uptime](https://img.shields.io/website-up-down-green-red/http/monip.org.svg)](https://www.communeai.org/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/communeaidotorg.svg?style=social&label=Follow)](https://twitter.com/communeaidotorg)
 
-### An Open Modules Network
+### An Open Anything Network: Connect Anything You Want
 
 </div>
 
@@ -19,52 +19,36 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 
 # Install
 
-### Setting Up With setup.py
-
-Install setuptools:
-If you haven't already installed setuptools, you can do so using pip:
+### Local Setup (Without Docker)
 
 ```bash
-pip install -r requirements; pip install -e .
+apt-get install python3.10 python3-pip npm
+npm install -g pm2
+pip install -r requirements.txt
+pip install -e .
 ```
 or 
 ```bash
 ./start.sh
 ```
-
 ### Setting Up Commune With Docker
 
 Install Docker: If you don't have Docker installed on your system, download and install it from the official Docker website: [https://www.docker.com/get-started](https://www.docker.com/get-started).
 
 Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
-```bash
-make up 
-```
-
-or 
-    
-```bash
-docker-compose build
-```
-
 Start Commune: Once the Docker container is built, start Commune by running the following command:
 
 ```bash
-make start
+make up 
+# or 
+docker-compose up -d # or make up
 ```
-or 
-```bash
-docker-compose up -d # -d for detached mode
-```
-
 To enter the docker container do, and do the following
 
 ```bash
 make enter
-```
-or 
-```bash
+# or
 docker exec -it commune bash
 ```
 
@@ -192,14 +176,18 @@ c register my_module_path tag=1
 
 ## Testing
 
-We use pytest for testing. To run the tests, simply run the following command:
-
-Make sure you install pytest
-```bash
-pip install pytest
-```
-ensure you are in the commune repo
+To run the commune tests, do the following
 
 ```bash
-pytest commune
+pytest commune/tests # or c test or make tests
 ``` 
+
+The test is only one file, but it calls the test function for the core modules. This is because commune is a network of modules, and the core modules are the most important. 
+
+
+## License :: MIT, but really IDGAF (I Don't Give A F*ck, its open source, why do we need a )
+
+This project is licensed under both MIT but primarely under its own liscense (IDGAF). Do what you want with the code, dont pull up on me with some legal shit for building fam.
+
+
+
