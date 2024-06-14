@@ -37,13 +37,12 @@ class Tree(c.Module):
             full_path = filepath 
         else:
             tree = c.tree()
-            # is_module_in_tree = bool(simple_path in tree)
-            # if not is_module_in_tree:
-            #     c.print(f'Path not found in tree: {simple_path}', color='red')
-            #     tree = cls.tree(update=True, include_root=True)
-            #     tree.update(root_tree)
+            is_module_in_tree = bool(simple_path in tree)
+            if not is_module_in_tree:
+                c.print(f'Path not found in tree: {simple_path}', color='red')
+                tree = cls.tree(update=True, include_root=True)
             full_path = tree[simple_path]
-        
+
         return full_path
     
     def path2tree(self, **kwargs) -> str:
@@ -199,16 +198,18 @@ class Tree(c.Module):
                     ignore_prefixes = ['commune', 'modules', 'router'],
                     ignore_suffixes = ['.module']) -> str:
 
+        og_path = path
         path = os.path.abspath(path)
         pwd = c.pwd()
         if path.startswith(c.libpath):
-            path = path.replace(c.libpath, '')
+            path = path[len(c.libpath):]
         elif path.startswith(pwd):
-            path = path.replace(pwd, '')
+            path = path[len(pwd):]
         if cls.path_config_exists(path):
             simple_path = os.path.dirname(simple_path)
         else:
             simple_path = path
+
         simple_path = simple_path.replace('.py', '') # remove suffix
         simple_path = simple_path.replace('/', '.')
         if simple_path.startswith('.'):
@@ -295,6 +296,8 @@ class Tree(c.Module):
             object_path = object_path + '.' + classes[-1]
         except Exception as e:
             object_path = simple_path
+
+
         return object_path
     
     
