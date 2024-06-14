@@ -661,11 +661,10 @@ class c:
 
     @classmethod
     def start_app(cls,
-           module:str = 'module', 
+           module:str = 'redvblue', 
            fn='app', 
-           port=8501, 
-           public:bool = False, 
-           remote:bool = False):
+           port=None, 
+           remote:bool = True):
         if c.module_exists(module + '.app'):
             module = module + '.app'
         kwargs = c.locals2kwargs(locals())
@@ -1237,6 +1236,7 @@ class c:
         try:
             module = c.simple2object(path)
         except Exception as e:
+            c.print(c.detailed_error(e))
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
@@ -1509,6 +1509,7 @@ class c:
     
     @classmethod
     def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
+        locals_dict = locals_dict or {}
         kwargs = locals_dict or {}
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
@@ -3226,8 +3227,6 @@ class c:
     def resolve_console(cls, console = None, **kwargs):
         if hasattr(cls,'console'):
             return cls.console
-    
-        
         import logging
         from rich.logging import RichHandler
         from rich.console import Console
@@ -3319,7 +3318,7 @@ class c:
               module=None,
               timeout=70, 
               trials=3, 
-              parallel=True,
+              parallel=False,
               ):
         module = module or cls.module_path()
         if module == 'module':
@@ -6205,8 +6204,20 @@ class c:
                 module = c.module(module)()
                 return getattr(module, fn)(*args, **kwargs)
             for fn in fns:
+                if isinstance(fn, list) and len(fn) == 2:
+                    # if the function is a list of length 2, then the first element is the function name and the second is the name of the function
+                    # example ['fn', 'new_fn_name']
+                    fn = fn[0]
+                    fn_name = fn[1]
+                elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
+                    fn = fn['fn']
+                    fn_name = fn['name']
+                else:
+                    fn = fn
+                    fn_name = fn
+
                 fn_obj = partial(fn_generator, fn=fn, module=m )
-                fn_obj.__name__ = fn
+                fn_obj.__name__ = fn_name
                 setattr(cls, fn, fn_obj)
                 
         t1 = c.time()

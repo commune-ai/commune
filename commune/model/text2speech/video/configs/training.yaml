@@ -1,0 +1,144 @@
+# Pretrained 2d diffusers model path.
+pretrained_2d_model_path: ""
+
+# Pretrained 3d diffusers model path.
+pretrained_3d_model_path: ""
+
+# Upgrade base modelscope model to new seq2seq model
+upgrade_model: True
+  
+# The folder where your training outputs will be placed
+output_dir: "outputs/vseq2vseq"
+
+# Adds offset noise to training. Sese https://www.crosslabs.org/blog/diffusion-with-offset-noise
+offset_noise_strength: 0.1
+use_offset_noise: True
+
+# Training data parameters
+train_data:
+  # Learning rate for accelerator training script
+  learning_rate: 1e-5
+
+  # Betas for accelerator training script
+  betas: [0.9, 0.999]
+
+  # Eps for accelerator training script
+  eps: 1e-8
+
+  # Weight decay for accelerator training script
+  weight_decay: 0
+
+  # Cosine decay for accelerator training script
+  cosine_annealing_t_max: 1000
+
+  # Batch size per gpu for accelerator training script
+  batch_size_per_gpu: 1
+
+  # The width and height in which you want your training data to be resized to.
+  width: 384
+  height: 192
+
+  # This will find the closest aspect ratio to your input width and height. 
+  # For example, 512x512 width and height with a video of resolution 1280x720 will be resized to 512x256
+  use_bucketing: True
+
+  # How many frames to step when sampling from the video  
+  frame_step: 2
+
+  # The total number of frames to sample, included the ones for the conditioning
+  n_sample_frames: 20
+
+  # Max frames to predict
+  n_max_frames: 16
+
+  # The minimum amount of conditioning frames to fetch from n_sample_frames
+  min_conditioning_n_sample_frames: 4
+
+  # The maximum amount of conditioning frames to fetch from n_sample_frames
+  max_conditioning_n_sample_frames: 4
+
+  # Should train only spatial_conv and .attentions layers
+  train_only_images: False
+
+  # If false file name will be the prompt, else the txt file
+  text_file_as_prompt: False
+
+  trainable_modules:
+  - ".conditioning_norm3"
+  - ".conditioning_proj"
+  - ".conditioning_time"
+  - ".temp_conditioning_attentions"
+  #- ".attn1"
+  #- ".attn2"
+  #- "temp_convs"
+  
+  # Folder containing all videos (prompt should be the file name, _ are automatically replaced to space characters) (sub folders are checked as well)
+  path: "videos"
+
+  # Path to the deepspeed config file
+  deepspeed_config_file: "deepspeed/stage-2.json"
+
+# Validation data parameters.
+sample_data:
+  # A custom prompt that is different from your training dataset. 
+  prompt: "Sauron walking in the landscape of Mordor"
+
+  # The number of frames to sample during validation.
+  num_frames: 16
+
+  # Height and width of validation video
+  width: 384
+  height: 192
+
+  # Height and width of validation sample image generator (not validation data video size), image gets resized to train_data width and height during diffusion
+  image_width: 1152
+  image_height: 640
+
+  # Fps rate for the sample video
+  fps: 16
+
+  # How many times to repeat the video
+  times: 2
+
+  # Number of inference steps when generating the video.
+  num_inference_steps: 30
+
+  # CFG scale
+  guidance_scale: 20
+
+# How many epochs to train for
+epochs: 10
+
+# How many steps to do before validating
+train_dataset_size: 0.99 # 99% for training data, 1% for validation data. Modify this according to how big your train dataset is
+
+# How many steps to do before validating
+validation_steps: 2000000
+
+# Will remove past checkpoints if validation loss is improving
+save_only_best: True
+
+# If save_only_best is False, this will save the model every checkpointing_steps steps
+checkpointing_steps: 200
+
+# How many steps to do before sampling a preview
+sample_steps: 20
+
+# Seed for training.
+seed: 42
+
+# Resume from checkpoint
+resume_from_checkpoint: False
+
+# Resume from step
+resume_step: 0
+
+# Trades VRAM usage for speed. You lose roughly 20% of training speed, but save a lot of VRAM.
+# If you need to save more VRAM, it can also be enabled for the text encoder, but reduces speed x2.
+gradient_checkpointing: True
+
+# Xformers must be installed for best memory savings and performance (< Pytorch 2.0)
+enable_xformers_memory_efficient_attention: False
+
+# Use scaled dot product attention (Only available with >= Torch 2.0)
+enable_torch_2_attn: True

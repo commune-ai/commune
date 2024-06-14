@@ -671,10 +671,20 @@ class Vali(c.Module):
             c.print(c.get_namespace())
 
         vali = c.connect(test_vali)
+
+        t0 = c.time()
            
         c.print(f'Sleeping for {sleep_time} seconds')
         c.print(c.call(test_vali+'/refresh_leaderboard'))
-        c.sleep(sleep_time)
+        leaderboard = None
+        while c.time() - t0 < sleep_time:
+
+            leaderboard = c.call(test_vali+'/leaderboard')
+            if len(leaderboard) >= n and isinstance(leaderboard, pd.DataFrame):
+                break
+            else:
+                c.print(f'Waiting for leaderboard to be updated {len(leaderboard)}')
+            c.sleep(1)
 
         leaderboard = c.call(test_vali+'/leaderboard')
         assert isinstance(leaderboard, pd.DataFrame), leaderboard
