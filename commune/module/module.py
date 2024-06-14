@@ -6366,7 +6366,9 @@ class c:
                                 'my_stake_from',
                                 'my_stake_to',
                                 'stake_many',
-                                'transfer_many', 'send' ],
+                                'transfer_many', 
+                                'module_info', 'minfo',
+                                'send' ],
             'namespace': [
                         'add_remote', 
                         'networks', 
