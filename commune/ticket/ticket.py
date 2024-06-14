@@ -7,8 +7,10 @@ class Ticket(c.Module):
     # THIS USES THE SAME TECHNOLOGY AS ACCESS TOKENS, BUT IS USED FOR CLIENT SIDE VERIFICATION, AND NOT SERVER SIDE
     # THIS GIVES USERS THE ABILITY TO VERIFY THE ORIGIN OF A MESSAGE, AND TO VERIFY THAT THE MESSAGE HAS NOT BEEN TAMPERED WITH
     #data={DATA}::address={ADDRESS}::time={time}::signature={SIGNATURE}
+    where variable_seperator = '::'
     """
-    signature_seperator = '::signature='
+    variable_seperator = '::'
+    signature_seperator = variable_seperator + 'signature='
 
     def create(self, data=None, key=None, json_str=False, **kwargs):
         """
@@ -39,7 +41,7 @@ class Ticket(c.Module):
         else:
             ticket_str = ''
             for i, (k,v) in enumerate(ticket.items()):
-                ticket_str +=  (("::" if i > 0 else "") +k + '=' + str(v) )
+                ticket_str +=  ((self.variable_seperator if i > 0 else "") +k + '=' + str(v) )
 
         return ticket_str
 
@@ -63,7 +65,7 @@ class Ticket(c.Module):
             ticket_dict['signature'] = signature
         else:
             ticket_dict = {}
-            for item in ticket.split('::'):
+            for item in ticket.split(self.variable_seperator):
                 k,v = item.split('=')
                 ticket_dict[k] = v
             ticket_dict['time'] = float(ticket_dict['time'])
@@ -71,7 +73,8 @@ class Ticket(c.Module):
         return ticket_dict
     
     
-    def verify(self, ticket,  max_age:str=5, **kwargs):
+    def verify(self, ticket,  max_age:str=5,  age=None, timeout=None, **kwargs):
+        max_age = age or timeout or max_age 
         ticket_dict = self.ticket2dict(ticket)
         address = ticket_dict['address']
         staleness = c.time() - ticket_dict['time']

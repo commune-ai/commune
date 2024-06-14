@@ -153,12 +153,13 @@ class Subspace(c.Module):
                 mode = 'http',
                 trials = 10,
                 url : str = None, 
+                save = False,
                 **kwargs):
         self.network = self.resolve_network(network)
         self.substrate = self.get_substrate( url=url, mode=mode, trials=trials , **kwargs)
-        response =  {'network': self.network, 'url': self.url}
-
-        return response
+        if save:
+            self.save_config(self.config)
+        return  {'network': self.network, 'url': self.url, 'save': save}
     @property
     def network(self):
         return self.resolve_network(self.config.network)
