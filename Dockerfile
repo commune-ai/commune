@@ -1,31 +1,34 @@
-#FROM ubuntu:22.04
+FROM ubuntu:22.04
 
-#probably better:
-FROM python:3.12-slim-bookworm
-
-
-ENV PYTHONUNBUFFERED True
-ARG DEBIAN_FRONTEND=noninteractive
-
+# Set the working directory in the container
 WORKDIR /app
+# Set environment variables
 
+ENV PYTHONUNBUFFERED True  
+ARG DEBIAN_FRONTEND=noninteractive
 RUN usermod -s /bin/bash root
+RUN apt-get update 
 
-#RUN apt-get update && apt-get upgrade -y
-RUN apt-get update
-RUN apt-get install curl nano python3 python3-dev python-is-python3 build-essential cargo libstd-rust-dev -y
-RUN python -m pip install --upgrade pip
-RUN pip install setuptools wheel 
+# INSTALL RUST ENV
+RUN apt-get install curl nano build-essential cargo libstd-rust-dev -y
 
-#RUN apt-get update && \
-#    apt-get install -y curl nano python3 python3-dev python3-pip build-essential cmake apt-utils protobuf-compiler
-
-#RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-
-COPY ./requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
+# INSTALL NODEJS ENV
 RUN apt-get install -y nodejs npm
-RUN npm install -g pm2
-COPY . /app
+# install pm2 for process management (currently required for commune)
+RUN npm install -g pm2 
+
+# INSTALL PYTHON ENV
+RUN apt-get install python3-pip python3 python3-dev python-is-python3 -y
+RUN python -m pip install --upgrade pip
+
+# --- INSTALL POETRY ---
+# RUN pip install poetry
+# COPY ./pyproject.toml /app/pyproject.toml
+# COPY ./poetry.lock /app/poetry.lock
+# COPY ./ /app
+# RUN poetry install
+# INSTALL THE COMMUNE REPO FROM SOURCE SO IT WORKS OUT OF THE BOX WHEN YOU ENTER
+COPY ./ /app
 RUN pip install -e ./
+
 ENTRYPOINT [ "tail", "-f", "/dev/null"]

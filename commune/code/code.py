@@ -1,5 +1,6 @@
 import commune as c
 import json
+import os
 from typing import *
 
 class Coder(c.Module):
@@ -190,14 +191,20 @@ class Coder(c.Module):
     @staticmethod
     def get_files_code(directory):
         code_dict = {}
+        import glob 
+        directory = os.path.abspath(directory)
 
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                relative_path = os.path.relpath(file_path, directory)
+        for file in glob.glob(directory + '/**', recursive=True):
 
-                with open(file_path, 'r') as f:
+            relative_path = file.split(directory)[1]
+            if os.path.isdir(file):
+                continue
+            try:
+                with open(file, 'r') as f:
                     code = f.read()
-                    code_dict[relative_path] = code
+                    code_dict[file] = code
+            except Exception as e:
+                print(e)
+                
 
         return code_dict

@@ -1,0 +1,14 @@
+
+resources:
+  gpu:
+    reservations:
+      devices:
+      - driver: nvidia
+        count: all
+        capabilities: [gpu]
+  cpu:
+    reservations:
+      devices:
+      - driver: intel
+        count: all
+        capabilities: [cpu]

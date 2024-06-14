@@ -1,0 +1,14 @@
+accelerate
+torch
+torchvision
+transformers
+datasets
+ftfy
+tensorboard
+Jinja2
+peft
+pillow
+wandb
+safetensors
+matplotlib
+python-dotenv

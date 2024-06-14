@@ -123,7 +123,9 @@ class c:
     
     @key.setter
     def key(self, key: 'Key'):
-        self._key = c.get_key(key, create_if_not_exists=True)
+        if key == None:
+            key = self.server_name
+        self._key = key if hasattr(key, 'ss58_address') else c.get_key(key, create_if_not_exists=True)
         return self._key
 
     @classmethod
@@ -659,11 +661,10 @@ class c:
 
     @classmethod
     def start_app(cls,
-           module:str = 'module', 
+           module:str = 'redvblue', 
            fn='app', 
-           port=8501, 
-           public:bool = False, 
-           remote:bool = False):
+           port=None, 
+           remote:bool = True):
         if c.module_exists(module + '.app'):
             module = module + '.app'
         kwargs = c.locals2kwargs(locals())
@@ -727,6 +728,15 @@ class c:
     
         obj =  getattr(c.import_module(module), object_name)
         return obj
+    
+
+    @classmethod
+    def object_exists(cls, path:str, verbose=False)-> Any:
+        try:
+            c.import_object(path, verbose=verbose)
+            return True
+        except Exception as e:
+            return False
     
     imp = get_object = importobj = import_object
 
@@ -1226,6 +1236,7 @@ class c:
         try:
             module = c.simple2object(path)
         except Exception as e:
+            c.print(c.detailed_error(e))
             if trials == 0:
                 raise Exception(f'Could not find {path} in {c.modules(path)} modules')
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
@@ -1498,6 +1509,7 @@ class c:
     
     @classmethod
     def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
+        locals_dict = locals_dict or {}
         kwargs = locals_dict or {}
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
@@ -3215,8 +3227,6 @@ class c:
     def resolve_console(cls, console = None, **kwargs):
         if hasattr(cls,'console'):
             return cls.console
-    
-        
         import logging
         from rich.logging import RichHandler
         from rich.console import Console
@@ -3308,7 +3318,7 @@ class c:
               module=None,
               timeout=70, 
               trials=3, 
-              parallel=True,
+              parallel=False,
               ):
         module = module or cls.module_path()
         if module == 'module':
@@ -5038,7 +5048,7 @@ class c:
         Args;
             obj: the class to get the functions from
             include_parents: whether to include the parent functions
-            include_hidden: whether to include hidden functions (starts and begins with "__")
+            include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
         
         if obj == None:
@@ -6176,202 +6186,38 @@ class c:
 
     routes_enabled = False
 
-
-    @classmethod
-    def module_routes(cls):
-
-        module_routes = { 
-        
-        'vali': [
-                    'run_epoch',
-                ],
-        'tree': [
-                    'tree', 
-                    'trees', 
-                    'local_tree', 
-                    'build_tree', 
-                    'tree2path', 
-                    'trees',
-                    'add_tree', 
-                    'rm_tree', 
-                    'tree2path',
-                    'path2simple', 
-                    'simple2path',
-                    'path2objectpath', 
-                    'tree_paths', 
-                    'tree_names'
-                    ],
-        'cli': [
-                    'parse_args',
-                ],
-        'streamlit': [
-                    'set_page_config',
-                ],
-        'docker': [
-                    'containers',
-                ],
-        'client': [
-                    'call', 
-                    'call_search', 
-                    'connect'
-                ],
-        'repo': [
-                    'is_repo',
-                ],
-        'key': [
-                    'ss58_encode', 
-                    'ss58_decode',
-                    'key2mem', 
-                    'key_info_map', 
-                    'key_info',
-                    'valid_ss58_address',
-                    'add_key',
-                    'from_password',
-                    'str2key', 
-                    'pwd2key',
-                    'getmem',
-                    'mem',
-                    'mems',
-                    'switch_key',
-                    'module_info',
-                    'rename_kefy', 
-                    'mv_key',
-                    'add_key',
-                    'add_keys',
-                    'key_exists',
-                    'ls_keys',
-                    'rm_key',
-                    'key_encrypted',
-                    'encrypt_key',
-                    'staked',
-                    'encrypt_key',   
-                    'get_keys', 
-                    'rm_keys',
-                    'key2address',
-                    'key_addresses',
-                    'is_key',
-                    'new_key',
-                    'save_keys',
-                    'load_key',
-                    'load_keys', 
-                    'get_signer' ],
-        'remote': [ 'host2ssh' ],
-
-        'subspace': [ 'subnet_params', 
-                            'query', 
-                            'my_subnets', 
-                            'global_params', 
-                            'subnet_names',
-                            'update_subnet', 
-                            'get_balances',
-                            'get_balance',
-                            'my_subnets',
-                            'balances',
-                            'balance',
-                            'global_params',
-                            'register', 
-                            'key_stats',
-                            'key2stats',
-                            'my_keys',
-                            'node_keys',
-                            'add_node',
-                            'add_node_key',
-                            'snap',
-                            'save',
-                            'key2balances',
-                            'key2balance',
-                            'key2value', 
-                            'key2stake',
-                            'live_keys',
-                            'seconds_per_epoch'
-                            'is_registered',
-                            'transfer_multiple',
-                            'stake_transfer',
-                            'subnet2netuid',
-                            'netuid2subnet',
-                            'subnets',
-                            'subnet',
-                            'netuids',
-                            'unregistered_servers',
-                            'query_map',
-                            'key2tokens',
-                            'key2stake',
-                            'update_network', 
-                            'update_global',
-                            'my_subnets', 
-                            'register_servers',
-                            'registered_servers',
-                            'n', 
-                            'stats',
-                            'vstats', 
-                            'valis',
-                            'check_valis',
-                            'check_servers',
-                            'kill_nodes',
-                            'lag',
-                            'transfer',
-                            'staked', 
-                            'add_profit_shares',
-                            'profit_shares', 
-                            'block',
-                            'total_supply',
-                            'update_module',
-                            'update_modules',
-                            'set_weights',
-                            'stake',
-                            'total_supply', 
-                            'my_stake_from',
-                            'my_stake_to',
-                            'stake_many',
-                            'transfer_many' ],
-        'namespace': [
-                    'add_remote', 
-                    'networks', 
-                    'network2namespace', 
-                    'register_server',
-                    'deregister_server',
-                    'server_exists', 
-                    'add_server',
-                    'has_server',
-                    'add_servers', 
-                    'rm_servers',
-                    'rm_server',
-                    'remote_servers',
-                    'namespace', 
-                    'rm_namespace',
-                    'empty_namespace',
-                    'add_namespace',
-                    'update_namespace',
-                    'build_namespace',
-                    'put_namespace',
-                    'get_namespace',
-                    'server2info', 
-                    'infos', 
-                    'get_address', 
-                    'servers',
-                    'name2address'
-                ]
-        }
-        return module_routes
-
-
-
-            
-
-        
+ 
     @classmethod
     def enable_routes(cls, verbose=True):
+        """
+        This ties other modules into the current module.
+        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
+        This allows you to call the function as if it were a method of the current module.
+        for example
+        """
         if cls.routes_enabled:
             return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
-        for m, fns in c.module_routes().items():
+        for m, fns in c.module_routes.items():
             from functools import partial
             def fn_generator(*args, fn, module, **kwargs):
                 module = c.module(module)()
                 return getattr(module, fn)(*args, **kwargs)
             for fn in fns:
+                if isinstance(fn, list) and len(fn) == 2:
+                    # if the function is a list of length 2, then the first element is the function name and the second is the name of the function
+                    # example ['fn', 'new_fn_name']
+                    fn = fn[0]
+                    fn_name = fn[1]
+                elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
+                    fn = fn['fn']
+                    fn_name = fn['name']
+                else:
+                    fn = fn
+                    fn_name = fn
+
                 fn_obj = partial(fn_generator, fn=fn, module=m )
-                fn_obj.__name__ = fn
+                fn_obj.__name__ = fn_name
                 setattr(cls, fn, fn_obj)
                 
         t1 = c.time()
@@ -6380,6 +6226,179 @@ class c:
             c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
 
+
+    module_routes = { 
+            
+            'vali': [
+                        'run_epoch',
+                    ],
+            'tree': [
+                        'tree', 
+                        'trees', 
+                        'local_tree', 
+                        'build_tree', 
+                        'tree2path', 
+                        'trees',
+                        'add_tree', 
+                        'rm_tree', 
+                        'tree2path',
+                        'path2simple', 
+                        'simple2path',
+                        'path2objectpath', 
+                        'tree_paths', 
+                        'tree_names'
+                        ],
+            'cli': [
+                        'parse_args',
+                    ],
+            'streamlit': [
+                        'set_page_config',
+                    ],
+            'docker': [
+                        'containers',
+                    ],
+            'client': [
+                        'call', 
+                        'call_search', 
+                        'connect'
+                    ],
+            'repo': [
+                        'is_repo',
+                    ],
+            'key': [
+                        'ss58_encode', 
+                        'ss58_decode',
+                        'key2mem', 
+                        'key_info_map', 
+                        'key_info',
+                        'valid_ss58_address',
+                        'add_key',
+                        'from_password',
+                        'str2key', 
+                        'pwd2key',
+                        'getmem',
+                        'mem',
+                        'mems',
+                        'switch_key',
+                        'module_info',
+                        'rename_kefy', 
+                        'mv_key',
+                        'add_key',
+                        'add_keys',
+                        'key_exists',
+                        'ls_keys',
+                        'rm_key',
+                        'key_encrypted',
+                        'encrypt_key',
+                        'staked',
+                        'encrypt_key',   
+                        'get_keys', 
+                        'rm_keys',
+                        'key2address',
+                        'key_addresses',
+                        'is_key',
+                        'new_key',
+                        'save_keys',
+                        'load_key',
+                        'load_keys', 
+                        'get_signer' ],
+            'remote': [ 'host2ssh' ],
+
+            'subspace': [ 'subnet_params', 
+                                'query', 
+                                'my_subnets', 
+                                'global_params', 
+                                'subnet_names',
+                                'update_subnet', 
+                                'get_balances',
+                                'get_balance',
+                                'my_subnets',
+                                'balances',
+                                'balance',
+                                'global_params',
+                                'register', 
+                                'key_stats',
+                                'key2stats',
+                                'my_keys',
+                                'node_keys',
+                                'add_node',
+                                'add_node_key',
+                                'snap',
+                                'save',
+                                'key2balances',
+                                'key2balance',
+                                'key2value', 
+                                'key2stake',
+                                'live_keys',
+                                'seconds_per_epoch'
+                                'is_registered',
+                                'transfer_multiple',
+                                'stake_transfer',
+                                'subnet2netuid',
+                                'netuid2subnet',
+                                'subnets',
+                                'subnet',
+                                'netuids',
+                                'unregistered_servers',
+                                'query_map',
+                                'key2tokens',
+                                'key2stake',
+                                'update_network', 
+                                'update_global',
+                                'my_subnets', 
+                                'register_servers',
+                                'registered_servers',
+                                'n', 
+                                'stats',
+                                'vstats', 
+                                'valis',
+                                'check_valis',
+                                'check_servers',
+                                'kill_nodes',
+                                'lag',
+                                'transfer',
+                                'staked', 
+                                'add_profit_shares',
+                                'profit_shares', 
+                                'block',
+                                'total_supply',
+                                'update_module',
+                                'update_modules',
+                                'set_weights',
+                                'stake',
+                                'total_supply', 
+                                'my_stake_from',
+                                'my_stake_to',
+                                'stake_many',
+                                'transfer_many', 'send' ],
+            'namespace': [
+                        'add_remote', 
+                        'networks', 
+                        'network2namespace', 
+                        'register_server',
+                        'deregister_server',
+                        'server_exists', 
+                        'add_server',
+                        'has_server',
+                        'add_servers', 
+                        'rm_servers',
+                        'rm_server',
+                        'remote_servers',
+                        'namespace', 
+                        'rm_namespace',
+                        'empty_namespace',
+                        'add_namespace',
+                        'update_namespace',
+                        'build_namespace',
+                        'put_namespace',
+                        'get_namespace',
+                        'server2info', 
+                        'infos', 
+                        'get_address', 
+                        'servers',
+                        'name2address'
+                    ]
+            }
 
 c.enable_routes()
 Module = c # Module is alias of c
