@@ -22,3 +22,13 @@ To test it
 ```
 pytest test
 ```
+
+
+add your own tests to your repo
+
+
+```
+c server/test/test.py
+```
+
+```

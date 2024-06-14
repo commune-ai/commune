@@ -74,7 +74,7 @@ class Tree(c.Module):
                 update = False,
                 max_age = None, 
                 include_root = False,
-                verbose = True,
+                verbose = False,
                 cache = True,
                 save = True,
                 **kwargs
@@ -106,7 +106,8 @@ class Tree(c.Module):
                 mode = 'build'
                 tree = cls.build_tree(path)
                 cls.tree_cache[cache_path] = {'data': tree, 'timestamp': timestamp}
-                cls.put(cache_path, tree)
+                if save: # we want to save the tree to storage
+                    cls.put(cache_path, tree)
         
         assert mode != None, 'Invalid mode'
         if search != None:

@@ -6184,7 +6184,7 @@ class c:
 
  
     @classmethod
-    def enable_routes(cls, verbose=True):
+    def enable_routes(cls, verbose=False):
         """
         This ties other modules into the current module.
         The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
@@ -6218,8 +6218,7 @@ class c:
                 
         t1 = c.time()
     
-        if verbose:
-            c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
+        c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
 
 
