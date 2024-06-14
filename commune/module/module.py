@@ -918,7 +918,6 @@ class c:
         dirpath = os.path.dirname(path)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)      
-                 
         return path
     
     @classmethod
@@ -2722,27 +2721,24 @@ class c:
 
     @classmethod
     def argparse(cls, verbose: bool = False, **kwargs):
-        argv = ' '.join(c.argv())
-        if ' --' in argv or ' -' in argv:
-            parser = argparse.ArgumentParser(description='Argparse for the module')
-            parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
-            parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
-            parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
-            parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
-            parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-            args = parser.parse_args()
-            if verbose:
-                c.print('Argparse Args: ',args, color='cyan')
-            args.kwargs = json.loads(args.kwargs.replace("'",'"'))
-            args.params = json.loads(args.params.replace("'",'"'))
-            args.inputs = json.loads(args.input.replace("'",'"'))
+        parser = argparse.ArgumentParser(description='Argparse for the module')
+        parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
+        parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
+        parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
+        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+        args = parser.parse_args()
+        if verbose:
+            c.print('Argparse Args: ',args, color='cyan')
+        args.kwargs = json.loads(args.kwargs.replace("'",'"'))
+        args.params = json.loads(args.params.replace("'",'"'))
+        args.inputs = json.loads(args.input.replace("'",'"'))
 
-            # if you pass in the params, it will override the kwargs
-            if len(args.params) > len(args.kwargs):
-                args.kwargs = args.params
-            args.args = json.loads(args.args.replace("'",'"'))
-        else:
-            args = c.parse_args()
+        # if you pass in the params, it will override the kwargs
+        if len(args.params) > len(args.kwargs):
+            args.kwargs = args.params
+        args.args = json.loads(args.args.replace("'",'"'))
+        c.print('args', args, color='cyan')
         return args
 
 

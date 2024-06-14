@@ -40,20 +40,29 @@ class Subspace(c.Module):
         self.set_config(kwargs=kwargs)
 
 
-    def resolve_url(self, url = None, mode='http', **kwargs):
+    def filter_url(self, url):
+        """
+        Filter urls based on the url_search parameter
+        """
+        if self.config.url_search == None:
+            return True
+        url_search_terms = [url.strip() for x in self.config.url_search.split(',')]
+        return any([x in url for x in url_search_terms])
+    
+    def resolve_url(self, url = None, mode=None, **kwargs):
+        mode =  mode or self.config.network_mode
+        url = url or self.config.url
+        assert mode in ['http', 'ws']
+        if url != None:
+            return url
         
         network = self.resolve_network()
-        def is_match(x):
-            url_search_terms = [x.strip() for x in self.config.url_search.split(',')]
-            return any([url in x for url in url_search_terms])
-        mode =  mode or self.config.network_mode
-        assert mode in ['http', 'ws', 'wss', 'https']
         if url == None:
             urls_map = getattr(self.config.urls,  network)
-            urls = []
-            for provider, mode2url in urls_map.items():
-                if is_match(provider):
-                    urls += list(mode2url[mode])
+            urls = urls_map.get(mode, [])
+            assert len(urls) > 0, f'No urls found for network {network} and mode {mode}'
+            if len(urls) > 1:
+                urls_map = list(filter(self.filter_url, urls))
             url = c.choice(urls)
         return url
     

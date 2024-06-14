@@ -2,6 +2,15 @@
 
 In this tutorial, we'll explore how to use the `commune` library for module management in Python. The `commune` library provides functionalities for managing and serving code modules easily.
 
+To know what a module is make sure you have commune installed.
+
+To start a new module
+
+c new_module agi
+
+This will create a new module called agi in the modules directory of the commune project.
+
+
 ## Table of Contents
 - [Finding Your Module](#finding-your-module)
 - [Module Management](#module-management)
