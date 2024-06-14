@@ -63,36 +63,59 @@ class Tree(c.Module):
         return bool([f for f in cls.ls(libpath) if '.git' in f and os.path.isdir(f)])
     
     @classmethod
+    def default_tree_path(cls):
+        return c.libpath
+    
+    
+    @classmethod
     def tree(cls, 
                 path = None,
                 search=None,
                 update = False,
                 max_age = None, 
                 include_root = False,
-                verbose = False,
+                verbose = True,
+                cache = True,
                 **kwargs
                 ) -> List[str]:
-        t0 = c.time()
-        path = cls.resolve_path(path or c.pwd())
-        is_repo = cls.is_repo(path)
-        if not is_repo:
-            path = c.libpath
+        tree = {}
+        mode = None
+        timestamp = c.time()
+
+        path = os.path.abspath(path or cls.default_tree_path())
         cache_path = path.split('/')[-1]
-        if cache_path in cls.tree_cache:
-            tree = cls.tree_cache[cache_path]
-        else:
+        # the tree is cached in memory to avoid repeated reads from storage
+        # if the tree is in the cache and the max_age is not None, we want to check the age of the cache
+        use_tree_cache = bool(cache and cache_path in cls.tree_cache and not update)
+        if use_tree_cache:
+            tree_data = cls.tree_cache[cache_path]
+            assert all([k in tree_data for k in ['data', 'timestamp']]), 'Invalid tree cache'
+            cache_age = timestamp - tree_data['timestamp']
+            if max_age != None and cache_age < max_age:
+                tree = tree_data['data']
+                assert isinstance(tree, dict), 'Invalid tree data'
+                mode = 'memory_cache'
+
+        if len(tree) == 0:
+            # if the tree is not cached in memory or we want to check the storage cache
             tree =  cls.get(cache_path, {}, max_age=max_age, update=update)
-        if len(tree) == 0 :
-            tree = cls.build_tree(path)
-            cls.tree_cache[cache_path] = tree
-            cls.put(cache_path, tree)
+            mode = 'storage_cache'
+            if len(tree) == 0 :
+                # if the tree is not in the storage cache, we want to build it and store it
+                mode = 'build'
+                tree = cls.build_tree(path)
+                if cache:
+                    cls.tree_cache[cache_path] = {'data': tree, 'timestamp': timestamp}
+                cls.put(cache_path, tree)
+        assert mode != None, 'Invalid mode'
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         if include_root:
             tree = {**tree, **cls.root_tree()}
-        latency = c.time() - t0
+        
         if verbose:
-            c.print(f'Tree  path={path} latency={latency}, n={len(tree)}', color='cyan')
+            latency = c.time() - timestamp
+            c.print(f'Tree  path={path} latency={latency}, n={len(tree)} mode={mode}', color='cyan')
         return tree
     
     @classmethod
@@ -101,20 +124,27 @@ class Tree(c.Module):
     
 
     @classmethod
-    def build_tree(cls, tree_path:str = './',  **kwargs):
+    def build_tree(cls,
+                    tree_path:str = None, 
+                    extension = '.py', 
+                    verbose = True,
+                    search=None,
+                   **kwargs):
+        
+        tree_path = tree_path or c.libpath
         t1 = c.time()
         tree_path = cls.resolve_path(tree_path)
         module_tree = {}
-        cache_path = tree_path.split('/')[-1]
-        for root, dirs, files in os.walk(tree_path):
-            for file in files:
-                if file.endswith('.py') and '__init__' not in file and not file.split('/')[-1].startswith('_'):
-                    path = os.path.join(root, file)
-                    simple_path = cls.path2simple(path)
-                    module_tree[simple_path] = path
-
+        for path in c.glob(tree_path+'/**/**.py', recursive=True):
+            simple_path = cls.path2simple(path)
+            if simple_path == None:
+                continue
+            module_tree[simple_path] = path
         latency = c.time() - t1
-        c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}', color='cyan')
+        if search != None:
+            module_tree = {k:v for k,v in module_tree.items() if search in k}
+        c.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}',  color='cyan', verbose=verbose)
+
         return module_tree
     @classmethod
     def tree_paths(cls, update=False, **kwargs) -> List[str]:
@@ -194,51 +224,88 @@ class Tree(c.Module):
 
     @classmethod
     def path2simple(cls,  
-                    path:str,   
-                    ignore_prefixes = ['commune', 'modules', 'router'],
-                    ignore_suffixes = ['.module']) -> str:
+                    path:str, 
+                    tree = None,  
+                    ignore_prefixes = ['src', 'commune', 'modules', 'router'],
+                    module_folder_filnames = ['__init__', 'main', 'module'],
+                    module_extension = 'py',
+                    ignore_suffixes = ['module'],
+                    compress_path = True,
+                    verbose = False,
+                    num_lines_to_read = 30,
+                    ) -> str:
+        
+        
+        
+        path  = os.path.abspath(path)
+        path_filename_with_extension = path.split('/')[-1] # get the filename with extension     
+        path_extension = path_filename_with_extension.split('.')[-1] # get the extension
+        assert path_extension == module_extension, f'Invalid extension {path_extension} for path {path}'
+        path_filename = path_filename_with_extension[:-len(path_extension)-1] # remove the extension
+        path_filename_chunks = path_filename.split('_')
+        path_chunks = path.split('/')
+        is_module_folder = all([bool(chunk in path_chunks) for chunk in path_filename_chunks])
 
-        og_path = path
-        path = os.path.abspath(path)
-        pwd = c.pwd()
-        if path.startswith(c.libpath):
-            path = path[len(c.libpath):]
-        elif path.startswith(pwd):
-            path = path[len(pwd):]
-        if cls.path_config_exists(path):
-            simple_path = os.path.dirname(simple_path)
+        if path_filename in module_folder_filnames and not is_module_folder:
+            initial_text = c.get_text(path, end_line=num_lines_to_read)
+            if 'class ' in initial_text:
+                is_module_folder = True
+                c.print(f'Path {path} is a module folder', color='yellow', verbose=verbose)
+            else:
+                return None
+            
+
+
+        if is_module_folder:
+            path = '/'.join(path.split('/')[:-1])
+
+        # STEP 2 REMOVE THE TREE PATH (IF IT EXISTS)
+        # if the path is a module folder, we want to remove the folder name
+        tree_path = tree or c.libpath
+        if path.startswith(tree_path):
+            path = path[len(tree_path):]
+        else:
+            # if the tree path is not in the path, we want to remove the root path
+            pwd = c.pwd()
+            path = path[len(pwd):]  
+
+        if path.startswith('/'):
+            path = path[1:]
+        
+
+
+        # strip the extension
+        path = path.replace('/', '.')
+
+        # remove the extension
+        module_extension = '.'+module_extension
+        if path.endswith(module_extension):
+            path = path[:-len(module_extension)]
+
+        if compress_path:
+            # we want to remove redundant chunks 
+            # for example if the path is 'module/module' we want to remove the redundant module
+            path_chunks = path.split('.')
+            simple_path = []
+            for chunk in path_chunks:
+                if chunk not in simple_path:
+                    simple_path += [chunk]
+            simple_path = '.'.join(simple_path)
         else:
             simple_path = path
-
-        simple_path = simple_path.replace('.py', '') # remove suffix
-        simple_path = simple_path.replace('/', '.')
-        if simple_path.startswith('.'):
-            simple_path = simple_path[1:]
-        chunks = simple_path.split('.')
-        simple_chunks = []
-        simple_path = ''
-        # we want to remove redundant chunks
-        for chunk in chunks:
-            if chunk not in simple_chunks:
-                simple_chunks += [chunk]
-        simple_path = '.'.join(simple_chunks)
-
-        # FOR DIRECTORY MODULES: remove suffixes (e.g. _module, module, etc. or )
-        suffix =  simple_path.split('.')[-1]
-        if '_' in suffix:
-            suffix = simple_path.split('.')[-1]
-            suffix_chunks = suffix.split('_')
-            new_simple_path = '.'.join(simple_path.split('.')[:-1])
-            if all([s.lower() in new_simple_path for s in suffix_chunks]):
-                simple_path = '.'.join(simple_path.split('.')[:-1])
-        if suffix.endswith('_module') \
-            or suffix.endswith('module.py') \
-            or suffix == '__init__.py':
-            simple_path = '.'.join(simple_path.split('.')[:-1])
         # remove prefixes from commune
         for prefix in ignore_prefixes:
-            if simple_path.startswith(prefix):
-                simple_path = simple_path.replace(prefix, '')
+            prefix += '.'
+            if simple_path.startswith(prefix) and simple_path != prefix:
+                simple_path = simple_path[len(prefix):]
+                c.print(f'Prefix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
+
+        for suffix in ignore_suffixes:
+            suffix = '.' + suffix
+            if simple_path.endswith(suffix) and simple_path != suffix:
+                simple_path = simple_path[:-len(suffix)]
+                c.print(f'Suffix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
+
 
 
         # remove leading and trailing dots
@@ -246,21 +313,21 @@ class Tree(c.Module):
             simple_path = simple_path[1:]
         if simple_path.endswith('.'):
             simple_path = simple_path[:-1]
-        
-        for suffix in ignore_suffixes:
-            if simple_path.endswith(suffix) and simple_path != suffix:
-                simple_path = simple_path[:-len(suffix)]
-                break
+
         return simple_path
 
     @classmethod
-    def path_config_exists(cls, path:str, extension='.py', config_extensions=['.yaml', '.yml']) -> bool:
+    def path_config_exists(cls, path:str,
+                            config_files = ['config.yaml', 'config.yml'],
+                              config_extensions=['.yaml', '.yml']) -> bool:
         '''
         Checks if the path exists
         '''
-        for ext in config_extensions:
-            if os.path.exists(path.replace(extension, ext)):
-                return True
+        config_files += [path.replace('.py', ext) for ext in config_extensions]
+        dirpath = os.path.dirname(path)
+        dir_files =  os.listdir(dirpath)
+        if os.path.exists(dirpath) and any([[f.endswith(cf) for cf in config_files] for f in dir_files]):
+            return True
         return False
     
 
@@ -301,8 +368,8 @@ class Tree(c.Module):
         return object_path
     
     
-
-
+if __name__ == '__main__':
+    c.print(Tree.run())
 
 
     

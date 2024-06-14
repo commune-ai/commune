@@ -51,6 +51,8 @@ class cli(c.Module):
         if you are calling a function ont he module function (the root module), it is not necessary to specify the module
         c {fn} arg1 arg2 arg3 ... argn
         """
+
+        
         if '/' in argv[0]:
             argv = argv[0].split('/') + argv[1:]
             is_fn = False
@@ -81,18 +83,6 @@ class cli(c.Module):
 
         return output
         
-    def history(self,**kwargs):
-        history = self.history_module.history(**kwargs)
-        return history
-    
-    def rm_history(self,*args, **kwargs):
-        history = self.history_module.rm_history(*args, **kwargs)
-        return history
-    
-
-    def history_paths(self, **kwargs):
-        history = self.history_module.history_paths(**kwargs) 
-        return history
 
 
     @classmethod
@@ -163,6 +153,22 @@ class cli(c.Module):
                 except ValueError:
                     return x
                 
+
+    @classmethod
+    def history(cls,**kwargs):
+        history = cls.history_module().history(**kwargs)
+        return history
+    
+    @classmethod
+    def rm_history(cls,*args, **kwargs):
+        history = cls.history_module().rm_history(*args, **kwargs)
+        return history
+    
+
+    @classmethod
+    def history_paths(cls, **kwargs):
+        history = cls.history_module().history_paths(**kwargs) 
+        return history
 
 def main():
     import sys

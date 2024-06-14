@@ -1,26 +1,33 @@
-block_time: 8
-run_loop: False
-chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
-network_mode: ws
-
-frontend:
-  telemetry:
-    feed: ws://165.22.186.112:50094/feed
-    frontend: http://165.22.186.112:50107
-    shard: ws://165.22.186.112:50090/submit 0
-key: null
-local: false
-loop: false
-network: main
+network: test
 netuid: 0
-mode: http
-retry_params:
-  backoff: 2
-  delay: 2
-  max_delay: 4
-  tries: 2
-save_interval: 1800
 subnet: commune
+mode: http
+run_loop: False
+network_mode: ws
+local: false
+
+url: null
+url_search: commune-api-node-1 # search for the best node
+urls:
+  main:
+    http: 
+    - https://commune.api.onfinality.io/public-http
+    - https://commune-api-node-1.communeai.net/
+    - https://commune-api-node-2.communeai.net/
+    - https://commune-api-node-3.communeai.net/
+    - https://commune-api-node-4.communeai.net/
+    ws: 
+    - wss://commune.api.onfinality.io/public-ws
+    - wss://commune-api-node-1.communeai.net/
+    - wss://commune-api-node-2.communeai.net/
+    - wss://commune-api-node-3.communeai.net/
+    - wss://commune-api-node-4.communeai.net/
+  test:
+    ws:
+    - wss://testnet-commune-api-node-0.communeai.net
+    http:
+    - https://testnet-commune-api-node-0.communeai.net
+
 global_features: [
         "MaxNameLength",
         "MaxAllowedModules",
@@ -54,32 +61,15 @@ module_features : [
         "stake_from",
         "delegation_fee",
     ]
-supported_schemas:
-- Sr25519
-- Ed25519
+
 token_decimals: 9
-url: null
-url_search: commies
-urls:
-  main:
-    commies:
-      http:
-      - https://commune-api-node-1.communeai.net/
-      - https://commune-api-node-2.communeai.net/
-      - https://commune-api-node-3.communeai.net/
-      - https://commune-api-node-4.communeai.net/
-      ws:
-      - wss://commune-api-node-1.communeai.net/
-      - wss://commune-api-node-2.communeai.net/
-      - wss://commune-api-node-3.communeai.net/
-      - wss://commune-api-node-4.communeai.net/
-    local: 
-      http: 
-      - http://0.0.0.0:9944
-      ws: 
-      - ws://0.0.0.0:9944
-    onfinality:
-      http: 
-      - https://commune.api.onfinality.io/public-http
-      ws: 
-      - wss://commune.api.onfinality.io/public-ws
+block_time: 8
+loop: false
+retry_params:
+  backoff: 2
+  delay: 2
+  max_delay: 4
+  tries: 2
+
+save_interval: 1800
+supported_schemas: [Sr25519, Ed25519]
