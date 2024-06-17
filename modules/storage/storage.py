@@ -4,12 +4,13 @@ import os
 
 class Storage(c.Module):
     whitelist: List = ['put_item', 'get_item', 'hash', 'items']
-    replica_prefix = 'replica'
-    shard_prefix = 'shard::'
 
-    def __init__(self, store_dir = 'base', **kwargs):
-        self.store_dir = store_dir
+    def __init__(self, store_dir = 'store', **kwargs):
+        self.set_store_dir(store_dir)
         self.serializer = c.module('serializer')()
+
+    def set_store_dir(self, store_dir):
+        self.store_dir = self.resolve_path(store_dir or 'store')
 
     def resolve_item_path(self, path: str) -> str:
         store_dir = self.store_dir

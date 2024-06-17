@@ -10,40 +10,64 @@ class Tree(c.Module):
         self.set_config(kwargs=locals())
         # c.thread(self.run_loop)
     
+    @classmethod
+    def resolve_extension(cls, filename:str, extension = '.py') -> str:
+        if filename.endswith(extension):
+             return filename
+        return filename + extension
 
     @classmethod
-    def simple2path(cls, path:str, tree = None, **kwargs) -> bool:
+    def simple2path(cls, 
+                    simple_path:str,
+                    tree = None,
+                    extension = '.py',
+                    **kwargs) -> bool:
+        """
+        
+        converts the module path to a file path
+
+        for example 
+
+        model.openai.gpt3 -> model/openai/gpt3.py, model/openai/gpt3_module.py, model/openai/__init__.py 
+        model.openai -> model/openai.py or model/openai_module.py or model/__init__.py
+
+
+        Parameters:
+            path (str): The module path
+
+        
+        """
+        path = None
         pwd = c.pwd()
-        simple_path = path
-        dirpath = pwd + '/' + path.replace('.', '/')
-        if os.path.isdir(dirpath):
-            paths_in_dir = os.listdir(dirpath)
+        module_dirpath = pwd + '/' + simple_path.replace('.', '/')
+        module_filepath = pwd + '/' + cls.resolve_extension(simple_path)
+
+        if os.path.isdir(module_dirpath):
+            simple_path_filename = simple_path.replace('.', '_')
+            filename_options = [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename]
+            filename_options += ['module', 'main', '__init__'] # these are the possible filenames for the module file
+            path_options = [cls.resolve_extension(f)  for f in path_options ]
+            paths_in_dir = os.listdir(module_dirpath)
             for p in paths_in_dir:
-                if p.endswith('.py'):
-                    simple_path_filename = simple_path.replace('.', '_')
-                    path_options = [
-                                    simple_path_filename, 
-                                    simple_path_filename + '_module', 
-                                    'module_'+ simple_path_filename , 
-                                    'main', 
-                                    '__init__'
-                                    ]
-                    path_options = [f if f.endswith('.py') else f + '.py'  for f in path_options ]
-                    for path_option in path_options:
-                        if os.path.exists(path_option):
-                            return path_option
-        filepath = pwd + '/' + (path if path.endswith('.py') else path + '.py')
-        if os.path.exists(filepath):
-            full_path = filepath 
+                if p.endswith(extension):
+                    for filename in filename_options:
+                        if p.endswith(filename):
+                            path = module_dirpath + '/' + p
+                if path != None:
+                    break
+                    
+        elif os.path.exists(module_filepath):
+            path = module_filepath
         else:
             tree = c.tree()
-            is_module_in_tree = bool(simple_path in tree)
-            if not is_module_in_tree:
+            is_in_tree = bool(simple_path in tree)
+            if not  is_in_tree:
                 c.print(f'Path not found in tree: {simple_path}', color='red')
                 tree = cls.tree(update=True, include_root=True)
-            full_path = tree[simple_path]
+            path = tree[simple_path]
 
-        return full_path
+        assert path != None, f'Path not found for simple path {simple_path}'
+        return path
     
     def path2tree(self, **kwargs) -> str:
         trees = c.trees()
@@ -365,6 +389,8 @@ class Tree(c.Module):
                 object_path = object_path[1:]
             object_path = object_path + '.' + classes[-1]
         except Exception as e:
+            e = c.detailed_error(e)
+            c.print(f'Error in simple2objectpath: {e}', color='red')
             object_path = simple_path
 
 

@@ -91,7 +91,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 trials:int = 10,
-                cache:bool = True,
+                update : bool = False,
                 mode = 'http'):
 
         
@@ -118,12 +118,17 @@ class Subspace(c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
+
         while trials > 0:
             try:
+          
                 url = self.resolve_url(url, mode=mode)
-                if cache:
+
+                if not update:
                     if url in self.url2substrate:
                         substrate = self.url2substrate[url]
+                        break
+
                 substrate= SubstrateInterface(url=url, 
                             websocket=websocket, 
                             ss58_format=ss58_format, 
@@ -138,12 +143,13 @@ class Subspace(c.Module):
             except Exception as e:
                 c.print('ERROR IN CONNECTION: ', c.detailed_error(e))
                 trials = trials - 1
-                if trials > 0:
+                if trials == 0:
                     raise e
                 
         self.url = url
-        if cache:
-            self.url2substrate[url] = substrate
+        self.url2substrate[url] = substrate
+                
+  
 
         return substrate
 
@@ -160,6 +166,8 @@ class Subspace(c.Module):
         if save:
             self.save_config(self.config)
         return  {'network': self.network, 'url': self.url, 'save': save}
+    
+    
     @property
     def network(self):
         return self.resolve_network(self.config.network)
