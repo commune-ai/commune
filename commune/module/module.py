@@ -677,7 +677,8 @@ class c:
     
     @classmethod
     def cmd(cls, *args,**kwargs):
-        return c.module('os').cmd( *args, **kwargs)
+        cmd = c.module('os').cmd( *args, **kwargs)
+        return cmd
     run_command = shell = cmd 
     
     @classmethod
@@ -1210,9 +1211,9 @@ class c:
                    path:str = 'module',  
                    cache=True,
                    trials = 3,
-                   tree = 'commune',
-                   verbose = 0,
+                   verbose = False,
                    update_tree_if_fail = True,
+                   init_kwargs = None,
                    ) -> str:
         """
         params: 
@@ -1221,22 +1222,26 @@ class c:
             tree: the tree to search for the module
             update_if_fail: whether to update the tree if the module is not found
         """
+
+
         path = path or 'module'
+
+        shortcuts = c.shortcuts()
+        if path in shortcuts:
+            path = shortcuts[path]
         module = None
-        cache_key = f'{tree}_{path}'
+        cache_key = path
         t0 = c.time()
 
-        if cache and cache_key in c.module_cache:
-            module = c.module_cache[cache_key]
-            if module != None:
-                return module
 
         try:
+            if cache and cache_key in c.module_cache:
+                module = c.module_cache[cache_key]
             module = c.simple2object(path)
         except Exception as e:
+            c.print(c.detailed_error(e))
             if update_tree_if_fail:
                 c.tree(update=True)
-            c.print(c.detailed_error(e))
             if trials == 0:
                 raise e
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
@@ -1246,7 +1251,9 @@ class c:
 
         if verbose:
             c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
-
+        
+        if init_kwargs != None:
+            module = module(**init_kwargs)
         return module
 
     @classmethod
@@ -2162,7 +2169,6 @@ class c:
         if port == None:
             # now if we have the server_name, we can repeat the server
             address = c.get_address(name, network=server_network)
-            c.print(f'Address: {address}')
             try:
                 port = int(address.split(':')[-1])
             except Exception as e:
@@ -2835,9 +2841,6 @@ class c:
         '''
         Wraps a python class as a module
         '''
-        shortcuts = c.shortcuts()
-        if module in shortcuts:
-            module = shortcuts[module]
         module_class =  c.get_module(module,**kwargs)
         return module_class
     m = mod = module
@@ -6191,10 +6194,14 @@ class c:
             def fn_generator(*args, fn, module, **kwargs):
 
                 module = c.module(module)
-                try:
-                    return getattr(module, fn)(*args, **kwargs)
-                except Exception as e:
-                    return getattr(module(), fn)(*args, **kwargs)
+                fn_type = module.classify_fn(fn)
+                if fn_type == 'self':
+                    module = module()
+                else:
+                    module = module
+    
+                return getattr(module, fn)(*args, **kwargs)
+     
             for fn in fns:
                 if isinstance(fn, list) and len(fn) == 2:
                     # if the function is a list of length 2, then the first element is the function name and the second is the name of the function
