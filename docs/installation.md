@@ -1,19 +1,11 @@
-## Setup Commune
-
-To setup commune clone the repo and run the following commands
-
+## Installation
 1. **Clone the Commune Repository**: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
 ```
 git clone https://github.com/commune-ai/commune.git
 ```
 
-# Now you have two paths, you can either run commune with docker or without docker
-
-Please note that running commune outside of docker will require you to install the dependencies yourself.
-If you are running commune with docker, you can skip to the next section.
-
-## Setting up Commune With Docker
+##  With Docker
 
 Ensure that you have Docker installed on your machine. If you don't, you can follow the official Docker installation guide for your operating system.
 
@@ -41,6 +33,7 @@ exit
 ```
 
 To run commands inside the container, you can use the following command:
+
 ```bash
 docker exec -it commune bash -c "c modules"
 ```

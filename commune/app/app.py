@@ -1,6 +1,7 @@
 import commune as c
 import os
 import json
+import streamlit as st
 
 
 class App(c.Module):
@@ -65,7 +66,6 @@ class App(c.Module):
     
 
     def app(self):
-        import streamlit as st
         st.write('Hello World!')
     
 

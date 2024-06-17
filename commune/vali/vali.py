@@ -28,7 +28,6 @@ class Vali(c.Module):
         self.score_module = score_fn
         return {'success': True, 'msg': 'Set score function', 'score_fn': self.score_fn.__name__}
 
-
     def init_vali(self, config=None, module=None, score_fn=None, **kwargs):
         # initialize the validator
         # merge the config with the default config
@@ -36,12 +35,6 @@ class Vali(c.Module):
         config = c.dict2munch({**Vali.config(), **config})
         config.verbose = bool(config.verbose or config.debug)
         self.set_score_fn(score_fn)
-        self.init_state()
-        self.config = config
-        c.print(self.sync())
-        c.thread(self.run_loop)
-
-    def init_state(self):     
         self.futures = [] # futures for the executor 
         # COUNT METRICS
         self.last_start_time = 0 # the last time a worker was started
@@ -55,7 +48,17 @@ class Vali(c.Module):
         self.last_error = 0 # the last time an error occured
         self.last_sent = 0  # the last time a request was sent
         self.last_success = 0 # the last time a success was made
+        self.start_time = c.time()
 
+        self.config = config
+
+        self.set_network(network=self.config.network, 
+                     search=config.search,  
+                     netuid=config.netuid, 
+                     fn= config.fn,
+                     max_age = config.max_age)
+        c.thread(self.run_loop)
+        
     init = init_vali
 
     @property
@@ -93,35 +96,44 @@ class Vali(c.Module):
     
     @property
     def is_voting_network(self):
-        return not 'subspace' in self.config.network and 'bittensor' not in self.config.network
+        return any([v in self.config.network for v in self.voting_networks])
     
     @property
     def last_start_staleness(self):
         return c.time() - self.last_start_time
 
+    def run_step(self):
+        """
+        The following runs a step in the validation loop
+        """
+        self.sync()
+        run_info = self.run_info()
+        if self.success_staleness > self.config.max_success_staleness and self.last_start_staleness > self.config.max_success_staleness:
+            c.print('Too many stale successes, restarting workers', color='red')
+            self.start_workers()
+        if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
+                c.print(self.vote())
+        c.print(run_info)
 
     def run_loop(self):
+        """
+        The run loop is a backgroun loop that runs to do two checks
+        - network: check the staleness of the network to resync it 
+        - workers: check the staleness of the last success to restart the workers 
+        - voting: check the staleness of the last vote to vote (if it is a voting network)
+        
+        """
         self.sync()
+        # sleep for the initial sleep time
         c.sleep(self.config.initial_sleep)
-        self.start_time = c.time()
+
+        # start the workers
         self.start_workers()
 
         while True:
             c.sleep(self.config.run_step_interval)
             try:
-                self.sync()
-                run_info = self.run_info()
-                if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
-                        c.print(self.vote())
-                if self.success_staleness > self.config.max_success_staleness and self.last_start_staleness > self.config.max_success_staleness:
-                    c.print('Too many stale successes, restarting workers', color='red')
-                    self.start_workers()
-                df = self.leaderboard()
-                if len(df) > 0:
-                    c.print(df.sort_values(by=['staleness'], ascending=False)[:42])
-                c.print(run_info)
-                c.print(df)
-
+                self.run_step()
             except Exception as e:
                 c.print(c.detailed_error(e))
 
@@ -169,7 +181,6 @@ class Vali(c.Module):
             except Exception as e:
                 result = c.detailed_error(e)
             c.print(f'Leaderboard epoch={self.epochs})'  , color='yellow')
-            c.print(self.leaderboard())
 
 
 
@@ -213,7 +224,8 @@ class Vali(c.Module):
 
             results = []
             timeout = self.config.timeout
-            c.print(len(module_addresses))
+            n = len(module_addresses)
+            c.print(f'Starting epoch {self.epoch} with n={n}',)
 
             for module_address in module_addresses:
                 c.sleep(self.config.sample_interval)
@@ -252,15 +264,18 @@ class Vali(c.Module):
                      network:str=None, 
                      search:str=None,  
                      netuid:int=None, 
-                     update = False,
-                     fn : str = None,
-                     max_age:int = None,
-                     **kwargs):
+                     max_age:int = None, **kwargs):
+        config = self.config
+        config.network = network or config.network
+        config.search =  search or config.search
+        config.netuid =  netuid or config.netuid
+        config.max_age = max_age or config.max_age
 
-        if self.network_staleness < self.config.sync_interval and not update:
+
+        if self.network_staleness < config.max_age:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'staleness': self.network_staleness, 
-                    'sync_interval': self.config.sync_interval,
+                    'max_age': self.config.max_age,
                     'network': self.config.network, 
                     'netuid': self.config.netuid, 
                     'n': self.n,
@@ -270,23 +285,24 @@ class Vali(c.Module):
         self.last_sync_time = c.time()
         config = self.config
         # name2address / namespace
-        config.network = network or config.network
-        config.search =  search or config.search
-        config.netuid =  netuid or config.netuid
-
         # RESOLVE THE VOTING NETWORKS
         if 'local' in config.network:
             # local network does not need to be updated as it is atomically updated
             namespace = c.module('namespace').namespace(search=config.search, update=False)
         elif config.network in ['subspace', 'main', 'test']:
+
             if '.' in config.network:
                 config.network, config.netuid = config.network.split('.')
             # convert the subnet to a netuid
             if isinstance(config.netuid, str):
                 config.netuid = self.subspace.subnet2netuid(config.netuid)
+            if '/' in config.network:
+                _ , config.network = config.network.split('/')
+                
             self.subspace = c.module('subspace')(network=config.network)
+            config.network = 'subspace' + '/' + str(self.subspace.network)
             max_age = max_age or self.config.sync_interval
-            namespace = self.subspace.namespace(netuid=config.netuid, max_age=max_age)  
+            namespace = self.subspace.namespace(netuid=config.netuid, max_age=config.max_age)  
         else:
             raise Exception(f'Invalid network {config.network}')
         self.namespace = namespace
@@ -295,9 +311,7 @@ class Vali(c.Module):
         self.name2address = self.namespace
         self.address2name = {k:v for v, k in namespace.items()}
         self.module2name = {v: k for k, v in self.namespace.items()}  
-        self.network = network
         self.netuid = netuid
-        self.fn = fn
         self.search = search
         self.config = config
         c.print(f'Synced network {config.network} with {self.n} modules', color='green')
@@ -402,7 +416,7 @@ class Vali(c.Module):
             response['w'] = 0
             name = info.get('name', module)
             response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
-            c.print(f'Error (name={name}) --> {response_str}', color='red', verbose=self.verbose)
+            c.print(f'Error (name={name}) --> {response_str} {response}', color='red', verbose=self.verbose)
             self.errors += 1
             self.last_error  = c.time()
         
@@ -485,12 +499,8 @@ class Vali(c.Module):
             'network': self.config.network,
         }
     
-    def calculate_votes(self, df=None, **kwargs):
-        network = self.config.network
-        keys = ['name', 'w', 'staleness','latency', 'key']
-        leaderboard = df or self.leaderboard(network=network, 
-                                       keys=keys, 
-                                       to_dict=True)
+    def calculate_votes(self, **kwargs):
+        leaderboard =  self.leaderboard(keys=['name', 'w', 'staleness','latency', 'key'],   to_dict=True)
         assert len(leaderboard) > 0
         votes = {'keys' : [],'weights' : [],'uids': [], 'timestamp' : c.time()  }
         key2uid = self.subspace.key2uid(**kwargs) if hasattr(self, 'subspace') else {}

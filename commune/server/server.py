@@ -55,7 +55,7 @@ class Server(c.Module):
                    **kwargs
                    ):
         self.protocal = c.module(protocal)(module=module,     
-                                            history_path=self.resolve_path(history_path or f'history/{module.server_name}'),
+                                            history_path=self.resolve_path(history_path  or name),
                                             name = name,
                                             port=port,
                                             key=key,

@@ -15,10 +15,11 @@ class cli(c.Module):
                 history_module = 'history',
                 forget_fns = ['module.key_info', 'module.save_keys'], 
                 path = 'history',
-                save: bool = True):
+                save: bool = False):
         self.verbose = verbose
         self.save = save
-        self.history_module = c.module(history_module)(folder_path=self.resolve_path(path))
+        if save:
+            self.history_module = c.module(history_module)(folder_path=self.resolve_path(path))
         self.base_module = c.module(module)
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
         args = args or self.argv()

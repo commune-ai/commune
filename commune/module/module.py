@@ -3,6 +3,7 @@ import inspect
 import concurrent
 import threading
 from copy import deepcopy
+import yaml
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
 from rich.console import Console
@@ -151,9 +152,12 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         obj = cls.resolve_module(obj)
-        module_path =  inspect.getfile(obj)
+        try:
+            module_path =  inspect.getfile(obj)
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            module_path =  inspect.getfile(cls)
         return module_path
-    
     @classmethod
     def gitbranch(cls) -> str:
         return c.cmd('git branch').split('\n')[0].replace('* ', '')
@@ -168,13 +172,6 @@ class c:
 
     pythonpath = pypath =  filepath
 
-    @classmethod
-    def config_path(cls) -> str:
-        '''
-        removes the PWD with respect to where module.py is located
-        '''
-        return cls.config_path()
-    cfgpath = config_path = config_path
 
     @classmethod
     def dirpath(cls) -> str:
@@ -277,7 +274,6 @@ class c:
         '''f
         Loads a yaml file
         '''
-        import yaml
         path = cls.resolve_path(path)
         with open(path, 'r') as file:
             data = yaml.load(file, Loader=yaml.FullLoader)
@@ -307,30 +303,34 @@ class c:
         '''
         Returns the code of a function
         '''
-        if isinstance(fn, str):
-            if seperator in fn:
-                module_path, fn = fn.split(seperator)
-                module = c.module(module_path)
-                fn = getattr(module, fn)
-            else:
-                fn = getattr(cls, fn)
-        
-        
-        code_text = inspect.getsource(fn)
-        text_lines = code_text.split('\n')
-        if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
-            text_lines.pop(0)
+        try:
+            if isinstance(fn, str):
+                if seperator in fn:
+                    module_path, fn = fn.split(seperator)
+                    module = c.module(module_path)
+                    fn = getattr(module, fn)
+                else:
+                    fn = getattr(cls, fn)
+            
+            
+            code_text = inspect.getsource(fn)
+            text_lines = code_text.split('\n')
+            if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
+                text_lines.pop(0)
 
-        assert 'def' in text_lines[0], 'Function not found in code'
-        start_line = cls.find_code_line(search=text_lines[0])
-        fn_code = '\n'.join([l[len('    '):] for l in code_text.split('\n')])
-        if detail:
-            fn_code =  {
-                'text': fn_code,
-                'start_line': start_line ,
-                'end_line':  start_line + len(text_lines)
-            }
-                
+            assert 'def' in text_lines[0], 'Function not found in code'
+            start_line = cls.find_code_line(search=text_lines[0])
+            fn_code = '\n'.join([l[len('    '):] for l in code_text.split('\n')])
+            if detail:
+                fn_code =  {
+                    'text': fn_code,
+                    'start_line': start_line ,
+                    'end_line':  start_line + len(text_lines)
+                }
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            fn_code = None
+                    
         return fn_code
     
     fncode = fn_code
@@ -355,12 +355,6 @@ class c:
     
     put_yaml = save_yaml
 
-    
-    @classmethod
-    def config_path(cls) -> str:
-        path = cls.module_file().replace('.py', '.yaml')
-        return path
-    
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
         '''
@@ -696,6 +690,7 @@ class c:
         try:
             return import_module(import_path)
         except Exception as e:
+            print(f'Error: {e}')
             import sys
             sys.path.append(pwd)
             sys.path = list(set(sys.path))
@@ -972,7 +967,6 @@ class c:
 
     @classmethod
     def has_free_ports(self, n:int = 1, **kwargs):
-
         return len(self.free_ports(n=n, **kwargs)) > 0
     
     @classmethod
@@ -1215,12 +1209,14 @@ class c:
                    trials = 3,
                    tree = 'commune',
                    verbose = 0,
+                   update_tree_if_fail = True,
                    ) -> str:
         """
         params: 
             path: the path to the module
             cache: whether to cache the module
             tree: the tree to search for the module
+            update_if_fail: whether to update the tree if the module is not found
         """
         path = path or 'module'
         module = None
@@ -1235,9 +1231,11 @@ class c:
         try:
             module = c.simple2object(path)
         except Exception as e:
+            if update_tree_if_fail:
+                c.tree(update=True)
             c.print(c.detailed_error(e))
             if trials == 0:
-                raise Exception(f'Could not find {path} in {c.modules(path)} modules')
+                raise e
             c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
             module = c.get_module(path, cache=cache , verbose=verbose, trials=trials-1)                
         if cache:
@@ -1262,12 +1260,8 @@ class c:
     
 
     @classmethod
-    def timefn(cls, fn, *args, trials=1, **kwargs):
-        if trials > 1:
-            responses = []
-            for i in range(trials):
-                responses += [cls.timefn(fn, *args, trials=1, **kwargs)]
-            return responses
+    def timefn(cls, fn, *args, **kwargs):
+        fn = cls.get_fn(fn)
         if isinstance(fn, str):
             if '/' in fn:
                 module, fn = fn.split('/')
@@ -1385,7 +1379,10 @@ class c:
 
     @classmethod
     def has_config(cls) -> bool:
-        return c.exists(cls.config_path())
+        try:
+            return c.exists(cls.config_path())
+        except:
+            return False
   
     @classmethod
     def has_module(cls, module):
@@ -1439,17 +1436,6 @@ class c:
         from commune.utils.time import Timer
         return Timer(*args, **kwargs)
     
-
-
-    def timefn(cls, fn, *args,  **kwargs):
-        def wrapper(*args, **kwargs):
-            t1 = c.time()
-            result = fn(*args, **kwargs)
-            t2 = c.time()
-            c.print(f'{fn.__name__} took {t2-t1} seconds')
-            return result
-        return wrapper
-
     @classmethod
     def timeit(cls, fn, *args, include_result=False, **kwargs):
 
@@ -1941,20 +1927,6 @@ class c:
         else:
             return False
 
-    
-    
-    @classmethod
-    def lock_file(cls, f):
-        import fcntl
-        fcntl.flock(f, fcntl.LOCK_EX)
-        return f
-    
-    @classmethod
-    def unlock_file(cls, f):
-        import fcntl
-        fcntl.flock(f, fcntl.LOCK_UN)
-        return f
-
   
     @classmethod
     def is_address(cls, address:str) -> bool:
@@ -2076,6 +2048,7 @@ class c:
         
     def attributes(self):
         return list(self.__dict__.keys())
+
 
 
     @classmethod
@@ -2212,7 +2185,6 @@ class c:
         self = module_class(**kwargs)
 
         address = c.get_address(name, network=server_network)
-
 
         if c.server_exists(server_name, network=server_network) and not refresh: 
             return {'success':True, 'message':f'Server {server_name} already exists'}
@@ -3491,6 +3463,8 @@ class c:
         if module != None:
             cls = c.module(module)
         return not cls.is_file_module()
+    
+    is_module_folder = is_folder_module
 
     @staticmethod
     def jsonable( value):
@@ -4397,6 +4371,16 @@ class c:
 
     @classmethod
     def resolve_module(cls, module=None):
+        """
+        Resolves the moduls from the class 
+        Case type(module):
+            if None -> cls, the class method of the object
+            if str -> c.module({module}) 
+            if 
+
+
+        
+        """
         if module == None:
             module = cls
         if isinstance(module, str):
@@ -4408,19 +4392,32 @@ class c:
 
     @classmethod
     def get_fn(cls, fn:str, 
-               seperator='/',ignore_module_pattern:bool = False):
+               fn_seperators=['/', ':', '::'],
+               ignore_module_pattern:bool = False,
+               module=None
+               ):
         
+
+        """
+        
+        Gets the function from a string or if its an attribute 
+        """
+        cls = cls if module == None else c.module(module)
+
         if isinstance(fn, str):
-            if seperator in fn and (not ignore_module_pattern):
-                # module{sperator}fn
-                fn_splits = fn.split(seperator)
-                # incase you have multiple seperators in the  name
-                module = seperator.join(fn_splits[:-1])
-                fn = fn_splits[-1]
-                # get the model
-                module = c.module(module)
-            else:
-                module = cls
+            for fn_seperator in fn_seperators:
+                # count fn_seperator in fn 
+                fn_seperator_count = fn.count(fn_seperator)
+                if (not ignore_module_pattern) and fn_seperator_count == 1:
+                    # module{sperator}fn
+                    fn_splits = fn.split(fn_seperator)
+                    # incase you have multiple seperators in the  name
+                    module = fn_seperator.join(fn_splits[:-1])
+                    fn = fn_splits[-1]
+                    # get the model
+                    module = c.module(module)
+                else:
+                    module = cls
             fn = getattr(module, fn)
         elif callable(fn):
             pass
@@ -4431,6 +4428,7 @@ class c:
         # assert callable(fn), 'Is not callable'
         return fn
     
+
 
 
     resolve_fn = get_fn
@@ -6108,16 +6106,8 @@ class c:
         return 'hey'
 
     @classmethod
-    def add_peers(cls, *args, **kwargs):
-        return c.module('remote').add_peers(*args,**kwargs)
-
-    @classmethod
-    def sid(cls):
-        return c.module('subspace.chain')().id()
-
-    @classmethod
     def ticket(cls, *args, **kwargs):
-        return c.module('ticket')().create(*args, **kwargs)
+        return c.module('ticket')().ticket(*args, **kwargs)
 
     @classmethod
     def ticket2dict(cls, ticket):
@@ -6156,11 +6146,7 @@ class c:
     
     ########
    
-    @classmethod
-    def eval(cls, module, vali=None,  **kwargs):
-        vali = c.module('vali')() if vali == None else c.module(vali)
-        return c.eval(module, **kwargs)
-    
+
 
     def server2fn(self, *args, **kwargs ):
         servers = c.servers(*args, **kwargs)
@@ -6181,6 +6167,9 @@ class c:
         return x
 
     routes_enabled = False
+    @classmethod
+    def module_routes(cls):
+        return cls.config().get('module_routes', {})
 
  
     @classmethod
@@ -6194,7 +6183,7 @@ class c:
         if cls.routes_enabled:
             return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
-        for m, fns in c.module_routes.items():
+        for m, fns in c.module_routes().items():
             from functools import partial
             def fn_generator(*args, fn, module, **kwargs):
                 module = c.module(module)()
@@ -6222,181 +6211,7 @@ class c:
         cls.routes_enabled = True
 
 
-    module_routes = { 
-            
-            'vali': [
-                        'run_epoch',
-                    ],
-            'tree': [
-                        'tree', 
-                        'trees', 
-                        'local_tree', 
-                        'build_tree', 
-                        'tree2path', 
-                        'trees',
-                        'add_tree', 
-                        'rm_tree', 
-                        'tree2path',
-                        'path2simple', 
-                        'simple2path',
-                        'path2objectpath', 
-                        'tree_paths', 
-                        'tree_names'
-                        ],
-            'cli': [
-                        'parse_args',
-                    ],
-            'streamlit': [
-                        'set_page_config',
-                    ],
-            'docker': [
-                        'containers',
-                    ],
-            'client': [
-                        'call', 
-                        'call_search', 
-                        'connect'
-                    ],
-            'repo': [
-                        'is_repo',
-                    ],
-            'key': [
-                        'ss58_encode', 
-                        'ss58_decode',
-                        'key2mem', 
-                        'key_info_map', 
-                        'key_info',
-                        'valid_ss58_address',
-                        'add_key',
-                        'from_password',
-                        'str2key', 
-                        'pwd2key',
-                        'getmem',
-                        'mem',
-                        'mems',
-                        'switch_key',
-                        'module_info',
-                        'rename_kefy', 
-                        'mv_key',
-                        'add_key',
-                        'add_keys',
-                        'key_exists',
-                        'ls_keys',
-                        'rm_key',
-                        'key_encrypted',
-                        'encrypt_key',
-                        'staked',
-                        'encrypt_key',   
-                        'get_keys', 
-                        'rm_keys',
-                        'key2address',
-                        'key_addresses',
-                        'is_key',
-                        'new_key',
-                        'save_keys',
-                        'load_key',
-                        'load_keys', 
-                        'get_signer' ],
-            'remote': [ 'host2ssh' ],
-
-            'subspace': [ 'subnet_params', 
-                                'query', 
-                                'my_subnets', 
-                                'global_params', 
-                                'subnet_names',
-                                'update_subnet', 
-                                'get_balances',
-                                'get_balance',
-                                'my_subnets',
-                                'balances',
-                                'balance',
-                                'global_params',
-                                'register', 
-                                'key_stats',
-                                'key2stats',
-                                'my_keys',
-                                'node_keys',
-                                'add_node',
-                                'add_node_key',
-                                'snap',
-                                'save',
-                                'key2balances',
-                                'key2balance',
-                                'key2value', 
-                                'key2stake',
-                                'live_keys',
-                                'seconds_per_epoch'
-                                'is_registered',
-                                'transfer_multiple',
-                                'stake_transfer',
-                                'subnet2netuid',
-                                'netuid2subnet',
-                                'subnets',
-                                'subnet',
-                                'netuids',
-                                'unregistered_servers',
-                                'query_map',
-                                'key2tokens',
-                                'key2stake',
-                                'update_network', 
-                                'update_global',
-                                'my_subnets', 
-                                'register_servers',
-                                'registered_servers',
-                                'n', 
-                                'stats',
-                                'vstats', 
-                                'valis',
-                                'check_valis',
-                                'check_servers',
-                                'kill_nodes',
-                                'lag',
-                                'transfer',
-                                'staked', 
-                                'add_profit_shares',
-                                'profit_shares', 
-                                'block',
-                                'total_supply',
-                                'update_module',
-                                'update_modules',
-                                'set_weights',
-                                'stake',
-                                'total_supply', 
-                                'my_stake_from',
-                                'my_stake_to',
-                                'stake_many',
-                                'transfer_many', 
-                                'module_info', 'minfo',
-                                'send' ],
-            'namespace': [
-                        'add_remote', 
-                        'networks', 
-                        'network2namespace', 
-                        'register_server',
-                        'deregister_server',
-                        'server_exists', 
-                        'add_server',
-                        'has_server',
-                        'add_servers', 
-                        'rm_servers',
-                        'rm_server',
-                        'remote_servers',
-                        'namespace', 
-                        'rm_namespace',
-                        'empty_namespace',
-                        'add_namespace',
-                        'update_namespace',
-                        'build_namespace',
-                        'put_namespace',
-                        'get_namespace',
-                        'server2info', 
-                        'infos', 
-                        'get_address', 
-                        'servers',
-                        'name2address'
-                    ]
-            }
-
+ 
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

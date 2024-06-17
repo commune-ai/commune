@@ -31,6 +31,8 @@ class Ticket(c.Module):
                           return_string=True, 
                           seperator=self.signature_seperator, **kwargs)
         return ticket
+
+    ticket = create
     
     def dict2ticket(self, ticket, json_str=False):
         """
