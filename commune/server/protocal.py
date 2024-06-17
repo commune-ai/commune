@@ -9,7 +9,9 @@ from typing import *
 
 
 
+
 class Protocal(c.Module):
+
 
     def __init__(self, 
                 module: Union[c.Module, object] = None,
@@ -34,6 +36,8 @@ class Protocal(c.Module):
         self.serializer = c.module(serializer)()
         self.unique_id_map = {}
 
+
+
     def set_module(self, module, key, name, port:int= None, network:str='local', **kwargs):
         module = module or 'module'
         if isinstance(module, str):
@@ -41,11 +45,8 @@ class Protocal(c.Module):
         # RESOLVE THE WHITELIST AND BLACKLIST
         module.whitelist = list(set((module.whitelist if hasattr(module, 'whitelist') else [] ) + c.whitelist))
         module.blacklist = list(set((module.blacklist if hasattr(module, 'blacklist') else []) + c.blacklist))
-        module.name = module.server_name = name or module.server_name
-        port = port or c.free_port()
-        while c.port_used(port):
-            port =  c.free_port()
-        module.port = port
+        module.name = module.server_name = name = name or module.server_name
+        module.port = port if port not in ['None', None] else c.free_port()
         module.ip = c.ip()
         module.address = f"{module.ip}:{module.port}"
         module.network = network
