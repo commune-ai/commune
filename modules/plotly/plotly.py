@@ -75,7 +75,7 @@ class Plotly(c.Module):
 
         # Show the
     
-    def histogram(self, chart="scatter") -> int:
+    def histogram(self, df=None, chart="scatter") -> int:
         df = px.data.iris()
         plot = getattr(px, chart)
         fig = plot(df, x="sepal_width", y="sepal_length")
@@ -92,6 +92,11 @@ class Plotly(c.Module):
         self.histogram()
         return 1
     
+    def plots(self) -> int:
+        fns = dir(px)
+        ignore_names = ['Constant', 'IdentityMap']
+        fns = [fn for fn in fns if not fn.startswith('_') and not ' ' in fn and not 'utils' in fn]
+        return fns
 
 
 

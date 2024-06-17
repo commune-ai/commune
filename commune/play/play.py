@@ -76,45 +76,32 @@ class Play(c.Module):
         call = st.button(f'Call {fn}')
 
         if call:
-            if n == 1:
-                t1 = c.time()
+            future2server = {}
+            server2info = {}
+            for server in servers:
+                server2info[server] = {'time': c.time(), 'server': server, 'latency': None}
+                server_address = namespace[server]
+                future = c.submit(c.call , args=[server_address+'/' + fn], kwargs={'params': kwargs}, timeout=timeout)
+                future2server[future] = server
+
+            for future in c.as_completed(future2server):
+                server = future2server[future]
+                server2info[server]['latency'] = c.round(c.time() - server2info[server]['time'], 3)
+                latency = server2info[server]['latency']
+
                 try:
-                    response = getattr(module, fn)(**kwargs, timeout=timeout)
+                
+                    response = future.result()
                     emoji = '✅'
                 except Exception as e:
                     emoji = '❌'
                     response = c.detailed_error(e)
-                latency = c.time() - t1
-                latency = str(latency).split('.')[0] + '.'+str(latency).split('.')[1][:2]
-                st.write(f'Reponse Status ({latency}s) : {emoji}')
-                st.write(response)
-            if n > 1:
-                future2server = {}
-                server2info = {}
-                for server in servers:
-                    server2info[server] = {'time': c.time(), 'server': server, 'latency': None}
-                    server_address = namespace[server]
-                    future = c.submit(c.call , args=[server_address+'/' + fn], kwargs=kwargs, timeout=timeout)
-                    future2server[future] = server
 
-                for future in c.as_completed(future2server):
-                    server = future2server[future]
-                    server2info[server]['latency'] = c.round(c.time() - server2info[server]['time'], 3)
-                    latency = server2info[server]['latency']
+                with st.expander(f'{server} : {emoji} ({latency}s)'):
+                    st.write(response)
 
-                    try:
-                    
-                        response = future.result()
-                        emoji = '✅'
-                    except Exception as e:
-                        emoji = '❌'
-                        response = c.detailed_error(e)
-
-                    with st.expander(f'{server} : {emoji} ({latency}s)'):
-                        st.write(response)
-
-                df = pd.DataFrame(server2info).T
-                st.write(df)
+            df = pd.DataFrame(server2info).T
+            st.write(df)
 
         return kwargs
     

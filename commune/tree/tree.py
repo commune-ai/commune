@@ -21,9 +21,9 @@ class Tree(c.Module):
                     simple_path:str,
                     tree = None,
                     extension = '.py',
+                    verbose = False,
                     **kwargs) -> bool:
         """
-        
         converts the module path to a file path
 
         for example 
@@ -31,41 +31,52 @@ class Tree(c.Module):
         model.openai.gpt3 -> model/openai/gpt3.py, model/openai/gpt3_module.py, model/openai/__init__.py 
         model.openai -> model/openai.py or model/openai_module.py or model/__init__.py
 
-
         Parameters:
             path (str): The module path
-
-        
         """
-        path = None
-        pwd = c.pwd()
-        module_dirpath = pwd + '/' + simple_path.replace('.', '/')
-        module_filepath = pwd + '/' + cls.resolve_extension(simple_path)
+        if simple_path.endswith(extension):
+            simple_path = simple_path[:-len(extension)]
 
-        if os.path.isdir(module_dirpath):
-            simple_path_filename = simple_path.replace('.', '_')
-            filename_options = [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename]
-            filename_options += ['module', 'main', '__init__'] # these are the possible filenames for the module file
-            path_options = [cls.resolve_extension(f)  for f in path_options ]
-            paths_in_dir = os.listdir(module_dirpath)
-            for p in paths_in_dir:
-                if p.endswith(extension):
-                    for filename in filename_options:
-                        if p.endswith(filename):
-                            path = module_dirpath + '/' + p
-                if path != None:
-                    break
-                    
-        elif os.path.exists(module_filepath):
-            path = module_filepath
-        else:
-            tree = c.tree()
+        path = None
+        dir_paths = [c.pwd(), c.root_path]
+
+        for dir_path in dir_paths:
+            c.print(f'Path {simple_path} not in dir {dir_path}', color='yellow', verbose=verbose)
+            # '/' count how many times the path has been split
+            if '/' in simple_path:
+                simple_path = simple_path.replace('/', '.')
+
+            module_dirpath = dir_path + '/' + simple_path.replace('.', '/')
+            module_filepath = dir_path + '/' + cls.resolve_extension(simple_path)
+
+            if os.path.isdir(module_dirpath):
+                simple_path_filename = simple_path.replace('.', '_')
+                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main', '__init__']] 
+                paths_in_dir = os.listdir(module_dirpath)
+                for p in paths_in_dir:
+                    p_filename = p.split('/')[-1]
+                    if p_filename in filename_options:
+                        path = module_dirpath + '/' + p
+                        initial_text = c.get_text(path)
+                        if 'class ' in initial_text:
+                            break
+                        else:
+                            path = None
+                        
+            elif os.path.exists(module_filepath):
+                path = module_filepath
+            
+            if path != None:
+                break
+
+        if path == None:
+            tree = cls.tree()
             is_in_tree = bool(simple_path in tree)
             if not  is_in_tree:
-                c.print(f'Path not found in tree: {simple_path}', color='red')
+                c.print(f'Path not found in tree: {simple_path}', color='red', verbose=verbose )
                 tree = cls.tree(update=True, include_root=True)
-            path = tree[simple_path]
-
+            if simple_path in tree:
+                path = tree[simple_path]
         assert path != None, f'Path not found for simple path {simple_path}'
         return path
     
@@ -373,7 +384,7 @@ class Tree(c.Module):
         return [c for c in classes]
     
     @classmethod
-    def simple2objectpath(cls, simple_path:str, **kwargs) -> str:
+    def simple2objectpath(cls, simple_path:str, verbose=False,**kwargs) -> str:
         pwd = c.pwd()
         try:
             object_path = cls.simple2path(simple_path, **kwargs)

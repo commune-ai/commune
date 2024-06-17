@@ -21,6 +21,13 @@ for example
 ./model/openai.py -> model.openai
 ./model/transformer.py -> model.transformer
 ./model/transformer/encoder.py -> model.transformer.encoder
+./model/transformer/decoder.py -> model.transformer.decoder
+
+
+some nuanced examples
+
+./model/openai/model_openai.py -> model.openai 
+as we split the file name based on "_" and the folder name  based on '/'.
 
 
 python```
