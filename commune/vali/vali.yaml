@@ -10,7 +10,7 @@ maxsize: 128
 min_leaderboard_weight: 0
 mode: thread
 netuid: 0
-network: subspace
+network: local
 print_interval: 100
 sample_interval: 0.1
 search: null

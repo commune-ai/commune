@@ -2,17 +2,18 @@ import commune as c
 import os
 import json
 import streamlit as st
-
+from typing import *
 
 class App(c.Module):
     port_range = [8501, 8600]
 
     def start(self,
            module:str = 'app', 
-           fn='app', 
-           port=None, 
+           name : Optional[str] = None,
+           fn:str='app', 
+           port:int=None, 
            remote:bool = True, 
-           kwargs=None, 
+           kwargs:dict=None, 
            **extra_kwargs):
         kwargs = kwargs or {}
         port = port or c.free_port()
@@ -23,7 +24,9 @@ class App(c.Module):
             remote_kwargs = c.locals2kwargs(locals())
             remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
-            c.remote_fn(module=module, fn='start_app', name=module+"::app", kwargs=remote_kwargs)
+            if name == None:
+                name = 'app::'+module
+            c.remote_fn(module=module, fn='start_app', name=name, kwargs=remote_kwargs)
             url = f'http://0.0.0.0:{port}'
             return {'success': True, 
                     'msg': f'running {module} on {port}', 

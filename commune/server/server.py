@@ -54,6 +54,8 @@ class Server(c.Module):
                    network:str = 'local',
                    **kwargs
                    ):
+        
+
         self.protocal = c.module(protocal)(module=module,     
                                             history_path=self.resolve_path(history_path  or name),
                                             name = name,

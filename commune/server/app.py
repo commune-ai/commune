@@ -1,22 +1,24 @@
 
-import commune  c
+import commune as c
 import streamlit as st
 import pandas as pd
 import json
 
 class ServerApp(c.Module):
+    default_model='model.openrouter'
+
     name2fn = {
-                'Serve Module': 'serve_dashboard', 
+                'Serve Module': 'serve_modules', 
                 'Playground': 'playground', 
                 'Local Network': 'local_network'
                }
 
-    def serve_dashboard(self, default_model='model.openrouter'):
+    def serve_modules(self):
     
         module2idx = {m:i for i,m in enumerate(self.modules)}
         cols = st.columns(3)
-        select_module = cols[0].selectbox('Select a Module', self.modules, module2idx[default_model], key='select_module')
-        server_name = cols[1].text_input('Server Name', default_model, key='server_name')
+        select_module = cols[0].selectbox('Select a Module', self.modules, module2idx[self.default_model], key='select_module')
+        server_name = cols[1].text_input('Server Name', self.default_model, key='server_name')
         n = cols[2].number_input('Number of Servers', 1, 10, 1, key='n_servers')
         module = c.module(select_module)
 
@@ -43,8 +45,9 @@ class ServerApp(c.Module):
         cols = st.columns(2)
         serve_button = st.button('Deploy Server')
         if serve_button:
-            result = c.serve(server_name, kwargs=config)
-            st.write(result)
+            if n == 1:
+                with st.spinner(f'Serving {server_name}_{i}'):
+                    c.serve(module=server_name, kwargs=config)
             
 
 
@@ -93,8 +96,6 @@ class ServerApp(c.Module):
         self.namespace = c.namespace(network=self.network)
         # self.options = st.multiselect('Select Options', options, ['serve', 'code', 'search', 'playground'], key=f'serve.options')
         names = list(self.name2fn.keys())
-        fns = list(self.name2fn.values())
-
         name = st.selectbox('Select Function', names, 0, key='selected_names')
         fn = self.name2fn[name]
         getattr(self, fn)()

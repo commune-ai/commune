@@ -658,7 +658,8 @@ class c:
            module:str = 'redvblue', 
            fn='app', 
            port=None, 
-           remote:bool = True):
+           name = None,
+           remote:bool = True, **kwargs):
         if c.module_exists(module + '.app'):
             module = module + '.app'
         kwargs = c.locals2kwargs(locals())
@@ -785,6 +786,8 @@ class c:
     @classmethod
     def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
         import socket
+        if not isinstance(port, int):
+            return False
         
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             # Set the socket timeout
@@ -2124,14 +2127,14 @@ class c:
         return name
     resolve_name = resolve_server_name
     
-    
+
     @classmethod
     def serve(cls, 
               module:Any = None ,
               kwargs:dict = None,  # kwargs for the module
               params = None, # kwargs for the module
               tag:str=None,
-              server_network = 'local',
+              server_network = 'local', # network to run the server
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
@@ -2156,11 +2159,15 @@ class c:
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
 
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
         if port == None:
             # now if we have the server_name, we can repeat the server
             address = c.get_address(name, network=server_network)
-            port = int(address.split(':')[-1]) if address else c.free_port()
+            c.print(f'Address: {address}')
+            try:
+                port = int(address.split(':')[-1])
+            except Exception as e:
+                port = c.free_port()
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
 
         # NOTE REMOVE THIS FROM THE KWARGS REMOTE
         if remote:
@@ -2184,10 +2191,6 @@ class c:
             
         self = module_class(**kwargs)
 
-        address = c.get_address(name, network=server_network)
-
-        if c.server_exists(server_name, network=server_network) and not refresh: 
-            return {'success':True, 'message':f'Server {server_name} already exists'}
         c.module(f'server')(module=self, 
                                           name=name, 
                                           port=port, 
@@ -6186,8 +6189,12 @@ class c:
         for m, fns in c.module_routes().items():
             from functools import partial
             def fn_generator(*args, fn, module, **kwargs):
-                module = c.module(module)()
-                return getattr(module, fn)(*args, **kwargs)
+
+                module = c.module(module)
+                try:
+                    return getattr(module, fn)(*args, **kwargs)
+                except Exception as e:
+                    return getattr(module(), fn)(*args, **kwargs)
             for fn in fns:
                 if isinstance(fn, list) and len(fn) == 2:
                     # if the function is a list of length 2, then the first element is the function name and the second is the name of the function
