@@ -34,6 +34,8 @@ class Tree(c.Module):
         Parameters:
             path (str): The module path
         """
+        if os.path.exists(os.path.abspath(simple_path)):
+            return os.path.abspath(simple_path)
         if simple_path.endswith(extension):
             simple_path = simple_path[:-len(extension)]
 
@@ -384,25 +386,28 @@ class Tree(c.Module):
         return [c for c in classes]
     
     @classmethod
-    def simple2objectpath(cls, simple_path:str, verbose=False,**kwargs) -> str:
-        pwd = c.pwd()
-        try:
-            object_path = cls.simple2path(simple_path, **kwargs)
-            classes =  cls.find_classes(object_path)
-            if object_path.startswith(c.libpath):
-                object_path = object_path[len(c.libpath):]
-            object_path = object_path.replace('.py', '')
-            if object_path.startswith(pwd):
-                object_path = object_path[len(pwd):]
+    def simple2objectpath(cls, simple_path:str, cactch_exception = True, **kwargs) -> str:
+        if cactch_exception:
+            try:
+                object_path = cls.simple2objectpath(simple_path, cactch_exception=False, **kwargs)
+            except Exception as e:
+                c.print(f'Error in simple2objectpath: {c.detailed_error(e)}', color='red')
+                object_path = simple_path
+            return object_path
 
-            object_path = object_path.replace('/', '.')
-            if object_path.startswith('.'):
-                object_path = object_path[1:]
-            object_path = object_path + '.' + classes[-1]
-        except Exception as e:
-            e = c.detailed_error(e)
-            c.print(f'Error in simple2objectpath: {e}', color='red')
-            object_path = simple_path
+        pwd = c.pwd()
+        object_path = cls.simple2path(simple_path, **kwargs)
+        classes =  cls.find_classes(object_path)
+        if object_path.startswith(c.libpath):
+            object_path = object_path[len(c.libpath):]
+        object_path = object_path.replace('.py', '')
+        if object_path.startswith(pwd):
+            object_path = object_path[len(pwd):]
+
+        object_path = object_path.replace('/', '.')
+        if object_path.startswith('.'):
+            object_path = object_path[1:]
+        object_path = object_path + '.' + classes[-1]
 
 
         return object_path

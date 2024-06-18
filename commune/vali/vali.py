@@ -411,12 +411,15 @@ class Vali(c.Module):
             self.requests += 1
             response = self.score_module(module, **kwargs)
             response = self.process_response(response=response, info=info)
+            if c.is_error(response):
+                response['w'] = 0
+                return response
             response = {k:response[k] for k in verbose_keys}
 
         except Exception as e:
             response = c.detailed_error(e)
             response['w'] = 0
-            name = info.get('name', module)
+            response['name'] = name = info.get('name', module)
             response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
             c.print(f'Error (name={name}) --> {response_str} {response}', color='red', verbose=self.verbose)
             self.errors += 1

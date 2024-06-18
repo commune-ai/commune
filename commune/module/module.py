@@ -383,14 +383,16 @@ class c:
         key = c.get_key(key)
         text = cls.get_text(path)
         r = key.encrypt(text, password=password)
-        return cls.put_text(path, r)
+        cls.put_text(path, r)
+        return {'success': True, 'msg': f'Encrypted {path}'}
         
     @classmethod
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
         key = c.get_key(key)
         text = cls.get_text(path)
         r = key.decrypt(text, password=password, key=key, **kwargs)
-        return cls.put_text(path, r)
+        cls.put_text(path, r)
+        return {'success': True, 'msg': f'Decrypted {path}'}
 
 
     def is_encrypted_path(self, path:str, prefix=encrypted_prefix) -> bool:
@@ -651,22 +653,7 @@ class c:
     @classmethod
     def gradio(self, *args, **kwargs):
         return c.module('gradio')(*args, **kwargs)
-    
 
-    @classmethod
-    def start_app(cls,
-           module:str = 'redvblue', 
-           fn='app', 
-           port=None, 
-           name = None,
-           remote:bool = True, **kwargs):
-        if c.module_exists(module + '.app'):
-            module = module + '.app'
-        kwargs = c.locals2kwargs(locals())
-        return c.module('app')().start(**kwargs)
-    
-    app = start_app
- 
     @staticmethod
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
@@ -908,9 +895,8 @@ class c:
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
             if not os.path.isdir(path):
-                if extension != None and extension != path.split('.')[-1]:
-                    path = path + '.' + extension
-            
+                if extension != None :
+                    path = path if path.endswith(extension) else path + '.' + extension
         if not os.path.exists(path) and os.path.exists(path + f'.{file_type}'):
             path = path + f'.{file_type}' 
 
@@ -4929,13 +4915,18 @@ class c:
 
 
     @classmethod
-    def get_function_args(cls, fn):
+    def get_function_args(cls, fn) -> List[str]:
+        """
+        get the arguments of a function
+        params:
+            fn: the function
+        
+        """
         if not callable(fn):
             fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
 
-    
     
     @classmethod
     def has_function_arg(cls, fn, arg:str):
@@ -4952,7 +4943,7 @@ class c:
             fn = cls.get_fn(fn)
         if not callable(fn):
             return None
-        args = cls.get_function_args(fn)
+        args = c.get_function_args(fn)
         if len(args) == 0:
             return 'static'
         elif args[0] == 'self':

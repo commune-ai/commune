@@ -53,8 +53,11 @@ class cli(c.Module):
         c {fn} arg1 arg2 arg3 ... argn
         """
 
-        
-        if '/' in argv[0]:
+        if ':' in argv[0]:
+            # {module}:{fn} arg1 arg2 arg3 ... argn
+            argv = argv[0].split(':') + argv[1:]
+            is_fn = False
+        elif '/' in argv[0]:
             argv = argv[0].split('/') + argv[1:]
             is_fn = False
         else:
@@ -66,6 +69,7 @@ class cli(c.Module):
             fn = argv.pop(0)
         else:
             module = argv.pop(0)
+        
             if isinstance(module, str):
                 module = c.module(module)
             fn = argv.pop(0)
