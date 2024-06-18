@@ -239,8 +239,7 @@ class Vali(c.Module):
             self.cancel_futures()
         except Exception as e:
             c.print(c.detailed_error(e), color='red')
-
-        return results
+        return c.df(results)
 
 
     @property
@@ -398,7 +397,7 @@ class Vali(c.Module):
              module:str, 
              network:str=None, 
              update=False,
-             verbose_keys= ['w', 'address', 'name', 'key', 'count'],
+             verbose_keys= ['w', 'address', 'name', 'key', 'count', 'latency'],
               **kwargs):
         """
         The following evaluates a module sver
