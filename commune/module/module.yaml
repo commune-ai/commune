@@ -194,3 +194,9 @@ module_routes:
               name2address
           ]
 
+  app : [
+    'start_app', 
+    'app', 
+    'apps',
+    'app2info',
+  ]
