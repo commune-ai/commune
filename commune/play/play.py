@@ -10,10 +10,13 @@ class Play(c.Module):
         namespace = namespace or c.namespace()
         servers = list(namespace.keys())
         modules = list(set([ server.split('::')[0] for server in servers]))
-        module2serers = {module: [server for server in servers if module in server] for module in modules}
+        module2servers = {m: [server for server in servers if m in server] for m in modules}
         cols = st.columns(3)
         module = cols[0].selectbox('Select Module', modules)
-        servers = module2serers[module]
+        if module not in module2servers:
+            st.error(f'Module {module} not found')
+            return
+        servers = module2servers[module]
         n = len(servers)
         max_n = cols[1].number_input('Max Servers', 1, n, n)
         servers = servers[:max_n]
