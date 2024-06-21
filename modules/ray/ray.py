@@ -8,32 +8,26 @@ import torch
 
 class Ray(c.Module):
     description = 'ray stuff'
-    @classmethod
-    def ray_context(cls):
-        
-        
+    def ray_context(self):
         return ray.runtime_context.get_runtime_context()
     
-    @classmethod
-    def stop(cls):
-        return cls.run_command('ray stop')
+    def stop(self):
+        return self.run_command('ray stop')
     
-
-    @classmethod
-    def ray_put(cls, *items):
-        ray = cls.env()
+    def ray_put(self, *items):
+        ray = self.env()
         return [ray.put(i) for i in items]
     
 
-    @classmethod
-    def env(cls):
-        if not cls.is_initialized():
-            cls.init()
+    
+    def env(self):
+        if not self.is_initialized():
+            self.init()
         return ray
     
 
-    @classmethod
-    def start(cls):
+    
+    def start(self):
         return c.cmd('ray start --head', verbose=True)
     
 
@@ -42,20 +36,20 @@ class Ray(c.Module):
         return ray.runtime_context.get_runtime_context()
     
 
-    @classmethod
-    def ensure_ray_context(cls, ray_config:dict = None):
+    
+    def ensure_ray_context(self, ray_config:dict = None):
         ray_config = ray_config if ray_config != None else {}
         
-        if cls.is_initialized():
-            ray_context = cls.get_runtime_context()
+        if self.is_initialized():
+            ray_context = self.get_runtime_context()
         else:
-            ray_context =  cls.init(init_kwargs=ray_config)
+            ray_context =  self.init(init_kwargs=ray_config)
         
         return ray_context
     
 
-    @classmethod 
-    def ray_launch(cls, 
+     
+    def ray_launch(self, 
                    module= None, 
                    name:Optional[str]=None, 
                    tag:str=None, 
@@ -67,7 +61,7 @@ class Ray(c.Module):
         
         launch_kwargs = dict(locals())
         launch_kwargs.update(launch_kwargs.pop('actor_kwargs'))
-        ray = cls.env()
+        ray = self.env()
         """
         deploys process as an actor or as a class given the config (config)
         """
@@ -75,9 +69,9 @@ class Ray(c.Module):
         kwargs = kwargs if kwargs != None else {}
         module_class = None
         if isinstance(module, str):
-            module_class = cls.get_module(module)
+            module_class = self.get_module(module)
         elif module == None :
-            module_class = cls
+            module_class = self
     
         else:
             module_class = c.module(module)
@@ -88,36 +82,36 @@ class Ray(c.Module):
         actor_kwargs['name'] = name
         actor_kwargs['refresh'] = refresh
     
-        actor = cls.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
+        actor = self.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
         if serve:
             actor = actor.serve(ray_get=False)
         
         return actor
     
 
-    @classmethod
-    def ray_runtime_context(cls):
+    
+    def ray_runtime_context(self):
         return ray.get_runtime_context()
     
 
-    @classmethod
-    def restart(cls, stop:dict={}, start:dict={}):
+    
+    def restart(self, stop:dict={}, start:dict={}):
         '''
         
         Restart  ray cluster
         
         '''
         command_out_dict = {}
-        command_out_dict['stop'] = cls.stop(**stop)
-        command_out_dict['start'] = cls.start(**start)
+        command_out_dict['stop'] = self.stop(**stop)
+        command_out_dict['start'] = self.start(**start)
         return command_out_dict
     
 
-    @classmethod
-    def kill_actor(cls, actor, verbose=True):
+    
+    def kill_actor(self, actor, verbose=True):
         
     
-        if cls.actor_exists(actor):
+        if self.actor_exists(actor):
             actor = ray.get_actor(actor)
         else:
             if verbose:
@@ -134,46 +128,46 @@ class Ray(c.Module):
         return list_nodes(*args, **kwargs)
     
 
-    @classmethod
-    def ray_import(cls):
+    
+    def ray_import(self):
         
         return ray
     
 
-    @classmethod
-    def ray_namespace(cls):
+    
+    def ray_namespace(self):
         
         return ray.get_runtime_context().namespace
     
 
-    @classmethod
-    def ray_wait(cls, *jobs):
-        cls.env()
+    
+    def ray_wait(self, *jobs):
+        self.env()
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
     
 
-    @classmethod
-    def actors(cls, *args, **kwargs):
-        ray = cls.env()
-        actors =  cls.list_actors(*args, **kwargs)
+    
+    def actors(self, *args, **kwargs):
+        ray = self.env()
+        actors =  self.list_actors(*args, **kwargs)
         actors = [a['name'] for a in actors] 
         return actors
     
-    @classmethod
-    def list_actors(cls, *args, **kwargs):
+    
+    def list_actors(self, *args, **kwargs):
         from ray.util.state import list_actors
         return list_actors(*args, **kwargs)
-    @classmethod
-    def actor2id(cls, actor_name:str = None):
-        actors = cls.list_actors()
+    
+    def actor2id(self, actor_name:str = None):
+        actors = self.list_actors()
         actor2id =  {a['name']:a['actor_id'] for a in actors}
         if actor_name:
             return actor2id[actor_name]
         return actor2id
     
-    def id2actor(cls, actor_id:str = None):
-        actors = cls.list_actors()
+    def id2actor(self, actor_id:str = None):
+        actors = self.list_actors()
         id2actor =  {a['actor_id']:a['name'] for a in actors}
         if actor_id:
             return id2actor[actor_id]
@@ -185,26 +179,26 @@ class Ray(c.Module):
     
 
 
-    @classmethod
-    def is_initialized(cls):
+    
+    def is_initialized(self):
         
         return ray.is_initialized()
     
 
-    @classmethod
-    def status(cls, *args, **kwargs):
-        return cls.run_command('ray status',  *args, **kwargs)
+    
+    def status(self, *args, **kwargs):
+        return self.run_command('ray status',  *args, **kwargs)
     
 
-    @classmethod
-    def ray_get(cls,*jobs):
-        cls.env()
+    
+    def ray_get(self,*jobs):
+        self.env()
         return ray.get(jobs)
     
 
-    @classmethod
-    def ray_tasks(cls, running=False, name=None, *args, **kwargs):
-        ray = cls.env()
+    
+    def ray_tasks(self, running=False, name=None, *args, **kwargs):
+        ray = self.env()
         filters = []
         if running == True:
             filters.append([("scheduling_state", "=", "RUNNING")])
@@ -224,39 +218,39 @@ class Ray(c.Module):
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
 
-    @classmethod
-    def ray_actor_map(cls, ):
-        ray = cls.env()
-        actor_list = cls.actors(names_only=False, detail=True)
+    
+    def ray_actor_map(self, ):
+        ray = self.env()
+        actor_list = self.actors(names_only=False, detail=True)
         actor_map  = {}
         for actor in actor_list:
             actor_name = actor.pop('name')
             actor_map[actor_name] = actor
         return actor_map
     
-    @classmethod
-    def resolve_actor_id(cls, actor_id:str, **kwargs):
-        actor2id = cls.actor2id(**kwargs)
+    
+    def resolve_actor_id(self, actor_id:str, **kwargs):
+        actor2id = self.actor2id(**kwargs)
         if actor_id in actor2id:
             actor_id = actor2id[actor_id]
         return actor_id
     
-    @classmethod
-    def get_logs(cls, actor_id:str, **kwargs):
+    
+    def get_logs(self, actor_id:str, **kwargs):
         from ray.util.state import get_log
-        actor_id = cls.resolve_actor_id(actor_id)
+        actor_id = self.resolve_actor_id(actor_id)
         return get_log(actor_id=actor_id, **kwargs)
 
-    @classmethod
-    def get_actor(cls ,actor_name:str, virtual:bool=False):
+    
+    def get_actor(self ,actor_name:str, virtual:bool=False):
         '''
         Gets the ray actor
         '''
-        ray  = cls.env()
+        ray  = self.env()
         actor =  ray.get_actor(actor_name)
         # actor = Module.add_actor_metadata(actor)
         # if virtual:
-        #     actor = cls.virtual_actor(actor=actor)
+        #     actor = self.virtual_actor(actor=actor)
         return actor
     
 
@@ -264,24 +258,24 @@ class Ray(c.Module):
                      'namespace': 'default',
                       'ignore_reinit_error': False,
                       'dashboard_host': '0.0.0.0'}
-    @classmethod
-    def init(cls,init_kwargs={}):
+    
+    def init(self,init_kwargs={}):
         
-        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
+        init_kwargs =  {**self.default_ray_env, **init_kwargs}
         ray_context = {}
-        is_initialized = cls.is_initialized()
+        is_initialized = self.is_initialized()
         c.print(f'RAY is_initialized: {is_initialized}')
 
 
         if  is_initialized:
-             ray_context =  cls.ray_runtime_context()
+             ray_context =  self.ray_runtime_context()
         else: 
             ray_context = ray.init(**init_kwargs)
         c.print(f'CONNECTED TO RAY: {ray_context}')
         return ray_context
     
-    @classmethod
-    def serve(cls,
+    
+    def serve(self,
                  module : str = None,
                  name:str = None,
                  kwargs: dict = None,
@@ -294,7 +288,7 @@ class Ray(c.Module):
                  refresh:bool=True,
                  virtual:bool = True):
         
-        cls.init()
+        self.init()
 
         if isinstance(module, str):
             name = module or 'module'
@@ -302,8 +296,8 @@ class Ray(c.Module):
 
         name = name if name != None else module.__name__
 
-        cls_kwargs = kwargs if kwargs else {}
-        cls_args = args if args else []
+        self_kwargs = kwargs if kwargs else {}
+        self_args = args if args else []
         resources = {}
         resources['num_cpus'] = cpus
         resources['num_gpus'] = gpus
@@ -323,18 +317,18 @@ class Ray(c.Module):
         # setup class init config
         # refresh the actor by killing it and starting it (assuming they have the same name)
         if refresh:
-            if cls.actor_exists(name):
-                cls.kill_actor(actor=name,verbose=True)
+            if self.actor_exists(name):
+                self.kill_actor(actor=name,verbose=True)
                 # assert not Module.actor_exists(name)
 
 
         options_kwargs['namespace'] = namespace
-        actor = ray.remote(**options_kwargs)(module).remote(*cls_args, **cls_kwargs)
+        actor = ray.remote(**options_kwargs)(module).remote(*self_args, **self_kwargs)
 
         # create the actor if it doesnt exisst
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
         
-        actor = cls.get_actor(name, virtual=virtual)
+        actor = self.get_actor(name, virtual=virtual)
 
         return actor
 
@@ -344,15 +338,15 @@ class Ray(c.Module):
         return actor.__dict__['_ray_actor_id'].hex()
 
 
-    @classmethod
-    def virtual_actor(cls, actor):
+    
+    def virtual_actor(self, actor):
         return c.module('ray.client')(actor=actor)
 
-    @classmethod
-    def kill_actor(cls, actor, verbose=True):
+    
+    def kill_actor(self, actor, verbose=True):
         
 
-        if cls.actor_exists(actor):
+        if self.actor_exists(actor):
             actor = ray.get_actor(actor)
         else:
             if verbose:
@@ -364,9 +358,9 @@ class Ray(c.Module):
     kill = kill_actor
         
        
-    @classmethod
-    def actor_exists(cls, actor):
-        ray = cls.env()
+    
+    def actor_exists(self, actor):
+        ray = self.env()
         if isinstance(actor, str):
             try:
                 ray.get_actor(actor)
@@ -378,39 +372,39 @@ class Ray(c.Module):
         else:
             raise NotImplementedError
 
-    @classmethod
-    def actor(cls ,actor_name:str, virtual:bool=True, **kwargs):
+    
+    def actor(self ,actor_name:str, virtual:bool=True, **kwargs):
         '''
         Gets the ray actor
         '''
-        ray  = cls.env()
+        ray  = self.env()
         actor =  ray.get_actor(actor_name, **kwargs)
         # actor = Module.add_actor_metadata(actor)
         # if virtual:
-        #     actor = cls.virtual_actor(actor=actor)
+        #     actor = self.virtual_actor(actor=actor)
         return actor
 
-    @classmethod    
-    def call(cls, module, fn = None, *args, **kwargs):
+        
+    def call(self, module, fn = None, *args, **kwargs):
         if '/' in module:
             module, fn = module.split('/')
             args = [fn] + list(args)
         
-        return cls.get_actor(module).remote(fn)(*args, **kwargs)
+        return self.get_actor(module).remote(fn)(*args, **kwargs)
     get_actor = get_actor
 
-    @classmethod
-    def ray_runtime_context(cls):
+    
+    def ray_runtime_context(self):
         
         return ray.get_runtime_context()
 
-    @classmethod
-    def ray_namespace(cls):
+    
+    def ray_namespace(self):
         
         return ray.get_runtime_context().namespace
 
-    @classmethod
-    def ray_context(cls):
+    
+    def ray_context(self):
         
         
         return ray.runtime_context.get_runtime_context()
@@ -421,18 +415,18 @@ class Ray(c.Module):
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
 
-    @classmethod
-    def actor_resources(cls, actor:str):
-        resource_map = cls.ray_actor_map()[actor]['required_resources']
+    
+    def actor_resources(self, actor:str):
+        resource_map = self.ray_actor_map()[actor]['required_resources']
         k_map = {
             'GPU': 'gpus',
             'CPU': 'cpus'
         }
         return {k_map[k]:float(v) for k,v in resource_map.items() }
-    @classmethod
-    def ray_actor_map(cls, ):
-        ray = cls.env()
-        actor_list = cls.actors(names_only=False, detail=True)
+    
+    def ray_actor_map(self, ):
+        ray = self.env()
+        actor_list = self.actors(names_only=False, detail=True)
         actor_map  = {}
         for actor in actor_list:
             actor_name = actor.pop('name')
@@ -440,9 +434,9 @@ class Ray(c.Module):
         return actor_map
     actor_map = ray_actor_map
     
-    @classmethod
-    def ray_tasks(cls, running=False, name=None, *args, **kwargs):
-        ray = cls.env()
+    
+    def ray_tasks(self, running=False, name=None, *args, **kwargs):
+        ray = self.env()
         filters = []
         if running == True:
             filters.append([("scheduling_state", "=", "RUNNING")])
@@ -459,32 +453,32 @@ class Ray(c.Module):
     def ray_nodes( *args, **kwargs):
         from ray.experimental.state.api import list_nodes
         return list_nodes(*args, **kwargs)
-    @classmethod
-    def ray_get(cls,*jobs):
-        cls.env()
+    
+    def ray_get(self,*jobs):
+        self.env()
         return ray.get(jobs)
-    @classmethod
-    def ray_wait(cls, *jobs):
-        cls.env()
+    
+    def ray_wait(self, *jobs):
+        self.env()
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
     
     
-    @classmethod
-    def ensure_ray_context(cls, ray_config:dict = None):
+    
+    def ensure_ray_context(self, ray_config:dict = None):
         ray_config = ray_config if ray_config != None else {}
         
-        if cls.is_initialized():
-            ray_context = cls.get_runtime_context()
+        if self.is_initialized():
+            ray_context = self.get_runtime_context()
         else:
-            ray_context =  cls.init(init_kwargs=ray_config)
+            ray_context =  self.init(init_kwargs=ray_config)
         
         return ray_context
 
 
-    @classmethod
-    def ray_put(cls, *items):
-        ray = cls.env()
+    
+    def ray_put(self, *items):
+        ray = self.env()
         
         return [ray.put(i) for i in items]
 
@@ -495,29 +489,29 @@ class Ray(c.Module):
     
 
     ## RAY LAND
-    @classmethod
-    def stop(cls):
-        cls.run_command('ray stop')
-
-
-    @classmethod
-    def start(cls):
+    
+    def stop(self):
+        """
+        stop cluster
+        """
+        c.cmd('ray stop')
+    
+    def start(self):
         '''
         Start the ray cluster 
-        (TODO: currently supports head)
         '''
         return c.cmd('ray start --head')
 
-    @classmethod
-    def restart(cls, stop:dict={}, start:dict={}):
+    
+    def restart(self, stop:dict={}, start:dict={}):
         '''
         
         Restart  ray cluster
         
         '''
         command_out_dict = {}
-        command_out_dict['stop'] = cls.stop(**stop)
-        command_out_dict['start'] = cls.start(**start)
+        command_out_dict['stop'] = self.stop(**stop)
+        command_out_dict['start'] = self.start(**start)
         return command_out_dict
 
 

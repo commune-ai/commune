@@ -4,6 +4,7 @@ import urllib
 import commune as c
 import requests
 import logging
+from typing import *
 
 class Network(c.Module):
 
@@ -226,3 +227,151 @@ class Network(c.Module):
         for port in range(*port_range):
             used_ports[port] = cls.port_used(port)
         return used_ports
+
+
+
+    @classmethod
+    def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
+        '''
+        Get availabel ports out of port range
+        
+        Args:
+            ports: list of ports
+            ip: ip address
+        
+        '''
+        port_range = cls.resolve_port_range(port_range=port_range)
+        if ports == None:
+            ports = list(range(*port_range))
+        
+        async def check_port(port, ip):
+            return cls.port_used(port=port, ip=ip)
+        
+        used_ports = []
+        jobs = []
+        for port in ports: 
+            jobs += [check_port(port=port, ip=ip)]
+                
+        results = cls.gather(jobs)
+        for port, result in zip(ports, results):
+            if isinstance(result, bool) and result:
+                used_ports += [port]
+            
+        return used_ports
+    
+
+
+
+    @classmethod
+    def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
+        import socket
+        if not isinstance(port, int):
+            return False
+        
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            # Set the socket timeout
+            sock.settimeout(timeout)
+
+            # Try to connect to the specified IP and port
+            try:
+                port=int(port)
+                sock.connect((ip, port))
+                return True
+            except socket.error:
+                return False
+    
+
+    @classmethod
+    def ports(cls, ip='0.0.0.0') -> List[int]:
+        ports = []
+        for port in range(*cls.port_range()): 
+            ports += [port]
+        return ports
+    
+    @classmethod
+    def used_ports(cls, ip='0.0.0.0') -> List[int]:
+        used_ports = []
+        for port in range(*cls.port_range()): 
+            if not cls.port_available(port=port, ip=ip):
+                used_ports += [port]
+        return used_ports
+    
+
+
+    @classmethod
+    def free_port(cls, 
+                  ports = None,
+                  port_range: List[int] = None , 
+                  ip:str =None, 
+                  avoid_ports = None,
+                  random_selection:bool = True) -> int:
+        
+        '''
+        
+        Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
+        '''
+        avoid_ports = avoid_ports if avoid_ports else []
+        
+        if ports == None:
+            port_range = cls.resolve_port_range(port_range)
+            ports = list(range(*port_range))
+            
+        ip = ip if ip else c.default_ip
+
+        if random_selection:
+            ports = c.shuffle(ports)
+        port = None
+        for port in ports: 
+            if port in avoid_ports:
+                continue
+            
+            if cls.port_available(port=port, ip=ip):
+                return port
+            
+        raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
+
+    get_available_port = free_port
+
+    
+
+
+    def kill_port_range(self, start_port = None, end_port = None, timeout=5, n=0):
+        if start_port != None and end_port != None:
+            port_range = [start_port, end_port]
+        else:
+            port_range = c.port_range()
+        
+        if n > 0:
+            port_range = [start_port, start_port + n]
+        assert isinstance(port_range[0], int), 'port_range must be a list of ints'
+        assert isinstance(port_range[1], int), 'port_range must be a list of ints'
+        assert port_range[0] < port_range[1], 'port_range must be a list of ints'
+        futures = []
+        for port in range(*port_range):
+            c.print(f'Killing port {port}', color='red')
+            try:
+                self.kill_port(port) 
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+
+
+            
+    @classmethod
+    def kill_port(cls, port:int, mode:str='python'):
+
+        if not c.port_used(port):
+            return {'success': True, 'msg': f'port {port} is not in use'}
+        if mode == 'python':
+            import signal
+            from psutil import process_iter
+            '''
+            Kills the port {port} on the localhost
+            '''
+            for proc in process_iter():
+                for conns in proc.connections(kind='inet'):
+                    if conns.laddr.port == port:
+                        proc.send_signal(signal.SIGKILL) # or SIGKILL
+            return port
+        elif mode == 'bash':
+            c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
+        return {'success': True, 'msg': f'killed port {port}'}

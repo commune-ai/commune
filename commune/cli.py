@@ -8,24 +8,24 @@ class cli(c.Module):
     """
     # 
 
+
     def __init__(self, 
                  args = None,
                 module = 'module',
                 verbose = True,
-                history_module = 'history',
-                forget_fns = ['module.key_info', 'module.save_keys'], 
-                path = 'history',
-                save: bool = False):
+                forget_fns = ['module.key_info', 'module.save_keys']):
         self.verbose = verbose
-        self.save = save
-        if save:
-            self.history_module = c.module(history_module)(folder_path=self.resolve_path(path))
+        self.forget_fns = forget_fns
         self.base_module = c.module(module)
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
+        self.forward(args=args)
+    
+    def forward(self, args=None):
         args = args or self.argv()
         self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
-        self.process_output(output)
+        return self.process_output(output)
+
 
     def process_output(self, output):
         if c.is_generator(output):
@@ -38,8 +38,7 @@ class cli(c.Module):
                 output = output.toDict()
             c.print(output, verbose=self.verbose)
         
-        if self.save and c.jsonable(output):
-            self.history_module.add({'input': self.input_str, 'output': output})
+
         return output
 
 
@@ -76,6 +75,8 @@ class cli(c.Module):
     
         if module.classify_fn(fn) == 'self':
             module = module() 
+        
+
         fn_obj = getattr(module, fn)
 
         if callable(fn_obj):
@@ -159,21 +160,6 @@ class cli(c.Module):
                     return x
                 
 
-    @classmethod
-    def history(cls,**kwargs):
-        history = cls.history_module().history(**kwargs)
-        return history
-    
-    @classmethod
-    def rm_history(cls,*args, **kwargs):
-        history = cls.history_module().rm_history(*args, **kwargs)
-        return history
-    
-
-    @classmethod
-    def history_paths(cls, **kwargs):
-        history = cls.history_module().history_paths(**kwargs) 
-        return history
 
 def main():
     import sys

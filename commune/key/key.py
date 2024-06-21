@@ -711,8 +711,12 @@ class Keypair(c.Module):
 
 
         kwargs =  dict(
-            ss58_address=ss58_address, public_key=public_key, private_key=private_key,
-            ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
+            ss58_address=ss58_address, 
+            public_key=public_key, 
+            private_key=private_key,
+            ss58_format=ss58_format,
+              crypto_type=crypto_type, 
+              seed_hex=seed_hex
         )
         
         if return_kwargs:

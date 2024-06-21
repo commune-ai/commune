@@ -52,7 +52,7 @@ class PM2(c.Module):
     
     @classmethod
     def status(cls, verbose=True):
-        stdout = cls.run_command(f"pm2 status")
+        stdout = c.cmd(f"pm2 status")
         if verbose:
             c.print(stdout,color='green')
         return stdout
@@ -106,7 +106,7 @@ class PM2(c.Module):
             
             return text
         elif mode == 'cmd':
-            return cls.run_command(f"pm2 logs {module}", verbose=verbose)
+            return c.cmd(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
     
