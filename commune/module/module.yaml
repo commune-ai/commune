@@ -200,3 +200,45 @@ module_routes:
     'apps',
     'app2info',
   ]
+
+  user: 
+    - role2users
+    - is_user
+    - get_user
+    - update_user
+    - get_role
+    - refresh_users
+    - user_exists
+    - is_admin
+    - admins
+    - add_admin
+    - rm_admin
+    - num_roles
+    - rm_user
+
+  ticket: [
+    'ticket',
+    'ticket2dict',
+    'verify_ticket'
+    ]
+
+  streamlit:
+    - load_style
+    - st_load_css
+
+
+  docker:
+    - dlogs
+    - images
+
+  network:
+    - port_used
+    - port_free
+    - ports
+    - kill_port_range
+    - kill_port
+    - free_port
+
+  os: 
+    - cmd
+    - sys_path

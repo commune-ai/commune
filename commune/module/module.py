@@ -8,7 +8,7 @@ from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
 from rich.console import Console
 import json
-
+from functools import partial
 from glob import glob
 import sys
 import argparse
@@ -182,20 +182,6 @@ class c:
     folderpath = dirname = dirpath
 
     @classmethod
-    def dlogs(cls, *args, **kwargs):
-        '''
-        logs of the docker contianer
-        '''
-        return c.module('docker').logs(*args, **kwargs)
-
-    @classmethod
-    def images(cls, *args, **kwargs):
-        """
-        images
-        """
-        return c.module('docker').images(*args, **kwargs)
-    
-    @classmethod
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
         
@@ -203,6 +189,7 @@ class c:
         module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
+            c.print(module_path, 'fam')
             module_path = cls.path2simple(module_path)
         return module_path
     
@@ -650,27 +637,7 @@ class c:
         flat_config.update(args.__dict__)
         config = flat2deep(flat_config)
         return config
-    @classmethod
-    def gradio(self, *args, **kwargs):
-        return c.module('gradio')(*args, **kwargs)
 
-    @staticmethod
-    def st_load_css(*args, **kwargs):
-        c.module('streamlit').load_css(*args, **kwargs)
-
-    @classmethod
-    def rcmd(cls, *args, **kwargs):
-        return c.module('remote').cmd(*args, **kwargs)
-    
-    @classmethod
-    def cmd(cls, *args,**kwargs):
-        cmd = c.module('os').cmd( *args, **kwargs)
-        return cmd
-    run_command = shell = cmd 
-    
-    @classmethod
-    def sys_path(cls, *args, **kwargs):
-        return c.module('os').sys_path(*args, **kwargs)
 
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
@@ -772,24 +739,6 @@ class c:
 
 
     @classmethod
-    def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
-        import socket
-        if not isinstance(port, int):
-            return False
-        
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            # Set the socket timeout
-            sock.settimeout(timeout)
-
-            # Try to connect to the specified IP and port
-            try:
-                port=int(port)
-                sock.connect((ip, port))
-                return True
-            except socket.error:
-                return False
-    
-    @classmethod
     def port_free(cls, *args, **kwargs) -> bool:
         return not cls.port_used(*args, **kwargs)
 
@@ -797,7 +746,6 @@ class c:
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
         return not cls.port_used(port=port, ip=ip)
         
-
     @classmethod
     def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
         '''
@@ -813,7 +761,7 @@ class c:
             ports = list(range(*port_range))
         
         async def check_port(port, ip):
-            return cls.port_used(port=port, ip=ip)
+            return c.port_used(port=port, ip=ip)
         
         used_ports = []
         jobs = []
@@ -990,62 +938,13 @@ class c:
         assert end_value != None, 'end_value must be provided'
         return random.randint(start_value, end_value)
     
-    @classmethod
-    def ports(cls, ip='0.0.0.0') -> List[int]:
-        ports = []
-        for port in range(*cls.port_range()): 
-            ports += [port]
-                
-        return ports
-    
-    @classmethod
-    def used_ports(cls, ip='0.0.0.0') -> List[int]:
-        used_ports = []
-        for port in range(*cls.port_range()): 
-            if not cls.port_available(port=port, ip=ip):
-                used_ports += [port]
-                
-        return used_ports
+
     
     @classmethod
     def free_address(cls, **kwargs):
         return f'{c.ip()}:{c.free_port(**kwargs)}'
     
-    @classmethod
-    def free_port(cls, 
-                  ports = None,
-                  port_range: List[int] = None , 
-                  ip:str =None, 
-                  avoid_ports = None,
-                  random_selection:bool = True) -> int:
-        
-        '''
-        
-        Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
-        '''
-        avoid_ports = avoid_ports if avoid_ports else []
-        
-        if ports == None:
-            port_range = cls.resolve_port_range(port_range)
-            ports = list(range(*port_range))
-            
-        ip = ip if ip else c.default_ip
 
-        if random_selection:
-            ports = c.shuffle(ports)
-        port = None
-        for port in ports: 
-            if port in avoid_ports:
-                continue
-            
-            if cls.port_available(port=port, ip=ip):
-                return port
-            
-        raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
-
-    get_available_port = free_port
-
-    
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
         for k,v in kwargs.items():
             if k != 'self': # skip the self
@@ -1054,24 +953,7 @@ class c:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-    def kill_port_range(self, start_port = None, end_port = None, timeout=5, n=0):
-        if start_port != None and end_port != None:
-            port_range = [start_port, end_port]
-        else:
-            port_range = c.port_range()
-        
-        if n > 0:
-            port_range = [start_port, start_port + n]
-        assert isinstance(port_range[0], int), 'port_range must be a list of ints'
-        assert isinstance(port_range[1], int), 'port_range must be a list of ints'
-        assert port_range[0] < port_range[1], 'port_range must be a list of ints'
-        futures = []
-        for port in range(*port_range):
-            c.print(f'Killing port {port}', color='red')
-            try:
-                self.kill_port(port) 
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
+
 
 
     def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
@@ -1080,9 +962,6 @@ class c:
         for port in range(*port_range):
             used_ports[port] = self.port_used(port)
         return used_ports
-    @classmethod
-    def kill_port(cls, port:int, mode='bash')-> str:
-        return c.module('os').kill_port(port=port, mode=mode)
 
     @classmethod
     def pm2_restart_all(cls):
@@ -2480,7 +2359,6 @@ class c:
     killpre = kill_prefix
 
 
-
     @classmethod
     def kill_many(cls, servers, search:str = None, network='local', parallel=True,  timeout=10, **kwargs):
 
@@ -2913,19 +2791,6 @@ class c:
     
     jupyter = enable_jupyter
     
-        
-    @classmethod
-    def int_to_ip(cls, *args, **kwargs):
-        return c.import_object('commune.utils.network.int_to_ip')(*args, **kwargs)
-        
-    @classmethod
-    def ip_to_int(cls, *args, **kwargs):
-        return c.import_object('commune.utils.network.ip_to_int')(*args, **kwargs)
-
-    @classmethod
-    def ip_version(cls, *args, **kwargs):
-        return c.import_object('commune.utils.network.ip_version')(*args, **kwargs)
-    
     @classmethod
     def pip_list(cls, lib=None):
         pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
@@ -3003,6 +2868,7 @@ class c:
                 return version
             
         return lib2version
+    
     @classmethod
     def version(cls, lib:str=libname):
         lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
@@ -3659,9 +3525,6 @@ class c:
         v = cls.cache.get(k, default)
         return v
 
-    def auth(self,*args,  key=None, **kwargs):
-        key = self.resolve_key(key)
-        return self.module('subspace')().auth(*args, key=key, **kwargs)
 
 
     @classmethod
@@ -4088,13 +3951,7 @@ class c:
         c.ip(update=1)
 
         return {'success': True, 'responses': responses}
-
-    @classmethod
-    def sync(cls, *args, **kwargs):
-            
-        return c.module('subspace')().sync(*args, **kwargs)
-        
-
+    
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
         return [text for text in text_list if filter_text in text]
@@ -5216,43 +5073,9 @@ class c:
     def jload(cls, json_string):
         import json
         return json.loads(json_string.replace("'", '"'))
-    
-    @classmethod
-    def my_modules(cls, *args, **kwargs):
-        return c.module('subspace')().my_modules(*args, **kwargs)
-   
-    @classmethod
-    def my_stake(cls, *args, **kwargs):
-        return c.module('subspace')().my_stake(*args, **kwargs)
-
-    @classmethod
-    def my_staketo(cls, *args, **kwargs):
-        return c.module('subspace')().my_staketo(*args, **kwargs)
-
-    @classmethod
-    def my_stakefrom(cls, *args, **kwargs):
-        return c.module('subspace')().my_stakefrom(*args, **kwargs)
-
-    @classmethod
-    def my_value(cls, *args, **kwargs):
-        return c.module('subspace')().my_value(*args, **kwargs)
-    
-    @classmethod
-    def get_value(cls, *args, **kwargs):
-        return c.module('subspace')().get_value(*args, **kwargs)
-    
-    @classmethod
-    def get_stake_to(cls, *args, **kwargs):
-        return c.module('subspace')().get_stake_to(*args, **kwargs)
-    
-    @classmethod
-    def get_stake_from(cls, *args, **kwargs):
-        return c.module('subspace')().get_stake_from(*args, **kwargs)
-    
 
     @classmethod
     def partial(cls, fn, *args, **kwargs):
-        from functools import partial
         return partial(fn, *args, **kwargs)
         
         
@@ -5510,61 +5333,12 @@ class c:
     @classmethod
     def random_words(cls, n=2, **kwargs):
         return c.module('key').generate_mnemonic(n=n, **kwargs)
-    @classmethod
-    def unstake_many(cls, *args, **kwargs):
-        return c.module('subspace')().unstake_many(*args, **kwargs)
 
 
-    unstake_all = unstake_many
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    
 
-    @classmethod
-    def get_stake(cls, *args, **kwargs):
-        return c.module('subspace')().get_stake(*args, **kwargs)
-    
-    @classmethod
-    def get_staketo(cls, *args, **kwargs):
-        return c.module('subspace')().get_staketo(*args, **kwargs)
-    
-    @classmethod
-    def get_stakefrom(cls, *args, **kwargs):
-        return c.module('subspace')().get_stakefrom(*args, **kwargs)
-    
-    @classmethod
-    def stake_multiple(cls, *args, **kwargs):
-        return c.module('subspace')().stake_multiple(*args, **kwargs)
-
-    @classmethod
-    def stake_spread(cls, *args, **kwargs):
-        return c.module('subspace')().stake_spread(*args, **kwargs)
-    
-    @classmethod
-    def snap(cls, *args, **kwargs):
-        return c.module('subspace')().build_snapshot(*args, **kwargs)   
-
-    @classmethod
-    def build_spec(cls, *args, **kwargs): 
-        return c.module('subspace').build_spec(*args, **kwargs) 
-    
-    @classmethod
-    def unstake(cls, *args, **kwargs):
-        return c.module('subspace')().unstake(*args, **kwargs)
-    
-    @classmethod
-    def my_modules(cls, *args, **kwargs):
-        return c.module('subspace')().my_modules(*args, **kwargs)
-    
-    @classmethod
-    def my_keys(cls, *args, **kwargs):
-        return c.module('subspace')().my_keys(*args, **kwargs)
-    wallets = my_keys
-
-    @classmethod
-    def nodes(cls, *args, **kwargs):
-        return c.module('subspace')().nodes(*args, **kwargs)
-    
     @classmethod
     def scan(cls, 
                  search=None, 
@@ -5789,59 +5563,12 @@ class c:
         else:
             address = key
         return address
-    
-    ##################################
-    # USER LAND
-    ##################################
-    @classmethod
-    def add_user(cls, address, role='user', **kwargs):
-        return c.module('user').add_user(address, role=role, **kwargs)
-    @classmethod
-    def users(cls, *args, **kwargs):
-        return c.module('user').user(*args, **kwargs)
-    
-    @classmethod
-    def role2users(cls, *args, **kwargs):
-        return c.module('user')().role2users(*args, **kwargs)
-    @classmethod
-    def is_user(cls, address):
-        return c.module('user').is_user(address)
-    @classmethod
-    def get_user(cls, address):
-        return c.module('user').get_user(address)
-    @classmethod
-    def update_user(cls, *args, **kwargs):
-        return c.module('user').update_user(*args, **kwargs)
-    @classmethod
-    def get_role(cls, *args, **kwargs):
-        return c.module('user').get_role(*args, **kwargs)
-    @classmethod
-    def refresh_users(cls):
-        return c.module('user').refresh_users()
-    @classmethod
-    def user_exists(cls, address):
-        return address in cls.get('users', {})
+
+
     @classmethod
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
-    @classmethod
-    def is_admin(cls, address:str):
-        return c.module('user').is_admin(address=address)
-    @classmethod
-    def admins(cls):
-        return c.module('user').admins()
-    @classmethod
-    def add_admin(cls, address):
-        return  c.module('user').add_admin(address)
-    @classmethod
-    def rm_admin(cls, address):
-        return  c.module('user').rm_admin(address)
-    @classmethod
-    def num_roles(cls, role:str):
-        return c.module('user').num_roles(role)
-    @classmethod
-    def rm_user(cls, address):
-        return c.module('user').rm_user(address)
+
     ##################################
     # REPLICA LAND
     ##################################
@@ -6101,14 +5828,6 @@ class c:
 
     def generate(self, *args, **kwargs):
         return 'hey'
-
-    @classmethod
-    def ticket(cls, *args, **kwargs):
-        return c.module('ticket')().ticket(*args, **kwargs)
-
-    @classmethod
-    def ticket2dict(cls, ticket):
-        return c.module('ticket')().ticket2dict(ticket)
     
     def save_ticket(self, key=None, **kwargs):
         
@@ -6118,15 +5837,6 @@ class c:
     def load_ticket(self, key=None, **kwargs):
         key = c.get_key(key)
         return key.load_ticket(**kwargs)
-
-    @classmethod
-    def verify_ticket(cls, *args, **kwargs):
-
-        return c.module('ticket')().verify(*args, **kwargs)
-    
-    @classmethod
-    def load_style(cls):
-        return c.module('streamlit').load_style()
 
     @classmethod
     def active_thread_count(cls): 
@@ -6168,7 +5878,43 @@ class c:
     def module_routes(cls):
         return cls.config().get('module_routes', {})
 
- 
+    @classmethod
+    def process_module_fn(cls, module, fn):
+
+        def fn_generator(*args, fn, module, **kwargs):
+
+            module = c.module(module)
+            fn_type = module.classify_fn(fn)
+            if fn_type == 'self':
+                module = module()
+            else:
+                module = module
+
+            return getattr(module, fn)(*args, **kwargs)
+     
+        if type(fn) in [list, set, tuple] and len(fn) == 2:
+            # option 1: ['fn_name', 'name_in_current_module']
+            from_fn = fn[0]
+            to_fn = fn[1]
+        elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
+            '''
+            option 1: 
+            {fn: 'fn_name', name: 'name_in_current_module'}
+            option 2:
+            {from: 'fn_name', to: 'name_in_current_module'}
+            '''
+            if 'fn' in fn and 'name' in fn:
+                to_fn = fn['name']
+                from_fn = fn['fn']
+            elif 'from' in fn and 'to' in fn:
+                from_fn = fn['from']
+                to_fn = fn['to']
+        else:
+            from_fn = fn
+            to_fn = fn
+        fn_obj = partial(fn_generator, fn=from_fn, module=module )
+        fn_obj.__name__ = to_fn
+        return fn_obj
     @classmethod
     def enable_routes(cls, verbose=False):
         """
@@ -6181,40 +5927,12 @@ class c:
             return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
         for m, fns in c.module_routes().items():
-            from functools import partial
-            def fn_generator(*args, fn, module, **kwargs):
-
-                module = c.module(module)
-                fn_type = module.classify_fn(fn)
-                if fn_type == 'self':
-                    module = module()
-                else:
-                    module = module
-    
-                return getattr(module, fn)(*args, **kwargs)
-     
             for fn in fns:
-                if isinstance(fn, list) and len(fn) == 2:
-                    # if the function is a list of length 2, then the first element is the function name and the second is the name of the function
-                    # example ['fn', 'new_fn_name']
-                    fn = fn[0]
-                    fn_name = fn[1]
-                elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
-                    fn = fn['fn']
-                    fn_name = fn['name']
-                else:
-                    fn = fn
-                    fn_name = fn
-
-                fn_obj = partial(fn_generator, fn=fn, module=m )
-                fn_obj.__name__ = fn_name
-                setattr(cls, fn, fn_obj)
-                
+                setattr(cls, fn, cls.process_module_fn(m, fn))
         t1 = c.time()
-    
         c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
-
+        return {'success': True, 'msg': 'enabled routes'}
 
  
 c.enable_routes()

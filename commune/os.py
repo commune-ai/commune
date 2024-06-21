@@ -581,26 +581,6 @@ class OsModule(c.Module):
         return sys.path
 
     
-    @classmethod
-    def kill_port(cls, port:int, mode:str='python'):
-
-        if not c.port_used(port):
-            return {'success': True, 'msg': f'port {port} is not in use'}
-        if mode == 'python':
-            import signal
-            from psutil import process_iter
-            '''
-            Kills the port {port} on the localhost
-            '''
-            for proc in process_iter():
-                for conns in proc.connections(kind='inet'):
-                    if conns.laddr.port == port:
-                        proc.send_signal(signal.SIGKILL) # or SIGKILL
-            return port
-        elif mode == 'bash':
-            c.cmd(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
-        return {'success': True, 'msg': f'killed port {port}'}
-
 
     @classmethod 
     def chmod_scripts(cls):
