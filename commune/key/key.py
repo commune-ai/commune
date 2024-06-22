@@ -1675,8 +1675,48 @@ class Keypair(c.Module):
                 
         return fn2result
 
+
+
+
+
+    @classmethod
+    def encrypt_file(cls, path:str, password=None, key=None,) -> str:
+        key = c.get_key(key)
+        text = c.get_text(path)
+        r = key.encrypt(text, password=password)
+        cls.put_text(path, r)
+        return {'success': True, 'msg': f'Encrypted {path}'}
+        
+    @classmethod
+    def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
+        key = c.get_key(key)
+        text = c.get_text(path)
+        r = key.decrypt(text, password=password, key=key, **kwargs)
+        cls.put_text(path, r)
+        return {'success': True, 'msg': f'Decrypted {path}'}
+
+
+    def is_encrypted_path(self, path:str, prefix=encrypted_prefix) -> bool:
+        '''
+        Encrypts the path
+        '''
+        path = self.resolve_path(path)
+        text = c.get_text(path)
+        return text.startswith(prefix)
+
+    def is_encrypted(self, data:str, prefix=None) -> bool:
+        '''
+        is the data encrypted given the prefix
+        '''
+        prefix = prefix if prefix else self.encrypted_prefix
+        return data.startswith(prefix)
+
+    
+    
       
 Keypair.run(__name__)
+
+
 
 
 

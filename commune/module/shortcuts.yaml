@@ -1,0 +1,21 @@
+# MODULE SHORTCUTS YAML
+
+
+bt: bittensor
+chain: subspace.chain
+d: docker
+f: frontend
+freegpt: model.freegpt
+lit: lit_gpt
+openai: model.openai
+openrouter: model.openrouter
+or: model.openrouter
+r: remote
+s: subspace
+sel: selenium
+store: storage
+tg: textgen
+wombo: w
+router: model.openrouter
+ticket: key.ticket
+thread: os.thread

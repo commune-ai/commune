@@ -132,16 +132,19 @@ class Server(c.Module):
     serve_batch = serve_many
 
 
+
     @classmethod
     def serve(cls, 
-              module:Any ,
+              module:Any = 'module' ,
               kwargs:dict = None,  # kwargs for the module
+              params = None, # kwargs for the module
               tag:str=None,
-              server_network = 'local',
+              server_network = 'local', # network to run the server
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
               refresh:bool = True, # refreshes the server's key
+              remote:bool = True, # runs the server remotely (pm2, ray)
               tag_seperator:str='::',
               max_workers:int = None,
               free: bool = False,
@@ -149,34 +152,49 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
-        kwargs = kwargs or {}
+        if module == None:
+            module = c.module_path()
+        kwargs = params or kwargs or {}
         kwargs.update(extra_kwargs or {})
-        name = server_name or name # name of the server if None, it will be the module name
-        if '::' in module:
+        if name == None:
             name = module
-            module, tag = module.split('::')
-        name = name or module
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
-        namespace = c.namespace(network=server_network)
-        if port == None and name in namespace:
-            address = namespace.get(name, None)
-            port = int(address.split(':')[-1]) if address else c.free_port()
+        if tag_seperator in name:
+            module, tag = name.split(tag_seperator)
+        else:
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+
         if port == None:
-            port = c.free_port()
-            
+            # now if we have the server_name, we can repeat the server
+            address = c.get_address(name, network=server_network)
+            try:
+                port = int(address.split(':')[-1])
+            except Exception as e:
+                port = c.free_port()
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
+
+        # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+            cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            return {'success':True, 
+                    'name': name, 
+                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
+                    'kwargs':kwargs
+                    } 
+
         module_class = c.module(module)
 
+        kwargs.update(extra_kwargs)
+        
         if mnemonic != None:
             c.add_key(server_name, mnemonic)
-        key = key or server_name
-        if not c.key_exists(key):
-            c.add_key(key)
+            
         self = module_class(**kwargs)
-        if c.server_exists(server_name, network=server_network) and not refresh: 
-            return {'success':True, 'message':f'Server {server_name} already exists'}
-        else:
-            c.kill(server_name, network=server_network)
-        
+
         c.module(f'server')(module=self, 
                                           name=name, 
                                           port=port, 
@@ -190,7 +208,7 @@ class Server(c.Module):
                      'name':name, 
                      'kwargs': kwargs,
                      'module':module}
-    
+
     @classmethod
     def history(cls, **kwargs):
         return c.ls(c.resolve_path('history'))

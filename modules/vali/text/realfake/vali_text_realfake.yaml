@@ -1,0 +1,9 @@
+dataset: data.text.realfake
+search: model
+target: real
+network: subspace
+netuid: 0
+timeout: 10
+verbose: False
+
+
