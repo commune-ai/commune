@@ -226,3 +226,28 @@ class Network(c.Module):
         for port in range(*port_range):
             used_ports[port] = cls.port_used(port)
         return used_ports
+
+
+    @classmethod
+    def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False, **kwargs ) -> List[int]:
+        free_ports = []
+        avoid_ports = kwargs.pop('avoid_ports', [])
+        for i in range(n):
+            try:
+                free_ports += [cls.free_port(reserve=reserve, 
+                                            random_selection=random_selection, 
+                                            avoid_ports=avoid_ports, **kwargs)]
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+                break
+            avoid_ports += [free_ports[-1]]
+        
+              
+        return free_ports
+    
+    @classmethod
+    def random_port(cls, *args, **kwargs):
+        return cls.choice(cls.free_ports(*args, **kwargs))
+    
+
+    

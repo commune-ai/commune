@@ -313,24 +313,22 @@ class c:
         config = flat2deep(flat_config)
         return config
 
-
+    included_pwd_in_path = False
     @classmethod
-    def import_module(cls, import_path:str) -> 'Object':
+    def import_module(cls, import_path:str, included_pwd_in_path=True) -> 'Object':
         from importlib import import_module
+        if included_pwd_in_path and not cls.included_pwd_in_path:
+            import sys
+            pwd = c.pwd()
+            sys.path.append(pwd)
+            sys.path = list(set(sys.path))
+            cls.included_pwd_in_path = True
         pwd = c.pwd()
         try:
             return import_module(import_path)
         except Exception as e:
-            print(f'Error: {e}')
-            import sys
-            sys.path.append(pwd)
-            sys.path = list(set(sys.path))
-            try:
-                return import_module(import_path)
-            except Exception as e:
-                print(f'Error: {e}')
-                raise e
-        
+            print(f'Error Importing: {e} {import_path}')
+            raise e
     def can_import_module(self, module:str) -> bool:
         '''
         Returns true if the module is valid
@@ -585,27 +583,7 @@ class c:
     def has_free_ports(self, n:int = 1, **kwargs):
         return len(self.free_ports(n=n, **kwargs)) > 0
     
-    @classmethod
-    def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False, **kwargs ) -> List[int]:
-        free_ports = []
-        avoid_ports = kwargs.pop('avoid_ports', [])
-        for i in range(n):
-            try:
-                free_ports += [cls.free_port(reserve=reserve, 
-                                            random_selection=random_selection, 
-                                            avoid_ports=avoid_ports, **kwargs)]
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-                break
-            avoid_ports += [free_ports[-1]]
-        
-              
-        return free_ports
-    
-    @classmethod
-    def random_port(cls, *args, **kwargs):
-        return cls.choice(cls.free_ports(*args, **kwargs))
-    
+
     @staticmethod
     def random_int(start_value=100, end_value=None):
         if end_value == None: 
@@ -770,8 +748,12 @@ class c:
         else:
             print(path, 'fam')
             path =  c.module('tree').simple2objectpath(path, **kwargs)
-        
-        return c.import_object(path)
+        try:
+            return c.import_object(path)
+        except Exception as e:
+            c.print(f'Error: {e} for {path}', color='red')
+            raise e
+
         
     @classmethod
     def has_config(cls) -> bool:
@@ -3483,7 +3465,7 @@ class c:
             
         kwargs = kwargs if kwargs else {}
         args = args if args else []
-        
+    
     
         if name == None:
             module_path = cls.resolve_object(module).module_path()
@@ -4593,10 +4575,13 @@ class c:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
+        shortcuts = cls.shortcuts()
         if cls.routes_enabled:
             return {'success': False, 'msg': 'routes already enabled'}
         t0 = c.time()
         for m, fns in c.routes().items():
+            if m in shortcuts:
+                m = shortcuts[m]
             for fn in fns:
                 setattr(cls, fn, cls.process_module_fn(m, fn))
         t1 = c.time()

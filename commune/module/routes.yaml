@@ -228,6 +228,8 @@ network:
   - free_port
   - get_port_range
   - set_port_range
+  - free_ports
+  - free_port
 
 os: 
   - cmd
@@ -254,3 +256,8 @@ code:
 server: [
   serve
 ]
+
+namespace:
+  - namespace
+  - get_address
+  - servers

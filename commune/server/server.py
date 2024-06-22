@@ -19,6 +19,7 @@ class Server(c.Module):
         history_path:str = None , 
         nest_asyncio = True,
         new_loop = True,
+        mnemonic = None,
         **kwargs
         ) -> 'Server':
         """
@@ -39,7 +40,9 @@ class Server(c.Module):
                         protocal=protocal, 
                         save_history=save_history,
                         history_path=history_path,
+                        mnemonic=mnemonic,
                         network=network, **kwargs
+
                         )
         self.set_api()
 
@@ -52,6 +55,7 @@ class Server(c.Module):
                    save_history:bool= False, 
                    history_path:str = None, 
                    network:str = 'local',
+                     mnemonic = None,
                    **kwargs
                    ):
         
@@ -62,6 +66,7 @@ class Server(c.Module):
                                             port=port,
                                             key=key,
                                             save_history = save_history,
+                                            mnemonic = mnemonic,
                                              **kwargs)
         self.module = self.protocal.module 
         response = {'name':self.module.name, 'address': self.module.address, 'port':self.module.port, 'key':self.module.key.ss58_address, 'network':self.module.network, 'success':True}
@@ -173,33 +178,29 @@ class Server(c.Module):
                 port = c.free_port()
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
 
-        # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
-            for _ in ['extra_kwargs', 'address']:
-                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
-            return {'success':True, 
-                    'name': name, 
-                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
-                    'kwargs':kwargs
-                    } 
+        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+        # if remote:
+        #     remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+        #     remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
+        #     for _ in ['extra_kwargs', 'address']:
+        #         remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+        #     cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
+        #     return {'success':True, 
+        #             'name': name, 
+        #             'address':c.ip() + ':' + str(remote_kwargs['port']), 
+        #             'kwargs':kwargs
+        #             } 
 
         module_class = c.module(module)
 
         kwargs.update(extra_kwargs)
         
-        if mnemonic != None:
-            c.add_key(server_name, mnemonic)
-            
-        self = module_class(**kwargs)
-
-        c.module(f'server')(module=self, 
+        cls(module=module_class(**kwargs), 
                                           name=name, 
                                           port=port, 
                                           network=server_network, 
                                           max_workers=max_workers, 
+                                          mnemonic = mnemonic,
                                           free=free, 
                                           key=key)
 

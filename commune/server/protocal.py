@@ -24,11 +24,13 @@ class Protocal(c.Module):
                 history_path='history',
                 network = 'local',
                 save_history=False,
+                mnemonic=None,
                 key=None,
                 **kwargs
                 ):
-        self.set_config(locals())
-        self.set_module(module=module, key=key, name=name)
+
+        self.max_request_staleness = max_request_staleness
+        self.set_module(module=module, key=key, name=name, mnemonic=mnemonic, network=network, **kwargs)
         self.ticket_module = c.module(ticket_module)()
         self.access_module = c.module(access_module)(module=self.module)
         self.save_history = save_history
@@ -36,9 +38,11 @@ class Protocal(c.Module):
         self.serializer = c.module(serializer)()
         self.unique_id_map = {}
 
-
-
-    def set_module(self, module, key, name, port:int= None, network:str='local', **kwargs):
+    def set_module(self, module, key, name, port:int= None, network:str='local', mnemonic=None, **kwargs):
+       
+       
+        if mnemonic != None:
+            c.add_key(name, mnemonic)
         module = module or 'module'
         if isinstance(module, str):
             module = c.module(module)()
@@ -80,7 +84,7 @@ class Protocal(c.Module):
         input['address'] = address
         # check the request staleness    
         request_staleness = c.timestamp() - input.get('timestamp', 0) 
-        assert  request_staleness < self.config.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.config.max_request_staleness})  seconds old"
+        assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
         if 'params' in input:
             if isinstance(input['params'], dict):
@@ -115,7 +119,7 @@ class Protocal(c.Module):
         access_ticket_dict = self.ticket_module.ticket2dict(access_ticket)
         # check the request staleness
         request_staleness = c.timestamp() - access_ticket_dict.get('timestamp', 0)
-        assert request_staleness < self.config.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.config.max_request_staleness})  seconds old"
+        assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
         assert c.verify_ticket(access_ticket), f"Data not signed with correct key"
         """
         We assume the data is in the input, and the token
@@ -190,3 +194,5 @@ class Protocal(c.Module):
 
 
             
+
+
