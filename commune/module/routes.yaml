@@ -232,6 +232,9 @@ network:
 os: 
   - cmd
   - sys_path
+  - get_pid
+  - kill_pid
+  - memory_info
 
 code: 
   - determine_type
@@ -243,6 +246,10 @@ code:
   - str2python
   - python2str
   - is_generator
+  - dict2munch
+  - munch2dict
+  - dict2json
+  - json2dict
 
 server: [
   serve

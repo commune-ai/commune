@@ -116,7 +116,7 @@ class c:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        obj = cls.resolve_module(obj)
+        obj = cls.resolve_object(obj)
         try:
             module_path =  inspect.getfile(obj)
         except Exception as e:
@@ -139,7 +139,7 @@ class c:
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
         
-        obj = cls.resolve_module(cls)
+        obj = cls.resolve_object(cls)
         module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
@@ -163,37 +163,6 @@ class c:
     def config_path(cls) -> str:
         return cls.filepath().replace('.py', '.yaml')
 
-    @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, dict):
-            for k,v in x.items():
-                if isinstance(v, dict) and recursive:
-                    x[k] = c.dict2munch(v)
-            x = Munch(x)
-        return x 
-
-    @classmethod
-    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
-        '''
-        Turn munch object  into dictionary
-        '''
-        if isinstance(x, Munch):
-            x = dict(x)
-            for k,v in x.items():
-                if isinstance(v, Munch) and recursive:
-                    x[k] = c.munch2dict(v)
-
-        return x 
-
-    @classmethod
-    def munch(cls, x:Dict) -> Munch:
-        '''
-        Converts a dict to a munch
-        '''
-        return cls.dict2munch(x)
     
     @classmethod
     def load_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
@@ -1552,11 +1521,18 @@ class c:
         assert isinstance(name, str), f'Invalid name {name}'
         return name
     resolve_name = resolve_server_name
+
+    @classmethod
+    def resolve_object(cls, module:str = None, **kwargs):
+        if module == None:
+            module = cls.module_path()
+        if isinstance(module, str):
+            module = c.module(module)
+        return module
     
     @classmethod
     def functions(cls, search: str=None , include_parents:bool = False, module=None):
-        if module != None:
-            cls = c.module(module)
+        module = cls.resolve_object(module)
         functions = cls.get_functions(include_parents=include_parents, search=search)  
         return functions
 
@@ -1565,36 +1541,6 @@ class c:
     def hasfn(self, fn:str):
         return hasattr(self, fn) and callable(getattr(self, fn))
     
-    @classmethod
-    def fn_signature_map(cls, obj=None, include_parents:bool = False):
-        function_signature_map = {}
-        if isinstance(obj, str):
-            obj = c.module(obj)
-        obj = obj if obj else cls
-        for f in cls.get_functions(obj = obj, include_parents=include_parents):
-            if f.startswith('__') and f.endswith('__'):
-                if f in ['__init__']:
-                    pass
-                else:
-                    continue
-            if not hasattr(cls, f):
-                continue
-            if callable(getattr(cls, f )):
-                function_signature_map[f] = {k:str(v) for k,v in cls.get_function_signature(getattr(cls, f )).items()}        
-        
-    
-        return function_signature_map
-    
-    function_signature_map = fn_signature_map
-
-
-    def is_fn_allowed(self, fn_name:str) -> bool:
-        whitelist = self.whitelist
-        blacklist = self.blacklist
-        if fn_name in whitelist and fn_name not in blacklist:
-            return True
-        else:
-            return False
 
     def info(self , 
              module = None,
@@ -1655,11 +1601,6 @@ class c:
         schema = self.schema()
         return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
 
-
-    @classmethod
-    def hardware(cls, fmt:str = 'gb', **kwargs):
-        return c.module('os').hardware(fmt=fmt, **kwargs)
-
     @classmethod
     def init_schema(cls):
         return cls.fn_schema('__init__')
@@ -1714,13 +1655,7 @@ class c:
         return c.copy(schema)
         
 
-    @classmethod
-    def get_function_annotations(cls, fn):
-        fn = cls.get_fn(fn)
-        if not hasattr(fn, '__annotations__'):
-            return {}
-        return fn.__annotations__
-        
+
     @classmethod
     def fn_schema(cls, fn:str,
                             defaults:bool=True,
@@ -2259,7 +2194,7 @@ class c:
 
         if lib in c.modules():
             c.print(f'Installing {lib} Module from local directory')
-            lib = c.resolve_module(lib).dirpath()
+            lib = c.resolve_object(lib).dirpath()
         if lib == None:
             lib = c.libpath
 
@@ -3423,7 +3358,7 @@ class c:
         return path2text
 
     @classmethod
-    def resolve_module(cls, module=None):
+    def resolve_object(cls, module=None):
         """
         Resolves the moduls from the class 
         Case type(module):
@@ -3551,7 +3486,7 @@ class c:
         
     
         if name == None:
-            module_path = cls.resolve_module(module).module_path()
+            module_path = cls.resolve_object(module).module_path()
             name = f"{module_path}{tag_seperator}{fn}"
 
             if tag != None:
@@ -4123,11 +4058,7 @@ class c:
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
         
-        if obj == None:
-            obj = cls
-        
-        if isinstance(obj, str):
-            obj = c.module(obj)
+        obj = cls.resolve_object(obj)
     
         functions = []
         parent_functions = [] 
@@ -4176,7 +4107,7 @@ class c:
         '''
         Gets the self methods in a class
         '''
-        obj = obj or cls
+        obj = cls.resolve_object(obj)
         functions =  c.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
@@ -4188,7 +4119,7 @@ class c:
         '''
         Gets the self methods in a class
         '''
-        obj = obj or cls
+        obj = cls.resolve_object(obj)
         functions =  c.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
@@ -4271,17 +4202,6 @@ class c:
         else:
             return obj.__class__
         
-    @staticmethod
-    def try_n_times(fn, max_trials:int=10, args:list=[],kwargs:dict={}):
-        assert isinstance(fn, callable)
-        for t in range(max_trials):
-            try:
-                result = fn(*args, **kwargs)
-                return result
-            except Exception as e:
-                continue
-        raise(e)
-
     @classmethod
     def has_fn(cls,fn_name, obj = None):
         if obj == None:
@@ -4326,7 +4246,7 @@ class c:
         if '/' in str(module) or module in cls.fns():
             return c.fn_code(module)
             
-        module = cls.resolve_module(module)
+        module = cls.resolve_object(module)
         text =  c.get_text( module.pypath(), *args, **kwargs)
         if search != None:
             find_lines = c.find_lines(text=text, search=search)
@@ -4336,7 +4256,7 @@ class c:
 
     @classmethod
     def get_text_line(cls, module = None, *args, **kwargs):
-        module = cls.resolve_module(module)
+        module = cls.resolve_object(module)
         return c.get_text_line( module.pypath(), *args, **kwargs)
     
 
@@ -4493,43 +4413,10 @@ class c:
         return line
 
 
-
-    
-    tokenizer_cache = {}
-    @classmethod
-    def tokenizer(cls, tokenizer='gpt2', cache = True,  **kwargs):
-        if cache and tokenizer in cls.tokenizer_cache:
-            return cls.tokenizer_cache[tokenizer]
-        from transformers import AutoTokenizer
-        tokenizer_obj =  AutoTokenizer.from_pretrained(tokenizer,**kwargs)
-        if cache:
-            cls.tokenizer_cache[tokenizer] = tokenizer_obj
-        return tokenizer_obj
-        
-    @classmethod
-    def tokenize(cls, text, tokenizer='gpt2', *args, **kwargs):
-        return cls.tokenizer(tokenizer, *args, **kwargs).encode(text)
-    @classmethod
-    def detokenize(cls, tokens, tokenizer='gpt2', *args, **kwargs):
-        return cls.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
-
-    @classmethod
-    def num_tokens(cls, text, **kwargs):
-        return len(cls.tokenize(text, **kwargs))
     @staticmethod
     def num_words( text):
         return len(text.split(' '))
     
-
-    def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
-        code = self.code()
-        code_lines = code.split('\n')
-        if mode == 'lines':
-            code_lines
-        else:
-            raise ValueError(f'unknown mode {mode}')
-        return 
-
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
         random_words = c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
@@ -4542,37 +4429,10 @@ class c:
     def random_words(cls, n=2, **kwargs):
         return c.module('key').generate_mnemonic(n=n, **kwargs)
 
-
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return c.module('git').repo_url(*args, **kwargs)    
-
-    @classmethod
-    def scan(cls, 
-                 search=None, 
-                 max_futures:int=100, 
-                 network='local', 
-                 update=False, 
-                 schema=True, 
-                 namespace=True, 
-                 hardware=True, 
-                 **kwargs):
-
-        infos = {} 
-        namespace = c.namespace(search=search, network=network, update=update)
-        futures = []
-        name2future = {}
-        for name, address in namespace.items():
-            future = [c.submit(c.call, kwargs={'fn': 'info', 'hardware': hardware, 'schema': schema }, module='subspace')]
-            name2future[name] = future
-            futures = list(name2future.values())
-            if len(name2future) >= max_futures:
-                for f in c.as_completed(futures):
-                    name2future.pop(f)
-                    result = f.result()
-                    c.print(result)
-                    if 'error' not in result:
-                        infos[name] = result
+    
     _shortcuts = None
     @classmethod
     def shortcuts(cls, cache=True) -> Dict[str, str]:
@@ -4639,35 +4499,6 @@ class c:
         return wrapper
 
     @classmethod
-    def ss58_encode(cls, data:Union[str, bytes], ss58_format=42, **kwargs):
-        from scalecodec.utils.ss58 import ss58_encode
-        if type(data) is str:
-            data = bytes.fromhex(data.replace('0x', ''))
-        return ss58_encode(data, ss58_format=ss58_format, **kwargs)
-
-
-    @classmethod
-    def ss58_decode(cls, data:Union[str, bytes],**kwargs):
-        from scalecodec.utils.ss58 import ss58_decode
-        return ss58_decode(data,  **kwargs)
-
-    @classmethod
-    def name2compose(self, **kwargs):
-        return c.module('docker').name2compose(**kwargs)
-
-    @classmethod
-    def generator(cls, n=10):
-        for i in range(n):
-            yield i
-
-    @classmethod
-    def run_generator(cls):
-        """  
-        """
-        for i in cls.generator():
-            c.print(i)
-
-    @classmethod
     def resolve_key_address(cls, key):
         key2address = c.key2address()
         if key in key2address:
@@ -4676,7 +4507,6 @@ class c:
             address = key
         return address
 
-
     @classmethod
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
@@ -4684,12 +4514,6 @@ class c:
     @classmethod
     def getcwd(cls):
         return os.getcwd()
-
-    @classmethod
-    def gc(cls):
-        import gc
-        gc.collect()
-        return {'success': True, 'msg': 'garbage collected'}
 
     def __repr__(self) -> str:
         return f'<{self.class_name()} tag={self.tag}>'
@@ -4713,42 +4537,7 @@ class c:
         from tqdm import tqdm
         return tqdm(*args, **kwargs)
     progress = tqdm
-    
-    # PEER LAND
-    @classmethod
-    def peers(cls, network:str='local', tag=None):
-        module = cls.module_path()
-        servers = c.servers(network=network)
-        peers = [s for s in servers if s.startswith(module)]
-        return peers
 
-    @classmethod
-    def type(cls,x ):
-        return type(x).__name_
-        
-
-    @staticmethod
-    def get_pid():
-        return os.getpid()
-
-    @classmethod
-    def memory_info(cls, fmt:str='gb'):
-        return c.module('os').memory_info(fmt=fmt)
-
-    @classmethod
-    def users(cls):
-        users = c.get(cls.resolve_path('users'), {})
-        root_key_address  = c.root_key().ss58_address
-        if root_key_address not in users:
-            cls.add_admin(root_key_address)
-        return cls.get('users', {})
-    
-
-    def docker_compose_file(self, *args, **kwargs):
-        x = c.load_yaml(f'{c.libpath}/docker-compose.yml', *args, **kwargs)
-        port_range = c.port_range()
-        x['services']["commune"][f'ports'] = [f"{port_range[0]}-{port_range[1]}:{port_range[0]}-{port_range[1]}"]
-        return x
 
     routes_enabled = False
     @classmethod
