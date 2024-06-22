@@ -11,8 +11,6 @@ class Namespace(c.Module):
     # the default
     network : str = 'local'
 
-
-
     @classmethod
     def namespace(cls, search=None,
                    network:str = 'local',
@@ -436,14 +434,11 @@ class Namespace(c.Module):
                 address2name[address] = name
 
         namespace = {v:k for k,v in address2name.items()}
-        return namespace
-            
+        return namespace     
 
     @classmethod
     def dashboard(cls):
         return cls.namespace()
-    
-
 
 Namespace.run(__name__)
 
