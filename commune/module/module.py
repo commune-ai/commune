@@ -158,17 +158,6 @@ class c:
             c.print(f'Error: {e}', color='red')
             module_path =  inspect.getfile(cls)
         return module_path
-    @classmethod
-    def gitbranch(cls) -> str:
-        return c.cmd('git branch').split('\n')[0].replace('* ', '')
-
-    @classmethod
-    def gitpath(cls ,root='https://github.com/commune-ai/commune/tree/'):
-        branch = cls.gitbranch()
-        root = root + branch + '/'
-        filepath = cls.filepath().replace(c.repo_path + '/', '')
-        return root + filepath
-
 
     pythonpath = pypath =  filepath
 
@@ -1918,7 +1907,9 @@ class c:
         while not c.server_exists(name, network=network):
             time_waiting += sleep_interval
             c.sleep(sleep_interval)
-            logs.append(f'Waiting for {name} to start')
+            logs.append(f'Waiting for {name} for {time_waiting}s/{timeout}s ')
+            if time_waiting > timeout:
+                raise TimeoutError(f'Timeout waiting for {name} to start')
         return True
         
     def attributes(self):
@@ -3436,27 +3427,7 @@ class c:
     def ss58_address(self, value):
         self._ss58_address = value
         return self._ss58_address
-    
-    
-    
-    
-    def idcard(self) -> str:
-        seed = str(c.timestamp())
-        idcard = self.key.sign(seed)
-        return c.python2str(idcard)
-    
-    def verify_idcard(self, idcard:str = None) -> bool:
-        if idcard == None:
-            idcard = self.idcard()
-        idcard = c.str2bytes(idcard)
-        return self.key.verify(idcard)
-    
-    @classmethod
-    def hash_map(cls):
-        return {
-            'code': cls.chash(),
-            'commit': cls.commit_hash(),
-        }
+
 
     @classmethod
     def hash(cls, 
@@ -3526,35 +3497,6 @@ class c:
         return v
 
 
-
-    @classmethod
-    def call_pool(cls, 
-                    modules, 
-                    fn = 'info',
-                    *args, 
-                    network =  'local',
-                    timeout = 10,
-                    n=None,
-                    **kwargs):
-        
-        args = args or []
-        kwargs = kwargs or {}
-        
-        if isinstance(modules, str) or modules == None:
-            modules = c.servers(modules, network=network)
-        if n == None:
-            n = len(modules)
-        modules = cls.shuffle(modules)[:n]
-        assert isinstance(modules, list), 'modules must be a list'
-        futures = []
-        for m in modules:
-            job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
-            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout)
-            futures.append(future)
-        responses = c.wait(futures, timeout=timeout)
-        return responses
-    
-
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -3587,9 +3529,7 @@ class c:
     mem = get_mem
     
     @classmethod
-    def set_key(self, key:str = None, **kwargs) -> None:
-        if key == None:
-            key = self.name()
+    def set_key(self, key:str, **kwargs) -> None:
         key = self.get_key(key)
         self.key = key
         return key
@@ -3764,85 +3704,6 @@ class c:
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
-
-    @classmethod
-    def determine_type(cls, x):
-        if x.lower() == 'null' or x == 'None':
-            return None
-        elif x.lower() in ['true', 'false']:
-            return bool(x.lower() == 'true')
-        elif x.startswith('[') and x.endswith(']'):
-            # this is a list
-            try:
-                
-                list_items = x[1:-1].split(',')
-                # try to convert each item to its actual type
-                x =  [cls.determine_type(item.strip()) for item in list_items]
-                if len(x) == 1 and x[0] == '':
-                    x = []
-                return x
-       
-            except:
-                # if conversion fails, return as string
-                return x
-        elif x.startswith('{') and x.endswith('}'):
-            # this is a dictionary
-            if len(x) == 2:
-                return {}
-            try:
-                dict_items = x[1:-1].split(',')
-                # try to convert each item to a key-value pair
-                return {key.strip(): cls.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
-            except:
-                # if conversion fails, return as string
-                return x
-        else:
-            # try to convert to int or float, otherwise return as string
-            try:
-                return int(x)
-            except ValueError:
-                try:
-                    return float(x)
-                except ValueError:
-                    return x
-
-    @classmethod
-    def set_port_range(cls, *port_range: list):
-        if len(port_range) ==0 :
-            port_range = cls.default_port_range
-        elif len(port_range) == 1:
-            if port_range[0] == None:
-                port_range = cls.default_port_range
-
-        assert len(port_range) == 2, 'Port range must be a list of two integers'        
-        for port in port_range:
-            assert isinstance(port, int), f'Port {port} range must be a list of integers'
-        assert port_range[0] < port_range[1], 'Port range must be a list of integers'
-                
-        c.put('port_range', port_range)
-        return port_range
-    
-    
-    @classmethod
-    def get_port_range(cls, port_range: list = None) -> list:
-        if port_range == None:
-            port_range = c.get('port_range', default=cls.default_port_range)
-            
-        if len(port_range) == 0:
-            port_range = cls.default_port_range
-        port_range = list(port_range)
-        assert isinstance(port_range, list), 'Port range must be a list'
-        assert isinstance(port_range[0], int), 'Port range must be a list of integers'
-        assert isinstance(port_range[1], int), 'Port range must be a list of integers'
-        return port_range
-    
-    @classmethod
-    def port_range(cls):
-        return cls.get_port_range()
-    
-    @classmethod
-    def resolve_port_range(cls, port_range: list = None) -> list:
-        return cls.get_port_range(port_range)
 
     @classmethod
     def check_module(cls, module:str):
@@ -5013,11 +4874,7 @@ class c:
             if param_info.kind._name_ == 'VAR_KEYWORD':
                 return True
         return False
-
-    @staticmethod
-    def get_function_input_variables(fn)-> dict:
-        return list(c.resolve_fn(fn).keys())
-
+    
     @classmethod
     def fn_defaults(cls, fn):
         """
@@ -5129,18 +4986,6 @@ class c:
         """
         code = cls.code(*args, **kwargs)
         return c.hash(code)
-    
-    @classmethod
-    def match_module_hash(cls, hash:str, module:str=None, *args, **kwargs):
-        '''
-        match the hash of a module
-        '''
-        
-        if module != None:
-            module = c.module(module)
-        else:
-            module = cls
-        return module.chash(*args, **kwargs) == hash
     
     @classmethod
     def find_code_line(cls, search:str, code:str = None):
@@ -5569,21 +5414,6 @@ class c:
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
 
-    ##################################
-    # REPLICA LAND
-    ##################################
-    @classmethod
-    def replicas(cls, network:str=None, **kwargs) -> List[str]:
-        servers = c.servers(cls.module_path(),network=network, **kwargs)
-        return servers
-
-    @classmethod
-    def restart_replicas(cls, network:str=None, **kwargs):
-        for m in cls.replicas(network=network, **kwargs):
-            c.print(m)
-            c.restart(m)
-
-
     @classmethod
     def getcwd(cls):
         return os.getcwd()
@@ -5626,116 +5456,9 @@ class c:
         return peers
 
     @classmethod
-    def random_peer(cls, network:str='local', tag=None):
-        peers = cls.peers(network=network, tag=tag)
-        return c.choice(peers)
-
-    @classmethod
-    def random_peer_address(cls, network:str='local', tag=None):
-        random_peer = cls.random_peer(network=network, tag=tag)
-        address = c.namespace(network=network).get(random_peer)
-        return address
-
-    @classmethod
-    def random_peers(cls, network:str='local', n=2, tag=None):
-        peers = cls.peers(network=network, tag=tag)
-        return c.shuffle(peers)[:n]
-
-
-
-    @classmethod
     def type(cls,x ):
         return type(x).__name_
         
-    ## API MANAGEMENT ##
-    
-    def set_api_key(self, api_key:str, cache:bool = True):
-        api_key = os.getenv(str(api_key), None)
-        if api_key == None:
-            api_key = self.get_api_key()
-
-        
-        self.api_key = api_key
-        if cache:
-            self.add_api_key(api_key)
-
-        assert isinstance(api_key, str)
-
-
-    @classmethod
-    def add_api_key(cls, api_key:str):
-        assert isinstance(api_key, str)
-        api_keys = cls.get('api_keys', [])
-        api_keys.append(api_key)
-        api_keys = list(set(api_keys))
-        cls.put('api_keys', api_keys)
-        return {'api_keys': api_keys}
-
-
-    @classmethod
-    def add_api_keys(cls, *api_keys:str):
-        if len(api_keys) == 1 and isinstance(api_keys[0], list):
-            api_keys = api_keys[0]
-        api_keys = list(set(api_keys + cls.get('api_keys', [])))
-        cls.put('api_keys', api_keys)
-        return {'api_keys': api_keys}
-    
-    @classmethod
-    def set_api_keys(cls, api_keys:str):
-        api_keys = list(set(api_keys))
-        cls.put('api_keys', api_keys)
-        return {'api_keys': api_keys}
-
-    @classmethod
-    def rm_api_key(cls, api_key:str):
-        assert isinstance(api_key, str)
-        api_keys = c.get(cls.resolve_path('api_keys'), [])
-        for i in range(len(api_keys)):
-            if api_key == api_keys[i]:
-                api_keys.pop(i)
-                break   
-        path = cls.resolve_path('api_keys')
-        c.put(path, api_keys)
-        return {'api_keys': api_keys}
-
-    @classmethod
-    def get_api_key(cls, module=None):
-        if module != None:
-            cls = c.module(module)
-        api_keys = cls.api_keys()
-        if len(api_keys) == 0:
-            return None
-        else:
-            return c.choice(api_keys)
-
-    @classmethod
-    def api_keys(cls):
-        return c.get(cls.resolve_path('api_keys'), [])
-    
-
-    @classmethod
-    def rm_api_keys(self):
-        c.put(self.resolve_path('api_keys'), [])
-        return {'api_keys': []}
-
-    @classmethod
-    def send_api_keys(cls, module:str, network='local'):
-        api_keys = cls.api_keys()
-        assert len(api_keys) > 0, 'no api keys to send'
-        module = c.connect(module, network=network)
-        return module.add_api_keys(api_keys)
-
-    @classmethod
-    def loop(cls, interval=30, network=None, remote:bool=True, local:bool=True, save:bool=True):
-        while True:
-            current_time = c.timestamp()
-            elapsed = current_time - start_time
-            if elapsed > interval:
-                c.print('SYNCING AND UPDATING THE SERVERS_INFO')
-                # subspace.sync(network=network, remote=remote, local=local, save=save)
-                start_time = current_time
-            c.sleep(interval)
-
 
     @staticmethod
     def get_pid():
@@ -5791,12 +5514,6 @@ class c:
     @classmethod
     def memory_info(cls, fmt:str='gb'):
         return c.module('os').memory_info(fmt=fmt)
-    
-    @classmethod
-    def remove_number_from_word(cls, word:str) -> str:
-        while word[-1].isdigit():
-            word = word[:-1]
-        return word
 
     @classmethod
     def users(cls):
@@ -5806,66 +5523,17 @@ class c:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
     
-    @classmethod
-    def loops(cls, **kwargs):
-        return c.pm2ls('loop', **kwargs)
-
-
-    def loop_fleet(self, n=2, **kwargs):
-        responses = []
-        for i in range(n):
-            kwargs['remote'] = False
-            responses += [self.remote_fn('loop', kwargs=kwargs, tag=i)]
-        return responses
-    
-    @classmethod
-    def remote_fn_fleet(cls, fn:str, n=2, **kwargs):
-        responses = []
-        for i in range(n):
-            responses += [cls.remote_fn(fn, kwargs=kwargs, tag=i)]
-        return responses
-    
 
     def generate(self, *args, **kwargs):
         return 'hey'
     
-    def save_ticket(self, key=None, **kwargs):
-        
-        key = c.get_key(key)
-        return key.save_ticket(**kwargs)
-
-    def load_ticket(self, key=None, **kwargs):
-        key = c.get_key(key)
-        return key.load_ticket(**kwargs)
-
-    @classmethod
-    def active_thread_count(cls): 
-        return threading.active_count()
     
     @classmethod
     def init_args(cls):
         return list(cls.config().keys())
 
-    @classmethod
-    def soup(cls, *args, **kwargs):
-        from bs4 import BeautifulSoup
-        return BeautifulSoup(*args, **kwargs)
-    
-    ########
-   
 
 
-    def server2fn(self, *args, **kwargs ):
-        servers = c.servers(*args, **kwargs)
-        futures = []
-        server2fn = {}
-        for s in servers:
-            server2fn[s] = c.submit(f'{s}/schema', kwargs=dict(code=True))
-        futures = list(server2fn.values())
-        fns = c.wait(futures,timeout=10)
-        for s, f in zip(servers, fns):
-            server2fn[s] = f
-        return server2fn
 
     def docker_compose_file(self, *args, **kwargs):
         x = c.load_yaml(f'{c.libpath}/docker-compose.yml', *args, **kwargs)
@@ -5877,6 +5545,11 @@ class c:
     @classmethod
     def module_routes(cls):
         return cls.config().get('module_routes', {})
+
+
+    #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
+
+
 
     @classmethod
     def process_module_fn(cls, module, fn):

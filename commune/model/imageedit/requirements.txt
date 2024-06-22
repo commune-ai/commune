@@ -1,5 +1,0 @@
-diffusers==0.21.0
-accelerate
-transformers
-torch
-torchvision

@@ -1,142 +1,10 @@
 
 import commune as c
-import typing as *
-
-Subspace = c.module('subspace')
-
-class Wallet(Subspace):
-
-    def call(self, *text, **kwargs):
-        return self.talk(*text, **kwargs)
+from typing import *
+import json
 
 
- 
-    def key_usage_path(self, key:str):
-        key_ss58 = self.resolve_key_ss58(key)
-        return f'key_usage/{key_ss58}'
-
-    def key_used(self, key:str):
-        return self.exists(self.key_usage_path(key))
-    
-    def use_key(self, key:str):
-        return self.put(self.key_usage_path(key), c.time())
-    
-    def unuse_key(self, key:str):
-        return self.rm(self.key_usage_path(key))
-    
-    def test_key_usage(self):
-        key_path = 'test_key_usage'
-        c.add_key(key_path)
-        self.use_key(key_path)
-        assert self.key_used(key_path)
-        self.unuse_key(key_path)
-        assert not self.key_used(key_path)
-        c.rm_key('test_key_usage')
-        assert not c.key_exists(key_path)
-        return {'success': True, 'msg': f'Tested key usage for {key_path}'}
-        
-
-
-    #################
-    #### Serving ####
-    #################
-    def update_global(
-        self,
-        key: str = None,
-        network : str = 'main',
-        sudo:  bool = True,
-        **params,
-    ) -> bool:
-
-        key = self.resolve_key(key)
-        network = self.resolve_network(network)
-        global_params = self.global_params(fmt='nanos')
-        global_params.update(params)
-        params = global_params
-        for k,v in params.items():
-            if isinstance(v, str):
-                params[k] = v.encode('utf-8')
-        # this is a sudo call
-        return self.compose_call(fn='update_global',
-                                     params=params, 
-                                     key=key, 
-                                     sudo=sudo)
-
-
-
-
-    #################
-    #### Serving ####
-    #################
-    def vote_proposal(
-        self,
-        proposal_id: int = None,
-        key: str = None,
-        network = 'main',
-        nonce = None,
-        netuid = 0,
-        **params,
-
-    ) -> bool:
-
-        self.resolve_network(network)
-        # remove the params that are the same as the module info
-        params = {
-            'proposal_id': proposal_id,
-            'netuid': netuid,
-        }
-
-        response = self.compose_call(fn='add_subnet_proposal',
-                                     params=params, 
-                                     key=key, 
-                                     nonce=nonce)
-
-        return response
-
-
-
-
-    #################
-    #### set_code ####
-    #################
-    def set_code(
-        self,
-        wasm_file_path = None,
-        key: str = None,
-        network = network,
-    ) -> bool:
-
-        if wasm_file_path == None:
-            wasm_file_path = self.wasm_file_path()
-
-        assert os.path.exists(wasm_file_path), f'Wasm file not found at {wasm_file_path}'
-
-        self.resolve_network(network)
-        key = self.resolve_key(key)
-
-        # Replace with the path to your compiled WASM file       
-        with open(wasm_file_path, 'rb') as file:
-            wasm_binary = file.read()
-            wasm_hex = wasm_binary.hex()
-
-        code = '0x' + wasm_hex
-
-        # Construct the extrinsic
-        response = self.compose_call(
-            module='System',
-            fn='set_code',
-            params={
-                'code': code.encode('utf-8')
-            },
-            unchecked_weight=True,
-            sudo = True,
-            key=key
-        )
-
-        return response
-
-
-
+class Wallet(c.Module):
 
     def unregistered_servers(self, search=None, netuid = 0, network = network,  timeout=42, key=None, max_age=None, update=False, transfer_multiple=True,**kwargs):
         netuid = self.resolve_netuid(netuid)
@@ -150,7 +18,6 @@ class Wallet(Subspace):
             if  key2address[s] not in keys:
                 unregister_servers += [s]
         return unregister_servers
-
 
 
     def clean_keys(self, 
@@ -201,6 +68,7 @@ class Wallet(Subspace):
         key2balance = {k: v for k,v in key2balance.items() if v > min_stake}
         return [k for k in keys]
      
+
 
 
     def resolve_key(self, key = None):
@@ -430,143 +298,6 @@ class Wallet(Subspace):
 
 
 
-    def compose_call(self,
-                    fn:str, 
-                    params:dict = None, 
-                    key:str = None,
-                    tip: int = 0, # tip can
-                    module:str = 'SubspaceModule', 
-                    wait_for_inclusion: bool = True,
-                    wait_for_finalization: bool = True,
-                    process_events : bool = True,
-                    color: str = 'yellow',
-                    verbose: bool = True,
-                    sudo:bool  = False,
-                    nonce: int = None,
-                    remote_module: str = None,
-                    unchecked_weight: bool = False,
-                    mode='ws',
-                    trials = 4,
-                    max_tip = 10000,
-                     **kwargs):
-
-        """
-        Composes a call to a Substrate chain.
-
-        """
-        key = self.resolve_key(key)
-
-        if remote_module != None:
-            kwargs = c.locals2kwargs(locals())
-            return c.connect(remote_module).compose_call(**kwargs)
-
-        params = {} if params == None else params
-        if verbose:
-            kwargs = c.locals2kwargs(locals())
-            kwargs['verbose'] = False
-            c.status(f":satellite: Calling [bold]{fn}[/bold]")
-            return self.compose_call(**kwargs)
-
-        start_time = c.datetime()
-        ss58_address = key.ss58_address
-        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
-        params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
-        compose_kwargs = dict(
-                call_module=module,
-                call_function=fn,
-                call_params=params,
-        )
-        c.print(f'Sending 📡 using 🔑(ss58={key.ss58_address}, name={key.path})🔑', compose_kwargs,color=color)
-        tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
-
-        self.put_json(paths['pending'], tx_state)
-
-        for t in range(trials):
-            try:
-                substrate = self.get_substrate( mode='ws')
-                call = substrate.compose_call(**compose_kwargs)
-                if sudo:
-                    call = substrate.compose_call(
-                        call_module='Sudo',
-                        call_function='sudo',
-                        call_params={
-                            'call': call,
-                        }
-                    )
-                if unchecked_weight:
-                    # uncheck the weights for set_code
-                    call = substrate.compose_call(
-                        call_module="Sudo",
-                        call_function="sudo_unchecked_weight",
-                        call_params={
-                            "call": call,
-                            'weight': (0,0)
-                        },
-                    )
-                # get nonce 
-                if tip < max_tip:
-                    tip = tip * 1e9
-                extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
-
-                response = substrate.submit_extrinsic(extrinsic=extrinsic,
-                                                        wait_for_inclusion=wait_for_inclusion, 
-                                                        wait_for_finalization=wait_for_finalization)
-                if wait_for_finalization:
-                    if process_events:
-                        response.process_events()
-
-                    if response.is_success:
-                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                    else:
-                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                else:
-                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                break
-            except Exception as e:
-                if t == trials - 1:
-                    raise e
-                
-
-        tx_state['end_time'] = c.datetime()
-        tx_state['status'] = 'completed'
-        tx_state['response'] = response
-        # remo 
-        self.rm(paths['pending'])
-        self.put_json(paths['complete'], tx_state)
-        return response
-
-
-
-
-    
-    def pending_txs(self, key:str=None, **kwargs):
-        return self.tx_history(key=key, mode='pending', **kwargs)
-
-    def complete_txs(self, key:str=None, **kwargs):
-        return self.tx_history(key=key, mode='complete', **kwargs)
-
-    def clean_tx_history(self):
-        return self.ls(f'tx_history')
-        
-    def resolve_tx_dirpath(self, key:str=None, mode:'str([pending,complete])'='pending',  **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        assert mode in ['pending', 'complete']
-        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
-        return pending_path
-    
-
-
-
-     
-    def tx_history(self, key:str=None, mode='complete', **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        assert mode in ['pending', 'complete']
-        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
-        return self.glob(pending_path)
-
-
-
-
     def register(
         self,
         name: str , # defaults to module.tage
@@ -576,7 +307,6 @@ class Wallet(Subspace):
         subnet: str = 'commune',
         key : str  = None,
         module_key : str = None,
-        network: str = network,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         module : str = None,
@@ -897,76 +627,7 @@ class Wallet(Subspace):
 
     
 
-
-
-    #################
-    #### UPDATE SUBNET ####
-    #################
-    def update_subnet(
-        self,
-        params: dict,
-        netuid: int,
-        key: str = None,
-        nonce = None,
-        update= True,
-    ) -> bool:
-            
-        netuid = self.resolve_netuid(netuid)
-        subnet_params = self.subnet_params( netuid=netuid , update=update, fmt='nanos')
-        # infer the key if you have it
-        for k in ['min_stake']:
-            if k in params:
-                params[k] = params[k] * 1e9
-        if key == None:
-            key2address = self.address2key()
-            if subnet_params['founder'] not in key2address:
-                return {'success': False, 'message': f"Subnet {netuid} not found in local namespace, please deploy it "}
-            key = c.get_key(key2address.get(subnet_params['founder']))
-            c.print(f'Using key: {key}')
-
-        # remove the params that are the same as the module info
-        params = {**subnet_params, **params}
-        for k in ['name']:
-            params[k] = params[k].encode('utf-8')
-        params['netuid'] = netuid
-        return self.compose_call(fn='update_subnet',
-                                     params=params, 
-                                     key=key, 
-                                     nonce=nonce)
-
-
-
-    #################
-    #### Serving ####
-    #################
-    def propose_subnet_update(
-        self,
-        netuid: int = None,
-        key: str = None,
-        nonce = None,
-        **params,
-    ) -> bool:
-
-        netuid = self.resolve_netuid(netuid)
-        c.print(f'Adding proposal to subnet {netuid}')
-        subnet_params = self.subnet_params( netuid=netuid , update=True)
-        # remove the params that are the same as the module info
-        params = {**subnet_params, **params}
-        for k in ['name', 'vote_mode']:
-            params[k] = params[k].encode('utf-8')
-        params['netuid'] = netuid
-
-        response = self.compose_call(fn='add_subnet_proposal',
-                                     params=params, 
-                                     key=key, 
-                                     nonce=nonce)
-
-
-        return response
-
-
-
-                    
+             
     
     def stake_transfer(
             self,
@@ -1373,9 +1034,6 @@ class Wallet(Subspace):
         return list(self.my_subnet2netuid(key=key,  update=update, **kwargs).keys())
 
 
-
-    
-        
     def my_modules(self, search=None, netuid=0, generator=False,  **kwargs):
         keys = self.my_keys(netuid=netuid, search=search)
         if netuid == 'all':
@@ -1391,9 +1049,6 @@ class Wallet(Subspace):
         modules =  self.get_modules(keys=keys, netuid=netuid, **kwargs)
         return modules
     
-
-
-
 
     def stats(self, 
               search = None,
@@ -1606,3 +1261,259 @@ class Wallet(Subspace):
         day_before_stake = self.my_total_stake_to(key=key, module_key=module_key, block=block_yesterday, timeout=timeout, names=names, fmt=fmt,  update=update, max_age=max_age, **kwargs)
         day_after_stake = self.my_total_stake_to(key=key, module_key=module_key, block=block, timeout=timeout, names=names, fmt=fmt,  update=update, max_age=max_age, **kwargs) 
         return (day_after_stake - day_before_stake)
+
+
+
+
+
+    def compose_call(self,
+                    fn:str, 
+                    params:dict = None, 
+                    key:str = None,
+                    tip: int = 0, # tip can
+                    module:str = 'SubspaceModule', 
+                    wait_for_inclusion: bool = True,
+                    wait_for_finalization: bool = True,
+                    process_events : bool = True,
+                    color: str = 'yellow',
+                    verbose: bool = True,
+                    sudo:bool  = False,
+                    nonce: int = None,
+                    remote_module: str = None,
+                    unchecked_weight: bool = False,
+                    mode='ws',
+                    trials = 4,
+                    max_tip = 10000,
+                     **kwargs):
+
+        """
+        Composes a call to a Substrate chain.
+
+        """
+        key = self.resolve_key(key)
+
+        if remote_module != None:
+            kwargs = c.locals2kwargs(locals())
+            return c.connect(remote_module).compose_call(**kwargs)
+
+        params = {} if params == None else params
+        if verbose:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['verbose'] = False
+            c.status(f":satellite: Calling [bold]{fn}[/bold]")
+            return self.compose_call(**kwargs)
+
+        start_time = c.datetime()
+        ss58_address = key.ss58_address
+        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
+        params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
+        compose_kwargs = dict(
+                call_module=module,
+                call_function=fn,
+                call_params=params,
+        )
+        c.print(f'Sending 📡 using 🔑(ss58={key.ss58_address}, name={key.path})🔑', compose_kwargs,color=color)
+        tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
+
+        self.put_json(paths['pending'], tx_state)
+
+        for t in range(trials):
+            try:
+                substrate = self.get_substrate( mode='ws')
+                call = substrate.compose_call(**compose_kwargs)
+                if sudo:
+                    call = substrate.compose_call(
+                        call_module='Sudo',
+                        call_function='sudo',
+                        call_params={
+                            'call': call,
+                        }
+                    )
+                if unchecked_weight:
+                    # uncheck the weights for set_code
+                    call = substrate.compose_call(
+                        call_module="Sudo",
+                        call_function="sudo_unchecked_weight",
+                        call_params={
+                            "call": call,
+                            'weight': (0,0)
+                        },
+                    )
+                # get nonce 
+                if tip < max_tip:
+                    tip = tip * 1e9
+                extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
+
+                response = substrate.submit_extrinsic(extrinsic=extrinsic,
+                                                        wait_for_inclusion=wait_for_inclusion, 
+                                                        wait_for_finalization=wait_for_finalization)
+                if wait_for_finalization:
+                    if process_events:
+                        response.process_events()
+
+                    if response.is_success:
+                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                    else:
+                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                else:
+                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                break
+            except Exception as e:
+                if t == trials - 1:
+                    raise e
+                
+
+        tx_state['end_time'] = c.datetime()
+        tx_state['status'] = 'completed'
+        tx_state['response'] = response
+        # remo 
+        self.rm(paths['pending'])
+        self.put_json(paths['complete'], tx_state)
+        return response
+
+    
+    def pending_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='pending', **kwargs)
+
+    def complete_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='complete', **kwargs)
+
+    def clean_tx_history(self):
+        return self.ls(f'tx_history')
+        
+    def resolve_tx_dirpath(self, key:str=None, mode:str ='pending',  **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
+        return pending_path
+     
+    def tx_history(self, key:str=None, mode='complete', **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
+        return self.glob(pending_path)
+
+
+
+
+        
+    def registered_servers(self, netuid = 0, **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        servers = c.servers()
+        keys = self.keys(netuid=netuid)
+        registered_keys = []
+        key2address = c.key2address()
+        for s in servers:
+            key_address = key2address[s]
+            if key_address in keys:
+                registered_keys += [s]
+        return registered_keys
+
+               
+    def key2balance(self, search=None, 
+                    batch_size = 64,
+                    timeout = 10,
+                    max_age = 1000,
+                    fmt = 'j',
+                    update=False,
+                    names = False,
+                    min_value=0.0001,
+                      **kwargs):
+
+        input_hash = c.hash(c.locals2kwargs(locals()))
+        path = f'key2balance/{input_hash}'
+        key2balance = self.get(path, max_age=max_age, update=update)
+
+        if key2balance == None:
+            key2balance = self.get_balances(search=search, 
+                                    batch_size=batch_size, 
+                                timeout=timeout, 
+                                fmt = 'nanos',
+                                update=1,
+                                min_value=min_value, 
+                                **kwargs)
+            self.put(path, key2balance)
+
+        for k,v in key2balance.items():
+            key2balance[k] = self.format_amount(v, fmt=fmt)
+        key2balance = sorted(key2balance.items(), key=lambda x: x[1], reverse=True)
+        key2balance = {k: v for k,v in key2balance if v > min_value}
+        if names:
+            address2key = c.address2key()
+            key2balance = {address2key[k]: v for k,v in key2balance.items()}
+        return key2balance
+    
+    def empty_keys(self,  block=None, update=False, max_age=1000, fmt='j'):
+        key2address = c.key2address()
+        key2value = self.key2value( block=block, update=update, max_age=max_age, fmt=fmt)
+        empty_keys = []
+        for key,key_address in key2address.items():
+            key_value = key2value.get(key_address, 0)
+            if key_value == 0:
+                empty_keys.append(key)
+               
+        return empty_keys
+    
+
+
+    def profit_shares(self, key=None, **kwargs) -> List[Dict[str, Union[str, int]]]:
+        key = self.resolve_module_key(key)
+        return self.query_map('ProfitShares',  **kwargs)
+
+
+
+    
+
+    def key2stake(self, netuid = 0,
+                     block=None, 
+                    update=False, 
+                    names = True,
+                    max_age = 1000,fmt='j'):
+        stake_to = self.stake_to(netuid=netuid, 
+                                block=block, 
+                                max_age=max_age,
+                                update=update, 
+                                 
+                                fmt=fmt)
+        address2key = c.address2key()
+        stake_to_total = {}
+        if netuid == 'all':
+            stake_to_dict = stake_to
+           
+            for staker_address in address2key.keys():
+                for netuid, stake_to in stake_to_dict.items(): 
+                    if staker_address in stake_to:
+                        stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to.get(staker_address)])
+            c.print(stake_to_total)
+        else:
+            for staker_address in address2key.keys():
+                if staker_address in stake_to:
+                    stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to[staker_address]])
+            # sort the dictionary by value
+            stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
+        if names:
+            stake_to_total = {address2key.get(k, k): v for k,v in stake_to_total.items()}
+        return stake_to_total
+
+
+
+    def key2value(self, netuid = 'all', block=None, update=False, max_age=1000, fmt='j', min_value=0, **kwargs):
+        key2balance = self.key2balance(block=block, update=update,  max_age=max_age, fmt=fmt)
+        key2stake = self.key2stake(netuid=netuid, block=block, update=update,  max_age=max_age, fmt=fmt)
+        key2value = {}
+        keys = set(list(key2balance.keys()) + list(key2stake.keys()))
+        for key in keys:
+            key2value[key] = key2balance.get(key, 0) + key2stake.get(key, 0)
+        key2value = {k:v for k,v in key2value.items()}
+        key2value = dict(sorted(key2value.items(), key=lambda x: x[1], reverse=True))
+        return key2value
+    
+
+
+    def resolve_module_key(self, x, netuid=0, max_age=10):
+        if not c.valid_ss58_address(x):
+            name2key = self.name2key(netuid=netuid, max_age=max_age)
+            x = name2key.get(x)
+        assert c.valid_ss58_address(x), f"Module key {x} is not a valid ss58 address"
+        return x
+    

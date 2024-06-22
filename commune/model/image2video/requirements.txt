@@ -1,6 +1,0 @@
-transformers
-tensorflow
-mediapy
-image_tools
-ffmpeg
-Pillow

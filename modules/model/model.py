@@ -624,5 +624,8 @@ class Model(nn.Module, c.Module):
                     shape=list(v.shape),
                     dtype= str(v.dtype)
                 )
-        return sample_schema    
+        return sample_schema   
+    
+def fam(x):
+    return x
     
