@@ -4,6 +4,7 @@ import urllib
 import commune as c
 import requests
 import logging
+from typing import *
 
 
 class Network(c.Module):
@@ -251,3 +252,46 @@ class Network(c.Module):
     
 
     
+
+    @classmethod
+    def free_port(cls, 
+                  ports = None,
+                  port_range: List[int] = None , 
+                  ip:str =None, 
+                  avoid_ports = None,
+                  random_selection:bool = True) -> int:
+        
+        '''
+        
+        Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
+        '''
+        avoid_ports = avoid_ports if avoid_ports else []
+        
+        if ports == None:
+            port_range = cls.resolve_port_range(port_range)
+            ports = list(range(*port_range))
+            
+        ip = ip if ip else c.default_ip
+
+        if random_selection:
+            ports = c.shuffle(ports)
+        port = None
+        for port in ports: 
+            if port in avoid_ports:
+                continue
+            
+            if cls.port_available(port=port, ip=ip):
+                return port
+            
+        raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
+
+    get_available_port = free_port
+
+
+
+    def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        used_ports = {}
+        for port in range(*port_range):
+            used_ports[port] = self.port_used(port)
+        return used_ports
