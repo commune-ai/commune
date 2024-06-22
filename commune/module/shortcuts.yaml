@@ -19,3 +19,4 @@ wombo: w
 router: model.openrouter
 ticket: key.ticket
 thread: os.thread
+network: os.network

@@ -607,3 +607,12 @@ class OsModule(c.Module):
     def install_pm2(cls, sudo=True) :
         c.cmd('npm install pm2 -g', sudo=sudo)
         
+    @classmethod
+    def gc(cls):
+        import gc
+        gc.collect()
+        return {'success': True, 'msg': 'garbage collected'}
+    
+    @staticmethod
+    def get_pid():
+        return os.getpid()

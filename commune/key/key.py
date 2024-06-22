@@ -1704,14 +1704,6 @@ class Keypair(c.Module):
         text = c.get_text(path)
         return text.startswith(prefix)
 
-    def is_encrypted(self, data:str, prefix=None) -> bool:
-        '''
-        is the data encrypted given the prefix
-        '''
-        prefix = prefix if prefix else self.encrypted_prefix
-        return data.startswith(prefix)
-
-    
     
       
 Keypair.run(__name__)
