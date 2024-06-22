@@ -238,7 +238,12 @@ module_routes:
     - kill_port_range
     - kill_port
     - free_port
+    - get_port_range
+    - set_port_range
 
   os: 
     - cmd
     - sys_path
+
+  code: 
+    - determine_type

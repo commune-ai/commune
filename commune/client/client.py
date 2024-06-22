@@ -428,3 +428,32 @@ class Client(c.Module):
     def __del__(self):
         if hasattr(self, 'session'):
             asyncio.run(self.session.close())
+
+
+    @classmethod
+    def call_pool(cls, 
+                    modules, 
+                    fn = 'info',
+                    *args, 
+                    network =  'local',
+                    timeout = 10,
+                    n=None,
+                    **kwargs):
+        
+        args = args or []
+        kwargs = kwargs or {}
+        
+        if isinstance(modules, str) or modules == None:
+            modules = c.servers(modules, network=network)
+        if n == None:
+            n = len(modules)
+        modules = cls.shuffle(modules)[:n]
+        assert isinstance(modules, list), 'modules must be a list'
+        futures = []
+        for m in modules:
+            job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
+            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout)
+            futures.append(future)
+        responses = c.wait(futures, timeout=timeout)
+        return responses
+    

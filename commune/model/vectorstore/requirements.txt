@@ -1,4 +1,0 @@
-langchain
-chromadb
-pysqlite3-binary
-tiktoken

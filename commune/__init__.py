@@ -6,7 +6,7 @@ from .vali.vali import Vali
 from .tree.tree import Tree
 from .client.client import Client
 from .server.server import Server
-from .namespace import Namespace
+from .server.namespace import Namespace
 from functools import  partial
 # import sys
 # sys.path += [c.pwd()]
