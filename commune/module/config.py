@@ -41,7 +41,13 @@ class Config:
             self.save_config(config=config)
             
         return self.config
-
+    
+    @classmethod
+    def config(cls) -> Munch:
+        '''
+        Returns the config
+        '''
+        return cls.load_config()
 
 
 

@@ -1,11 +1,16 @@
 
 import os
-import commune as c
+import shutil
 from typing import Dict, List, Optional, Union
+import gc
+import subprocess
+import shlex
+import sys
+import threading
 
-class OsModule(c.Module):
-    @staticmethod
-    def check_pid(pid):        
+class OsModule:
+    @classmethod
+    def check_pid(cls, pid):        
         """ Check For the existence of a unix pid. """
         try:
             os.kill(pid, 0)
@@ -21,8 +26,8 @@ class OsModule(c.Module):
         
         os.kill(pid, signal.SIGKILL)
 
-    @staticmethod
-    def run_command(command:str):
+    @classmethod
+    def run_command(cls, command:str):
         import subprocess
         import shlex
         process = subprocess.run(shlex.split(command), 
@@ -31,12 +36,12 @@ class OsModule(c.Module):
         
         return process
 
-    @staticmethod
-    def path_exists(path:str):
+    @classmethod
+    def path_exists(cls, path:str):
         return os.path.exists(path)
 
-    @staticmethod
-    def ensure_path( path):
+    @classmethod
+    def ensure_path(cls, path):
         """
         ensures a dir_path exists, otherwise, it will create it 
         """
@@ -184,9 +189,8 @@ class OsModule(c.Module):
         import torch
         return torch.cuda.device_count()
     
-    
-    def add_rsa_key(self, b=2048, t='rsa'):
-        return c.cmd(f"ssh-keygen -b {b} -t {t}")
+    def add_rsa_key(cls, b=2048, t='rsa'):
+        return cls.cmd(f"ssh-keygen -b {b} -t {t}")
     
     @classmethod
     def cmd(cls, 
@@ -207,8 +211,6 @@ class OsModule(c.Module):
         Runs  a command in the shell.
         
         '''
-        import subprocess
-        import shlex
         
         if len(args) > 0:
             command = ' '.join([command] + list(args))
@@ -268,7 +270,7 @@ class OsModule(c.Module):
                     new_line += ch
 
                     if ch == '\n':
-                        c.print(new_line[:-1], color=color)
+                        print(new_line[:-1])
                         new_line = ''
 
         return text
@@ -292,11 +294,14 @@ class OsModule(c.Module):
         x = x/scale 
         
         return x
-        
+    
 
+    def resolve_path(self, path:str):
+        return os.path.expanduser(path)
+        
     @classmethod
     def disk_info(cls, path:str = '/', fmt:str='gb'):
-        path = c.resolve_path(path)
+        path = cls.resolve_path(path)
         import shutil
         response = shutil.disk_usage(path)
         response = {
@@ -308,11 +313,10 @@ class OsModule(c.Module):
             response[key] = cls.format_data_size(value, fmt=fmt)
         return response
 
-
         
     @classmethod
     def mv(cls, path1, path2):
-        import shutil
+        
         assert os.path.exists(path1), path1
         if not os.path.isdir(path2):
             path2_dirpath = os.path.dirname(path2)
@@ -391,38 +395,10 @@ class OsModule(c.Module):
             'gpu': cls.gpu_info(fmt=fmt),
         }
 
-    @classmethod
-    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
-        import torch
-        return {k:v['total'] for k,v in c.gpu_info().items()}
-
     
-
-    @classmethod
-    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
-        
-        '''
-        Resolves the device that is used the least to avoid memory overflow.
-        '''
-        import torch
-        if device == None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        if device == 'cuda':
-            assert torch.cuda.is_available(), 'Cuda is not available'
-            gpu_id = 0
-            if find_least_used:
-                gpu_id = cls.most_free_gpu()
-                
-            device = f'cuda:{gpu_id}'
-        
-            if verbose:
-                device_info = cls.gpu_info(gpu_id)
-                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
-        return device  
-        
     @classmethod
     def get_folder_size(cls, folder_path:str='/'):
-        folder_path = c.resolve_path(folder_path)
+        folder_path = cls.resolve_path(folder_path)
         """Calculate the total size of all files in the folder."""
         total_size = 0
         for root, dirs, files in os.walk(folder_path):
@@ -434,7 +410,7 @@ class OsModule(c.Module):
 
     @classmethod
     def find_largest_folder(cls, directory: str = '~/'):
-        directory = c.resolve_path(directory)
+        directory = cls.resolve_path(directory)
         """Find the largest folder in the given directory."""
         largest_size = 0
         largest_folder = ""
@@ -465,45 +441,6 @@ class OsModule(c.Module):
             return args[1:]
 
 
-
-
-    @classmethod
-    def free_gpu_memory(cls, 
-                     max_gpu_ratio: float = 1.0 ,
-                     reserved_gpus: bool = False,
-                     buffer_memory: float = 0,
-                     fmt = 'b') -> Dict[int, float]:
-        import torch
-        free_gpu_memory = {}
-        
-        buffer_memory = c.resolve_memory(buffer_memory)
-        
-        gpu_info = cls.gpu_info_map()
-        gpus = [int(gpu) for gpu in gpu_info.keys()] 
-        
-        if  reserved_gpus != False:
-            reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
-            assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
-            
-            for r_gpu, r_gpu_memory in reserved_gpus.items():
-                gpu_info[r_gpu]['total'] -= r_gpu_memory
-               
-        for gpu_id, gpu_info in gpu_info.items():
-            if int(gpu_id) in gpus or str(gpu_id) in gpus:
-                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
-                if gpu_memory <= 0:
-                    continue
-                free_gpu_memory[gpu_id] = c.format_data_size(gpu_memory, fmt=fmt)
-        
-        assert sum(free_gpu_memory.values()) > 0, 'No free memory on any GPU, please reduce the buffer ratio'
-
-                
-        return cls.copy(free_gpu_memory)
-    
-
-    free_gpus = free_gpu_memory
-
-
     
     @classmethod
     def get_text(cls, 
@@ -514,7 +451,7 @@ class OsModule(c.Module):
                  start_line :int= None,
                  end_line:int = None ) -> str:
         # Get the absolute path of the file
-        path = c.resolve_path(path)
+        path = cls.resolve_path(path)
 
         # Read the contents of the file
         with open(path, 'rb') as file:
@@ -577,42 +514,18 @@ class OsModule(c.Module):
     
     @classmethod
     def sys_path(cls):
-        import sys
         return sys.path
 
-    
-
-    @classmethod 
-    def chmod_scripts(cls):
-        c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
-
-    def install_docker_gpus(self):
-        self.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
-
-    def install_docker(self):
-        self.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
-
-    @classmethod
-    def install_rust(cls, sudo=True) :
-        cls.chmod_scripts()
-        c.cmd(f'{c.libpath}/scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
-
-    @classmethod
-    def install_npm(cls, sudo=False) :
-        c.cmd('apt install npm', sudo=sudo)
-
-    @classmethod
-    def install_pm2(cls, sudo=True) :
-        c.cmd('npm install pm2 -g', sudo=sudo)
-        
     @classmethod
     def gc(cls):
-        import gc
         gc.collect()
         return {'success': True, 'msg': 'garbage collected'}
     
     @staticmethod
     def get_pid():
         return os.getpid()
+    
+
+   
+
+   

@@ -1,9 +1,9 @@
-# hey/thanks bittensor
 import os
 import urllib
 import commune as c
 import requests
 import logging
+import netaddr
 from typing import *
 
 
@@ -59,7 +59,6 @@ class Network(c.Module):
                 netaddr.core.AddrFormatError (Exception):
                     Raised when the passed str_val is not a valid ip string value.
         """
-        import netaddr
         return int(netaddr.IPAddress(str_val).version)
 
     @staticmethod
@@ -81,28 +80,36 @@ class Network(c.Module):
                     Raised if all external ip attempts fail.
         """
         # --- Try curl.
-        ip = '0.0.0.0'
+
+
+
+        ip = None
         try:
             ip = c.cmd('curl -s ifconfig.me')
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'ifconfig.me', verbose=verbose)
         except Exception as e:
-            c.print(e, verbose=verbose)
+            print(e)
 
+        if ip != None:
+            return ip
         try:
             ip = requests.get('https://api.ipify.org').text
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'ipify.org', verbose=verbose)
         except Exception as e:
-            c.print(e, verbose=verbose)
+            print(e)
+
+        if ip != None:
+            return ip
 
         # --- Try AWS
         try:
             ip = requests.get('https://checkip.amazonaws.com').text.strip()
             assert isinstance(cls.ip_to_int(ip), int)
         except Exception as e:
-            c.print(e, verbose=verbose)
+            print(e)
 
+        if ip != None:
+            return ip
         # --- Try myip.dnsomatic 
         try:
             process = os.popen('curl -s myip.dnsomatic.com')
@@ -110,25 +117,33 @@ class Network(c.Module):
             assert isinstance(cls.ip_to_int(ip), int)
             process.close()
         except Exception as e:
-            c.print(e, verbose=verbose)    
+            print(e)  
 
+        if ip != None:
+            return ip
         # --- Try urllib ipv6 
         try:
             ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
             assert isinstance(cls.ip_to_int(ip), int)
         except Exception as e:
-            c.print(e, verbose=verbose)
+            print(e)
 
+        if ip != None:
+            return ip
         # --- Try Wikipedia 
         try:
             ip = requests.get('https://www.wikipedia.org').headers['X-Client-IP']
             assert isinstance(cls.ip_to_int(ip), int)
         except Exception as e:
-            c.print(e, verbose=verbose)
+            print(e)
 
-        if len(ip) == 0 or ip == None:
+        if ip != None:
+            return ip
+        
+        if ip == None:
             ip = default_ip
         
+
         return ip
 
     @staticmethod
@@ -396,18 +411,18 @@ class Network(c.Module):
 
 
     
-    @staticmethod
-    def scan_ports(host=None, start_port=1, end_port=50000):
+    @classmethod
+    def scan_ports(cls,host=None, start_port=1, end_port=50000):
         if host == None:
-            host = c.external_ip()
+            host = cls.external_ip()
         import socket
         open_ports = []
         for port in range(start_port, end_port + 1):  # ports from start_port to end_port
-            if c.port_used(port=port, ip=host):
-                c.print(f'Port {port} is open', color='green')
+            if cls.port_used(port=port, ip=host):
+                print(f'Port {port} is open')
                 open_ports.append(port)
             else:
-                c.print(f'Port {port} is closed', color='red')
+                cls.print(f'Port {port} is closed', color='red')
         return open_ports
 
     @classmethod
@@ -420,7 +435,7 @@ class Network(c.Module):
         if port == None or port == 0:
             port = cls.free_port(port, **kwargs)
             
-        if c.port_used(port):
+        if cls.port_used(port):
             port = cls.free_port(port, **kwargs)
             
         return int(port)

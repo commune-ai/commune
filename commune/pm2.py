@@ -109,10 +109,6 @@ class PM2(c.Module):
             return c.cmd(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
-    
-    
-
-
    
     @classmethod
     def kill_many(cls, search=None, verbose:bool = True, timeout=10):

@@ -1,4 +1,3 @@
-import commune as c
 import os
 
 class Api(c.Module):

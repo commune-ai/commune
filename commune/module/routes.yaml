@@ -229,12 +229,16 @@ network:
   - free_ports
   - free_port
 
-os: 
-  - cmd
-  - sys_path
-  - get_pid
-  - kill_pid
-  - memory_info
+emoji:
+  - emoji
+  - emojis
+
+# os: 
+#   - cmd
+#   - sys_path
+#   - get_pid
+#   - kill_pid
+#   - memory_info
 
 code: 
   - determine_type
@@ -253,8 +257,11 @@ code:
 
 server:
   - serve
-
-
+  
 thread:
   - thread
+  - threads
+  - thread_map
+
+
 

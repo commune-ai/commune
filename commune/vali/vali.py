@@ -57,6 +57,7 @@ class Vali(c.Module):
                      netuid=config.netuid, 
                      fn= config.fn,
                      max_age = config.max_age)
+        c.print(c.thread, 'fam')
         c.thread(self.run_loop)
         
     init = init_vali
@@ -270,8 +271,7 @@ class Vali(c.Module):
         config.netuid =  netuid or config.netuid
         config.max_age = max_age or config.max_age
 
-        c.print(f'Setting network {config.network} with search={config.search} and netuid={config.netuid}', color='green')
-
+        c.print(f'Syncing network={config.network}, netuid={config.netuid}')
 
         if self.network_staleness < config.max_age:
             return {'msg': 'Alredy Synced network Within Interval', 

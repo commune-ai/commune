@@ -1,3 +1,12 @@
+try:
+    from .config import Config
+    from .schema import Schema
+    from .os import OsModule
+except:
+    from config import Config
+    from schema import Schema
+    from os import OsModule
+
 import os
 import inspect
 import concurrent
@@ -16,19 +25,12 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import nest_asyncio
 import random
-try:
-    from .config import Config
-    from .schema import Schema
-except:
-    from config import Config
-    from schema import Schema
 
 nest_asyncio.apply()
 
 # AGI BEGINS 
-class c(Config, Schema):
+class c(Config, Schema, OsModule):
 
-    
     whitelist = ['info',
                 'schema',
                 'server_name',
@@ -818,7 +820,7 @@ class c(Config, Schema):
         return new_d
 
     @classmethod
-    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.tree.Tree'}, **kwargs) -> str:
+    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.Tree'}, **kwargs) -> str:
         if path in path2objectpath:
             path = path2objectpath[path]
         else:
@@ -1219,16 +1221,7 @@ class c(Config, Schema):
         return os.path.abspath(path)
 
 
-    @classmethod
-    def walk(cls, path:str, module:str=False) -> List[str]:
-        
-        path_map = {}
-        for root, dirs, files in os.walk(path):
-            for f in files:
-                path = os.path.join(root, f)
-                path_map[path] = f
-        return list(path_map.keys())
-    
+
        
     @classmethod
     def __str__(cls):
@@ -1248,10 +1241,6 @@ class c(Config, Schema):
                     timeout:int = 100, 
                     sleep_interval:int = 1,
                     **kwargs):
-
-
-    
-
         """
         Root module
         """
@@ -1271,45 +1260,6 @@ class c(Config, Schema):
     def key_address(self):
         return self.key.ss58_address
 
-    @staticmethod
-    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        x = float(x)
-        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-    
-    @classmethod
-    def round_decimals(cls, x:Union[float, int], decimals: int=6, small_value: float=1.0e-9):
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        x = float(x)
-        return round(x, decimals)
-    
-    
-
- 
-    
-    @classmethod
-    def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
-        if modules == None:
-            modules = c.servers(modules)
-        
-        module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
-        if return_dict:
-            return dict(zip(modules, module_clients))
-        return module_clients
 
     @classmethod
     def nest_asyncio(cls):
@@ -1582,6 +1532,9 @@ class c(Config, Schema):
     
     @classmethod
     def functions(cls, search: str=None , include_parents:bool = False, module=None):
+        if cls.is_root_module():
+            # if the cls is the root_moduel 
+            include_parents = True
         module = cls.resolve_object(module)
         functions = cls.get_functions(include_parents=include_parents, search=search)  
         return functions
@@ -1766,22 +1719,6 @@ class c(Config, Schema):
             cls.put_json('shortcuts', cls.shortcuts)
         return shortcut
 
-    @staticmethod
-    def detailed_error(e) -> dict:
-        import traceback
-        tb = traceback.extract_tb(e.__traceback__)
-        file_name = tb[-1].filename
-        line_no = tb[-1].lineno
-        line_text = tb[-1].line
-        response = {
-            'success': False,
-            'error': str(e),
-            'file_name': file_name,
-            'line_no': line_no,
-            'line_text': line_text
-        }   
-        return response
-    
     @classmethod
     def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
         return c.module('pm2').kill_many(search=search, verbose=verbose, timeout=timeout)
@@ -2533,12 +2470,6 @@ class c(Config, Schema):
             return True
         except:
             return False
-            
-    @classmethod
-    def restart_server(cls, module:str, **kwargs) -> None:
-        return c.serve(module, **kwargs)
-    
-    server_restart = restart_server
     
     @classmethod
     def root_key(cls):
@@ -3029,19 +2960,19 @@ class c(Config, Schema):
         text_size = len(text)*bits_per_character
     
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
-    
-    def rm_lines(self, path:str, start_line:int, end_line:int) -> None:
+    @classmethod
+    def rm_lines(cls, path:str, start_line:int, end_line:int) -> None:
         # Get the absolute path of the file
-        text = c.get_text(path)
+        text = cls.get_text(path)
         text = text.split('\n')
         text = text[:start_line-1] + text[end_line:]
         text = '\n'.join(text)
         c.put_text(path, text)
         return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
-    
+    @classmethod
     def rm_line(self, path:str, line:int, text=None) -> None:
         # Get the absolute path of the file
-        text =  c.get_text(path)
+        text =  cls.get_text(path)
         text = text.split('\n')
         text = text[:line-1] + text[line:]
         text = '\n'.join(text)
@@ -3068,118 +2999,6 @@ class c(Config, Schema):
 
         return {'success': True, 'msg': f'Added line to {path}'}
 
-    add_text = add_line
-    
-           
-           
-    @classmethod
-    def readlines(self, path:str,
-                  start_line:int = 0,
-                  end_line:int = 0, 
-                  resolve:bool = True) -> List[str]:
-        # Get the absolute path of the file
-        if resolve:
-            path = self.resolve_path(path)
-        # Read the contents of the file
-        with open(path, 'r') as file:
-            lines = file.readlines()
-            if end_line == 0 :
-                if start_line == 0 :
-                    start_line = 0
-                    end_line = len(lines)
-                elif start_line > 0:
-                    end_line = start_line
-                    start_line = 0
-                elif start_line < 0:
-                    start_line = len(lines) + start_line
-                    end_line = len(lines)
-            
-            assert start_line >= 0, f"start_line must be greater than or equal to 0"
-            assert end_line > start_line, f"end_line must be less than or equal to {len(lines)}"
-                
-            lines = lines[start_line:end_line]
-        lines = '\n'.join(lines)
-        return lines
-
-    
-    
-    @classmethod
-    def get_text(cls, 
-                 path: str, 
-                 tail = None,
-                 start_byte:int = 0,
-                 end_byte:int = 0,
-                 start_line :int= None,
-                 end_line:int = None ) -> str:
-        # Get the absolute path of the file
-        path = cls.resolve_path(path)
-
-        # Read the contents of the file
-        with open(path, 'rb') as file:
-
-            file.seek(0, 2) # this is done to get the fiel size
-            file_size = file.tell()  # Get the file size
-            if start_byte < 0:
-                start_byte = file_size - start_byte
-            if end_byte <= 0:
-                end_byte = file_size - end_byte 
-            if end_byte < start_byte:
-                end_byte = start_byte + 100
-            chunk_size = end_byte - start_byte + 1
-
-            file.seek(start_byte)
-
-            content_bytes = file.read(chunk_size)
-
-            # Convert the bytes to a string
-            try:
-                content = content_bytes.decode()
-            except UnicodeDecodeError as e:
-                if hasattr(content_bytes, 'hex'):
-                    content = content_bytes.hex()
-                else:
-                    raise e
-
-            if tail != None:
-                content = content.split('\n')
-                content = '\n'.join(content[-tail:])
-    
-            elif start_line != None or end_line != None:
-                
-                content = content.split('\n')
-                if end_line == None or end_line == 0 :
-                    end_line = len(content) 
-                if start_line == None:
-                    start_line = 0
-                if start_line < 0:
-                    start_line = start_line + len(content)
-                if end_line < 0 :
-                    end_line = end_line + len(content)
-                content = '\n'.join(content[start_line:end_line])
-            else:
-                content = content_bytes.decode()
-        return content
-    
-    load_text = get_text
-
-
-    @classmethod
-    def free_gpu_memory(cls, *args, **kwargs) -> Dict[int, float]:
-        return c.module('os').free_gpu_memory(*args, **kwargs)
-    
-    
-    free_gpus = free_gpu_memory
-
-    @classmethod
-    def mkdir( cls, path = 'bro', exist_ok:bool = True):
-        """ Makes directories for path.
-        """
-        path = cls.resolve_path(path)
-        if os.path.exists(path):
-            return  {'success': True, 'msg': f'Directory {path} already exists'}
-        os.makedirs( path , exist_ok=exist_ok) 
-        assert os.path.exists(path), f'Failed to create directory {path}'
-        return  {'success': True, 'msg': f'Created directory {path}'}
 
     @staticmethod
     def repo2module( repo, module = None):
@@ -3253,7 +3072,6 @@ class c(Config, Schema):
     
     add_module = new_module
     
-    make_dir= mkdir
 
     @classmethod
     def path2text(cls, path:str, relative=False):
@@ -4221,45 +4039,9 @@ class c(Config, Schema):
 
     @classmethod
     def add_line(cls, idx=0, text:str = '',  module=None  ):
-        '''
-        ### Documentation
-        
-        #### `add_line` Method
-        
-        **Description:**
-        
-        The `add_line` method is a class method that allows you to insert one or multiple lines of text at a specified index in the code of a file or module. If no module is provided, it defaults to modifying the code of the class itself.
-        
-        **Parameters:**
-        
-        - `idx` (optional): The index (line number) at which the new text should be inserted. Default is `0`.
-        - `text` (optional): A string representing the new line(s) of text to be added. If multiple lines are provided, they should be separated by '\n'. Default is an empty string `''`.
-        - `module` (optional): The module whose code should be modified. If `None`, the class's own code is modified.
-        
-        **Returns:**
-        
-        A dictionary with two key-value pairs:
-        - `'success'`: A boolean value indicating the success of the operation.
-        - `'msg'`: A formatted string message indicating the line number and text that was added.
-        
-        **Usage:**
-        
-        ```python
-        result = ClassName.add_line(idx=5, text="New line of code", module='some_module')
-        print(result)
-        # Output: {'success': True, 'msg': 'Added line 5 to New line of code'}
-        ```
-        
-        **Notes:**
-        
-        - The method accesses and modifies the code by converting it into a list of lines.
-        - After inserting the new lines of text, the modified code is joined back into a single string and updated within the file or module.
-        - The method assumes that the class contains `code`, `put_text`, and `filepath` methods which are responsible for retrieving the current code, updating the text in the file, and providing the file path respectively.
-        
-        ---
-        
-        Developers should ensure that the index provided is within the bounds of the code line count to avoid any errors. The method does not perform any syntax or error-checking on the new lines of text to be added, so developers should ensure the text is valid code before insertion.
-        '''
+        """
+        add line to an index of the module code
+        """
 
         code = cls.code() if module == None else c.module(module).code()
         lines = code.split('\n')
@@ -4271,31 +4053,12 @@ class c(Config, Schema):
 
     @classmethod
     def get_line(cls, idx):
-
-
         code = cls.code()
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
         line =  lines[max(idx, 0)]
         c.print(len(line))
         return line
-
-
-    @staticmethod
-    def num_words( text):
-        return len(text.split(' '))
-    
-    @classmethod
-    def random_word(cls, *args, n=1, seperator='_', **kwargs):
-        random_words = c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
-        random_words = random_words.split(' ')[:n]
-        if n == 1:
-            return random_words[0]
-        else:
-            return seperator.join(random_words.split(' ')[:n])
-    @classmethod
-    def random_words(cls, n=2, **kwargs):
-        return c.module('key').generate_mnemonic(n=n, **kwargs)
 
     @classmethod
     def repo_url(cls, *args, **kwargs):
@@ -4310,61 +4073,7 @@ class c(Config, Schema):
         cls._shortcuts =  c.get_yaml(cls.dirpath()+ '/shortcuts.yaml')
         return cls._shortcuts
 
-    @classmethod
-    def talk(cls, *args, **kwargs):
-        return c.module('model.openrouter')().talk(*args, **kwargs)
-    
-    ask = a = talk
-    @staticmethod
-    def chunk(sequence:list = [0,2,3,4,5,6,6,7],
-            chunk_size:int=4,
-            num_chunks:int= None):
-        assert chunk_size != None or num_chunks != None, 'must specify chunk_size or num_chunks'
-        if chunk_size == None:
-            chunk_size = len(sequence) / num_chunks
-        if chunk_size > len(sequence):
-            return [sequence]
-        if num_chunks == None:
-            num_chunks = int(len(sequence) / chunk_size)
-        if num_chunks == 0:
-            num_chunks = 1
-        chunks = [[] for i in range(num_chunks)]
-        for i, element in enumerate(sequence):
-            idx = i % num_chunks
-            chunks[idx].append(element)
-        return chunks
-    
-    @classmethod
-    def batch(cls, x: list, batch_size:int=8): 
-        return c.chunk(x, chunk_size=batch_size)
 
-    def cancel(self, futures):
-        for f in futures:
-            f.cancel()
-        return {'success': True, 'msg': 'cancelled futures'}
-       
-    @classmethod
-    def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
-        import functools
-        path_name = cache_folder+'/'+func.__name__
-        def wrapper(*args, **kwargs):
-            fn_name = func.__name__
-            cache_params = {'max_age': max_age, 'cache': cache}
-            for k, v in cache_params.items():
-                cache_params[k] = kwargs.pop(k, v)
-
-            
-            if not update:
-                result = cls.get(fn_name, **cache_params)
-                if result != None:
-                    return result
-
-            result = func(*args, **kwargs)
-            
-            if cache:
-                cls.put(fn_name, result, cache=cache)
-            return result
-        return wrapper
 
     @classmethod
     def resolve_key_address(cls, key):
