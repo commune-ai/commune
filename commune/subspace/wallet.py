@@ -6,9 +6,11 @@ import json
 
 class Wallet(c.Module):
 
-    def unregistered_servers(self, search=None, netuid = 0, network = network,  timeout=42, key=None, max_age=None, update=False, transfer_multiple=True,**kwargs):
+    def __init__(self, *args, **kwargs):
+        self.set_subspace(*args, **kwargs)
+
+    def unregistered_servers(self, search=None, netuid = 0, timeout=42, key=None, max_age=None, update=False, transfer_multiple=True,**kwargs):
         netuid = self.resolve_netuid(netuid)
-        network = self.resolve_network(network)
         servers = c.servers(search=search)
         key2address = c.key2address(update=1)
         keys = self.keys(netuid=netuid, max_age=max_age, update=update)
@@ -72,8 +74,7 @@ class Wallet(c.Module):
 
 
     def resolve_key(self, key = None):
-        if key == None:
-            key = self.config.key
+
         if key == None:
             key = 'module'
 
@@ -998,10 +999,6 @@ class Wallet(c.Module):
                                  max_age=max_age, **kwargs)
         
 
-
-    
-
-
     def my_total_stake_to( self, 
                      key: str = None, 
                      module_key=None,
@@ -1261,137 +1258,6 @@ class Wallet(c.Module):
         day_before_stake = self.my_total_stake_to(key=key, module_key=module_key, block=block_yesterday, timeout=timeout, names=names, fmt=fmt,  update=update, max_age=max_age, **kwargs)
         day_after_stake = self.my_total_stake_to(key=key, module_key=module_key, block=block, timeout=timeout, names=names, fmt=fmt,  update=update, max_age=max_age, **kwargs) 
         return (day_after_stake - day_before_stake)
-
-
-
-
-
-    def compose_call(self,
-                    fn:str, 
-                    params:dict = None, 
-                    key:str = None,
-                    tip: int = 0, # tip can
-                    module:str = 'SubspaceModule', 
-                    wait_for_inclusion: bool = True,
-                    wait_for_finalization: bool = True,
-                    process_events : bool = True,
-                    color: str = 'yellow',
-                    verbose: bool = True,
-                    sudo:bool  = False,
-                    nonce: int = None,
-                    remote_module: str = None,
-                    unchecked_weight: bool = False,
-                    mode='ws',
-                    trials = 4,
-                    max_tip = 10000,
-                     **kwargs):
-
-        """
-        Composes a call to a Substrate chain.
-
-        """
-        key = self.resolve_key(key)
-
-        if remote_module != None:
-            kwargs = c.locals2kwargs(locals())
-            return c.connect(remote_module).compose_call(**kwargs)
-
-        params = {} if params == None else params
-        if verbose:
-            kwargs = c.locals2kwargs(locals())
-            kwargs['verbose'] = False
-            c.status(f":satellite: Calling [bold]{fn}[/bold]")
-            return self.compose_call(**kwargs)
-
-        start_time = c.datetime()
-        ss58_address = key.ss58_address
-        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
-        params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
-        compose_kwargs = dict(
-                call_module=module,
-                call_function=fn,
-                call_params=params,
-        )
-        c.print(f'Sending 📡 using 🔑(ss58={key.ss58_address}, name={key.path})🔑', compose_kwargs,color=color)
-        tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
-
-        self.put_json(paths['pending'], tx_state)
-
-        for t in range(trials):
-            try:
-                substrate = self.get_substrate( mode='ws')
-                call = substrate.compose_call(**compose_kwargs)
-                if sudo:
-                    call = substrate.compose_call(
-                        call_module='Sudo',
-                        call_function='sudo',
-                        call_params={
-                            'call': call,
-                        }
-                    )
-                if unchecked_weight:
-                    # uncheck the weights for set_code
-                    call = substrate.compose_call(
-                        call_module="Sudo",
-                        call_function="sudo_unchecked_weight",
-                        call_params={
-                            "call": call,
-                            'weight': (0,0)
-                        },
-                    )
-                # get nonce 
-                if tip < max_tip:
-                    tip = tip * 1e9
-                extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
-
-                response = substrate.submit_extrinsic(extrinsic=extrinsic,
-                                                        wait_for_inclusion=wait_for_inclusion, 
-                                                        wait_for_finalization=wait_for_finalization)
-                if wait_for_finalization:
-                    if process_events:
-                        response.process_events()
-
-                    if response.is_success:
-                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                    else:
-                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                else:
-                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
-                break
-            except Exception as e:
-                if t == trials - 1:
-                    raise e
-                
-
-        tx_state['end_time'] = c.datetime()
-        tx_state['status'] = 'completed'
-        tx_state['response'] = response
-        # remo 
-        self.rm(paths['pending'])
-        self.put_json(paths['complete'], tx_state)
-        return response
-
-    
-    def pending_txs(self, key:str=None, **kwargs):
-        return self.tx_history(key=key, mode='pending', **kwargs)
-
-    def complete_txs(self, key:str=None, **kwargs):
-        return self.tx_history(key=key, mode='complete', **kwargs)
-
-    def clean_tx_history(self):
-        return self.ls(f'tx_history')
-        
-    def resolve_tx_dirpath(self, key:str=None, mode:str ='pending',  **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        assert mode in ['pending', 'complete']
-        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
-        return pending_path
-     
-    def tx_history(self, key:str=None, mode='complete', **kwargs):
-        key_ss58 = self.resolve_key_ss58(key)
-        assert mode in ['pending', 'complete']
-        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
-        return self.glob(pending_path)
 
 
 

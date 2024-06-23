@@ -161,6 +161,7 @@ class Server(c.Module):
             module = c.module_path()
         kwargs = params or kwargs or {}
         kwargs.update(extra_kwargs or {})
+        name = name or server_name or module
         if name == None:
             name = module
         if tag_seperator in name:
@@ -179,17 +180,19 @@ class Server(c.Module):
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
 
         # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-        # if remote:
-        #     remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-        #     remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
-        #     for _ in ['extra_kwargs', 'address']:
-        #         remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-        #     cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
-        #     return {'success':True, 
-        #             'name': name, 
-        #             'address':c.ip() + ':' + str(remote_kwargs['port']), 
-        #             'kwargs':kwargs
-        #             } 
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+            response = cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            if response['success'] == False:
+                return response
+            return {'success':True, 
+                    'name': name, 
+                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
+                    'kwargs':kwargs
+                    } 
 
         module_class = c.module(module)
 

@@ -1,15 +1,15 @@
 import commune as c
 from typing import *
+import requests
 
 
 U16_MAX = 2**16 - 1
-class Subnet:
-
-    def __init__(self, network='main', **kwargs):
-        self.subspace = c.module('subspace')(network=network, **kwargs)
+class Subnet(c.Module):
+    def __init__(self, network='main', subspace=None, **kwargs):
+        self.set_subspace(network=network, subspace=subspace, **kwargs)
 
     def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
-        return self.subspace.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
+        return self.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
 
     def subnet2stake(self, network=None, update=False) -> dict:
         subnet2stake = {}
@@ -289,7 +289,7 @@ class Subnet:
     
 
 
-    def min_register_stake(self, netuid: int = 0, network: str = network, fmt='j', **kwargs) -> float:
+    def min_register_stake(self, netuid: int = 0, fmt='j', **kwargs) -> float:
         netuid = self.resolve_netuid(netuid)
         min_burn = self.min_burn(  fmt=fmt)
         min_stake = self.min_stake(netuid=netuid,  fmt=fmt)
@@ -831,7 +831,7 @@ class Subnet:
         module['address'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)

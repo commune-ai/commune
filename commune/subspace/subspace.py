@@ -22,22 +22,6 @@ class Subspace(c.Module):
                  'get_stake_to', 
                  'get_stake_from']
 
-
-    block_time = 8 # (seconds)
-    default_config = c.get_config('subspace', to_munch=False)
-    token_decimals = 9
-    network = default_config['network']
-    libpath = chain_path = c.libpath + '/subspace'
-    netuid = 0
-    local = default_config['local']
-
-    def __init__( 
-        self, 
-        **kwargs,
-    ):
-        self.set_config(kwargs=kwargs)
-
-
     def filter_url(self, url):
         """
         Filter urls based on the url_search parameter
@@ -139,7 +123,7 @@ class Subspace(c.Module):
                             auto_reconnect=auto_reconnect)
                 break
             except Exception as e:
-                c.print('ERROR IN CONNECTION: ', c.detailed_error(e))
+                print('ERROR IN CONNECTION: ', e)
                 trials = trials - 1
                 if trials == 0:
                     raise e
@@ -329,7 +313,7 @@ class Subspace(c.Module):
                     k = [_k.value for _k in k]
                 if hasattr(v, 'value'):
                     v = v.value
-                    c.dict_put(new_qmap, k, v)
+                    self.dict_put(new_qmap, k, v)
 
             self.put(path, new_qmap)
         
@@ -370,7 +354,7 @@ class Subspace(c.Module):
     """ Returns the stake under a coldkey - hotkey pairing """
 
     def from_nano(self,x):
-        return x / (10**self.token_decimals)
+        return x / (10**self.config.token_decimals)
     to_token = from_nano
 
 
@@ -378,7 +362,7 @@ class Subspace(c.Module):
         """
         Converts a token amount to nanos
         """
-        return x * (10**self.token_decimals)
+        return x * (10**self.config.token_decimals)
     from_token = to_nanos
 
     def format_amount(self, x, fmt='nano', decimals = None, format=None, features=None, **kwargs):
@@ -401,7 +385,7 @@ class Subspace(c.Module):
 
     @property
     def block(self) -> int:
-        return self.get_block()
+        return self.substrate.get_block_number(block_hash=None)
 
     
     def resolve_key_ss58(self, key:str,netuid:int=0, resolve_name=True, **kwargs):
@@ -443,12 +427,6 @@ class Subspace(c.Module):
     def unit_emission(self, block=None, **kwargs):
         return self.query_constant( "UnitEmission", block=block)
 
-    def total_stake(self,  block: Optional[int] = None, , fmt='j', update=False) -> 'Balance':
-        return sum([sum([sum(list(map(lambda x:x[1], v))) for v in vv.values()]) for vv in self.stake_to( block=block,update=update, netuid='all')])
-
-    def total_balance(self,  block: Optional[int] = None, fmt='j', update=False) -> 'Balance':
-        return sum(list(self.balances( block=block, fmt=fmt).values()), update=update)
-        
     def feature2storage(self, feature:str):
         storage = ''
         capitalize = True
@@ -573,4 +551,136 @@ class Subspace(c.Module):
         
 
 
+
+
+    def compose_call(self,
+                    fn:str, 
+                    params:dict = None, 
+                    key:str = None,
+                    tip: int = 0, # tip can
+                    module:str = 'SubspaceModule', 
+                    wait_for_inclusion: bool = True,
+                    wait_for_finalization: bool = True,
+                    process_events : bool = True,
+                    color: str = 'yellow',
+                    verbose: bool = True,
+                    sudo:bool  = False,
+                    nonce: int = None,
+                    remote_module: str = None,
+                    unchecked_weight: bool = False,
+                    mode='ws',
+                    trials = 4,
+                    max_tip = 10000,
+                     **kwargs):
+
+        """
+        Composes a call to a Substrate chain.
+
+        """
+        key = self.resolve_key(key)
+
+        if remote_module != None:
+            kwargs = c.locals2kwargs(locals())
+            return c.connect(remote_module).compose_call(**kwargs)
+
+        params = {} if params == None else params
+        if verbose:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['verbose'] = False
+            c.status(f":satellite: Calling [bold]{fn}[/bold]")
+            return self.compose_call(**kwargs)
+
+        start_time = c.datetime()
+        ss58_address = key.ss58_address
+        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
+        params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
+        compose_kwargs = dict(
+                call_module=module,
+                call_function=fn,
+                call_params=params,
+        )
+        c.print(f'Sending 📡 using 🔑(ss58={key.ss58_address}, name={key.path})🔑', compose_kwargs,color=color)
+        tx_state = dict(status = 'pending',start_time=start_time, end_time=None)
+
+        self.put_json(paths['pending'], tx_state)
+
+        for t in range(trials):
+            try:
+                substrate = self.get_substrate( mode='ws')
+                call = substrate.compose_call(**compose_kwargs)
+                if sudo:
+                    call = substrate.compose_call(
+                        call_module='Sudo',
+                        call_function='sudo',
+                        call_params={
+                            'call': call,
+                        }
+                    )
+                if unchecked_weight:
+                    # uncheck the weights for set_code
+                    call = substrate.compose_call(
+                        call_module="Sudo",
+                        call_function="sudo_unchecked_weight",
+                        call_params={
+                            "call": call,
+                            'weight': (0,0)
+                        },
+                    )
+                # get nonce 
+                if tip < max_tip:
+                    tip = tip * 1e9
+                extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key,nonce=nonce, tip=tip)
+
+                response = substrate.submit_extrinsic(extrinsic=extrinsic,
+                                                        wait_for_inclusion=wait_for_inclusion, 
+                                                        wait_for_finalization=wait_for_finalization)
+                if wait_for_finalization:
+                    if process_events:
+                        response.process_events()
+
+                    if response.is_success:
+                        response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                    else:
+                        response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                else:
+                    response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.config.network} with key {key.ss58_address}'}
+                break
+            except Exception as e:
+                if t == trials - 1:
+                    raise e
+                
+
+        tx_state['end_time'] = c.datetime()
+        tx_state['status'] = 'completed'
+        tx_state['response'] = response
+        # remo 
+        self.rm(paths['pending'])
+        self.put_json(paths['complete'], tx_state)
+        return response
+    
+    def pending_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='pending', **kwargs)
+
+    def complete_txs(self, key:str=None, **kwargs):
+        return self.tx_history(key=key, mode='complete', **kwargs)
+
+    def clean_tx_history(self):
+        return self.ls(f'tx_history')
+        
+    def resolve_tx_dirpath(self, key:str=None, mode:str ='pending',  **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
+        return pending_path
+     
+    def tx_history(self, key:str=None, mode='complete', **kwargs):
+        key_ss58 = self.resolve_key_ss58(key)
+        assert mode in ['pending', 'complete']
+        pending_path = f'history/{self.network}/{key_ss58}/{mode}'
+        return self.glob(pending_path)
+        
+    
+Subspace.enable_routes()
 Subspace.run(__name__)
+
+

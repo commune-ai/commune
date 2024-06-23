@@ -1,46 +1,57 @@
 
 import commune as c
-from munch import Munch
+import json
 
-class cli(c.Module):
+import sys
+import time
+import threading
+
+class cli:
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
     # 
 
-
     def __init__(self, 
                  args = None,
                 module = 'module',
                 verbose = True,
-                forget_fns = ['module.key_info', 'module.save_keys']):
+                forget_fns = ['module.key_info', 'module.save_keys'], 
+                save: bool = False):
+        self.t0 = time.time()
+
         self.verbose = verbose
+        self.save = save
         self.forget_fns = forget_fns
-        self.base_module = c.module(module)
-        self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.get_attributes()))
+        
+        self.base_module = c.module(module)() if isinstance(module, str) else module
+        self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
         self.forward(args=args)
     
     def forward(self, args=None):
         args = args or self.argv()
         self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
-        return self.process_output(output)
+        output = self.process_output(output)
+
+        self.latency = time.time() - self.t0
+        # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
+    
+    def argv(self):
+        import sys
+        return sys.argv[1:] 
 
 
     def process_output(self, output):
-        if c.is_generator(output):
+
+        is_generator = self.base_module.is_generator(output)
+        if self.base_module.is_generator(output):
             for output_item in output:
-                if isinstance(c, Munch):
-                    output_item = output_item.toDict()
-                c.print(output_item,  verbose=self.verbose)
+                c.print(output_item)
         else:
-            if isinstance(output, Munch):
-                output = output.toDict()
-            c.print(output, verbose=self.verbose)
-        
-
+            c.print(output)
         return output
-
+    
 
 
     def get_output(self, argv):
@@ -63,31 +74,48 @@ class cli(c.Module):
             is_fn = argv[0] in self.base_module_attributes
     
         if is_fn:
-            # is a function
             module = self.base_module
             fn = argv.pop(0)
         else:
             module = argv.pop(0)
-        
             if isinstance(module, str):
                 module = c.module(module)
             fn = argv.pop(0)
-    
-        if module.classify_fn(fn) == 'self':
-            module = module() 
         
 
+        # module = self.base_module.from_object(module)
+
+
+        fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
+
+        if fn_class == 'self':
+            if callable(module):
+                module = module()
+        module_name = module.path( )
+        fn_path = f'{module_name}/{fn}'
         fn_obj = getattr(module, fn)
+        emoji = '🔥'
 
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
+
+            # spinning status
+            inputs = json.dumps({"args":args, "kwargs":kwargs})
+            c.print( f'Calling {emoji}{fn_path}/{inputs}){emoji}' )
             output = fn_obj(*args, **kwargs)
-        elif c.is_property(fn_obj):
+        elif self.is_property(fn_obj):
+            inputs = ''
+            c.print(f'Calling {emoji}{fn_path}/{inputs}){emoji}')
             output =  getattr(module(), fn)
         else: 
-            output = fn_obj  
-
+            inputs = ''
+            output = fn_obj 
         return output
+    
+
+    @classmethod
+    def is_property(cls, obj):
+        return isinstance(obj, property)
         
 
 
@@ -159,8 +187,5 @@ class cli(c.Module):
                 except ValueError:
                     return x
                 
-
-
 def main():
-    import sys
     cli()
