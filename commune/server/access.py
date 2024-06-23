@@ -24,7 +24,6 @@ class Access(c.Module):
                 **kwargs):
         
         self.set_config(locals())
-        print(self.config)
         self.user_module = c.module("user")()
         self.state_path = self.resolve_path(state_path)
         if refresh:
@@ -36,6 +35,7 @@ class Access(c.Module):
                       'fn_info': {}}
         
         self.set_module(module)
+        print(c.thread, 'access fam', c.pwd())
         c.thread(self.run_loop)
 
     def set_module(self, module):

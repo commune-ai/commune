@@ -2,12 +2,12 @@
 
     
 import threading
-
 from typing import *
 import commune as c
 
 class Thread(c.Module):
     thread_map = {}
+    
     @classmethod
     def thread(cls,fn: Union['callable', str],  
                     args:list = None, 

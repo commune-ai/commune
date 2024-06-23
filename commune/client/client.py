@@ -457,3 +457,15 @@ class Client(c.Module):
         responses = c.wait(futures, timeout=timeout)
         return responses
     
+
+    @classmethod
+    def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
+        if modules == None:
+            modules = c.servers(modules)
+        
+        module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
+        if return_dict:
+            return dict(zip(modules, module_clients))
+        return module_clients
+
+

@@ -413,6 +413,20 @@ class Tree(c.Module):
         return object_path
     
     
+
+    @classmethod
+    def pwdtree(cls):
+        tree2path   =  c.tree2path()
+        pwd = c.pwd()
+        return {v:k for k,v in tree2path.items()}.get(pwd, None)
+    which_tree = pwdtree
+    
+    @classmethod
+    def istree(cls):
+        return cls.pwdtree() != None
+    
+
+    
 if __name__ == '__main__':
     c.print(Tree.run())
 

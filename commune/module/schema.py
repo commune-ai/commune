@@ -416,3 +416,71 @@ class Schema:
         return fn.__annotations__
 
    
+
+
+    @classmethod
+    def fn_info(cls, fn:str='test_fn') -> dict:
+        r = {}
+        code = cls.fn_code(fn)
+        lines = code.split('\n')
+        mode = 'self'
+        if '@classmethod' in lines[0]:
+            mode = 'class'
+        elif '@staticmethod' in lines[0]:
+            mode = 'static'
+    
+        start_line_text = None
+        lines_before_fn_def = 0
+        for l in lines:
+            
+            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
+                start_line_text = l
+                break
+            else:
+                lines_before_fn_def += 1
+            
+        assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
+        module_code = cls.code()
+        start_line = cls.find_code_line(start_line_text, code=module_code) - lines_before_fn_def - 1
+        end_line = start_line + len(lines)   # find the endline
+        has_docs = bool('"""' in code or "'''" in code)
+        filepath = cls.filepath()
+
+        # start code line
+        for i, line in enumerate(lines):
+            
+            is_end = bool(')' in line and ':' in line)
+            if is_end:
+                start_code_line = i
+                break 
+
+        
+        return {
+            'start_line': start_line,
+            'end_line': end_line,
+            'has_docs': has_docs,
+            'code': code,
+            'n_lines': len(lines),
+            'hash': c.hash(code),
+            'path': filepath,
+            'start_code_line': start_code_line + start_line ,
+            'mode': mode
+            
+        }
+    
+
+
+    @classmethod
+    def find_code_line(cls, search:str, code:str = None):
+        if code == None:
+            code = cls.code() # get the code
+        found_lines = [] # list of found lines
+        for i, line in enumerate(code.split('\n')):
+            if search in line:
+                found_lines.append({'idx': i+1, 'text': line})
+        if len(found_lines) == 0:
+            return None
+        elif len(found_lines) == 1:
+            return found_lines[0]['idx']
+        return found_lines
+    
