@@ -24,6 +24,7 @@ class Access(c.Module):
                 **kwargs):
         
         self.set_config(locals())
+        print(self.config)
         self.user_module = c.module("user")()
         self.state_path = self.resolve_path(state_path)
         if refresh:

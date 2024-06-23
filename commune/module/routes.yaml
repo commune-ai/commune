@@ -11,9 +11,8 @@
 # 3. list: a list of function names in the module (length == 2 only)
 # - 1 to 1 mapping: ['foo', 'bar'] maps the function 'foo' to 'bar'
 # - 1 to many mapping: ['foo', ['bar', 'baz']] maps the function 'foo' to 'bar' and 'baz'
-vali: [
-            run_epoch,
-        ]
+vali:
+  - run_epoch
 tree: [
             tree, 
             trees, 
@@ -30,61 +29,57 @@ tree: [
             tree_paths, 
             tree_names
             ]
-cli: [
-            parse_args,
-        ]
-streamlit: [
-            set_page_config,
-        ]
-docker: [
-            containers,
-        ]
-client: [
-            call, 
-            call_search, 
-            connect
-        ]
-repo: [
-            is_repo,
-        ]
-key: [
-            ss58_encode, 
-            ss58_decode,
-            key2mem, 
-            key_info_map, 
-            key_info,
-            valid_ss58_address,
-            add_key,
-            from_password,
-            str2key, 
-            pwd2key,
-            getmem,
-            mem,
-            mems,
-            switch_key,
-            module_info,
-            rename_kefy, 
-            mv_key,
-            add_key,
-            add_keys,
-            key_exists,
-            ls_keys,
-            rm_key,
-            key_encrypted,
-            encrypt_key,
-            staked,
-            encrypt_key,   
-            get_keys, 
-            rm_keys,
-            key2address,
-            key_addresses,
-            is_key,
-            new_key,
-            save_keys,
-            load_key,
-            load_keys, 
-            get_signer ]
-remote: [ host2ssh ]
+cli: 
+  - parse_args,
+streamlit: 
+  - set_page_config,
+docker: 
+  - containers,
+client: 
+  - call
+  - call_search
+  - connect
+repo: 
+  - is_repo
+key:
+  - ss58_encode
+  - ss58_decode
+  - key2mem
+  - key_info_map
+  - key_info
+  - valid_ss58_address
+  - add_key
+  - from_password
+  - str2key
+  - pwd2key
+  - getmem
+  - mem
+  - mems
+  - switch_key
+  - module_info
+  - rename_kefy
+  - mv_key
+  - add_key
+  - add_keys
+  - key_exists
+  - ls_keys
+  - rm_key
+  - key_encrypted
+  - encrypt_key
+  - staked
+  - encrypt_key
+  - get_keys
+  - rm_keys
+  - key2address
+  - key_addresses
+  - is_key
+  - new_key
+  - save_keys
+  - load_key
+  - load_keys 
+  - get_signer 
+remote:
+  - host2ssh
 
 subspace: [ subnet_params, 
                     query, 
@@ -112,7 +107,7 @@ subspace: [ subnet_params,
                     key2value, 
                     key2stake,
                     live_keys,
-                    seconds_per_epoch
+                    seconds_per_epoch,
                     is_registered,
                     transfer_multiple,
                     stake_transfer,
@@ -153,8 +148,10 @@ subspace: [ subnet_params,
                     my_stake_to,
                     stake_many,
                     transfer_many, 
-                    module_info, minfo,
-                    send ]
+                    module_info, 
+                    minfo,
+                    send 
+  ]
 namespace: [
             add_remote, 
             networks, 
@@ -180,15 +177,17 @@ namespace: [
             infos, 
             get_address, 
             servers,
-            name2address
-        ]
+            name2address, 
+            namespace, 
+            get_address, 
+            servers
+                   ]
 
-app : [
-  'start_app', 
-  'app', 
-  'apps',
-  'app2info',
-]
+app : 
+  - 'start_app'
+  - 'app'
+  - 'apps'
+  - 'app2info'
 
 user: 
   - role2users
@@ -205,11 +204,10 @@ user:
   - num_roles
   - rm_user
 
-ticket: [
-  'ticket',
-  'ticket2dict',
-  'verify_ticket'
-  ]
+ticket: 
+  - ticket
+  - ticket2dict
+  - verify_ticket
 
 streamlit:
   - load_style
@@ -253,11 +251,10 @@ code:
   - dict2json
   - json2dict
 
-server: [
-  serve
-]
+server:
+  - serve
 
-namespace:
-  - namespace
-  - get_address
-  - servers
+
+thread:
+  - thread
+

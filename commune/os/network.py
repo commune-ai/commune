@@ -268,7 +268,7 @@ class Network(c.Module):
         avoid_ports = avoid_ports if avoid_ports else []
         
         if ports == None:
-            port_range = cls.resolve_port_range(port_range)
+            port_range = cls.get_port_range(port_range)
             ports = list(range(*port_range))
             
         ip = ip if ip else c.default_ip
@@ -295,3 +295,137 @@ class Network(c.Module):
         for port in range(*port_range):
             used_ports[port] = self.port_used(port)
         return used_ports
+    
+
+
+    @classmethod
+    def resolve_port(cls, port:int=None, **kwargs):
+        
+        '''
+        
+        Resolves the port and finds one that is available
+        '''
+        if port == None or port == 0:
+            port = cls.free_port(port, **kwargs)
+            
+        if c.port_used(port):
+            port = cls.free_port(port, **kwargs)
+            
+        return int(port)
+
+   
+
+    @classmethod
+    def port_available(cls, port:int, ip:str ='0.0.0.0'):
+        return not cls.port_used(port=port, ip=ip)
+        
+   
+
+    @classmethod
+    def get_port_range(cls, port_range: list = None) -> list:
+        if port_range == None:
+            port_range = c.get('port_range', default=cls.default_port_range)
+            
+        if len(port_range) == 0:
+            port_range = cls.default_port_range
+        port_range = list(port_range)
+        assert isinstance(port_range, list), 'Port range must be a list'
+        assert isinstance(port_range[0], int), 'Port range must be a list of integers'
+        assert isinstance(port_range[1], int), 'Port range must be a list of integers'
+        return port_range
+    
+
+
+
+    @classmethod
+    def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
+        import socket
+        if not isinstance(port, int):
+            return False
+        
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            # Set the socket timeout
+            sock.settimeout(timeout)
+
+            # Try to connect to the specified IP and port
+            try:
+                port=int(port)
+                sock.connect((ip, port))
+                return True
+            except socket.error:
+                return False
+    
+    @classmethod
+    def port_free(cls, *args, **kwargs) -> bool:
+        return not cls.port_used(*args, **kwargs)
+
+    @classmethod
+    def port_available(cls, port:int, ip:str ='0.0.0.0'):
+        return not cls.port_used(port=port, ip=ip)
+        
+
+    @classmethod
+    def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
+        '''
+        Get availabel ports out of port range
+        
+        Args:
+            ports: list of ports
+            ip: ip address
+        
+        '''
+        port_range = cls.resolve_port_range(port_range=port_range)
+        if ports == None:
+            ports = list(range(*port_range))
+        
+        async def check_port(port, ip):
+            return cls.port_used(port=port, ip=ip)
+        
+        used_ports = []
+        jobs = []
+        for port in ports: 
+            jobs += [check_port(port=port, ip=ip)]
+                
+        results = cls.gather(jobs)
+        for port, result in zip(ports, results):
+            if isinstance(result, bool) and result:
+                used_ports += [port]
+            
+        return used_ports
+    
+
+
+    
+    @staticmethod
+    def scan_ports(host=None, start_port=1, end_port=50000):
+        if host == None:
+            host = c.external_ip()
+        import socket
+        open_ports = []
+        for port in range(start_port, end_port + 1):  # ports from start_port to end_port
+            if c.port_used(port=port, ip=host):
+                c.print(f'Port {port} is open', color='green')
+                open_ports.append(port)
+            else:
+                c.print(f'Port {port} is closed', color='red')
+        return open_ports
+
+    @classmethod
+    def resolve_port(cls, port:int=None, **kwargs):
+        
+        '''
+        
+        Resolves the port and finds one that is available
+        '''
+        if port == None or port == 0:
+            port = cls.free_port(port, **kwargs)
+            
+        if c.port_used(port):
+            port = cls.free_port(port, **kwargs)
+            
+        return int(port)
+
+    @classmethod
+    def has_free_ports(self, n:int = 1, **kwargs):
+        return len(self.free_ports(n=n, **kwargs)) > 0
+    

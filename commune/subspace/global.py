@@ -1,7 +1,12 @@
 import commune as c
-import bittensor
+from typing import *
 
-class SubspaceGlobal:
+class SubspaceGlobal(c.Module):
+
+
+
+    def __init__(self, *args, **kwargs):
+        self.set_subspace(*args, **kwargs)
     def _get_data(self, data):
         return data
 
@@ -87,7 +92,7 @@ class SubspaceGlobal:
         )
         return accounts
     
-    def balances(self,fmt:str = 'n', network:str = network, block: int = None, n = None, update=False , **kwargs) -> Dict[str, 'Balance']:
+    def balances(self,fmt:str = 'n', block: int = None, n = None, update=False , **kwargs) -> Dict[str, 'Balance']:
         accounts = self.accounts( update=update, block=block)
         balances =  {k:v['data']['free'] for k,v in accounts.items()}
         balances = {k: self.format_amount(v, fmt=fmt) for k,v in balances.items()}

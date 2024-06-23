@@ -16,11 +16,17 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import nest_asyncio
 import random
+try:
+    from .config import Config
+    from .schema import Schema
+except:
+    from config import Config
+    from schema import Schema
 
 nest_asyncio.apply()
 
 # AGI BEGINS 
-class c:
+class c(Config, Schema):
 
     
     whitelist = ['info',
@@ -55,9 +61,6 @@ class c:
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
 
-    @classmethod
-    def init(cls, *args, **kwargs):
-        return cls(*args, **kwargs)
 
     default_tag = 'base'
     @property
@@ -76,6 +79,113 @@ class c:
         self.config['tag'] = value
         return value
     
+
+
+
+
+    @classmethod
+    def serve(cls, 
+              module:Any = 'module' ,
+              kwargs:dict = None,  # kwargs for the module
+              params = None, # kwargs for the module
+              tag:str=None,
+              server_network = 'local', # network to run the server
+              port :int = None, # name of the server if None, it will be the module name
+              server_name:str=None, # name of the server if None, it will be the module name
+              name = None, # name of the server if None, it will be the module name
+              refresh:bool = True, # refreshes the server's key
+              remote:bool = True, # runs the server remotely (pm2, ray)
+              tag_seperator:str='::',
+              max_workers:int = None,
+              free: bool = False,
+              mnemonic = None, # mnemonic for the server
+              key = None,
+              **extra_kwargs
+              ):
+        if module == None:
+            module = c.module_path()
+        kwargs = params or kwargs or {}
+        kwargs.update(extra_kwargs or {})
+        name = name or server_name or module
+        if name == None:
+            name = module
+        if tag_seperator in name:
+            module, tag = name.split(tag_seperator)
+        else:
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+
+        if port == None:
+            # now if we have the server_name, we can repeat the server
+            address = c.get_address(name, network=server_network)
+            try:
+                port = int(address.split(':')[-1])
+            except Exception as e:
+                port = c.free_port()
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
+
+        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+            c.print(cls.remote_fn('serve', name=name, kwargs=remote_kwargs))
+            return {'success':True, 
+                    'name': name, 
+                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
+                    'kwargs':kwargs
+                    } 
+
+        module_class = c.module(module)
+
+        kwargs.update(extra_kwargs)
+        
+        c.module('server')(module=module_class(**kwargs), 
+                                          name=name, 
+                                          port=port, 
+                                          network=server_network, 
+                                          max_workers=max_workers, 
+                                          mnemonic = mnemonic,
+                                          free=free, 
+                                          key=key)
+
+        return  {'success':True, 
+                     'address':  f'{c.default_ip}:{port}' , 
+                     'name':name, 
+                     'kwargs': kwargs,
+                     'module':module}
+
+
+
+    @classmethod
+    def get_fn(cls, fn:str):
+        
+
+        """
+        
+        Gets the function from a string or if its an attribute 
+        """
+
+
+
+        if isinstance(fn, str):
+            if ':' in fn:
+                module, fn = fn.split(':')
+                module = c.module(module)
+            else:
+                module = cls
+            fn =  getattr(module, fn)
+        elif callable(fn):
+            pass
+        elif isinstance(fn, property):
+            pass
+        else:
+            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
+        # assert callable(fn), 'Is not callable'
+        return fn
+    
+
     @classmethod
     def pwd(cls):
         pwd = os.getenv('PWD') # the current wor king directory from the process starts 
@@ -143,7 +253,6 @@ class c:
         module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
-            c.print(module_path, 'fam')
             module_path = cls.path2simple(module_path)
         return module_path
     
@@ -340,7 +449,7 @@ class c:
             return False
 
     @classmethod
-    def import_object(cls, key:str, verbose: bool = 1)-> Any:
+    def import_object(cls, key:str, verbose: bool = 0)-> Any:
         '''
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
@@ -549,40 +658,7 @@ class c:
         return available_ports
     available_ports = get_available_ports
     
-    
-    @staticmethod
-    def scan_ports(host=None, start_port=1, end_port=50000):
-        if host == None:
-            host = c.external_ip()
-        import socket
-        open_ports = []
-        for port in range(start_port, end_port + 1):  # ports from start_port to end_port
-            if c.port_used(port=port, ip=host):
-                c.print(f'Port {port} is open', color='green')
-                open_ports.append(port)
-            else:
-                c.print(f'Port {port} is closed', color='red')
-        return open_ports
 
-    @classmethod
-    def resolve_port(cls, port:int=None, **kwargs):
-        
-        '''
-        
-        Resolves the port and finds one that is available
-        '''
-        if port == None or port == 0:
-            port = c.free_port(port, **kwargs)
-            
-        if c.port_used(port):
-            port = c.free_port(port, **kwargs)
-            
-        return int(port)
-
-    @classmethod
-    def has_free_ports(self, n:int = 1, **kwargs):
-        return len(self.free_ports(n=n, **kwargs)) > 0
-    
 
     @staticmethod
     def random_int(start_value=100, end_value=None):
@@ -746,21 +822,11 @@ class c:
         if path in path2objectpath:
             path = path2objectpath[path]
         else:
-            print(path, 'fam')
             path =  c.module('tree').simple2objectpath(path, **kwargs)
-        try:
-            return c.import_object(path)
-        except Exception as e:
-            c.print(f'Error: {e} for {path}', color='red')
-            raise e
-
         
-    @classmethod
-    def has_config(cls) -> bool:
-        try:
-            return c.exists(cls.config_path())
-        except:
-            return False
+        return c.import_object(path)
+
+
   
     @classmethod
     def has_module(cls, module):
@@ -868,6 +934,23 @@ class c:
         for k in d.keys():
             assert c.jsonable(d[k]), f'{k} is not jsonable'
         return c.hash(d)
+    
+    @classmethod
+    def dict_put(cls, *args, **kwargs):
+        from commune.utils.dict import dict_put
+        return dict_put(*args, **kwargs)
+    
+    @classmethod
+    def dict_get(cls, *args, **kwargs):
+        from commune.utils.dict import dict_get
+        return dict_get(*args, **kwargs)
+
+
+    def set_subspace(self, network='main', subspace=None, **kwargs):
+        self.subspace = subspace or c.module('subspace')(network=network, **kwargs)
+        for fn in dir(self.subspace):
+            if not hasattr(self, fn) or fn in ['get_module']:
+                setattr(self, fn, getattr(self.subspace, fn))
 
     
     @classmethod
@@ -1385,28 +1468,13 @@ class c:
 
     @property
     def server_name(self):
-        if not hasattr(self, 'config') or not (isinstance(self.config, Munch)):
-            self.config =  Munch({})
-
-        config = self.config
-
-        if 'server_name' in self.config:
-            name =  config['server_name']
-        else:
-            name = self.module_path()
-            if self.tag !=None: 
-                name = f'{name}::{self.tag}'
-            config['server_name'] = name
-            self.config = config
+        if not hasattr(self, '_server_name'): 
+            self._server_name = None
+        return self._server_name
             
-        return name
-        
     @server_name.setter
-    def server_name(self, v):
-        if callable(self.config):
-            self.set_config()
-        self.config['server_name'] = v
-        return self.config['server_name']
+    def server_name(self, name):
+        self._server_name = name
     
     @classmethod
     def wait_for_server(cls,
@@ -1603,104 +1671,8 @@ class c:
         return kwargs
     
 
-
-
-    @classmethod
-    def schema(cls,
-                search = None,
-                module = None,
-                fn = None,
-                docs: bool = True,
-                include_parents:bool = False,
-                defaults:bool = True, cache=False) -> 'Schema':
-
-        if '/' in str(search):
-            module, fn = search.split('/')
-            cls = c.module(module)
-        if isinstance(module, str):
-            if '/' in module:
-                module , fn = module.split('/')
-            module = c.module(module)
-
-        module = module or cls
-        schema = {}
-        fns = module.get_functions(include_parents=include_parents)
-        for fn in fns:
-            if search != None and search not in fn:
-                continue
-            if callable(getattr(module, fn )):
-                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
-
-        # sort by keys
-        schema = dict(sorted(schema.items()))
-
-        return c.copy(schema)
-        
-
-
-    @classmethod
-    def fn_schema(cls, fn:str,
-                            defaults:bool=True,
-                            code:bool = False,
-                            docs:bool = True, 
-                            version=2)->dict:
-        '''
-        Get function schema of function in cls
-        '''
-        fn_schema = {}
-        fn = cls.get_fn(fn)
-        fn_schema['input']  = cls.get_function_annotations(fn=fn)
-        
-        for k,v in fn_schema['input'].items():
-            v = str(v)
-            if v.startswith('<class'):
-                fn_schema['input'][k] = v.split("'")[1]
-            elif v.startswith('typing.'):
-                fn_schema['input'][k] = v.split(".")[1].lower()
-            else:
-                fn_schema['input'][k] = v
-                
-        fn_schema['output'] = fn_schema['input'].pop('return', {})
-        
-        if docs:         
-            fn_schema['docs'] =  fn.__doc__ 
-        if code:
-            fn_schema['code'] = cls.fn_code(fn)
- 
-        fn_args = c.get_function_args(fn)
-        fn_schema['type'] = 'static'
-        for arg in fn_args:
-            if arg not in fn_schema['input']:
-                fn_schema['input'][arg] = 'NA'
-            if arg in ['self', 'cls']:
-                fn_schema['type'] = arg
-                fn_schema['input'].pop(arg)
-                if 'default' in fn_schema:
-                    fn_schema['default'].pop(arg, None)
-
-
-        if defaults:
-            fn_schema['default'] = cls.fn_defaults(fn=fn) 
-            for k,v in fn_schema['default'].items(): 
-                if k not in fn_schema['input'] and v != None:
-                    fn_schema['input'][k] = type(v).__name__ if v != None else None
-           
-        if version == 1:
-            pass
-        elif version == 2:
-            defaults = fn_schema.pop('default', {})
-            fn_schema['input'] = {k: {'type':v, 'default':defaults.get(k)} for k,v in fn_schema['input'].items()}
-        else:
-            raise Exception(f'Version {version} not implemented')
-                
-
-        return fn_schema
-    
-
-    @staticmethod
-    def get_annotations(fn:callable) -> dict:
-        return fn.__annotations__
-
+   
+   
     @classmethod
     def kill(cls, 
              module,
@@ -2061,20 +2033,10 @@ class c:
         assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
         self.__dict__.update(new_attributes)
         
-
-    def merge_dict(self, python_obj: Any, include_hidden:bool=False):
-        '''
-        Merge the dictionaries of a python object into the current object
-        '''
-        for k,v in python_obj.__dict__.items():
-            if include_hidden == False:
-                #i`f the function name starts with __ then it is hidden
-                if k.startswith('__'):
-                    continue
-            self.__dict__[k] = v
       
     @classmethod
-    def merge(cls, a = None, b= None, 
+    def merge(cls,  from_obj= None, 
+                        to_obj = None,
                         include_hidden:bool=True, 
                         allow_conflicts:bool=True, 
                         verbose: bool = False):
@@ -2082,42 +2044,19 @@ class c:
         '''
         Merge the functions of a python object into the current object (a)
         '''
-        if a == None:
-            a =  cls
-
-        assert a != None, 'a cannot be None'
-        assert b != None, 'b cannot be None'
+        from_obj = from_obj or cls
+        to_obj = to_obj or cls
         
-        for b_fn_name in dir(b):
+        for fn in dir(from_obj):
+            if fn.startswith('_') and not include_hidden:
+                continue
+            if hasattr(to_obj, fn) and not allow_conflicts:
+                continue
+            if verbose:
+                c.print(f'Adding {fn}')
+            setattr(to_obj, fn, getattr(from_obj, fn))
             
-            if include_hidden == False:
-                #i`f the function name starts with __ then it is hidden
-                if b_fn_name.startswith('__'):
-                    continue
-                
-            # if the function already exists in the object, raise an error
-            if  allow_conflicts:
-                if hasattr(a, b_fn_name):
-                    if verbose:
-                        c.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
-            else:
-                assert not hasattr(a, b_fn_name), f'function {b_fn_name} already exists in {a}'
-                
-            # get the function from the python object
-            try: 
-                b_fn = getattr(b, b_fn_name)
-            except NotImplementedError as e:
-                print(e)
-            error_fn_list = []
-            if callable(b_fn):
-                try:
-                    setattr(a, b_fn_name, b_fn)  
-                except TypeError:
-                    error_fn_list.append(b_fn)
-                if len(error_fn_list)>0:
-                    if verbose:
-                        c.print(error_fn_list, 'DEBUG')        
-        return a
+        return to_obj
    
         
     # JUPYTER NOTEBOOKS
@@ -3069,8 +3008,6 @@ class c:
         if subspace:
             responses.append(c.module('subspace').sync())
         
-        c.ip(update=1)
-
         return {'success': True, 'responses': responses}
     
     @classmethod
@@ -3360,50 +3297,8 @@ class c:
 
     thread_map = {}
 
-    @classmethod
-    def get_fn(cls, fn:str, 
-               fn_seperators=['/', ':', '::'],
-               ignore_module_pattern:bool = False,
-               module=None
-               ):
-        
 
-        """
-        
-        Gets the function from a string or if its an attribute 
-        """
-        cls = cls if module == None else c.module(module)
-
-        if isinstance(fn, str):
-            for fn_seperator in fn_seperators:
-                # count fn_seperator in fn 
-                fn_seperator_count = fn.count(fn_seperator)
-                if (not ignore_module_pattern) and fn_seperator_count == 1:
-                    # module{sperator}fn
-                    fn_splits = fn.split(fn_seperator)
-                    # incase you have multiple seperators in the  name
-                    module = fn_seperator.join(fn_splits[:-1])
-                    fn = fn_splits[-1]
-                    # get the model
-                    module = c.module(module)
-                else:
-                    module = cls
-            fn = getattr(module, fn)
-        elif callable(fn):
-            pass
-        elif isinstance(fn, property):
-            pass
-        else:
-            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
-        # assert callable(fn), 'Is not callable'
-        return fn
-    
-
-
-
-    resolve_fn = get_fn
-       
-            
+              
     @classmethod
     def resolve_memory(cls, memory: Union[str, int, float]) -> str:
                     
@@ -3452,7 +3347,6 @@ class c:
                     mode = 'pm2',
                     tag_seperator : str = '::',
                     cwd = None,
-                    update = True,
                     **extra_launch_kwargs
                     ):
         
@@ -3479,18 +3373,10 @@ class c:
         
         cwd = cwd or cls.dirpath()
 
-
-        if update:
-            cls.update()
-
         kwargs = kwargs or {}
         args = args or []
 
-        # if module is not specified, use the current module
-        if isinstance(module, str):
-            module = c.module(module) 
-        else:
-            module = module or cls
+        module = cls.resolve_object(module)
             
         # resolve the name
         if name == None:
@@ -3503,7 +3389,7 @@ class c:
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
  
-        c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green', verbose=verbose)
+        c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow] class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
 
         launch_kwargs = dict(
                 module=module, 
@@ -4521,29 +4407,27 @@ class c:
     progress = tqdm
 
 
-    routes_enabled = False
+    @classmethod
+    def routes_path(cls):
+        return cls.dirpath() + '/routes.yaml'
+
+    @classmethod
+    def has_routes(cls):
+        
+        return os.path.exists(cls.routes_path()) or (hasattr(cls, 'routes') and isinstance(cls.routes, dict)) 
+    
     @classmethod
     def routes(cls):
-        return c.load_yaml(c.dirpath() + '/routes.yaml')
+        if not cls.has_routes():
+            return {}
+        return c.get_yaml(cls.routes_path())
 
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
 
 
-    @classmethod
-    def process_module_fn(cls, module, fn):
-
-        def fn_generator(*args, fn, module, **kwargs):
-
-            module = c.module(module)
-            fn_type = module.classify_fn(fn)
-            if fn_type == 'self':
-                module = module()
-            else:
-                module = module
-
-            return getattr(module, fn)(*args, **kwargs)
-     
+    @staticmethod
+    def resolve_to_from_fn_routes(fn):
         if type(fn) in [list, set, tuple] and len(fn) == 2:
             # option 1: ['fn_name', 'name_in_current_module']
             from_fn = fn[0]
@@ -4564,36 +4448,62 @@ class c:
         else:
             from_fn = fn
             to_fn = fn
-        fn_obj = partial(fn_generator, fn=from_fn, module=module )
-        fn_obj.__name__ = to_fn
-        return fn_obj
+        
+        return from_fn, to_fn
+    
+    
+    
     @classmethod
-    def enable_routes(cls, verbose=False):
+    def enable_routes(cls, routes:dict=None, verbose=False):
         """
         This ties other modules into the current module.
         The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        shortcuts = cls.shortcuts()
-        if cls.routes_enabled:
-            return {'success': False, 'msg': 'routes already enabled'}
+        my_path = cls.class_name()
+        if not hasattr(cls, 'routes_enabled'): 
+            cls.routes_enabled = False
+
         t0 = c.time()
-        for m, fns in c.routes().items():
-            if m in shortcuts:
-                m = shortcuts[m]
-            for fn in fns:
-                setattr(cls, fn, cls.process_module_fn(m, fn))
+
+        def fn_generator(*args, fn, module, **kwargs):
+            module = c.module(module)
+            fn_type = module.classify_fn(fn)
+            if fn_type == 'self':
+                module = module()
+            else:
+                module = module
+
+            return getattr(module, fn)(*args, **kwargs)
+
+        if routes == None:
+            if not hasattr(cls, 'routes'):
+                return {'success': False, 'msg': 'routes not found'}
+            routes = cls.routes() if callable(cls.routes) else cls.routes
+        for m, fns in routes.items():
+            for fn in fns: 
+
+                c.print(f'Enabling route {m}.{fn} -> {my_path}:{fn}', verbose=verbose)
+                # resolve the from and to function names
+                from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
+                # create a partial function that is bound to the module
+                fn_obj = partial(fn_generator, fn=from_fn, module=m )
+                fn_obj.__name__ = to_fn
+                # set the function to the current module
+                setattr(cls, fn, fn_obj)
         t1 = c.time()
         c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
         return {'success': True, 'msg': 'enabled routes'}
-
+    
  
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
     
+
+
 
 
 

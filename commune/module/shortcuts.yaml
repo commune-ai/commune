@@ -21,3 +21,4 @@ ticket: key.ticket
 thread: os.thread
 network: os.network
 namespace: server.namespace
+pm2: os.pm2
