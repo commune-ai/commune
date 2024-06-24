@@ -2,11 +2,11 @@ import commune as c
 from typing import *
 
 class SubspaceGlobal(c.Module):
-
-
-
     def __init__(self, *args, **kwargs):
         self.set_subspace(*args, **kwargs)
+        c.print(self.config)
+
+
     def _get_data(self, data):
         return data
 

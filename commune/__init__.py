@@ -17,5 +17,7 @@ for f in Module.self_functions():
         return fn(*args, **kwargs)
     globals()[f] = partial(wrapper_fn, f)
 
+
+
 globals()['cli'] = cli
 

@@ -2,22 +2,24 @@ subspace.wallet:
   - my_balances
   - my_stakes
   - staked
-subspace.subnet: 
-  - stakes
-  - get_module
-  - get_modules
-  - emissions
-  - incentives
-  - dividends
-  - last_update
-  - modules
-  - delegation_fee
-  - subnet_params
-  - subnet_features
-  - subnet_names
-  - resolve_netuid
-  - stake_to
-  - stake_from
+# subspace.subnet: 
+#   - stakes
+#   - get_module
+#   - get_modules
+#   - emissions
+#   - incentives
+#   - dividends
+#   - last_update
+#   - modules
+#   - delegation_fee
+#   - subnet_params
+#   - subnet_features
+#   - subnet_names
+#   - resolve_netuid
+#   - stake_to
+#   - stake_from
+
+
 
 subspace.global: 
   - global_params

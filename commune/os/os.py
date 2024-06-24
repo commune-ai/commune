@@ -6,9 +6,9 @@ import gc
 import subprocess
 import shlex
 import sys
-import threading
+import commune as c
 
-class OsModule:
+class OS(c.Module):
     @classmethod
     def check_pid(cls, pid):        
         """ Check For the existence of a unix pid. """
@@ -433,72 +433,11 @@ class OsModule:
 
     @classmethod
     def argv(cls, include_script:bool = False):
-        import sys
         args = sys.argv
         if include_script:
             return args
         else:
             return args[1:]
-
-
-    
-    @classmethod
-    def get_text(cls, 
-                 path: str, 
-                 tail = None,
-                 start_byte:int = 0,
-                 end_byte:int = 0,
-                 start_line :int= None,
-                 end_line:int = None ) -> str:
-        # Get the absolute path of the file
-        path = cls.resolve_path(path)
-
-        # Read the contents of the file
-        with open(path, 'rb') as file:
-
-            file.seek(0, 2) # this is done to get the fiel size
-            file_size = file.tell()  # Get the file size
-            if start_byte < 0:
-                start_byte = file_size - start_byte
-            if end_byte <= 0:
-                end_byte = file_size - end_byte 
-            if end_byte < start_byte:
-                end_byte = start_byte + 100
-            chunk_size = end_byte - start_byte + 1
-
-            file.seek(start_byte)
-
-            content_bytes = file.read(chunk_size)
-
-            # Convert the bytes to a string
-            try:
-                content = content_bytes.decode()
-            except UnicodeDecodeError as e:
-                if hasattr(content_bytes, 'hex'):
-                    content = content_bytes.hex()
-                else:
-                    raise e
-
-            if tail != None:
-                content = content.split('\n')
-                content = '\n'.join(content[-tail:])
-    
-            elif start_line != None or end_line != None:
-                
-                content = content.split('\n')
-                if end_line == None or end_line == 0 :
-                    end_line = len(content) 
-                if start_line == None:
-                    start_line = 0
-                if start_line < 0:
-                    start_line = start_line + len(content)
-                if end_line < 0 :
-                    end_line = end_line + len(content)
-                content = '\n'.join(content[start_line:end_line])
-            else:
-                content = content_bytes.decode()
-        return content
-    
 
     @classmethod
     def mv(cls, path1, path2):

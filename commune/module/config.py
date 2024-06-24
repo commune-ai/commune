@@ -22,7 +22,9 @@ class Config:
 
         # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
         if config == None:
-            config = self.load_config(config)
+            config = {}
+        default_config = self.load_config()
+        config = {**default_config, **config}
         
         for k,v in kwargs.items():
             config[k] = v
