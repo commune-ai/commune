@@ -1,6 +1,8 @@
+import commune as c
+
+
 import os
 from typing import *
-import commune as c
 import json
 
 class PM2(c.Module):

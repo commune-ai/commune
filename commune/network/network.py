@@ -67,9 +67,25 @@ class Network(c.Module):
         """
         return "/ipv%i/%s:%i" % (ip_type, ip_str, port)
 
+    @classmethod
+    def is_valid_ip(cls, ip:str) -> bool:
+        r""" Checks if an ip is valid.
+            Args:
+                ip  (:obj:`str` `required`):
+                    The ip to check.
+
+            Returns:
+                valid  (:obj:`bool` `required`):
+                    True if the ip is valid, False otherwise.
+        """
+        try:
+            netaddr.IPAddress(ip)
+            return True
+        except Exception as e:
+            return False
 
     @classmethod
-    def external_ip(cls,verbose: bool = False, default_ip='0.0.0.0') -> str:
+    def external_ip(cls, default_ip='0.0.0.0') -> str:
         r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
             Returns:
                 external_ip  (:obj:`str` `required`):
@@ -90,7 +106,7 @@ class Network(c.Module):
         except Exception as e:
             print(e)
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
         try:
             ip = requests.get('https://api.ipify.org').text
@@ -98,9 +114,8 @@ class Network(c.Module):
         except Exception as e:
             print(e)
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
-
         # --- Try AWS
         try:
             ip = requests.get('https://checkip.amazonaws.com').text.strip()
@@ -108,7 +123,7 @@ class Network(c.Module):
         except Exception as e:
             print(e)
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
         # --- Try myip.dnsomatic 
         try:
@@ -119,7 +134,7 @@ class Network(c.Module):
         except Exception as e:
             print(e)  
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
         # --- Try urllib ipv6 
         try:
@@ -128,7 +143,7 @@ class Network(c.Module):
         except Exception as e:
             print(e)
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
         # --- Try Wikipedia 
         try:
@@ -137,14 +152,10 @@ class Network(c.Module):
         except Exception as e:
             print(e)
 
-        if ip != None:
+        if cls.is_valid_ip(ip):
             return ip
-        
-        if ip == None:
-            ip = default_ip
-        
 
-        return ip
+        return default_ip
 
     @staticmethod
     def upnpc_create_port_map(port: int):

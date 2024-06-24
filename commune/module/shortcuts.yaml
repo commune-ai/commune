@@ -15,9 +15,8 @@ s: subspace
 sel: selenium
 store: storage
 tg: textgen
-wombo: w
+w: wombo
 router: model.openrouter
 ticket: key.ticket
 namespace: server.namespace
-thread: module.thread
 

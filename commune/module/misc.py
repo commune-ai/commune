@@ -1,6 +1,5 @@
 
-
-
+from typing import List, Union
 class Misc:
 
     @staticmethod

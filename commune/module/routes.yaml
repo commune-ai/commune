@@ -218,6 +218,7 @@ docker:
   - images
 
 network:
+  - resolve_port_range
   - port_used
   - port_free
   - ports
@@ -233,12 +234,12 @@ emoji:
   - emoji
   - emojis
 
-# os: 
-#   - cmd
-#   - sys_path
-#   - get_pid
-#   - kill_pid
-#   - memory_info
+os: 
+  - cmd
+  - sys_path
+  - get_pid
+  - kill_pid
+  - memory_info
 
 code: 
   - determine_type
@@ -257,11 +258,8 @@ code:
 
 server:
   - serve
-  
-thread:
-  - thread
-  - threads
-  - thread_map
 
-
+pm2:
+  - kill_all
+  - kill_many
 

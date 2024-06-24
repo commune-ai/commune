@@ -24,6 +24,7 @@ class Test(c.Module):
         module = c.serve(server_name)
         c.wait_for_server(server_name)
         module = c.connect(server_name)
+        c.print(module.info(), 'FAMMMMM')
         r = module.put("hey",1)
         v = module.get("hey")
         assert v == 1, f"get failed {v}"
@@ -41,8 +42,6 @@ class Test(c.Module):
         c.sleep(1)
         module = c.connect(module_name)
         info = module.info()
-        c.print(info)
-
         assert info['key'] == key.ss58_address, f"key failed {key.ss58_address} != {info['key']}"
         c.kill(module_name)
 

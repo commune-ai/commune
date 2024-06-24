@@ -1,11 +1,11 @@
 try:
     from .config import Config
     from .schema import Schema
-    from .os import OsModule
+    from .misc import Misc
 except:
     from config import Config
     from schema import Schema
-    from os import OsModule
+    from misc import Misc
 
 import os
 import inspect
@@ -29,7 +29,7 @@ import random
 nest_asyncio.apply()
 
 # AGI BEGINS 
-class c(Config, Schema, OsModule):
+class c(Config, Schema, Misc):
 
     whitelist = ['info',
                 'schema',
@@ -460,11 +460,9 @@ class c(Config, Schema, OsModule):
         object_name = key.split('.')[-1]
         if verbose:
             c.print(f'Importing {object_name} from {module}')
-        try:    
-            obj =  getattr(c.import_module(module), object_name)
-        except Exception as e:
-            c.print(f'Error: {e} module {module}', color='red')
-            raise e
+
+        obj =  getattr(c.import_module(module), object_name)
+      
         return obj
     
 
@@ -779,7 +777,6 @@ class c(Config, Schema, OsModule):
                 module = c.module_cache[cache_key]
             module = c.simple2object(path)
         except Exception as e:
-            c.print(c.detailed_error(e), path)
             if update_tree_if_fail:
                 c.tree(update=True)
             if trials == 0:
@@ -948,10 +945,13 @@ class c(Config, Schema, OsModule):
         return dict_get(*args, **kwargs)
 
 
-    def set_subspace(self, network='main', subspace=None, **kwargs):
+    def set_subspace(self, network='main', subspace=None, 
+                     include_fns = ['get_module' , 'config'],
+                     avoid_fns = [],
+                     **kwargs):
         self.subspace = subspace or c.module('subspace')(network=network, **kwargs)
         for fn in dir(self.subspace):
-            if not hasattr(self, fn) or fn in ['get_module']:
+            if not hasattr(self, fn) or (fn in include_fns and fn not in avoid_fns):
                 setattr(self, fn, getattr(self.subspace, fn))
 
     
@@ -4206,7 +4206,153 @@ class c(Config, Schema, OsModule):
         cls.routes_enabled = True
         return {'success': True, 'msg': 'enabled routes'}
     
+
+    
+    @staticmethod
+    def detailed_error(e) -> dict:
+        import traceback
+        tb = traceback.extract_tb(e.__traceback__)
+        file_name = tb[-1].filename
+        line_no = tb[-1].lineno
+        line_text = tb[-1].line
+        response = {
+            'success': False,
+            'error': str(e),
+            'file_name': file_name,
+            'line_no': line_no,
+            'line_text': line_text
+        }   
+        return response
  
+
+    
+    @classmethod
+    def get_text(cls, 
+                 path: str, 
+                 tail = None,
+                 start_byte:int = 0,
+                 end_byte:int = 0,
+                 start_line :int= None,
+                 end_line:int = None ) -> str:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path)
+
+        # Read the contents of the file
+        with open(path, 'rb') as file:
+
+            file.seek(0, 2) # this is done to get the fiel size
+            file_size = file.tell()  # Get the file size
+            if start_byte < 0:
+                start_byte = file_size - start_byte
+            if end_byte <= 0:
+                end_byte = file_size - end_byte 
+            if end_byte < start_byte:
+                end_byte = start_byte + 100
+            chunk_size = end_byte - start_byte + 1
+
+            file.seek(start_byte)
+
+            content_bytes = file.read(chunk_size)
+
+            # Convert the bytes to a string
+            try:
+                content = content_bytes.decode()
+            except UnicodeDecodeError as e:
+                if hasattr(content_bytes, 'hex'):
+                    content = content_bytes.hex()
+                else:
+                    raise e
+
+            if tail != None:
+                content = content.split('\n')
+                content = '\n'.join(content[-tail:])
+    
+            elif start_line != None or end_line != None:
+                
+                content = content.split('\n')
+                if end_line == None or end_line == 0 :
+                    end_line = len(content) 
+                if start_line == None:
+                    start_line = 0
+                if start_line < 0:
+                    start_line = start_line + len(content)
+                if end_line < 0 :
+                    end_line = end_line + len(content)
+                content = '\n'.join(content[start_line:end_line])
+            else:
+                content = content_bytes.decode()
+        return content
+
+    thread_map = {}
+    
+    @classmethod
+    def thread(cls,fn: Union['callable', str],  
+                    args:list = None, 
+                    kwargs:dict = None, 
+                    daemon:bool = True, 
+                    name = None,
+                    tag = None,
+                    start:bool = True,
+                    tag_seperator:str='::', 
+                    **extra_kwargs):
+        
+        if isinstance(fn, str):
+            fn = c.get_fn(fn)
+        if args == None:
+            args = []
+        if kwargs == None:
+            kwargs = {}
+
+        assert callable(fn), f'target must be callable, got {fn}'
+        assert  isinstance(args, list), f'args must be a list, got {args}'
+        assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
+        
+        # unique thread name
+        if name == None:
+            name = fn.__name__
+            cnt = 0
+            while name in cls.thread_map:
+                cnt += 1
+                if tag == None:
+                    tag = ''
+                name = name + tag_seperator + tag + str(cnt)
+        
+        if name in cls.thread_map:
+            cls.thread_map[name].join()
+
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
+        # set the time it starts
+        setattr(t, 'start_time', c.time())
+        t.daemon = daemon
+        if start:
+            t.start()
+        cls.thread_map[name] = t
+        return t
+
+    @classmethod
+    def join_threads(cls, threads:[str, list]):
+
+        threads = cls.thread_map
+        for t in threads.values():
+            # throw error if thread is not in thread_map
+            t.join()
+        return {'success': True, 'msg': 'all threads joined', 'threads': threads}
+
+    @classmethod
+    def threads(cls, search:str=None, **kwargs):
+        threads = list(cls.thread_map.keys())
+        if search != None:
+            threads = [t for t in threads if search in t]
+        return threads
+
+    @classmethod
+    def thread_count(cls):
+        return threading.active_count()
+    
+    
+    
+
+
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

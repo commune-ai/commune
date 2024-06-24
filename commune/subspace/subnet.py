@@ -1,12 +1,13 @@
 import commune as c
 from typing import *
 import requests
+from .subspace import Subspace
 
 
 U16_MAX = 2**16 - 1
-class Subnet(c.Module):
+class Subnet(Subspace):
     def __init__(self, network='main', subspace=None, **kwargs):
-        self.set_subspace(network=network, subspace=subspace, **kwargs)
+        super().__init__(network=network, **kwargs)
 
     def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
         return self.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
@@ -800,7 +801,7 @@ class Subnet(c.Module):
 
     
     def get_module(self, 
-                    module='vali',
+                    module=None,
                     netuid=0,
                     trials = 4,
                     fmt='j',
@@ -809,6 +810,9 @@ class Subnet(c.Module):
                     max_age = None,
                     lite = True, 
                     **kwargs ) -> 'ModuleInfo':
+        if module == None:
+            module = self.keys(netuid=netuid, update=True, max_age=max_age)[0]
+            c.print(f'No module specified, using {module}')
 
         url = self.resolve_url( mode=mode)
         module_key = module

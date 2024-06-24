@@ -5,12 +5,14 @@ import pandas as pd
 class Test(c.Module):
     def test(self, n=3, 
              sleep_time=8, 
-             miner='miner', 
+             timeout = 20,
+             tag = 'test',
+             miner='module', 
              vali='vali', 
              network='local'):
         
-        test_miners = [f'{miner}::test_{i}' for i in range(n)]
-        test_vali = f'{vali}::test'
+        test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
+        test_vali = f'{vali}::{tag}'
         modules = test_miners + [test_vali]
         for m in modules:
             c.kill(m)
@@ -20,10 +22,13 @@ class Test(c.Module):
                 c.print(c.serve(m, kwargs={'network': network, 'search': test_miners[0].split('::')[0]}))
             else:
                 c.print(c.serve(m)) 
+        t0 = c.time()
         while not c.server_exists(test_vali):
+            time_elapsed = c.time() - t0
+            if time_elapsed > timeout:
+                return {'success': False, 'msg': 'subnet test failed'}
             c.sleep(1)
-            c.print(f'Waiting for {test_vali} to start')
-            c.print(c.get_namespace())
+            c.print(f'Waiting for {test_vali} to get the Leaderboard {time_elapsed}/{timeout} seconds')
 
         vali = c.connect(test_vali)
 
