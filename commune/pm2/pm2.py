@@ -59,6 +59,7 @@ class PM2(c.Module):
             c.print(stdout,color='green')
         return stdout
 
+
     dir = os.path.expanduser('~/.pm2')
     @classmethod
     def logs_path_map(cls, name=None):
@@ -144,6 +145,8 @@ class PM2(c.Module):
             module_list = [m for m in module_list if search_true(m)]
                 
         return module_list
+    
+    pm2ls = servers
     
 
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 

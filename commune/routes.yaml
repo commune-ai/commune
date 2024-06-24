@@ -31,15 +31,19 @@ tree: [
             tree_names
             ]
 cli: 
-  - parse_args,
+  - parse_args
+
 streamlit: 
-  - set_page_config,
+  - set_page_config
+
 docker: 
-  - containers,
+  - containers
+
 client: 
   - call
   - call_search
   - connect
+
 repo: 
   - is_repo
 key:
@@ -151,7 +155,8 @@ subspace: [ subnet_params,
                     transfer_many, 
                     module_info, 
                     minfo,
-                    send 
+                    send, 
+                    storage_names
   ]
 namespace: [
             add_remote, 
@@ -180,9 +185,8 @@ namespace: [
             servers,
             name2address, 
             namespace, 
-            get_address, 
-            servers
-                   ]
+            get_address
+                               ]
 
 app : 
   - 'start_app'
@@ -259,9 +263,16 @@ code:
 
 server:
   - serve
+  - fleet
+  - kill
+  - kill_many
+  - kill_all
 
-# pm2:
-#   - [kill_many, pm2_kill_many]
-#   - [kill, pm2_kill]
-#   - [start, pm2_start]
+pm2:
+  - [pm2_kill_many, pm2_kill_all]
+  - [kill_many, pm2_kill_many]
+  - [kill, pm2_kill]
+  - [pm2ls, pm2ls]
+  - [kill_many, kill_all]
+  - [pm2_kill_many, pm2_kill_all]
 

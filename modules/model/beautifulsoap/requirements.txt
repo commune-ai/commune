@@ -1,4 +1,0 @@
-googlesearch-python
-bs4
-random
-urllib

@@ -1,4 +1,4 @@
-alpha: 0.9
+alpha: 1.0
 batch_size: 64
 fn: null
 initial_sleep: 5

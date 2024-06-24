@@ -291,7 +291,6 @@ class Vali(c.Module):
             # local network does not need to be updated as it is atomically updated
             namespace = c.module('namespace').namespace(search=config.search, update=False)
         elif config.network in ['subspace', 'main', 'test']:
-
             if '.' in config.network:
                 config.network, config.netuid = config.network.split('.')
             # convert the subnet to a netuid

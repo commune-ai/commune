@@ -1,9 +1,0 @@
-- name: Transfer and execute a script.
-  hosts: all
-  tasks:
-
-    - name: making ansible scripts executable
-      ansible.builtin.shell: "cd commune && git pull && sudo docker-compose build"
-      register: git_pull
-    - debug: msg="{{ git_pull.stdout }}"
-    - debug: msg="{{ git_pull.stderr }}"
