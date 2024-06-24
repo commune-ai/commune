@@ -49,7 +49,7 @@ class c(Config, Schema, Misc):
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
-    root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
+    root_path  = root  = os.path.dirname(__file__) # the path to the root of the library
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
     libname = lib_name = lib = root_path.split('/')[-1] # the name of the library
     datapath = os.path.join(root_path, 'data') # the path to the data folder
@@ -248,14 +248,11 @@ class c(Config, Schema, Misc):
     folderpath = dirname = dirpath
 
     @classmethod
-    def module_path(cls, simple:bool=True) -> str:
+    def module_path(cls) -> str:
         # get the module path
-        
         obj = cls.resolve_object(cls)
         module_path =  inspect.getfile(obj)
-        # convert into simple
-        if simple:
-            module_path = cls.path2simple(module_path)
+        module_path = cls.path2simple(module_path)
         return module_path
     
     path  = name = module_name =  module_path
@@ -770,19 +767,10 @@ class c(Config, Schema, Misc):
         module = None
         cache_key = path
         t0 = c.time()
-
-
-        try:
-            if cache and cache_key in c.module_cache:
-                module = c.module_cache[cache_key]
-            module = c.simple2object(path)
-        except Exception as e:
-            if update_tree_if_fail:
-                c.tree(update=True)
-            if trials == 0:
-                raise e
-            c.print(f'Could not find {path} in {c.modules(path)} modules, so we are updating the tree', color='red')
-            module = c.get_module(path, cache=cache , verbose=verbose, trials=trials-1)                
+        if cache and cache_key in c.module_cache:
+            module = c.module_cache[cache_key]
+        module = c.simple2object(path)
+        
         if cache:
             c.module_cache[cache_key] = module
 
@@ -2344,7 +2332,7 @@ class c(Config, Schema, Misc):
     
     @classmethod
     def test_fns(cls, *args, **kwargs):
-        return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
+        return [f for f in cls.functions(*args, **kwargs) if f.startswith('test')]
     
     @classmethod
     def has_test_module(cls, module=None):
@@ -2354,18 +2342,19 @@ class c(Config, Schema, Misc):
     @classmethod
     def test(cls,
               module=None,
-              timeout=70, 
+              timeout=100, 
               trials=3, 
               parallel=False,
               ):
         module = module or cls.module_path()
-        if module == 'module':
-            return c.cmd('pytest commune', verbose=True)
+
         if cls.has_test_module(module):
             c.print('FOUND TEST MODULE', color='yellow')
             module = module + '.test'
         cls = c.module(module)
         self = cls()
+        test_fns = cls.test_fns()
+        print(f'testing {module} {test_fns}')
  
         fn2result = {}
         def process_result(fn, result, fn2result):
@@ -2725,7 +2714,6 @@ class c(Config, Schema, Misc):
         results = []
         for future in  c.as_completed(futures, timeout=timeout):
             result = future.result()
-            c.print(result)
             results += [result]
 
         return results
@@ -4348,7 +4336,85 @@ class c(Config, Schema, Misc):
     @classmethod
     def thread_count(cls):
         return threading.active_count()
-    
+
+
+
+
+    @classmethod
+    def serve(cls, 
+              module:Any = 'module' ,
+              kwargs:dict = None,  # kwargs for the module
+              params = None, # kwargs for the module
+              tag:str=None,
+              server_network = 'local', # network to run the server
+              port :int = None, # name of the server if None, it will be the module name
+              server_name:str=None, # name of the server if None, it will be the module name
+              name = None, # name of the server if None, it will be the module name
+              refresh:bool = True, # refreshes the server's key
+              remote:bool = True, # runs the server remotely (pm2, ray)
+              tag_seperator:str='::',
+              max_workers:int = None,
+              free: bool = False,
+              mnemonic = None, # mnemonic for the server
+              key = None,
+              **extra_kwargs
+              ):
+        if module == None:
+            module = c.module_path()
+        kwargs = params or kwargs or {}
+        kwargs.update(extra_kwargs or {})
+        name = name or server_name or module
+        if name == None:
+            name = module
+        if tag_seperator in name:
+            module, tag = name.split(tag_seperator)
+        else:
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+
+        if port == None:
+            # now if we have the server_name, we can repeat the server
+            address = c.get_address(name, network=server_network)
+            try:
+                port = int(address.split(':')[-1])
+            except Exception as e:
+                port = c.free_port()
+        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
+
+        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
+            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
+            for _ in ['extra_kwargs', 'address']:
+                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            if response['success'] == False:
+                return response
+            return {'success':True, 
+                    'name': name, 
+                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
+                    'kwargs':kwargs
+                    } 
+
+        module_class = c.module(module)
+
+        kwargs.update(extra_kwargs)
+        
+        cls(module=module_class(**kwargs), 
+                                          name=name, 
+                                          port=port, 
+                                          network=server_network, 
+                                          max_workers=max_workers, 
+                                          mnemonic = mnemonic,
+                                          free=free, 
+                                          key=key)
+
+        return  {'success':True, 
+                     'address':  f'{c.default_ip}:{port}' , 
+                     'name':name, 
+                     'kwargs': kwargs,
+                     'module':module}
+
     
     
 

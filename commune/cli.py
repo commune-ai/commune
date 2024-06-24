@@ -91,7 +91,7 @@ class cli:
         if fn_class == 'self':
             if callable(module):
                 module = module()
-        module_name = module.path( )
+        module_name = module.path()
         fn_path = f'{module_name}/{fn}'
         fn_obj = getattr(module, fn)
         emoji = '🔥'

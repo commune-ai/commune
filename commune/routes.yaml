@@ -19,6 +19,7 @@ tree: [
             local_tree, 
             build_tree, 
             tree2path, 
+            simple2objectpath,
             trees,
             add_tree, 
             rm_tree, 
@@ -259,7 +260,8 @@ code:
 server:
   - serve
 
-pm2:
-  - kill_all
-  - kill_many
+# pm2:
+#   - [kill_many, pm2_kill_many]
+#   - [kill, pm2_kill]
+#   - [start, pm2_start]
 

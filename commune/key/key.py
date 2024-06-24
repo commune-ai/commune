@@ -1637,45 +1637,6 @@ class Keypair(c.Module):
         assert keypair.public_key.hex() == self.ss58_decode(ss58_address)
         return {'success':True}
 
-    @classmethod
-    def test(cls,
-              module=None,
-              timeout=60, 
-              trials=3, 
-              parallel=False,
-              ):
-        self = cls()
- 
-        fn2result = {}
-        def process_result(fn, result, fn2result):
-            fn2result[fn] = result
-            if 'success' in result and result['success'] == False:
-                c.print(f'{fn} failed')
-            else:
-                c.print(f'{fn} result: {result}')
-            return fn2result
-        
-
-        if parallel:
-            future2fn = {}
-            for fn in self.test_fns():
-                c.print(f'testing {fn}')
-                f = c.submit(getattr(self, fn), timeout=timeout)
-                future2fn[f] = fn
-            for f in c.as_completed(future2fn, timeout=timeout):
-                fn2result = process_result(fn=future2fn.pop(f), 
-                                           result=f.result(), 
-                                           fn2result=fn2result)
-        else:
-            for fn in self.test_fns():
-                fn2result = process_result(fn=fn, 
-                                           result=getattr(self, fn)(),
-                                           fn2result=fn2result)
-
-                
-        return fn2result
-
-
 
 
 
