@@ -21,7 +21,7 @@ module_features:
 - stake_from
 - delegation_fee
 netuid: 0
-network: main
+network: test
 network_mode: ws
 retry_params:
   backoff: 2
