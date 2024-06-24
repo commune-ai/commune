@@ -175,6 +175,8 @@ class Server(c.Module):
             address = c.get_address(name, network=server_network)
             try:
                 port = int(address.split(':')[-1])
+                if c.port_used(port):
+                    c.kill_port(port)
             except Exception as e:
                 port = c.free_port()
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
@@ -185,7 +187,7 @@ class Server(c.Module):
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
             if response['success'] == False:
                 return response
             return {'success':True, 

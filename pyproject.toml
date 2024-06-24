@@ -34,6 +34,7 @@ rich = "*"
 aiofiles  = "*"
 nest_asyncio = "*" 
 aiohttp = "*" 
+netaddr = "*"
 
 # SERVER
 

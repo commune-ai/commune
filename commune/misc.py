@@ -1,5 +1,6 @@
 
 from typing import List, Union
+
 class Misc:
 
     @staticmethod
@@ -90,6 +91,7 @@ class Misc:
     
     @classmethod
     def random_word(cls, *args, n=1, seperator='_', **kwargs):
+        import commune as c
         random_words = c.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
         random_words = random_words.split(' ')[:n]
         if n == 1:

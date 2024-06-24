@@ -1,8 +1,6 @@
-
 import pytest
 import commune as c 
 
-# TESTING CORE MODULES
 
 def test_key():
     c.module('key').test()
@@ -16,12 +14,3 @@ def test_validator():
     c.module('vali').test()
 def test_subspace():
     assert c.module('subspace').test()
-
-
-
-
-
-    
-
-
-

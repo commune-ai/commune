@@ -1,3 +1,3 @@
 import commune as c
 
-print(c.module('subspace')().config)
+print(c.simple2path('module'))

@@ -34,14 +34,12 @@ class Tree(c.Module):
         Parameters:
             path (str): The module path
         """
-        if os.path.exists(os.path.abspath(simple_path)):
-            return os.path.abspath(simple_path)
+        
         if simple_path.endswith(extension):
             simple_path = simple_path[:-len(extension)]
 
         path = None
-        dir_paths = [c.pwd(), c.root_path]
-
+        dir_paths = list(set([c.pwd(), c.root_path]))
         for dir_path in dir_paths:
             c.print(f'Path {simple_path} not in dir {dir_path}', color='yellow', verbose=verbose)
             # '/' count how many times the path has been split
@@ -50,24 +48,26 @@ class Tree(c.Module):
 
             module_dirpath = dir_path + '/' + simple_path.replace('.', '/')
             module_filepath = dir_path + '/' + cls.resolve_extension(simple_path)
+            is_module_dir = os.path.isdir(module_dirpath)
+            is_module_file = os.path.isfile(module_filepath)
 
-            if os.path.isdir(module_dirpath):
+            if is_module_file:
+                path = module_filepath
+            elif is_module_dir:
                 simple_path_filename = simple_path.replace('.', '_')
-                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main', '__init__']] 
+                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main']] 
                 paths_in_dir = os.listdir(module_dirpath)
                 for p in paths_in_dir:
-                    p_filename = p.split('/')[-1]
-                    if p_filename in filename_options:
-                        path = module_dirpath + '/' + p
-                        initial_text = c.get_text(path)
-                        if 'class ' in initial_text:
-                            break
-                        else:
-                            path = None
-                        
-            elif os.path.exists(module_filepath):
-                path = module_filepath
-            
+                    if p.split('/')[-1] in filename_options:
+                        if os.path.isfile(p):
+                            initial_text = c.get_text(p)
+                            if 'class ' in initial_text:
+                                break
+                            else:
+                                path = None   
+ 
+
+                
             if path != None:
                 break
 
@@ -80,6 +80,7 @@ class Tree(c.Module):
             if simple_path in tree:
                 path = tree[simple_path]
         assert path != None, f'Path not found for simple path {simple_path}'
+
         return path
     
     def path2tree(self, **kwargs) -> str:
@@ -270,9 +271,10 @@ class Tree(c.Module):
                     module_folder_filnames = ['__init__', 'main', 'module'],
                     module_extension = 'py',
                     ignore_suffixes = ['module'],
+                    name_map = {'commune': 'module'},
                     compress_path = True,
                     verbose = False,
-                    num_lines_to_read = 30,
+                    num_lines_to_read = 50,
                     ) -> str:
         
         
@@ -346,14 +348,12 @@ class Tree(c.Module):
                 simple_path = simple_path[:-len(suffix)]
                 c.print(f'Suffix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
 
-
-
         # remove leading and trailing dots
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
         if simple_path.endswith('.'):
             simple_path = simple_path[:-1]
-
+        simple_path = name_map.get(simple_path, simple_path)
         return simple_path
 
     @classmethod
@@ -386,7 +386,7 @@ class Tree(c.Module):
         return [c for c in classes]
     
     @classmethod
-    def simple2objectpath(cls, simple_path:str, cactch_exception = True, **kwargs) -> str:
+    def simple2objectpath(cls, simple_path:str, cactch_exception = False, **kwargs) -> str:
         if cactch_exception:
             try:
                 object_path = cls.simple2objectpath(simple_path, cactch_exception=False, **kwargs)
@@ -396,8 +396,15 @@ class Tree(c.Module):
             return object_path
 
         pwd = c.pwd()
-        object_path = cls.simple2path(simple_path, **kwargs)
-        classes =  cls.find_classes(object_path)
+        try:
+            object_path = cls.simple2path(simple_path, **kwargs)
+            classes =  cls.find_classes(object_path)
+        except Exception as e:
+            c.print(f'Error in simple2objectpath: {c.detailed_error(e)}', color='red')
+            cls.tree(update=True)
+            object_path = cls.simple2path(simple_path, **kwargs)
+            classes =  cls.find_classes(object_path)
+
         if object_path.startswith(c.libpath):
             object_path = object_path[len(c.libpath):]
         object_path = object_path.replace('.py', '')
