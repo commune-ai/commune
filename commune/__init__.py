@@ -1,6 +1,5 @@
 
 from .module import Module
-c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 from .cli import cli
 from functools import  partial
 
@@ -20,4 +19,6 @@ for f in Module.self_functions():
 
 
 globals()['cli'] = cli
+
+c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 
