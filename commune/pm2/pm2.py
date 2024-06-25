@@ -98,7 +98,6 @@ class PM2(c.Module):
         if mode == 'local':
             text = ''
             for m in ['out','error']:
-
                 # I know, this is fucked 
                 path = f'{cls.dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:

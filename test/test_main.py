@@ -1,6 +1,4 @@
-import pytest
 import commune as c 
-
 
 def test_key():
     c.module('key').test()
