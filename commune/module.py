@@ -168,9 +168,6 @@ class c(Config, Schema, Misc):
         
         Gets the function from a string or if its an attribute 
         """
-
-
-
         if isinstance(fn, str):
             if ':' in fn:
                 module, fn = fn.split(':')
@@ -178,13 +175,11 @@ class c(Config, Schema, Misc):
             else:
                 module = cls
             fn =  getattr(module, fn)
-        elif callable(fn):
-            pass
-        elif isinstance(fn, property):
+
+        if callable(fn) or isinstance(fn, property):
             pass
         else:
             raise ValueError(f'fn must be a string or callable, got {type(fn)}')
-        # assert callable(fn), 'Is not callable'
         return fn
     
 
@@ -1489,7 +1484,9 @@ class c(Config, Schema, Misc):
         return module
     
     @classmethod
-    def functions(cls, search: str=None , include_parents:bool = False, module=None):
+    def functions(cls, search: str=None , 
+                  include_parents:bool = False, 
+                   module=None):
         if cls.is_root_module():
             # if the cls is the root_moduel 
             include_parents = True
@@ -3544,7 +3541,7 @@ class c(Config, Schema, Misc):
             fn = cls.get_fn(fn)
         if not callable(fn):
             return None
-        args = c.get_function_args(fn)
+        args = cls.get_function_args(fn)
         if len(args) == 0:
             return 'static'
         elif args[0] == 'self':
@@ -3679,7 +3676,7 @@ class c(Config, Schema, Misc):
         Gets the self methods in a class
         '''
         obj = cls.resolve_object(obj)
-        functions =  c.get_functions(obj)
+        functions =  cls.functions(module=obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
@@ -3691,7 +3688,7 @@ class c(Config, Schema, Misc):
         Gets the self methods in a class
         '''
         obj = cls.resolve_object(obj)
-        functions =  c.get_functions(obj)
+        functions =  cls.functions(module=obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
     
@@ -3703,7 +3700,7 @@ class c(Config, Schema, Misc):
         Gets the self methods in a class
         '''
         obj = obj or cls
-        functions =  c.get_functions(obj)
+        functions =  cls.functions(module=obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
     
@@ -4022,17 +4019,19 @@ class c(Config, Schema, Misc):
 
     @staticmethod
     def resolve_to_from_fn_routes(fn):
+        '''
+        resolve the from and to function names from the routes
+        option 1: 
+        {fn: 'fn_name', name: 'name_in_current_module'}
+        option 2:
+        {from: 'fn_name', to: 'name_in_current_module'}
+        '''
+        
         if type(fn) in [list, set, tuple] and len(fn) == 2:
             # option 1: ['fn_name', 'name_in_current_module']
             from_fn = fn[0]
             to_fn = fn[1]
         elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
-            '''
-            option 1: 
-            {fn: 'fn_name', name: 'name_in_current_module'}
-            option 2:
-            {from: 'fn_name', to: 'name_in_current_module'}
-            '''
             if 'fn' in fn and 'name' in fn:
                 to_fn = fn['name']
                 from_fn = fn['fn']
@@ -4068,7 +4067,6 @@ class c(Config, Schema, Misc):
                 module = module()
             else:
                 module = module
-
             return getattr(module, fn)(*args, **kwargs)
 
         if routes == None:
@@ -4077,7 +4075,6 @@ class c(Config, Schema, Misc):
             routes = cls.routes() if callable(cls.routes) else cls.routes
         for m, fns in routes.items():
             for fn in fns: 
-
                 c.print(f'Enabling route {m}.{fn} -> {my_path}:{fn}', verbose=verbose)
                 # resolve the from and to function names
                 from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)

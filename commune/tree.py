@@ -59,9 +59,11 @@ class Tree(c.Module):
                 paths_in_dir = os.listdir(module_dirpath)
                 for p in paths_in_dir:
                     if p.split('/')[-1] in filename_options:
-                        if os.path.isfile(p):
-                            initial_text = c.get_text(p)
+                        new_path = module_dirpath + '/' + p
+                        if os.path.isfile(new_path):
+                            initial_text = cls.get_text(new_path)
                             if 'class ' in initial_text:
+                                path = new_path
                                 break
                             else:
                                 path = None   
