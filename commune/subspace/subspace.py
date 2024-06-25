@@ -33,21 +33,13 @@ class Subspace(SubspaceNetwork):
     def __repr__(self) -> str:
         return f'<Subspace: network={self.config.network}>'
     def __str__(self) -> str:
-
         return f'<Subspace: network={self.config.network}>'
-
-    #####################################
-    #### Hyper parameter calls. ####
-    #####################################
-
 
 
     ###########################
     #### Global Parameters ####
     ###########################
 
-
-    
     def resolve_key_ss58(self, key:str,netuid:int=0, resolve_name=True, **kwargs):
         if key == None:
             key = c.get_key(key)
@@ -250,9 +242,6 @@ class Subspace(SubspaceNetwork):
             
         return name2uid
 
-
-
-        
 
 
     def name2key(self, name:str=None, 
