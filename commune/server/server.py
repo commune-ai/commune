@@ -59,7 +59,6 @@ class Server(c.Module):
                    **kwargs
                    ):
         
-
         self.protocal = c.module(protocal)(module=module,     
                                             history_path=self.resolve_path(history_path  or name),
                                             name = name,
@@ -69,6 +68,7 @@ class Server(c.Module):
                                             mnemonic = mnemonic,
                                              **kwargs)
         self.module = self.protocal.module 
+ 
         response = {'name':self.module.name, 'address': self.module.address, 'port':self.module.port, 'key':self.module.key.ss58_address, 'network':self.module.network, 'success':True}
         return response
 
@@ -140,7 +140,7 @@ class Server(c.Module):
 
     @classmethod
     def serve(cls, 
-              module:Any = 'module' ,
+              module:Any = None,
               kwargs:dict = None,  # kwargs for the module
               params = None, # kwargs for the module
               tag:str=None,
@@ -157,13 +157,9 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
-        if module == None:
-            module = c.module_path()
-        kwargs = params or kwargs or {}
-        kwargs.update(extra_kwargs or {})
+        module = module or c.module_path()
+        kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = name or server_name or module
-        if name == None:
-            name = module
         if tag_seperator in name:
             module, tag = name.split(tag_seperator)
         else:
@@ -187,19 +183,19 @@ class Server(c.Module):
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            response = cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
             if response['success'] == False:
                 return response
             return {'success':True, 
                     'name': name, 
                     'address':c.ip() + ':' + str(remote_kwargs['port']), 
-                    'kwargs':kwargs
+                    'kwargs':kwargs, 
+                    'module':module
                     } 
 
         module_class = c.module(module)
-
+        print('Serving', module_class, kwargs, module)
         kwargs.update(extra_kwargs)
-        
         cls(module=module_class(**kwargs), 
                                           name=name, 
                                           port=port, 

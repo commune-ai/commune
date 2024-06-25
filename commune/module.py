@@ -83,83 +83,6 @@ class c(Config, Schema, Misc):
     
 
 
-
-
-    @classmethod
-    def serve(cls, 
-              module:Any = 'module' ,
-              kwargs:dict = None,  # kwargs for the module
-              params = None, # kwargs for the module
-              tag:str=None,
-              server_network = 'local', # network to run the server
-              port :int = None, # name of the server if None, it will be the module name
-              server_name:str=None, # name of the server if None, it will be the module name
-              name = None, # name of the server if None, it will be the module name
-              refresh:bool = True, # refreshes the server's key
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              tag_seperator:str='::',
-              max_workers:int = None,
-              free: bool = False,
-              mnemonic = None, # mnemonic for the server
-              key = None,
-              **extra_kwargs
-              ):
-        if module == None:
-            module = c.module_path()
-        kwargs = params or kwargs or {}
-        kwargs.update(extra_kwargs or {})
-        name = name or server_name or module
-        if name == None:
-            name = module
-        if tag_seperator in name:
-            module, tag = name.split(tag_seperator)
-        else:
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
-
-        if port == None:
-            # now if we have the server_name, we can repeat the server
-            address = c.get_address(name, network=server_network)
-            try:
-                port = int(address.split(':')[-1])
-            except Exception as e:
-                port = c.free_port()
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
-
-        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
-            for _ in ['extra_kwargs', 'address']:
-                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            c.print(cls.remote_fn('serve', name=name, kwargs=remote_kwargs))
-            return {'success':True, 
-                    'name': name, 
-                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
-                    'kwargs':kwargs
-                    } 
-
-        module_class = c.module(module)
-
-        kwargs.update(extra_kwargs)
-        
-        c.module('server')(module=module_class(**kwargs), 
-                                          name=name, 
-                                          port=port, 
-                                          network=server_network, 
-                                          max_workers=max_workers, 
-                                          mnemonic = mnemonic,
-                                          free=free, 
-                                          key=key)
-
-        return  {'success':True, 
-                     'address':  f'{c.default_ip}:{port}' , 
-                     'name':name, 
-                     'kwargs': kwargs,
-                     'module':module}
-
-
-
     @classmethod
     def get_fn(cls, fn:str):
         
@@ -1711,6 +1634,7 @@ class c(Config, Schema, Misc):
             args.kwargs = args.params
         args.args = json.loads(args.args.replace("'",'"'))
         c.print('args', args, color='cyan')
+        print(args)
         return args
 
 
@@ -1806,7 +1730,7 @@ class c(Config, Schema, Misc):
   
 
     @classmethod
-    def fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
+    def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
         module = c.module(module)
         is_self_method = bool(fn in module.self_functions())
 
@@ -1819,13 +1743,9 @@ class c(Config, Schema, Misc):
             args = []
         if kwargs is None:
             kwargs = {}
-            
-        
-        if len(args)>0 or len(kwargs)>0:
-            return fn(*args, **kwargs)
-        else:
-            return fn()
-    module_fn = fn
+        print(kwargs)
+        return fn(*args, **kwargs)
+    fn = module_fn
     
     @classmethod
     def module(cls,module: Any = 'module' , **kwargs):
@@ -3101,7 +3021,7 @@ class c(Config, Schema, Misc):
                 refresh=refresh,
                 **extra_launch_kwargs
         )
-        
+        print(launch_kwargs, fn, )
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
@@ -4232,84 +4152,6 @@ class c(Config, Schema, Misc):
         return threading.active_count()
 
 
-
-
-    @classmethod
-    def serve(cls, 
-              module:Any = 'module' ,
-              kwargs:dict = None,  # kwargs for the module
-              params = None, # kwargs for the module
-              tag:str=None,
-              server_network = 'local', # network to run the server
-              port :int = None, # name of the server if None, it will be the module name
-              server_name:str=None, # name of the server if None, it will be the module name
-              name = None, # name of the server if None, it will be the module name
-              refresh:bool = True, # refreshes the server's key
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              tag_seperator:str='::',
-              max_workers:int = None,
-              free: bool = False,
-              mnemonic = None, # mnemonic for the server
-              key = None,
-              **extra_kwargs
-              ):
-        if module == None:
-            module = c.module_path()
-        kwargs = params or kwargs or {}
-        kwargs.update(extra_kwargs or {})
-        name = name or server_name or module
-        if name == None:
-            name = module
-        if tag_seperator in name:
-            module, tag = name.split(tag_seperator)
-        else:
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
-
-        if port == None:
-            # now if we have the server_name, we can repeat the server
-            address = c.get_address(name, network=server_network)
-            try:
-                port = int(address.split(':')[-1])
-            except Exception as e:
-                port = c.free_port()
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
-
-        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
-            for _ in ['extra_kwargs', 'address']:
-                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
-            if response['success'] == False:
-                return response
-            return {'success':True, 
-                    'name': name, 
-                    'address':c.ip() + ':' + str(remote_kwargs['port']), 
-                    'kwargs':kwargs
-                    } 
-
-        module_class = c.module(module)
-
-        kwargs.update(extra_kwargs)
-        
-        cls(module=module_class(**kwargs), 
-                                          name=name, 
-                                          port=port, 
-                                          network=server_network, 
-                                          max_workers=max_workers, 
-                                          mnemonic = mnemonic,
-                                          free=free, 
-                                          key=key)
-
-        return  {'success':True, 
-                     'address':  f'{c.default_ip}:{port}' , 
-                     'name':name, 
-                     'kwargs': kwargs,
-                     'module':module}
-
-    
 
 
     @staticmethod
