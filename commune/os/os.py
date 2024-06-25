@@ -270,7 +270,7 @@ class OS(c.Module):
                     new_line += ch
 
                     if ch == '\n':
-                        print(new_line[:-1])
+                        c.print(new_line[:-1])
                         new_line = ''
 
         return text

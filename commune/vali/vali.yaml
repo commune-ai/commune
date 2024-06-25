@@ -14,7 +14,7 @@ network: local
 print_interval: 100
 sample_interval: 0.1
 search: null
-run_step_interval: 10
+run_step_interval: 3
 start: true
 max_age: 1000
 threads_per_worker: 64
@@ -24,3 +24,4 @@ verbose: false
 debug: false
 vote_interval: 100
 workers: 1
+skip_run_loop: false

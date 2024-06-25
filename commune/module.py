@@ -62,9 +62,9 @@ class c(Config, Schema, Misc):
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
-
-
+    cache_path = os.path.expanduser(f'~/.{libname}')
     default_tag = 'base'
+    
     @property
     def tag(self):
         tag = None
@@ -483,7 +483,7 @@ class c(Config, Schema, Misc):
         return os.makedirs(*args, **kwargs)
 
     @classmethod
-    def resolve_path(cls, path:str = None, extension:Optional[str]= None, file_type:str = 'json'):
+    def resolve_path(cls, path:str = None, extension=None):
         '''
         ### Documentation for `resolve_path` class method
         
@@ -539,18 +539,13 @@ class c(Config, Schema, Misc):
             # if it is a relative path, then it is relative to the module path
             # ex: 'data' -> '.commune/path_module/data'
             storage_dir = cls.storage_dir()
-
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
-            if not os.path.isdir(path):
-                if extension != None :
-                    path = path if path.endswith(extension) else path + '.' + extension
-        if not os.path.exists(path) and os.path.exists(path + f'.{file_type}'):
-            path = path + f'.{file_type}' 
 
-        dirpath = os.path.dirname(path)
-        if not os.path.exists(dirpath):
-            os.makedirs(dirpath, exist_ok=True)      
+        if extension != None:
+            if not path.endswith(extension):
+                path += f'.{extension}'
+
         return path
     
     @classmethod
@@ -858,7 +853,7 @@ class c(Config, Schema, Misc):
 
     @classmethod
     def storage_dir(cls):
-        return f'{c.cache_path()}/{cls.module_path()}'
+        return f'{c.cache_path}/{cls.module_path()}'
     tmp_dir = cache_dir   = storage_dir
     
     @classmethod
@@ -872,11 +867,6 @@ class c(Config, Schema, Misc):
         
 
     ############ JSON LAND ###############
-
-    @classmethod
-    def cache_path(cls):
-        path = os.path.expanduser(f'~/.{cls.libname}')
-        return path
 
     @classmethod
     def tilde_path(cls):
@@ -944,7 +934,7 @@ class c(Config, Schema, Misc):
         c.print(f'Putting json from {path}', color='green', verbose=verbose)
         if isinstance(data, dict):
             data = json.dumps(data)
-        c.put_text(path, data)
+        cls.put_text(path, data)
         return path
     
     save_json = put_json
@@ -953,8 +943,6 @@ class c(Config, Schema, Misc):
     def file_exists(cls, path:str)-> bool:
         path = cls.resolve_path(path=path)
         exists =  os.path.exists(path)
-        if not exists and not path.endswith('.json'):
-            exists = os.path.exists(path + '.json')
         return exists
 
     exists = exists_json = file_exists 
@@ -1074,7 +1062,7 @@ class c(Config, Schema, Misc):
         this path is relative to the module path if you dont specifcy ./ or ~/ or /
         which means its based on the module path
         """
-        path = cls.resolve_path(path, extension=None)
+        path = cls.resolve_path(path)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
@@ -1633,8 +1621,6 @@ class c(Config, Schema, Misc):
         if len(args.params) > len(args.kwargs):
             args.kwargs = args.params
         args.args = json.loads(args.args.replace("'",'"'))
-        c.print('args', args, color='cyan')
-        print(args)
         return args
 
 
@@ -1743,7 +1729,6 @@ class c(Config, Schema, Misc):
             args = []
         if kwargs is None:
             kwargs = {}
-        print(kwargs)
         return fn(*args, **kwargs)
     fn = module_fn
     
@@ -2751,6 +2736,9 @@ class c(Config, Schema, Misc):
     def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
+        dirpath = os.path.dirname(path)
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
         if not isinstance(text, str):
             text = c.python2str(text)
         if key != None:
@@ -3021,7 +3009,6 @@ class c(Config, Schema, Misc):
                 refresh=refresh,
                 **extra_launch_kwargs
         )
-        print(launch_kwargs, fn, )
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
@@ -3054,7 +3041,7 @@ class c(Config, Schema, Misc):
 
     @classmethod
     def chown_cache(cls, sudo:bool = True):
-        return c.chown(c.cache_path(), sudo=sudo)
+        return c.chown(c.cache_path, sudo=sudo)
         
     @classmethod
     def colors(cls):

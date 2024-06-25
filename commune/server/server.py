@@ -157,6 +157,8 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
+        if tag_seperator in module:
+            module, tag = module.split('::')
         module = module or c.module_path()
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = name or server_name or module
@@ -219,14 +221,14 @@ class Server(c.Module):
     @classmethod
     def fleet(cls, module, n=5, timeout=10):
         futures = []
-        if not module.endswith('::'):
+        if '::'  not in module:
             module = f'{module}::'
 
         
         for i in range(n):
             module_name = f'{module}{i}'
-            print('Serving', module_name)
-            future = c.submit(c.serve, kwargs=dict(module=module_name), timeout=timeout)
+            print(f'Serving {module_name}')
+            future = c.submit(cls.serve, kwargs=dict(module=module_name), timeout=timeout)
             futures.append(future)
         results = []
         for future in c.as_completed(futures, timeout=timeout):
@@ -234,7 +236,7 @@ class Server(c.Module):
             c.print(result)
             results.append(result)
 
-        return futures
+        return results
 
     @staticmethod
     def kill_all_servers( *args, **kwargs):

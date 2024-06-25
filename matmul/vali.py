@@ -2,7 +2,7 @@ import commune as c
 import random
 import torch
 
-class Vali(c.module('vali')):
+class Vali(c.Module):
 
     whitelist = ['get_module', 'eval_module', 'leaderboard']
 
@@ -12,7 +12,7 @@ class Vali(c.module('vali')):
                  alpha = 1.0,
                  network = 'local',
                  **kwargs):
-        self.init_vali(locals())
+        self.init_vali(locals(), module=self)
         self.local_miner = c.module('matmul.miner')()
 
     def get_sample(self, n=10):

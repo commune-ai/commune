@@ -2,6 +2,7 @@
 from .module import Module
 from .cli import cli
 from functools import  partial
+from .vali.vali import Vali
 
 # set the module functions as globals
 for k,v in Module.__dict__.items():
