@@ -1,8 +1,5 @@
-block_time: 8
-token_decimals: 9
 
 local: false
-loop: false
 mode: http
 module_features:
 - key
@@ -14,17 +11,8 @@ module_features:
 - last_update
 - stake_from
 - delegation_fee
-netuid: 0
 network: main
 network_mode: ws
-retry_params:
-  backoff: 2
-  delay: 2
-  max_delay: 4
-  tries: 2
-run_loop: false
-save_interval: 1800
-subnet: commune
 subnet_features:
 - Tempo
 - ImmunityPeriod
@@ -36,12 +24,9 @@ subnet_features:
 - IncentiveRatio
 - TrustRatio
 - SubnetNames
-supported_schemas:
-- Sr25519
-- Ed25519
 token_decimals: 9
 url: null
-url_search: commune-api-node-1
+url_search: commune
 urls:
   main:
     http:

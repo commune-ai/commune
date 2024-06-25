@@ -8,7 +8,6 @@ class Remote(c.Module):
 
     def __init__(self, path = 'hosts'):
         self.set_host_path(path)
-        
 
     def set_host_path(self, path=None):
         path = path or (self.dirpath() + f'/data/hosts.yaml')
@@ -526,8 +525,6 @@ class Remote(c.Module):
         
         return toml_text
 
-
-
     def add_host_from_ssh_string(self, ssh_string: str, name: str = None):
         """
         Adds a host using an SSH connection string format that includes the password using the -pwd flag.
@@ -556,9 +553,5 @@ class Remote(c.Module):
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
     
-
-
-
-
 
 Remote.run(__name__)

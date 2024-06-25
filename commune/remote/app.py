@@ -13,7 +13,7 @@ class App(c.Module):
         if module:
             cls = c.module(module)
         c.new_event_loop()
-        c.load_style()
+        # c.load_style()
         self = cls()
         modes = ['SSH', 'MANAGE_HOSTS', 'AI']
         # make this spand the whole page
