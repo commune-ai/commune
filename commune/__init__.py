@@ -11,12 +11,10 @@ for f in Module.class_functions() + Module.static_functions():
     globals()[f] = getattr(Module, f)
 
 for f in Module.self_functions():
-    def wrapper_fn(fn, *args, **kwargs):
-        fn = getattr(Module(), fn)
+    def wrapper_fn(f, *args, **kwargs):
+        fn = getattr(Module(), f)
         return fn(*args, **kwargs)
     globals()[f] = partial(wrapper_fn, f)
-
-
 
 globals()['cli'] = cli
 
