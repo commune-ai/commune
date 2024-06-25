@@ -15,8 +15,7 @@ class Vali(c.module('vali')):
         self.init_vali(locals())
         self.local_miner = c.module('matmul.miner')()
 
-    @classmethod
-    def get_sample(cls, n=10):
+    def get_sample(self, n=10):
         return dict( x =  torch.rand(n, n) ,
                 y = torch.rand(n, n))
 
