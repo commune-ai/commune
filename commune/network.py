@@ -388,6 +388,7 @@ class Network(c.Module):
     @classmethod
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
         return not cls.port_used(port=port, ip=ip)
+    
         
 
     @classmethod
@@ -454,4 +455,44 @@ class Network(c.Module):
     @classmethod
     def has_free_ports(self, n:int = 1, **kwargs):
         return len(self.free_ports(n=n, **kwargs)) > 0
+    
+
+    @classmethod
+    def get_port_range(cls, port_range: list = None) -> list:
+        if port_range == None:
+            port_range = c.get('port_range', default=cls.default_port_range)
+            
+        if len(port_range) == 0:
+            port_range = cls.default_port_range
+        port_range = list(port_range)
+        assert isinstance(port_range, list), 'Port range must be a list'
+        assert isinstance(port_range[0], int), 'Port range must be a list of integers'
+        assert isinstance(port_range[1], int), 'Port range must be a list of integers'
+        return port_range
+    
+    @classmethod
+    def port_range(cls):
+        return cls.get_port_range()
+    
+    @classmethod
+    def resolve_port_range(cls, port_range: list = None) -> list:
+        return cls.get_port_range(port_range)
+
+    
+
+    @classmethod
+    def set_port_range(cls, *port_range: list):
+        if len(port_range) ==0 :
+            port_range = cls.default_port_range
+        elif len(port_range) == 1:
+            if port_range[0] == None:
+                port_range = cls.default_port_range
+
+        assert len(port_range) == 2, 'Port range must be a list of two integers'        
+        for port in port_range:
+            assert isinstance(port, int), f'Port {port} range must be a list of integers'
+        assert port_range[0] < port_range[1], 'Port range must be a list of integers'
+                
+        c.put('port_range', port_range)
+        return port_range
     
