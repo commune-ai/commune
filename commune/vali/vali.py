@@ -526,7 +526,9 @@ class Vali(c.Module):
         
     def storage_path(self):
         # the set storage path in config.path is set, then the modules are saved in that directory
-        self.config.storage_path = self.resolve_path(self.config.get('storage_path', self.default_storage_path()))
+        storage_path =  self.config.get('storage_path', self.default_storage_path())
+        storage_path = self.resolve_path(storage_path)
+        self.config.storage_path = storage_path
         return self.config.storage_path
 
         

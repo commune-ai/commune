@@ -85,18 +85,6 @@ class Ticket(c.Module):
             return False
         return c.verify(ticket, address=address, seperator=self.signature_seperator,  **kwargs)
 
-    @classmethod
-    def test_verification(cls, key='test'):
-        c.add_key(key)
-        key = c.get_key(key)
-        self = cls()
-        ticket = self.create(key=key)
-        key = c.get_key(key)
-        c.print(ticket)
-        reciept = self.verify(ticket)
-        assert reciept, 'Failed to verify'
-        return {'success': True, 'ticket': ticket, 'key': str(key), 'reciept': reciept}
-    
 
     @classmethod
     def test_staleness(cls, key='test', max_age=0.5):

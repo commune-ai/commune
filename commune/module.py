@@ -432,12 +432,6 @@ class c(Config, Schema, Misc):
         return (sum([(i - mean)**p for i in x]) / len(x))**(1/p)
     std = stdev
     
-    # def test_stats(self, x:list):c
-    #     mean = self.mean(x)
-    #     stdev = self.stdev(x)
-    #     return {'mean': mean, 'stdev': stdev}
-
-
     @classmethod
     def port_free(cls, *args, **kwargs) -> bool:
         return not cls.port_used(*args, **kwargs)
@@ -542,9 +536,8 @@ class c(Config, Schema, Misc):
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
 
-        if extension != None:
-            if not path.endswith(extension):
-                path += f'.{extension}'
+        if extension != None and not ath.endswith(extension):
+            path = path + '.' + extension
 
         return path
     
@@ -941,7 +934,7 @@ class c(Config, Schema, Misc):
     
     @classmethod
     def file_exists(cls, path:str)-> bool:
-        path = cls.resolve_path(path=path)
+        path = cls.resolve_path(path)
         exists =  os.path.exists(path)
         return exists
 
@@ -2396,15 +2389,6 @@ class c(Config, Schema, Misc):
         """
         key = c.get_key(key)
         return key.encrypt(data, password=password,**kwargs)
-    
-
-    def test_encrypt(self):
-        data = 'hello world'
-        password = 'bitconnect'
-        encrypted = self.encrypt(data, password=password)
-        decrypted = self.decrypt(encrypted, password=password)
-        assert data == decrypted, f'Encryption failed. {data} != {decrypted}'
-        return {'success': True, 'msg': 'Encryption successful'}
     
 
     @classmethod

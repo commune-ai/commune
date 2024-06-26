@@ -1,5 +1,6 @@
 import commune as c
 from typing import *
+import os
 
 # THIS IS WHAT THE INTERNET IS, A BUNCH OF NAMESPACES, AND A BUNCH OF SERVERS, AND A BUNCH OF MODULES.
 # THIS IS THE INTERNET OF INTERNETS.
@@ -100,7 +101,7 @@ class Namespace(c.Module):
 
     @classmethod
     def rm_namespace(cls,network:str) -> None:
-        if cls.exists(network):
+        if cls.namespace_exists(network):
             cls.rm(network)
             return {'success': True, 'msg': f'Namespace {network} removed.'}
         else:
@@ -127,8 +128,8 @@ class Namespace(c.Module):
     
     @classmethod
     def namespace_exists(cls, network:str) -> bool:
-        return cls.exists(network)
-
+        path = cls.resolve_path( network, extension='json')
+        return os.path.exists(path)
 
     @classmethod
     def modules(cls, network:List=network) -> List[str]:
@@ -350,6 +351,7 @@ class Namespace(c.Module):
         cls.rm_namespace(network2)
 
         namespace = cls.namespace(network=network)
+        
         assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'
         cls.register_server('test', 'test', network=network)
         assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.namespace(network=network)}'

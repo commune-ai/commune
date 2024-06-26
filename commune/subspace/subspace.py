@@ -23,12 +23,13 @@ class Subspace(SubspaceNetwork):
     
 
 
-    def init_subspace(self, network:str = 'main', **kwargs):
+    def __init__(self, network:str = 'main', **kwargs):
         self.config = self.set_config(network=network, **kwargs)
         # merge the config with the subspace config
-        self.config = {**Subspace.config(), **self.config}
+        self.config = c.dict2munch({**SubspaceNetwork.config(), **Subspace.config(), **self.config})
         self.set_network(network)
-        
+    
+    init_subspace = __init__    
 
     def __repr__(self) -> str:
         return f'<Subspace: network={self.config.network}>'
