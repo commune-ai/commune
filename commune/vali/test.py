@@ -9,6 +9,7 @@ class Test(c.Module):
              tag = 'test',
              miner='module', 
              vali='vali', 
+             storage_path = '/tmp/commune/vali_test',
              network='local'):
         
         test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
@@ -19,7 +20,9 @@ class Test(c.Module):
             
         for m in modules:
             if m == test_vali:
-                c.print(c.serve(m, kwargs={'network': network, 'search': test_miners[0].split('::')[0]}))
+                c.print(c.serve(m, kwargs={'network': network, 
+                                           'storage_path': '/tmp/commune/vali_test',
+                                           'search': test_miners[0].split('::')[0]}))
             else:
                 c.print(c.serve(m)) 
         t0 = c.time()

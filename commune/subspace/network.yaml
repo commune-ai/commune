@@ -1,6 +1,13 @@
 
 local: false
 mode: http
+global_features:
+- MaxNameLength
+- MaxAllowedModules
+- MaxAllowedSubnets
+- MaxRegistrationsPerBlock
+- MinWeightStake
+- UnitEmission
 module_features:
 - key
 - name

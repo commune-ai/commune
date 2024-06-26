@@ -157,7 +157,8 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
-        if tag_seperator in module:
+        
+        if tag_seperator in str(module):
             module, tag = module.split('::')
         module = module or c.module_path()
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
