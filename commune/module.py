@@ -2083,6 +2083,7 @@ class c(Config, Schema, Misc):
               verbose:bool = True,
               console: Console = None,
               flush:bool = False,
+              buffer:str = None,
               **kwargs):
               
         if not verbose:
@@ -2091,6 +2092,9 @@ class c(Config, Schema, Misc):
             color = cls.random_color()
         if color:
             kwargs['style'] = color
+        
+        if buffer != None:
+            text = [buffer] + list(text) + [buffer]
 
         console = cls.resolve_console(console)
         try:

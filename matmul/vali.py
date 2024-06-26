@@ -23,6 +23,7 @@ class Vali(c.Vali):
     def clip_distance(self, x, y):
         return min(max(torch.norm(x - y).item(), 0), 1)
     
+
     def score(self, module):
         if isinstance(module, str):
             module = c.connect(module)
@@ -34,4 +35,6 @@ class Vali(c.Vali):
         latency = t1 - t0
         score = self.clip_distance(x=local_response, y=remote_response)
         return {'w': score, 'latency': latency}
+
+        
 

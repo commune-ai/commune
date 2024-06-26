@@ -4,6 +4,10 @@ from typing import *
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+from .middleware import ServerMiddleware
+
+
+
 
 
 class Server(c.Module):
@@ -19,6 +23,7 @@ class Server(c.Module):
         history_path:str = None , 
         nest_asyncio = True,
         new_loop = True,
+        max_bytes = 1024 * 1024,  # 1 MB limit
         mnemonic = None,
         **kwargs
         ) -> 'Server':
@@ -44,7 +49,7 @@ class Server(c.Module):
                         network=network, **kwargs
 
                         )
-        self.set_api()
+        self.set_api(max_bytes=max_bytes)
 
     def set_module(self, 
                    module: Union[c.Module, object] = None, 
@@ -77,15 +82,23 @@ class Server(c.Module):
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
            
-    def set_api(self):
-
-        self.app = FastAPI()
-        self.app.add_middleware(
-                CORSMiddleware,
-                allow_origins=["*"],
+    def set_api(self, 
+                max_bytes=1024 * 1024,
+                allow_origins = ["*"],
                 allow_credentials=True,
                 allow_methods=["*"],
                 allow_headers=["*"],
+                ):
+
+        self.app = FastAPI()
+        # add the middleware
+        self.app.add_middleware(ServerMiddleware, max_bytes=max_bytes)    
+        self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=allow_origins,
+                allow_credentials=allow_credentials,
+                allow_methods=allow_methods,
+                allow_headers=allow_headers,
             )
         
         @self.app.post("/{fn}")
