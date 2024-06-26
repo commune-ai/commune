@@ -16,12 +16,16 @@ sample_interval: 0.1
 search: null
 run_step_interval: 3
 start: true
-max_age: 1000
-threads_per_worker: 64
-timeout: 10
-timeout_info: 4
-verbose: false
-debug: false
-vote_interval: 100
-workers: 1
-skip_run_loop: false
+max_age: 1000 # the maximum age of the worker
+threads_per_worker: 64 
+timeout: 10 # timeout for the worker
+timeout_info: 4 # the timeout for the info worker
+verbose: false #
+debug: false # This is the key that we need to change to true
+vote_interval: 100 # the number of iterations to wait before voting
+workers: 1 # the number of workers
+run_loop: true # This is the key that we need to change to false
+module_eval_keys : ['w', 'address', 'name', 'key', 'latency', 'staleness']
+expected_info_keys : ['w', 'address', 'name', 'key']
+score_fns : ['score_module', 'score'] # the score functions
+

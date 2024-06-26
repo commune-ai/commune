@@ -6,8 +6,6 @@ from typing import *
 
 class Vali(c.Module):
 
-    voting_networks= ['subspace', 'bittensor']
-    score_fns = ['score_module', 'score'] # the score functions
     whitelist = ['eval_module', 'score_module', 'eval', 'leaderboard']
 
     def __init__(self,
@@ -15,32 +13,23 @@ class Vali(c.Module):
                  **kwargs):
         self.init_vali(config=config, **kwargs)
 
-
-    @classmethod
-    def setup_vali(cls, 
-                   module,
-                   config=None, 
-                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard', 'run_epoch'],
-                   **kwargs):
-        
-        c.resolve_module(module)
-        vali = cls(module=module, config=config, **kwargs)
-        for fn in functions:
-            setattr(module, fn, getattr(vali, fn))
-        return module
-
     def set_score_fn(self, score_fn: Union[Callable, str] = None, module=None):
         """
         Set the score function for the validator
         """
+        module = module or self 
+        score_fn_options = []
         if score_fn == None:
-            score_fn = self.score_module
-        if isinstance(score_fn, str):
-            score_fn = c.get_fn(score_fn)
-        if hasattr(self, 'score'):
-            score_fn = self.score
-        self.score_module = score_fn
-        return {'success': True, 'msg': 'Set score function', 'score_fn': score_fn.__name__}
+            for fn in self.config.score_fns:
+                if hasattr(module, fn):
+                    score_fn_options += [fn]
+            score_fn =  score_fn_options[0]
+            assert len(score_fn_options) == 1, f'Bruhhhh, you have multiple score functions {score_fn_options}, choose one fam'
+        else:
+            if isinstance(score_fn, str):
+                score_fn = c.get_fn(score_fn)
+        self.score = getattr(self, score_fn)
+        return {'success': True, 'msg': 'Set score function', 'score_fn': self.score.__name__}
 
     def init_state(self):
         # COUNT METRICS
@@ -56,6 +45,8 @@ class Vali(c.Module):
         self.last_sent = 0  # the last time a request was sent
         self.last_success = 0 # the last time a success was made
         self.start_time = c.time()
+        self.results = []
+        self.futures = []
 
     def set_module(self, 
                    module:str, 
@@ -63,7 +54,7 @@ class Vali(c.Module):
 
         if isinstance(module, str):
             module = c.module(module, **kwargs)()
-        does_module_have_score_fn = any([hasattr(module, fn) for fn in self.score_fns])
+        does_module_have_score_fn = any([hasattr(module, fn) for fn in self.config.score_fns])
         assert does_module_have_score_fn, f'Module must have a score function, got {module}'
         if hasattr(module, 'storage_dir'):
             storage_path = self.storage_dir()
@@ -75,25 +66,22 @@ class Vali(c.Module):
     def init_vali(self, config=None, module=None, score_fn=None, **kwargs):
         # initialize the validator
         # merge the config with the default config
-        self.init_state()
         if module != None:
             self.set_module(module, **kwargs)
-
-
         config = self.set_config(config, kwargs=kwargs)
-
         config = c.dict2munch({**Vali.config(), **config})
         config.verbose = bool(config.verbose or config.debug)
-        self.set_score_fn(score_fn)
-        self.futures = [] # futures for the executor 
         self.config = config
+
+        self.init_state()
+        self.set_score_fn(score_fn)
         self.set_network(network=self.config.network, 
                      search=config.search,  
                      netuid=config.netuid, 
                      fn= config.fn,
                      max_age = config.max_age)
-        
-        if not self.config.skip_run_loop:
+        # start the run loop
+        if self.config.run_loop:
             c.thread(self.run_loop)
         
     init = init_vali
@@ -133,7 +121,7 @@ class Vali(c.Module):
     
     @property
     def is_voting_network(self):
-        return any([v in self.config.network for v in self.voting_networks])
+        return any([v in self.config.network for v in self.config.voting_networks])
     
     @property
     def last_start_staleness(self):
@@ -143,22 +131,20 @@ class Vali(c.Module):
         """
         The following runs a step in the validation loop
         """
+
         self.sync()
         run_info = self.run_info()
-        if self.success_staleness > self.config.max_success_staleness and self.last_start_staleness > self.config.max_success_staleness:
+        should_start_workers = self.success_staleness > self.config.max_success_staleness and self.last_start_staleness > self.config.max_success_staleness
+        if should_start_workers:
             c.print('Too many stale successes, restarting workers', color='red')
             self.start_workers()
-        run_info['executor_status'] = run_info['epoch'].pop('executor_status')
         if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
+            buffer = '='*10
+            c.print(buffer+'Voting'+buffer, color='cyan')
             c.print(self.vote())
-        run_info['leaderboard'] = self.leaderboard()
-        buffer = '-'*20
-        for k,v in run_info.items():
-            c.print(f'**{buffer}{k.upper()}{buffer}**')
-            if isinstance(v, dict):
-                v = c.df([v])
-            c.print(v)
-        
+        c.print(run_info)
+        c.print(buffer+f'Epoch {self.epochs} with {self.n} modules', color='yellow'+buffer)
+        c.print(self.leaderboard())
 
     def run_loop(self):
         """
@@ -171,7 +157,6 @@ class Vali(c.Module):
         self.sync()
         # sleep for the initial sleep time
         c.sleep(self.config.initial_sleep)
-
         # start the workers
         self.start_workers()
 
@@ -232,13 +217,26 @@ class Vali(c.Module):
     def generate_finished_result(self):
         try:
             for future in c.as_completed(self.futures, timeout=self.config.timeout):
-                result = future.result()
                 self.futures.remove(future) 
+                result = future.result()
+                emoji =  '🟢' if result['w'] > 0 else '🔴'
+
                 if c.is_error(result):
-                    c.print(result, color='red') 
+                    msg =  f'ERROR(w={result["w"]} error={result["error"]})'
+                    c.print(emoji + + emoji, color='red', verbose=self.verbose)
+                else:
+                    msg = ' '.join([f'{k}={result[k]}' for k in self.config.module_eval_keys if k in result])
+                    msg = f'SUCCESS({msg})'
+
+                result = {k:result[k] for k in self.config.module_eval_keys if k in result}
+
                 break
         except Exception as e:
+            emoji = '🔴'
             result = c.detailed_error(e)
+            msg = f'Error {result}'
+
+        c.print(emoji + msg + emoji, color='cyan', verbose=self.verbose)
         return result
 
 
@@ -249,10 +247,10 @@ class Vali(c.Module):
     epoch2results = {}
 
     @classmethod
-    def run_epoch(cls, network='local', vali=None, skip_run_loop=True,  **kwargs):
+    def run_epoch(cls, network='local', vali=None, run_loop=False,  **kwargs):
         if vali != None:
             cls = c.module(vali)
-        self = cls(network=network, skip_run_loop=skip_run_loop, **kwargs)
+        self = cls(network=network, run_loop=run_loop, **kwargs)
         return self.epoch()
 
     def epoch(self,  **kwargs):
@@ -282,8 +280,8 @@ class Vali(c.Module):
                     result = self.generate_finished_result()
                     results.append(result)
 
+
             while len(self.futures) > 0:
-                
                 result = self.generate_finished_result()
                 results.append(result)
 
@@ -291,17 +289,19 @@ class Vali(c.Module):
             c.print(c.detailed_error(e), color='red')
 
         results = [r for r in results if not c.is_error(r)]
-        return c.df(results)
+        print(len(results))
+        df =  c.df(results)
+        df = df.sort_values(by='w', ascending=False)
+        return df
 
 
     @property
-    def network_staleness(self):
-        # return the time since the last sync with the network
+    def network_staleness(self) -> int:
+        """
+        The staleness of the network
+        """
         return c.time() - self.last_sync_time
 
-    def is_voting_network(self):
-        return 'subspace' in self.config.network or 'bittensor' in self.config.network
-    
     def filter_module(self, module:str, search=None):
         search = search or self.config.search
         if ',' in str(search):
@@ -321,8 +321,6 @@ class Vali(c.Module):
         config.search =  search or config.search
         config.netuid =  netuid or config.netuid
         config.max_age = max_age or config.max_age
-
-
 
         if self.network_staleness < config.max_age:
             return {'msg': 'Alredy Synced network Within Interval', 
@@ -376,7 +374,7 @@ class Vali(c.Module):
     def verbose(self):
         return self.config.verbose or self.config.debug
 
-    def score_module(self, module: 'c.Module'):
+    def score(self, module: 'c.Module'):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
         info = module.info()
         assert isinstance(info, dict) and not c.is_error(info), f'Info must be a dictionary, got {info}'
@@ -387,91 +385,71 @@ class Vali(c.Module):
 
     module2last_update = {}
 
-    def is_info(info, expected_dict_keyes = ['w', 'address', 'name', 'key']):
-        is_info = isinstance(info, dict) and all([k in info for k in expected_dict_keyes])
-        return is_info
-
-
     def get_module_path(self, module):
         if module in self.address2name:
             module = self.address2name[module]
         path = self.resolve_path(self.storage_path() +'/'+ module)
         return path
 
-
-    def get_module_client(self, 
-                   module:str, 
-                    path=None, update=False, **kwargs):
-        info = {}
-        address = None
-        # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
+    def resolve_module_address(self, module):
+        """
+        reoslve the module address
+        """
         if module in self.name2address:
-            name = module
             address = self.name2address[module]
         else:
             assert module in self.address2name, f"{module} is not found in {self.config.network}"
-            name = self.address2name[module]
             address = module
-        assert name != self.server_name, f'Cannot call the server name {self.server_name}'
-        path = self.get_module_path(module)
-        module = c.connect(address, key=self.key)
-        info = self.get_json(path, {})
-        info['name'] = name
-        info['staleness'] = c.time() -  info.get('timestamp', 0)   
+            
+        return address
+    
 
-        if info['staleness'] < self.config.max_staleness:
-            self.staleness_count += 1
-            raise Exception({'module': info['name'], 
-                'msg': 'Module is too new and w', 
-                'staleness': info['staleness'], 
-                'max_staleness': self.config.max_staleness,
-                'timeleft': self.config.max_staleness - info['staleness'], 
-                })
+    def check_info(self, info:dict) -> bool:
+        return bool(isinstance(info, dict) and all([k in info for k in self.config.expected_info_keys]))
 
-        if not self.is_info(info):
-            info = module.info(timeout=self.config.timeout_info)
-        info['timestamp'] = c.timestamp() # the timestamp
-        info['w'] = info.get('w', 0) # the weight from the module
-        info['past_w'] = info['w'] # for the alpha 
-        info['path'] = path # path of saving the module
-        info['name'] = name # name of the module cleint
-        info['address'] = address # address of the module client
-        info['alpha'] = self.config.alpha # ensure alpha is [0,1]
-        module.info = lambda *args, **kwargs: info
 
-        return module
 
-    def eval(self, 
-             module:str, 
-             update=False,
-             verbose_keys= ['w', 'address', 'name', 'key', 'latency', 'staleness'],
-              **kwargs):
+    def eval(self,  module:str, **kwargs):
         """
         The following evaluates a module sver
         """
+        self.sync()
         info = {}
         try:
-            module = self.get_module_client(module=module, update=update)
-    
-            info = module.info()
+            info = {}
+            # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
+            address = self.resolve_module_address(module)
+            path = self.get_module_path(module)
+            module = c.connect(address, key=self.key)
+            info = self.get_json(path, {})
+            last_timestamp = info.get('timestamp', 0)
+            info['staleness'] = c.time() -  last_timestamp
+            if info['staleness'] < self.config.max_staleness:
+                self.staleness_count += 1
+                raise Exception({'module': info['name'], 
+                    'msg': 'Module is too new and w', 
+                    'staleness': info['staleness'], 
+                    'max_staleness': self.config.max_staleness,
+                    'timeleft': self.config.max_staleness - info['staleness'], 
+                    })
+            # is the info valid
+            if not self.check_info(info):
+                info = module.info(timeout=self.config.timeout_info)
+            info['timestamp'] = c.timestamp() # the timestamp
+            info['w'] = info.get('w', 0) # the weight from the module
+            info['past_w'] = info['w'] # for calculating alpha
+            info['path'] = path # path of saving the module
             self.last_sent = c.time()
             self.requests += 1
-            response = self.score_module(module, **kwargs)
+            response = self.score(module, **kwargs)
             response = self.process_response(response=response, info=info)
-            if c.is_error(response):
-                response['w'] = 0
-                return response
-            response = {k:response[k] for k in verbose_keys}
-
         except Exception as e:
             response = c.detailed_error(e)
             response['w'] = 0
-            response['name'] = name = info.get('name', module)
-            response_str = '('+' '.join([f"{k}={response[k]}" for k in ['line_text', 'line_no', 'file_name' ]]) + ')'
-            c.print(f'Error (name={name}) --> {response_str} {response}', color='red', verbose=self.verbose)
+            response['name'] = info.get('name', module)
             self.errors += 1
-            self.last_error  = c.time()
-        
+            self.last_error  = c.time() # the last time an error occured
+
         return response
 
 
@@ -504,7 +482,7 @@ class Vali(c.Module):
         info.update(response)
         # resolve the alph
         info['latency'] = c.round(c.time() - info['timestamp'], 3)
-        info['w'] = info['w']  * info['alpha'] + info['past_w'] * (1 - info['alpha'])
+        info['w'] = info['w']  * self.config.alpha + info['past_w'] * (1 - self.config.alpha)
         info['history'] = info.get('history', []) + [{'w': info['w'], 'timestamp': info['timestamp']}]
         # store modules that
         #  have a minimum weight to save storage of stale modules
@@ -513,7 +491,6 @@ class Vali(c.Module):
         self.successes += 1
         self.last_success = c.time()
         info['staleness'] = c.round(c.time() - info.get('timestamp', 0), 3)
-        c.print(f'Result(score={info["w"]} name={info["name"]} address={info["address"]} latency={info["latency"]} staleness={info["staleness"]} )' , color='green')
 
         return info
 
@@ -538,7 +515,7 @@ class Vali(c.Module):
         
     def vote_info(self):
         try:
-            if not self.is_voting_network():
+            if not self.is_voting_network:
                 return {'success': False, 
                         'msg': 'Not a voting network' , 
                         'network': self.config.network , 
@@ -699,5 +676,40 @@ class Vali(c.Module):
           
 
             }
+    
+
+    @classmethod
+    def from_module(cls, 
+                   module,
+                   config=None, 
+                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard', 'run_epoch'],
+                   **kwargs):
+        
+        module = c.resolve_module(module)
+        vali = cls(module=module, config=config, **kwargs)
+        for fn in functions:
+            setattr(module, fn, getattr(vali, fn))
+        return module
+    
+
+    @classmethod
+    def from_function(cls, 
+                   function,
+                   config=None, 
+                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard', 'run_epoch'],
+                   **kwargs):
+        vali = cls(config=config, **kwargs)
+        for fn in functions:
+            setattr(vali, fn, function)
+        return vali
+
+    def print_header(self):
+
+        module_path = self.module_path()
+        buffer='='*40
+        c.print(buffer*2)
+        c.print(buffer + module_path +  ' ' + buffer[len(module_path):])
+        c.print(buffer*2)
+    
     
 Vali.run(__name__)

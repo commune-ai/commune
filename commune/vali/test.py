@@ -3,7 +3,8 @@ import commune as c
 import pandas as pd
 
 class Test(c.Module):
-    def test(self, n=3, 
+    @staticmethod
+    def test(cls, n=3, 
              sleep_time=8, 
              timeout = 20,
              tag = 'test',
