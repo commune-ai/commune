@@ -23,7 +23,7 @@ class Server(c.Module):
         history_path:str = None , 
         nest_asyncio = True,
         new_loop = True,
-        max_bytes = 1024 * 1024,  # 1 MB limit
+        max_bytes = 10 * 1024 * 1024,  # 1 MB limit
         mnemonic = None,
         **kwargs
         ) -> 'Server':

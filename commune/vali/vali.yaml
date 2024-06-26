@@ -5,7 +5,7 @@ subnet : null # (OPTIONAL) the subnet name which overrides the netuid if it is n
 search: null # (OPTIONAL) the search string for the network 
 max_network_staleness: 60 # the maximum staleness of the network
 # LOGGING CONFIGURATION
-verbose: false # the verbose mode for the worker
+verbose: true # the verbose mode for the worker
 debug : false # this is also the same as verbose (we need to change this to true)
 
 # WORKER EPOCH CONFIGURATION

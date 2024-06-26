@@ -230,7 +230,9 @@ class Vali(c.Module):
             emoji = '🔴'
             result = c.detailed_error(e)
             msg = f'Error({result})'
-        c.print(emoji + msg + emoji, color='cyan', verbose=self.verbose)
+        c.print(emoji + msg + emoji, 
+                color='cyan', 
+                verbose=self.config.verbose)
         return result
 
 
@@ -452,33 +454,23 @@ class Vali(c.Module):
         if not type(response['w']) in [int, float]:
             raise f'Response weight must be a number, got {response["w"]} with result : {response}'
         
-        
-
     def process_response(self, response:dict, info:dict ):
-
-
         """
-
         Process the response from the score_module
         params:
             response
         """
-        # PROCESS THE RESPONSE
         self.check_response(response)
-        # merge response into modules info
         info.update(response)
-        # resolve the alph
         info['latency'] = c.round(c.time() - info['timestamp'], 3)
         info['w'] = info['w']  * self.config.alpha + info['past_w'] * (1 - self.config.alpha)
         info['history'] = info.get('history', []) + [{'w': info['w'], 'timestamp': info['timestamp']}]
-        # store modules that
         #  have a minimum weight to save storage of stale modules
         if info['w'] > self.config.min_leaderboard_weight:
             self.put_json(info['path'], info)
         self.successes += 1
         self.last_success = c.time()
         info['staleness'] = c.round(c.time() - info.get('timestamp', 0), 3)
-
         return info
 
     

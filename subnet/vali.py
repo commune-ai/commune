@@ -10,7 +10,7 @@ class Vali(c.Vali):
                  search='miner', 
                  netuid = 0,
                  alpha = 1.0,
-                 n = 10,
+                 n = 50,
                  local_miner = 'subnet.miner',
                  network = 'local',
                  **kwargs):
@@ -28,12 +28,14 @@ class Vali(c.Vali):
     def score(self, module):
         if isinstance(module, str):
             module = c.connect(module)
-        sample = self.get_sample()
+        sample = self.get_sample(n=self.config.n)
         local_response = self.local_miner.forward(sample['x'], sample['y'], n=self.config.n)
         t0 = c.time()
         remote_response = module.forward(sample['x'], sample['y'] + 1, n=self.config.n)
         t1 = c.time()
         latency = t1 - t0
+        if isinstance(remote_response, dict):
+            print(remote_response)
         score = self.clip_distance(x=local_response, y=remote_response)
         return {'w': score, 'latency': latency}
 
