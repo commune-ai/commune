@@ -7,18 +7,19 @@ class Vali(c.Vali):
     whitelist = ['get_module', 'eval_module', 'leaderboard']
 
     def __init__(self, 
-                 search='matmul.miner', 
+                 search='miner', 
                  netuid = 0,
                  alpha = 1.0,
                  n = 10,
+                 local_miner = 'subnet.miner',
                  network = 'local',
                  **kwargs):
         self.init_vali(locals())
-        self.local_miner = c.module('matmul.miner')()
+        self.local_miner = c.module(local_miner)()
 
     def get_sample(self, n=10):
         return dict( x =  torch.rand(n, n) ,
-                y = torch.rand(n, n))
+                     y = torch.rand(n, n))
 
     def clip_distance(self, x, y):
         return min(max(torch.norm(x - y).item(), 0), 1)

@@ -22,7 +22,8 @@ class Config:
         # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
         config = config or {}
         config.update(kwargs)
-        config = {**self.load_config(), **config}
+        default_config = self.config if not callable(self.config) else self.config()
+        config = {**default_config, **config}
         if 'kwargs' in config:
             config.update(config.pop('kwargs'))
         if isinstance(config, dict):
@@ -45,9 +46,13 @@ class Config:
         '''
         Returns the config
         '''
-        return cls.load_config()
-
-
+        config = cls.load_config()
+        if not config:
+            if hasattr(cls, 'init_kwargs'):
+                config = cls.init_kwargs()
+            else:
+                config = {}
+        return config
 
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = True , default=None) -> Union[Munch, Dict]:

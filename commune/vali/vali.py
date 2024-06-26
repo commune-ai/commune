@@ -78,8 +78,7 @@ class Vali(c.Module):
         self.set_network(network=self.config.network, 
                      search=config.search,  
                      netuid=config.netuid, 
-                     fn= config.fn,
-                     max_age = config.max_age)
+                     max_age = config.max_network_staleness)
         # start the run loop
         if self.config.run_loop:
             c.thread(self.run_loop)
@@ -155,8 +154,6 @@ class Vali(c.Module):
         
         """
         self.sync()
-        # sleep for the initial sleep time
-        c.sleep(self.config.initial_sleep)
         # start the workers
         self.start_workers()
 
@@ -222,20 +219,17 @@ class Vali(c.Module):
                 emoji =  '🟢' if result['w'] > 0 else '🔴'
 
                 if c.is_error(result):
-                    msg =  f'ERROR(w={result["w"]} error={result["error"]})'
-                    c.print(emoji + + emoji, color='red', verbose=self.verbose)
+                    msg = ' '.join([f'{k}={result[k]}' for k in result.keys()])
+                    msg =  f'ERROR({msg})'
                 else:
-                    msg = ' '.join([f'{k}={result[k]}' for k in self.config.module_eval_keys if k in result])
+                    result = {k: result[k] for k in self.config.result_keys}
+                    msg = ' '.join([f'{k}={result[k]}' for k in result])
                     msg = f'SUCCESS({msg})'
-
-                result = {k:result[k] for k in self.config.module_eval_keys if k in result}
-
                 break
         except Exception as e:
             emoji = '🔴'
             result = c.detailed_error(e)
-            msg = f'Error {result}'
-
+            msg = f'Error({result})'
         c.print(emoji + msg + emoji, color='cyan', verbose=self.verbose)
         return result
 
@@ -261,7 +255,7 @@ class Vali(c.Module):
             module_addresses = c.shuffle(list(self.namespace.values()))
             c.print(f'Epoch {self.epochs} with {len(module_addresses)} modules', color='yellow')
             batch_size = min(self.config.batch_size, len(module_addresses)//4)
-            self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker,  maxsize=self.config.maxsize)
+            self.executor = c.module('executor.thread')(max_workers=self.config.threads_per_worker,  maxsize=self.config.max_size)
             
             self.sync(network=self.config.network)
 
@@ -272,7 +266,6 @@ class Vali(c.Module):
             c.print(f'Starting epoch {self.current_epoch} with n={n}',)
 
             for module_address in module_addresses:
-                c.sleep(self.config.sample_interval)
                 if not self.executor.is_full:
                     future = self.executor.submit(self.eval, kwargs={'module': module_address},timeout=timeout)
                     self.futures.append(future)
@@ -290,9 +283,12 @@ class Vali(c.Module):
 
         results = [r for r in results if not c.is_error(r)]
         print(len(results))
-        df =  c.df(results)
-        df = df.sort_values(by='w', ascending=False)
-        return df
+        if len(results) > 0 and 'w' in results[0]:
+            df =  c.df(results)
+            df = df.sort_values(by='w', ascending=False)
+            return df
+        else:
+            return results
 
 
     @property
@@ -313,30 +309,25 @@ class Vali(c.Module):
     
     def set_network(self, 
                      network:str=None, 
-                     search:str=None,  
-                     netuid:int=None, 
-                     max_age:int = None, **kwargs):
+                     netuid:int=None,**kwargs):
         config = self.config
         config.network = network or config.network
-        config.search =  search or config.search
         config.netuid =  netuid or config.netuid
-        config.max_age = max_age or config.max_age
-
-        if self.network_staleness < config.max_age:
+        if len(kwargs) > 0:
+            config = c.dict2munch({**config, **kwargs})
+            
+        if self.network_staleness < config.max_network_staleness:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'staleness': self.network_staleness, 
-                    'max_age': self.config.max_age,
+                    'max_network_staleness': self.config.max_network_staleness,
                     'network': self.config.network, 
                     'netuid': self.config.netuid, 
                     'n': self.n,
-                    'fn': self.config.fn,
                     'search': self.config.search,
                     }
-        c.print(f'Syncing network={config.network}, netuid={config.netuid} staleness={self.network_staleness} max_age={config.max_age}')
-
+        c.print(f'Network(network={config.network}, netuid={config.netuid} staleness={self.network_staleness})')
         self.last_sync_time = c.time()
-        config = self.config
-        # name2address / namespace
+
         # RESOLVE THE VOTING NETWORKS
         if 'local' in config.network:
             # local network does not need to be updated as it is atomically updated
@@ -349,11 +340,9 @@ class Vali(c.Module):
                 config.netuid = self.subspace.subnet2netuid(config.netuid)
             if '/' in config.network:
                 _ , config.network = config.network.split('/')
-                
             self.subspace = c.module('subspace')(network=config.network)
             config.network = 'subspace' + '/' + str(self.subspace.network)
-            max_age = max_age or self.config.sync_interval
-            namespace = self.subspace.namespace(netuid=config.netuid, max_age=config.max_age)  
+            namespace = self.subspace.namespace(netuid=config.netuid, max_age=config.max_network_staleness)  
         else:
             raise Exception(f'Invalid network {config.network}')
         self.namespace = namespace
@@ -362,8 +351,6 @@ class Vali(c.Module):
         self.name2address = self.namespace
         self.address2name = {k:v for v, k in namespace.items()}
         self.module2name = {v: k for k, v in self.namespace.items()}  
-        self.netuid = netuid
-        self.search = search
         self.config = config
         c.print(f'Synced network {config.network} with {self.n} modules', color='green')
         return self.network_info()
@@ -663,7 +650,6 @@ class Vali(c.Module):
             'network': self.config.network, 
             'netuid': self.config.netuid, 
             'n': self.n,
-            'fn': self.config.fn,
             'staleness': self.network_staleness,
 
         }

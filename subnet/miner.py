@@ -9,6 +9,7 @@ class MatMul(c.Module):
         if x is None or y is None:
             x =  torch.rand(n, n, device=self.device) 
             y = torch.rand(n, n, device=self.device)
+            
         return torch.matmul(x, y)
     
     def test(self, n=3):
