@@ -20,7 +20,7 @@ class Vali(c.Module):
     def setup_vali(cls, 
                    module,
                    config=None, 
-                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard'],
+                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard', 'run_epoch'],
                    **kwargs):
         
         c.resolve_module(module)
@@ -29,18 +29,18 @@ class Vali(c.Module):
             setattr(module, fn, getattr(vali, fn))
         return module
 
-    def set_score_fn(self, score_fn: Union[Callable, str], module=None):
+    def set_score_fn(self, score_fn: Union[Callable, str] = None, module=None):
         """
         Set the score function for the validator
         """
-        if score_fn != None:
-            return {'success': True, 'msg': 'Default fn being used'}
+        if score_fn == None:
+            score_fn = self.score_module
         if isinstance(score_fn, str):
-            fn = c.get_fn(score_fn)
-        if not callable(score_fn):
-            return {'success': False, 'msg': 'Score function must be callable'}
+            score_fn = c.get_fn(score_fn)
+        if hasattr(self, 'score'):
+            score_fn = self.score
         self.score_module = score_fn
-        return {'success': True, 'msg': 'Set score function', 'score_fn': self.score_fn.__name__}
+        return {'success': True, 'msg': 'Set score function', 'score_fn': score_fn.__name__}
 
     def init_state(self):
         # COUNT METRICS
@@ -79,7 +79,9 @@ class Vali(c.Module):
         if module != None:
             self.set_module(module, **kwargs)
 
+
         config = self.set_config(config, kwargs=kwargs)
+
         config = c.dict2munch({**Vali.config(), **config})
         config.verbose = bool(config.verbose or config.debug)
         self.set_score_fn(score_fn)
@@ -231,8 +233,9 @@ class Vali(c.Module):
         try:
             for future in c.as_completed(self.futures, timeout=self.config.timeout):
                 result = future.result()
-                self.futures.remove(future)  
-                result =  result
+                self.futures.remove(future) 
+                if c.is_error(result):
+                    c.print(result, color='red') 
                 break
         except Exception as e:
             result = c.detailed_error(e)
@@ -248,7 +251,7 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', vali=None, skip_run_loop=True,  **kwargs):
         if vali != None:
-            cls = c.module('vali.'+vali)
+            cls = c.module(vali)
         self = cls(network=network, skip_run_loop=skip_run_loop, **kwargs)
         return self.epoch()
 
@@ -280,8 +283,8 @@ class Vali(c.Module):
                     results.append(result)
 
             while len(self.futures) > 0:
+                
                 result = self.generate_finished_result()
-
                 results.append(result)
 
         except Exception as e:
@@ -416,12 +419,12 @@ class Vali(c.Module):
         info['name'] = name
         info['staleness'] = c.time() -  info.get('timestamp', 0)   
 
-
         if info['staleness'] < self.config.max_staleness:
             self.staleness_count += 1
             raise Exception({'module': info['name'], 
                 'msg': 'Module is too new and w', 
                 'staleness': info['staleness'], 
+                'max_staleness': self.config.max_staleness,
                 'timeleft': self.config.max_staleness - info['staleness'], 
                 })
 
@@ -449,6 +452,7 @@ class Vali(c.Module):
         info = {}
         try:
             module = self.get_module_client(module=module, update=update)
+    
             info = module.info()
             self.last_sent = c.time()
             self.requests += 1

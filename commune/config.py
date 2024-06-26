@@ -17,18 +17,14 @@ class Config:
         '''
         Set the config as well as its local params
         '''
-        kwargs = kwargs if kwargs != None else {}
+        kwargs = kwargs or {}
         kwargs.update(extra_kwargs)
-
         # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
-        if config == None:
-            config = {}
-        default_config = self.load_config()
-        config = {**default_config, **config}
-        
-        for k,v in kwargs.items():
-            config[k] = v
-
+        config = config or {}
+        config.update(kwargs)
+        config = {**self.load_config(), **config}
+        if 'kwargs' in config:
+            config.update(config.pop('kwargs'))
         if isinstance(config, dict):
             config = self.dict2munch(config)
         # get the config

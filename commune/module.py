@@ -1394,8 +1394,13 @@ class c(Config, Schema, Misc):
         if cls.is_root_module():
             # if the cls is the root_moduel 
             include_parents = True
+            avoid_fns = []
+        else:
+            include_parents = True
+            avoid_fns =  c.functions()
         module = cls.resolve_object(module)
         functions = cls.get_functions(include_parents=include_parents, search=search)  
+        functions = [f for f in functions if f not in avoid_fns]
         return functions
 
     fns = functions
