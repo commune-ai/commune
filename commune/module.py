@@ -536,7 +536,7 @@ class c(Config, Schema, Misc):
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
 
-        if extension != None and not ath.endswith(extension):
+        if extension != None and not path.endswith(extension):
             path = path + '.' + extension
 
         return path
