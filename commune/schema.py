@@ -802,12 +802,7 @@ class Schema:
         '''
         return [fn for fn in dir(cls) if cls.is_property(fn)]
     
-    _root_fns = None
-    @classmethod
-    def root_fns(cls):
-        if cls._root_fns == None:
-            cls._root_fns = cls.get_module('module').fns()
-        return cls._root_fns
+
 
     @classmethod
     def get_functions(cls, obj: Any = None,
@@ -837,8 +832,7 @@ class Schema:
             avoid_fns = cls.root_fns()
         else:
             avoid_fns = []
-        
-
+    
 
         for fn_name in dir_list:
 
@@ -1018,4 +1012,4 @@ class Schema:
         return module2fn2str
 
     # TAG CITY     
-        
+ 

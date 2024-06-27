@@ -8,8 +8,6 @@ import commune as c
 from typing import *
 
 
-
-
 class Protocal(c.Module):
 
 
@@ -57,8 +55,6 @@ class Protocal(c.Module):
         module.key = c.get_key(key or module.name, create_if_not_exists=True)
         self.module = module
 
-
-                
     def resolve_input_v1(self, input):
         """
         {
@@ -189,10 +185,4 @@ class Protocal(c.Module):
 
         return output
     
-
-
-
-
-            
-
 

@@ -1610,8 +1610,92 @@ class Subspace( c.Module, SubspaceWallet):
         else:
             return self.query( 'N', params=[netuid], block=block , update=update,  **kwargs)
 
+    def global_params(self, 
+                    update = False,
+                    max_age = 1000,
+                    timeout=30,
+                    fmt:str='j', 
+                    features  = None,
+                    value_features = [],
+                    path = f'global_params',
+                    **kwargs
+                    ) -> list:  
+        
+        features = features or self.config.global_features
+        subnet_params = self.get(path, None, max_age=max_age, update=update)
+        names = [self.feature2name(f) for f in features]
+        future2name = {}
+        name2feature = dict(zip(names, features))
+        for name, feature in name2feature.items():
+            c.print(f'Getting {name} for {feature}')
+            query_kwargs = dict(name=feature, params=[], block=None, max_age=max_age, update=update)
+            f = c.submit(self.query, kwargs=query_kwargs, timeout=timeout)
+            future2name[f] = name
+        
+        subnet_params = {}
+
+        for f in c.as_completed(future2name):
+            result = f.result()
+            subnet_params[future2name.pop(f)] = result
+        for k in value_features:
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+        return subnet_params
 
 
+       
+
+    
+    def get_module(self, 
+                    module=None,
+                    netuid=0,
+                    trials = 4,
+                    fmt='j',
+                    mode = 'http',
+                    block = None,
+                    max_age = None,
+                    lite = True, 
+                    update = False,
+                    **kwargs ) -> 'ModuleInfo':
+        if module == None:
+            module = self.keys(netuid=netuid, update=update, max_age=max_age)[0]
+            c.print(f'No module specified, using {module}')
+
+        url = self.resolve_url( mode=mode)
+        module_key = module
+        is_valid_key = c.valid_ss58_address(module)
+        print(is_valid_key, module_key)
+        if not is_valid_key:
+            module_key = self.name2key(name=module,  netuid=netuid, **kwargs)
+        netuid = self.resolve_netuid(netuid)
+        json={'id':1, 'jsonrpc':'2.0',  'method': 'subspace_getModuleInfo', 'params': [module_key, netuid]}
+        module = None
+        for i in range(trials):
+            try:
+                module = requests.post(url,  json=json).json()
+                break
+            except Exception as e:
+                c.print(e)
+                continue
+        print(module)
+        assert module != None, f"Failed to get module {module_key} after {trials} trials"
+        module = {**module['result']['stats'], **module['result']['params']}
+        # convert list of u8 into a string Vector<u8> to a string
+        module['name'] = self.vec82str(module['name'])
+        module['address'] = self.vec82str(module['address'])
+        module['dividends'] = module['dividends'] / (U16_MAX)
+        module['incentive'] = module['incentive'] / (U16_MAX)
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake'] = sum([v for k,v in module['stake_from'].items() ])
+        module['emission'] = self.format_amount(module['emission'], fmt=fmt)
+        module['key'] = module.pop('controller', None)
+        module['metadata'] = module.pop('metadata', {})
+
+        module['vote_staleness'] = (block or self.block) - module['last_update']
+        if lite :
+            features = self.config.module_features + ['stake', 'vote_staleness']
+            module = {f: module[f] for f in features}
+        assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
+        return module
 
 
 
