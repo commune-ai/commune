@@ -7,6 +7,38 @@ from munch import Munch
 class Schema:
 
     @classmethod
+    def schema(cls,
+                search = None,
+                module = None,
+                fn = None,
+                docs: bool = True,
+                include_parents:bool = False,
+                defaults:bool = True, cache=False) -> 'Schema':
+        
+        if '/' in str(search):
+            module, fn = search.split('/')
+            cls = cls.module(module)
+        if isinstance(module, str):
+            if '/' in module:
+                module , fn = module.split('/')
+            module = cls.module(module)
+
+        module = module or cls
+        schema = {}
+        fns = module.get_functions(include_parents=include_parents)
+        for fn in fns:
+            if search != None and search not in fn:
+                continue
+            if callable(getattr(module, fn )):
+                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
+
+        # sort by keys
+        schema = dict(sorted(schema.items()))
+
+        return schema
+        
+
+    @classmethod
     def get_function_annotations(cls, fn):
         fn = cls.get_fn(fn)
         if not hasattr(fn, '__annotations__'):
@@ -165,65 +197,6 @@ class Schema:
             obj = type(obj)
         return obj.__name__
     
-    @classmethod
-    def fn_schema(cls, fn:str,
-                            defaults:bool=True,
-                            code:bool = False,
-                            docs:bool = True, 
-                            version=2)->dict:
-        '''
-        Get function schema of function in cls
-        '''
-        fn_schema = {}
-        fn = cls.get_fn(fn)
-        fn_schema['input']  = cls.get_function_annotations(fn=fn)
-        
-        for k,v in fn_schema['input'].items():
-            v = str(v)
-            if v.startswith('<class'):
-                fn_schema['input'][k] = v.split("'")[1]
-            elif v.startswith('typing.'):
-                fn_schema['input'][k] = v.split(".")[1].lower()
-            else:
-                fn_schema['input'][k] = v
-                
-        fn_schema['output'] = fn_schema['input'].pop('return', {})
-        
-        if docs:         
-            fn_schema['docs'] =  fn.__doc__ 
-        if code:
-            fn_schema['code'] = cls.fn_code(fn)
- 
-        fn_args = cls.get_function_args(fn)
-        fn_schema['type'] = 'static'
-        for arg in fn_args:
-            if arg not in fn_schema['input']:
-                fn_schema['input'][arg] = 'NA'
-            if arg in ['self', 'cls']:
-                fn_schema['type'] = arg
-                fn_schema['input'].pop(arg)
-                if 'default' in fn_schema:
-                    fn_schema['default'].pop(arg, None)
-
-
-        if defaults:
-            fn_schema['default'] = cls.fn_defaults(fn=fn) 
-            for k,v in fn_schema['default'].items(): 
-                if k not in fn_schema['input'] and v != None:
-                    fn_schema['input'][k] = type(v).__name__ if v != None else None
-           
-        if version == 1:
-            pass
-        elif version == 2:
-            defaults = fn_schema.pop('default', {})
-            fn_schema['input'] = {k: {'type':v, 'default':defaults.get(k)} for k,v in fn_schema['input'].items()}
-        else:
-            raise Exception(f'Version {version} not implemented')
-                
-
-        return fn_schema
-    
-
 
     @classmethod
     def fn_signature_map(cls, obj=None, include_parents:bool = False):
@@ -265,7 +238,7 @@ class Schema:
             x = dict(x)
             for k,v in x.items():
                 if isinstance(v, Munch) and recursive:
-                    x[k] = c.munch2dict(v)
+                    x[k] = cls.munch2dict(v)
 
         return x 
 
@@ -290,66 +263,10 @@ class Schema:
 
 
 
-    @classmethod
-    def get_fn(cls, fn:str):
-        
-
-        """
-        
-        Gets the function from a string or if its an attribute 
-        """
-
-        if isinstance(fn, str):
-            fn = getattr(cls, fn)
-        elif callable(fn):
-            pass
-        elif isinstance(fn, property):
-            pass
-        else:
-            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
-        # assert callable(fn), 'Is not callable'
-        return fn
-    
-
-
     
 
 
 
-
-
-
-    @classmethod
-    def schema(cls,
-                search = None,
-                module = None,
-                fn = None,
-                docs: bool = True,
-                include_parents:bool = False,
-                defaults:bool = True, cache=False) -> 'Schema':
-
-        if '/' in str(search):
-            module, fn = search.split('/')
-            cls = c.module(module)
-        if isinstance(module, str):
-            if '/' in module:
-                module , fn = module.split('/')
-            module = c.module(module)
-
-        module = module or cls
-        schema = {}
-        fns = module.get_functions(include_parents=include_parents)
-        for fn in fns:
-            if search != None and search not in fn:
-                continue
-            if callable(getattr(module, fn )):
-                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
-
-        # sort by keys
-        schema = dict(sorted(schema.items()))
-
-        return schema
-        
 
 
     @classmethod
@@ -362,6 +279,7 @@ class Schema:
         Get function schema of function in cls
         '''
         fn_schema = {}
+        print(fn,'FAM')
         fn = cls.get_fn(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
@@ -484,3 +402,620 @@ class Schema:
             return found_lines[0]['idx']
         return found_lines
     
+
+
+        
+    def attributes(self):
+        return list(self.__dict__.keys())
+
+
+    @classmethod
+    def get_attributes(cls, search = None, obj=None):
+        if obj is None:
+            obj = cls
+        if isinstance(obj, str):
+            obj = c.module(obj)
+        # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
+        attrs =  dir(obj)
+        if search is not None:
+            attrs = [a for a in attrs if search in a and callable(a)]
+        return attrs
+    
+
+    
+    def add_fn(self, fn, name=None):
+        if name == None:
+            name = fn.__name__
+        assert not hasattr(self, name), f'{name} already exists'
+
+        setattr(self, name, fn)
+
+        return {
+            'success':True ,
+            'message':f'Added {name} to {self.__class__.__name__}'
+        }
+    
+
+    add_attribute = add_attr = add_function = add_fn
+
+    @classmethod
+    def functions(cls, search: str=None , 
+                  include_parents:bool = True, 
+                  avoid_fns = None,
+                   module=None):
+        avoid_fns =  avoid_fns or []
+        # if cls.is_root_module():
+        #     # if the cls is the root_moduel 
+        #     include_parents = True
+        #     avoid_fns = []
+        # else:
+        #     include_parents = True
+        #     avoid_fns =  c.functions()
+        module = cls.resolve_object(module)
+        functions = cls.get_functions(include_parents=include_parents, search=search)  
+        functions = [f for f in functions if f not in avoid_fns]
+        return functions
+
+    fns = functions
+
+
+    def metadata(self):
+        schema = self.schema()
+        return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
+
+    @classmethod
+    def init_schema(cls):
+        return cls.fn_schema('__init__')
+    
+
+
+    @classmethod
+    def init_kwargs(cls):
+        kwargs =  cls.fn_defaults('__init__')
+        kwargs.pop('self', None)
+        if 'config' in kwargs:
+            if kwargs['config'] != None:
+                kwargs.update(kwargs.pop('config'))
+            del kwargs['config']
+        if 'kwargs' in kwargs:
+            if kwargs['kwargs'] != None:
+                kwargs = kwargs.pop('kwargs')
+            del kwargs['kwargs']
+
+        return kwargs
+    
+
+    @classmethod
+    def code(cls, module = None, search=None, *args, **kwargs):
+        if '/' in str(module) or module in cls.fns():
+            return cls.fn_code(module)
+            
+        module = cls.resolve_object(module)
+        text =  cls.get_text( module.pypath(), *args, **kwargs)
+        if search != None:
+            find_lines = cls.find_lines(text=text, search=search)
+            return find_lines
+        return text
+        
+
+
+    pycode = code
+
+    @classmethod
+    def chash(cls,  *args, **kwargs):
+        """
+        The hash of the code, where the code is the code of the class (cls)
+        """
+        code = cls.code(*args, **kwargs)
+        return c.hash(code)
+    
+    @classmethod
+    def find_code_line(cls, search:str, code:str = None):
+        if code == None:
+            code = cls.code() # get the code
+        found_lines = [] # list of found lines
+        for i, line in enumerate(code.split('\n')):
+            if search in line:
+                found_lines.append({'idx': i+1, 'text': line})
+        if len(found_lines) == 0:
+            return None
+        elif len(found_lines) == 1:
+            return found_lines[0]['idx']
+        return found_lines
+    
+    @classmethod
+    def fn_info(cls, fn:str='test_fn') -> dict:
+        r = {}
+        code = cls.fn_code(fn)
+        lines = code.split('\n')
+        mode = 'self'
+        if '@classmethod' in lines[0]:
+            mode = 'class'
+        elif '@staticmethod' in lines[0]:
+            mode = 'static'
+    
+        start_line_text = None
+        lines_before_fn_def = 0
+        for l in lines:
+            
+            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
+                start_line_text = l
+                break
+            else:
+                lines_before_fn_def += 1
+            
+        assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
+        module_code = cls.code()
+        start_line = cls.find_code_line(start_line_text, code=module_code) - lines_before_fn_def - 1
+        end_line = start_line + len(lines)   # find the endline
+        has_docs = bool('"""' in code or "'''" in code)
+        filepath = cls.filepath()
+
+        # start code line
+        for i, line in enumerate(lines):
+            
+            is_end = bool(')' in line and ':' in line)
+            if is_end:
+                start_code_line = i
+                break 
+
+        
+        return {
+            'start_line': start_line,
+            'end_line': end_line,
+            'has_docs': has_docs,
+            'code': code,
+            'n_lines': len(lines),
+            'hash': c.hash(code),
+            'path': filepath,
+            'start_code_line': start_code_line + start_line ,
+            'mode': mode
+            
+        }
+    
+
+    @classmethod
+    def set_line(cls, idx:int, text:str):
+        code = cls.code()
+        lines = code.split('\n')
+        if '\n' in text:
+            front_lines = lines[:idx]
+            back_lines = lines[idx:]
+            new_lines = text.split('\n')
+            c.print(new_lines)
+            lines = front_lines + new_lines + back_lines
+        else:
+            lines[idx-1] = text
+        new_code = '\n'.join(lines)
+        cls.put_text(cls.filepath(), new_code)
+        return {'success': True, 'msg': f'Set line {idx} to {text}'}
+
+    @classmethod
+    def add_line(cls, idx=0, text:str = '',  module=None  ):
+        """
+        add line to an index of the module code
+        """
+
+        code = cls.code() if module == None else c.module(module).code()
+        lines = code.split('\n')
+        new_lines = text.split('\n') if '\n' in text else [text]
+        lines = lines[:idx] + new_lines + lines[idx:]
+        new_code = '\n'.join(lines)
+        cls.put_text(cls.filepath(), new_code)
+        return {'success': True, 'msg': f'Added line {idx} to {text}'}
+
+    @classmethod
+    def get_line(cls, idx):
+        code = cls.code()
+        lines = code.split('\n')
+        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
+        line =  lines[max(idx, 0)]
+        print(len(line))
+        return line
+
+    def hasfn(self, fn:str):
+        return hasattr(self, fn) and callable(getattr(self, fn))
+    
+
+
+    
+    @classmethod
+    def get_text(cls, 
+                 path: str, 
+                 tail = None,
+                 start_byte:int = 0,
+                 end_byte:int = 0,
+                 start_line :int= None,
+                 end_line:int = None ) -> str:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path)
+
+        # Read the contents of the file
+        with open(path, 'rb') as file:
+
+            file.seek(0, 2) # this is done to get the fiel size
+            file_size = file.tell()  # Get the file size
+            if start_byte < 0:
+                start_byte = file_size - start_byte
+            if end_byte <= 0:
+                end_byte = file_size - end_byte 
+            if end_byte < start_byte:
+                end_byte = start_byte + 100
+            chunk_size = end_byte - start_byte + 1
+
+            file.seek(start_byte)
+
+            content_bytes = file.read(chunk_size)
+
+            # Convert the bytes to a string
+            try:
+                content = content_bytes.decode()
+            except UnicodeDecodeError as e:
+                if hasattr(content_bytes, 'hex'):
+                    content = content_bytes.hex()
+                else:
+                    raise e
+
+            if tail != None:
+                content = content.split('\n')
+                content = '\n'.join(content[-tail:])
+    
+            elif start_line != None or end_line != None:
+                
+                content = content.split('\n')
+                if end_line == None or end_line == 0 :
+                    end_line = len(content) 
+                if start_line == None:
+                    start_line = 0
+                if start_line < 0:
+                    start_line = start_line + len(content)
+                if end_line < 0 :
+                    end_line = end_line + len(content)
+                content = '\n'.join(content[start_line:end_line])
+            else:
+                content = content_bytes.decode()
+        return content
+
+
+
+    @classmethod
+    def has_fn(cls,fn_name, obj = None):
+        if obj == None:
+            obj = cls
+        return callable(getattr(obj, fn_name, None))
+
+
+    
+    @classmethod
+    def fn_defaults(cls, fn):
+        """
+        Gets the function defaults
+        """
+        fn = cls.get_fn(fn)
+        function_defaults = dict(inspect.signature(fn)._parameters)
+        for k,v in function_defaults.items():
+            if v._default != inspect._empty and  v._default != None:
+                function_defaults[k] = v._default
+            else:
+                function_defaults[k] = None
+
+        return function_defaults
+ 
+    @staticmethod
+    def is_class(obj):
+        '''
+        is the object a class
+        '''
+        return type(obj).__name__ == 'type'
+
+
+    @staticmethod
+    def resolve_class(obj):
+        '''
+        resolve class of object or return class if it is a class
+        '''
+        if c.is_class(obj):
+            return obj
+        else:
+            return obj.__class__
+        
+
+
+    @classmethod
+    def has_var_keyword(cls, fn='__init__', fn_signature=None):
+        if fn_signature == None:
+            fn_signature = cls.resolve_fn(fn)
+        for param_info in fn_signature.values():
+            if param_info.kind._name_ == 'VAR_KEYWORD':
+                return True
+        return False
+    
+
+    
+    @classmethod
+    def fn_signature(cls, fn) -> dict: 
+        '''
+        get the signature of a function
+        '''
+        if isinstance(fn, str):
+            fn = getattr(cls, fn)
+        return dict(inspect.signature(fn)._parameters)
+    
+    get_function_signature = fn_signature
+    @classmethod
+    def is_arg_key_valid(cls, key='config', fn='__init__'):
+        fn_signature = cls.fn_signature(fn)
+        if key in fn_signature: 
+            return True
+        else:
+            for param_info in fn_signature.values():
+                if param_info.kind._name_ == 'VAR_KEYWORD':
+                    return True
+        
+        return False
+    
+
+    
+    @classmethod
+    def self_fns(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = cls.resolve_object(obj)
+        functions =  cls.functions(module=obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if 'self' in v]
+    
+    self_functions = get_self_functions = self_fns 
+
+    @classmethod
+    def class_functions(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = cls.resolve_object(obj)
+        functions =  cls.functions(module=obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if 'cls' in v]
+    
+    class_methods = get_class_methods =  class_fns = class_functions
+
+    @classmethod
+    def static_functions(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = obj or cls
+        functions =  cls.functions(module=obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
+    
+    static_methods = static_fns =  static_functions
+
+
+
+
+    @classmethod
+    def property_fns(cls) -> bool:
+        '''
+        Get a list of property functions in a class
+        '''
+        return [fn for fn in dir(cls) if cls.is_property(fn)]
+    
+    _root_fns = None
+    @classmethod
+    def root_fns(cls):
+        if cls._root_fns == None:
+            cls._root_fns = cls.get_module('module').fns()
+        return cls._root_fns
+
+    @classmethod
+    def get_functions(cls, obj: Any = None,
+                      search = None,
+                      include_parents:bool=True, 
+                      include_hidden:bool = False) -> List[str]:
+        '''
+        Get a list of functions in a class
+        
+        Args;
+            obj: the class to get the functions from
+            include_parents: whether to include the parent functions
+            include_hidden:  whether to include hidden functions (starts and begins with "__")
+        '''
+        
+        obj = cls.resolve_object(obj)
+    
+        functions = []
+        parent_functions = [] 
+
+        if include_parents:
+            dir_list = dir(obj)
+        else:
+            # this only has atrributes for the child class
+            dir_list = obj.__dict__.keys()
+        if not cls.is_root_module():
+            avoid_fns = cls.root_fns()
+        else:
+            avoid_fns = []
+        
+
+
+        for fn_name in dir_list:
+
+            if search != None and search not in fn_name or fn_name in avoid_fns:
+                continue
+            
+            fn_obj = getattr(obj, fn_name)
+            
+            if not callable(fn_obj):
+                continue
+            # skip hidden functions if include_hidden is False
+            if (not include_hidden) and ((fn_name.startswith('__') or fn_name.endswith('_'))):
+                if fn_name != '__init__':
+                    continue
+
+            # if the function is in the parent class, skip it
+            if  (fn_name in parent_functions) and (not include_parents):
+                continue
+
+            # if the function is a property, skip it
+            if hasattr(type(obj), fn_name) and \
+                isinstance(getattr(type(obj), fn_name), property):
+                continue
+            
+            # if the function is callable, include it
+            if callable(getattr(obj, fn_name)):
+                functions.append(fn_name)
+
+
+        functions = list(set(functions))     
+            
+        return functions
+
+    
+
+    @classmethod
+    def is_property(cls, fn: 'Callable') -> bool:
+        '''
+        is the function a property
+        '''
+        try:
+            fn = cls.get_fn(fn, ignore_module_pattern=True)
+        except :
+            return False
+
+        return isinstance(fn, property)
+
+    def is_fn_self(self, fn):
+        fn = self.resolve_fn(fn)
+        return hasattr(fn, '__self__') and fn.__self__ == self
+
+
+
+    @classmethod
+    def get_fn(cls, fn:str):
+        """
+        Gets the function from a string or if its an attribute 
+        """
+        if isinstance(fn, str):
+            if ':' in fn or '/' in fn:
+                module, fn = fn.split(':')
+                cls = cls.get_module(module)
+            fn =  getattr(cls, fn)
+
+        if callable(fn) or isinstance(fn, property):
+            pass
+        else:
+            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
+        return fn
+    
+
+        
+    @classmethod
+    def self_functions(cls):
+        return cls.classify_fns(cls)['self']
+    
+    self_functions = self_functions
+
+    @classmethod
+    def classify_fns(cls, obj= None, mode=None):
+        method_type_map = {}
+        obj = obj or c.module(obj)
+        if isinstance(obj, str):
+            obj = c.module(obj)
+        for attr_name in dir(obj):
+            method_type = None
+            try:
+                method_type = cls.classify_fn(getattr(obj, attr_name))
+            except Exception as e:
+                continue
+        
+            if method_type not in method_type_map:
+                method_type_map[method_type] = []
+            method_type_map[method_type].append(attr_name)
+        if mode != None:
+            method_type_map = method_type_map[mode]
+        return method_type_map
+
+
+    @classmethod
+    def get_function_args(cls, fn) -> List[str]:
+        """
+        get the arguments of a function
+        params:
+            fn: the function
+        
+        """
+        if not callable(fn):
+            fn = cls.get_fn(fn)
+
+        try:
+            args = inspect.getfullargspec(fn).args
+        except Exception as e:
+            args = []
+        return args
+
+    
+    @classmethod
+    def has_function_arg(cls, fn, arg:str):
+        args = cls.get_function_args(fn)
+        return arg in args
+
+    
+    fn_args = get_fn_args =  get_function_args
+    
+    @classmethod
+    def classify_fn(cls, fn):
+        
+        if not callable(fn):
+            fn = cls.get_fn(fn)
+        if not callable(fn):
+            return None
+        args = cls.get_function_args(fn)
+        if len(args) == 0:
+            return 'static'
+        elif args[0] == 'self':
+            return 'self'
+        else:
+            return 'class'
+        
+    
+
+    @classmethod
+    def python2types(cls, d:dict)-> dict:
+        return {k:str(type(v)).split("'")[1] for k,v in d.items()}
+    
+
+
+
+    @classmethod
+    def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
+        fns = cls.fns(search=search)
+        fn2str = {}
+        for fn in fns:
+            fn2str[fn] = cls.fn_code(fn)
+            
+        return fn2str
+    @classmethod
+    def fn2hash(cls, fn=None , mode='sha256', **kwargs):
+        fn2hash = {}
+        for k,v in cls.fn2str(**kwargs).items():
+            fn2hash[k] = c.hash(v,mode=mode)
+        if fn:
+            return fn2hash[fn]
+        return fn2hash
+    
+    @classmethod
+    def module2fn2str(self, code = True, defaults = False, **kwargs):
+        module2fn2str = {  }
+        for module in c.modules():
+            try:
+                module_class = c.module(module)
+                if hasattr(module_class, 'fn2str'):
+                    module2fn2str[module] = module_class.fn2str(code = code,                                          defaults = defaults, **kwargs)
+            except:
+                pass
+        return module2fn2str
+
+    # TAG CITY     
+        

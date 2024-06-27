@@ -63,7 +63,7 @@ class App(c.Module):
             rm_host_name = st.selectbox('Host to Remove', host_names)
             rm_host = st.button('Remove Host')
             if rm_host:
-                self.remote.rm_host(rm_host_name)
+                st.write(self.remote.rm_host(rm_host_name))
 
         with st.expander('Rename Host', expanded=False):
             host_names = list(self.remote.hosts().keys())
@@ -73,7 +73,6 @@ class App(c.Module):
             if rename_host:
                 host = self.remote.hosts()[rm_host_name]
                 self.remote.add_host(host)
-
                 self.remote.rm_host(rm_host_name)
 
 
@@ -227,7 +226,7 @@ class App(c.Module):
                 delete_failed = st.button('Delete Failed')
                 if delete_failed:
                     for host in selected_failed_hosts:
-                        self.remote.rm_host(host)
+                        st.write(self.remote.rm_host(host))
 
                 for host, error in zip(failed_hosts, errors):
                     st.write(f'**{host}**')

@@ -17,47 +17,51 @@ class App(c.Module):
            kwargs:dict=None, 
            app_info:dict=None,
            update:bool=False,
+           cwd = None, 
            **extra_kwargs):
+            
         if app_info == None:
-            app_info = self.app2info().get(name, {})
+            module = c.shortcuts().get(module, module)
+            name = name or module
+            app2info = self.get('app2info', {})
             kwargs = kwargs or {}
-            port = port or c.free_port()
-            name = name or app_info.get('name',  self.name_prefix +module) 
-            port = port or app_info.get('port', c.free_port())
+            app_info = app_info or app2info.get(name, {})
+            port = app_info.get('port', c.free_port())
             if c.port_used(port):
                 c.kill_port(port)
             if c.module_exists(module + '.app'):
                 module = module + '.app'
-
             module = c.module(module)
-            # add port to the command
-            cmd = f'streamlit run {module.filepath()} --server.port {port}'
             kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
-            cmd += f' -- --fn {fn} --kwargs "{kwargs_str}"'
+            cmd = f'streamlit run {module.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+            cwd = cwd or os.path.dirname(module.filepath())
             app_info= {
                 'name': name,
                 'port': port,
                 'fn': fn,
                 'kwargs': kwargs,
                 'cmd': cmd, 
-                'cwd': os.path.dirname(module.filepath()),
+                'cwd': cwd ,
             }
-        
+    
         if remote:
             c.remote_fn(module=module, 
                         fn='start_app',
-                        name=name,
+                        name=self.name_prefix + name ,
                         kwargs= {'app_info': app_info, 'remote': False})
-            return app_info 
+            return app_info
+        
+
         cmd = app_info['cmd']
         cwd  = app_info['cwd']
         name = app_info['name']
-        c.cmd(cmd, verbose=True, cwd=cwd)
-        app2info = self.app2info()
         app2info[name] = app_info
-        self.put('app2info', app2info)
+        print(self.put('app2info', app2info))
+        c.cmd(cmd, verbose=True, cwd=cwd)
         return app_info
     start_app = app = start
+
+
     def app2info(self):
         app2info =  self.get('app2info', {})
         if not isinstance(app2info, dict):
@@ -79,6 +83,8 @@ class App(c.Module):
         if remove_prefix:
             apps = [n[len(self.name_prefix):] for n in apps]
         return apps
+    
+    
     
 
 

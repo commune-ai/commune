@@ -398,14 +398,8 @@ class Tree(c.Module):
             return object_path
 
         pwd = c.pwd()
-        try:
-            object_path = cls.simple2path(simple_path, **kwargs)
-            classes =  cls.find_classes(object_path)
-        except Exception as e:
-            c.print(f'Error in simple2objectpath: {c.detailed_error(e)}', color='red')
-            cls.tree(update=True)
-            object_path = cls.simple2path(simple_path, **kwargs)
-            classes =  cls.find_classes(object_path)
+        object_path = cls.simple2path(simple_path, **kwargs)
+        classes =  cls.find_classes(object_path)
 
         if object_path.startswith(c.libpath):
             object_path = object_path[len(c.libpath):]

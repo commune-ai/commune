@@ -118,7 +118,7 @@ subspace: [ subnet_params,
                     my_subnets, 
                     register_servers,
                     registered_servers,
-                    n, 
+                    balance,
                     stats,
                     vstats, 
                     valis,
@@ -181,6 +181,7 @@ app :
   - 'app'
   - 'apps'
   - 'app2info'
+  - [kill, kill_app]
 
 user: 
   - role2users
@@ -222,11 +223,6 @@ network:
   - set_port_range
   - free_ports
   - free_port
-
-emoji:
-  - emoji
-  - emojis
-
 os: 
   - cmd
   - sys_path

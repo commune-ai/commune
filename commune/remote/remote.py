@@ -3,6 +3,8 @@ import streamlit as st
 from typing import *
 import os
 import json
+import paramiko
+        
 
 class Remote(c.Module):
 
@@ -41,8 +43,6 @@ class Remote(c.Module):
         :return: Command output.
         """
 
-        import paramiko
-        
         if host == None:
             if port == None or user == None or password == None:
                 host = list(self.hosts().values())[0]
@@ -58,10 +58,6 @@ class Remote(c.Module):
         
 
         host['name'] = f'{host["user"]}@{host["host"]}:{host["port"]}'
-
-            
-
-
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
