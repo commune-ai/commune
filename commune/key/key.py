@@ -1533,6 +1533,9 @@ class Keypair(c.Module):
         path = self.resolve_path(path)
         text = c.get_text(path)
         return text.startswith(prefix)
+    
+
+    
 
     
       
