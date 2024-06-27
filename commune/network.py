@@ -496,3 +496,70 @@ class Network(c.Module):
         c.put('port_range', port_range)
         return port_range
     
+    @classmethod
+    def get_port(cls, port:int = None)->int:
+        port = port if port is not None and port != 0 else cls.free_port()
+        while cls.port_used(port):
+            port += 1   
+        return port 
+    
+
+    
+    @classmethod
+    def port_free(cls, *args, **kwargs) -> bool:
+        return not cls.port_used(*args, **kwargs)
+
+
+    @classmethod
+    def port_available(cls, port:int, ip:str ='0.0.0.0'):
+        return not cls.port_used(port=port, ip=ip)
+        
+    @classmethod
+    def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
+        '''
+        Get availabel ports out of port range
+        
+        Args:
+            ports: list of ports
+            ip: ip address
+        
+        '''
+        port_range = cls.resolve_port_range(port_range=port_range)
+        if ports == None:
+            ports = list(range(*port_range))
+        
+        async def check_port(port, ip):
+            return c.port_used(port=port, ip=ip)
+        
+        used_ports = []
+        jobs = []
+        for port in ports: 
+            jobs += [check_port(port=port, ip=ip)]
+                
+        results = cls.gather(jobs)
+        for port, result in zip(ports, results):
+            if isinstance(result, bool) and result:
+                used_ports += [port]
+            
+        return used_ports
+    
+
+    get_used_ports = used_ports
+    
+
+    
+
+    @classmethod
+    def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
+        port_range = cls.resolve_port_range(port_range)
+        ip = ip if ip else c.default_ip
+        
+        available_ports = []
+        # return only when the port is available
+        for port in range(*port_range): 
+            if not cls.port_used(port=port, ip=ip):
+                available_ports.append(port)
+                  
+        return available_ports
+    available_ports = get_available_ports
+    

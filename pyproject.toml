@@ -47,6 +47,9 @@ torch = "*"
 msgpack_numpy = "*"
 substrate-interface = "*"
 
+# REMOTE
+paramiko = "*"
+
 # PLOT
 plotly = "*" # dope interactive plots
 streamlit = "*" # dope for web apps

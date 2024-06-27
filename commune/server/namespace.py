@@ -438,9 +438,6 @@ class Namespace(c.Module):
         namespace = {v:k for k,v in address2name.items()}
         return namespace     
 
-    @classmethod
-    def dashboard(cls):
-        return cls.namespace()
 
 Namespace.run(__name__)
 

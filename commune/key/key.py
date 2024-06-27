@@ -1169,9 +1169,6 @@ class Keypair(c.Module):
         key = cls.create_from_uri('//Alice')
         c.print(c.module('bittensor').get_balance(key.ss58_address))
         
-    # @classmethod
-    # def test(cls):
-    #     return c.module('key.test')().test()
     @classmethod
     def is_key(cls, key) -> bool:
         return isinstance(key, Keypair)

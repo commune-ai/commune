@@ -3,8 +3,8 @@ import commune as c
 import pandas as pd
 
 class Test(c.Module):
-    @staticmethod
-    def test(cls, n=3, 
+    def test_net(self, 
+            n=3, 
              sleep_time=8, 
              timeout = 20,
              tag = 'test',
@@ -22,7 +22,7 @@ class Test(c.Module):
         for m in modules:
             if m == test_vali:
                 c.print(c.serve(m, kwargs={'network': network, 
-                                           'storage_path': '/tmp/commune/vali_test',
+                                           'storage_path': storage_path,
                                            'search': test_miners[0].split('::')[0]}))
             else:
                 c.print(c.serve(m)) 
