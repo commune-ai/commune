@@ -2517,11 +2517,20 @@ class c(Config, Schema, Misc, Logger, Storage ):
             c._root_fns = [f for f in fns if f not in route_fns]
         return c._root_fns
 
+
+    @classmethod
+    def functions(cls, search: str=None , 
+                  include_parents:bool = True, 
+                  avoid_fns = None,
+                   module=None):
+        functions = cls.get_functions(obj=module, include_parents=include_parents, search=search)  
+        return functions
+
+    fns = functions
+
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
-    
-
 
 
 

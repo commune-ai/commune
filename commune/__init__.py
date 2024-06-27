@@ -8,6 +8,9 @@ from .vali.vali import Vali
 for k,v in Module.__dict__.items():
     globals()[k] = v
 
+# for f in :
+#     globals()[f] = getattr(Module, f)
+    
 for f in Module.class_functions() + Module.static_functions():
     globals()[f] = getattr(Module, f)
 

@@ -438,27 +438,6 @@ class Schema:
 
     add_attribute = add_attr = add_function = add_fn
 
-    @classmethod
-    def functions(cls, search: str=None , 
-                  include_parents:bool = True, 
-                  avoid_fns = None,
-                   module=None):
-        avoid_fns =  avoid_fns or []
-        # if cls.is_root_module():
-        #     # if the cls is the root_moduel 
-        #     include_parents = True
-        #     avoid_fns = []
-        # else:
-        #     include_parents = True
-        #     avoid_fns =  c.functions()
-        module = cls.resolve_object(module)
-        functions = cls.get_functions(include_parents=include_parents, search=search)  
-        functions = [f for f in functions if f not in avoid_fns]
-        return functions
-
-    fns = functions
-
-
     def metadata(self):
         schema = self.schema()
         return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
@@ -757,7 +736,7 @@ class Schema:
 
     
     @classmethod
-    def self_fns(cls: Union[str, type], obj=None):
+    def self_functions(cls: Union[str, type], obj=None):
         '''
         Gets the self methods in a class
         '''
@@ -766,8 +745,6 @@ class Schema:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
-    self_functions = get_self_functions = self_fns 
-
     @classmethod
     def class_functions(cls: Union[str, type], obj=None):
         '''
@@ -803,6 +780,28 @@ class Schema:
         return [fn for fn in dir(cls) if cls.is_property(fn)]
     
 
+    @classmethod
+    def get_parents(cls, obj=None):
+        '''
+        Get the parent classes of a class
+        '''
+        obj = cls.resolve_object(obj)
+        return obj.__bases__
+    
+    parents = get_parents
+    
+    @classmethod
+    def parent2functions(cls, obj=None):
+        '''
+        Get the parent classes of a class
+        '''
+        obj = cls.resolve_object(obj)
+        parent_functions = {}
+        for parent in cls.parents(obj):
+            parent_functions[parent.__name__] = cls.get_functions(parent)
+        return parent_functions
+    
+
 
     @classmethod
     def get_functions(cls, obj: Any = None,
@@ -819,48 +818,43 @@ class Schema:
         '''
         
         obj = cls.resolve_object(obj)
-    
         functions = []
-        parent_functions = [] 
+        child_functions = list(obj.__dict__.keys())
+        parent_functions = []
 
         if include_parents:
-            dir_list = dir(obj)
-        else:
-            # this only has atrributes for the child class
-            dir_list = obj.__dict__.keys()
+            parent_functions = cls.get_parent_functions(obj)
+
         if not cls.is_root_module():
             avoid_fns = cls.root_fns()
         else:
             avoid_fns = []
-    
 
-        for fn_name in dir_list:
-
+        for fn_name in (child_functions + parent_functions):
             if search != None and search not in fn_name or fn_name in avoid_fns:
                 continue
             
-            fn_obj = getattr(obj, fn_name)
-            
-            if not callable(fn_obj):
-                continue
             # skip hidden functions if include_hidden is False
-            if (not include_hidden) and ((fn_name.startswith('__') or fn_name.endswith('_'))):
-                if fn_name != '__init__':
-                    continue
+            if not include_hidden:
+                if ((fn_name.startswith('__') or fn_name.endswith('_'))):
+                    if fn_name != '__init__':
+                        continue
 
             # if the function is in the parent class, skip it
-            if  (fn_name in parent_functions) and (not include_parents):
-                continue
+            if not include_parents:
+                if fn_name in parent_functions:
+                    continue
+
+
+
+            fn_obj = getattr(obj, fn_name)
 
             # if the function is a property, skip it
-            if hasattr(type(obj), fn_name) and \
-                isinstance(getattr(type(obj), fn_name), property):
+            if cls.is_property(fn_obj):
                 continue
-            
             # if the function is callable, include it
-            if callable(getattr(obj, fn_name)):
+            if callable(fn_obj):
                 functions.append(fn_name)
-
 
         functions = list(set(functions))     
             
@@ -909,7 +903,6 @@ class Schema:
     def self_functions(cls):
         return cls.classify_fns(cls)['self']
     
-    self_functions = self_functions
 
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
@@ -1013,3 +1006,39 @@ class Schema:
 
     # TAG CITY     
  
+
+    # TAG CITY     
+    @classmethod
+    def get_parent_functions(cls, obj = None, include_root = True):
+        import inspect
+        functions = []
+        obj = obj or cls
+        
+        parents = cls.get_parents(obj)
+        for parent in parents:
+            for name, member in parent.__dict__.items():
+                if not name.startswith('__'):
+                    functions.append(name)
+        if cls.is_root_module():
+            include_root = True
+        if not include_root:
+            root_fns = cls.root_fns()
+            functions = [f for f in functions if f not in root_fns]
+        return functions
+    parent_functions = get_parent_functions
+
+    @classmethod
+    def get_child_functions(cls, obj=None):
+        obj = cls.resolve_object(obj)
+        
+        methods = []
+        for name, member in obj.__dict__.items():
+            if inspect.isfunction(member) and not name.startswith('__'):
+                methods.append(name)
+        
+        return methods
+    
+    child_functions = get_child_functions
+    
+
+
