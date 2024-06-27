@@ -2333,6 +2333,23 @@ class c(Config, Schema, Misc, Logger, Storage ):
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
 
+    @classmethod
+    def route_fns(cls):
+        routes = cls.routes()
+        route_fns = []
+        for module, fns in routes.items():
+            for fn in fns:
+                if isinstance(fn, dict):
+                    fn = fn['to']
+                elif isinstance(fn, list):
+                    fn = fn[1]
+                elif isinstance(fn, str):
+                    fn
+                else:
+                    raise ValueError(f'Invalid route {fn}')
+                route_fns.append(fn)
+        return route_fns
+            
 
     @staticmethod
     def resolve_to_from_fn_routes(fn):
@@ -2491,8 +2508,14 @@ class c(Config, Schema, Misc, Logger, Storage ):
         return threading.active_count()
     
 
-
-
+    _root_fns = None
+    @classmethod
+    def root_fns(cls):
+        if c._root_fns == None:
+            route_fns = c.route_fns()
+            fns = c.get_module('module').fns()
+            c._root_fns = [f for f in fns if f not in route_fns]
+        return c._root_fns
 
 c.enable_routes()
 Module = c # Module is alias of c
