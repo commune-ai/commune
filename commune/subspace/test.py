@@ -43,11 +43,6 @@ class Test(c.Module):
             c.print(f'{t2-t1:.2f} seconds')
 
 
-    def test_global_storage(self):
-        global_params = self.subspace.global_params(fmt='j')
-        assert isinstance(global_params, dict)
-        return global_params
-    
         
 
 

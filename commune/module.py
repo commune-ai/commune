@@ -1,3 +1,18 @@
+import sys
+import os
+import inspect
+import concurrent
+import threading
+from copy import deepcopy
+from typing import *
+import json
+from functools import partial
+from glob import glob
+import sys
+import argparse
+import asyncio
+import nest_asyncio
+
 try:
     from .config import Config
     from .schema import Schema
@@ -5,29 +20,14 @@ try:
     from .logger import Logger
     from .storage import Storage
 except:
+    # this is for serving mostly
     from config import Config
     from schema import Schema
     from misc import Misc
     from logger import Logger
     from storage import Storage
 
-import os
-import inspect
-import concurrent
-import threading
-from copy import deepcopy
-import yaml
-from typing import Optional, Union, Dict, List, Any, Tuple, Callable
-from munch import Munch
-import json
-from functools import partial
-from glob import glob
-import sys
-import argparse
-import asyncio
-from typing import Union, Dict, Optional, Any, List, Tuple
-import nest_asyncio
-import random
+
 
 nest_asyncio.apply()
 
@@ -166,92 +166,13 @@ class c(Config, Schema, Misc, Logger, Storage ):
         return 
     sand = sandbox
 
-    @classmethod
-    def put(cls, 
-            k: str, 
-            v: Any,  
-            mode: bool = 'json',
-            encrypt: bool = False, 
-            verbose: bool = False, 
-            password: str = None, **kwargs) -> Any:
-        '''
-        Puts a value in the config
-        '''
-        encrypt = encrypt or password != None
-        
-        if encrypt or password != None:
-            v = cls.encrypt(v, password=password)
-
-        if not cls.jsonable(v):
-            v = cls.serialize(v)    
-        
-        data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
-        
-        # default json 
-        getattr(cls,f'put_{mode}')(k, data)
-
-        data_size = cls.sizeof(v)
-    
-        return {'k': k, 'data_size': data_size, 'encrypted': encrypt, 'timestamp': c.timestamp()}
-    
-    @classmethod
-    def get(cls,
-            k:str, 
-            default: Any=None, 
-            mode:str = 'json',
-            max_age:str = None,
-            cache :bool = False,
-            full :bool = False,
-            key: 'Key' = None,
-            update :bool = False,
-            password : str = None,
-            **kwargs) -> Any:
-        
-        '''
-        Puts a value in sthe config, with the option to encrypt it
-
-        Return the value
-        '''
-        if cache:
-            if k in cls.cache:
-                return cls.cache[k]
-
-        data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
-            
-
-        if password != None:
-            assert data['encrypted'] , f'{k} is not encrypted'
-            data['data'] = c.decrypt(data['data'], password=password, key=key)
-
-        data = data or default
-        
-        if isinstance(data, dict):
-            if update:
-                max_age = 0
-            if max_age != None:
-                timestamp = data.get('timestamp', None)
-                if timestamp != None:
-                    age = int(c.time() - timestamp)
-                    if age > max_age: # if the age is greater than the max age
-                        c.print(f'{k} is too old ({age} > {max_age})', color='red')
-                        return default
-        else:
-            data = default
-            
-        if not full:
-            if isinstance(data, dict):
-                if 'data' in data:
-                    data = data['data']
-
-        # local cache
-        if cache:
-            cls.cache[k] = data
-        return data
-  
-
     included_pwd_in_path = False
     @classmethod
-    def import_module(cls, import_path:str, included_pwd_in_path=True) -> 'Object':
+    def import_module(cls, 
+                      import_path:str, 
+                      included_pwd_in_path=True, 
+                      try_prefixes = ['commune', 'commune.modules', 'modules', 'commune.subspace', 'subspace']
+                      ) -> 'Object':
         from importlib import import_module
         if included_pwd_in_path and not cls.included_pwd_in_path:
             import sys
@@ -262,17 +183,31 @@ class c(Config, Schema, Misc, Logger, Storage ):
         pwd = c.pwd()
         try:
             return import_module(import_path)
-        except Exception as e:
-            print(f'Error Importing: {e} {import_path}')
-            raise e
+        except Exception as _e:
+            for prefix in try_prefixes:
+                try:
+                    return import_module(f'{prefix}.{import_path}')
+                except Exception as e:
+                    pass
+            raise _e
     
-    
-    def can_import_module(self, module:str) -> bool:
+    @classmethod
+    def can_import_module(cls, module:str) -> bool:
         '''
         Returns true if the module is valid
         '''
         try:
-            c.import_module(module)
+            cls.import_module(module)
+            return True
+        except:
+            return False
+    @classmethod
+    def can_import_object(cls, module:str) -> bool:
+        '''
+        Returns true if the module is valid
+        '''
+        try:
+            cls.import_object(module)
             return True
         except:
             return False
@@ -288,7 +223,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         if verbose:
             c.print(f'Importing {object_name} from {module}')
 
-        obj =  getattr(c.import_module(module), object_name)
+        obj =  getattr(cls.import_module(module), object_name)
       
         return obj
     
@@ -538,43 +473,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         return remotewrap
     
 
-
-
-    def set_subspace(self, network='main', subspace=None, 
-                     include_fns = ['get_module' , 'config'],
-                     avoid_fns = [],
-                     **kwargs):
-        self.subspace = subspace or c.module('subspace')(network=network, **kwargs)
-        for fn in dir(self.subspace):
-            if not hasattr(self, fn) or (fn in include_fns and fn not in avoid_fns):
-                setattr(self, fn, getattr(self.subspace, fn))
-
-    
-    @classmethod
-    def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
-        locals_dict = locals_dict or {}
-        kwargs = locals_dict or {}
-        kwargs.pop('cls', None)
-        kwargs.pop('self', None)
-
-        assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
-        
-        # These lines are needed to remove the self and cls from the locals_dict
-        for k in kwargs_keys:
-            kwargs.update( locals_dict.pop(k, {}) or {})
-
-        return kwargs
-    
-    get_kwargs = get_params = locals2kwargs 
-        
-    @classmethod
-    def get_parents(cls, obj=None):
-        
-        if obj == None:
-            obj = cls
-
-        return list(obj.__mro__[1:-1])
-
     @classmethod
     def storage_dir(cls):
         return f'{c.cache_path}/{cls.module_path()}'
@@ -620,42 +518,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         return os.path.getsize(path)
 
     @classmethod
-    def ls(cls, path:str = '', 
-           recursive:bool = False,
-           search = None,
-           return_full_path:bool = True):
-        """
-        provides a list of files in the path 
-
-        this path is relative to the module path if you dont specifcy ./ or ~/ or /
-        which means its based on the module path
-        """
-        path = cls.resolve_path(path)
-        try:
-            ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
-        except FileNotFoundError:
-            return []
-        if return_full_path:
-            ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
-
-        ls_files = sorted(ls_files)
-        if search != None:
-            ls_files = list(filter(lambda x: search in x, ls_files))
-        return ls_files
-    
-    @classmethod
-    def lsdir(cls, path:str) -> List[str]:
-        path = os.path.abspath(path)
-        return os.listdir(path)
-
-    @classmethod
-    def abspath(cls, path:str) -> str:
-        return os.path.abspath(path)
-
-
-
-       
-    @classmethod
     def __str__(cls):
         return cls.__name__
 
@@ -698,23 +560,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         import nest_asyncio
         nest_asyncio.apply()
 
-
-    @classmethod
-    def port2module(cls, *args, **kwargs):
-        namespace = c.namespace(*args, **kwargs)
-        port2module =  {}
-        for name, address in namespace.items():
-            port = int(address.split(':')[1])
-            port2module[port] = name
-        return port2module
-    port2name = port2module
-    
-    @classmethod
-    def module2port(cls, *args, **kwargs):
-        port2module = cls.port2module(*args, **kwargs)
-        return {v:k for k,v in port2module.items()}
-    name2port = m2p = module2port
-    
 
     @classmethod
     def address2module(cls, *args, **kwargs):
@@ -1073,59 +918,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
             libpath = c.libpath
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
-    
-    @classmethod
-    def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:
-        '''
-        
-        Get methods of the obj, which defaults to the class object if None
-        
-        Args:
-            obj (object): object to get methods from
-            modes:
-        
-        '''
-        methods = []
-        obj = obj if obj else cls
-        
-        if modes == 'all':
-            modes = ['class', 'self']
-        
-        default_modes = ['class', 'self']
-        
-        for mode in modes:
-            assert mode in default_modes, f'{mode} not in {default_modes}'
-            methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
-            
-
-    @classmethod
-    def transfer_fn_code(cls, module1= 'module',
-                        fn_prefix = 'ray_',
-                        module2 = 'ray',
-                        refresh = False):
-
-        module1 = c.module(module1)
-        module2 = c.module(module2)
-        module1_fn_code_map = module1.fn2code(fn_prefix)
-        module2_code = module2.code()
-        module2_fns = module2.fns()
-        filepath = module2.filepath()
-        for fn_name, fn_code in module1_fn_code_map.items():
-            c.print(f'adding {fn_name}')
-            c.print('fn_code', fn_code)
-            if fn_name in module2_fns:
-                if refresh:
-                    module2_code = module2_code.replace(module2_fns[fn_name], '')
-                else:
-                    c.print(f'fn_name {fn_name} already in module2_fns {module2_fns}')
-
-            module2_code += '\n'
-            module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
-            module2_code += '\n'
-        c.put_text(filepath, module2_code)
-
-        return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
-
     @classmethod
     def get_server_name(cls, name:str=None, tag:str=None, seperator:str='.'):
         name = name if name else cls.__name__.lower()
@@ -1389,7 +1181,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         time.sleep(seconds)
         return None
     
-    
     @classmethod
     def argv(cls, include_script:bool = False):
         import sys
@@ -1399,8 +1190,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         else:
             return args[1:]
 
-
-    
     @classmethod
     def is_file_module(cls, module = None) -> bool:
         if module != None:
@@ -1426,40 +1215,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         except:
             return False
     
-    @classmethod
-    def root_key(cls):
-        return c.get_key()
-
-    @classmethod
-    def root_key_address(cls) -> str:
-        return c.root_key().ss58_address
-    
-    @classmethod
-    def root_keys(cls, search='module', address:bool = False):
-        keys = c.keys(search)
-        if address:
-            key2address = c.key2address(search)
-            keys = [key2address.get(k) for k in keys]
-        return keys
-    
-    @classmethod
-    def root_addys(cls):
-        return c.root_keys(address=True)
-    
-
-    def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
-        destinations = c.root_addys()[:n]
-        c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
-        return c.transfer_many(destinations=destinations, amounts=amount, n=n, key=key)
-
-
-    def add_root_keys(self, n=1, tag=None, **kwargs):
-        keys = []
-        for i in range(n):
-            key_path = 'module' + '::'+ (tag if tag != None else '') + str(i)
-            c.add_key(key_path, **kwargs)
-            keys.append(key_path)
-        return {'success': True, 'keys': keys, 'msg': 'Added keys'}
 
     @classmethod
     def asubmit(cls, fn:str, *args, **kwargs):
@@ -1794,110 +1549,10 @@ class c(Config, Schema, Misc, Logger, Storage ):
         return module.dirpath() == c.pwd()
 
 
-    
-    @classmethod
-    def currnet_module(cls):
-        return c.module(cls.module_path())
-    
-    @classmethod
-    def is_success(cls, x):
-        # assume that if the result is a dictionary, and it has an error key, then it is an error
-        if isinstance(x, dict):
-            if 'error' in x:
-                return False
-            if 'success' in x and x['success'] == False:
-                return False
-            
-        return True
-    
-    @classmethod
-    def is_error(cls, x:Any):
-        """
-        The function checks if the result is an error
-        The error is a dictionary with an error key set to True
-        """
-        if isinstance(x, dict):
-            if 'error' in x and x['error'] == True:
-                return True
-            if 'success' in x and x['success'] == False:
-                return True
-        return False
-    
-    @classmethod
-    def is_int(cls, value) -> bool:
-        o = False
-        try :
-            int(value)
-            if '.' not in str(value):
-                o =  True
-        except:
-            pass
-        return o
-    
-        
-    @classmethod
-    def is_float(cls, value) -> bool:
-        o =  False
-        try :
-            float(value)
-            if '.' in str(value):
-                o = True
-        except:
-            pass
-
-        return o 
-
-
     def update_config(self, k, v):
         self.config[k] = v
         return self.config
-    # local update  
-    @classmethod
-    def update(cls, 
-               module = None,
-               tree:bool = True,
-               namespace: bool = False,
-               subspace: bool = False,
-               network: str = 'local',
-               **kwargs
-               ):
-        responses = []
-        if tree:
-            r = c.tree()
-            responses.append(r)
-        if module != None:
-            return c.module(module).update()
-        # update local namespace
-        c.ip(update=True)
-        if namespace:
-            responses.append(c.namespace(network=network, update=True))
-        if subspace:
-            responses.append(c.module('subspace').sync())
-        
-        return {'success': True, 'responses': responses}
-    
-    @classmethod
-    def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
-        return [text for text in text_list if filter_text in text]
 
-    @classmethod
-    def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
-        # Get the absolute path of the file
-        path = cls.resolve_path(path)
-        dirpath = os.path.dirname(path)
-        if not os.path.exists(dirpath):
-            os.makedirs(dirpath, exist_ok=True)
-        if not isinstance(text, str):
-            text = c.python2str(text)
-        if key != None:
-            text = c.get_key(key).encrypt(text)
-        # Write the text to the file
-        with open(path, 'w') as file:
-            file.write(text)
-        # get size
-        text_size = len(text)*bits_per_character
-    
-        return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
     @classmethod
     def rm_lines(cls, path:str, start_line:int, end_line:int) -> None:
         # Get the absolute path of the file
@@ -1908,7 +1563,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         c.put_text(path, text)
         return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
     @classmethod
-    def rm_line(self, path:str, line:int, text=None) -> None:
+    def rm_line(cls, path:str, line:int, text=None) -> None:
         # Get the absolute path of the file
         text =  cls.get_text(path)
         text = text.split('\n')
@@ -1954,8 +1609,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
     def find_code_lines(cls,  search:str = None , module=None) -> List[str]:
         module_code = c.module(module).code()
         return c.find_lines(search=search, text=module_code)
-
-
 
     @classmethod
     def find_lines(self, text:str, search:str) -> List[str]:
@@ -2507,11 +2160,10 @@ class c(Config, Schema, Misc, Logger, Storage ):
     def thread_count(cls):
         return threading.active_count()
     
-
-    _root_fns = None
+    
     @classmethod
     def root_fns(cls):
-        if c._root_fns == None:
+        if not hasattr(c, '_root_fns'):
             route_fns = c.route_fns()
             fns = c.get_module('module').fns()
             c._root_fns = [f for f in fns if f not in route_fns]
@@ -2519,14 +2171,46 @@ class c(Config, Schema, Misc, Logger, Storage ):
 
 
     @classmethod
-    def functions(cls, search: str=None , 
-                  include_parents:bool = True, 
-                  avoid_fns = None,
-                   module=None):
-        functions = cls.get_functions(obj=module, include_parents=include_parents, search=search)  
-        return functions
-
+    def functions(cls, search: str=None , **kwargs):
+        return cls.get_functions(search=search, **kwargs)  
     fns = functions
+
+
+    @classmethod
+    def root_key(cls):
+        return c.get_key()
+
+    @classmethod
+    def root_key_address(cls) -> str:
+        return c.root_key().ss58_address
+    
+    @classmethod
+    def root_keys(cls, search='module', address:bool = False):
+        keys = c.keys(search)
+        if address:
+            key2address = c.key2address(search)
+            keys = [key2address.get(k) for k in keys]
+        return keys
+    
+    @classmethod
+    def root_addys(cls):
+        return c.root_keys(address=True)
+    
+
+    def transfer2roots(self, amount:int=1,key:str=None,  n:int=10):
+        destinations = c.root_addys()[:n]
+        c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
+        return c.transfer_many(destinations=destinations, amounts=amount, n=n, key=key)
+
+    def add_root_keys(self, n=1, tag=None, **kwargs):
+        keys = []
+        for i in range(n):
+            key_path = 'module' + '::'+ (tag if tag != None else '') + str(i)
+            c.add_key(key_path, **kwargs)
+            keys.append(key_path)
+        return {'success': True, 'keys': keys, 'msg': 'Added keys'}
+
+    
 
 c.enable_routes()
 Module = c # Module is alias of c

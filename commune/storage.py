@@ -7,6 +7,7 @@ from munch  import Munch
 from copy import deepcopy
 import yaml
 import json
+import time
 
 
 class Storage:
@@ -330,3 +331,142 @@ class Storage:
         else:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
         return {'success': True, 'msg': f'Copied {path1} to {path2}'}
+
+    @classmethod
+    def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path)
+        dirpath = os.path.dirname(path)
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
+        if not isinstance(text, str):
+            text = cls.python2str(text)
+        if key != None:
+            text = cls.get_key(key).encrypt(text)
+        # Write the text to the file
+        with open(path, 'w') as file:
+            file.write(text)
+        # get size
+        text_size = len(text)*bits_per_character
+    
+        return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
+    
+    @classmethod
+    def lsdir(cls, path:str) -> List[str]:
+        path = os.path.abspath(path)
+        return os.listdir(path)
+
+    @classmethod
+    def abspath(cls, path:str) -> str:
+        return os.path.abspath(path)
+
+
+    @classmethod
+    def ls(cls, path:str = '', 
+           recursive:bool = False,
+           search = None,
+           return_full_path:bool = True):
+        """
+        provides a list of files in the path 
+
+        this path is relative to the module path if you dont specifcy ./ or ~/ or /
+        which means its based on the module path
+        """
+        path = cls.resolve_path(path)
+        try:
+            ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+        except FileNotFoundError:
+            return []
+        if return_full_path:
+            ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
+
+        ls_files = sorted(ls_files)
+        if search != None:
+            ls_files = list(filter(lambda x: search in x, ls_files))
+        return ls_files
+    
+
+
+    @classmethod
+    def put(cls, 
+            k: str, 
+            v: Any,  
+            mode: bool = 'json',
+            encrypt: bool = False, 
+            verbose: bool = False, 
+            password: str = None, **kwargs) -> Any:
+        '''
+        Puts a value in the config
+        '''
+        encrypt = encrypt or password != None
+        
+        if encrypt or password != None:
+            v = cls.encrypt(v, password=password)
+
+        if not cls.jsonable(v):
+            v = cls.serialize(v)    
+        
+        data = {'data': v, 'encrypted': encrypt, 'timestamp': cls.timestamp()}            
+        
+        # default json 
+        getattr(cls,f'put_{mode}')(k, data)
+
+        data_size = cls.sizeof(v)
+    
+        return {'k': k, 'data_size': data_size, 'encrypted': encrypt, 'timestamp': cls.timestamp()}
+    
+    @classmethod
+    def get(cls,
+            k:str, 
+            default: Any=None, 
+            mode:str = 'json',
+            max_age:str = None,
+            cache :bool = False,
+            full :bool = False,
+            key: 'Key' = None,
+            update :bool = False,
+            password : str = None,
+            **kwargs) -> Any:
+        
+        '''
+        Puts a value in sthe config, with the option to encrypt it
+
+        Return the value
+        '''
+        if cache:
+            if k in cls.cache:
+                return cls.cache[k]
+
+        data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
+            
+
+        if password != None:
+            assert data['encrypted'] , f'{k} is not encrypted'
+            data['data'] = cls.decrypt(data['data'], password=password, key=key)
+
+        data = data or default
+        
+        if isinstance(data, dict):
+            if update:
+                max_age = 0
+            if max_age != None:
+                timestamp = data.get('timestamp', None)
+                if timestamp != None:
+                    age = int(time.time() - timestamp)
+                    if age > max_age: # if the age is greater than the max age
+                        print(f'{k} is too old ({age} > {max_age})')
+                        return default
+        else:
+            data = default
+            
+        if not full:
+            if isinstance(data, dict):
+                if 'data' in data:
+                    data = data['data']
+
+        # local cache
+        if cache:
+            cls.cache[k] = data
+        return data
+  
+

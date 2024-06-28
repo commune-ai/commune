@@ -424,6 +424,7 @@ class Namespace(c.Module):
         return server_exists
     
 
+    @classmethod
     def clean(cls, network='local'):
         namespace = cls.namespace(network=network)
         address2name = {}
@@ -439,6 +440,22 @@ class Namespace(c.Module):
         return namespace     
 
 
+
+    @classmethod
+    def port2module(cls, *args, **kwargs):
+        namespace = c.namespace(*args, **kwargs)
+        port2module =  {}
+        for name, address in namespace.items():
+            port = int(address.split(':')[1])
+            port2module[port] = name
+        return port2module
+    port2name = port2module
+    
+    @classmethod
+    def module2port(cls, *args, **kwargs):
+        port2module = cls.port2module(*args, **kwargs)
+        return {v:k for k,v in port2module.items()}
+    name2port = m2p = module2port
 Namespace.run(__name__)
 
 

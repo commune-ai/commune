@@ -176,11 +176,19 @@ class Schema:
         else:
             result =  inspect.isgeneratorfunction(obj)
         return result
-
     @classmethod
-    def get_parents(cls, obj) -> List[str]:
-        cls = cls.resolve_object(obj)
-        return list(cls.__mro__[1:-1])
+    def get_parents(cls, obj = None,recursive=True, avoid_classes=['object']) -> List[str]:
+        obj = cls.resolve_object(obj)
+        parents =  list(obj.__bases__)
+        if recursive:
+            for parent in parents:
+                parent_parents = cls.get_parents(parent, recursive=recursive)
+                if len(parent_parents) > 0:
+                    for pp in parent_parents: 
+                        if pp.__name__ not in avoid_classes:
+                        
+                            parents += [pp]
+        return parents
 
     @staticmethod
     def get_parent_functions(cls) -> List[str]:
@@ -404,9 +412,9 @@ class Schema:
     
 
 
-        
-    def attributes(self):
-        return list(self.__dict__.keys())
+    @classmethod
+    def attributes(cls):
+        return list(cls.__dict__.keys())
 
 
     @classmethod
@@ -741,7 +749,7 @@ class Schema:
         Gets the self methods in a class
         '''
         obj = cls.resolve_object(obj)
-        functions =  cls.functions(module=obj)
+        functions =  cls.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
@@ -751,7 +759,7 @@ class Schema:
         Gets the self methods in a class
         '''
         obj = cls.resolve_object(obj)
-        functions =  cls.functions(module=obj)
+        functions =  cls.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
     
@@ -763,7 +771,7 @@ class Schema:
         Gets the self methods in a class
         '''
         obj = obj or cls
-        functions =  cls.functions(module=obj)
+        functions =  cls.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
     
@@ -780,13 +788,13 @@ class Schema:
         return [fn for fn in dir(cls) if cls.is_property(fn)]
     
 
-    @classmethod
-    def get_parents(cls, obj=None):
-        '''
-        Get the parent classes of a class
-        '''
-        obj = cls.resolve_object(obj)
-        return obj.__bases__
+    # @classmethod
+    # def get_parents(cls, obj=None):
+    #     '''
+    #     Get the parent classes of a class
+    #     '''
+    #     obj = cls.resolve_object(obj)
+    #     return obj.__bases__
     
     parents = get_parents
     
@@ -893,8 +901,7 @@ class Schema:
 
         if callable(fn) or isinstance(fn, property):
             pass
-        else:
-            raise ValueError(f'fn must be a string or callable, got {type(fn)}')
+
         return fn
     
 
@@ -1041,4 +1048,50 @@ class Schema:
     child_functions = get_child_functions
     
 
+    @classmethod
+    def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
+        locals_dict = locals_dict or {}
+        kwargs = locals_dict or {}
+        kwargs.pop('cls', None)
+        kwargs.pop('self', None)
 
+        assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
+        
+        # These lines are needed to remove the self and cls from the locals_dict
+        for k in kwargs_keys:
+            kwargs.update( locals_dict.pop(k, {}) or {})
+
+        return kwargs
+    
+    
+    get_kwargs = get_params = locals2kwargs 
+
+
+
+    @classmethod
+    def transfer_fn_code(cls, module1= 'module',
+                        fn_prefix = 'ray_',
+                        module2 = 'ray',
+                        refresh = False):
+
+        module1 = c.module(module1)
+        module2 = c.module(module2)
+        module1_fn_code_map = module1.fn2code(fn_prefix)
+        module2_code = module2.code()
+        module2_fns = module2.fns()
+        filepath = module2.filepath()
+        for fn_name, fn_code in module1_fn_code_map.items():
+            print(f'adding {fn_name}')
+            print('fn_code', fn_code)
+            if fn_name in module2_fns:
+                if refresh:
+                    module2_code = module2_code.replace(module2_fns[fn_name], '')
+                else:
+                    print(f'fn_name {fn_name} already in module2_fns {module2_fns}')
+
+            module2_code += '\n'
+            module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
+            module2_code += '\n'
+        cls.put_text(filepath, module2_code)
+
+        return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}

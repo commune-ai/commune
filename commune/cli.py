@@ -94,23 +94,31 @@ class cli:
         module_name = module.module_path()
         fn_path = f'{module_name}/{fn}'
         fn_obj = getattr(module, fn)
-        emoji = '🔥'
 
         if callable(fn_obj):
+
             args, kwargs = self.parse_args(argv)
 
             # spinning status
             inputs = json.dumps({"args":args, "kwargs":kwargs})
-            c.print( f'Calling {emoji}{fn_path}/{inputs}){emoji}' )
-            output = fn_obj(*args, **kwargs)
+            msg = f'Calling Function -> {fn_path}/{inputs})'
+            output = lambda: fn_obj(*args, **kwargs)
+            color = 'blue'
+            emoji = '🔵'
         elif self.is_property(fn_obj):
             inputs = ''
-            c.print(f'Calling {emoji}{fn_path}/{inputs}){emoji}')
-            output =  getattr(module(), fn)
+            msg = f'Calling Function Property --> {fn_path})'
+            output =  lambda : getattr(module(), fn)
+            color = 'green'
+            emoji = '🟢'
         else: 
-            inputs = ''
-            output = fn_obj 
-        return output
+            msg = f'Calling Attribute {fn_path}'
+            output = lambda: fn_obj 
+            color = 'yellow'
+            emoji = '🟡'
+        emoji = emoji * 3
+        c.print('[b]' + emoji + msg + emoji + '\b' , color=color)
+        return output()
     
 
     @classmethod
@@ -150,7 +158,7 @@ class cli:
                 return eval(x[3:-1])
             except:
                 return x
-        if x.lower() in 'null' or x == 'None':  # convert 'null' or 'None' to None
+        if x.lower() in ['null'] or x == 'None':  # convert 'null' or 'None' to None
             return None 
         elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool
             return bool(x.lower() == 'true')

@@ -34,6 +34,8 @@ class Tree(c.Module):
         Parameters:
             path (str): The module path
         """
+        if cls.can_import_object(simple_path):
+            return simple_path
         
         if simple_path.endswith(extension):
             simple_path = simple_path[:-len(extension)]
@@ -78,7 +80,7 @@ class Tree(c.Module):
             is_in_tree = bool(simple_path in tree)
             if not  is_in_tree:
                 c.print(f'Path not found in tree: {simple_path}', color='red', verbose=verbose )
-                tree = cls.tree(update=True, include_root=True)
+                tree = cls.tree(update=False, include_root=True)
             if simple_path in tree:
                 path = tree[simple_path]
         assert path != None, f'Path not found for simple path {simple_path}'
@@ -375,6 +377,11 @@ class Tree(c.Module):
 
     @classmethod
     def find_classes(cls, path):
+        if os.path.isdir(path):
+            path2classes = {}
+            for p in c.glob(path+'/**/**.py', recursive=True):
+                path2classes[p] = cls.find_classes(p)
+            return path2classes
         code = c.get_text(path)
         classes = []
         for line in code.split('\n'):
@@ -386,6 +393,20 @@ class Tree(c.Module):
                     continue
                 classes += [new_class]
         return [c for c in classes]
+    
+    @classmethod
+    def find_object_paths(cls, path:str = './', **kwargs):
+        classes = cls.find_classes(path)
+        
+        if isinstance(classes, dict):
+            object_paths = []
+            for p, c in classes.items():
+                
+                object_paths += [cls.path2simple(p) + '.' + c for c in classes[p]]
+            return object_paths
+        object_paths = [path + '.' + c for c in classes]
+        return object_paths
+
     
     @classmethod
     def simple2objectpath(cls, simple_path:str, cactch_exception = False, **kwargs) -> str:
