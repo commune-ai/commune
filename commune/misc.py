@@ -669,3 +669,86 @@ class Misc:
         assert type(memory) in [float, int], f'memory must be a float or int, got {type(memory)}'
         return memory
             
+
+    
+    @classmethod
+    def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
+        return [text for text in text_list if filter_text in text]
+
+
+
+    # local update  
+    @classmethod
+    def update(cls, 
+               module = None,
+               tree:bool = True,
+               namespace: bool = False,
+               subspace: bool = False,
+               network: str = 'local',
+               **kwargs
+               ):
+        responses = []
+        if tree:
+            r = c.tree()
+            responses.append(r)
+        if module != None:
+            return c.module(module).update()
+        # update local namespace
+        c.ip(update=True)
+        if namespace:
+            responses.append(c.namespace(network=network, update=True))
+        if subspace:
+            responses.append(c.module('subspace').sync())
+        
+        return {'success': True, 'responses': responses}
+    
+
+    @classmethod
+    def is_success(cls, x):
+        # assume that if the result is a dictionary, and it has an error key, then it is an error
+        if isinstance(x, dict):
+            if 'error' in x:
+                return False
+            if 'success' in x and x['success'] == False:
+                return False
+            
+        return True
+    
+    @classmethod
+    def is_error(cls, x:Any):
+        """
+        The function checks if the result is an error
+        The error is a dictionary with an error key set to True
+        """
+        if isinstance(x, dict):
+            if 'error' in x and x['error'] == True:
+                return True
+            if 'success' in x and x['success'] == False:
+                return True
+        return False
+    
+    @classmethod
+    def is_int(cls, value) -> bool:
+        o = False
+        try :
+            int(value)
+            if '.' not in str(value):
+                o =  True
+        except:
+            pass
+        return o
+    
+        
+    @classmethod
+    def is_float(cls, value) -> bool:
+        o =  False
+        try :
+            float(value)
+            if '.' in str(value):
+                o = True
+        except:
+            pass
+
+        return o 
+
+
