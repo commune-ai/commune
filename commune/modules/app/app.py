@@ -19,46 +19,43 @@ class App(c.Module):
            update:bool=False,
            cwd = None, 
            **extra_kwargs):
-            
-        if app_info == None:
-            module = c.shortcuts().get(module, module)
-            name = name or module
-            app2info = self.get('app2info', {})
-            kwargs = kwargs or {}
-            app_info = app_info or app2info.get(name, {})
-            port = app_info.get('port', c.free_port())
-            if c.port_used(port):
-                c.kill_port(port)
-            if c.module_exists(module + '.app'):
-                module = module + '.app'
-            module = c.module(module)
-            kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
-            cmd = f'streamlit run {module.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
-            cwd = cwd or os.path.dirname(module.filepath())
-            app_info= {
-                'name': name,
-                'port': port,
-                'fn': fn,
-                'kwargs': kwargs,
-                'cmd': cmd, 
-                'cwd': cwd ,
-            }
-    
-        if remote:
-            c.remote_fn(module=module, 
-                        fn='start_app',
-                        name=self.name_prefix + name ,
-                        kwargs= {'app_info': app_info, 'remote': False})
-            return app_info
         
+        if remote:
+            name = name or module
+            kwargs = c.locals2kwargs(locals())
+            return  self.remote_fn(
+                        fn='start',
+                        name=self.name_prefix + name ,
+                        kwargs= kwargs)
 
-        cmd = app_info['cmd']
-        cwd  = app_info['cwd']
-        name = app_info['name']
+        module = c.shortcuts().get(module, module)
+
+        app2info = self.get('app2info', {})
+        kwargs = kwargs or {}
+        app_info = app_info or app2info.get(name, {})
+        port = app_info.get('port', c.free_port())
+        if c.port_used(port):
+            c.kill_port(port)
+        if c.module_exists(module + '.app'):
+            module = module + '.app'
+        module = c.module(module)
+        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
+        cmd = f'streamlit run {module.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+        cwd = cwd or os.path.dirname(module.filepath())
+        app_info= {
+            'name': name,
+            'port': port,
+            'fn': fn,
+            'kwargs': kwargs,
+            'cmd': cmd, 
+            'cwd': cwd ,
+        }
         app2info[name] = app_info
-        print(self.put('app2info', app2info))
+        self.put('app2info', app2info )
+        
         c.cmd(cmd, verbose=True, cwd=cwd)
         return app_info
+    
     start_app = app = start
 
 

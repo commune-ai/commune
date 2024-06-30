@@ -173,7 +173,7 @@ class Server(c.Module):
         
         if tag_seperator in str(module):
             module, tag = module.split('::')
-        module = module or c.module_path()
+        module = module or c.module_name()
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = name or server_name or module
         if tag_seperator in name:
@@ -199,7 +199,7 @@ class Server(c.Module):
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
             if response['success'] == False:
                 return response
             return {'success':True, 

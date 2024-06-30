@@ -24,8 +24,8 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                  'get_stake_from']
 
 
-    def __init__(self, network:str = 'main', **kwargs):
-        self.config = self.set_config(network=network, **kwargs)
+    def __init__(self, network=None, **kwargs):
+        self.config = self.set_config(**kwargs)
         # merge the config with the subspace config
         self.config = c.dict2munch({**Subspace.config(), **self.config})
         self.set_network(network)
@@ -120,7 +120,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
 
     def clean_keys(self, 
-                   network='main', 
                    min_value=1,
                    update = True):
         """
@@ -132,7 +131,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             update: bool = True, # update the key2value cache
             max_age: int = 0 # max age of the key2value cache
         """
-        key2value= self.key2value(netuid='all', update=update, network=network, fmt='j', min_value=0)
+        key2value= self.key2value(netuid='all', update=update, fmt='j', min_value=0)
         address2key = c.address2key()
         rm_keys = []
         for k,v in key2value.items():
@@ -321,6 +320,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                 url : str = None, 
                 save = False,
                 **kwargs):
+        
         self.network = self.resolve_network(network)
         self.substrate = self.get_substrate( url=url, mode=mode, trials=trials , **kwargs)
         if save:
@@ -499,7 +499,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
         return new_map
     
-    def runtime_spec_version(self, network:str = 'main'):
+    def runtime_spec_version(self):
         # Get the runtime version
         c.print(self.substrate.runtime_config.__dict__)
         runtime_version = self.query_constant(module_name='System', constant_name='SpVersionRuntimeVersion')
@@ -620,7 +620,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     def check_storage(self, block_hash = None):
         return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
     
-    def get_feature(self, feature='names', network='main', netuid=0, update=False, max_age=1000, **kwargs):
+    def get_feature(self, feature='names', network=None, netuid=0, update=False, max_age=1000, **kwargs):
         return getattr(self(network=network), feature)(netuid=netuid, update=update, max_age=max_age, **kwargs)
         
     def compose_call(self,
@@ -752,7 +752,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
     # set the network if network is specified
 
-    protected_attributes = [ 'set_network','protected_attributes']
+    protected_attributes = [ 'set_network', 'protected_attributes']
     def __getattr__(self, key):
         if key in self.protected_attributes:
             return getattr(self, key)
@@ -1010,7 +1010,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
 
               
-    def name2uid(self, name = None, netuid: int = 0, search=None, network: str = 'main') -> int:
+    def name2uid(self, name = None, netuid: int = 0, search=None) -> int:
         netuid = self.resolve_netuid(netuid)
         uid2name = self.uid2name(netuid=netuid)
 

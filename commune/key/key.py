@@ -1087,23 +1087,17 @@ class Keypair(c.Module):
     
 
 
-    @property
-    def aes_key(self):
-        if not hasattr(self, '_aes_key'):
-            password = self.mnemonic or self.private_key
-            self._aes_key = c.module('key.aes')(c.bytes2str(password))
-        return self._aes_key
 
     def encrypt(self, data: Union[str, bytes], password: str = None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
+
         return aes_key.encrypt(data, **kwargs)
 
     def resolve_aes_key(self, password = None):
         if password == None:
-            key = Keypair.from_password(password)
-        else: 
-            key = self
-        return key.aes_key
+            c.print('Using the KeyPair private key as the encryption key')
+            password = self.private_key
+        return c.module('key.aes')(password)
 
     def decrypt(self, data: Union[str, bytes], password=None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
@@ -1205,37 +1199,6 @@ class Keypair(c.Module):
         enc_text =  c.decrypt(data, password=password)
         cls.put(path, enc_text)
         return {'encrypted':enc_text, 'path':path , 'password':password}
-
-
-
-    def encrypt_file(self, path='test.encryption', password=None, prefix=encrypted_prefix):
-        if password == None:
-            password = self.private_key
-        text = c.get_text(path)
-        enc_text =  self.encrypt(text, password=password)
-        enc_text = f'{prefix}{enc_text}'
-        c.put_text(path, enc_text)
-        return {'encrypted':enc_text, 'path':path }
-
-
-
-
-    def decrypt_file(self, path, password=None):
-        if password == None:
-            password = self.private_key
-        enc_text = c.get_text(path)
-        assert enc_text.startswith(self.encrypted_prefix), f'file {path} is not encrypted'
-        enc_text = enc_text[len(self.encrypted_prefix):]
-        dec_text =  self.decrypt(enc_text, password=password)
-        if not isinstance(dec_text, str):
-            dec_text = json.dumps(dec_text)
-        c.put_text(path, dec_text)
-        
-        return {'success': True }
-
-
-
-
 
     @classmethod
     def getmem(cls, key):
@@ -1503,14 +1466,8 @@ class Keypair(c.Module):
     def ss58_decode(*args, **kwargs):
         return ss58_decode(*args, **kwargs)
     
-
-
-
-
-
-
     @classmethod
-    def encrypt_file(cls, path:str, password=None, key=None,) -> str:
+    def encrypt_file(cls, path:str, password=None, key=None) -> str:
         key = c.get_key(key)
         text = c.get_text(path)
         r = key.encrypt(text, password=password)
@@ -1519,7 +1476,7 @@ class Keypair(c.Module):
         
     @classmethod
     def decrypt_file(cls, path:str, key=None, password=None, **kwargs) -> str:
-        key = c.get_key(key)
+        key = cls.get_key(key)
         text = c.get_text(path)
         r = key.decrypt(text, password=password, key=key, **kwargs)
         cls.put_text(path, r)
@@ -1535,6 +1492,34 @@ class Keypair(c.Module):
         return text.startswith(prefix)
     
 
+
+
+    @classmethod
+    def decrypt_file(cls, 
+                path: Union[str, bytes],
+                key: str = None, 
+                password : str = None,
+                **kwargs) -> bytes:
+        key = c.get_key(key)
+        data = c.get_text(path)
+        return key.decrypt(data, password=password, **kwargs)
+    
+
+    @classmethod
+    def encrypt_file(cls, 
+                path: Union[str, bytes],
+                key: str = None, 
+                password : str = None,
+                save = True,
+                **kwargs) -> bytes:
+        key = c.get_key(key)
+        data = c.get_text(path)
+        response = key.encrypt(data, password=password, **kwargs)
+        if save:
+            print(f'Encrypting {path}' )
+            c.put_text(path, response)
+        return response
+    
 
     
       

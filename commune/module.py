@@ -138,14 +138,11 @@ class c(Config, Schema, Misc, Logger, Storage ):
     folderpath = dirname = dirpath
 
     @classmethod
-    def module_path(cls) -> str:
-        # get the module path
-        obj = cls.resolve_object(cls)
-        module_path =  inspect.getfile(obj)
-        module_path = cls.path2simple(module_path)
-        return module_path
-    
-    path  = name = module_name =  module_path
+    def module_name(cls, obj=None):
+        obj = cls.resolve_object(obj)
+        module_file =  inspect.getfile(obj)
+        return cls.path2simple(module_file)
+    path  = name = module_name 
     
     @classmethod
     def module_class(cls) -> str:
@@ -370,16 +367,6 @@ class c(Config, Schema, Misc, Logger, Storage ):
         
         return new_d
 
-    @classmethod
-    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.Tree'}, **kwargs) -> str:
-        if path in path2objectpath:
-            path = path2objectpath[path]
-        else:
-            path =  c.module('tree').simple2objectpath(path, **kwargs)
-        
-        return c.import_object(path)
-
-
   
     @classmethod
     def has_module(cls, module):
@@ -475,7 +462,10 @@ class c(Config, Schema, Misc, Logger, Storage ):
 
     @classmethod
     def storage_dir(cls):
-        return f'{c.cache_path}/{cls.module_path()}'
+        return f'{c.cache_path}/{cls.module_name()}'
+    
+
+
     tmp_dir = cache_dir   = storage_dir
     
     @classmethod
@@ -696,7 +686,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         """
         # if name is not specified, use the module as the name such that module::tag
         if name == None:
-            module = cls.module_path() if module == None else module
+            module = cls.module_name() if module == None else module
 
             # module::tag
             if tag_seperator in module:
@@ -717,7 +707,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     @classmethod
     def resolve_object(cls, module:str = None, **kwargs):
         if module == None:
-            module = cls.module_path()
+            module = cls.module_name()
         if isinstance(module, str):
             module = c.module(module)
         return module
@@ -759,7 +749,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         if 'name' in features:
             info['name'] = self.server_name() if callable(self.server_name) else self.server_name # get the name of the module
         if 'path' in features:
-            info['path'] = self.module_path() # get the path of the module
+            info['path'] = self.module_name() # get the path of the module
         if 'address' in features:
             info['address'] = self.address.replace(c.default_ip, c.ip(update=False))
         if 'key' in features:    
@@ -1106,8 +1096,8 @@ class c(Config, Schema, Misc, Logger, Storage ):
     
     @classmethod
     def has_test_module(cls, module=None):
-        module = module or cls.module_path()
-        return c.module_exists(cls.module_path() + '.test')
+        module = module or cls.module_name()
+        return c.module_exists(cls.module_name() + '.test')
     
     @classmethod
     def test(cls,
@@ -1116,7 +1106,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
               trials=3, 
               parallel=False,
               ):
-        module = module or cls.module_path()
+        module = module or cls.module_name()
 
         if cls.has_test_module(module):
             c.print('FOUND TEST MODULE', color='yellow')
@@ -1329,6 +1319,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         key = c.get_key(key)
         return key.decrypt(data, password=password, **kwargs)
     
+
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -1346,7 +1337,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     @classmethod  
     def keys(cls, search = None, ss58=False,*args, **kwargs):
         if search == None:
-            search = cls.module_path()
+            search = cls.module_name()
             if search == 'module':
                 search = None
         keys = c.module('key').keys(search, *args, **kwargs)
@@ -1369,7 +1360,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     @classmethod
     def resolve_keypath(cls, key = None):
         if key == None:
-            key = cls.module_path()
+            key = cls.module_name()
         return key
     
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
@@ -1402,7 +1393,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
             **kwargs):
 
         if module == None:
-            module = cls.module_path()
+            module = cls.module_name()
 
         if tag == None:
             tag = ''
@@ -1734,7 +1725,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     
     
         if name == None:
-            module_path = cls.resolve_object(module).module_path()
+            module_path = cls.resolve_object(module).module_name()
             name = f"{module_path}{tag_seperator}{fn}"
 
             if tag != None:
@@ -1754,7 +1745,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
         if name == None:
             # if the module has a module_path function, use that as the name
             if hasattr(module, 'module_path'):
-                name = module.module_path()
+                name = module.module_name()
             else:
                 name = module.__name__.lower() 
             # resolve the tag
@@ -1896,8 +1887,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     def is_mnemonic(s: str) -> bool:
         import re
         # Match 12 or 24 words separated by spaces
-        pattern = r'^(\w+\s){11}\w+(\s\w+){11}$|^(\w+\s){23}\w+$'
-        return bool(re.match(pattern, s))
+        return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
 
     @staticmethod   
     def is_private_key(s: str) -> bool:
@@ -2209,6 +2199,17 @@ class c(Config, Schema, Misc, Logger, Storage ):
             c.add_key(key_path, **kwargs)
             keys.append(key_path)
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
+
+    @classmethod
+    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.Tree'}, **kwargs) -> str:
+        print('tree')
+        if path in path2objectpath:
+            path = path2objectpath[path]
+        else:
+            path =  c.module('tree').simple2objectpath(path, **kwargs)
+        return c.import_object(path)
+
+    
 
     
 

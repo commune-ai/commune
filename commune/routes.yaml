@@ -71,11 +71,12 @@ key:
   - load_key
   - load_keys 
   - get_signer 
+  - encrypt_file
+  - decrypt_file
+
 remote:
   - host2ssh
 
-subspace:
-  - n
 
 namespace: [
             add_remote, 
@@ -144,6 +145,7 @@ docker:
 
 network:
   - resolve_port_range
+  - used_ports
   - port_used
   - port_free
   - ports
@@ -184,12 +186,10 @@ server:
   - kill_all
 
 pm2:
-  - [pm2_kill_many, pm2_kill_all]
   - [kill_many, pm2_kill_many]
   - [kill, pm2_kill]
   - [pm2ls, pm2ls]
-  - [kill_many, kill_all]
-  - [pm2_kill_many, pm2_kill_all]
+  - [kill_all, pm2_kill_all]
 
 vali:
   - run_epoch

@@ -18,7 +18,6 @@ class cli:
                 verbose = True,
                 forget_fns = ['module.key_info', 'module.save_keys'], 
                 save: bool = False):
-        self.t0 = time.time()
 
         self.verbose = verbose
         self.save = save
@@ -29,12 +28,32 @@ class cli:
         self.forward(args=args)
     
     def forward(self, args=None):
+        t0 = time.time()
         args = args or self.argv()
         self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
-        output = self.process_output(output)
+        latency = time.time() - t0
 
-        self.latency = time.time() - self.t0
+        is_error =  c.is_error(output)
+        if is_error:
+            buffer = '🔴' * 3
+            msg =  f'Error ({latency})' 
+        else:
+            buffer = '🟢' * 3
+            msg = f'Result ({latency:.2f})'
+
+        result_header = f'{buffer} {msg} {buffer}'
+        c.print(result_header, color='green' if not is_error else 'red')
+        is_generator = self.base_module.is_generator(output)
+
+        if is_generator:
+            for output_item in output:
+                c.print( output_item)
+        else:
+            
+            c.print( output)
+        return output
+    
         # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
     
     def argv(self):
@@ -42,16 +61,6 @@ class cli:
         return sys.argv[1:] 
 
 
-    def process_output(self, output):
-
-        is_generator = self.base_module.is_generator(output)
-        if self.base_module.is_generator(output):
-            for output_item in output:
-                c.print(output_item)
-        else:
-            c.print(output)
-        return output
-    
 
 
     def get_output(self, argv):
@@ -62,6 +71,8 @@ class cli:
         if you are calling a function ont he module function (the root module), it is not necessary to specify the module
         c {fn} arg1 arg2 arg3 ... argn
         """
+
+
 
         if ':' in argv[0]:
             # {module}:{fn} arg1 arg2 arg3 ... argn
@@ -91,34 +102,33 @@ class cli:
         if fn_class == 'self':
             if callable(module):
                 module = module()
-        module_name = module.module_path()
+        module_name = module.module_name()
         fn_path = f'{module_name}/{fn}'
-        fn_obj = getattr(module, fn)
+        try: 
+            fn_obj = getattr(module, fn)
+        except :
+            fn_obj = getattr(module(), fn)
+        left_buffer = '🔵' *3 
+        right_buffer = left_buffer[::-1]
+        # calling function buffer
 
+        msg = left_buffer + f' Calling {fn_path}'
+        color = 'cyan'
         if callable(fn_obj):
 
             args, kwargs = self.parse_args(argv)
-
-            # spinning status
             inputs = json.dumps({"args":args, "kwargs":kwargs})
-            msg = f'Calling Function -> {fn_path}/{inputs})'
+            msg += '/' + inputs
+
             output = lambda: fn_obj(*args, **kwargs)
-            color = 'blue'
-            emoji = '🔵'
         elif self.is_property(fn_obj):
-            inputs = ''
-            msg = f'Calling Function Property --> {fn_path})'
             output =  lambda : getattr(module(), fn)
-            color = 'green'
-            emoji = '🟢'
         else: 
-            msg = f'Calling Attribute {fn_path}'
             output = lambda: fn_obj 
-            color = 'yellow'
-            emoji = '🟡'
-        emoji = emoji * 3
-        c.print('[b]' + emoji + msg + emoji + '\b' , color=color)
-        return output()
+        msg +=  ' ' + right_buffer
+        c.print(msg, color=color)
+        response =  output()
+        return response
     
 
     @classmethod

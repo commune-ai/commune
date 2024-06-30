@@ -258,20 +258,11 @@ class Tree(c.Module):
             return tree2path[tree]
         return tree2path
     
-
-    @classmethod
-    def resolve_tree(cls, tree:str=None):
-        if tree == None:    
-            tree = root_tree_path.split('/')[-1]
-        return tree
-    
-    
-
     @classmethod
     def path2simple(cls,  
                     path:str, 
                     tree = None,  
-                    ignore_prefixes = ['src', 'commune', 'modules', 'router'],
+                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules',  'router'],
                     module_folder_filnames = ['__init__', 'main', 'module'],
                     module_extension = 'py',
                     ignore_suffixes = ['module'],
@@ -280,8 +271,6 @@ class Tree(c.Module):
                     verbose = False,
                     num_lines_to_read = 50,
                     ) -> str:
-        
-        
         
         path  = os.path.abspath(path)
         path_filename_with_extension = path.split('/')[-1] # get the filename with extension     
@@ -300,8 +289,6 @@ class Tree(c.Module):
             else:
                 return None
             
-
-
         if is_module_folder:
             path = '/'.join(path.split('/')[:-1])
 
@@ -318,8 +305,6 @@ class Tree(c.Module):
         if path.startswith('/'):
             path = path[1:]
         
-
-
         # strip the extension
         path = path.replace('/', '.')
 
@@ -373,7 +358,6 @@ class Tree(c.Module):
         if os.path.exists(dirpath) and any([[f.endswith(cf) for cf in config_files] for f in dir_files]):
             return True
         return False
-    
 
     @classmethod
     def find_classes(cls, path):
@@ -407,9 +391,12 @@ class Tree(c.Module):
         object_paths = [path + '.' + c for c in classes]
         return object_paths
 
-    
     @classmethod
-    def simple2objectpath(cls, simple_path:str, cactch_exception = False, **kwargs) -> str:
+    def simple2objectpath(cls, 
+                          simple_path:str,
+                           cactch_exception = False, 
+                           **kwargs) -> str:
+        
         if cactch_exception:
             try:
                 object_path = cls.simple2objectpath(simple_path, cactch_exception=False, **kwargs)

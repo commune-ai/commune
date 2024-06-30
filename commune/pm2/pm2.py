@@ -211,8 +211,8 @@ class PM2(c.Module):
                    cwd = None,
                    refresh:bool=True ):
 
-        if hasattr(module, 'module_path'):
-            module = module.module_path()
+        if hasattr(module, 'module_name'):
+            module = module.module_name()
             
         # avoid these references fucking shit up
         args = args if args else []
@@ -220,12 +220,11 @@ class PM2(c.Module):
 
         # convert args and kwargs to json strings
         kwargs =  {
-            'module': module,
+            'module': module ,
             'fn': fn,
             'args': args,
             'kwargs': kwargs 
         }
-
 
         kwargs_str = json.dumps(kwargs).replace('"', "'")
 

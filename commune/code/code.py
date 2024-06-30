@@ -523,15 +523,7 @@ class Code(c.Module):
     def file2classes(self, path:str = None, search:str = None, start_lines:int=2000):
         return self.find_python_classes(path=path, search=search, start_lines=start_lines)
 
-    @classmethod
-    def find_classes(cls, path):
-        code = c.get_text(path)
-        classes = []
-        for line in code.split('\n'):
-            if all([s in line for s in ['class ', '(', '):']]):
-                classes.append(line.split('class ')[-1].split('(')[0].strip())
-        return [c for c in classes]
-    
+
 
     @classmethod
     def get_class_name(cls, obj = None) -> str:

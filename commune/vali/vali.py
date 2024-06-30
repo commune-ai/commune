@@ -683,7 +683,7 @@ class Vali(c.Module):
 
     def print_header(self):
 
-        module_path = self.module_path()
+        module_path = self.module_name()
         buffer='='*40
         c.print(buffer*2)
         c.print(buffer + module_path +  ' ' + buffer[len(module_path):])

@@ -11,8 +11,14 @@ import commune as c
 class AESKey(c.Module):
 
     def __init__(self, key:str = 'dummy' ): 
+        self.set_password(key)
+
+    def set_password(self, key:str):
+        if isinstance(key, str):
+            key = key.encode()
         self.bs = AES.block_size
-        self.key_phrase = hashlib.sha256(key.encode()).digest()
+        self.key_phrase = hashlib.sha256(key).digest()
+        return {'msg': 'set the password'}
 
     def encrypt(self, data, return_string = True):
         data = self.python2str(data)
