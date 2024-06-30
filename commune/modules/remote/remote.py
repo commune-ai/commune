@@ -4,18 +4,18 @@ from typing import *
 import os
 import json
 import paramiko
-        
-
+    
 class Remote(c.Module):
 
     def __init__(self, path = 'hosts'):
         self.set_host_path(path)
 
     def set_host_path(self, path=None):
-        path = path or (self.dirpath() + f'/data/hosts.yaml')
+        path = path or 'hosts.yaml'
         path = self.resolve_path(path)
         self.host_data_path = path
         return {'status': 'success', 'msg': f'Host data path set to {path}'}
+
 
     def ssh_cmd(self, *cmd_args, 
                 cmd : str = None,
@@ -92,22 +92,17 @@ class Remote(c.Module):
         c.print(f'Running --> (command={command} host={host["name"]} sudo={sudo} cwd={cwd})')
 
         stdin, stdout, stderr = client.exec_command(command)
-
         try:
             if sudo:
-                
                 stdin.write(host['pwd'] + "\n") # Send the password for sudo commands
                 stdin.flush() # Send the password
-
             color = c.random_color()
             # Print the output of ls command
-
             def print_output():
                 for line in stdout.readlines():
                     if verbose:
                         c.print(f'[bold]{host["name"]}[/bold]', line.strip('\n'), color=color)
                     yield line 
-
                 # if there is an stderr, print it
 
                 for line in stderr.readlines():

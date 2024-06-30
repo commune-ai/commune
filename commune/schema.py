@@ -605,64 +605,6 @@ class Schema:
     
 
 
-    
-    @classmethod
-    def get_text(cls, 
-                 path: str, 
-                 tail = None,
-                 start_byte:int = 0,
-                 end_byte:int = 0,
-                 start_line :int= None,
-                 end_line:int = None ) -> str:
-        # Get the absolute path of the file
-        path = cls.resolve_path(path)
-
-        # Read the contents of the file
-        with open(path, 'rb') as file:
-
-            file.seek(0, 2) # this is done to get the fiel size
-            file_size = file.tell()  # Get the file size
-            if start_byte < 0:
-                start_byte = file_size - start_byte
-            if end_byte <= 0:
-                end_byte = file_size - end_byte 
-            if end_byte < start_byte:
-                end_byte = start_byte + 100
-            chunk_size = end_byte - start_byte + 1
-
-            file.seek(start_byte)
-
-            content_bytes = file.read(chunk_size)
-
-            # Convert the bytes to a string
-            try:
-                content = content_bytes.decode()
-            except UnicodeDecodeError as e:
-                if hasattr(content_bytes, 'hex'):
-                    content = content_bytes.hex()
-                else:
-                    raise e
-
-            if tail != None:
-                content = content.split('\n')
-                content = '\n'.join(content[-tail:])
-    
-            elif start_line != None or end_line != None:
-                
-                content = content.split('\n')
-                if end_line == None or end_line == 0 :
-                    end_line = len(content) 
-                if start_line == None:
-                    start_line = 0
-                if start_line < 0:
-                    start_line = start_line + len(content)
-                if end_line < 0 :
-                    end_line = end_line + len(content)
-                content = '\n'.join(content[start_line:end_line])
-            else:
-                content = content_bytes.decode()
-        return content
-
 
 
     @classmethod
@@ -889,7 +831,7 @@ class Schema:
 
 
     @classmethod
-    def get_fn(cls, fn:str):
+    def get_fn(cls, fn:str, init_kwargs = None):
         """
         Gets the function from a string or if its an attribute 
         """
@@ -897,7 +839,11 @@ class Schema:
             if ':' in fn or '/' in fn:
                 module, fn = fn.split(':')
                 cls = cls.get_module(module)
-            fn =  getattr(cls, fn)
+            try:
+                fn =  getattr(cls, fn)
+            except:
+                init_kwargs = init_kwargs or {}
+                fn = getattr(cls(**init_kwargs), fn)
 
         if callable(fn) or isinstance(fn, property):
             pass
@@ -1095,3 +1041,14 @@ class Schema:
         cls.put_text(filepath, module2_code)
 
         return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
+
+
+    @classmethod
+    def find_classes(cls, path):
+        code = cls.get_text(path)
+        classes = []
+        for line in code.split('\n'):
+            if all([s in line for s in ['class ', '(', '):']]):
+                classes.append(line.split('class ')[-1].split('(')[0].strip())
+        return [c for c in classes]
+    

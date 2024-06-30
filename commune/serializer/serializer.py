@@ -10,6 +10,7 @@ import commune as c
 import json
 
 
+
 class Serializer(c.Module):
 
     def serialize(self,x:dict, mode = 'str', copy_value = True):
@@ -66,18 +67,6 @@ class Serializer(c.Module):
 
         return new_value
     
-
-    
-    def test_pandas(self):
-        import pandas as pd
-        data = pd.DataFrame([{'a': [1,2,3], 'b': [4,5,6]}])
-        serialized = self.serialize(data)
-        c.print(serialized)
-        deserialized = self.deserialize(serialized)
-        c.print(deserialized)
-        assert data.to_json()==deserialized.to_json()
-        return {'success': True, 'data': data, 'deserialized': deserialized}
-        
 
     def is_serialized(self, data):
         if isinstance(data, dict) and data.get('serialized', False) and \
@@ -270,8 +259,6 @@ class Serializer(c.Module):
     def get_type_str(self, data):
         '''
         ## Documentation for get_type_str function
-        
-        
         ### Purpose
         The purpose of this function is to determine and return the data type of the input given to it in string format. It supports identification of various data types including Munch, Tensor, ndarray, and DataFrame.
         
@@ -308,76 +295,3 @@ class Serializer(c.Module):
             data_type = 'pandas'
         return data_type
 
-    @classmethod
-    def test_serialize(cls):
-        import torch
-        module = Serializer()
-        data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
-        proto = module.serialize(data)
-        module.deserialize(proto)
-
-    @classmethod
-    def test_deserialize(cls):
-        import torch
-        module = Serializer()
-        
-        t = c.time()
-        data = {'bro': {'fam':[[torch.randn(100,1000), torch.randn(100,1000)]], 'bro': [torch.ones(1,1)]}}
-        proto = module.serialize(data)
-        data = module.deserialize(proto)
-        c.print(t - c.time())
-        
-        # return True
-    
-    @classmethod
-    def test(cls, size=1):
-        import torch
-        self = cls()
-        stats = {}
-        data = {'bro': {'fam': torch.randn(size,size), 'bro': [np.ones((2,1))]}}
-
-        t = c.time()
-        serialized_data = self.serialize(data)
-        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
-        deserialized_data = self.deserialize(serialized_data)
-        c.print(deserialized_data, data)
-    
-        assert deserialized_data['bro']['fam'].shape == data['bro']['fam'].shape
-        assert deserialized_data['bro']['bro'][0].shape == data['bro']['bro'][0].shape
-
-        stats['elapsed_time'] = c.time() - t
-        stats['size_bytes'] = c.sizeof(data)
-        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
-        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
-        stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
-        stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
-
-        data =  torch.randn(size,size)
-        t = c.time()
-        serialized_data = self.serialize(data)
-        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
-        deserialized_data = self.deserialize(serialized_data)
-        assert deserialized_data.shape == data.shape
-
-        stats['elapsed_time'] = c.time() - t
-        stats['size_bytes'] = c.sizeof(data)
-        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
-        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
-        stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
-        stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
-        
-        data =  np.random.randn(size,size)
-        t = c.time()
-        serialized_data = self.serialize(data, mode='str')
-        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
-        deserialized_data = self.deserialize(serialized_data)
-        assert deserialized_data.shape == data.shape
-
-        stats['elapsed_time'] = c.time() - t
-        stats['size_bytes'] = c.sizeof(data)
-        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
-        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
-        stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
-        stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
-
-        return stats

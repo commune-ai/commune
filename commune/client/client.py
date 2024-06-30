@@ -35,11 +35,15 @@ class Client(c.Module):
         self.set_client(address = address, network=network)
 
 
-    def process_input(self, args: list = None, kwargs: dict = None, params=None, message_type = "v0"):
+    def process_input(self, 
+                       args: list = None,
+                       kwargs: dict = None, 
+                       params=None, 
+                       message_type = "v0"):
 
         if isinstance(args, dict):
             kwargs = args
-            argsf = None
+            args = None
 
         if params != None:
             assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
@@ -53,18 +57,6 @@ class Client(c.Module):
         
         # serialize this into a json string
         if message_type == "v0":
-            """
-            {
-                'data' : {
-                'args': args,
-                'kwargs': kwargs,
-                'timestamp': timestamp,
-                }
-                'signature': signature
-            }
-            
-            """
-
             input =  { 
                         "args": args,
                         "kwargs": kwargs,
@@ -213,7 +205,7 @@ class Client(c.Module):
                 output = output['data']
         else: 
             output = self.iter_over_async(output)
-        
+
         return output
 
     async def async_forward(self,

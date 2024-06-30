@@ -3,10 +3,9 @@ import streamlit as st
 from typing import *
 import json
 
-class App(c.Module):
+class App(c.module('remote')):
     def __init__(self, **kwargs):
         self.set_config(kwargs=kwargs)
-        self.remote = c.module('remote')()
     
     @classmethod
     def app(cls, module: str = None, **kwargs):
@@ -15,7 +14,7 @@ class App(c.Module):
         c.new_event_loop()
         # c.load_style()
         self = cls()
-        modes = ['SSH', 'MANAGE_HOSTS', 'AI']
+        modes = ['SSH', 'MANAGE_HOSTS']
         # make this spand the whole page
         tabs = st.tabs(modes)
         for i,t in enumerate(tabs):
@@ -24,19 +23,19 @@ class App(c.Module):
 
     def filter_hosts_dashboard(self, host_names: list = None, expanded: bool = True, **kwargs):
 
-        host_map = self.remote.hosts()
+        host_map = self.hosts()
         host_names = list(host_map.keys())
 
         # get the search terms
-        search_terms = self.remote.search_terms()
+        search_terms = self.search_terms()
         search_terms['include'] = st.text_input('search', search_terms.get('include', ''))     
-        self.remote.set_search_terms(search_terms)
-        host_map = self.remote.filter_hosts(**search_terms)
+        self.set_search_terms(search_terms)
+        host_map = self.filter_hosts(**search_terms)
         host_names = list(host_map.keys())
         n = len(host_names)
         host_names = st.multiselect(f'Hosts(n={n})', host_names, host_names)
         self.host_map = {k:host_map[k] for k in host_names}
-        self.host2ssh = self.remote.host2ssh(host_map=host_map)
+        self.host2ssh = self.host2ssh(host_map=host_map)
 
     def manage_hosts(self):
 
@@ -56,50 +55,24 @@ class App(c.Module):
             add_host = st.button('Add Host')
 
             if add_host:
-                r = self.remote.add_host(host=host, port=port, user=user, pwd=pwd, name=name)
+                r = self.add_host(host=host, port=port, user=user, pwd=pwd, name=name)
                 st.write(r)
         with st.expander('Remove Host', expanded=False):
-            host_names = list(self.remote.hosts().keys())
+            host_names = list(self.hosts().keys())
             rm_host_name = st.selectbox('Host to Remove', host_names)
             rm_host = st.button('Remove Host')
             if rm_host:
-                st.write(self.remote.rm_host(rm_host_name))
+                st.write(self.rm_host(rm_host_name))
 
         with st.expander('Rename Host', expanded=False):
-            host_names = list(self.remote.hosts().keys())
+            host_names = list(self.hosts().keys())
             rm_host_name = st.selectbox('Host Name', host_names)
             new_host_name = st.text_input('New Host Name')
             rename_host = st.button('Rename Host')
             if rename_host:
-                host = self.remote.hosts()[rm_host_name]
-                self.remote.add_host(host)
-                self.remote.rm_host(rm_host_name)
-
-
-
-    def ai(self):
-        text = st.text_area('Text', 'host is user, port is 22, pwd is password')
-        with st.expander('Prompt', expanded=False):
-            prompt = {
-                'instruction': 'fill in the host details given the input text',
-                'input': text,
-                'host': {
-                    'host': 'str',
-                    'port': 'int',
-                    'pwd': 'str'
-                }
-            }
-            prompt = json.dumps(prompt, indent=4)
-            prompt = st.text_area('Prompt', prompt)
-            max_tokens = st.number_input('Max Tokens', 1, 200000, 100)
-
-        run = st.button('Run Model')
-        if run:
-            model = c.module('model.openrouter')()      
-            response = model.forward(prompt, max_tokens=max_tokens)
-            st.write(response)
-            return response
-
+                host = self.hosts()[rm_host_name]
+                self.add_host(host)
+                self.rm_host(rm_host_name)
 
 
     def host2ssh_search(self, expander=True):
@@ -109,8 +82,6 @@ class App(c.Module):
         st.code(host2ssh)
     
     def ssh(self):
-
-
 
 
         with st.expander('params', False):
@@ -167,7 +138,7 @@ class App(c.Module):
                 cmd = f'docker exec {docker_container} {cmd}'
             for host in host_names:
                 cmd_kwargs = dict(host=host, verbose=False, sudo=self.sudo, search=host_names, cwd=cwd)
-                future = c.submit(self.remote.ssh_cmd, args=[cmd], kwargs=cmd_kwargs, timeout=timeout)
+                future = c.submit(self.ssh_cmd, args=[cmd], kwargs=cmd_kwargs, timeout=timeout)
                 future2host[future] = host
                 host2stats[host] = host2stats.get(host, {'success': 0, 'error': 0 })
 
@@ -218,15 +189,13 @@ class App(c.Module):
                     stats['error'] += 1
                     host2stats[host] = stats
                 errors += [c.detailed_error(e)] * len(pending_hosts)
-            
-            self.put('host2stats', host2stats)
-
+        
             with st.expander('Failed Hosts', expanded=False):
                 selected_failed_hosts = st.multiselect('Failed Hosts', failed_hosts, failed_hosts)
                 delete_failed = st.button('Delete Failed')
                 if delete_failed:
                     for host in selected_failed_hosts:
-                        st.write(self.remote.rm_host(host))
+                        st.write(self.rm_host(host))
 
                 for host, error in zip(failed_hosts, errors):
                     st.write(f'**{host}**')

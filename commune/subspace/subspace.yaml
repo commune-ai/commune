@@ -1,11 +1,10 @@
 block_time: 8
 token_decimals: 9
-
 local: false
 loop: false
 mode: http
 netuid: 0
-network: main
+network: test
 network_mode: ws
 retry_params:
   backoff: 2
@@ -17,7 +16,6 @@ save_interval: 1800
 subnet: commune
 token_decimals: 9
 url: null
-
 local: false
 mode: http
 global_features:
@@ -37,8 +35,6 @@ module_features:
 - last_update
 - stake_from
 - delegation_fee
-network: main
-network_mode: ws
 subnet_features:
 - Tempo
 - ImmunityPeriod
