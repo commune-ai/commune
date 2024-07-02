@@ -416,13 +416,12 @@ class Tree(c.Module):
 
 
         return object_path
-    
-    
+
 
     @classmethod
     def pwdtree(cls):
         tree2path   =  c.tree2path()
-        pwd = c.pwd()
+        pwd = cls.pwd()
         return {v:k for k,v in tree2path.items()}.get(pwd, None)
     which_tree = pwdtree
     

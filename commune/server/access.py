@@ -20,7 +20,6 @@ class Access(c.Module):
                 stake_from_weight = 1.0, # the weight of the staker
                 max_age = 30, # max age of the state in seconds
                 max_staleness: int =  60, #  1000 seconds per sync with the network
-
                 **kwargs):
         
         self.set_config(locals())
@@ -132,14 +131,13 @@ class Access(c.Module):
         stake_from = self.state.get('stake_from', {}).get(address, 0)
         # STEP 1:  FIRST CHECK THE WHITELIST AND BLACKLIST
 
-        total_stake_score = stake 
+        total_stake_score = stake + stake_from
 
         # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
         default_fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
         self.state['fn_info'] = self.state.get('fn_info', {})
         fn2info = self.state['fn_info'].get(fn,default_fn_info)
         stake2rate = fn2info.get('stake2rate', self.config.stake2rate)
-        
         rate_limit = (total_stake_score / stake2rate) # convert the stake to a rate
 
         # STEP 3: CHECK THE MAX RATE
