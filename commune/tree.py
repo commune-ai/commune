@@ -41,14 +41,12 @@ class Tree(c.Module):
             simple_path = simple_path[:-len(extension)]
 
         path = None
-        dir_paths = list(set([c.pwd(), c.root_path + '/modules',  c.root_path , ]))
-        for dir_path in dir_paths:
-            c.print(f'Path {simple_path} not in dir {dir_path}', color='yellow', verbose=verbose)
-            # '/' count how many times the path has been split
-            if '/' in simple_path:
-                simple_path = simple_path.replace('/', '.')
+        dir_paths = list(set([c.pwd(), c.root_path + '/modules',  c.root_path  ]))
+        simple_path = simple_path.replace('.', '/')
 
-            module_dirpath = dir_path + '/' + simple_path.replace('.', '/')
+        for dir_path in dir_paths:
+            # '/' count how many times the path has been split
+            module_dirpath = dir_path + '/' + simple_path
             module_filepath = dir_path + '/' + cls.resolve_extension(simple_path)
             is_module_dir = os.path.isdir(module_dirpath)
             is_module_file = os.path.isfile(module_filepath)

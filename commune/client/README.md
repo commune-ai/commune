@@ -21,13 +21,11 @@ c.call("198.161.104.67:50236/name")
 or 
 
 c.call("module::test/name") this is the local network
-
 🟢🟢🟢 Result (0.12) 🟢🟢🟢
+
 module::fam
 
-
 if you want the subspace network
-
 
 c.call("module::test/name", network='subspace', netuid=0)
 
