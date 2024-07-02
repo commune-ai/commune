@@ -18,9 +18,6 @@ class Code(c.Module):
                 file2text[file] = content
         return file2text
                 
-
-
-
     def file2file(self, path, **kwargs):
         '''
         """

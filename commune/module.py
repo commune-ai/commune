@@ -2202,15 +2202,11 @@ class c(Config, Schema, Misc, Logger, Storage ):
 
     @classmethod
     def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.Tree'}, **kwargs) -> str:
-        print('tree')
         if path in path2objectpath:
             path = path2objectpath[path]
         else:
             path =  c.module('tree').simple2objectpath(path, **kwargs)
         return c.import_object(path)
-
-    
-
     
 
 c.enable_routes()

@@ -71,6 +71,7 @@ class cli:
         if you are calling a function ont he module function (the root module), it is not necessary to specify the module
         c {fn} arg1 arg2 arg3 ... argn
         """
+        init_kwargs = {}
 
 
 
@@ -99,15 +100,19 @@ class cli:
 
         fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
 
-        if fn_class == 'self':
-            if callable(module):
-                module = module()
+        if not hasattr(module, 'argv_init_kwargs'):
+            argv_init_kwargs_fn = self.argv_init_kwargs
+        init_kwargs = {**init_kwargs, **argv_init_kwargs_fn(argv)}
+        if len(init_kwargs) > 0 or fn_class == 'self': 
+            module = module(**init_kwargs)
+
         module_name = module.module_name()
         fn_path = f'{module_name}/{fn}'
         try: 
             fn_obj = getattr(module, fn)
         except :
-            fn_obj = getattr(module(), fn)
+            print(f'Error: {fn_path} not found')
+            fn_obj = getattr(module, fn)
         left_buffer = '🔵' *3 
         right_buffer = left_buffer[::-1]
         # calling function buffer
@@ -115,7 +120,6 @@ class cli:
         msg = left_buffer + f' Calling {fn_path}'
         color = 'cyan'
         if callable(fn_obj):
-
             args, kwargs = self.parse_args(argv)
             inputs = json.dumps({"args":args, "kwargs":kwargs})
             msg += '/' + inputs
@@ -145,6 +149,7 @@ class cli:
         kwargs = {}
         parsing_kwargs = False
         for arg in argv:
+
             # TODO fix exception with  "="
             # if any([arg.startswith(_) for _ in ['"', "'"]]):
             #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
@@ -204,6 +209,15 @@ class cli:
                     return float(x)
                 except ValueError:
                     return x
+                
+
+    def argv_init_kwargs(self, argv):
+        init_kwargs = {}
+        if '--testnet' in argv:
+            init_kwargs['network'] = 'test'
+            argv.remove('--testnet')
+
+        return init_kwargs
                 
 def main():
     cli()

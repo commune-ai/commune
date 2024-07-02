@@ -914,13 +914,13 @@ class Keypair(c.Module):
 
         return json_data
     
-    seperator = "<DATA::SIGNATURE>"
+    seperator = "::signature="
     
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
-             return_string = False,
-             seperator = seperator
+             return_string: bool = False,
+             seperator : str = seperator
              ) -> bytes:
         """
         Creates a signature for given data

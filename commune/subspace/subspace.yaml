@@ -4,7 +4,7 @@ local: false
 loop: false
 mode: http
 netuid: 0
-network: test
+network: main
 network_mode: ws
 retry_params:
   backoff: 2

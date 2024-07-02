@@ -41,7 +41,7 @@ class Tree(c.Module):
             simple_path = simple_path[:-len(extension)]
 
         path = None
-        dir_paths = list(set([c.pwd(), c.root_path]))
+        dir_paths = list(set([c.pwd(), c.root_path + '/modules',  c.root_path , ]))
         for dir_path in dir_paths:
             c.print(f'Path {simple_path} not in dir {dir_path}', color='yellow', verbose=verbose)
             # '/' count how many times the path has been split
@@ -435,11 +435,6 @@ class Tree(c.Module):
     @classmethod
     def istree(cls):
         return cls.pwdtree() != None
-    
-
-    
-if __name__ == '__main__':
-    c.print(Tree.run())
 
 
     
