@@ -14,6 +14,7 @@ from eth_account.messages import encode_defunct
 from eth_keys import keys
 from copy import deepcopy
 from eth_account import Account
+from Crypto.Protocol.KDF import PBKDF2
 
 import commune as c
 from typing import List, Dict, Union, Optional, Any
@@ -21,7 +22,7 @@ from typing import List, Dict, Union, Optional, Any
 logger = logging.getLogger(__name__)
 
 
-class EVMAccount(c.Module, Account):
+class EVMAccount(Account, c.Module):
 
     _last_tx_count = dict()
     def __init__(
@@ -232,7 +233,6 @@ class EVMAccount(c.Module, Account):
             network = self.config['network']
             
         # launch network
-        self.network = self.launch(**network)
         self.web3 = self.network.web3
 
     @staticmethod
@@ -281,27 +281,6 @@ class EVMAccount(c.Module, Account):
         self.test_verify_message()
         
        
-    @classmethod
-    def from_password(cls, password:str, salt:str='commune', prompt=False):
-        
-        from web3.auto import w3
-        from Crypto.Protocol.KDF import PBKDF2
-
-        # Prompt the user for a password and salt
-        if prompt :
-            password = input("Enter password: ")
-        # Derive a key using PBKDF2
-        key = PBKDF2(password.encode(), salt, dkLen=32, count=100000)
-
-        # Create an account using the key
-        account = Account.privateKeyToAccount(key)
-
-        # Print the account address and private key
-        print("Account address:", account.address)
-        print("Private key:", account.privateKey.hex())
-        
-        return account
-
 if __name__ == '__main__':
     EVMAccount.run()
 

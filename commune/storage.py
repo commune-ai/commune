@@ -28,7 +28,6 @@ class Storage:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json')
         # cls.lock_file(path)
-        print(f'Putting json from {path}')
         if isinstance(data, dict):
             data = json.dumps(data)
         cls.put_text(path, data)

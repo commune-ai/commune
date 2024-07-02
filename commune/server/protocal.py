@@ -59,9 +59,10 @@ class Protocal(c.Module):
         """
         {
             data: {
-                'args': [],
-                'kwargs': {},
-                'timestamp': 'UTC timestamp',
+                'args': [], # OPTIONAL
+                'kwargs': {}, OPTIONAL
+                'params': {}, # OPTIONAL, IF LIST THEN ARGS, IF DICT THEN KWARGS
+                'timestamp': 'UTC timestamp', # USED TO CHECK THE STALENESS OF THE REQUEST
             },
             'signature': 'signature of address',
             'address': 'address of the caller',
@@ -74,10 +75,11 @@ class Protocal(c.Module):
         if not is_input_v1:
             return input
         
-        assert c.verify(input), f"Data not signed with correct key"
+        assert c.verify(input), f"Data not signed with correct key {input}"
         address = input['address']
         input = self.serializer.deserialize(input['data'])
         input['address'] = address
+
         # check the request staleness    
         request_staleness = c.timestamp() - input.get('timestamp', 0) 
         assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
@@ -111,7 +113,7 @@ class Protocal(c.Module):
             return input
         
         access_ticket = input.pop(access_feature, None)
-        assert self.ticket_module.verify(access_ticket), f"Data not signed with correct key"
+        assert c.verify(access_ticket), f"Data not signed with correct key"
         access_ticket_dict = self.ticket_module.ticket2dict(access_ticket)
         # check the request staleness
         request_staleness = c.timestamp() - access_ticket_dict.get('timestamp', 0)
