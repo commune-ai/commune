@@ -1,5 +1,5 @@
 
-from .module import Module
+from .module.module import Module
 from .cli import cli
 from functools import  partial
 from .vali.vali import Vali

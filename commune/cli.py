@@ -17,12 +17,15 @@ class cli:
                 module = 'module',
                 verbose = True,
                 forget_fns = ['module.key_info', 'module.save_keys'], 
+                seperator = '-',
+                buffer_size=3,
                 save: bool = False):
-
+        
+        self.seperator = seperator
+        self.buffer_size = buffer_size
         self.verbose = verbose
         self.save = save
         self.forget_fns = forget_fns
-        
         self.base_module = c.module(module)() if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
         self.forward(args=args)
@@ -36,13 +39,21 @@ class cli:
 
         is_error =  c.is_error(output)
         if is_error:
-            buffer = '🔴' * 3
+            buffer = '🔴'
             msg =  f'Error ({latency})' 
         else:
-            buffer = '🟢' * 3
+            buffer = '🟢' 
             msg = f'Result ({latency:.2f})'
+        
+        num_spacers = max(0,  len(self.input_msg) - len(msg) )
+        for _ in range(num_spacers):
+            if len(msg) % 2 == 0:
+                msg = msg +  self.seperator
+            else:
+                msg = self.seperator + msg
 
-        result_header = f'{buffer} {msg} {buffer}'
+        buffer =  self.buffer_size * buffer
+        result_header = f'{buffer}{msg}{buffer}'
         c.print(result_header, color='green' if not is_error else 'red')
         is_generator = self.base_module.is_generator(output)
 
@@ -115,23 +126,24 @@ class cli:
         except :
             print(f'Error: {fn_path} not found')
             fn_obj = getattr(module, fn)
-        left_buffer = '🔵' *3 
+        left_buffer = '🔵' *self.buffer_size
         right_buffer = left_buffer[::-1]
         # calling function buffer
-
-        msg = left_buffer + f' Calling {fn_path}'
+        msg = f'Calling {fn_path}'
         color = 'cyan'
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
             inputs = json.dumps({"args":args, "kwargs":kwargs})
             msg += '/' + inputs
-
             output = lambda: fn_obj(*args, **kwargs)
         elif self.is_property(fn_obj):
             output =  lambda : getattr(module(), fn)
         else: 
             output = lambda: fn_obj 
-        msg +=  ' ' + right_buffer
+
+        msg = self.seperator*2 + msg + self.seperator*2
+        self.input_msg =  msg
+        msg = left_buffer + msg + right_buffer
         c.print(msg, color=color)
         response =  output()
         return response
