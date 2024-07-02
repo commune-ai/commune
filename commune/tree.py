@@ -42,12 +42,11 @@ class Tree(c.Module):
 
         path = None
         dir_paths = list(set([c.pwd(), c.root_path + '/modules',  c.root_path  ]))
-        simple_path = simple_path.replace('.', '/')
 
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
-            module_dirpath = dir_path + '/' + simple_path
-            module_filepath = dir_path + '/' + cls.resolve_extension(simple_path)
+            module_dirpath = dir_path + '/' + simple_path.replace('.', '/')
+            module_filepath = dir_path + '/' + cls.resolve_extension(simple_path.replace('.', '/'))
             is_module_dir = os.path.isdir(module_dirpath)
             is_module_file = os.path.isfile(module_filepath)
 
@@ -55,18 +54,15 @@ class Tree(c.Module):
                 path = module_filepath
             elif is_module_dir:
                 simple_path_filename = simple_path.replace('.', '_')
-                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main']] 
+                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main'] + simple_path.split('.')]  
                 paths_in_dir = os.listdir(module_dirpath)
                 for p in paths_in_dir:
                     if p.split('/')[-1] in filename_options:
                         new_path = module_dirpath + '/' + p
+                        print(new_path)
                         if os.path.isfile(new_path):
-                            initial_text = cls.get_text(new_path)
-                            if 'class ' in initial_text:
-                                path = new_path
-                                break
-                            else:
-                                path = None   
+                            path = new_path
+                            break   
  
 
                 

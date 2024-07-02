@@ -1,0 +1,14 @@
+
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+  - name: listing hotkeys
+    ansible.builtin.shell: sudo docker exec -it commune bash -c "btcli list"
+    # args:
+    #   chdir: commune/
+    register: shell
+
+  - debug: msg="{{ shell.stdout }}"
+  - debug: msg="{{ shell.stderr }}"
+
+

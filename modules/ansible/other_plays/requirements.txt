@@ -1,0 +1,4 @@
+ansible
+streamlit
+torch
+munch

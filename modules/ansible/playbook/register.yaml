@@ -1,0 +1,24 @@
+
+
+
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+    # - name: make up to start commune if its not up already
+    #   ansible.builtin.shell: sudo make up
+    #   args:
+    #     chdir: commune
+    #   register: make_up
+
+    - name: Copy and Execute the script 
+      script: "{{ lookup('env','HOME') }}/commune_ansible/src/register.sh"
+      register: output
+    # - name: run
+    #   ansible.builtin.shell: python3 examples/register.py
+    #   args:
+    #     chdir: commune  
+    #   register: output
+
+    - debug: msg="{{ output.stdout }}"
+
+    - debug: msg="{{ output.stderr }}"
