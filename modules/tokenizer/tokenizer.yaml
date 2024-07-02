@@ -1,0 +1,3 @@
+tokenizer: gpt2
+std_tokenizer: gpt2
+device: cpu

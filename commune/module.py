@@ -19,6 +19,7 @@ try:
     from .misc import Misc
     from .logger import Logger
     from .storage import Storage
+    from .api import Api
 except:
     # this is for serving mostly
     from config import Config
@@ -26,13 +27,14 @@ except:
     from misc import Misc
     from logger import Logger
     from storage import Storage
+    from api import Api
 
 
 
 nest_asyncio.apply()
 
 # AGI BEGINS 
-class c(Config, Schema, Misc, Logger, Storage ):
+class c(Config, Schema, Misc, Logger, Storage , Api):
 
     whitelist = ['info',
                 'schema',

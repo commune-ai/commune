@@ -1,0 +1,19 @@
+- name: Transfer and execute a script.
+  hosts: all
+
+
+  tasks:
+  - name: Copy file with owner and permissions
+    ansible.builtin.copy:
+      src: "{{ lookup('env','HOME') }}/commune_ansible/src/sandbox.py"
+      dest: /tmp/
+      owner: paperspace
+      group: paperspace
+      mode: '0644'
+
+  - name: run python sandbox
+    ansible.builtin.shell:  sudo docker exec -it commune bash -c "python3 /tmp/sandbox.py"
+    register: shell
+
+  - debug: msg="{{ shell.stdout }}"
+  - debug: msg="{{ shell.stderr }}"

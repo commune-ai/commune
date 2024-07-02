@@ -1,0 +1,4 @@
+module: SubprocessModule
+
+client: ['local']
+

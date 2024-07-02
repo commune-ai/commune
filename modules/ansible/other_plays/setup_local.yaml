@@ -1,0 +1,9 @@
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+    - name: Copy and Execute the script 
+      script: "{{ lookup('env','HOME') }}/commune/ansible/src/setup_commune_local.sh"
+      register: hello
+    - debug: msg="{{ hello.stdout }}"
+
+    - debug: msg="{{ hello.stderr }}"

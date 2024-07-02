@@ -1,0 +1,4 @@
+google.generativeai
+gradio
+pillow
+base64
