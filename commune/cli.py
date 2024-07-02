@@ -72,15 +72,17 @@ class cli:
         c {fn} arg1 arg2 arg3 ... argn
         """
         init_kwargs = {}
-
-
+        if argv[0].endswith('.py'):
+            argv[0] = argv[0][:-3]
 
         if ':' in argv[0]:
             # {module}:{fn} arg1 arg2 arg3 ... argn
-            argv = argv[0].split(':') + argv[1:]
-            is_fn = False
-        elif '/' in argv[0]:
-            argv = argv[0].split('/') + argv[1:]
+            argv[0] = argv[0].replace(':', '/')
+            
+        if '/' in argv[0]:
+            module = '.'.join(argv[0].split('/')[:-1])
+            fn = argv[0].split('/')[-1]
+            argv = [module , fn , *argv[1:]]
             is_fn = False
         else:
             is_fn = argv[0] in self.base_module_attributes

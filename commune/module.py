@@ -1102,7 +1102,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
     @classmethod
     def test(cls,
               module=None,
-              timeout=100, 
+              timeout=42, 
               trials=3, 
               parallel=False,
               ):
@@ -1114,19 +1114,31 @@ class c(Config, Schema, Misc, Logger, Storage ):
         self = c.module(module)()
         test_fns = self.test_fns()
         print(f'testing {module} {test_fns}')
+
+        def trial_wrapper(fn, trials=trials):
+            def trial_fn(trials=trials):
+
+                for i in range(trials):
+                    try:
+                        return fn()
+                    except Exception as e:
+                        print(f'Error: {e}, Retrying {i}/{trials}')
+                        c.sleep(1)
+                return False
+            return trial_fn
         fn2result = {}
         if parallel:
             future2fn = {}
             for fn in self.test_fns():
                 c.print(f'testing {fn}')
-                f = c.submit(getattr(self, fn), timeout=timeout)
+                f = c.submit(trial_wrapper(getattr(self, fn)), timeout=timeout)
                 future2fn[f] = fn
             for f in c.as_completed(future2fn, timeout=timeout):
                 fn = future2fn.pop(f)
                 fn2result[fn] = f.result()
         else:
             for fn in self.test_fns():
-                fn2result[fn] = getattr(self, fn)()
+                fn2result[fn] = trial_wrapper(getattr(self, fn))()
 
                 
         return fn2result
@@ -1429,7 +1441,7 @@ class c(Config, Schema, Misc, Logger, Storage ):
                 params = None,
                 kwargs: dict = None, 
                 args:list = None, 
-                timeout:int = 20, 
+                timeout:int = 40, 
                 return_future:bool=True,
                 init_args : list = [],
                 init_kwargs:dict= {},

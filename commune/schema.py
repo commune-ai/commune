@@ -756,7 +756,7 @@ class Schema:
     @classmethod
     def get_functions(cls, obj: Any = None,
                       search = None,
-                      include_parents:bool=True, 
+                      include_parents:bool=False, 
                       include_hidden:bool = False) -> List[str]:
         '''
         Get a list of functions in a class
@@ -772,16 +772,17 @@ class Schema:
         child_functions = list(obj.__dict__.keys())
         parent_functions = []
 
+
+        if cls.is_root_module():
+            include_parents = True
+            
         if include_parents:
             parent_functions = cls.get_parent_functions(obj)
 
-        if not cls.is_root_module():
-            avoid_fns = cls.root_fns()
-        else:
-            avoid_fns = []
+ 
 
         for fn_name in (child_functions + parent_functions):
-            if search != None and search not in fn_name or fn_name in avoid_fns:
+            if search != None and search not in fn_name :
                 continue
             
             # skip hidden functions if include_hidden is False
