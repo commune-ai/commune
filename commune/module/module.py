@@ -14,29 +14,50 @@ import asyncio
 import nest_asyncio
 
 try:
-    from .config import Config
-    from .schema import Schema
-    from .misc import Misc
-    from .logger import Logger
-    from .storage import Storage
-    from .api import Api
+    from ._config import Config
+    from ._schema import Schema
+    from ._misc import Misc
+    from ._logger import Logger
+    from ._storage import Storage
+    from ._api import Api
+    from ._tree import Tree
+    from ._test import Test
+    from ._crypto import Crypto
+    from ._os import OS
+    from ._network import Network
 except:
     # this is for serving mostly
-    from config import Config
-    from schema import Schema
-    from misc import Misc
-    from logger import Logger
-    from storage import Storage
-    from api import Api
+    from commune.module._config import Config
+    from commune.module._schema import Schema
+    from commune.module._misc import Misc
+    from commune.module._logger import Logger
+    from commune.module._storage import Storage
+    from commune.module._api import Api
+    from commune.module._tree import Tree
+    from commune.module._test import Test
+    from commune.module._crypto import Crypto
+    from commune.module._os import OS
+    from commune.module._network import Network
+
 
 
 
 nest_asyncio.apply()
-
+MODULE_BLOCKS = [Config, 
+                 Schema, 
+                 Misc, 
+                 Logger, 
+                 Storage , 
+                 Api, 
+                 Tree, 
+                 Test, 
+                 Crypto, 
+                 OS, 
+                 Network]
 # AGI BEGINS 
-class c(Config, Schema, Misc, Logger, Storage , Api):
+class c(*MODULE_BLOCKS):
 
-    whitelist = ['info',
+    helper_whitelist = ['info',
                 'schema',
                 'server_name',
                 'is_admin',
@@ -44,21 +65,24 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
                 'whitelist', 
                 'blacklist',
                 'fns'] # whitelist of helper functions to load
+    
+    
+    
+    libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
     encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
     giturl = git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
-    homepath = home_path = os.path.expanduser('~') # the home path
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
-    root_path  = root  = os.path.dirname(__file__) # the path to the root of the library
+    rootpath = root_path  = root   = '/'.join(__file__.split('/')[:-2])  # the path to the root of the library
+    homepath = home_path = os.path.expanduser('~') # the home path
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
-    libname = lib_name = lib = root_path.split('/')[-1] # the name of the library
-    datapath = os.path.join(root_path, 'data') # the path to the data folder
-    modules_path = os.path.join(lib_path, 'modules') # the path to the modules folder
+    datapath =  data_path = os.path.join(root_path, 'data') # the path to the data folder
+    modules_path = os.path.join(libpath, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -68,6 +92,10 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     __ss58_format__ = 42 # the ss58 format for the substrate address
     cache_path = os.path.expanduser(f'~/.{libname}')
     default_tag = 'base'
+
+
+    def __init__(self, *args, **kwargs):
+        pass
     
     @property
     def tag(self):
@@ -77,6 +105,9 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
         if 'tag' in self.config:
             tag = self.config['tag']
         return tag
+    
+
+
     
     @tag.setter
     def tag(self, value):
@@ -161,100 +192,9 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
 
     @classmethod
     def sandbox(cls):
-        c.cmd(f'python3 {c.libpath}/sandbox.py', verbose=True)
+        c.cmd(f'python3 {c.root_path}/sandbox.py', verbose=True)
         return 
     sand = sandbox
-
-    included_pwd_in_path = False
-    @classmethod
-    def import_module(cls, 
-                      import_path:str, 
-                      included_pwd_in_path=True, 
-                      try_prefixes = ['commune', 'commune.modules', 'modules', 'commune.subspace', 'subspace']
-                      ) -> 'Object':
-        from importlib import import_module
-        if included_pwd_in_path and not cls.included_pwd_in_path:
-            import sys
-            pwd = c.pwd()
-            sys.path.append(pwd)
-            sys.path = list(set(sys.path))
-            cls.included_pwd_in_path = True
-        pwd = c.pwd()
-        try:
-            return import_module(import_path)
-        except Exception as _e:
-            for prefix in try_prefixes:
-                try:
-                    return import_module(f'{prefix}.{import_path}')
-                except Exception as e:
-                    pass
-            raise _e
-    
-    @classmethod
-    def can_import_module(cls, module:str) -> bool:
-        '''
-        Returns true if the module is valid
-        '''
-        try:
-            cls.import_module(module)
-            return True
-        except:
-            return False
-    @classmethod
-    def can_import_object(cls, module:str) -> bool:
-        '''
-        Returns true if the module is valid
-        '''
-        try:
-            cls.import_object(module)
-            return True
-        except:
-            return False
-
-    @classmethod
-    def import_object(cls, key:str, verbose: bool = 0)-> Any:
-        '''
-        Import an object from a string with the format of {module_path}.{object}
-        Examples: import_object("torch.nn"): imports nn from torch
-        '''
-        module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
-        if verbose:
-            c.print(f'Importing {object_name} from {module}')
-
-        obj =  getattr(cls.import_module(module), object_name)
-      
-        return obj
-    
-
-    @classmethod
-    def object_exists(cls, path:str, verbose=False)-> Any:
-        try:
-            c.import_object(path, verbose=verbose)
-            return True
-        except Exception as e:
-            return False
-    
-    imp = get_object = importobj = import_object
-
-    @classmethod
-    def module_exists(cls, module:str, **kwargs) -> bool:
-        '''
-        Returns true if the module exists
-        '''
-        return module in c.modules(**kwargs)
-
-
-    @classmethod
-    def modules(cls, search=None, mode='local', tree='commune', **kwargs)-> List[str]:
-        if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
-            module_list = c.module('subspace')().modules(search=search, **kwargs)
-        else:
-            module_list = list(c.tree(search=search, tree=tree, **kwargs).keys())
-            if search != None:
-                module_list = [m for m in module_list if search in m]
-        return module_list
-
 
     @classmethod
     def resolve_address(cls, address:str = None):
@@ -277,9 +217,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-
-
-
     def check_used_ports(self, start_port = 8501, end_port = 8600, timeout=5):
         port_range = [start_port, end_port]
         used_ports = {}
@@ -297,9 +234,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
             c.pm2_restart(p)
 
         c.update()
-
-
-
     
     @classmethod
     def url2text(cls, *args, **kwargs):
@@ -325,7 +259,7 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
 
 
         path = path or 'module'
-        shortcuts = c.shortcuts()
+        shortcuts = cls.shortcuts()
         if path in shortcuts:
             path = shortcuts[path]
         module = None
@@ -393,10 +327,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     def infer_device_map(cls, *args, **kwargs):
         return cls.infer_device_map(*args, **kwargs)
     
-    @classmethod
-    def datasets(cls, **kwargs) -> List[str]:
-        return c.servers('data',  **kwargs)
-    datas = datasets
 
     @staticmethod
     def is_imported(package:str) :
@@ -417,50 +347,7 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
         cmd = ' '.join(cmd)
         cls.run_command(f'{interpreter} {cmd}')
 
-    @classmethod
-    def timer(cls, *args, **kwargs):
-        from commune.utils.time import Timer
-        return Timer(*args, **kwargs)
-    
-    @classmethod
-    def timeit(cls, fn, *args, include_result=False, **kwargs):
 
-        t = c.time()
-        if isinstance(fn, str):
-            fn = cls.get_fn(fn)
-        result = fn(*args, **kwargs)
-        response = {
-            'latency': c.time() - t,
-            'fn': fn.__name__,
-            
-        }
-        if include_result:
-            c.print(response)
-            return result
-        return response
-
-    @staticmethod
-    def remotewrap(fn, remote_key:str = 'remote'):
-        '''
-        calls your function if you wrap it as such
-
-        @c.remotewrap
-        def fn():
-            pass
-            
-        # deploy it as a remote function
-        fn(remote=True)
-        '''
-    
-        def remotewrap(self, *args, **kwargs):
-            remote = kwargs.pop(remote_key, False)
-            if remote:
-                return c.remote_fn(module=self, fn=fn.__name__, args=args, kwargs=kwargs)
-            else:
-                return fn(self, *args, **kwargs)
-        
-        return remotewrap
-    
 
     @classmethod
     def storage_dir(cls):
@@ -486,7 +373,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     def tilde_path(cls):
         return os.path.expanduser('~')
 
-    data_path = repo_path + '/data'
     
 
     @classmethod
@@ -716,86 +602,13 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     
 
 
-    def info(self , 
-             module = None,
-             features = ['schema', 'namespace', 'commit_hash', 'hardware','attributes','functions'], 
-             lite_features = ['name', 'address', 'schema', 'key', 'description'],
-             lite = True,
-             cost = False,
-             **kwargs
-             ) -> Dict[str, Any]:
-        '''
-        hey, whadup hey how is it going
-        '''
-        if lite:
-            features = lite_features
-            
-        if module != None:
-            if isinstance(module, str):
-                module = c.module(module)()
-            self = module  
-            
-        info = {}
-
-        if 'schema' in features:
-            info['schema'] = self.schema(defaults=True, include_parents=True)
-            info['schema'] = {k: v for k,v in info['schema'].items() if k in self.whitelist}
-        if 'namespace' in features:
-            info['namespace'] = c.namespace(network='local')
-        if 'hardware' in features:
-            info['hardware'] = c.hardware()
-        if 'attributes' in features:
-            info['attributes'] = attributes =[ attr for attr in self.attributes()]
-        if 'functions' in features:
-            info['functions']  = [fn for fn in self.whitelist]
-        if 'name' in features:
-            info['name'] = self.server_name() if callable(self.server_name) else self.server_name # get the name of the module
-        if 'path' in features:
-            info['path'] = self.module_name() # get the path of the module
-        if 'address' in features:
-            info['address'] = self.address.replace(c.default_ip, c.ip(update=False))
-        if 'key' in features:    
-            info['key'] = self.key.ss58_address
-        if 'code_hash' in features:
-            info['code_hash'] = self.chash() # get the hash of the module (code)
-        if 'commit_hash' in features:
-            info['commit_hash'] = c.commit_hash()
-        if 'description' in features:
-            info['description'] = self.description
-
-        c.put_json('info', info)
-        if cost:
-            if hasattr(self, 'cost'):
-                info['cost'] = self.cost
-        return info
-        
-    help = info
-
-
     def self_destruct(self):
         c.kill(self.server_name)    
         
     def self_restart(self):
         c.restart(self.server_name)
         
-    @classmethod
-    def pm2_kill_many(cls, search=None, verbose:bool = True, timeout=10):
-        return c.module('pm2').kill_many(search=search, verbose=verbose, timeout=timeout)
-    
-    @classmethod
-    def pm2_kill_all(cls, verbose:bool = True, timeout=10):
-        return cls.pm2_kill_many(search=None, verbose=verbose, timeout=timeout)
-                
-    @classmethod
-    def pm2_servers(cls, search=None,  verbose:bool = False) -> List[str]:
-        return  c.module('pm2').servers(verbose=verbose)
-    pm2ls  = pm2_list = pm2_servers
-    # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
-    
-    @classmethod
-    def pm2_exists(cls, name:str) -> bool:
-        return c.module('pm2').exists(name=name)
-    
+
     @classmethod
     def pm2_start(cls, *args, **kwargs):
         return c.module('pm2').start(*args, **kwargs)
@@ -804,17 +617,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     def pm2_launch(cls, *args, **kwargs):
         return c.module('pm2').launch(*args, **kwargs)
                               
-    @classmethod
-    def pm2_restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        return c.module('pm2').restart(name=name, verbose=verbose, prefix_match=prefix_match)
-    @classmethod
-    def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
-        return c.module('pm2').restart_prefix(name=name, verbose=verbose)  
-    
-    @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        return c.module('pm2').kill(name=name, verbose=verbose, prefix_match=prefix_match)
-    
     @classmethod
     def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
@@ -1011,17 +813,8 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
         else:
             return f'No Library Found {lib}'
     
-    @classmethod
-    def external_ip(cls, *args, **kwargs) -> str:
-        return c.module('network').external_ip(*args, **kwargs)
-    
-    @classmethod
-    def ip(cls,  max_age=10000, update:bool = False, **kwargs) -> str:
-        ip = cls.get('ip', None, max_age=max_age, update=update)
-        if ip == None:
-            ip =  cls.module('network').external_ip(**kwargs)
-            c.put('ip', ip)
-        return ip
+
+
     
 
     @classmethod
@@ -1096,54 +889,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
     def test_fns(cls, *args, **kwargs):
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     
-    @classmethod
-    def has_test_module(cls, module=None):
-        module = module or cls.module_name()
-        return c.module_exists(cls.module_name() + '.test')
-    
-    @classmethod
-    def test(cls,
-              module=None,
-              timeout=42, 
-              trials=3, 
-              parallel=False,
-              ):
-        module = module or cls.module_name()
-
-        if cls.has_test_module(module):
-            c.print('FOUND TEST MODULE', color='yellow')
-            module = module + '.test'
-        self = c.module(module)()
-        test_fns = self.test_fns()
-        print(f'testing {module} {test_fns}')
-
-        def trial_wrapper(fn, trials=trials):
-            def trial_fn(trials=trials):
-
-                for i in range(trials):
-                    try:
-                        return fn()
-                    except Exception as e:
-                        print(f'Error: {e}, Retrying {i}/{trials}')
-                        c.sleep(1)
-                return False
-            return trial_fn
-        fn2result = {}
-        if parallel:
-            future2fn = {}
-            for fn in self.test_fns():
-                c.print(f'testing {fn}')
-                f = c.submit(trial_wrapper(getattr(self, fn)), timeout=timeout)
-                future2fn[f] = fn
-            for f in c.as_completed(future2fn, timeout=timeout):
-                fn = future2fn.pop(f)
-                fn2result[fn] = f.result()
-        else:
-            for fn in self.test_fns():
-                fn2result[fn] = trial_wrapper(getattr(self, fn))()
-
-                
-        return fn2result
 
     ### TIME LAND ###
     
@@ -1257,6 +1002,7 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
             'evm': 'web3.account.evm',
             'aes': 'key.aes',
             }
+        
         key = cls.resolve_keypath(key)
         if 'Keypair' in c.type_str(key):
             return key
@@ -1284,14 +1030,6 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
         return self._ss58_address
 
 
-    @classmethod
-    def hash(cls, 
-             data: Union[str, bytes], 
-             **kwargs) -> bytes:
-        if not hasattr(cls, '_hash_module'):
-            cls._hash_module = c.module('crypto.hash')()
-        return cls._hash_module(data, **kwargs)
-    
 
     @classmethod
     def readme_paths(cls):
@@ -1854,67 +1592,7 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
                 return results
 
         return get_results(futures)
-    
-    @staticmethod
-    def address2ip(address:str) -> str:
-        return str('.'.join(address.split(':')[:-1]))
 
-    @staticmethod
-    def as_completed( futures, timeout=10, **kwargs):
-        return concurrent.futures.as_completed(futures, timeout=timeout, **kwargs)
-
-    @classmethod
-    def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
-
-        if loop == None:
-            loop = c.get_event_loop()
-
-        if not isinstance(jobs, list):
-            singleton = True
-            jobs = [jobs]
-        else:
-            singleton = False
-
-        assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
-        # determine if we are using asyncio or multiprocessing
-
-        # wait until they finish, and if they dont, give them none
-
-        # return the futures that done timeout or not
-        async def wait_for(future, timeout):
-            try:
-                result = await asyncio.wait_for(future, timeout=timeout)
-            except asyncio.TimeoutError:
-                result = {'error': f'TimeoutError: {timeout} seconds'}
-
-            return result
-        
-        jobs = [wait_for(job, timeout=timeout) for job in jobs]
-        future = asyncio.gather(*jobs)
-        results = loop.run_until_complete(future)
-
-        if singleton:
-            return results[0]
-        return results
-    
-    @staticmethod
-    def is_mnemonic(s: str) -> bool:
-        import re
-        # Match 12 or 24 words separated by spaces
-        return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
-
-    @staticmethod   
-    def is_private_key(s: str) -> bool:
-        import re
-        # Match a 64-character hexadecimal string
-        pattern = r'^[0-9a-fA-F]{64}$'
-        return bool(re.match(pattern, s))
-
-    @classmethod
-    def mv(cls, path1, path2):
-        path1 = cls.resolve_path(path1)
-        path2 = cls.resolve_path(path2)
-        return c.module('os').mv(path1, path2)
 
     def set_tag(self, tag:str,default_tag:str='base'):
         if tag == None:
@@ -2206,6 +1884,7 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
         c.print(f'Spreading {amount} to {len(destinations)} keys', color='yellow')
         return c.transfer_many(destinations=destinations, amounts=amount, n=n, key=key)
 
+
     def add_root_keys(self, n=1, tag=None, **kwargs):
         keys = []
         for i in range(n):
@@ -2213,15 +1892,30 @@ class c(Config, Schema, Misc, Logger, Storage , Api):
             c.add_key(key_path, **kwargs)
             keys.append(key_path)
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
-
-    @classmethod
-    def simple2object(cls, path:str,  path2objectpath = {'tree': 'commune.tree.Tree'}, **kwargs) -> str:
-        if path in path2objectpath:
-            path = path2objectpath[path]
-        else:
-            path =  c.module('tree').simple2objectpath(path, **kwargs)
-        return c.import_object(path)
     
+    def endpoint(fn):
+        fn.__whitelist__ = True
+        return fn
+    
+    def test_fammm(self):
+        return 'test'
+    
+    def endpoint_fns(self):
+        return [f for f in dir(self) if hasattr(getattr(self, f), '__whitelist__')]
+
+    def get_whitelist(self):
+        whitelist = self.whitelist if hasattr(self, 'whitelist')  else []
+        whitelist += c.helper_whitelist
+        whitelist += self.endpoint_fns()
+        
+        whitelist = list(set(whitelist))
+        return whitelist
+    
+    
+    def test2(self):
+        return self.test_fammm()
+
+
 
 c.enable_routes()
 Module = c # Module is alias of c

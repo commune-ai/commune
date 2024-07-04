@@ -17,8 +17,8 @@ class cli:
                 module = 'module',
                 verbose = True,
                 forget_fns = ['module.key_info', 'module.save_keys'], 
-                seperator = '-',
-                buffer_size=3,
+                seperator = ' ',
+                buffer_size=4,
                 save: bool = False):
         
         self.seperator = seperator
@@ -28,6 +28,7 @@ class cli:
         self.forget_fns = forget_fns
         self.base_module = c.module(module)() if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
+        
         self.forward(args=args)
     
     def forward(self, args=None):
@@ -36,6 +37,7 @@ class cli:
         self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
         latency = time.time() - t0
+
 
         is_error =  c.is_error(output)
         if is_error:
@@ -46,12 +48,9 @@ class cli:
             msg = f'Result ({latency:.2f})'
         
         num_spacers = max(0,  len(self.input_msg) - len(msg) )
-        for _ in range(num_spacers):
-            if len(msg) % 2 == 0:
-                msg = msg +  self.seperator
-            else:
-                msg = self.seperator + msg
-
+        left_spacers = num_spacers//2
+        right_spacers = num_spacers - left_spacers
+        msg = self.seperator*left_spacers + msg + self.seperator*right_spacers
         buffer =  self.buffer_size * buffer
         result_header = f'{buffer}{msg}{buffer}'
         c.print(result_header, color='green' if not is_error else 'red')
@@ -116,7 +115,7 @@ class cli:
         if not hasattr(module, 'argv_init_kwargs'):
             argv_init_kwargs_fn = self.argv_init_kwargs
         init_kwargs = {**init_kwargs, **argv_init_kwargs_fn(argv)}
-        if len(init_kwargs) > 0 or fn_class == 'self': 
+        if len(init_kwargs) > 0 or fn_class == 'self' and not is_fn: 
             module = module(**init_kwargs)
 
         module_name = module.module_name()
@@ -129,11 +128,18 @@ class cli:
         left_buffer = '🔵' *self.buffer_size
         right_buffer = left_buffer[::-1]
         # calling function buffer
-        msg = f'Calling {fn_path}'
-        color = 'cyan'
+        msg = f'Calling --> {fn_path}'
+        msg = self.seperator*4 + msg + self.seperator*4
+        self.input_msg =  msg
+
+        msg = left_buffer + msg + right_buffer
+        c.print(msg, color='cyan')
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
-            inputs = json.dumps({"args":args, "kwargs":kwargs})
+
+            inputs = {"args":args, "kwargs":kwargs}
+            c.print(inputs, color='yellow')
+            inputs = json.dumps(inputs)
             msg += '/' + inputs
             output = lambda: fn_obj(*args, **kwargs)
         elif self.is_property(fn_obj):
@@ -141,10 +147,7 @@ class cli:
         else: 
             output = lambda: fn_obj 
 
-        msg = self.seperator*2 + msg + self.seperator*2
-        self.input_msg =  msg
-        msg = left_buffer + msg + right_buffer
-        c.print(msg, color=color)
+
         response =  output()
         return response
     

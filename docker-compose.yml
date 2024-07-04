@@ -2,7 +2,7 @@
 services:
   commune:
     build:
-      context: ./
+      context: ./commune
       dockerfile: Dockerfile
     container_name: commune
     shm_size: '4gb' # for the shared memory size
