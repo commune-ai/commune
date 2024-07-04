@@ -17,7 +17,6 @@ class Protocal(c.Module):
                 max_request_staleness=5, 
                 mode = 'server',
                 network = 'local',
-
                 port = None,
                 key=None,
                 loop = None,
@@ -59,6 +58,8 @@ class Protocal(c.Module):
                     module = module
             print(f"🔑 {self.key.ss58_address} {module}🔑")
             self.module = module
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
 
     def client_forward(self,
                        *args,
@@ -106,10 +107,9 @@ class Protocal(c.Module):
 
         # start a client session and send the request
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
-        session = aiohttp.ClientSession()
-
+        self.session = aiohttp.ClientSession()
         try:
-            response =  await session.post(url, json=input, headers=headers)
+            response =  await self.session.post(url, json=input, headers=headers)
             if response.content_type == 'application/json':
                 result = await asyncio.wait_for(response.json(), timeout=timeout)
             elif response.content_type == 'text/plain':
@@ -140,8 +140,12 @@ class Protocal(c.Module):
         else: 
             result = self.iter_over_async(result)
 
-        
+        self.session.close()
         return result
+    
+    def __del__(self):
+        if hasattr(self, 'session'):
+            self.session.close()
 
 
 
