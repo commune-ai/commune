@@ -114,6 +114,9 @@ c.print('## Code for demo module')
 c.print(demo.code())
 ```
 
+
+
+
 ### Viewing Module Config
 You can view the configuration of a module using the `config()` method:
 
@@ -143,15 +146,17 @@ To list the functions of a module, use the `fns()` method:
 ```python
 demo.fns()
 ```
+['test', 'forward']
 
 ### Searching for a Function
 To search for a specific function within a module, use the `fns()` method with a search query:
 
 ```python
-function_search_query = 'bro'
-matching_functions = demo.fns(function_search_query)
+
+matching_functions = demo.fns('forw')
 c.print(matching_functions)
 ```
+['forward']
 
 ### Function Schema
 You can retrieve the schema of a specific function using the `schema()` method:

@@ -112,7 +112,7 @@ class EVMNetwork(c.Module):
         return list(self.networks_config[network][subnetwork]['url'].keys())
 
     def get_url(self, network:str='local.main.ganache' ) -> str:
-        from commune.utils.dict import dict_get
+        from commune.module.utils.dict import dict_get
         
         if len(network.split('.')) == 2:
             url_key = self.get_url_options(network)[0]
@@ -183,3 +183,4 @@ class EVMNetwork(c.Module):
         # Get the information of a transaction
         tx = w3.eth.get_transaction('0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060')
         print(tx)
+

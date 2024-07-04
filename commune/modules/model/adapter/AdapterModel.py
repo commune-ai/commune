@@ -13,13 +13,13 @@ import time
 from munch import Munch
 import argparse
 import torch
-from commune.utils.torch import tensor_dict_info
-from commune.utils.tokenizer import decode_topk
+from commune.module.utils.torch import tensor_dict_info
+from commune.module.utils.tokenizer import decode_topk
 import streamlit as st
 # logger = logger.opt(colors=True)
 import commune
 import os
-# commune.utils
+# commune.module.utils
 from torch import nn
 from torch import Tensor
 from commune.model import Model

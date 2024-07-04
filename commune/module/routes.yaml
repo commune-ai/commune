@@ -1,23 +1,7 @@
 
 vali:
   - run_epoch
-tree: [
-            tree, 
-            trees, 
-            local_tree, 
-            build_tree, 
-            tree2path, 
-            simple2objectpath,
-            trees,
-            add_tree, 
-            rm_tree, 
-            tree2path,
-            path2simple, 
-            simple2path,
-            path2objectpath, 
-            tree_paths, 
-            tree_names
-            ]
+
 cli: 
   - parse_args
 
@@ -31,7 +15,6 @@ client:
   - call
   - call_search
   - connect
-
 repo: 
   - is_repo
 key:
@@ -143,26 +126,6 @@ docker:
   - dlogs
   - images
 
-network:
-  - resolve_port_range
-  - used_ports
-  - port_used
-  - port_free
-  - ports
-  - kill_port_range
-  - kill_port
-  - free_port
-  - get_port_range
-  - set_port_range
-  - free_ports
-  - free_port
-os: 
-  - cmd
-  - sys_path
-  - get_pid
-  - kill_pid
-  - memory_info
-
 code: 
   - determine_type
   - process_kwargs
@@ -190,6 +153,12 @@ pm2:
   - [kill, pm2_kill]
   - [pm2ls, pm2ls]
   - [kill_all, pm2_kill_all]
+  - [start, pm2_start]
+  - [stop, pm2_stop]
+  - [restart, pm2_restart]
+  - [restart_prefix, pm2_restart_prefix]
+  - [exists, pm2_exists]
+  - [servers, pm2_servers]
 
 vali:
   - run_epoch

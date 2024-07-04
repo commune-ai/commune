@@ -2,7 +2,7 @@
 from .module.module import Module
 from .cli import cli
 from functools import  partial
-from .vali.vali import Vali
+from .module.vali.vali import Vali
 
 # set the module functions as globals
 for k,v in Module.__dict__.items():
@@ -16,7 +16,10 @@ for f in Module.class_functions() + Module.static_functions():
 
 for f in Module.self_functions():
     def wrapper_fn(f, *args, **kwargs):
-        fn = getattr(Module(), f)
+        try:
+            fn = getattr(Module(), f)
+        except:
+            fn = getattr(Module, f)
         return fn(*args, **kwargs)
     globals()[f] = partial(wrapper_fn, f)
 

@@ -489,7 +489,8 @@ class Code(c.Module):
         # c.print(python_script)
         
         for line in lines:
-            key_elements = ['class ', '(', '):']
+            key_elements = ['class ',  '(']
+            key_elements += [ '):']
             has_class_bool = all([key_element in line for key_element in key_elements])
 
             if has_class_bool:
