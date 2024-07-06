@@ -416,7 +416,7 @@ class Vali(c.Module):
             if info['staleness'] < self.config.max_staleness:
                 self.staleness_count += 1
                 raise Exception({'module': info['name'], 
-                    'msg': 'Module is too new and w', 
+                    'msg': 'Too New', 
                     'staleness': info['staleness'], 
                     'max_staleness': self.config.max_staleness,
                     'timeleft': self.config.max_staleness - info['staleness'], 
