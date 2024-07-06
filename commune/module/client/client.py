@@ -193,12 +193,12 @@ class Client(c.Module, ClientPool):
         else: 
             result = self.iter_over_async(result)
 
-        self.session.close()
+        await self.session.close()
         return result
     
     def __del__(self):
         if hasattr(self, 'session'):
-            self.session.close()
+            self.loop.run_until_complete(self.session.close())
 
     def iter_over_async(self, ait):
         # helper async fn that just gets the next element
