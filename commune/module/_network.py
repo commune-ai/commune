@@ -569,3 +569,4 @@ class Network:
             ip =  cls.external_ip(**kwargs)
             cls.put('ip', ip)
         return ip
+

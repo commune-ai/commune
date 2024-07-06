@@ -6,6 +6,7 @@ import random
 import os
 from copy import deepcopy
 import concurrent
+from munch import Munch
 
 
 class Misc:
@@ -826,7 +827,7 @@ class Misc:
     def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
 
         if loop == None:
-            loop = c.get_event_loop()
+            loop = cls.get_event_loop()
 
         if not isinstance(jobs, list):
             singleton = True
@@ -856,3 +857,38 @@ class Misc:
             return results[0]
         return results
     
+
+    @classmethod
+    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
+        '''
+        Turn dictionary into Munch
+        '''
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = cls.dict2munch(v)
+            x = Munch(x)
+        return x 
+
+    @classmethod
+    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
+        '''
+        Turn munch object  into dictionary
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = cls.munch2dict(v)
+
+        return x 
+
+    
+    
+    
+    @classmethod
+    def munch(cls, x:Dict) -> Munch:
+        '''
+        Converts a dict to a munch
+        '''
+        return cls.dict2munch(x)

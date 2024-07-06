@@ -7,7 +7,6 @@ import os
 class Namespace(c.Module):
 
 
-    remote_modules_path ='remote_modules'
 
     # the default
     network : str = 'local'
@@ -307,8 +306,6 @@ class Namespace(c.Module):
             # reregister
             address = cls.get_address(name, network=network)
             cls.deregister_server(name, network=network)
-            remote_modules = cls.get(cls.remote_modules_path, {})
-            remote_modules.pop(name, None)
             servers = cls.servers(network=network)
             assert cls.server_exists(name, network=network) == False, f'{name} still exists'
             return {'success': True, 'msg': f'removed {address} to remote modules', 'servers': servers, 'network': network}
@@ -320,10 +317,6 @@ class Namespace(c.Module):
     def servers(cls, search=None, network:str = 'local', **kwargs):
         namespace = cls.namespace(search=search, network=network, **kwargs)
         return list(namespace.keys())
-
-    @classmethod
-    def has_server(cls, name:str, network:str = 'local', **kwargs):
-        return cls.server_exists(name, network=network)
     
     @classmethod
     def refresh_namespace(cls, network:str):

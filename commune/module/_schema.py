@@ -40,13 +40,6 @@ class Schema:
         return schema
         
 
-    @classmethod
-    def get_function_annotations(cls, fn):
-        fn = cls.get_fn(fn)
-        if not hasattr(fn, '__annotations__'):
-            return {}
-        return fn.__annotations__
-
 
     @classmethod
     def determine_type(cls, x):
@@ -93,30 +86,6 @@ class Schema:
     @classmethod
     def resolve_object(cls, obj) -> Any:
         return obj or cls
-    
-
-
-    @classmethod
-    def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
-        obj = cls.resolve_object(obj)
-        default_value_map = {}
-        function_signature = cls.fn_signature_map(obj=obj,include_parents=include_parents)
-        for fn_name, fn in function_signature.items():
-            default_value_map[fn_name] = {}
-            if fn_name in ['self', 'cls']:
-                continue
-            for var_name, var in fn.items():
-                if len(var.split('=')) == 1:
-                    var_type = var
-                    default_value_map[fn_name][var_name] = 'NA'
- 
-                elif len(var.split('=')) == 2:
-                    var_value = var.split('=')[-1].strip()                    
-                    default_value_map[fn_name][var_name] = eval(var_value)
-        
-        return default_value_map   
-    
-
 
     
     @classmethod
@@ -147,11 +116,11 @@ class Schema:
             text_lines = code_text.split('\n')
             if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
                 text_lines.pop(0)
-
-            assert 'def' in text_lines[0], 'Function not found in code'
-            start_line = cls.find_code_line(search=text_lines[0])
             fn_code = '\n'.join([l[len('    '):] for l in code_text.split('\n')])
+            assert 'def' in text_lines[0], 'Function not found in code'
+
             if detail:
+                start_line = cls.find_code_line(search=text_lines[0])
                 fn_code =  {
                     'text': fn_code,
                     'start_line': start_line ,
@@ -192,13 +161,6 @@ class Schema:
                             parents += [pp]
         return parents
 
-    @staticmethod
-    def get_parent_functions(cls) -> List[str]:
-        parent_classes = cls.get_parents(cls)
-        function_list = []
-        for parent in parent_classes:
-            function_list += cls.get_functions(parent)
-        return list(set(function_list))
 
     @classmethod
     def get_class_name(cls, obj = None) -> str:
@@ -228,87 +190,33 @@ class Schema:
 
 
     @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, dict):
-            for k,v in x.items():
-                if isinstance(v, dict) and recursive:
-                    x[k] = cls.dict2munch(v)
-            x = Munch(x)
-        return x 
-
-    @classmethod
-    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
-        '''
-        Turn munch object  into dictionary
-        '''
-        if isinstance(x, Munch):
-            x = dict(x)
-            for k,v in x.items():
-                if isinstance(v, Munch) and recursive:
-                    x[k] = cls.munch2dict(v)
-
-        return x 
-
-    
-    
-    
-    @classmethod
-    def munch(cls, x:Dict) -> Munch:
-        '''
-        Converts a dict to a munch
-        '''
-        return cls.dict2munch(x)
-    
-
-
-    @classmethod
-    def get_function_annotations(cls, fn):
-        fn = cls.get_fn(fn)
-        if not hasattr(fn, '__annotations__'):
-            return {}
-        return fn.__annotations__
-
-
-
-    
-
-
-
-
-
-    @classmethod
     def fn_schema(cls, fn:str,
                             defaults:bool=True,
                             code:bool = False,
-                            docs:bool = True, 
-                            version=2)->dict:
+                            docs:bool = True, **kwargs)->dict:
         '''
         Get function schema of function in cls
         '''
         fn_schema = {}
-        print(fn,'FAM')
         fn = cls.get_fn(fn)
-        fn_schema['input']  = cls.get_function_annotations(fn=fn)
-        
-        for k,v in fn_schema['input'].items():
+        input_schema  = cls.fn_signature(fn)
+        for k,v in input_schema.items():
             v = str(v)
             if v.startswith('<class'):
-                fn_schema['input'][k] = v.split("'")[1]
+                input_schema[k] = v.split("'")[1]
             elif v.startswith('typing.'):
-                fn_schema['input'][k] = v.split(".")[1].lower()
+                input_schema[k] = v.split(".")[1].lower()
             else:
-                fn_schema['input'][k] = v
-                
-        fn_schema['output'] = fn_schema['input'].pop('return', {})
-        
+                input_schema[k] = v
+
+        fn_schema['input'] = input_schema
+        fn_schema['output'] = input_schema.pop('return', {})
+
         if docs:         
             fn_schema['docs'] =  fn.__doc__ 
         if code:
             fn_schema['code'] = cls.fn_code(fn)
- 
+
         fn_args = cls.get_function_args(fn)
         fn_schema['type'] = 'static'
         for arg in fn_args:
@@ -317,33 +225,17 @@ class Schema:
             if arg in ['self', 'cls']:
                 fn_schema['type'] = arg
                 fn_schema['input'].pop(arg)
-                if 'default' in fn_schema:
-                    fn_schema['default'].pop(arg, None)
-
 
         if defaults:
-            fn_schema['default'] = cls.fn_defaults(fn=fn) 
-            for k,v in fn_schema['default'].items(): 
+            fn_defaults = cls.fn_defaults(fn=fn) 
+            for k,v in fn_defaults.items(): 
                 if k not in fn_schema['input'] and v != None:
                     fn_schema['input'][k] = type(v).__name__ if v != None else None
-           
-        if version == 1:
-            pass
-        elif version == 2:
-            defaults = fn_schema.pop('default', {})
-            fn_schema['input'] = {k: {'type':v, 'default':defaults.get(k)} for k,v in fn_schema['input'].items()}
-        else:
-            raise Exception(f'Version {version} not implemented')
-                
+
+        fn_schema['input'] = {k: {'type':v, 'default':fn_defaults.get(k)} for k,v in fn_schema['input'].items()}
 
         return fn_schema
-    
 
-    @staticmethod
-    def get_annotations(fn:callable) -> dict:
-        return fn.__annotations__
-
-   
 
 
     @classmethod
@@ -389,7 +281,7 @@ class Schema:
             'has_docs': has_docs,
             'code': code,
             'n_lines': len(lines),
-            'hash': c.hash(code),
+            'hash': cls.hash(code),
             'path': filepath,
             'start_code_line': start_code_line + start_line ,
             'mode': mode
@@ -601,21 +493,6 @@ class Schema:
         line =  lines[max(idx, 0)]
         print(len(line))
         return line
-
-    def hasfn(self, fn:str):
-        return hasattr(self, fn) and callable(getattr(self, fn))
-    
-
-
-
-
-    @classmethod
-    def has_fn(cls,fn_name, obj = None):
-        if obj == None:
-            obj = cls
-        return callable(getattr(obj, fn_name, None))
-
-
     
     @classmethod
     def fn_defaults(cls, fn):
@@ -781,7 +658,7 @@ class Schema:
             include_parents = True
             
         if include_parents:
-            parent_functions = cls.get_parent_functions(obj)
+            parent_functions = cls.parent_functions(obj)
 
  
 
@@ -841,8 +718,8 @@ class Schema:
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            if ':' in fn or '/' in fn:
-                module, fn = fn.split(':')
+            if '/' in fn:
+                module, fn = fn.split('/')
                 cls = cls.get_module(module)
             try:
                 fn =  getattr(cls, fn)
@@ -953,29 +830,12 @@ class Schema:
         if fn:
             return fn2hash[fn]
         return fn2hash
-    
-    @classmethod
-    def module2fn2str(self, code = True, defaults = False, **kwargs):
-        module2fn2str = {  }
-        for module in c.modules():
-            try:
-                module_class = c.module(module)
-                if hasattr(module_class, 'fn2str'):
-                    module2fn2str[module] = module_class.fn2str(code = code,                                          defaults = defaults, **kwargs)
-            except:
-                pass
-        return module2fn2str
-
-    # TAG CITY     
- 
 
     # TAG CITY     
     @classmethod
-    def get_parent_functions(cls, obj = None, include_root = True):
-        import inspect
+    def parent_functions(cls, obj = None, include_root = True):
         functions = []
         obj = obj or cls
-        
         parents = cls.get_parents(obj)
         for parent in parents:
             for name, member in parent.__dict__.items():
@@ -987,10 +847,9 @@ class Schema:
             root_fns = cls.root_fns()
             functions = [f for f in functions if f not in root_fns]
         return functions
-    parent_functions = get_parent_functions
 
     @classmethod
-    def get_child_functions(cls, obj=None):
+    def child_functions(cls, obj=None):
         obj = cls.resolve_object(obj)
         
         methods = []
@@ -999,9 +858,6 @@ class Schema:
                 methods.append(name)
         
         return methods
-    
-    child_functions = get_child_functions
-    
 
     @classmethod
     def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs']) -> dict:
@@ -1017,56 +873,11 @@ class Schema:
             kwargs.update( locals_dict.pop(k, {}) or {})
 
         return kwargs
-    
-    
-    get_kwargs = get_params = locals2kwargs 
-
-
-
-    @classmethod
-    def transfer_fn_code(cls, module1= 'module',
-                        fn_prefix = 'ray_',
-                        module2 = 'ray',
-                        refresh = False):
-
-        module1 = c.module(module1)
-        module2 = c.module(module2)
-        module1_fn_code_map = module1.fn2code(fn_prefix)
-        module2_code = module2.code()
-        module2_fns = module2.fns()
-        filepath = module2.filepath()
-        for fn_name, fn_code in module1_fn_code_map.items():
-            print(f'adding {fn_name}')
-            print('fn_code', fn_code)
-            if fn_name in module2_fns:
-                if refresh:
-                    module2_code = module2_code.replace(module2_fns[fn_name], '')
-                else:
-                    print(f'fn_name {fn_name} already in module2_fns {module2_fns}')
-
-            module2_code += '\n'
-            module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
-            module2_code += '\n'
-        cls.put_text(filepath, module2_code)
-
-        return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
-
-
-    @classmethod
-    def find_classes(cls, path):
-        code = cls.get_text(path)
-        classes = []
-        for line in code.split('\n'):
-            if all([s in line for s in ['class ', '(', '):']]):
-                classes.append(line.split('class ')[-1].split('(')[0].strip())
-        return [c for c in classes]
-    
 
 
 
     def info(self , 
              module = None,
-             features = ['schema', 'namespace', 'commit_hash', 'hardware','attributes','functions'], 
              lite_features = ['name', 'address', 'schema', 'key', 'description'],
              lite = True,
              cost = False,
@@ -1075,46 +886,65 @@ class Schema:
         '''
         hey, whadup hey how is it going
         '''
-        if lite:
-            features = lite_features
-            
-        if module != None:
-            if isinstance(module, str):
-                module = self.module(module)()
-            self = module  
-            
-        info = {}
-
-        if 'schema' in features:
-            info['schema'] = self.schema(defaults=True, include_parents=True)
-            info['schema'] = {k: v for k,v in info['schema'].items() if k in self.whitelist}
-        if 'namespace' in features:
-            info['namespace'] = self.namespace(network='local')
-        if 'hardware' in features:
-            info['hardware'] = self.hardware()
-        if 'attributes' in features:
-            info['attributes'] = self.attributes()
-        if 'functions' in features:
-            info['functions']  =  self.whitelist
-        if 'name' in features:
-            info['name'] = self.server_name() if callable(self.server_name) else self.server_name # get the name of the module
-        if 'path' in features:
-            info['path'] = self.module_name() # get the path of the module
-        if 'address' in features:
-            info['address'] = self.address
-        if 'key' in features:    
-            info['key'] = self.key.ss58_address
-        if 'code_hash' in features:
-            info['code_hash'] = self.chash() # get the hash of the module (code)
-        if 'commit_hash' in features:
-            info['commit_hash'] = self.commit_hash()
-        if 'description' in features:
-            info['description'] = self.description
-
-        self.put_json('info', info)
-        if cost:
-            if hasattr(self, 'cost'):
-                info['cost'] = self.cost
+        info = self.metadata()
+        info['name'] = self.server_name or self.module_name()
+        info['address'] = self.address
+        info['key'] = self.key.ss58_address
         return info
-        
-    help = info
+
+    def endpoint(cost=1, 
+                 whitelist=True,
+                 rate_limit=100, # calls per minute
+                 cost_fn=None):
+        # fn.__whitelist__ = True
+        def endpoint_decorator(fn):
+            fn.__metadata__ = {
+                **Schema.fn_schema(fn),
+                'whitelist': whitelist, 
+                'cost': cost,
+                'rate_limit': rate_limit,
+            }
+            print(f'Added {fn.__name__} to whitelist')
+            if cost_fn != None:
+                def _fn(*args, **kwargs):
+                    cost = cost_fn(fn=fn.__name__, args=args, kwargs=kwargs)
+                    return fn(*args, **kwargs)
+                return _fn
+            
+            return fn
+        return endpoint_decorator
+
+    
+    def endpoints(self):
+        is_endpoint = lambda x: hasattr(getattr(self, x), '__metadata__') and getattr(self, x).__metadata__['whitelist']
+        return [f for f in dir(self) if is_endpoint(f)]
+    
+    urls = {'github': None,
+             'website': None,
+             'docs': None, 
+             'twitter': None,
+             'discord': None,
+             'telegram': None,
+             'linkedin': None,
+             'email': None}
+    
+    def metadata(self, to_string=False):
+        schema = {f:getattr(getattr(self, f), '__metadata__') for f in self.endpoints()}
+        metadata = {}
+        metadata['schema'] = schema
+        metadata['description'] = self.description
+        metadata['urls'] = {k: v for k,v in self.urls.items() if v != None}
+
+        if to_string:
+            return self.python2str(metadata)
+        return metadata
+            
+
+    def get_whitelist(self):
+        whitelist = self.whitelist if hasattr(self, 'whitelist') else []
+        whitelist += self.helper_whitelist
+        whitelist += self.endpoints()
+        whitelist = list(set(whitelist))
+        return whitelist
+    
+    

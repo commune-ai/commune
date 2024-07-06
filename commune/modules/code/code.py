@@ -681,3 +681,32 @@ class Code(c.Module):
                 pass
         
         return response
+
+    @classmethod
+    def transfer_fn_code(cls, module1= 'module',
+                        fn_prefix = 'ray_',
+                        module2 = 'ray',
+                        refresh = False):
+
+        module1 = c.module(module1)
+        module2 = c.module(module2)
+        module1_fn_code_map = module1.fn2code(fn_prefix)
+        module2_code = module2.code()
+        module2_fns = module2.fns()
+        filepath = module2.filepath()
+        for fn_name, fn_code in module1_fn_code_map.items():
+            print(f'adding {fn_name}')
+            print('fn_code', fn_code)
+            if fn_name in module2_fns:
+                if refresh:
+                    module2_code = module2_code.replace(module2_fns[fn_name], '')
+                else:
+                    print(f'fn_name {fn_name} already in module2_fns {module2_fns}')
+
+            module2_code += '\n'
+            module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
+            module2_code += '\n'
+        cls.put_text(filepath, module2_code)
+
+        return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
+

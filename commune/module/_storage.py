@@ -259,8 +259,6 @@ class Storage:
         if path == None:
             return cls.storage_dir()
         
-
-
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
