@@ -347,10 +347,14 @@ class Tree:
 
     @classmethod
     def find_classes(cls, path):
+        path = os.path.abspath(path)
         if os.path.isdir(path):
             path2classes = {}
             for p in cls.glob(path+'/**/**.py', recursive=True):
-                path2classes[p] = cls.find_classes(p)
+                if p.endswith('.py'):
+                    classes =  cls.find_classes(p)
+                    if len(classes) > 0:
+                        path2classes[p] = classes
             return path2classes
         code = cls.get_text(path)
         classes = []
@@ -363,6 +367,40 @@ class Tree:
                     continue
                 classes += [new_class]
         return [c for c in classes]
+    
+    @classmethod
+    def find_functions(cls, path):
+        if os.path.isdir(path):
+            path2functions = {}
+            path = os.path.abspath(path)
+
+            for p in cls.glob(path+'/**/**.py', recursive=True):
+                functions = cls.find_functions(p)
+                if len(functions) > 0:
+                    path2functions[p] = functions
+            return path2functions
+        code = cls.get_text(path)
+        fns = []
+        for line in code.split('\n'):
+            if line.startswith('def ') or line.startswith('async def '):
+                fn = line.split('def ')[-1].split('(')[0].strip()
+                fns += [fn]
+        return [c for c in fns]
+    
+    @classmethod
+    def find_async_functions(cls, path):
+        if os.path.isdir(path):
+            path2classes = {}
+            for p in cls.glob(path+'/**/**.py', recursive=True):
+                path2classes[p] = cls.find_functions(p)
+            return path2classes
+        code = cls.get_text(path)
+        fns = []
+        for line in code.split('\n'):
+            if line.startswith('async def '):
+                fn = line.split('def ')[-1].split('(')[0].strip()
+                fns += [fn]
+        return [c for c in fns]
     
     @classmethod
     def find_object_paths(cls, path:str = './', **kwargs):
@@ -406,7 +444,6 @@ class Tree:
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
             object_path = object_path[1:]
-        print(object_path, classes)
         object_path = object_path + '.' + classes[-1]
 
 

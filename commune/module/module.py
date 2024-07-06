@@ -448,52 +448,6 @@ class c(*MODULE_BLOCKS):
         return port2module
     address2name = address2module
         
-        
-    @staticmethod
-    def check_response(x) -> bool:
-        if isinstance(x, dict) and 'error' in x:
-            return False
-        else:
-            return True
-    
-    @classmethod
-    def check_connection(cls, *args, **kwargs):
-        return c.gather(cls.async_check_connection(*args, **kwargs))
-
-    @classmethod
-    def module2connection(cls,modules = None, network=None):
-        if modules == None:
-            modules = c.servers(network=network)
-        connections = c.gather([ c.async_check_connection(m) for m in modules])
-
-        module2connection = dict(zip(modules, connections))
-    
-        return module2connection
-
-
-    @classmethod
-    def dead_servers(cls, network=None):
-        module2connection = cls.module2connection(network=network)
-        dead_servers = [m for m, c in module2connection.items() if not c]
-        return dead_servers
-
-
-        
-
-
-    @classmethod
-    async def async_check_connection(cls, module, timeout=5, **kwargs):
-        try:
-            module = await c.async_connect(module, return_future=False, virtual=False, **kwargs)
-        except Exception as e:
-            return False
-        server_name =  await module(fn='server_name',  return_future=True)
-        if c.check_response(server_name):
-            return True
-        else:
-            return False
-
-  
 
     
     @classmethod
@@ -1892,29 +1846,13 @@ class c(*MODULE_BLOCKS):
             c.add_key(key_path, **kwargs)
             keys.append(key_path)
         return {'success': True, 'keys': keys, 'msg': 'Added keys'}
-    
-    def endpoint(fn):
-        fn.__whitelist__ = True
-        return fn
-    
-    def test_fammm(self):
-        return 'test'
-    
-    def endpoint_fns(self):
-        return [f for f in dir(self) if hasattr(getattr(self, f), '__whitelist__')]
 
-    def get_whitelist(self):
-        whitelist = self.whitelist if hasattr(self, 'whitelist')  else []
-        whitelist += c.helper_whitelist
-        whitelist += self.endpoint_fns()
-        
-        whitelist = list(set(whitelist))
-        return whitelist
-    
-    
+
     def test2(self):
         return self.test_fammm()
 
+    def cost_fn(self, fn:str, args:list, kwargs:dict):
+        return 1
 
 
 c.enable_routes()

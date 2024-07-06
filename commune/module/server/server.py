@@ -5,6 +5,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from .middleware import ServerMiddleware
+from sse_starlette.sse import EventSourceResponse
+
 
 class Server(c.Module):
     def __init__(
@@ -14,35 +16,86 @@ class Server(c.Module):
         network:str = 'local',
         port: Optional[int] = None,
         key = None,
-        protocal = 'protocal',
         nest_asyncio = True,
+        max_request_staleness = 5,
+        loop = None,
         max_bytes = 10 * 1024 * 1024,  # 1 MB limit
         **kwargs
         ) -> 'Server':
-        """
-        
-        params:
-        - module: the module to serve
-        - name: the name of the server
-        - port: the port of the serve
-        
-        """
-        self.protocal = c.module(protocal)(module=module,     
-                                            name = name,
-                                            port=port,
-                                            key=key,
-                                            network = network,
-                                            mode = 'server',
-                                            nest_asyncio=nest_asyncio,
-                                             **kwargs)
-        self.module = self.protocal.module 
+        if  nest_asyncio:
+            c.new_event_loop(nest_asyncio=nest_asyncio)
+        self.loop = c.get_event_loop() if loop == None else loop
+        self.max_request_staleness = max_request_staleness
+        self.serializer = c.module('serializer')()
+        self.network = network
+        if isinstance(module, str):
+            module = c.module(module)()
+        # RESOLVE THE WHITELIST AND BLACKLIST
+        module.whitelist = module.get_whitelist()
+        print('Whitelist', module.whitelist)
+        module.name = module.server_name = name = name or module.server_name
+        module.port = port if port not in ['None', None] else c.free_port()
+        module.ip = c.ip()
+        module.address = f"{module.ip}:{module.port}"
+        module.network = network
+        self.key  = c.get_key(key or module.name, create_if_not_exists=True)
+        module.key = self.key 
+        self.module = module
+        self.access_module = c.module('server.access')(module=self.module)
         self.set_api(max_bytes=max_bytes)
 
     def add_fn(self, name:str, fn: str):
         assert callable(fn), 'fn not callable'
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
-           
+
+
+    def get_input(self, fn:str, input:Dict):
+        address = input.get('address', None)
+        assert c.verify(input), f"Data not signed with correct key {input}"
+        input = self.serializer.deserialize(input['data']) 
+        request_staleness = c.timestamp() - input.get('timestamp', 0) 
+        assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old" 
+        user_info = self.access_module.forward(fn=fn, address=address)
+        assert user_info['success'], f"{user_info}"
+
+
+        params = input.pop('params', None)
+        if isinstance(params, dict):
+            input['kwargs'] = params
+        elif isinstance(params, list):
+            input['args'] = params 
+
+        return  {
+                'args': input.get('args', []),
+                'kwargs': input.get('kwargs', {}), 
+                'address': address,
+                'user_info': user_info,
+                'timestamp': input.get('timestamp', c.timestamp())
+                }
+    
+    def get_output(self, fn:str, input:Dict):
+        fn_obj = getattr(self.module, fn)
+        if callable(fn_obj):
+            output = fn_obj(*input['args'], **input['kwargs'])
+        else:
+            output = fn_obj
+        if c.is_generator(output):
+            def generator_wrapper(generator):
+                for item in generator:
+                    yield self.serializer.serialize(item)
+            return EventSourceResponse(generator_wrapper(output))
+        else:
+            return self.serializer.serialize(output)
+    
+    def forward(self, fn, input):
+        try:
+            input = self.get_input(fn=fn, input=input)
+            output = self.get_output(fn=fn, input=input)
+        except Exception as e:
+            output =  c.detailed_error(e)
+        return output
+
     def set_api(self, 
                 max_bytes=1024 * 1024,
                 allow_origins = ["*"],
@@ -64,7 +117,7 @@ class Server(c.Module):
         
         @self.app.post("/{fn}")
         def forward_api(fn:str, input:dict):
-            return self.protocal.forward(fn=fn, input=input)
+            return self.forward(fn=fn, input=input)
         
         # start the server
         try:
