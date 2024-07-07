@@ -32,7 +32,6 @@ class Server(c.Module):
             module = c.module(module)()
         # RESOLVE THE WHITELIST AND BLACKLIST
         module.whitelist = module.get_whitelist()
-        print('Whitelist', module.whitelist)
         module.name = module.server_name = name = name or module.server_name
         module.port = port if port not in ['None', None] else c.free_port()
         module.ip = c.ip()
@@ -49,47 +48,49 @@ class Server(c.Module):
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
 
-
     def get_input(self, fn:str, input:Dict):
         address = input.get('address', None)
         assert c.verify(input), f"Data not signed with correct key {input}"
         input = self.serializer.deserialize(input['data']) 
         request_staleness = c.timestamp() - input.get('timestamp', 0) 
         assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old" 
-        user_info = self.access_module.forward(fn=fn, address=address)
-        assert user_info['success'], f"{user_info}"
-
-
+        
+        
+        
         params = input.pop('params', None)
         if isinstance(params, dict):
             input['kwargs'] = params
         elif isinstance(params, list):
             input['args'] = params 
-
-        return  {
+        input =  {
                 'args': input.get('args', []),
                 'kwargs': input.get('kwargs', {}), 
-                'address': address,
-                'user_info': user_info,
+                'address': address, 
                 'timestamp': input.get('timestamp', c.timestamp())
                 }
+        self.access_module.forward(fn=fn, input=input)
+        return input
     
     def get_output(self, fn:str, input:Dict):
         fn_obj = getattr(self.module, fn)
         if callable(fn_obj):
+            print('Calling', fn_obj, input['args'], input['kwargs'])
             output = fn_obj(*input['args'], **input['kwargs'])
         else:
             output = fn_obj
         if c.is_generator(output):
+            print('IS GENERATOR')
             def generator_wrapper(generator):
                 for item in generator:
                     yield self.serializer.serialize(item)
             return EventSourceResponse(generator_wrapper(output))
         else:
+            print('NOT GENERATOR', output)
             return self.serializer.serialize(output)
     
     def forward(self, fn, input):
         try:
+            print(input)
             input = self.get_input(fn=fn, input=input)
             output = self.get_output(fn=fn, input=input)
         except Exception as e:
@@ -116,34 +117,23 @@ class Server(c.Module):
             )
         
         @self.app.post("/{fn}")
-        def forward_api(fn:str, input:dict):
+        def forward(fn:str, input:Dict):
             return self.forward(fn=fn, input=input)
         
         # start the server
         try:
             c.print(f' Served(name={self.module.name}, address={self.module.address}, key=🔑{self.module.key}🔑 ) 🚀 ', color='purple')
-            c.register_server(name=self.module.name, address = self.module.address, network=self.module.network)
+            c.register_server(name=self.module.name, 
+                              address = self.module.address, 
+                              network=self.module.network)
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop="asyncio")
         except Exception as e:
             c.print(e, color='red')
         finally:
             c.deregister_server(self.name, network=self.module.network)
 
-    def info(self) -> Dict:
-        return {
-            'name': self.module.name,
-            'address': self.module.address,
-            'key': self.module.key.ss58_address,
-            'network': self.module.network,
-            'port': self.module.port,
-            'whitelist': self.module.whitelist,
-            'blacklist': self.module.blacklist,            
-        }
-
     def __del__(self):
         c.deregister_server(self.name)
-
-
 
     @classmethod
     def serve(cls, 
@@ -288,8 +278,6 @@ class Server(c.Module):
                 c.deregister_server(m, network=network)
 
         return {'server_killed': delete_modules, 'update': update}
-
-
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
         servers = c.servers(network='local')
@@ -299,9 +287,7 @@ class Server(c.Module):
                 c.kill(s, **kwargs)
                 killed_servers.append(s)
         return {'success':True, 'message':f'Killed servers with prefix {prefix}'}
-        
-    killpre = kill_prefix
-
+    
 
     @classmethod
     def kill_many(cls, servers, search:str = None, network='local', parallel=True,  timeout=10, **kwargs):
@@ -321,12 +307,7 @@ class Server(c.Module):
         c.print(f'Killed {len(results)} servers', color='red')
 
         return results
-        
-    delete = kill_server = kill
     
-
-
-
     @classmethod
     def fleet(cls, module, n=5, timeout=10):
         futures = []
@@ -347,9 +328,6 @@ class Server(c.Module):
 
         return results
 
-     
-
-
     @classmethod
     def serve_many(cls, modules:list, **kwargs):
 
@@ -369,7 +347,25 @@ class Server(c.Module):
         return results
     serve_batch = serve_many
 
+    
+    @classmethod
+    def wait_for_server(cls,
+                          name: str ,
+                          network: str = 'local',
+                          timeout:int = 600,
+                          sleep_interval: int = 1, 
+                          verbose:bool = False) -> bool :
+        
+        time_waiting = 0
+        logs = []
+        while not c.server_exists(name, network=network):
+            time_waiting += sleep_interval
+            c.sleep(sleep_interval)
+            logs.append(f'Waiting for {name} for {time_waiting}s/{timeout}s ')
+            if time_waiting > timeout:
+                raise TimeoutError(f'Timeout waiting for {name} to start')
+        return True
 
-
+    
 
 Server.run(__name__)

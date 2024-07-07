@@ -48,6 +48,7 @@ key:
   - rm_keys
   - key2address
   - key_addresses
+  - address2key
   - is_key
   - new_key
   - save_keys
@@ -56,6 +57,8 @@ key:
   - get_signer 
   - encrypt_file
   - decrypt_file
+  - get_key_for_address
+  - resolve_key_address
 
 remote:
   - host2ssh
@@ -159,6 +162,7 @@ pm2:
   - [restart_prefix, pm2_restart_prefix]
   - [exists, pm2_exists]
   - [servers, pm2_servers]
+  - [logs, pm2_logs]
 
 vali:
   - run_epoch

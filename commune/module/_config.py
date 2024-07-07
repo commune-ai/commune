@@ -149,3 +149,7 @@ class Config:
     @classmethod
     def config_path(cls) -> str:
         return os.path.abspath('./config.yaml')
+
+    def update_config(self, config):
+        self.config.update(config)
+        return self.config

@@ -551,3 +551,43 @@ class Storage:
         cls.rm(cls.storage_dir())
         cls.makedirs(cls.storage_dir())
         
+
+    @classmethod
+    def rm_lines(cls, path:str, start_line:int, end_line:int) -> None:
+        # Get the absolute path of the file
+        text = cls.get_text(path)
+        text = text.split('\n')
+        text = text[:start_line-1] + text[end_line:]
+        text = '\n'.join(text)
+        cls.put_text(path, text)
+        return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
+    @classmethod
+    def rm_line(cls, path:str, line:int, text=None) -> None:
+        # Get the absolute path of the file
+        text =  cls.get_text(path)
+        text = text.split('\n')
+        text = text[:line-1] + text[line:]
+        text = '\n'.join(text)
+        cls.put_text(path, text)
+        return {'success': True, 'msg': f'Removed line {line} from {path}'}
+        # Write the text to the file
+            
+    @classmethod
+    def tilde_path(cls):
+        return os.path.expanduser('~')
+
+    def is_dir_empty(self, path:str):
+        return len(self.ls(path)) == 0
+    @classmethod
+    def get_file_size(cls, path:str):
+        path = cls.resolve_path(path)
+        return os.path.getsize(path)
+
+    @staticmethod
+    def jsonable( value):
+        import json
+        try:
+            json.dumps(value)
+            return True
+        except:
+            return False

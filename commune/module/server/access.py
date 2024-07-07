@@ -14,10 +14,9 @@ class Access(c.Module):
                 timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
                 stake2rate: int =  100.0,  # 1 call per every N tokens staked per timescale
                 max_rate: int =  1000.0, # 1 call per every N tokens staked per timescale
-                key2rate = {}, # the rate limit for each key
                 state_path = f'state_path', # the path to the state
                 refresh: bool = False,
-                max_age = 30, # max age of the state in seconds
+                stake_from_multipler: int =  1.0, # 1 call per every N tokens staked per timescale
                 max_staleness: int =  60, #  1000 seconds per sync with the network
                 **kwargs):
         
@@ -35,7 +34,77 @@ class Access(c.Module):
         self.state = {'sync_time': 0, 
                       'stake_from': {}, 
                       'fn_info': {}}
-    
+
+
+    whitelist = ['info', 'verify', 'rm_state']
+    @c.endpoint(cost=1)
+    def forward(self, fn: str = 'info' ,  address=None, input:dict = None) -> dict:
+        """
+        input:
+            {
+                args: list = [] # the arguments to pass to the function
+                kwargs: dict = {} # the keyword arguments to pass to the function
+                timestamp: int = 0 # the timestamp to use
+                address: str = '' # the address to use
+            }
+
+        Rules:
+        1. Admins have unlimited access to all functions, do not share your admin keys with anyone
+            - Admins can add and remove other admins 
+            - to check admins use the is_admin function (c.is_admin(address) or c.admins() for all admins)
+            - to add an admin use the add_admin function (c.add_admin(address))
+        2. Local keys have unlimited access but only to the functions in the whitelist
+        returns : dict
+        """
+        input = input or {}
+        address = input.get('address', address)
+        print(f'address={address}')
+        if c.is_admin(address):
+            return {'success': True, 'msg': f'is verified admin'}
+        assert fn in self.module.whitelist , f"Function {fn} not in whitelist={self.module.whitelist}"
+        is_private_fn = bool(fn.startswith('__') or fn.startswith('_'))
+        assert not is_private_fn, f'Function {fn} is private'
+        # CHECK IF THE ADDRESS IS A LOCAL KEY
+        is_local_key = address in self.address2key
+        is_user = c.is_user(address)
+        if is_local_key or is_user:
+            return {'success': True, 'msg': f'address {address} is a local key or user, so it has unlimited access'}
+        # stake rate limit
+        stake = self.state['stake'].get(address, 0)
+        if self.config.stake_from_multipler:
+            stake_from = self.state['stake_from'].get(address, 0)
+            stake = (stake_from * self.config.stake_from_multipler) + stake
+        # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
+        fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
+        fn_info = self.state.get('fn_info', {}).get(fn,fn_info)
+        rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
+        rate_limit = min(rate_limit, fn_info['max_rate']) # cap the rate limit at the max rate
+        user_info = self.state.get('user_info', {}).get(address, {})
+        # check if the user has exceeded the rate limit
+        user_info['timestamp'] = c.time()
+        user_info['fn2timestamp'] = user_info.get('fn2timestamp', {})
+        og_time = user_info['fn2timestamp'].get(fn, 0)
+        user_info['fn2timestamp'][fn] = c.time()
+        period = self.timescale_map[self.config.timescale]
+        user_info['fn_call_count'] = user_info.get('fn_call_count', {fn: 0})
+        time_since_called = user_info['fn2timestamp'][fn] - og_time
+        if time_since_called > period:
+            user_info['fn_call_count'][fn] = 0
+        else:
+            user_info['fn_call_count'][fn] += 1
+        assert user_info['fn_call_count'][fn] <= rate_limit, f'rate limit exceeded for {fn} with {user_info["fn_call_count"][fn]} > {rate_limit}'
+        
+        self.state['user_info'] = self.state.get('user_info', {})
+        self.state['user_info'][address] = user_info
+        # check the rate limit
+        return user_info
+
+    verify = forward
+
+    def rm_state(self):
+        self.put(self.state_path, {})
+        return {'success': True, 'msg': f'removed {self.state_path}'}
+
     def run_loop(self):
         while True:
             try:
@@ -72,75 +141,6 @@ class Access(c.Module):
         self.put(self.state_path, self.state)
         return response
 
-    def forward(self, fn: str = 'info' , input:dict = None, address=None) -> dict:
-        """
-        input : dict 
-            fn : str
-            address : str
-
-        returns : dict
-        """
-        input = input or {}
-        address = input.get('address', address)
-        assert address, f'address not in input or as an argument {input}'
-        fn = input.get('fn', fn)
-
-        # ONLY THE ADMIN CAN CALL ANY FUNCTION, THIS IS A SECURITY FEATURE
-        # THE ADMIN KEYS ARE STORED IN THE CONFIG
-        if c.is_admin(address):
-            return {'success': True, 'msg': f'is verified admin'}
-        assert fn in self.module.whitelist , f"Function {fn} not in whitelist={self.module.whitelist}"
-        if address in self.address2key:
-            return {'success': True, 'msg': f'address {address} is a local key'}
-        if fn.startswith('__') or fn.startswith('_'):
-            return {'success': False, 'msg': f'Function {fn} is private'}
-        if c.is_user(address):
-            return {'success': True, 'msg': f'is verified user'}
-        
-        # stake rate limit
-        stake = self.state['stake'].get(address, 0)
-        stake_from = self.state['stake_from'].get(address, 0)
-        # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
-        fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
-        fn_info = self.state.get('fn_info', {}).get(fn,fn_info)
-        rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
-        rate_limit = min(rate_limit, fn_info['max_rate']) # cap the rate limit at the max rate
-        rate_limit = self.config.key2rate.get(address, rate_limit)
-        # NOW LETS CHECK THE RATE LIMIT
-        user_info = self.state.get('user_info', {}).get(address, {})
-        # check if the user has exceeded the rate limit
-        og_timestamp = user_info.get('timestamp', 0)
-        user_info['timestamp'] = c.time()
-        user_info['time_since_called'] = user_info['timestamp'] - og_timestamp
-        period = self.timescale_map[self.config.timescale]
-        # update the user info
-        user_info['key'] = address
-        user_info['fn2requests'] = user_info.get('fn2requests', {})
-        user_info['fn2requests'][fn] = user_info['fn2requests'].get(fn, 0) + 1
-        user_info['stake'] = stake
-        user_info['stake_from'] = stake_from
-        user_info['rate'] = user_info.get('rate', 0) + 1
-
-        # if the time since the last call is greater than the seconds in the period, reset the requests
-        if user_info['time_since_called'] > period:
-            user_info['rate'] = 0
-        try:
-            assert user_info['rate'] <= rate_limit
-            user_info['success'] = True
-        except Exception as e:
-            user_info['error'] = c.detailed_error(e)
-            user_info['success'] = False
-
-        # store the user info into the state
-        self.state['user_info'][address] = user_info
-        # check the rate limit
-        return user_info
-
-    verify = forward
-
-    def rm_state(self):
-        self.put(self.state_path, {})
-        return {'success': True, 'msg': f'removed {self.state_path}'}
 
 if __name__ == '__main__':
     Access.run()

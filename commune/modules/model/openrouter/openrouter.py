@@ -42,6 +42,7 @@ class OpenRouter(c.Module):
         self.model = model
 
 
+    @c.endpoint(cost=1)
     def generate(
         self,
         message: str,

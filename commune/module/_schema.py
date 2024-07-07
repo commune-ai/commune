@@ -365,6 +365,11 @@ class Schema:
 
         return kwargs
     
+    @classmethod
+    def lines_of_code(cls, code:str=None):
+        if code == None:
+            code = cls.code()
+        return len(code.split('\n'))
 
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
@@ -634,6 +639,7 @@ class Schema:
     
 
 
+
     @classmethod
     def get_functions(cls, obj: Any = None,
                       search = None,
@@ -691,9 +697,13 @@ class Schema:
         functions = list(set(functions))     
             
         return functions
-
     
-
+    @classmethod
+    def functions(self, search = None, include_parents = False):
+        return self.get_functions(search=search, include_parents=include_parents)
+    
+    
+    fns = functions
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
         '''
@@ -891,33 +901,63 @@ class Schema:
         info['address'] = self.address
         info['key'] = self.key.ss58_address
         return info
+    
 
-    def endpoint(cost=1, 
-                 whitelist=True,
-                 rate_limit=100, # calls per minute
-                 cost_fn=None):
-        # fn.__whitelist__ = True
-        def endpoint_decorator(fn):
-            fn.__metadata__ = {
+
+    @classmethod
+    def endpoint(cls, 
+                 cost=1, # cost per call 
+                 user2rate : dict = None, 
+                 rate_limit : int = 100, # calls per minute
+                 timestale : int = 60,
+                 cost_keys = ['cost', 'w', 'weight'],
+                 **kwargs):
+        
+        for k in cost_keys:
+            if k in kwargs:
+                cost = kwargs[k]
+                break
+
+        def decorator_fn(fn):
+            metadata = {
                 **Schema.fn_schema(fn),
-                'whitelist': whitelist, 
                 'cost': cost,
                 'rate_limit': rate_limit,
+                'user2rate': user2rate,                
             }
-            print(f'Added {fn.__name__} to whitelist')
-            if cost_fn != None:
-                def _fn(*args, **kwargs):
-                    cost = cost_fn(fn=fn.__name__, args=args, kwargs=kwargs)
-                    return fn(*args, **kwargs)
-                return _fn
-            
+            import commune as c
+            c.print(f'Adding metadata to {fn.__name__} : {metadata}')
+            fn.__dict__['__metadata__'] = metadata
+
             return fn
-        return endpoint_decorator
+
+        return decorator_fn
+    
+
+    def is_endpoint(self, fn) -> bool:
+        if isinstance(fn, str):
+            fn = getattr(self, fn)
+        return hasattr(fn, '__metadata__')
 
     
-    def endpoints(self):
-        is_endpoint = lambda x: hasattr(getattr(self, x), '__metadata__') and getattr(self, x).__metadata__['whitelist']
-        return [f for f in dir(self) if is_endpoint(f)]
+    def endpoints(self, include_helpers = True):
+        endpoints = []  
+        if include_helpers:
+            endpoints += self.helper_functions
+
+        for f in dir(self):
+            try:
+                fn_obj = getattr(self, f) # you need to watchout for properties
+                is_endpoint = hasattr(fn_obj, '__metadata__')
+                if is_endpoint:
+                    endpoints.append(f)
+            except:
+                print(f)
+        return endpoints
+    
+
+    def cost_fn(self, fn:str, args:list, kwargs:dict):
+        return 1
     
     urls = {'github': None,
              'website': None,
@@ -928,13 +968,12 @@ class Schema:
              'linkedin': None,
              'email': None}
     
-    def metadata(self, to_string=False):
-        schema = {f:getattr(getattr(self, f), '__metadata__') for f in self.endpoints()}
+    def metadata(self, to_string=False, code=False):
+        schema = {f:getattr(getattr(self, f), '__metadata__') for f in self.endpoints() if self.is_endpoint(f)}
         metadata = {}
         metadata['schema'] = schema
         metadata['description'] = self.description
         metadata['urls'] = {k: v for k,v in self.urls.items() if v != None}
-
         if to_string:
             return self.python2str(metadata)
         return metadata
@@ -942,9 +981,100 @@ class Schema:
 
     def get_whitelist(self):
         whitelist = self.whitelist if hasattr(self, 'whitelist') else []
-        whitelist += self.helper_whitelist
+        whitelist += self.helper_functions
         whitelist += self.endpoints()
         whitelist = list(set(whitelist))
         return whitelist
     
+
+    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
+        for k,v in kwargs.items():
+            if k != 'self': # skip the self
+                # we dont want to overwrite existing variables from 
+                if not ignore_error: 
+                    assert not hasattr(self, k)
+                setattr(self, k)
+
+    def num_fns(self):
+        return len(self.fns())
+
     
+    def fn2type(self):
+        fn2type = {}
+        fns = self.fns()
+        for f in fns:
+            if callable(getattr(self, f)):
+                fn2type[f] = self.classify_fn(getattr(self, f))
+        return fn2type
+    
+
+    @classmethod
+    def is_dir_module(cls, path:str) -> bool:
+        """
+        determine if the path is a module
+        """
+        filepath = cls.simple2path(path)
+        if path.replace('.', '/') + '/' in filepath:
+            return True
+        if ('modules/' + path.replace('.', '/')) in filepath:
+            return True
+        return False
+    
+    @classmethod
+    def add_line(cls, path:str, text:str, line=None) -> None:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path)
+        text = str(text)
+        # Write the text to the file
+        if line != None:
+            line=int(line)
+            lines = c.get_text(path).split('\n')
+            lines = lines[:line] + [text] + lines[line:]
+            c.print(lines)
+
+            text = '\n'.join(lines)
+        with open(path, 'w') as file:
+            file.write(text)
+
+
+        return {'success': True, 'msg': f'Added line to {path}'}
+
+
+    @classmethod
+    def readme(cls):
+        # Markdown input
+        markdown_text = "## Hello, *Markdown*!"
+        path = cls.filepath().replace('.py', '_docs.md')
+        markdown_text =  cls.get_text(path=path)
+        return markdown_text
+    
+    docs = readme
+
+
+    @staticmethod
+    def is_imported(package:str) :
+        return  bool(package in sys.modules)
+    
+    @classmethod
+    def is_parent(cls, obj=None):
+        obj = obj or cls 
+        return bool(obj in cls.get_parents())
+
+
+    @classmethod
+    def find_code_lines(cls,  search:str = None , module=None) -> List[str]:
+        module_code = c.module(module).code()
+        return c.find_lines(search=search, text=module_code)
+
+    @classmethod
+    def find_lines(self, text:str, search:str) -> List[str]:
+        """
+        Finds the lines in text with search
+        """
+        found_lines = []
+        lines = text.split('\n')
+        for line in lines:
+            if search in line:
+                found_lines += [line]
+        
+        return found_lines
