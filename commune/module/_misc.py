@@ -8,7 +8,6 @@ from copy import deepcopy
 import concurrent
 from munch import Munch
 
-
 class Misc:
 
     @staticmethod
@@ -823,40 +822,6 @@ class Misc:
     def as_completed( futures, timeout=10, **kwargs):
         return concurrent.futures.as_completed(futures, timeout=timeout, **kwargs)
 
-    @classmethod
-    def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
-
-        if loop == None:
-            loop = cls.get_event_loop()
-
-        if not isinstance(jobs, list):
-            singleton = True
-            jobs = [jobs]
-        else:
-            singleton = False
-
-        assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
-        # determine if we are using asyncio or multiprocessing
-
-        # wait until they finish, and if they dont, give them none
-
-        # return the futures that done timeout or not
-        async def wait_for(future, timeout):
-            try:
-                result = await asyncio.wait_for(future, timeout=timeout)
-            except asyncio.TimeoutError:
-                result = {'error': f'TimeoutError: {timeout} seconds'}
-
-            return result
-        
-        jobs = [wait_for(job, timeout=timeout) for job in jobs]
-        future = asyncio.gather(*jobs)
-        results = loop.run_until_complete(future)
-
-        if singleton:
-            return results[0]
-        return results
-    
 
     @classmethod
     def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
@@ -884,11 +849,104 @@ class Misc:
         return x 
 
     
-    
-    
     @classmethod
     def munch(cls, x:Dict) -> Munch:
         '''
         Converts a dict to a munch
         '''
         return cls.dict2munch(x)
+    
+
+    @classmethod  
+    def time( cls, t=None) -> float:
+        import time
+        if t is not None:
+            return time.time() - t
+        else:
+            return time.time()
+
+    @classmethod
+    def datetime(cls):
+        import datetime
+        # UTC 
+        return datetime.datetime.utcnow().strftime("%Y-%m-%d_%H:%M:%S")
+
+    @classmethod
+    def time2datetime(cls, t:float):
+        import datetime
+        return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d_%H:%M:%S")
+    
+    time2date = time2datetime
+
+    @classmethod
+    def datetime2time(cls, x:str):
+        import datetime
+        return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
+    
+    date2time =  datetime2time
+
+    @classmethod
+    def delta_t(cls, t):
+        return t - cls.time()
+    @classmethod
+    def timestamp(cls) -> float:
+        return int(cls.time())
+    @classmethod
+    def sleep(cls, seconds:float) -> None:
+        import time
+        time.sleep(seconds)
+        return None
+    
+
+    def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
+        search = search.split(',')
+        new_d = {}
+
+        for k,v in d.items():
+            if search in k.lower():
+                new_d[k] = v
+        
+        return new_d
+
+    @classmethod
+    def path2text(cls, path:str, relative=False):
+
+        path = cls.resolve_path(path)
+        assert os.path.exists(path), f'path {path} does not exist'
+        if os.path.isdir(path):
+            filepath_list = cls.glob(path + '/**')
+        else:
+            assert os.path.exists(path), f'path {path} does not exist'
+            filepath_list = [path] 
+        path2text = {}
+        for filepath in filepath_list:
+            try:
+                path2text[filepath] = cls.get_text(filepath)
+            except Exception as e:
+                pass
+        if relative:
+            pwd = cls.pwd()
+            path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
+        return path2text
+
+    @classmethod
+    def root_key(cls):
+        return cls.get_key()
+
+    @classmethod
+    def root_key_address(cls) -> str:
+        return cls.root_key().ss58_address
+
+
+    @classmethod
+    def is_root_key(cls, address:str)-> str:
+        return address == cls.root_key().ss58_address
+
+
+    @staticmethod
+    def repo2module( repo, module = None):
+        if module == None:
+            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
+        
+        cls.new_module(module=module, repo=repo)
+        return {'module':module, 'repo':repo, 'status':'success'}

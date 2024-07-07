@@ -54,7 +54,8 @@ class cli:
         buffer =  self.buffer_size * buffer
         result_header = f'{buffer}{msg}{buffer}'
         c.print(result_header, color='green' if not is_error else 'red')
-        is_generator = self.base_module.is_generator(output)
+        is_generator = c.is_generator(output)
+        print(is_generator)
 
         if is_generator:
             for output_item in output:

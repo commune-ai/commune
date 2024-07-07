@@ -20,9 +20,10 @@ class Client(c.Module, ClientPool):
         ):
 
         self.serializer = c.module('serializer')()
-
+        self.session = aiohttp.ClientSession()
         self.loop = c.get_event_loop() if loop == None else loop
         self.key  = c.get_key(key, create_if_not_exists=True)
+        print('key', self.key)
         # we dont want to load the namespace if we have the address
         if not c.is_address(module):
             namespace = c.get_namespace(search=module, network=network)
@@ -33,13 +34,12 @@ class Client(c.Module, ClientPool):
     @classmethod
     def call(cls, 
                 module : str, 
-                fn:str = 'info',
+                fn:str = None,
                 *args,
                 kwargs = None,
                 params = None,
                 network:str = 'local',
                 key:str = None,
-                stream = False,
                 timeout=40,
                 **extra_kwargs) -> None:
           
@@ -65,7 +65,7 @@ class Client(c.Module, ClientPool):
 
         kwargs.update(extra_kwargs)
 
-        return  module.forward(fn=fn, args=args, kwargs=kwargs, stream=stream, timeout=timeout)
+        return  module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
 
     @classmethod
     def connect(cls,
@@ -96,12 +96,6 @@ class Client(c.Module, ClientPool):
         return {'info': info, 'key': str(key)}
 
 
-
-    def __del__(self):
-        if hasattr(self, 'session'):
-            asyncio.run(self.session.close())
-
-
     def __str__ ( self ):
         return "Client({})".format(self.address) 
     def __repr__ ( self ):
@@ -121,19 +115,16 @@ class Client(c.Module, ClientPool):
         return self.loop.run_until_complete(asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout))
 
     async def async_forward(self, 
-                             fn  = 'info', 
-                             params = None, 
-                             args=None,
-                                kwargs=None,
+                            fn  = 'info', 
+                            params = None, 
+                            args=None,
+                            kwargs=None,
                            timeout:int=10, 
-                           stream = False,
                            module = None,
                            key = None,
                            headers = {'Content-Type': 'application/json'},
                            verbose=False, 
                            **extra_kwargs):
-        
-
         if '/' in str(fn):
             module, fn = fn.split('/')
         key = self.resolve_key(key)
@@ -149,7 +140,6 @@ class Client(c.Module, ClientPool):
                 args = params
             elif isinstance(params, dict):
                 kwargs = params  
-
         input =  { 
                     "args": args or [],
                     "kwargs": {**(kwargs or {}), **extra_kwargs},
@@ -158,47 +148,30 @@ class Client(c.Module, ClientPool):
         input = self.serializer.serialize(input)
         input = self.key.sign(input, return_json=True)  
 
-        # start a client session and send the request
+
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
-        self.session = aiohttp.ClientSession()
         try:
             response =  await self.session.post(url, json=input, headers=headers)
+            if response.content_type == 'text/event-stream':
+                return self.iter_over_async(self.stream_generator(response))
             if response.content_type == 'application/json':
                 result = await asyncio.wait_for(response.json(), timeout=timeout)
             elif response.content_type == 'text/plain':
                 result = await asyncio.wait_for(response.text(), timeout=timeout)
-            elif response.content_type == 'text/event-stream':
-                if stream:           
-                    return self.stream_generator(response)
-                else:
-                    result = []  
-                    async for line in response.content:
-                        event =  self.process_stream_line(line)
-                        if event == '':
-                            continue
-                        result += [event]
-                    # process the result if its a json string
-                    if isinstance(result, str):
-                        if (result.startswith('{') and result.endswith('}')) or result.startswith('[') and result.endswith(']'):
-                            result = ''.join(result)
-                            result = json.loads(result)
             else:
                 raise ValueError(f"Invalid response content type: {response.content_type}")
+            result = self.serializer.deserialize(result)
         except Exception as e:
             result = c.detailed_error(e)
-        if type(result) in [str, dict, int, float, list, tuple, set, bool, type(None)]:
-            result = self.serializer.deserialize(result)
-            if isinstance(result, dict) and 'data' in result:
-                result = result['data']
-        else: 
-            result = self.iter_over_async(result)
 
-        await self.session.close()
         return result
     
     def __del__(self):
-        if hasattr(self, 'session'):
-            self.loop.run_until_complete(self.session.close())
+        try:
+            if hasattr(self, 'session'):
+                asyncio.run(self.session.close())
+        except:
+            pass
 
     def iter_over_async(self, ait):
         # helper async fn that just gets the next element
@@ -222,6 +195,9 @@ class Client(c.Module, ClientPool):
             if event == '':
                 continue
             yield event
+        
+        
+
 
     def resolve_key(self,key=None):
         if key == None:
@@ -229,7 +205,6 @@ class Client(c.Module, ClientPool):
         if isinstance(key, str):
             key = c.get_key(key)
         return key
-    
     
     def process_stream_line(self, line ):
         STREAM_PREFIX = 'data: '
@@ -256,7 +231,6 @@ class Client(c.Module, ClientPool):
         else:
             return False
         
-
     @staticmethod
     def check_response(x) -> bool:
         if isinstance(x, dict) and 'error' in x:

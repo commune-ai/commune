@@ -464,7 +464,15 @@ class OS:
     def get_pid():
         return os.getpid()
     
-
-   
-
-   
+    @classmethod
+    def nest_asyncio(cls):
+        import nest_asyncio
+        nest_asyncio.apply()
+    
+    @staticmethod
+    def memory_usage(fmt='gb'):
+        fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
+        import psutil
+        process = psutil.Process()
+        scale = fmt2scale.get(fmt)
+        return (process.memory_info().rss // 1024) / scale

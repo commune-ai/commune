@@ -570,3 +570,21 @@ class Network:
             cls.put('ip', ip)
         return ip
 
+    @classmethod
+    def resolve_address(cls, address:str = None):
+        if address == None:
+            address = c.free_address()
+        assert isinstance(address, str),  'address must be a string'
+        return address
+
+    @classmethod
+    def free_address(cls, **kwargs):
+        return f'{cls.ip()}:{cls.free_port(**kwargs)}'
+
+    @classmethod
+    def check_used_ports(cls, start_port = 8501, end_port = 8600, timeout=5):
+        port_range = [start_port, end_port]
+        used_ports = {}
+        for port in range(*port_range):
+            used_ports[port] = cls.port_used(port)
+        return used_ports

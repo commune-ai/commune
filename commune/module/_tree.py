@@ -558,3 +558,20 @@ class Tree:
                 module_list = [m for m in module_list if search in m]
         return module_list
 
+
+
+    @classmethod
+    def has_module(cls, module):
+        return module in cls.modules()
+    
+
+    @classmethod
+    def pwdtree(cls):
+        tree2path   =  cls.tree2path()
+        pwd = cls.pwd()
+        return {v:k for k,v in tree2path.items()}.get(pwd, None)
+    which_tree = pwdtree
+    
+    @classmethod
+    def is_tree(cls):
+        return cls.pwdtree() != None

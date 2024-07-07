@@ -1491,8 +1491,25 @@ class Keypair(c.Module):
             c.put_text(path, response)
         return response
     
-
     
+    @classmethod
+    def key_addresses(cls,*args, **kwargs ):
+        return list(c.module('key').address2key(*args, **kwargs ).keys())
+    
+
+    @classmethod
+    def get_key_address(cls, key):
+        return cls.get_key(key).ss58_address
+    
+
+    @classmethod
+    def resolve_key_address(cls, key):
+        key2address = c.key2address()
+        if key in key2address:
+            address = key2address[key]
+        else:
+            address = key
+        return address
       
 Keypair.run(__name__)
 
