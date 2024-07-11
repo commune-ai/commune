@@ -150,6 +150,7 @@ server:
   - kill
   - kill_many
   - kill_all
+  - wait_for_server
 
 pm2:
   - [kill_many, pm2_kill_many]
