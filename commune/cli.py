@@ -1,7 +1,6 @@
 
 import commune as c
 import json
-
 import sys
 import time
 import threading

@@ -1,0 +1,17 @@
+aiofiles
+aiohttp
+fastapi
+gradio
+loguru
+msgpack_numpy
+munch
+nest_asyncio
+plotly
+psutil
+pytest
+retry
+rich
+sse-starlette
+streamlit
+substrate-interface
+torch

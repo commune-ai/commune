@@ -1,2 +1,3 @@
 import commune as c
-c.module('model.openaisud')
+
+ip = "23.151.96.138"

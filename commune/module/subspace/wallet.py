@@ -393,7 +393,7 @@ class SubspaceWallet:
 
     
     
-    def my_keys(self, search=None, netuid=0, max_age=None, update=False, **kwargs):
+    def my_keys(self,  netuid=0, search=None, max_age=None, update=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
         keys = self.keys(netuid=netuid, max_age=max_age, update=update, **kwargs)
         key2address = c.key2address(search=search, max_age=max_age, update=update)
@@ -402,11 +402,10 @@ class SubspaceWallet:
         addresses = list(key2address.values())
         if netuid == 'all':
             my_keys = {}
-            c.print(keys)
-            for netuid, netuid_keys in enumerate(keys):
-                if len(netuid_keys) > 0:
-                    my_keys[netuid] = [k for k in netuid_keys if k in addresses]
-
+            for netuid, netuid_keys in keys.items():
+                my_netuid_keys = [k for k in netuid_keys if k in addresses]
+                if len(my_netuid_keys) > 0:
+                    my_keys[netuid] = my_netuid_keys
         else:
             my_keys = [k for k in keys if k in addresses]
         return my_keys
@@ -1510,7 +1509,33 @@ class SubspaceWallet:
             modules = modules[:n]
         return modules
 
+
     staked_modules = staked
+
+
+    def registered_keys(self, netuid='all'):
+        key2address = c.key2address()
+        address2key = {v:k for k,v in key2address.items()}
+        key_addresses = list(key2address.values())
+        
+        if netuid == 'all':
+            registered_keys = {}
+            netuid2keys =  self.keys(netuid=netuid)
+            for netuid, keys in netuid2keys.items():
+                registered_keys[netuid] = []
+                for k in keys:
+                    if k in address2key:
+                        registered_keys[netuid].append(k)
+        else:
+            registered_keys = [k for k in self.keys(netuid=netuid) if k in address2key]
+
+        return registered_keys
+
+
+
+                    
+
+
 
 
 

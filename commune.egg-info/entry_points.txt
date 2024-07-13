@@ -1,0 +1,3 @@
+[console_scripts]
+c = commune.cli:main
+
