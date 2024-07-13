@@ -52,9 +52,7 @@ class cli:
         msg = self.seperator*left_spacers + msg + self.seperator*right_spacers
         buffer =  self.buffer_size * buffer
         result_header = f'{buffer}{msg}{buffer}'
-        c.print(result_header, color='green' if not is_error else 'red')
         is_generator = c.is_generator(output)
-        print(is_generator)
 
         if is_generator:
             for output_item in output:
@@ -96,7 +94,7 @@ class cli:
             is_fn = False
         else:
             is_fn = argv[0] in self.base_module_attributes
-    
+
         if is_fn:
             module = self.base_module
             fn = argv.pop(0)
@@ -125,28 +123,25 @@ class cli:
         except :
             print(f'Error: {fn_path} not found')
             fn_obj = getattr(module, fn)
-        left_buffer = '🔵' *self.buffer_size
+        left_buffer = '🔵' *self.buffer_size + self.seperator*4
         right_buffer = left_buffer[::-1]
         # calling function buffer
-        msg = f'Calling --> {fn_path}'
-        msg = self.seperator*4 + msg + self.seperator*4
+        msg = f'Calling {fn_path}'
         self.input_msg =  msg
+        msg = left_buffer + msg
+        c.print(msg, color='yellow')
 
-        msg = left_buffer + msg + right_buffer
-        c.print(msg, color='cyan')
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
-
-            inputs = {"args":args, "kwargs":kwargs}
-            c.print(inputs, color='yellow')
-            inputs = json.dumps(inputs)
-            msg += '/' + inputs
+            if len(args) > 0 or len(kwargs) > 0:
+                inputs = {"args":args, "kwargs":kwargs}
+                left_buffer = '🔵' *self.buffer_size + self.seperator*4
+                c.print(left_buffer + json.dumps(inputs))
             output = lambda: fn_obj(*args, **kwargs)
         elif self.is_property(fn_obj):
             output =  lambda : getattr(module(), fn)
         else: 
             output = lambda: fn_obj 
-
 
         response =  output()
         return response

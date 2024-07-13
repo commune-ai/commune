@@ -937,8 +937,7 @@ class SubspaceWallet:
         for key,key_address in key2address.items():
             key_value = key2value.get(key_address, 0)
             if key_value == 0:
-                empty_keys.append(key)
-               
+                empty_keys.append(key) 
         return empty_keys
     
     def profit_shares(self, key=None, **kwargs) -> List[Dict[str, Union[str, int]]]:
