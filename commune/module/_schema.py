@@ -5,11 +5,33 @@ import inspect
 from munch import Munch
 
 class Schema:
+    whitelist = []
 
-    @classmethod
-    def schema(cls,
+    _schema = None
+    def schema(self,
                 search = None,
+                docs: bool = True,
+                defaults:bool = True, 
+                cache=True) -> 'Schema':
+        schema = {}
+        if cache and self._schema != None:
+            return self._schema
+        fns = self.public_functions()
+        for fn in fns:
+            if search != None and search not in fn:
+                continue
+            if callable(getattr(self, fn )):
+                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)        
+        # sort by keys
+        schema = dict(sorted(schema.items()))
+        if cache:
+            self._schema = schema
+
+        return schema
+    @classmethod
+    def get_schema(cls,
                 module = None,
+                search = None,
                 whitelist = None,
                 fn = None,
                 docs: bool = True,
@@ -23,22 +45,21 @@ class Schema:
             if '/' in module:
                 module , fn = module.split('/')
             module = cls.module(module)
-
         module = module or cls
         schema = {}
-        fns = module.get_functions(include_parents=include_parents)
+        fns = module.get_functions()
         for fn in fns:
             if search != None and search not in fn:
                 continue
             if callable(getattr(module, fn )):
                 schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
-
         # sort by keys
         schema = dict(sorted(schema.items()))
         if whitelist != None :
             schema = {k:v for k,v in schema.items() if k in whitelist}
         return schema
         
+
 
 
     @classmethod
@@ -636,9 +657,6 @@ class Schema:
         for parent in cls.parents(obj):
             parent_functions[parent.__name__] = cls.get_functions(parent)
         return parent_functions
-    
-
-
 
     @classmethod
     def get_functions(cls, obj: Any = None,
@@ -697,12 +715,10 @@ class Schema:
         functions = list(set(functions))     
             
         return functions
-    
     @classmethod
-    def functions(self, search = None, include_parents = False):
-        return self.get_functions(search=search, include_parents=include_parents)
-    
-    
+    def functions(cls, search = None, include_parents = False):
+        return cls.get_functions(search=search, include_parents=include_parents)
+
     fns = functions
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -940,20 +956,29 @@ class Schema:
         return hasattr(fn, '__metadata__')
 
     
-    def endpoints(self, include_helpers = True):
+    def public_functions(self, search=None, include_helper_functions = True):
         endpoints = []  
-        if include_helpers:
+        if include_helper_functions:
             endpoints += self.helper_functions
 
         for f in dir(self):
             try:
+                if search != None:
+                    if search not in f:
+                        continue
                 fn_obj = getattr(self, f) # you need to watchout for properties
                 is_endpoint = hasattr(fn_obj, '__metadata__')
                 if is_endpoint:
                     endpoints.append(f)
             except:
                 print(f)
+        if hasattr(self, 'whitelist'):
+            endpoints += self.whitelist
+            endpoints = list(set(endpoints))
+
         return endpoints
+
+    get_whitelist = endpoints = public_functions
     
 
     def cost_fn(self, fn:str, args:list, kwargs:dict):
@@ -977,14 +1002,6 @@ class Schema:
         if to_string:
             return self.python2str(metadata)
         return metadata
-            
-
-    def get_whitelist(self):
-        whitelist = self.whitelist if hasattr(self, 'whitelist') else []
-        whitelist += self.helper_functions
-        whitelist += self.endpoints()
-        whitelist = list(set(whitelist))
-        return whitelist
     
 
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
@@ -1059,7 +1076,6 @@ class Schema:
     def is_parent(cls, obj=None):
         obj = obj or cls 
         return bool(obj in cls.get_parents())
-
 
     @classmethod
     def find_code_lines(cls,  search:str = None , module=None) -> List[str]:

@@ -28,7 +28,7 @@ class Storage(c.Module):
             file2size[file] = c.format_data_size(c.filesize(file), fmt=fmt)
         return file2size
 
-
+    @c.endpoint()
     def put_item(self, k,  v: Dict, encrypt:bool=False):
         timestamp = c.timestamp()
         path = self.resolve_item_path(k)    
@@ -40,7 +40,7 @@ class Storage(c.Module):
         self.put_json(path, v)
         return {'success': True, 'path': path, 'timestamp': timestamp}
     
-
+    @c.endpoint()
     def get_item(self,k:str) -> Any:
         k = self.resolve_item_path(k)
         v = self.get_json(k, {})
