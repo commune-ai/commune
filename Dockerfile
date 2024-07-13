@@ -28,7 +28,7 @@ RUN python -m pip install --upgrade pip
 # COPY ./ /app
 # RUN poetry install
 # INSTALL THE COMMUNE REPO FROM SOURCE SO IT WORKS OUT OF THE BOX WHEN YOU ENTER
-COPY ./ /app
+COPY ./ /app/commune
 RUN pip install -e ./
 
 ENTRYPOINT [ "tail", "-f", "/dev/null"]
