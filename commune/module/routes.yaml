@@ -170,3 +170,13 @@ vali:
   - setup_vali
   - from_module
 
+subspace: 
+  - my_keys
+  - key2value
+  - send
+  - transfer
+  - stake
+  - unstake
+  - register
+  - subnet_params
+

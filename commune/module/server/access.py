@@ -21,11 +21,11 @@ class Access(c.Module):
                 **kwargs):
         
         self.set_config(locals())
+        self.period = self.timescale_map[self.config.timescale]
         self.user_module = c.module("user")()
         self.state_path = self.resolve_path(state_path)
         if refresh:
             self.rm_state()
-        self.last_time_synced = c.time()
         if isinstance(module, str):
             module = c.module(module)()
         self.module = module
@@ -35,6 +35,16 @@ class Access(c.Module):
                       'stake_from': {}, 
                       'fn_info': {}}
 
+
+    def get_rate_limit(self, fn, address):
+        # stake rate limit
+        stake = self.state['stake'].get(address, 0)
+        stake_from = self.state['stake_from'].get(address, 0)
+        stake = (stake_from * self.config.stake_from_multipler) + stake
+        fn_info = self.state.get('fn_info', {}).get(fn, {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
+        rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
+
+        return rate_limit
 
     whitelist = ['info', 'verify', 'rm_state']
     @c.endpoint(cost=1)
@@ -69,31 +79,20 @@ class Access(c.Module):
         is_user = c.is_user(address)
         if is_local_key or is_user:
             return {'success': True, 'msg': f'address {address} is a local key or user, so it has unlimited access'}
-        # stake rate limit
-        stake = self.state['stake'].get(address, 0)
-        if self.config.stake_from_multipler:
-            stake_from = self.state['stake_from'].get(address, 0)
-            stake = (stake_from * self.config.stake_from_multipler) + stake
-        # STEP 2: CHECK THE STAKE AND CONVERT TO A RATE LIMIT
-        fn_info = {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate}
-        fn_info = self.state.get('fn_info', {}).get(fn,fn_info)
-        rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
-        rate_limit = min(rate_limit, fn_info['max_rate']) # cap the rate limit at the max rate
-        user_info = self.state.get('user_info', {}).get(address, {})
+        rate_limit = get_rate_limit
         # check if the user has exceeded the rate limit
+        user_info = self.state.get('user_info', {}).get(address, {})
         user_info['timestamp'] = c.time()
-        user_info['fn2timestamp'] = user_info.get('fn2timestamp', {})
-        og_time = user_info['fn2timestamp'].get(fn, 0)
-        user_info['fn2timestamp'][fn] = c.time()
-        period = self.timescale_map[self.config.timescale]
-        user_info['fn_call_count'] = user_info.get('fn_call_count', {fn: 0})
-        time_since_called = user_info['fn2timestamp'][fn] - og_time
-        if time_since_called > period:
-            user_info['fn_call_count'][fn] = 0
+        user_info['fn_info'] = user_info.get('fn_info', {})
+        user_fn_info = user_info['fn_info'].get(fn, {"timestamp": c.time(), 'count': 0})
+        reset_count = bool((c.time() - user_fn_info['timestamp']) > self.period)
+        if reset_count:
+            user_fn_info['count'] = 0
         else:
-            user_info['fn_call_count'][fn] += 1
-        assert user_info['fn_call_count'][fn] <= rate_limit, f'rate limit exceeded for {fn} with {user_info["fn_call_count"][fn]} > {rate_limit}'
-        
+            user_fn_info['count'] += 1
+        assert user_fn_info['count'] <= rate_limit, f'rate limit exceeded for {fn}'
+
+        user_info['fn_info'][fn] = user_fn_info
         self.state['user_info'] = self.state.get('user_info', {})
         self.state['user_info'][address] = user_info
         # check the rate limit
