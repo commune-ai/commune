@@ -192,12 +192,6 @@ class Namespace(c.Module):
         
         return namespace
 
-    
-    @classmethod
-    def migrate_namespace(cls, network:str='local'):
-        namespace = cls.get_json('local_namespace', {})
-        cls.put_namespace(network, namespace)
-
     @classmethod
     def merge_namespace(cls, from_network:str, to_network:str, module = None):
         from_namespace = cls.namespace(network=from_network)
@@ -233,8 +227,6 @@ class Namespace(c.Module):
 
         return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': cls.servers(network=network), 'network': network}
     
-    
-
     @classmethod
     def remote_servers(cls, network:str = 'remote', **kwargs):
         return cls.namespace(network=network)
