@@ -8,6 +8,7 @@ gpu_idx = 0
 netuid= 14
 num_gpus = c.num_gpus()
 stake = 300
+refresh = False
 key = 'module'
 timeout= 120
 n = 24
@@ -47,8 +48,12 @@ def run_miner(key, device=0, refresh=False):
     commune_mount = f'{home_dir}/.commune:/root/.commune'
     huggingface_mount = f'{home_dir}/.cache/huggingface:/root/.cache/huggingface'
     name = module_info['name']
-    if refresh and docker.exists(name):
-        docker.kill(name)
+    if docker.exists(name):
+        if refresh:
+            docker.kill(name)
+        else:
+            return {'msg': 'already running', 'name': name, 'key': key}
+
     address = module_info['address']
     port = int(address.split(':')[-1])
     ip = address.split(':')[0]
@@ -61,11 +66,11 @@ def run_miner(key, device=0, refresh=False):
         python mosaic_subnet/cli.py miner {key_name} 0.0.0.0 {port}'
 
     return c.cmd(cmd)
+futures = []
+for i, key in enumerate(keys):
+    print(f'Running miner')
+    future = c.submit(run_miner, kwargs={'key': key, 'device': i , 'refresh': refresh })
+    futures += [future]
 
-# subspace.transfer_multiple(key_addresses, stake + 1)
-
-futures = [c.submit(run_miner, kwargs={'key': key, 'device': i  }) for i, key in enumerate(keys)]
 for f in c.as_completed(futures, timeout=timeout):
     print(f.result())
-
-print('FAMMMMM')

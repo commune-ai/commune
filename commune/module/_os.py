@@ -27,16 +27,6 @@ class OS:
         os.kill(pid, signal.SIGKILL)
 
     @classmethod
-    def run_command(cls, command:str):
-        import subprocess
-        import shlex
-        process = subprocess.run(shlex.split(command), 
-                            stdout=subprocess.PIPE, 
-                            universal_newlines=True)
-        
-        return process
-
-    @classmethod
     def path_exists(cls, path:str):
         return os.path.exists(path)
 
@@ -362,6 +352,32 @@ class OS:
     def cuda_available(cls) -> bool:
         import torch
         return torch.cuda.is_available()
+
+    @classmethod
+    def free_gpu_memory(cls):
+        gpu_info = cls.gpu_info()
+        return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
+
+    def most_used_gpu(self):
+        most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
+        return most_used_gpu
+
+    def most_used_gpu_memory(self):
+        most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
+        return most_used_gpu
+        
+
+    def least_used_gpu(self):
+        least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
+        return least_used_gpu
+
+    def least_used_gpu_memory(self):
+        least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
+        return least_used_gpu
+            
+
+
+
     @classmethod
     def gpu_info(cls, fmt='gb') -> Dict[int, Dict[str, float]]:
         import torch
@@ -386,7 +402,7 @@ class OS:
                     continue
                 gpu_info[key] = cls.format_data_size(value, fmt=fmt)
             gpu_info_map[gpu_id] = gpu_info
-        return gpu_info
+        return gpu_info_map
         
 
     gpu_map =gpu_info

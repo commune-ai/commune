@@ -416,7 +416,7 @@ class Docker(c.Module):
         c.cmd(f'docker rm -f {name}', verbose=True)
 
     @classmethod
-    def logs(cls, name, sudo=False, follow=False, verbose=False, tail:int=100):
+    def logs(cls, name, sudo=False, follow=False, verbose=False, tail:int=2):
         cmd = f'docker  logs {name} {"-f" if follow else ""} --tail {tail}'
         return c.cmd(cmd, verbose=verbose)
 
