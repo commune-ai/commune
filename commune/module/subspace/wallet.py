@@ -1056,12 +1056,12 @@ class SubspaceWallet:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
-    def balance(self,
+    def get_balance(self,
                  key: str = None ,
                  block: int = None,
                  fmt='j',
                  max_age=0,
-                 update=True) -> Optional['Balance']:
+                 update=False) -> Optional['Balance']:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1077,14 +1077,13 @@ class SubspaceWallet:
                 name='Account',
                 params=[key_ss58],
                 block = block,
-                
                 update=update,
                 max_age=max_age
             )
 
         return  self.format_amount(result['data']['free'] , fmt=fmt)
-        
-    get_balance = balance 
+
+    balance = get_balance
 
     def accounts(self, key = None, update=True, block=None, max_age=100000, **kwargs):
         key = self.resolve_key_ss58(key)

@@ -49,7 +49,7 @@ class Docker(c.Module):
             cmd += ' --no-cache'
         return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
     @classmethod
-    def kill(cls, name, sudo=False, verbose=True, prune=True):
+    def kill(cls, name, sudo=False, verbose=True, prune=False):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         if prune:
