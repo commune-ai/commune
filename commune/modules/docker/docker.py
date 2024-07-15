@@ -49,9 +49,11 @@ class Docker(c.Module):
             cmd += ' --no-cache'
         return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
     @classmethod
-    def kill(cls, name, sudo=False, verbose=True):
+    def kill(cls, name, sudo=False, verbose=True, prune=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+        if prune:
+            c.cmd('docker container prune', sudo=sudo, verbose=verbose)
         return {'status': 'killed', 'name': name}
 
     @classmethod
@@ -287,6 +289,7 @@ class Docker(c.Module):
             paths = [p for p in paths if p != None and search in p]
         if df:
             return psdf
+        paths = sorted(paths)
         return paths
     
 
@@ -462,6 +465,10 @@ class Docker(c.Module):
         dockerfile = name2dockerfile[name]
         dockerfile_text = c.get_text(dockerfile)
         st.code(dockerfile_text)
+
+
+    def prune(self):
+        return c.cmd('docker container prune')
 
 
 
