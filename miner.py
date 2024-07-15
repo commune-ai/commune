@@ -47,7 +47,7 @@ class Miner(c.Module):
             c.add_key( f"miner_{i}")
         
     used_ports = []
-    def register_miner(self, key):
+    def register_miner(self, key, stake=190):
         port = c.free_port()
         keys = self.keys()
        
@@ -59,7 +59,7 @@ class Miner(c.Module):
         subnet_prefix = self.subnet_name.lower()
         name = f"{subnet_prefix}_{key.replace('::', '_')}"
         address = f'{c.ip()}:{port}'
-        return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key)
+        return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key, stake=stake)
 
     def run_miner(key, refresh=False):
         device = device % num_gpus
