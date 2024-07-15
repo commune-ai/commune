@@ -910,8 +910,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
 
     
-
-
     def min_register_stake(self, netuid: int = 0, fmt='j', **kwargs) -> float:
         netuid = self.resolve_netuid(netuid)
         min_burn = self.min_burn(  fmt=fmt)
@@ -1162,10 +1160,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
     
-
-
-
-
     def get_stake_to( self, 
                      key: str = None, 
                      module_key=None,
@@ -1177,7 +1171,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                         timeout = 10,
                          **kwargs) -> Optional['Balance']:
         
-
         if netuid == 'all':
             future2netuid = {}
             key2stake_to = {}
@@ -1211,7 +1204,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             stake_to = {key2name[k]: v for k,v in stake_to.items()}
         return stake_to
     
-    
     def get_stake_total( self, 
                      key: str = None, 
                      module_key=None,
@@ -1239,17 +1231,14 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
         return state_from
 
-
     def blocks_until_vote(self, netuid=0, **kwargs):
         netuid = self.resolve_netuid(netuid)
         tempo = self.subnet_params(netuid=netuid, **kwargs)['tempo']
         block = self.block
         return tempo - ((block + netuid) % tempo)
 
-
     def epoch_time(self, netuid=0, update=False, **kwargs):
         return self.subnet_params(netuid=netuid, update=update, **kwargs)['tempo']*self.block_time
-
 
     def epochs_per_day(self, netuid=None):
         return 24*60*60/self.epoch_time(netuid=netuid)
@@ -1257,12 +1246,9 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     def emission_per_epoch(self, netuid=None):
         return self.subnet(netuid=netuid)['emission']*self.epoch_time(netuid=netuid)
 
-
-
     def seconds_per_epoch(self, netuid=None):
         netuid =self.resolve_netuid(netuid)
         return self.block_time * self.subnet(netuid=netuid)['tempo']
-
 
     def global_params(self, 
                     update = False,
@@ -1294,10 +1280,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         for k in value_features:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
-
-
-       
-
     
     def get_module(self, 
                     module=None,
@@ -1313,6 +1295,9 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         if module == None:
             module = self.keys(netuid=netuid, update=update, max_age=max_age)[0]
             c.print(f'No module specified, using {module}')
+        
+        module = c.key2address().get(module, module)
+        print(module)
 
         url = self.resolve_url( mode=mode)
         module_key = module
@@ -1330,8 +1315,9 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             except Exception as e:
                 c.print(e)
                 continue
-        print(module)
         assert module != None, f"Failed to get module {module_key} after {trials} trials"
+        if not 'result' in module:
+            return module
         module = {**module['result']['stats'], **module['result']['params']}
         # convert list of u8 into a string Vector<u8> to a string
         module['name'] = self.vec82str(module['name'])

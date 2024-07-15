@@ -147,7 +147,7 @@ class SubspaceWallet:
         assert total_amount < balance, f'The total amount is {total_amount} > {balance}'
 
         # convert the amounts to their interger amount (1e9)
-        amounts = [self.to_nanos(a) for a in amounts]
+        amounts = [a*(10**9) for a in amounts]
 
         params = {
             "destinations": destinations,
@@ -157,6 +157,25 @@ class SubspaceWallet:
         return self.compose_call('transfer_multiple', params=params, key=key)
 
     transfer_many = transfer_multiple
+
+    
+
+    def my_modules(self,
+                    modules : list = None,
+                    netuid=0,
+                    timeout=30,
+                    **kwargs):
+        if modules == None:
+            modules = self.my_keys(netuid=netuid)
+        futures = [c.submit(self.get_module, kwargs=dict(module=module, netuid=netuid, **kwargs)) for module in modules]
+        for future in c.as_completed(futures, timeout=timeout):
+            module = future.result()
+            print(module)
+            if not c.is_error(module):
+                modules += [module]
+        return modules
+
+    
 
     def unstake_many( self, 
                         modules:Union[List[str], str] = None,
@@ -209,6 +228,8 @@ class SubspaceWallet:
         return response
 
     
+
+
 
 
 
@@ -391,23 +412,30 @@ class SubspaceWallet:
         my_key2uid = { k: v for k,v in key2uid.items() if k in key_addresses}
         return my_key2uid
 
-    
-    
-    def my_keys(self,  netuid=0, search=None, max_age=None, update=False, **kwargs):
+    def my_keys(self,  
+                netuid=0, 
+                search=None, 
+                max_age=None, 
+                names  = False,
+                update=False, **kwargs):
         netuid = self.resolve_netuid(netuid)
         keys = self.keys(netuid=netuid, max_age=max_age, update=update, **kwargs)
         key2address = c.key2address(search=search, max_age=max_age, update=update)
         if search != None:
             key2address = {k: v for k,v in key2address.items() if search in k}
+        address2key = {v:k for k,v in key2address.items()}
         addresses = list(key2address.values())
+        convert_fn = lambda x : address2key.get(x, x) if names else x
         if netuid == 'all':
             my_keys = {}
             for netuid, netuid_keys in keys.items():
-                my_netuid_keys = [k for k in netuid_keys if k in addresses]
+                
+                my_netuid_keys = [convert_fn(k) for k in netuid_keys if k in addresses]
+                
                 if len(my_netuid_keys) > 0:
                     my_keys[netuid] = my_netuid_keys
         else:
-            my_keys = [k for k in keys if k in addresses]
+            my_keys = [convert_fn(k) for k in keys if k in addresses]
         return my_keys
 
     def register_servers(self,  
@@ -547,9 +575,6 @@ class SubspaceWallet:
             else:
                 module_keys += list(stake_to_key.keys())
         return module_keys
-
-
-
 
     def my_stake_to(self, netuid = 0, **kwargs):
         stake_to = self.stake_to(netuid=netuid, **kwargs)
@@ -1234,13 +1259,13 @@ class SubspaceWallet:
         name: str , # defaults to module.tage
         address : str = None,
         stake : float = None,
-        netuid = None,
-        subnet: str = 'commune',
+        netuid = 0,
+        subnet: str = None,
         key : str  = None,
         module_key : str = None,
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = True,
-        module : str = None,
+        wait_for_finalization: bool = False,
+        max_address_characters = 32,
         metadata = None,
         nonce=None,
         tag = None,
@@ -1248,43 +1273,33 @@ class SubspaceWallet:
     **kwargs
     ) -> bool:
 
-        if name == None:
-            name = module
         if tag != None:
             name = f'{module}::{tag}'
         # resolve module name and tag if they are in the server_name
-        if not c.server_exists(name):
-            address = c.serve(name)['address'] 
-        else:
-            address = c.namespace().get(name,address)
 
-        module_key = module_key or c.get_key(name).ss58_address
-        subnet2netuid = self.subnet2netuid(update=False)
-        netuid2subnet = self.netuid2subnet(update=False)    
+        module_key =  c.get_key(module_key or name).ss58_address
 
-        if isinstance(netuid, str):
-            subnet = netuid
-        if isinstance(netuid, int):
+        if subnet == None:
+            netuid2subnet = self.netuid2subnet(update=False)   
             subnet = netuid2subnet[netuid]
-
-        assert isinstance(subnet, str), f"Subnet must be a string"
-
-        if not subnet in subnet2netuid:
-            subnet2netuid = self.subnet2netuid(update=True)
-            if subnet not in subnet2netuid:
-                subnet2netuid[subnet] = len(subnet2netuid)
-                response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
-                if response.lower() not in ["yes", 'y', 'dope']:
-                    return {'success': False, 'msg': 'Subnet not found and not created'}
+        else:
+            assert isinstance(subnet, str), f"Subnet must be a string"
+            if not subnet in subnet2netuid:
+                subnet2netuid = self.subnet2netuid(update=True)
+                if subnet not in subnet2netuid:
+                    subnet2netuid[subnet] = len(subnet2netuid)
+                    response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
+                    if response.lower() not in ["yes", 'y', 'dope']:
+                        return {'success': False, 'msg': 'Subnet not found and not created'}
                 
         # require prompt to create new subnet        
         stake = (stake or 0) * 1e9
 
         if '0.0.0.0' in address:
             address = address.replace('0.0.0.0', c.ip())
-
-        if len(address) > 32:
-            address = address[-32:]
+        
+        if len(address) > max_address_characters:
+            address = address[-max_address_characters:]
 
         params = { 
                     'network': subnet.encode('utf-8'),
@@ -1529,6 +1544,21 @@ class SubspaceWallet:
             registered_keys = [k for k in self.keys(netuid=netuid) if k in address2key]
 
         return registered_keys
+
+
+
+
+    def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
+        netuid = self.resolve_netuid( netuid )
+        if not c.valid_ss58_address(key):
+            key2addresss = c.key2address(netuid=netuid)
+            if key in key2addresss:
+                key = key2addresss[key]
+        
+        assert c.valid_ss58_address(key), f"Invalid key {key}"
+        is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
+        return is_reged
+    
 
 
 

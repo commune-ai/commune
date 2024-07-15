@@ -188,6 +188,11 @@ class OS:
     def num_gpus(cls):
         import torch
         return torch.cuda.device_count()
+
+    
+    @classmethod
+    def gpus(cls):
+        return list(range(cls.num_gpus()))
     
     def add_rsa_key(cls, b=2048, t='rsa'):
         return cls.cmd(f"ssh-keygen -b {b} -t {t}")

@@ -79,7 +79,7 @@ class Access(c.Module):
         is_user = c.is_user(address)
         if is_local_key or is_user:
             return {'success': True, 'msg': f'address {address} is a local key or user, so it has unlimited access'}
-        rate_limit = get_rate_limit
+        rate_limit = self.get_rate_limit(fn, address)
         # check if the user has exceeded the rate limit
         user_info = self.state.get('user_info', {}).get(address, {})
         user_info['timestamp'] = c.time()
@@ -125,7 +125,7 @@ class Access(c.Module):
                     'network': network,
                     'netuid': netuid,
                     'staleness': int(staleness), 
-                    'datetime': c.datetime()}
+                    }
         
         if staleness < self.config.max_staleness:
             response['msg'] = f'synced too earlly waiting {self.config.max_staleness - staleness} seconds'
@@ -135,7 +135,7 @@ class Access(c.Module):
             response['staleness'] = 0
         self.subspace = c.module('subspace')(network=network)
         state['stake'] = self.subspace.stakes(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
-        state['stake_from'] = {}
+        state['stake_from'] = self.subspace.stake_from(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
         self.state = state
         self.put(self.state_path, self.state)
         return response

@@ -5,14 +5,13 @@ import sys
 from copy import deepcopy
 from typing import Dict, List, Optional, Union
 import commune as c
-
-
 import lru
 import requests
 from requests.adapters import HTTPAdapter
 from typing import Dict, Optional, Union
 from web3 import WebsocketProvider
 from web3 import HTTPProvider, WebsocketProvider
+
 class CustomHTTPProvider(HTTPProvider):
     """
     Override requests to control the connection pool to make it blocking.
