@@ -8,7 +8,7 @@ import requests
 from .subnet import SubspaceSubnet
 from .wallet import SubspaceWallet
 from substrateinterface import SubstrateInterface, Keypair
-U16_MAX = 2**16 - 1
+
 
 class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     """
@@ -89,6 +89,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         return account
 
     def format_module(self, module: 'ModuleInfo', fmt:str='j') -> 'ModuleInfo':
+        U16_MAX = 2**16 - 1
         for k in ['emission']:
             module[k] = self.format_amount(module[k], fmt=fmt)
         for k in ['incentive', 'dividends']:
@@ -1093,19 +1094,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     
 
 
-    def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
-        netuid = self.resolve_netuid( netuid )
-        if not c.valid_ss58_address(key):
-            key2addresss = c.key2address(netuid=netuid)
-            if key in key2addresss:
-                key = key2addresss[key]
-        
-        assert c.valid_ss58_address(key), f"Invalid key {key}"
-        is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
-        return is_reged
-    
-
-
     def resolve_key_ss58(self, key:str,netuid:int=0, resolve_name=True, **kwargs):
         if key == None:
             key = c.get_key(key)
@@ -1280,62 +1268,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         for k in value_features:
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
-    
-    def get_module(self, 
-                    module=None,
-                    netuid=0,
-                    trials = 4,
-                    fmt='j',
-                    mode = 'http',
-                    block = None,
-                    max_age = None,
-                    lite = True, 
-                    update = False,
-                    **kwargs ) -> 'ModuleInfo':
-        if module == None:
-            module = self.keys(netuid=netuid, update=update, max_age=max_age)[0]
-            c.print(f'No module specified, using {module}')
-        
-        module = c.key2address().get(module, module)
-        print(module)
-
-        url = self.resolve_url( mode=mode)
-        module_key = module
-        is_valid_key = c.valid_ss58_address(module)
-        print(is_valid_key, module_key)
-        if not is_valid_key:
-            module_key = self.name2key(name=module,  netuid=netuid, **kwargs)
-        netuid = self.resolve_netuid(netuid)
-        json={'id':1, 'jsonrpc':'2.0',  'method': 'subspace_getModuleInfo', 'params': [module_key, netuid]}
-        module = None
-        for i in range(trials):
-            try:
-                module = requests.post(url,  json=json).json()
-                break
-            except Exception as e:
-                c.print(e)
-                continue
-        assert module != None, f"Failed to get module {module_key} after {trials} trials"
-        if not 'result' in module:
-            return module
-        module = {**module['result']['stats'], **module['result']['params']}
-        # convert list of u8 into a string Vector<u8> to a string
-        module['name'] = self.vec82str(module['name'])
-        module['address'] = self.vec82str(module['address'])
-        module['dividends'] = module['dividends'] / (U16_MAX)
-        module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
-        module['stake'] = sum([v for k,v in module['stake_from'].items() ])
-        module['emission'] = self.format_amount(module['emission'], fmt=fmt)
-        module['key'] = module.pop('controller', None)
-        module['metadata'] = module.pop('metadata', {})
-
-        module['vote_staleness'] = (block or self.block) - module['last_update']
-        if lite :
-            features = self.config.module_features + ['stake', 'vote_staleness']
-            module = {f: module[f] for f in features}
-        assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
-        return module
 
 
 Subspace.run(__name__)

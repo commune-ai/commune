@@ -1,6 +1,6 @@
 from typing import *
 import commune as c
-
+import requests
 class SubspaceSubnet:
     
     def stake_to(self, netuid = 0,block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
@@ -395,6 +395,8 @@ class SubspaceSubnet:
                     lite = True, 
                     update = False,
                     **kwargs ) -> 'ModuleInfo':
+        U16_MAX = 2**16 - 1
+        
         if module == None:
             module = self.keys(netuid=netuid, update=update, max_age=max_age)[0]
             c.print(f'No module specified, using {module}')
