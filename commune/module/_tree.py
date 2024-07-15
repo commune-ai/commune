@@ -516,7 +516,7 @@ class Tree:
             return False
 
     @classmethod
-    def import_object(cls, key:str, verbose: bool = 0)-> Any:
+    def import_object(cls, key:str, verbose: bool = 0, trials=3)-> Any:
         '''
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
@@ -525,10 +525,10 @@ class Tree:
         object_name = key.split('.')[-1]
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
+        
         obj =  getattr(cls.import_module(module), object_name)
-      
         return obj
-    
+
 
     @classmethod
     def object_exists(cls, path:str, verbose=False)-> Any:

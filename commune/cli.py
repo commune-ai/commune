@@ -123,20 +123,17 @@ class cli:
         except :
             print(f'Error: {fn_path} not found')
             fn_obj = getattr(module, fn)
-        left_buffer = '🔵' *self.buffer_size + self.seperator*4
-        right_buffer = left_buffer[::-1]
         # calling function buffer
         msg = f'Calling {fn_path}'
         self.input_msg =  msg
-        msg = left_buffer + msg
+        msg =  msg
         c.print(msg, color='yellow')
 
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
             if len(args) > 0 or len(kwargs) > 0:
                 inputs = {"args":args, "kwargs":kwargs}
-                left_buffer = '🔵' *self.buffer_size + self.seperator*4
-                c.print(left_buffer + json.dumps(inputs))
+                c.print(json.dumps(inputs))
             output = lambda: fn_obj(*args, **kwargs)
         elif self.is_property(fn_obj):
             output =  lambda : getattr(module(), fn)
@@ -222,7 +219,6 @@ class cli:
                 except ValueError:
                     return x
                 
-
     def argv_init_kwargs(self, argv):
         init_kwargs = {}
         if '--testnet' in argv:
