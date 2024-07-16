@@ -179,4 +179,8 @@ subspace:
   - unstake
   - register
   - subnet_params
+  - subnet_params
+  - balance
+  - get_balance
+  - get_stak
 

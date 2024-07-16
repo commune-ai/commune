@@ -373,13 +373,16 @@ class Keypair(c.Module):
     @classmethod
     def key2address(cls, search=None, update=False, **kwargs):
         path = 'key2address'
-        key2address =  cls.get(path, [],max_age=None, update=update)
-        if len(key2address) == 0:
+        key2address =  cls.get(path, None , max_age=None, update=update)
+        if key2address == None:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         if search != None:
             key2address =  {k:v for k,v in key2address.items() if  search in k}
-        
+        if isinstance(key2address, str):
+            import json
+            key2address = json.loads(key2address)
+            self.put(path, key2address)
         return key2address
 
     @classmethod
@@ -467,6 +470,7 @@ class Keypair(c.Module):
         assert isinstance(rm_keys, list), f'rm_keys must be list, got {type(rm_keys)}'
 
         for rm_key in rm_keys:
+            print(f'removing {rm_key}')
             cls.rm_key(rm_key)
         
         return {'removed_keys':rm_keys}
@@ -1292,22 +1296,6 @@ class Keypair(c.Module):
             c.print('cleaning', k, a,  c.key_exists(a))
 
         
-    @staticmethod
-    def valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
-        """
-        Checks if the given address is a valid ss58 address.
-
-        Args:
-            address(str): The address to check.
-
-        Returns:
-            True if the address is a valid ss58 address for Bittensor, False otherwise.
-        """
-
-        try:
-            return ss58.valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
-        except Exception as e:
-            return False
 
     @classmethod
     def from_private_key(cls, private_key:str):

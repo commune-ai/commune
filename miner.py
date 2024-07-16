@@ -5,24 +5,45 @@ import os
 
 class Miner(c.Module): 
     
-    def __init__(self, netuid = 2, max_miners = 10):
-        self.miner_key_prefix = 'miner_'
+    def __init__(self, 
+                netuid = 2, 
+                n = 42, 
+                key=None, 
+                stake=1, 
+                miner_key_prefix = 'miner_', 
+                max_age=360, 
+                update=False
+                ):
+        
+        self.miner_key_prefix = miner_key_prefix
         self.subspace = c.module('subspace')()
         self.docker = c.module('docker')()
+        self.pm2 = c.module('pm2')()
         self.netuid = netuid
-        self.subnet_name = self.subspace.netuid2subnet(netuid)
+        self.subnet_params = self.subspace.subnet_params(netuid=netuid, max_age=max_age, update=update)
+        self.subnet_name = self.subnet_params['name']
         self.subnet_prefix = self.subnet_name.lower() + '_'
-        self.max_miners = max_miners
+        self.n = int(n)
+        self.key = c.get_key(key)
+        self.stake = stake
 
 
     def keys(self):
         keys =  c.keys(self.miner_key_prefix)
-        keys = list(filter(lambda k: int(k.split('_')[-1]) < self.max_miners, keys))
+        keys = list(filter(lambda k: int(k.split('_')[-1]) < self.n, keys))
         return keys
 
-    def transfer_to_miners(self, amount=200):
-        return self.subspace.transfer_multiple(self.key_addresses(), amount)
+    def add_keys(self):
+        for i in range(self.n):
+            name = f"miner_{i}"
+            c.add_key(name)
+            
+        
 
+
+    def transfer_to_miners(self, amount=None):
+        amount = amount or self.stake
+        return self.subspace.transfer_multiple(self.key_addresses(), amount)
 
     def miner2balance(self, timeout=30, max_age=30, **kwargs):
         key_addresses = self.key_addresses()
@@ -43,46 +64,49 @@ class Miner(c.Module):
 
 
 
-    def add_keys(self, n=24):
-        for i in range(n):
-            c.add_key( f"miner_{i}")
-        
     used_ports = []
-    def register_miner(self, key, stake=190):
+
+    def is_running(self, name):
+        return name in c.pm2ls(name)
+    def register_miner(self, key):
         port = c.free_port()
         keys = self.keys()
-       
         while port in self.used_ports:
             port = c.free_port()
         key_address = c.get_key(key).ss58_address
-        if self.subspace.is_registered(key_address, netuid=self.netuid):
-            return {'msg': 'already registered'}
+        # if self.subspace.is_registered(key_address, netuid=self.netuid):
+        #     return {'msg': 'already registered'}
         subnet_prefix = self.subnet_name.lower()
         name = f"{subnet_prefix}_{key.replace('::', '_')}"
         address = f'{c.ip()}:{port}'
-        return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key, stake=stake)
+        c.print(f"Registering {name} at {address}")
+        return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key, stake=self.stake)
 
+    def kill_miner(self, name):
+        return self.pm2.kill(name)
     def run_miner(self, key, refresh=False):
         address2key = c.address2key()
         module_info = self.subspace.get_module(key, netuid=self.netuid)
         name = module_info['name']
-        if self.docker.exists(name):
-            if refresh:
-                self.docker.kill(name)
-            else:
-                return {'msg': 'already running', 'name': name, 'key': key}
+
         address = module_info['address']
         port = int(address.split(':')[-1])
-        print(address)
         ip = address.split(':')[0]
         key_name = address2key.get(key, key)
-        name = name or self.subnet_prefix +  key
+        name = name or self.subnet_prefix +  key        
+        module_info = self.subspace.get_module(key, netuid=self.netuid)
+        name = module_info['name']
+        if self.is_running:
+            if refresh:
+                self.kill_miner(name)
+            else:
+                return {'msg': 'already running', 'name': name, 'key': key}
         cmd = f"comx module serve comchat.miner.model.Miner {key} --subnets-whitelist {self.netuid} --ip 0.0.0.0 --port {port}"
         cmd = f'pm2 start "{cmd}" --name {name}'
         return c.cmd(cmd)
 
-    def run_miners(self, refresh=False):
-        keys = self.keys()
+    def run_miners(self, refresh=False, **kwargs):
+        keys = self.registered_keys(**kwargs)
         futures = []
         for i, key in enumerate(keys):
             future = c.submit(self.run_miner, kwargs={'key': key, 'refresh': refresh})
@@ -117,18 +141,54 @@ class Miner(c.Module):
             self.put('modules', modules)
         return modules
 
-    def refresh_miner_addresses(self, timeout=60, **kwargs):
+    def sync(self, timeout=60, **kwargs):
         modules = self.modules(**kwargs)
         futures = []
         ip = c.ip(update=1)
         free_ports = c.free_ports(n=len(modules))
+        port_range = c.port_range() # if its in the port range
+
         for i, module in enumerate(modules):
-            print(module)
             key = module['key']
+            module_ip = module['address'].split(':')[0]
+            module_port = int(module['address'].split(':')[-1])
+            within_port_range = bool(module_port >= port_range[0] and module_port <= port_range[1])
+            if within_port_range:
+                if module_ip == ip:
+                    emoji = '👍'
+                    c.print(f"{emoji} {key} {emoji}", color='yellow')
+                    continue
             address =  f'{ip}:{free_ports[i]}'
             c.print(f"Updating {key} ({module['address']} --> {address})", color='yellow')
-            future = c.submit(self.subspace.update_module, kwargs={'module': key, 'address': address})
+            future = c.submit(self.subspace.update_module, kwargs={'module': key, 'address': address, 'netuid': self.netuid})
             futures += [future]
 
         for f in c.as_completed(futures, timeout=timeout):
             print(f.result())
+
+    def unstake_and_transfer_back(self, key, amount=20):
+        assert self.subspace.is_registered(key, netuid=self.netuid), f'{key} is not registered'
+        self.subspace.unstake(key, netuid=self.netuid, amount=amount, key=key)
+        self.subspace.transfer(key=key, dest=self.key.ss58_address, amount=amount)
+
+    def unstake_many(self, amount=50, transfer_back=True):
+        keys = self.registered_keys()
+        futures = []
+        for key in keys:
+            future = c.submit(self.unstake_and_transfer_back, kwargs={'key': key, 'amount': amount})
+            futures += [future]
+        for f in c.as_completed(futures):
+            print(f.result())
+
+    def stake_to(self):
+        return self.subspace.get_stake_to(self.key, netuid=self.netuid)
+
+    def sand(self):
+        keys = c.keys()
+        rm_keys = []
+        for k in keys:
+            if '.' in k and k.startswith(self.miner_key_prefix):
+                rm_keys.append(k)
+        return c.rm_keys(rm_keys)
+
+                

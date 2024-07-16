@@ -420,14 +420,7 @@ class Misc:
     def repo_url(cls, *args, **kwargs):
         return cls.module('git').repo_url(*args, **kwargs)    
     
-    _shortcuts = None
-    @classmethod
-    def shortcuts(cls, cache=True) -> Dict[str, str]:
-        if cache:
-            if cls._shortcuts != None:
-                return cls._shortcuts
-        cls._shortcuts =  cls.get_yaml(cls.dirpath()+ '/shortcuts.yaml')
-        return cls._shortcuts
+
 
 
 

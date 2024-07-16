@@ -121,8 +121,7 @@ class cli:
         try: 
             fn_obj = getattr(module, fn)
         except :
-            print(f'Error: {fn_path} not found')
-            fn_obj = getattr(module, fn)
+            fn_obj = getattr(module(), fn)
         # calling function buffer
         msg = f'Calling {fn_path}'
         self.input_msg =  msg
