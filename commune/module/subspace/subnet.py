@@ -369,18 +369,25 @@ class SubspaceSubnet:
     
 
     def get_modules(self,
-                    modules : list = None,
+                    keys : list = None,
                     netuid=0,
                     timeout=30,
                     **kwargs):
-        if modules == None:
-            modules = self.keys(netuid=netuid)
-        futures = [c.submit(self.get_module, kwargs=dict(module=module, netuid=netuid, **kwargs)) for module in modules]
+
+        if keys == None :
+            keys = self.my_keys(netuid=netuid)
+        n = len(keys)
+        modules = []
+        print(f'Getting modules {n}')
+        is_module = lambda x: isinstance(x, dict) and 'name' in x
+        futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
+        progress = c.tqdm(n)
+        modules = []
         for future in c.as_completed(futures, timeout=timeout):
             module = future.result()
-            print(module)
-            if not c.is_error(module):
+            if is_module(module):
                 modules += [module]
+                progress.update(1)
         return modules
 
     

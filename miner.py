@@ -11,6 +11,7 @@ class Miner(c.Module):
         self.docker = c.module('docker')()
         self.netuid = netuid
         self.subnet_name = self.subspace.netuid2subnet(netuid)
+        self.subnet_prefix = self.subnet_name.lower() + '_'
         self.max_miners = max_miners
 
 
@@ -61,12 +62,9 @@ class Miner(c.Module):
         address = f'{c.ip()}:{port}'
         return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key, stake=stake)
 
-    def run_miner(key, refresh=False):
-        device = device % num_gpus
+    def run_miner(self, key, refresh=False):
+        address2key = c.address2key()
         module_info = self.subspace.get_module(key, netuid=self.netuid)
-        home_dir = '/home/fam'
-        commune_mount = f'{home_dir}/.commune:/root/.commune'
-        huggingface_mount = f'{home_dir}/.cache/huggingface:/root/.cache/huggingface'
         name = module_info['name']
         if self.docker.exists(name):
             if refresh:
@@ -75,13 +73,28 @@ class Miner(c.Module):
                 return {'msg': 'already running', 'name': name, 'key': key}
         address = module_info['address']
         port = int(address.split(':')[-1])
+        print(address)
         ip = address.split(':')[0]
         key_name = address2key.get(key, key)
-        name = name or f"comchat/{key}"
+        name = name or self.subnet_prefix +  key
         cmd = f"comx module serve comchat.miner.model.Miner {key} --subnets-whitelist {self.netuid} --ip 0.0.0.0 --port {port}"
-        cmd = f"pm2 start {cmd} --name {name}"
+        cmd = f'pm2 start "{cmd}" --name {name}'
         return c.cmd(cmd)
+
+    def run_miners(self, refresh=False):
+        keys = self.keys()
         futures = []
+        for i, key in enumerate(keys):
+            future = c.submit(self.run_miner, kwargs={'key': key, 'refresh': refresh})
+            futures += [future]
+        for f in c.as_completed(futures):
+            print(f.result())
+
+
+    def registered_keys(self, **kwargs):
+        keys = self.subspace.keys(netuid=self.netuid, **kwargs)
+        miner_key_addresses = self.key_addresses()
+        return list(filter(lambda k: k in miner_key_addresses, keys))
 
     def register_miners(self, timeout=60):
         keys = self.keys()
@@ -91,4 +104,31 @@ class Miner(c.Module):
             futures += [future]
         for f in c.as_completed(futures, timeout=timeout):
             print(f.result())
-        
+
+
+    def servers(self):
+        return c.pm2ls()
+
+    def modules(self, max_age=60, update=False, **kwargs):
+        modules = self.get('modules', None,  max_age=max_age, update=update,  **kwargs)
+        if modules == None:
+            keys = self.registered_keys()
+            modules = self.subspace.get_modules(keys, netuid=self.netuid)
+            self.put('modules', modules)
+        return modules
+
+    def refresh_miner_addresses(self, timeout=60, **kwargs):
+        modules = self.modules(**kwargs)
+        futures = []
+        ip = c.ip(update=1)
+        free_ports = c.free_ports(n=len(modules))
+        for i, module in enumerate(modules):
+            print(module)
+            key = module['key']
+            address =  f'{ip}:{free_ports[i]}'
+            c.print(f"Updating {key} ({module['address']} --> {address})", color='yellow')
+            future = c.submit(self.subspace.update_module, kwargs={'module': key, 'address': address})
+            futures += [future]
+
+        for f in c.as_completed(futures, timeout=timeout):
+            print(f.result())
