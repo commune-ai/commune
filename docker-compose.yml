@@ -2,7 +2,7 @@
 services:
   commune:
     build:
-      context: ./commune
+      context: ./
       dockerfile: Dockerfile
     container_name: commune
     shm_size: '4gb' # for the shared memory size
@@ -14,4 +14,3 @@ services:
       - 50050-50250:50050-50250
     restart: unless-stopped
     command: tail -f /dev/null
-    entrypoint: source $(poetry env info --path)/bin/activate

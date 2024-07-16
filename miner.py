@@ -70,7 +70,11 @@ class Miner(c.Module):
 
     def is_running(self, name):
         return name in c.pm2ls(name)
-    def register_miner(self, key):
+    def register_miner(self, key, controller_key=None):
+        if controller_key == None:
+            controller_key = self.key.ss58_address
+
+            
         port = c.free_port()
         keys = self.keys()
         while port in self.used_ports:
@@ -82,7 +86,12 @@ class Miner(c.Module):
         name = f"{subnet_prefix}_{key.replace('::', '_')}"
         address = f'{c.ip()}:{port}'
         c.print(f"Registering {name} at {address}")
-        return self.subspace.register(name=name, address=address, module_key=key, netuid=self.netuid, key=key, stake=self.stake)
+        return self.subspace.register(name=name, 
+                                     address=address, 
+                                     module_key=key,
+                                     netuid=self.netuid, 
+                                     key=controller_key, 
+                                     stake=self.stake)
 
     def kill_miner(self, name):
         return self.pm2.kill(name)
