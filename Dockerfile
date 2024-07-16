@@ -21,14 +21,7 @@ RUN npm install -g pm2
 RUN apt-get install python3-pip python3 python3-dev python-is-python3 -y
 RUN python -m pip install --upgrade pip
 
-# --- INSTALL POETRY ---
-# RUN pip install poetry
-# COPY ./pyproject.toml /app/pyproject.toml
-# COPY ./poetry.lock /app/poetry.lock
-# COPY ./ /app
-# RUN poetry install
-# INSTALL THE COMMUNE REPO FROM SOURCE SO IT WORKS OUT OF THE BOX WHEN YOU ENTER
-COPY ./ /app/commune
+COPY ./ /app/
 RUN pip install -e ./
 
 ENTRYPOINT [ "tail", "-f", "/dev/null"]
