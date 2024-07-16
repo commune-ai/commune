@@ -13,4 +13,3 @@ services:
     ports:
       - 50050-50250:50050-50250
     restart: unless-stopped
-    command: tail -f /dev/null

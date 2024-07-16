@@ -25,4 +25,11 @@ restart:
 	
 enter:
 	docker exec -it commune bash
-
+test: 
+	docker exec -it commune bash -c "pytest -v"
+install_venv:
+	./commune/scripts/install_python_venv.sh
+enter_env: 
+	bash -c "source ./env/bin/activate"
+create_env:
+	python3 -m venv env

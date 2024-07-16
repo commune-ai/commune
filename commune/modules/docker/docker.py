@@ -471,6 +471,10 @@ class Docker(c.Module):
         return c.cmd('docker container prune')
 
 
+    def start_docker(self):
+        return c.cmd('systemctl start docker')
+
+
 
 
 
