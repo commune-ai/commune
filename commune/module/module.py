@@ -192,7 +192,7 @@ class c(*CORE_BLOCKS):
 
 
         path = path or 'module'
-        shortcuts = cls.shortcuts()
+        shortcuts = c.shortcuts()
         if path in shortcuts:
             path = shortcuts[path]
         module = None
@@ -928,6 +928,10 @@ class c(*CORE_BLOCKS):
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
 
 
+    @classmethod
+    def shortcuts(cls, cache=True) -> Dict[str, str]:
+        return cls.get_yaml(os.path.dirname(__file__)+ '/shortcuts.yaml')
+
     def __repr__(self) -> str:
         return f'<{self.class_name()}'
     def __str__(self) -> str:
@@ -936,7 +940,6 @@ class c(*CORE_BLOCKS):
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
-
 
 
 

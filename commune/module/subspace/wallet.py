@@ -227,10 +227,6 @@ class SubspaceWallet:
 
         return response
 
-    
-
-
-
 
 
     def update_module(
@@ -244,22 +240,21 @@ class SubspaceWallet:
         netuid: int = 0, # the netuid of the new module
         nonce = None, # the nonce of the new module
         tip: int = 0, # the tip of the new module
+        params = None
     ) -> bool:
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-        module_info = self.module_info(key.ss58_address, netuid=netuid)
-        assert module_info['name'] == module
-        assert module_info['key'] == key.ss58_address
-            
-        params = {
-            'name': name , # defaults to module.tage
-            'address': address , # defaults to module.tage
-            'delegation_fee': fee or delegation_fee, # defaults to module.delegate_fee
-            'metadata': c.serialize(metadata or {}), # defaults to module.metadata
-        }
-
+        assert self.is_registered(key.ss58_address, netuid=netuid), f"Module {module} is not registered in SubNetwork {netuid}"
+        if params == None:
+            params = {
+                'name': name , # defaults to module.tage
+                'address': address , # defaults to module.tage
+                'delegation_fee': fee or delegation_fee, # defaults to module.delegate_fee
+                'metadata': c.python2str(metadata or {}), # defaults to module.metadata
+            }
 
         should_update_module = False
+        module_info = self.get_module(key.ss58_address, netuid=netuid)
 
         for k,v in params.items(): 
             if params[k] == None:
@@ -272,6 +267,7 @@ class SubspaceWallet:
                
         c.print('Updating with', params, color='cyan')
         params['netuid'] = netuid
+        
         reponse  = self.compose_call('update_module', params=params, key=key, nonce=nonce, tip=tip)
 
         # IF SUCCESSFUL, MOVE THE KEYS, AS THIS IS A NON-REVERSIBLE OPERATION
@@ -279,7 +275,7 @@ class SubspaceWallet:
 
         return reponse
 
-    update_server = update_module
+    update = update_server = update_module
 
     
 
@@ -351,6 +347,7 @@ class SubspaceWallet:
         """
         
         key = c.get_key(key)
+
         netuid = self.resolve_netuid(netuid)
         # get most stake from the module
 
@@ -359,16 +356,15 @@ class SubspaceWallet:
             amount = module
 
         assert module != None or amount != None, f"Must provide a module or an amount"
-
-
-
-        if c.valid_ss58_address(module):
-            module_key = module
-        elif isinstance(module, str):
-            module_key = self.name2key(netuid=netuid).get(module)
-        else: 
-            raise Exception('Invalid input')
-
+        key2address = c.key2address()
+        if module in key2address:
+            module_key = key2address[module]
+        else:
+            name2key = self.name2key(netuid=netuid)
+            if module in name2key:
+                module_key = name2key[module]
+        assert self.is_registered(module_key, netuid=netuid), f"Module {module} is not registered in SubNetwork {netuid}"
+        
         if amount == None:
             stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=module_key)
             amount = stake_to[module_key] - 100000

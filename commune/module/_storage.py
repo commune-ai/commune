@@ -281,7 +281,7 @@ class Storage:
 
 
     @classmethod
-    def save_yaml(cls, path:str,  data: dict) -> Dict:
+    def put_yaml(cls, path:str,  data: dict) -> Dict:
         '''
         Loads a yaml file
         '''
@@ -295,7 +295,7 @@ class Storage:
     
 
     @classmethod
-    def load_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
+    def get_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
         '''f
         Loads a yaml file
         '''
@@ -306,9 +306,9 @@ class Storage:
         return data
     
         
-    get_yaml = load_yaml
+    load_yaml = get_yaml
 
-    put_yaml = save_yaml
+    save_yaml = put_yaml 
     
     @classmethod
     def filesize(cls, filepath:str):

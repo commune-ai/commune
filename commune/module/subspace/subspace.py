@@ -170,7 +170,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
         if key == None:
             key = 'module'
-
+        
         if isinstance(key, str):
             address2key = c.address2key()
             key2address = {v:k for k,v in address2key.items()}
