@@ -8,10 +8,11 @@ class Miner(c.Module):
     def __init__(self, 
                 netuid = 2, 
                 n = 42, 
-                key=None, 
+                key : str =None, 
+                treasury_key_address:str = None,
                 stake=1, 
                 miner_key_prefix = 'miner_', 
-                max_age=360, 
+                max_age=600, 
                 update=False
                 ):
         
@@ -25,6 +26,7 @@ class Miner(c.Module):
         self.subnet_prefix = self.subnet_name.lower() + '_'
         self.n = int(n)
         self.key = c.get_key(key)
+        self.treasury_key_address = treasury_key_address or self.key.ss58_address
         self.stake = stake
 
 
@@ -88,21 +90,21 @@ class Miner(c.Module):
         address2key = c.address2key()
         module_info = self.subspace.get_module(key, netuid=self.netuid)
         name = module_info['name']
-
         address = module_info['address']
         port = int(address.split(':')[-1])
         ip = address.split(':')[0]
         key_name = address2key.get(key, key)
-        name = name or self.subnet_prefix +  key        
-        module_info = self.subspace.get_module(key, netuid=self.netuid)
-        name = module_info['name']
+        key = address2key.get(key, key)
+        
         if self.is_running:
             if refresh:
                 self.kill_miner(name)
             else:
                 return {'msg': 'already running', 'name': name, 'key': key}
+        
         cmd = f"comx module serve comchat.miner.model.Miner {key} --subnets-whitelist {self.netuid} --ip 0.0.0.0 --port {port}"
         cmd = f'pm2 start "{cmd}" --name {name}'
+        
         return c.cmd(cmd)
 
     def run_miners(self, refresh=False, **kwargs):
@@ -133,7 +135,7 @@ class Miner(c.Module):
     def servers(self):
         return c.pm2ls()
 
-    def modules(self, max_age=60, update=False, **kwargs):
+    def modules(self, max_age=600, update=False, **kwargs):
         modules = self.get('modules', None,  max_age=max_age, update=update,  **kwargs)
         if modules == None:
             keys = self.registered_keys()
@@ -190,5 +192,28 @@ class Miner(c.Module):
             if '.' in k and k.startswith(self.miner_key_prefix):
                 rm_keys.append(k)
         return c.rm_keys(rm_keys)
+
+    def leaderboard(self, 
+                avoid_keys=['stake_from', 'key', 
+                            'vote_staleness', 
+                            'last_update', 
+                            'dividends',
+                            'delegation_fee'], 
+                sort_by='emission',
+                reverse=False,
+    ):
+        modules = self.modules()
+        for key in avoid_keys:
+            for module in modules:
+                module.pop(key, None)
+        
+        df =  c.df(modules)
+        df = df.sort_values(by=sort_by, ascending=reverse)
+        return df
+
+
+    
+
+
 
                 
