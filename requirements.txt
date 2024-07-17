@@ -1,33 +1,11 @@
-###### FUNKY FLEXIBLE CHAD REQUIREMENTS######
-# Why? Because we want to be able to update the packages without having to update the requirements file
 
-# GENERAL
-retry
-psutil
-munch # we use self.config as a munch object for easy attribute access like a dictionar
-loguru
-rich 
-aiofiles # for async file operations
-nest_asyncio # good for using nested looops
-aiohttp  # for async requests
-# SERVER
-fastapi
-sse-starlette # server sent events for streaming back to client
-
-# ML
-torch
+fastapi 
+sse-starlette 
 msgpack_numpy
-
-# BLOCKCHAIN
-substrate-interface # for the key 
-
-# PLOT
-plotly # dope interactive plots
-streamlit # dope for web apps
-gradio # for web apps in gradio
-netaddr
-
-# TEST 
+substrate-interface
+paramiko
+torch
+streamlit
 pytest
-communex
+
 

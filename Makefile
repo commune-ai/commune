@@ -2,19 +2,14 @@
 
 
 
-COMMUNE=commune
 CONTAINER=commune
-SUBSPACE=subspace
-SUBTENSOR=0.0.0.0:9944
-
-PYTHON=python3
-SCRIPTS_PATH=./commune/scripts
-
-
-up:
-	${SCRIPTS_PATH}/start_container.sh
+SCRIPTS_PATH=./${CONTAINER}/scripts
+install_docker:
+	${SCRIPTS_PATH}/install_docker.sh
 build:
 	${SCRIPTS_PATH}/build_container.sh
+up:
+	${SCRIPTS_PATH}/start_container.sh
 down:
 	docker kill ${CONTAINER} ; docker rm ${CONTAINER}
 enter:
