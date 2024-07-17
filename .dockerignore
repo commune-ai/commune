@@ -4,6 +4,7 @@
 *.py[cod]
 *$py.class
 *.pyc
+.pytest_cache/
 env/
 
 # benchmark results

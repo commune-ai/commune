@@ -7,5 +7,11 @@ paramiko
 torch
 streamlit
 pytest
+munch
+nest_asyncio
+asyncio
+aiofiles
+retry
+netaddr
 
 

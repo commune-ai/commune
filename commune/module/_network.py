@@ -480,6 +480,8 @@ class Network:
 
     @classmethod
     def set_port_range(cls, *port_range: list):
+        if '-' in port_range[0]:
+            port_range = list(map(int, port_range[0].split('-')))
         if len(port_range) ==0 :
             port_range = cls.default_port_range
         elif len(port_range) == 1:

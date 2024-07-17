@@ -20,11 +20,12 @@ RUN npm install -g pm2
 # RUN apt-get install python3-pip python3.12 python3.12-dev python-is-python3 -y
 # RUN python -m pip install --upgrade pip
 
+ENV LIBNAME commune
 
 WORKDIR /app
 # WANT TO HAVE TO REBUILD THE WHOLE IMAGE EVERY TIME WE CHANGE THE REQUIREMENTS
-COPY ./requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
+COPY ./commune/requirements.txt /app/commune/requirements.txt
+RUN pip install -r commune/requirements.txt
 # THIS IS FOR THE LOCAL PACKAGE
 COPY ./ /app
 RUN pip install  -e ./ 
