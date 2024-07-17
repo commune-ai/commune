@@ -9,7 +9,7 @@ Background Actor for Message Brokers Between Quees
 
 """
 from commune.block.ray.utils import kill_actor, create_actor
-from commune.module.utils.dict import dict_put, dict_get
+from commune.utils.dict import dict_put, dict_get
 
 
 

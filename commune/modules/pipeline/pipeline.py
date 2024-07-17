@@ -20,7 +20,7 @@ class PipelineModule(commune.Module):
                                     if isinstance(module['module'], dict) else \
                                         {'module': module['module']}
                                         
-                module_obj = commune.module(**get_module_kwargs, virtual=True)
+                module_obj = commune(**get_module_kwargs, virtual=True)
                 
                 # get the function
                 module_fn_name = module.get('fn', default_call_fn)

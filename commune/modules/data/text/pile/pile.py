@@ -205,7 +205,7 @@ class Pile(commune.Module):
 
     def set_tokenizer(self, tokenizer):
         from transformers import AutoTokenizer, AutoModel
-        from commune.module.utils.tokenizer import prep_tokenizer
+        from commune.utils.tokenizer import prep_tokenizer
             
         assert isinstance(tokenizer, str)
         self.print(f'setting {tokenizer} tokenizer...')

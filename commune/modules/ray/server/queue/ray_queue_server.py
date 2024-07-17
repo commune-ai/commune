@@ -1,7 +1,7 @@
 import ray
 import os,sys
 from commune.block.ray.queue import Queue
-from commune.module.utils import dict_put,dict_get,dict_has,dict_delete
+from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
 from commune import Module
 """

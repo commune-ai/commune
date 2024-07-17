@@ -205,12 +205,12 @@ class Misc:
     
     @classmethod
     def dict_put(cls, *args, **kwargs):
-        from commune.module.utils.dict import dict_put
+        from commune.utils.dict import dict_put
         return dict_put(*args, **kwargs)
     
     @classmethod
     def dict_get(cls, *args, **kwargs):
-        from commune.module.utils.dict import dict_get
+        from commune.utils.dict import dict_get
         return dict_get(*args, **kwargs)
     
 
@@ -749,7 +749,7 @@ class Misc:
 
     @classmethod
     def timer(cls, *args, **kwargs):
-        from .utils.time import Timer
+        from commune.utils.time import Timer
         return Timer(*args, **kwargs)
     
     @classmethod

@@ -3,34 +3,24 @@
 
 
 COMMUNE=commune
+CONTAINER=commune
 SUBSPACE=subspace
 SUBTENSOR=0.0.0.0:9944
 
 PYTHON=python3
+SCRIPTS_PATH=./commune/scripts
 
-start:
-	chmod +x ./start.sh ; ./start.sh
 
-build:
-	docker-compose build
-build_image:
-	docker build -t commune .
-start_container:
-	docker run -d -p 5000:5000 commune
-
-down:
-	docker-compose down
-stop:
-	make down
 up:
-	docker-compose up -d
-restart:
-	make down && make up
-	
+	${SCRIPTS_PATH}/start_container.sh
+build:
+	${SCRIPTS_PATH}/build_container.sh
+down:
+	docker kill ${CONTAINER} ; docker rm ${CONTAINER}
 enter:
-	docker exec -it commune bash
-test: 
-	docker exec -it commune bash -c "pytest -v"
+	docker exec -it ${CONTAINER} bash
+run_test: 
+	docker exec ${CONTAINER} bash -c "pytest commune/tests"
 install_venv:
 	./commune/scripts/install_python_venv.sh
 enter_env: 

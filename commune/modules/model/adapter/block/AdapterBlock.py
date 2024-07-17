@@ -6,7 +6,7 @@ from typing import *
 
 from commune.model.layer import LayerBlock
 
-class AdapterBlock(torch.nn.Module, commune.Module):
+class AdapterBlock(torch.nn.Module, commune):
 
     def __init__(self, 
                  in_dim = 10,

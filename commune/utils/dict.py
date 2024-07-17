@@ -14,8 +14,8 @@ import math
 from typing import Union
 import datetime
 import munch
-from commune.module.utils.asyncio import sync_wrapper
-from commune.module.utils.os import ensure_path, path_exists
+from commune.utils.asyncio import sync_wrapper
+from commune.utils.os import ensure_path, path_exists
 import pandas as pd
 
 def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
@@ -431,7 +431,7 @@ def dict_merge(*args):
 
 
 async def async_get_json(path, return_type='dict', handle_error=True, default = None):
-    from commune.module.utils.asyncio import async_read
+    from commune.utils.asyncio import async_read
     try: 
         data = await async_read(path)
         data = json.loads(await async_read(path))
@@ -454,7 +454,7 @@ read_json = load_json = get_json = sync_wrapper(async_get_json)
 
 async def async_put_json( path, data):
     
-    from commune.module.utils.asyncio import  async_write
+    from commune.utils.asyncio import  async_write
     # Directly from dictionary
     path = ensure_path(path)
     data_type = type(data)
@@ -479,7 +479,7 @@ put_json = save_json = sync_wrapper(async_put_json)
 
 
 async def async_get_yaml(path:str, return_type:str='dict', handle_error: bool = False):
-    from commune.module.utils.asyncio import async_read
+    from commune.utils.asyncio import async_read
     
     try:  
         
@@ -502,7 +502,7 @@ read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
 
 async def async_put_yaml( path, data):
     
-    from commune.module.utils.asyncio import  async_write
+    from commune.utils.asyncio import  async_write
 
     # Directly from dictionary
     path = ensure_path(path)
