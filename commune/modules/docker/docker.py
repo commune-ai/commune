@@ -169,12 +169,6 @@ class Docker(c.Module):
             id = image2id[image]
         return id
             
-
-        
-    
-
-
-
     @classmethod
     def deploy(cls, 
                     image : str,
@@ -199,7 +193,6 @@ class Docker(c.Module):
 
         docker_cmd = f'docker run'
 
-
         docker_cmd += f' --net {net} '
 
         if build:
@@ -215,9 +208,9 @@ class Docker(c.Module):
             docker_cmd += f' --gpus "{gpus}"'
         else:
             pass
-            
         
         # ADD THE SHM SIZE
+        # what is this?
         if shm_size != None:
             docker_cmd += f' --shm-size {shm_size}'
         
@@ -237,7 +230,6 @@ class Docker(c.Module):
 
         docker_cmd += f' --name {name} {image}'
 
-
         if cmd is not None:
             docker_cmd += f' bash -c "{cmd}"'
         
@@ -248,15 +240,8 @@ class Docker(c.Module):
         #     contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
         #     c.cmd(f'docker rm -f {contianer_id}', verbose=True)
         #     text_output = c.cmd(docker_cmd, verbose=True)
-        
-
-
-
-
-
         # self.update()
        
-    
     @classmethod
     def psdf(cls, load=True, save=False, idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
@@ -291,14 +276,10 @@ class Docker(c.Module):
             return psdf
         paths = sorted(paths)
         return paths
-    
-
-
 
     @classmethod
     def name2dockerfile(cls, path = None):
        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in cls.dockerfiles(path)}
-    
     
     @classmethod
     def resolve_dockerfile(cls, name):
@@ -314,11 +295,6 @@ class Docker(c.Module):
             raise ValueError(f'Could not find docker file for {name}')
         
     get_dockerfile = resolve_dockerfile
-
-
-    
-
-
 
     @classmethod
     def compose_paths(cls, path = None):
@@ -351,8 +327,6 @@ class Docker(c.Module):
     # def down(cls, path='frontend'):
     #     path = cls.get_compose_path(path)
     #     return c.cmd('docker-compose -f {path} down', verbose=True)
-
-
 
     @classmethod
     def compose(cls, 
@@ -473,11 +447,5 @@ class Docker(c.Module):
 
     def start_docker(self):
         return c.cmd('systemctl start docker')
-
-
-
-
-
-
 
 Docker.run(__name__)

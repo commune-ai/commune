@@ -25,7 +25,9 @@ substrate-interface # for the key
 plotly # dope interactive plots
 streamlit # dope for web apps
 gradio # for web apps in gradio
+netaddr
 
 # TEST 
 pytest
+communex
 

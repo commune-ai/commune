@@ -6,12 +6,9 @@ class Api:
         api_key = os.getenv(str(api_key), None)
         if api_key == None:
             api_key = self.get_api_key()
-
-        
         self.api_key = api_key
         if cache:
             self.add_api_key(api_key)
-
         assert isinstance(api_key, str)
 
     

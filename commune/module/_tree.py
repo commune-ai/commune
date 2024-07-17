@@ -6,10 +6,6 @@ from copy import deepcopy
 class Tree:
     tree_cache = {} # cache for tree
 
-    # def __init__(self, **kwargs):
-    #     self.set_config(kwargs=locals())
-    #     # cls.thread(self.run_loop)
-    
     @classmethod
     def resolve_extension(cls, filename:str, extension = '.py') -> str:
         if filename.endswith(extension):
@@ -165,6 +161,7 @@ class Tree:
                     tree_path:str = None, 
                     extension = '.py', 
                     verbose = True,
+                    avoid_paths = ['__pycache__', '.git', '.vscode', '.ipynb_checkpoints', '/env/'],
                     search=None,
                    **kwargs):
         

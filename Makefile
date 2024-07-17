@@ -13,6 +13,10 @@ start:
 
 build:
 	docker-compose build
+build_image:
+	docker build -t commune .
+start_container:
+	docker run -d -p 5000:5000 commune
 
 down:
 	docker-compose down

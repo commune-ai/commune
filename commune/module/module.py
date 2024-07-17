@@ -211,6 +211,7 @@ class c(*CORE_BLOCKS):
         
         if init_kwargs != None:
             module = module(**init_kwargs)
+
         return module
 
     
@@ -936,6 +937,22 @@ class c(*CORE_BLOCKS):
         return f'<{self.class_name()}'
     def __str__(self) -> str:
         return f'<{self.class_name()}'
+
+    def build_docker(self):
+        cmd = f'docker build -t {self.server_name} .'
+        return c.cmd(cmd)
+    def start_docker(self):
+        cmd = """docker run \
+        --name commune \
+        --shm-size 4gb \
+        -v ~/.commune:/root/.commune \
+        -v $(pwd):/app \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -p 50050-50250:50050-50250 \
+        --restart unless-stopped \
+        -d          
+        """
+        return c.cmd(cmd)
 
 c.enable_routes()
 Module = c # Module is alias of c
