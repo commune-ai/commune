@@ -6,7 +6,7 @@ import os
 class Miner(c.Module): 
     
     def __init__(self, 
-                netuid = 2, 
+                netuid = 3, 
                 n = 42, 
                 key : str =None, 
                 treasury_key_address:str = None,
@@ -20,14 +20,19 @@ class Miner(c.Module):
         self.subspace = c.module('subspace')()
         self.docker = c.module('docker')()
         self.pm2 = c.module('pm2')()
-        # self.netuid = netuid
-        # self.subnet_params = self.subspace.subnet_params(netuid=netuid, max_age=max_age, update=update)
-        # self.subnet_name = self.subnet_params['name']
-        # self.subnet_prefix = self.subnet_name.lower() + '_'
-        # self.n = int(n)
-        # self.key = c.get_key(key)
-        # self.treasury_key_address = treasury_key_address or self.key.ss58_address
-        # self.stake = stake
+        self.netuid = netuid
+        self.max_age = max_age
+        self.update = update
+        self.subnet_name = self.subnet_params['name']
+        self.subnet_prefix = self.subnet_name.lower() + '_'
+        self.n = int(n)
+        self.key = c.get_key(key)
+        self.treasury_key_address = treasury_key_address or self.key.ss58_address
+        self.stake = stake
+
+    @property
+    def subnet_params(self):
+        return self.subspace.subnet_params(netuid=self.netuid, max_age=self.max_age)
 
 
     def keys(self):

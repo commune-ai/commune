@@ -1106,7 +1106,6 @@ class SubspaceWallet:
         min_burn = self.query('MinBurn', block=block, update=update)
         return self.format_amount(min_burn, fmt=fmt)
 
-
     def get_balances(self, 
                     keys=None,
                     search=None, 
@@ -1118,10 +1117,11 @@ class SubspaceWallet:
                     **kwargs):
 
         key2balance  = {}
-
         key2address = c.key2address(search=search)
+
         if keys == None:
             keys = list(key2address.keys())
+        
         if len(keys) > n:
             c.print(f'Getting balances for {len(keys)} keys > {n} keys, using batch_size {batch_size}')
             balances = self.balances(**kwargs)
@@ -1143,9 +1143,9 @@ class SubspaceWallet:
                 c.print(f'Getting balances for {len(batch_keys)} keys')
                 results = substrate.query_multi([ substrate.create_storage_key("System", "Account", [k]) for k in batch_keys])
                 return  {k.params[0]: v['data']['free'].value for k, v in results}
+            
             key2balance = {}
             progress = c.progress(num_batches)
-
 
             for batch_keys in batched_keys:
                 fails = 0
@@ -1164,11 +1164,13 @@ class SubspaceWallet:
                 else:
                     progress.update(1)
                     key2balance.update(result)
+
         for k,v in key2balance.items():
             key2balance[k] = self.format_amount(v, fmt=fmt)
         if names:
             address2key = c.address2key()
             key2balance = {address2key[k]: v for k,v in key2balance.items()}
+            
         return key2balance
 
     def total_balance(self, **kwargs):
