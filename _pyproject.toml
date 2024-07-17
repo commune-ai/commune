@@ -23,71 +23,24 @@ ignore = [
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-
-# GENERAL
-
-retry = "*"
-psutil = "*"
-munch = "*"
-loguru = "*"
-rich = "*"
-aiofiles  = "*"
-nest_asyncio = "*" 
-aiohttp = "*" 
-netaddr = "*"
-
-# SERVER
-
 fastapi = "*"
 sse-starlette = "*"# server sent events for streaming back to client
-
-# ML
-
 torch = "*"
 msgpack_numpy = "*"
 substrate-interface = "*"
-
-# REMOTE
 paramiko = "*"
-
-# PLOT
 plotly = "*" # dope interactive plots
 streamlit = "*" # dope for web apps
-gradio = "*" # for web apps in gradio
-
-# TEST 
 pytest = "*"
-
-
 
 [tool.poetry.group.dev]
 optional = true
 
-[tool.poetry.group.dev.dependencies]
-# Type-checking
-pyright = "^1.1.335"
-# Testing
-pytest = "^7.4.2"
-# Linter
-#ruff = "^0.1.15"
-# Debugging
-ipython = "^8.22.2"
-# Formatting
-autopep8 = "^2.1.0"
-isort = "^5.13.2"
-
-
 [tool.poetry.group.examples]
 optional = true
-[tool.poetry.group.examples.dependencies]
-openai = "^1.13.3"
-
 
 [tool.poetry.group.docs]
 optional = true
-
-[tool.poetry.group.docs.dependencies]
-pdoc = "^14.3.0"
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib"]
@@ -104,3 +57,8 @@ line-length = 120
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[project]
+dynamic = ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
