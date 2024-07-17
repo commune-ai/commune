@@ -4,7 +4,10 @@ from os import path
 from io import open
 from pkg_resources import parse_requirements
 
-here = path.abspath(path.dirname(__file__))
+
+libname = 'commune'
+here = path.abspath(path.dirname(__file__))+f'/{libname}'
+
 
 with open(f'{here}/README.md', encoding='utf-8') as f:
     long_description = f.read()
@@ -13,17 +16,17 @@ with open(f'{here}/requirements.txt') as requirements_file:
     install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
 
 setup(
-    name='commune',
+    name=libname,
     version='0.0.1',
-    description='commune',
+    description='A simple CLI tool to help you manage your projects and tasks and connecting all of them together in a simple way',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/commune-ai/commune',
-    author='commune',
+    author='physics',
     packages=find_packages(),
     include_package_data=True,
     author_email='',
-    license='IDGAF',
+    license='AGIDOESNTCAREABOUTYOURLISCENCES',
     install_requires=install_requires,
     entry_points={
         'console_scripts': [
@@ -31,10 +34,9 @@ setup(
         ],
     },
     classifiers=[
-        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
-
+        "AGIDOESNTCAREABOUTYOURLISCENCES"
         # Pick your license as you wish
         'License :: IDGAF License, Do What You Want, I wont sue you',
         'Programming Language :: Python :: 3.11',
