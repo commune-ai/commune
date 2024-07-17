@@ -155,6 +155,12 @@ class Schema:
     
 
     @classmethod
+    def fn_hash(cls,fn:str = 'subspace/ls', detail:bool=False,  seperator: str = '/') -> str:
+            
+        fn_code = cls.fn_code(fn, detail=detail, seperator=seperator)
+        return cls.hash(fn_code)
+
+    @classmethod
     def is_generator(cls, obj):
         """
         Is this shiz a generator dawg?

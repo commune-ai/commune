@@ -111,7 +111,7 @@ class EVMNetwork(c.Module):
         return list(self.networks_config[network][subnetwork]['url'].keys())
 
     def get_url(self, network:str='local.main.ganache' ) -> str:
-        from commune.module.utils.dict import dict_get
+        from commune.utils.dict import dict_get
         
         if len(network.split('.')) == 2:
             url_key = self.get_url_options(network)[0]

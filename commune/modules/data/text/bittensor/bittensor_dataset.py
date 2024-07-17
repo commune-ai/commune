@@ -30,7 +30,7 @@ from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
 import commune
 from commune import Module
-from commune.module.utils.dict import chunk
+from commune.utils.dict import chunk
 
 logger = logger.opt(colors=True)
 
