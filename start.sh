@@ -29,15 +29,19 @@ PORT_RANGE=$START_PORT-$END_PORT
 if [ "$BUILD" == true ]; then
   docker build -t commune .
 fi
-CONTAINER_EXIST = $(docker ps -q -f name=$CONTAINER_NAME)
-if [ "$CONTAINER_EXIST" ]; then
+
+CONTAINER_EXISTS=$(docker ps -q -f name=$CONTAINER_NAME)  
+if [ $CONTAINER_EXISTS ]; then
+  echo  "HEY"
   echo "Stopping and removing existing container"
   docker stop $CONTAINER_NAME
   # get the container id
   CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
+  echo "Container ID: $CONTAINER_ID"
   docker rm $CONTAINER_ID
   echo "Container removed $CONTAINER_IDS"
 fi
+
 
 
 docker run -d --name commune --shm-size 4gb \
