@@ -122,7 +122,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
     def clean_keys(self, 
                    min_value=1,
-                   update = True):
+                   update = False):
         """
         description:
             Removes keys with a value less than min_value
@@ -134,13 +134,17 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         """
         key2value= self.key2value(netuid='all', update=update, fmt='j', min_value=0)
         address2key = c.address2key()
+        keys_left = []
         rm_keys = []
-        for k,v in key2value.items():
-            if k in address2key and v < min_value:
-                c.print(f'Removing key {k} with value {v}')
-                c.rm_key(address2key[k])
-                rm_keys += [k]
-        return rm_keys
+        for key in address2key.values():
+            key_value = key2value.get(key, 0)
+            if key_value < min_value:
+                c.print(f'Removing key {key} with value {key_value}')
+                c.rm_key(key)
+                rm_keys += [key]
+            else:
+                keys_left += [key]
+        return {'success': True, 'msg': 'cleaned keys', 'keys_left': len(keys_left), 'rm_keys': len(rm_keys)}
 
     
     def load_launcher_keys(self, amount=600, **kwargs):

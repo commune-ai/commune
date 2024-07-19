@@ -24,7 +24,6 @@ class Test(c.Module):
         module = c.serve(server_name)
         c.wait_for_server(server_name)
         module = c.connect(server_name)
-        c.print(module.info(), 'FAMMMMM')
         r = module.put("hey",1)
         v = module.get("hey")
         assert v == 1, f"get failed {v}"

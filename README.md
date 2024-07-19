@@ -52,13 +52,15 @@ or
 make up
 ```
 
-Run tests in the container
+
+Run tests in the container (optional):
 
 ```
 make tests
 ```
 
-Local Setup (Python):
+
+### Local Setup (Python):
 
 npm install -g pm2
 pip install -e ./
