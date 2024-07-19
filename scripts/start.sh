@@ -9,6 +9,13 @@ START_PORT=50050
 END_PORT=50250
 GPUS=null
 
+# if the image doesnt exist, build it
+if [ "$1" == "--build" ] || [ "$1" == "-b" ]; then
+  BUILD=true
+else
+  BUILD=false
+fi
+
 if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
   # add the port range flag by taking the next two arguments
   # if '-' in the second argument, split it and set the start and end ports
@@ -61,3 +68,10 @@ eval $CMD_STR
 
 echo "Setting port range to $PORT_RANGE"
 docker exec commune bash -c "c set_port_range $PORT_RANGE"
+
+
+# scan for open port ranges of 100
+
+# if [ "$1" == "--c" ] || [ "$1" == "-s" ]; then
+#   echo "Scanning for open port ranges of 100"
+#   for i in {50000..50250..100}; do

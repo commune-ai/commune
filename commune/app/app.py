@@ -42,13 +42,11 @@ class App(c.Module):
         
             return {
                 'name': name,
-                'port': port,
+                'fn': fn,
                 'address': {
                     'local': f'http://localhost:{port}',
                     'public': f'http://{c.ip()}:{port}',
                 },
-           
-                'fn': fn,
 
             }
 
