@@ -1,5 +1,4 @@
 
-
 ## Deploying a Miner Tutorial
 
 In this tutorial, you will learn how to deploy a validator on the network and perform various tasks related to staking, registration, and validation.

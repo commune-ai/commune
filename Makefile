@@ -1,9 +1,5 @@
-
-
-
-
 CONTAINER=commune
-SCRIPTS_PATH=./scripts
+SCRIPTS_PATH=./commune/scripts
 
 # include the arguments following this
 build:
