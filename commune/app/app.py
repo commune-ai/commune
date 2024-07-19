@@ -8,6 +8,10 @@ class App(c.Module):
     port_range = [8501, 8600]
     name_prefix = 'app::'
 
+
+
+
+
     def start(self,
            module:str = 'server', 
            name : Optional[str] = None,
@@ -15,29 +19,39 @@ class App(c.Module):
            port:int=None, 
            remote:bool = True, 
            kwargs:dict=None, 
-           app_info:dict=None,
            update:bool=False,
            cwd = None, 
            **extra_kwargs):
-        
-        if remote:
-            name = name or module
-            kwargs = c.locals2kwargs(locals())
-            return  self.remote_fn(
-                        fn='start',
-                        name=self.name_prefix + name ,
-                        kwargs= kwargs)
 
         module = c.shortcuts().get(module, module)
-
         app2info = self.get('app2info', {})
         kwargs = kwargs or {}
-        app_info = app_info or app2info.get(name, {})
-        port = app_info.get('port', c.free_port())
+        name = name or module
+        port = port or c.free_port()
         if c.port_used(port):
             c.kill_port(port)
         if c.module_exists(module + '.app'):
             module = module + '.app'
+
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            self.remote_fn(
+                        fn='start',
+                        name=self.name_prefix + name ,
+                        kwargs= kwargs)
+        
+            return {
+                'name': name,
+                'port': port,
+                'address': {
+                    'local': f'http://localhost:{port}',
+                    'public': f'http://{c.ip()}:{port}',
+                },
+           
+                'fn': fn,
+
+            }
+
         module = c.module(module)
         kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
         cmd = f'streamlit run {module.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'

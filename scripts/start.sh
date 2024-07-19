@@ -7,8 +7,9 @@
 CONTAINER_NAME=commune
 START_PORT=50050
 END_PORT=50250
+GPUS=null
 
-if [ "$1" == "--port-range" ]; then
+if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
   # add the port range flag by taking the next two arguments
   # if '-' in the second argument, split it and set the start and end ports
   if [[ $2 == *-* ]]; then
@@ -30,25 +31,30 @@ if [ "$BUILD" == true ]; then
 fi
 
 CONTAINER_EXISTS=$(docker ps -q -f name=$CONTAINER_NAME)  
+CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
 if [ $CONTAINER_EXISTS ]; then
-  echo  "HEY"
-  echo "Stopping and removing existing container"
+  echo "Stopping and removing existing container $CONTAINER_NAME ID=$CONTAINER_ID"
   docker stop $CONTAINER_NAME
-  # get the container id
-  CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
-  echo "Container ID: $CONTAINER_ID"
-  docker rm $CONTAINER_ID
-  echo "Container removed $CONTAINER_IDS"
 fi
 
+if [ $CONTAINER_ID ]; then
+  echo "Removing existing container $CONTAINER_NAME ID=$CONTAINER_ID"
+  docker rm $CONTAINER_ID
+fi
 
-
-docker run -d --name commune --shm-size 4gb \
-  -v ~/.commune:/root/.commune \
+CMD_STR="docker run -d --name $CONTAINER_NAME --shm-size 4gb \
+  -v ~/.$CONTAINER_NAME:/root/.$CONTAINER_NAME \
   -v $PWD:/app \
   -p $PORT_RANGE:$PORT_RANGE \
   --restart unless-stopped \
-  commune
+  $CONTAINER_NAME"
+
+if [ $GPUS != 'null' ]; then
+  CMD_STR="$CMD_STR --gpus $GPUS"
+fi
+
+echo "Starting container with command: $CMD_STR"
+eval $CMD_STR
 
 # run c set_port_range to set the port range
 # run c set_port_range 50050-50250

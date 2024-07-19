@@ -6,7 +6,7 @@ from pkg_resources import parse_requirements
 
 libname = 'commune'
 
-here = path.abspath(path.dirname(__file__))+f'/{libname}'
+here = path.abspath(path.dirname(__file__))
 
 with open(f'{here}/README.md', encoding='utf-8') as f:
     long_description = f.read()
