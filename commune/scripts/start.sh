@@ -5,7 +5,6 @@
 # if docker is not running, start it
 
 CONTAINER_NAME=commune
-# build the container if you pass the --build is in any of the arguments
 START_PORT=50050
 END_PORT=50250
 

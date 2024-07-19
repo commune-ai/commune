@@ -23,8 +23,8 @@ class Miner(c.Module):
         self.netuid = netuid
         self.max_age = max_age
         self.update = update
-        self.subnet_name = self.subnet_params['name']
-        self.subnet_prefix = self.subnet_name.lower() + '_'
+        self.subnet = self.subnet_params['name']
+        self.subnet_prefix = self.subnet.lower() + '_'
         self.n = int(n)
         self.key = c.get_key(key)
         self.treasury_key_address = treasury_key_address or self.key.ss58_address
@@ -77,17 +77,14 @@ class Miner(c.Module):
         return name in c.pm2ls(name)
     def register_miner(self, key, controller_key=None):
         if controller_key == None:
-            controller_key = self.key.ss58_address
-
-            
+            controller_key = self.key.ss58_address 
         port = c.free_port()
-        keys = self.keys()
         while port in self.used_ports:
             port = c.free_port()
         key_address = c.get_key(key).ss58_address
-        # if self.subspace.is_registered(key_address, netuid=self.netuid):
-        #     return {'msg': 'already registered'}
-        subnet_prefix = self.subnet_name.lower()
+        if self.subspace.is_registered(key_address, netuid=self.netuid):
+            return {'msg': 'already registered'}
+        subnet_prefix = self.subnet.lower()
         name = f"{subnet_prefix}_{key.replace('::', '_')}"
         address = f'{c.ip()}:{port}'
         c.print(f"Registering {name} at {address}")
@@ -100,6 +97,8 @@ class Miner(c.Module):
 
     def kill_miner(self, name):
         return self.pm2.kill(name)
+    
+    
     def run_miner(self, key, refresh=False):
         address2key = c.address2key()
         module_info = self.subspace.get_module(key, netuid=self.netuid)

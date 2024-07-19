@@ -4,11 +4,16 @@
 
 CONTAINER=commune
 SCRIPTS_PATH=./${CONTAINER}/scripts
+
+# include the arguments following this
 build:
-	${SCRIPTS_PATH}/build.sh
+	${SCRIPTS_PATH}/build.sh 
 start:
-	${SCRIPTS_PATH}/start.sh
-restart:
+	${SCRIPTS_PATH}/start.sh 
+up: 
+	make start
+
+restart: 
 	docker restart ${CONTAINER}
 down:
 	docker kill ${CONTAINER} ; docker rm ${CONTAINER}
