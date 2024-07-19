@@ -10,6 +10,7 @@ class OpenRouter(c.Module):
     def __init__(
         self,
         model: str = 'anthropic/claude-3-haiku',
+        search = None,
         api_key = None,
         base_url: str | None = 'https://openrouter.ai/api/v1',
         timeout: float | None = None,
@@ -49,6 +50,7 @@ class OpenRouter(c.Module):
         stream: bool = False,
         model:str = None,
         max_tokens: int = 100000,
+        text = None,
         temperature: float = 1.0,
     ) -> str | Generator[str, None, None]:
         """
@@ -87,6 +89,7 @@ class OpenRouter(c.Module):
         else:
             return result.choices[0].message.content
         
+    forward = generate
 
     def stream_generator(self, result):
         for token in result:
@@ -116,24 +119,26 @@ class OpenRouter(c.Module):
         )
         return {"status": "success", "base_url": base_url}
     
-    def models(self, search: str = None, names=True, path='models', max_age=1000, update=False):
-        models = self.get(path, default={}, max_age=max_age)
-        if len(models) > 0:
-            return models
-        print('Updating models...')
-        url = 'https://openrouter.ai/api/v1/models'
-        response = requests.get(url)
-        models = json.loads(response.text)['data']
+    def models(self, search: str = None, names=True, path='models', max_age=0, update=False):
+        models = self.get(path, default={}, max_age=max_age, update=update)
+        if len(models) == 0:
+            print('Updating models...')
+            url = 'https://openrouter.ai/api/v1/models'
+            response = requests.get(url)
+            models = json.loads(response.text)['data']
+            self.put(path, models)
+    
         models = self.filter_models(models, search=search)
         if names:
             models = [m['id'] for m in models]
-        self.put(path, models)
         return models
     
     @classmethod
     def filter_models(cls, models, search:str = None):
         if search == None:
             return models
+        if isinstance(models[0], str):
+            models = [{'id': m} for m in models]
         if ',' in search:
             search = [s.strip() for s in search.split(',')]
         else:

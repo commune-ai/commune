@@ -25,7 +25,7 @@ class Agent(c.Module):
     def __init__(self, model='model.openrouter'):
         self.model =  c.module(model)()
     
-    def code(self, text ,  file ,  trials=1, code = None):
+    def ask(self, text ,  file=None ,  trials=1, code = None):
 
         code = code or self.read_code(file)
         text = text 
