@@ -13,7 +13,7 @@ class App(c.Module):
         if score_module != None:
             self.score_model = c.module(score_module)()
         else:
-            self.score_model =  c.import_object('redvblue.score_model.JailbreakScoreModel')()
+            self.score_model =  c.import_object('arena.score_model.JailbreakScoreModel')()
         
     def signin(self):
         
@@ -188,7 +188,7 @@ class App(c.Module):
         if sidebar:
             with st.sidebar:
                 return self.sidebar(sidebar=False)
-        st.write('# RedvBlue')
+        st.write('# arena')
         self.signin()
         teams = ['red', 'blue']
         # side by side radio buttons

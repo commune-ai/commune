@@ -614,7 +614,7 @@ class Keypair(c.Module):
 
 
     @classmethod
-    def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
+    def generate_mnemonic(cls, words: int = 24, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
         """
         Generates a new seed phrase with given amount of words (default 12)
 
