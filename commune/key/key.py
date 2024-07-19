@@ -199,6 +199,28 @@ class Keypair(c.Module):
     def rename_key(self, new_path):
         return self.mv_key(self.path, new_path)
     
+
+    @property
+    def hash_pass(self): 
+        return c.hash(self.private_key)
+    
+    @classmethod
+    def get_hash_pass(cls, key=None, max_age=10000): 
+        time_seed = str(time.time() // max_age)
+        return c.hash(str(c.get_key(key).to_json()) + time_seed)
+    @classmethod
+    def key2hash(cls, search=None, max_age=10000):
+        key2hash = {}
+        for key in cls.keys(search=search):
+            print(key)
+            try:
+                key_hash = cls.get_hash_pass(key)
+            except Exception as e:
+                c.print(f'failed to get hash for {key} due to {e}', color='red')
+                continue
+            key2hash[key] = key_hash
+        return key2hash
+            
     @classmethod
     def mv_key(cls, path, new_path):
         

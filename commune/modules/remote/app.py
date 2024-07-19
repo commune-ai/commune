@@ -2,10 +2,10 @@ import commune as c
 import streamlit as st
 from typing import *
 import json
-
-class App(c.module('remote')):
+Remote = c.module('remote')
+class App(Remote):
     def __init__(self, **kwargs):
-        self.set_config(kwargs=kwargs)
+        Remote.__init__(self, **kwargs)
     
     @classmethod
     def app(cls, module: str = None, **kwargs):
@@ -42,6 +42,8 @@ class App(c.module('remote')):
         with st.expander('host2ssh', expanded=1):
             self.host2ssh_search(expander=False)
   
+        
+
         with st.expander('Add Host', expanded=False):
             st.markdown('## Hosts')
             cols = st.columns(3)

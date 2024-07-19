@@ -6,13 +6,12 @@ import json
 import paramiko
     
 class Remote(c.Module):
-
     def __init__(self, path = 'hosts'):
         self.set_host_path(path)
 
     def set_host_path(self, path=None):
         path = path or 'hosts.yaml'
-        path = self.resolve_path(path)
+        path = Remote.resolve_path(path)
         self.host_data_path = path
         return {'status': 'success', 'msg': f'Host data path set to {path}'}
 
@@ -128,6 +127,7 @@ class Remote(c.Module):
     
     def add_host(self, 
                  host:str = '0.0.0.0',
+                 ip = None,
                  port:int = 22,
                  user:str = 'root',
                  pwd:str = None,
@@ -135,6 +135,8 @@ class Remote(c.Module):
                  name : str = None
                  
                  ):
+        
+        host = ip or host
         
         hosts = self.hosts()
         host = {
@@ -347,6 +349,8 @@ class Remote(c.Module):
         c.print(host2ssh)
         ssh = host2ssh[host]
         c.cmd(ssh)
+
+    
         
         
     def text2hosts(self, text, model='model.openai'):
