@@ -14,4 +14,9 @@ aiofiles
 retry
 netaddr
 
+#
+loguru
+plotly
+openai
+
 
