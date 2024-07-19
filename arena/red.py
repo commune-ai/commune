@@ -8,7 +8,7 @@ import datetime
 
 class Red(c.Module):
     def __init__(self, model = 'model.openrouter', 
-                 score_module='redvblue.score_model.JailbreakScoreModel', 
+                 score_module='arena.score_model.JailbreakScoreModel', 
                  key=None
                  ):
         self.model = c.module(model)()
@@ -149,7 +149,7 @@ class Red(c.Module):
 
     def top_header(self):
         # have a random image
-        st.write('# RedvBlue') 
+        st.write('# arena') 
 
 
 
