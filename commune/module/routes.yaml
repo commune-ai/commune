@@ -183,4 +183,14 @@ subspace:
   - balance
   - get_balance
   - get_stak
+  - get_stake_to
+  - get_stake_from
+  - my_stake_to
+  - register
+  - unstake
+  - stake
+  - transfer
+  - send
 
+model.openrouter:
+  - [generate, ask]

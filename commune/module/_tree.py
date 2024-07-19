@@ -550,6 +550,7 @@ class Tree:
         if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
             module_list = cls.module('subspace')().modules(search=search, **kwargs)
         else:
+            print('Getting modules',cls.tree)
             module_list = list(cls.tree(search=search, tree=tree, **kwargs).keys())
             if search != None:
                 module_list = [m for m in module_list if search in m]

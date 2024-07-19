@@ -4,8 +4,6 @@ import json
 
 class SubspaceWallet:
 
-
-
     ##################
     #### Transfer ####
     ##################
@@ -76,10 +74,6 @@ class SubspaceWallet:
         )
 
         return response
-
-
-
-
 
 
     def stake_many( self, 
@@ -158,8 +152,6 @@ class SubspaceWallet:
 
     transfer_many = transfer_multiple
 
-    
-
     def my_modules(self,
                     modules : list = None,
                     netuid=0,
@@ -174,8 +166,6 @@ class SubspaceWallet:
             if not c.is_error(module):
                 modules += [module]
         return modules
-
-    
 
     def unstake_many( self, 
                         modules:Union[List[str], str] = None,
@@ -227,8 +217,6 @@ class SubspaceWallet:
 
         return response
 
-
-
     def update_module(
         self,
         module: str, # the module you want to change
@@ -277,10 +265,6 @@ class SubspaceWallet:
 
     update = update_server = update_module
 
-    
-
-             
-    
     def stake_transfer(
             self,
             module_key: str ,
@@ -319,8 +303,6 @@ class SubspaceWallet:
                     }
 
         return self.compose_call('transfer_stake',params=params, key=key)
-
-
 
     def unstake(
             self,
@@ -363,6 +345,8 @@ class SubspaceWallet:
             name2key = self.name2key(netuid=netuid)
             if module in name2key:
                 module_key = name2key[module]
+            else:
+                module_key = module
         assert self.is_registered(module_key, netuid=netuid), f"Module {module} is not registered in SubNetwork {netuid}"
         
         if amount == None:
@@ -572,8 +556,8 @@ class SubspaceWallet:
                 module_keys += list(stake_to_key.keys())
         return module_keys
 
-    def my_stake_to(self, netuid = 0, **kwargs):
-        stake_to = self.stake_to(netuid=netuid, **kwargs)
+    def my_stake_to(self, netuid = 'all', fmt='j', **kwargs):
+        stake_to = self.stake_to(netuid=netuid, fmt=fmt, **kwargs)
         key2address = c.key2address()
         my_stake_to = {}
 
@@ -965,7 +949,7 @@ class SubspaceWallet:
         key = self.resolve_module_key(key)
         return self.query_map('ProfitShares',  **kwargs)
 
-    def key2stake(self, netuid = 0,
+    def key2stake(self, netuid = 'all',
                      block=None, 
                     update=False, 
                     names = True,
@@ -985,7 +969,6 @@ class SubspaceWallet:
                 for netuid, stake_to in stake_to_dict.items(): 
                     if staker_address in stake_to:
                         stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to.get(staker_address)])
-            c.print(stake_to_total)
         else:
             for staker_address in address2key.keys():
                 if staker_address in stake_to:
@@ -1007,7 +990,7 @@ class SubspaceWallet:
         key2value = dict(sorted(key2value.items(), key=lambda x: x[1], reverse=True))
         return key2value
     
-    def resolve_module_key(self, x, netuid=0, max_age=10):
+    def resolve_module_key(self, x, netuid=0, max_age=60):
         if not c.valid_ss58_address(x):
             name2key = self.name2key(netuid=netuid, max_age=max_age)
             x = name2key.get(x)
@@ -1105,6 +1088,7 @@ class SubspaceWallet:
     def min_burn(self,  block=None, update=False, fmt='j'):
         min_burn = self.query('MinBurn', block=block, update=update)
         return self.format_amount(min_burn, fmt=fmt)
+    
 
     def get_balances(self, 
                     keys=None,
@@ -1130,43 +1114,19 @@ class SubspaceWallet:
                 if a in balances:
                     key2balance[k] = balances[a]
         else:
-            keys = keys[:n]
-            batch_size = min(batch_size, len(keys))
-            batched_keys = c.chunk(keys, batch_size)
-            num_batches = len(batched_keys)
-            progress = c.progress(num_batches)
-            c.print(f'Getting balances for {len(keys)} keys')
-
-            def batch_fn(batch_keys):
-                substrate = self.get_substrate()
-                batch_keys = [key2address.get(k, k) for k in batch_keys]
-                c.print(f'Getting balances for {len(batch_keys)} keys')
-                results = substrate.query_multi([ substrate.create_storage_key("System", "Account", [k]) for k in batch_keys])
-                return  {k.params[0]: v['data']['free'].value for k, v in results}
+            future2key = {}
+            for key in keys:
+                f = c.submit(self.get_balance, kwargs=dict(key=key, fmt=fmt, **kwargs))
+                future2key[f] = key
             
-            key2balance = {}
-            progress = c.progress(num_batches)
-
-            for batch_keys in batched_keys:
-                fails = 0
-                while fails < max_trials:
-                    if fails > max_trials:
-                        raise Exception(f'Error getting balances {fails}/{max_trials}')
-                    try:
-                        result = batch_fn(batch_keys)
-                        progress.update(1)
-                        break # if successful, break
-                    except Exception as e:
-                        fails += 1
-                        c.print(f'Error getting balances {fails}/{max_trials} {e}')
-                if c.is_error(result):
-                    c.print(result, color='red')
-                else:
-                    progress.update(1)
-                    key2balance.update(result)
-
+            for f in c.as_completed(future2key):
+                key = future2key.pop(f)
+                key2balance[key] = f.result()
+                
         for k,v in key2balance.items():
             key2balance[k] = self.format_amount(v, fmt=fmt)
+
+
         if names:
             address2key = c.address2key()
             key2balance = {address2key[k]: v for k,v in key2balance.items()}
@@ -1311,11 +1271,6 @@ class SubspaceWallet:
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
         return response
 
-    reg = register
-
-
-
-
     def set_weights(
         self,
         modules: Union['torch.LongTensor', list] = None,
@@ -1409,15 +1364,8 @@ class SubspaceWallet:
         
         else:
             return response
-
-
-
+        
     vote = set_weights
-
-
-
-
-
     
     def unstake_all( self, 
                         key: str = None, 
@@ -1446,10 +1394,6 @@ class SubspaceWallet:
         total_stake = total_stake - existential_deposit
         
         return response
-
-
-
-
     
     def staked(self, 
                        search = None,
@@ -1527,7 +1471,6 @@ class SubspaceWallet:
     def registered_keys(self, netuid='all'):
         key2address = c.key2address()
         address2key = {v:k for k,v in key2address.items()}
-        key_addresses = list(key2address.values())
         
         if netuid == 'all':
             registered_keys = {}

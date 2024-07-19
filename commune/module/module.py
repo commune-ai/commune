@@ -56,6 +56,7 @@ CORE_BLOCKS =   [Config, # the config block for managing the configuration
                  Task]
 # AGI BEGINS 
 class c(*CORE_BLOCKS):
+    libname = lib_name = lib = 'commune' # the name of the library
 
     helper_functions  = ['info',
                 'metadata',
@@ -65,7 +66,6 @@ class c(*CORE_BLOCKS):
                 'namespace',
                 'whitelist', 
                 'fns'] # whitelist of helper functions to load
-    libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
@@ -940,18 +940,6 @@ class c(*CORE_BLOCKS):
 
     def build_docker(self):
         cmd = f'docker build -t {self.server_name} .'
-        return c.cmd(cmd)
-    def start_docker(self):
-        cmd = """docker run \
-        --name commune \
-        --shm-size 4gb \
-        -v ~/.commune:/root/.commune \
-        -v $(pwd):/app \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -p 50050-50250:50050-50250 \
-        --restart unless-stopped \
-        -d          
-        """
         return c.cmd(cmd)
 
 c.enable_routes()
