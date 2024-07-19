@@ -13,16 +13,16 @@ Ensure that you have Docker installed on your machine. If you don't, you can fol
 3. **Build the Docker Image**: Navigate to the cloned Commune repository and build the Docker image using the provided `Dockerfile`, This can be done via the docker-compsoe file.:
 
 ```
-docker-compose up # or docker build -t commune .
+make build
 ```
 
-4. **Run Commune in Docker**: Start a Docker container with the Commune image:
+4. **Start Container**: Start a Docker container with the Commune image:
 
 ```
-docker-compose up
+make start
 ```
 
-5. **Enter the Docker Container**: Enter the Docker container:
+5. **Enter the Container**: Enter the Docker container:
 
 ```bash
 make enter # or docker exec -it commune bash
@@ -40,7 +40,7 @@ docker exec -it commune bash -c "c modules"
 
 To Kill the container, run the following command:
 ```bash
-docker-compose down
+make down
 ```
 
 Congratulations! Commune is now set up and running inside a Docker container.

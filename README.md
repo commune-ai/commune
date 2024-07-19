@@ -21,11 +21,7 @@ Welcome to Jailbreak Arena, an exciting game to test your skills in exploiting a
 
 2. Install commune:
 
-
-
-
 ### Docker Setup:
-
 
  Make scripts executable:
 ```
