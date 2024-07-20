@@ -267,7 +267,8 @@ class Network:
             return False
         return True
     
-    def kill_ports(self, ports, *more_ports):
+    def kill_ports(self, ports = None, *more_ports):
+        ports = ports or self.used_ports()
         if isinstance(ports, int):
             ports = [ports]
         if '-' in ports:
@@ -277,18 +278,25 @@ class Network:
             self.kill_port(port)
         return self.check_used_ports()
     
-    def public_ports(self):
+    def public_ports(self, timeout=1.0):
         import commune as c
         futures = []
         for port in self.free_ports():
-            futures += [c.submit(self.is_port_open, params={'port':port})]
-        return c.wait(futures)
+            c.print(f'Checking port {port}')
+            futures += [c.submit(self.is_port_open, {'port':port}, timeout=timeout)]
+        results =  c.wait(futures, timeout=timeout)
+        results = list(map(bool, results))
+        return results
+    
+    d
         
 
-    def is_port_open(self, port:int, ip:str=None):
+    def is_port_open(self, port:int, ip:str=None, timeout=0.5):
+        import commune as c
         ip = ip or self.ip()
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex((ip, port)) == 0
+        return False
             
 
 

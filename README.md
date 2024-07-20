@@ -33,13 +33,13 @@ chmod +x ./scripts/*
 ```
 
 
-Build the container
+Build the Image for the Container  
 
 ```
 make build
 ```
 
-Start the Container
+Start the Container from the Image:
 ```
 make start 
 ```
@@ -47,7 +47,6 @@ or
 ```
 make up
 ```
-
 
 Run tests in the container (optional):
 
