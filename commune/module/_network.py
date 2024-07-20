@@ -288,8 +288,7 @@ class Network:
         results = list(map(bool, results))
         return results
     
-    d
-        
+
 
     def is_port_open(self, port:int, ip:str=None, timeout=0.5):
         import commune as c
