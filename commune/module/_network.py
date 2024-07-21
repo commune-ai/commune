@@ -456,7 +456,7 @@ class Network:
         for port in ports: 
             jobs += [check_port(port=port, ip=ip)]
                 
-        results = cls.gather(jobs)
+        results = cls.wait(jobs)
         for port, result in zip(ports, results):
             if isinstance(result, bool) and result:
                 used_ports += [port]

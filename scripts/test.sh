@@ -37,7 +37,8 @@ if [ ! $CONTAINER_EXISTS ]; then
     docker run -d --name commune --shm-size 4gb \
     -v ~/.commune:/root/.commune \
     -v $PWD:/app \
-    -p $PORT_RANGE:$PORT_RANGE \
+    --network host \
+    # -p $PORT_RANGE:$PORT_RANGE \
     --restart unless-stopped \
     commune
 fi
