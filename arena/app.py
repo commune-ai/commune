@@ -7,14 +7,11 @@ import plotly.express as px
 import datetime
 
 class App(c.Module):
-    def __init__(self, model = 'model.openrouter', 
-                 score_module=None):
+    def __init__(self, 
+                 model = 'model.openrouter', 
+                 score_module = 'arena.score'):
         self.model = c.module(model)()
-        if score_module != None:
-            self.score_model = c.module(score_module)()
-        else:
-            self.score_model =  c.import_object('arena.score_model.JailbreakScoreModel')()
-        
+        self.score_model = c.module(score_module)()
     def signin(self):
         
         secret = st.text_input('SIGNIN WITH SECRET', 'FAM', type='password')
@@ -120,6 +117,8 @@ class App(c.Module):
             self.save_result(result)
 
             with st.status(f"Jailbreak Score ({result['mean']})", expanded=False):
+                result.pop('response')
+                result.pop('prompt')
                 st.write(result)
 
     def save_result(self, response):
