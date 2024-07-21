@@ -20,21 +20,21 @@
 ### Docker Setup:
 
 
- Make scripts executable:
+ Make scripts executable if they arent:
 ```
 make chmod_scripts 
 ```
 or
 ```
-chmod +x ./scripts/*
+chmod +x ./commune/scripts/*
 ```
-
 
 Build the container
+```
+make build # ./commune/scripts/build.sh
 
 ```
-make build
-```
+
 
 Start the Container
 ```
