@@ -18,6 +18,7 @@ else
   BUILD=false
 fi
 if [ "$BUILD" == true ]; then
+  echo "BUILDING IMAGE $IMAGE_NAME"
   docker build -t $IMAGE_NAME $IMAGE_PATH
 fi
 
@@ -26,32 +27,27 @@ fi
 
 CONTAINER_EXISTS=$(docker ps -q -f name=$CONTAINER_NAME)  
 if [ $CONTAINER_EXISTS ]; then
-  echo "Stopping and removing existing container NAME=$CONTAINER_NAME"
+  echo "STOPPING CONTAINER NAME=$CONTAINER_NAME"
   docker stop $CONTAINER_NAME
-fi
-CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
-if [ $CONTAINER_ID ]; then
-  echo "Removing existing container NAME=$CONTAINER_NAME ID=$CONTAINER_ID"
-  docker rm $CONTAINER_ID
+
 fi
 
+CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
+if [ $CONTAINER_ID ]; then
+  echo "REMOVING CONTIANER NAME=$CONTAINER_NAME ID=$CONTAINER_ID"
+  docker rm $CONTAINER_ID
+fi
 
 CMD_STR="docker run -d \
   --name $CONTAINER_NAME \
   --shm-size $SHM_SIZE \
   -v ~/.$CONTAINER_NAME:/root/.$CONTAINER_NAME \
   -v $PWD:/app \
-  --network host \
+  -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \
   $CONTAINER_NAME"
 
-if [ $GPUS != 'null' ]; then
-  CMD_STR="$CMD_STR --gpus $GPUS"
-fi
-
 eval $CMD_STR
-
-
 
 if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
   # add the port range flag by taking the next two arguments
