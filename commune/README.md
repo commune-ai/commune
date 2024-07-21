@@ -7,7 +7,13 @@
 [![Website Uptime](https://img.shields.io/website-up-down-green-red/http/monip.org.svg)](https://www.communeai.org/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/communeaidotorg.svg?style=social&label=Follow)](https://twitter.com/communeaidotorg)
 
+
+PLEASE REFER TO THE DOCS FOLDER FOR MORE INFO
+
+[DOCS](./commune/docs)
+
 ### An Open Anything Network: Connect Anything You Want
+
 
 </div>
 
@@ -19,24 +25,22 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 
 # Install
 
-### Local Setup (Without Docker)
+You can install commune locally or run in docker. Commune is a python package and can be built from source for maximal control. We want you to define what you want to do with your code, and commune is here to help you do that.
 
-```bash
-apt-get install python3.10 python3-pip npm
-npm install -g pm2
-pip install -r requirements.txt
-pip install -e .
-```
-or 
-```bash
-./start.sh
-```
+
+
 ### Setting Up Commune With Docker
 
 Install Docker: If you don't have Docker installed on your system, download and install it from the official Docker website: [https://www.docker.com/get-started](https://www.docker.com/get-started).
 
 Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
+
+Please cd into commune
+
+```
+cd commune
+```
 Start Commune: Once the Docker container is built, start Commune by running the following command:
 
 ```bash
@@ -58,9 +62,18 @@ Then run the following command to sync the network
 c ls
 ```
 
+### Local Setup (Without Docker)
 
-
-
+```bash
+apt-get install python3.10 python3-pip npm
+npm install -g pm2
+pip install -r requirements.txt
+pip install -e .
+```
+or 
+```bash
+./start.sh
+```
 
 To exit the container
 

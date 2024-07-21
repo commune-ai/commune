@@ -251,7 +251,9 @@ class Tree:
     def path2simple(cls,  
                     path:str, 
                     tree = None,  
-                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules', 'commune.module', 'module', 'router'],
+                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules',
+                                       'commune.commune',
+                                        'commune.module', 'module', 'router'],
                     module_folder_filnames = ['__init__', 'main', 'module'],
                     module_extension = 'py',
                     ignore_suffixes = ['module'],
@@ -268,34 +270,26 @@ class Tree:
         path_filename = path_filename_with_extension[:-len(path_extension)-1] # remove the extension
         path_filename_chunks = path_filename.split('_')
         path_chunks = path.split('/')
-        # for instance model/openai/openai.py is a module folder where the filename is openai and the path is model/openai
 
-        is_module_folder = all([bool(chunk in path_chunks) for chunk in path_filename_chunks])
-        is_module_folder = is_module_folder or (path_filename in module_folder_filnames)
-        
-        if is_module_folder:
-            path = '/'.join(path.split('/')[:-1])
-
-        # STEP 2 REMOVE THE TREE PATH (IF IT EXISTS)
-        # if the path is a module folder, we want to remove the folder name
         if path.startswith(cls.libpath):
             path = path[len(cls.libpath):]
         else:
             # if the tree path is not in the path, we want to remove the root path
             pwd = cls.pwd()
-            path = path[len(pwd):]  
-
-        if path.startswith('/'):
-            path = path[1:]
-        
-        # strip the extension
+            path = path[len(pwd):] 
+        dir_chunks = path.split('/')[:-1] if '/' in path else []
+        is_module_folder = all([bool(chunk in dir_chunks) for chunk in path_filename_chunks])
+        is_module_folder = is_module_folder or (path_filename in module_folder_filnames)
+        if is_module_folder:
+            path = '/'.join(path.split('/')[:-1])
+        path = path[1:] if path.startswith('/') else path
         path = path.replace('/', '.')
-
-        # remove the extension
         module_extension = '.'+module_extension
         if path.endswith(module_extension):
             path = path[:-len(module_extension)]
 
+
+    
         if compress_path:
             # we want to remove redundant chunks 
             # for example if the path is 'module/module' we want to remove the redundant module
@@ -307,13 +301,13 @@ class Tree:
             simple_path = '.'.join(simple_path)
         else:
             simple_path = path
-        # remove prefixes from commune
+        # FILTER PREFIXES  
         for prefix in ignore_prefixes:
             prefix += '.'
             if simple_path.startswith(prefix) and simple_path != prefix:
                 simple_path = simple_path[len(prefix):]
                 cls.print(f'Prefix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
-
+        # FILTER SUFFIXES
         for suffix in ignore_suffixes:
             suffix = '.' + suffix
             if simple_path.endswith(suffix) and simple_path != suffix:

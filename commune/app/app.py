@@ -19,6 +19,7 @@ class App(c.Module):
            port:int=None, 
            remote:bool = True, 
            kwargs:dict=None, 
+           cmd = None,
            update:bool=False,
            cwd = None, 
            **extra_kwargs):
@@ -27,33 +28,38 @@ class App(c.Module):
         app2info = self.get('app2info', {})
         kwargs = kwargs or {}
         name = name or module
-        port = port or c.free_port()
+        port = port or app2info.get(name, {}).get('port', c.free_port())
         if c.port_used(port):
             c.kill_port(port)
         if c.module_exists(module + '.app'):
             module = module + '.app'
+        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
+        module_class = c.module(module)
+        cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+        cwd = cwd or os.path.dirname(module_class.filepath())
 
         if remote:
-            kwargs = c.locals2kwargs(locals())
+            rkwargs = c.locals2kwargs(locals())
+            rkwargs['remote'] = False
+            del rkwargs['module_class']
+            del rkwargs['app2info']
             self.remote_fn(
                         fn='start',
                         name=self.name_prefix + name ,
-                        kwargs= kwargs)
+                        kwargs= rkwargs)
         
             return {
                 'name': name,
+                'cwd': cwd,
                 'fn': fn,
                 'address': {
                     'local': f'http://localhost:{port}',
                     'public': f'http://{c.ip()}:{port}',
-                },
+                }  
 
             }
 
         module = c.module(module)
-        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
-        cmd = f'streamlit run {module.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
-        cwd = cwd or os.path.dirname(module.filepath())
         app_info= {
             'name': name,
             'port': port,
@@ -64,7 +70,6 @@ class App(c.Module):
         }
         app2info[name] = app_info
         self.put('app2info', app2info )
-        
         c.cmd(cmd, verbose=True, cwd=cwd)
         return app_info
     

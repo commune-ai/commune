@@ -1,10 +1,9 @@
 import os
 import urllib
 import requests
-import logging
 import netaddr
 from typing import *
-
+import socket
 
 class Network:
 
@@ -252,6 +251,52 @@ class Network:
         for port in range(*port_range):
             used_ports[port] = cls.port_used(port)
         return used_ports
+    
+
+    @classmethod
+    def kill_port(cls, port:int):
+        r""" Kills a process running on the passed port.
+            Args:
+                port  (:obj:`int` `required`):
+                    The port to kill the process on.
+        """
+        try:
+            os.system(f'kill -9 $(lsof -t -i:{port})')
+        except Exception as e:
+            print(e)
+            return False
+        return True
+    
+    def kill_ports(self, ports = None, *more_ports):
+        ports = ports or self.used_ports()
+        if isinstance(ports, int):
+            ports = [ports]
+        if '-' in ports:
+            ports = list(range([int(p) for p in ports.split('-')]))
+        ports = list(ports) + list(more_ports)
+        for port in ports:
+            self.kill_port(port)
+        return self.check_used_ports()
+    
+    def public_ports(self, timeout=1.0):
+        import commune as c
+        futures = []
+        for port in self.free_ports():
+            c.print(f'Checking port {port}')
+            futures += [c.submit(self.is_port_open, {'port':port}, timeout=timeout)]
+        results =  c.wait(futures, timeout=timeout)
+        results = list(map(bool, results))
+        return results
+    
+
+
+    def is_port_open(self, port:int, ip:str=None, timeout=0.5):
+        import commune as c
+        ip = ip or self.ip()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex((ip, port)) == 0
+        return False
+            
 
 
     @classmethod
