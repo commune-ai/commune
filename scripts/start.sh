@@ -27,7 +27,7 @@ fi
 
 CONTAINER_EXISTS=$(docker ps -q -f name=$CONTAINER_NAME)  
 if [ $CONTAINER_EXISTS ]; then
-  echo "STOPPING CONTAINER NAME=$CONTAINER_NAME"
+  echo "STOPPING CONTAINER $CONTAINER_NAME"
   docker stop $CONTAINER_NAME
 
 fi
@@ -64,9 +64,9 @@ if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
 fi
 PORT_RANGE=$START_PORT-$END_PORT
 echo "Setting port range to $PORT_RANGE"
-docker exec commune bash -c "c set_port_range $PORT_RANGE"
-docker exec commune bash -c "c serve"
-
+docker exec $CONTAINER_NAME bash -c "c set_port_range $PORT_RANGE"
+docker exec $CONTAINER_NAME bash -c "c serve"
+# docker exec $CONTAINER_NAME bash -c "c app arena.app"
 # get the timestamp as a random seed
 
 SEED=$(date +%s)

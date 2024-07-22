@@ -93,7 +93,11 @@ class JailbreakScoreModel(c.Module):
                     break
 
         except Exception as e:
-            raise e
+            c.print(f"Error: {e}", color='red')
+            c.print(f"Timeout: {timeout}", color='red')
+            c.print(f"Future2Model: {future2model}", color='red')
+            c.print(f"Model2Score: {model2score}", color='red')
+            c.print(f"Pool Size: {pool_size}", color='red')
 
         for f in future2model:
             f.cancel()
