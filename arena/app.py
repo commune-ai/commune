@@ -141,15 +141,25 @@ class App(c.Module):
                     scores = list(model2score.values())
                     models = list(model2score.keys())
     
-                    fig = px.line_polar(r=scores, theta=models, line_close=True)
+                    # make the bar red if the score is > 0.5 else blue
+                    threshold = 0.5
+                    title = f'Jailbreak Score (mean={result["mean"]} std={result["std"]} n={result["n"]})'
+                    fig = px.bar(x=models, y=scores, labels={'x':'Model', 'y':'Score'}, title=title)
+                    fig.update_traces(marker_color=['red' if score > threshold else 'blue' for score in scores])
+                    # max score is 1
+                    fig.update_yaxes(range=[0, 1])
+                    # do a horizontal line at the threshold (0.5)
+                    fig.add_hline(y=threshold, line_dash="dot", line_color="white")
+                    # label the threshold line
+                    fig.add_annotation(x=0, y=threshold + 0.1, text=f'Threshold ({threshold})', showarrow=False)
+                    st.plotly_chart(fig)    
                     # black background on the radial plot with transparent background
                     # rgba that is really night vibes and cyber punk
                     # paper_bgcolor='rgba(0,256,5,1)'
-                    fig.update_layout(
-                                      polar=dict(radialaxis=dict(visible=True, range=[0, 1])))
-                    st.plotly_chart(fig)
-                # mak
 
+                # mak
+        with st.expander('History', expanded=True ):
+                st.write(self.my_history())
 
     def save_result(self, response):
         model = response['model']
@@ -159,7 +169,7 @@ class App(c.Module):
         self.put_json(path, response)
 
     def my_history(self, 
-                   columns=['time', 'model', 'prompt', 'response', 'score', 'temperature', 'models', 'scores'], 
+                   columns=['time', 'model', 'prompt', 'response', 'score', 'temperature', 'model2score'], 
                    sort_by='time',
                      ascending=False,
                        model=None):
@@ -168,19 +178,15 @@ class App(c.Module):
             st.error('No history found, enter the arena')
             return df
         # convert timestmap to human readable
-        df['models'] = df['model2score'].apply(lambda x: list(x.keys() if isinstance(x, dict) else []))
-        df['scores'] = df['model2score'].apply(lambda x: list(x.values() if isinstance(x, dict) else []))
         df['score'] = df['mean']
         df['time'] = df['timestamp'].apply(lambda x: datetime.datetime.fromtimestamp(x).strftime('%m-%d %H:%M'))
         df = df[columns].sort_values(sort_by, ascending=ascending)
         df = df.set_index('time')
         df.sort_index(inplace=True)
+
+        
         return df
     
-
-    def my_stats(self):
-        with st.expander('History', expanded=False):
-            st.write(self.my_history())
 
     def leaderboard(self, 
               columns=['mean', 'timestamp', 'model', 'address'],
@@ -204,7 +210,7 @@ class App(c.Module):
         # group based on address
 
         models = ['ALL'] + list(df['model'].unique())
-        model = st.selectbox('Select a models', models, 0)
+        model = models[0]
         # select a model
         if model != 'ALL':
             df = df[df['model'] == model]
@@ -219,6 +225,8 @@ class App(c.Module):
             model_df = model_df.sort_values('mean', ascending=False)
             st.write(model_df)
 
+   
+            
     def sidebar(self, sidebar=True):
         if sidebar:
             with st.sidebar:
@@ -244,7 +252,7 @@ class App(c.Module):
         self.load_style()
 
         fns = [ f'arena', 'leaderboard']
-        tab_names = ['Attack', 'Leaderboard']
+        tab_names = ['Arena', 'Leaderboard']
         tabs = st.tabs(tab_names)
         for i, fn in enumerate(fns):
             with tabs[i]:
