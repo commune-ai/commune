@@ -17,10 +17,12 @@ class App(c.Module):
             cls = c.module(module)
 
         self = cls()
-        self.filter_hosts_dashboard()
+        with st.sidebar:
 
-        page = 'edit_hosts'
-        pages = ['edit_hosts', 'manage_hosts', 'ssh']
+            self.filter_hosts_dashboard()
+
+        page = 'manage_hosts'
+        pages = [ 'ssh', 'manage_hosts']
         page = st.selectbox('Page', pages)
         getattr(self, page)()
 
@@ -35,8 +37,7 @@ class App(c.Module):
     
         save_hosts = st.button('Save Hosts')
 
-        with st.expander('Saved Hosts'):
-            st.write(host_map)
+        st.write(host_map)
         try: 
             host_map = json.loads(host_map)
         except Exception as e:
@@ -101,10 +102,7 @@ class App(c.Module):
             test_hosts = st.button('Test Hosts')
             if test_hosts:
                 r = self.ssh_cmd(cmd, host=selected_host)
-
-                
-
-                
+   
         with st.expander('Remove Host', expanded=False):
             host_names = list(self.hosts().keys())
             rm_host_name = st.selectbox('Host to Remove', host_names)
@@ -121,6 +119,9 @@ class App(c.Module):
                 host = self.hosts()[rm_host_name]
                 self.add_host(host)
                 self.rm_host(rm_host_name)
+
+        with st.expander('Edit Hosts', expanded=False):
+            self.edit_hosts()
 
 
     def host2ssh_search(self, expander=True):
