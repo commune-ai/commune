@@ -81,6 +81,7 @@ Future work in this area could explore more sophisticated scoring functions, inc
 
 ## Incentive Mechanism
 
+We intend to incentivize the development and deployment of AI models that prioritize safety and ethical considerations by establishing a competitive environment known as the "Jailbreak Arena." In this arena, researchers and developers can submit their AI models for evaluation and compete to achieve the lowest inappropriateness scores.
 
 ## Acknowledgments
 
