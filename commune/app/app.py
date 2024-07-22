@@ -29,6 +29,8 @@ class App(c.Module):
         kwargs = kwargs or {}
         name = name or module
         port = port or app2info.get(name, {}).get('port', c.free_port())
+        if update:
+            port = c.free_port()
         if c.port_used(port):
             c.kill_port(port)
         if c.module_exists(module + '.app'):

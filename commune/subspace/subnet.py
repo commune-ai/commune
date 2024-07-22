@@ -368,26 +368,42 @@ class SubspaceSubnet:
         return sum(emissions)
     
 
+    def modules(self, netuid = 0, block=None, update=True, max_age=100, **kwargs):
+        keys = self.keys(netuid=netuid, update=update, max_age=max_age)
+        modules = self.get_modules(keys, netuid=netuid, max_age=max_age, block=block, update=update, **kwargs)
+        return modules
+    
+    
+
     def get_modules(self,
                     keys : list = None,
                     netuid=0,
                     timeout=30,
+                    min_emission=0.0000000001,
                     **kwargs):
 
         if keys == None :
-            keys = self.my_keys(netuid=netuid)
+            keys = self.keys(netuid=netuid)
         n = len(keys)
         modules = []
         print(f'Getting modules {n}')
-        is_module = lambda x: isinstance(x, dict) and 'name' in x
+
         futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
         progress = c.tqdm(n)
         modules = []
+
+
+        should_pass = lambda x: isinstance(x, dict) \
+                        and 'name' in x \
+                        and len(x['name']) > 0 \
+                        and x['emission'] > min_emission
+        
         for future in c.as_completed(futures, timeout=timeout):
             module = future.result()
-            if is_module(module):
+            if should_pass(module):
                 modules += [module]
                 progress.update(1)
+                
         return modules
 
     

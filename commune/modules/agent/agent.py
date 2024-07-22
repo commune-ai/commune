@@ -1,9 +1,6 @@
 import commune as c
 import json
 
-
-
-
 class Agent(c.Module):
     output_schema = """
     json '''
@@ -16,8 +13,9 @@ class Agent(c.Module):
     }'''
     """
 
-    description = """to call a tool {tool} with kwargs {kwargs}, use the following format: {tool: 'module.fn', kwargs: {}}"""
-
+    description = """
+    to call a tool {tool} with kwargs {kwargs}, 
+    SDuse the following format: {tool: 'module.fn', kwargs: {}}"""
 
     def __init__(self,
                 name='agent',
@@ -26,12 +24,11 @@ class Agent(c.Module):
                 network : str = 'local',
                 tools:list = ['module.cmd']
                 ):
+        
         self.name = name
         self.description = description if description != None else self.description
         self.set_model(model, network=network)
         self.set_tools(tools)
-
-    
 
     def set_model(self, model:str = 'model.openai ', network:str = 'local'):
         self.model = c.module(model)()
@@ -196,7 +193,32 @@ class Agent(c.Module):
             'response': response['response'],
             }
     
+    
     def aistr2json(self, s:str):
         self.model.call("")
+
+
+    def edit_suggestions(self, description, file=None):
+        if file != None:
+            with open(file, 'r') as f:
+                prompt = f.read()
+
+        prompt = '\n'.join([f'{i} {line}' for i, line in enumerate(prompt.split('\n'))])
+        prompt = f"""
+        ---DESCRIPTION----
+        {description}
+        ----TEXT---
+        {prompt}
+
+        REPLY IN JSON FORMAT
+        EACH SUGGESTION IS A JSON OBJECT
+        {
+         'line': 'int', 
+         'description': 'str', 
+         'edit': 'str'
+         }
+        """
+
+        return prompt
         
     
