@@ -3,11 +3,14 @@
 # if commune does not exist build it
 
 # if docker is not running, start it
+
 IMAGE_NAME=commune
 IMAGE_PATH=./
 CONTAINER_NAME=commune
 SHM_SIZE=4g
-
+# RESOLVE PORT RANGE
+START_PORT=50050
+END_PORT=50100
 # if the image doesnt exist, build it
 if [ "$1" == "--build" ] || [ "$1" == "-b" ]; then
   BUILD=true
@@ -23,12 +26,15 @@ fi
 
 CONTAINER_EXISTS=$(docker ps -q -f name=$CONTAINER_NAME)  
 if [ $CONTAINER_EXISTS ]; then
-  echo "Stopping and removing existing container $CONTAINER_NAME ID=$CONTAINER_ID"
+
+  echo "STOPPING CONTAINER $CONTAINER_NAME"
   docker stop $CONTAINER_NAME
+
 fi
+
 CONTAINER_ID=$(docker ps -aqf "name=$CONTAINER_NAME")
 if [ $CONTAINER_ID ]; then
-  echo "Removing existing container $CONTAINER_NAME ID=$CONTAINER_ID"
+  echo "REMOVING CONTIANER NAME=$CONTAINER_NAME ID=$CONTAINER_ID"
   docker rm $CONTAINER_ID
 fi
 
@@ -37,20 +43,12 @@ CMD_STR="docker run -d \
   --shm-size $SHM_SIZE \
   -v ~/.$CONTAINER_NAME:/root/.$CONTAINER_NAME \
   -v $PWD:/app \
-  --network host \
+  -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \
   $CONTAINER_NAME"
 
-if [ $GPUS != 'null' ]; then
-  CMD_STR="$CMD_STR --gpus $GPUS"
-fi
-
-echo "Starting container with command: $CMD_STR"
 eval $CMD_STR
 
-# RESOLVE PORT RANGE
-START_PORT=50050
-END_PORT=50250
 if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
   # add the port range flag by taking the next two arguments
   # if '-' in the second argument, split it and set the start and end ports
@@ -66,8 +64,13 @@ if [ "$1" == "--port-range" ] || [ "$1" == "-pr" ]; then
 fi
 PORT_RANGE=$START_PORT-$END_PORT
 echo "Setting port range to $PORT_RANGE"
-docker exec commune bash -c "c set_port_range $PORT_RANGE"
+docker exec $CONTAINER_NAME bash -c "c set_port_range $PORT_RANGE"
+docker exec $CONTAINER_NAME bash -c "c serve"
+# docker exec $CONTAINER_NAME bash -c "c app arena.app"
+# get the timestamp as a random seed
 
+SEED=$(date +%s)
+echo "SEED=$SEED"
 # scan for open port ranges of 100
 
 # if [ "$1" == "--c" ] || [ "$1" == "-s" ]; then

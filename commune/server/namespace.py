@@ -13,10 +13,11 @@ class Namespace(c.Module):
 
     @classmethod
     def namespace(cls, search=None,
-                   network:str = 'local',
-                     update:bool = False, 
-                     netuid=None, 
-                     max_age:int = None, **kwargs) -> dict:
+                    network:str = 'local',
+                    update:bool = False, 
+                    netuid=None, 
+                    max_age:int = None,
+                    **kwargs) -> dict:
         
         network = network or 'local'
         if netuid != None:

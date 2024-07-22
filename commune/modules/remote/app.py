@@ -17,12 +17,13 @@ class App(c.Module):
             cls = c.module(module)
 
         self = cls()
-        self.filter_hosts_dashboard()
+        with st.sidebar:
 
-        page = 'edit_hosts'
-        pages = ['edit_hosts', 'manage_hosts', 'ssh']
-        page = st.selectbox('Page', pages)
-        getattr(self, page)()
+            self.filter_hosts_dashboard()
+            self.manage_hosts()
+
+        page = 'manage_hosts'
+        self.ssh()
 
 
     def edit_hosts(self):
@@ -35,8 +36,7 @@ class App(c.Module):
     
         save_hosts = st.button('Save Hosts')
 
-        with st.expander('Saved Hosts'):
-            st.write(host_map)
+        st.write(host_map)
         try: 
             host_map = json.loads(host_map)
         except Exception as e:
@@ -71,13 +71,13 @@ class App(c.Module):
 
         with st.expander('host2ssh', expanded=1):
             self.host2ssh_search(expander=False)
-  
         
 
         with st.expander('Add Host', expanded=False):
             st.markdown('## Hosts')
-            default_parmas = list(self._host_map.values())[0]
-            default_host = list(self._host_map.keys())[0]
+            host_map = self.hosts()
+            default_host = st.selectbox('Copy Host', list(host_map.keys()))
+            default_parmas = host_map[default_host]
             cols = st.columns(3)
             user = cols[0].text_input('User', default_parmas['user'])
             host = cols[1].text_input('Host',  default_parmas['host'])
@@ -93,18 +93,7 @@ class App(c.Module):
                 st.write(r)
 
 
-
-        with st.expander('Test Hosts', expanded=False):
-
-            cmd = st.text_input('Command', 'ls')
-            selected_host = st.selectbox('Hosts',  list(self._host_map.keys()), 0)
-            test_hosts = st.button('Test Hosts')
-            if test_hosts:
-                r = self.ssh_cmd(cmd, host=selected_host)
-
-                
-
-                
+   
         with st.expander('Remove Host', expanded=False):
             host_names = list(self.hosts().keys())
             rm_host_name = st.selectbox('Host to Remove', host_names)
@@ -121,6 +110,9 @@ class App(c.Module):
                 host = self.hosts()[rm_host_name]
                 self.add_host(host)
                 self.rm_host(rm_host_name)
+
+        with st.expander('Edit Hosts', expanded=False):
+            self.edit_hosts()
 
 
     def host2ssh_search(self, expander=True):
@@ -182,46 +174,43 @@ class App(c.Module):
             if enable_docker:
                 cmd = f'docker exec {docker_container} {cmd}'
             for host in host_names:
-                cmd_kwargs = dict(host=host, verbose=False, sudo=self.sudo, search=host_names, cwd=cwd)
+                cmd_kwargs = dict(host=host, verbose=False, sudo=self.sudo, cwd=cwd)
                 future = c.submit(self.ssh_cmd, args=[cmd], kwargs=cmd_kwargs, timeout=timeout)
                 future2host[future] = host
                 host2stats[host] = host2stats.get(host, {'success': 0, 'error': 0 })
 
             cols = st.columns(num_columns)
             failed_hosts = []
-            col_idx = 0
             errors = []
             futures = list(future2host.keys())
 
             try:
                 for future in c.as_completed(futures, timeout=timeout):
-
                     if host == None:
                         continue
-
                     host = future2host.pop(future)
                     stats = host2stats.get(host, {'success': 0, 'error': 0})
                     result = future.result()
                     is_error = c.is_error(result)
+                    emoji =  c.emoji("cross") if is_error else c.emoji("check")
+                    stats = host2stats.get(host, {'success': 0, 'error': 0})
+                    title = f'{emoji} :: {host} :: {emoji}'
                     if not is_error:        
-                        msg = result if is_error else result.strip()
-
-                        # get the colkumne
-                        col_idx = (col_idx) % len(cols)
-                        col = cols[col_idx]
-                        col_idx += 1
-                        stats = host2stats.get(host, {'success': 0, 'error': 0})
-                        # if the column is full, add a new column
-                        with col:
-                            msg = fn_code(msg)
-                            emoji =  c.emoji("cross") if is_error else c.emoji("check")
-                            title = f'{emoji} :: {host} :: {emoji}'
-
-                            stats['last_success'] = c.time()
-                            stats['success'] += 1
-                            with st.expander(f'Results {host}', expanded=expanded):
-                                st.write(title)
-                                st.code(msg)
+                        msg =  result.strip()
+                        msg = fn_code(msg)
+                        stats['last_success'] = c.time()
+                        stats['success'] += 1
+                        with st.expander(f'Results {host}', expanded=expanded):
+                            st.write(title)
+                            st.write(msg)
+                    else:
+                        msg = result
+                        stats['error'] += 1
+                        failed_hosts.append(host)
+                        errors.append(result)
+ 
+        
+                    
                     host2stats[host] = stats
         
             except Exception as e:

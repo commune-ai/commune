@@ -119,6 +119,7 @@ class Access(c.Module):
         network = network or self.config.network
         staleness = c.time() - state.get('sync_time', 0)
         self.address2key = c.address2key()
+        c.namespace(max_age=self.config.max_staleness)
         response = { 
                     'path': self.state_path,
                     'max_staleness':  self.config.max_staleness,
