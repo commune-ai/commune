@@ -21,8 +21,7 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
     results = []
     for cm in core_modules:
         obj_name = cm.upper() if cm.lower() == 'os' else cm.capitalize()
-        t0 = time.time()
-
+        exec(f'from {prefix}._{cm} import {obj_name}')
         results.append(eval(obj_name))
     return results
 
