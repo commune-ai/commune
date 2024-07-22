@@ -1,6 +1,5 @@
 from typing import *
-from munch import Munch
-from copy import deepcopy
+
 import os
 
 class Config:
@@ -13,7 +12,7 @@ class Config:
                    add_attributes: bool = False,
                    save_config:bool = False,
                    **extra_kwargs
-                   ) -> Munch:
+                   ) -> 'Munch':
         '''
         Set the config as well as its local params
         '''
@@ -42,7 +41,7 @@ class Config:
         return self.config
     
     @classmethod
-    def config(cls) -> Munch:
+    def config(cls) -> 'Munch':
         '''
         Returns the config
         '''
@@ -55,7 +54,7 @@ class Config:
         return config
 
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = True , default=None) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None, to_munch:bool = True , default=None) -> Union['Munch', Dict]:
         '''
         Args:
             path: The path to the config file
@@ -78,8 +77,9 @@ class Config:
 
     
     @classmethod
-    def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
-
+    def save_config(cls, config:Union['Munch', Dict]= None, path:str=None) -> 'Munch':
+        from munch import Munch
+        from copy import deepcopy
         '''
         Saves the config to a yaml file
         '''
@@ -110,7 +110,8 @@ class Config:
     
 
     @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
+    def dict2munch(cls, x:dict, recursive:bool=True)-> 'Munch':
+        from munch import Munch
         '''
         Turn dictionary into Munch
         '''
@@ -122,7 +123,8 @@ class Config:
         return x 
 
     @classmethod
-    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
+    def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
+        from munch import Munch
         '''
         Turn munch object  into dictionary
         '''

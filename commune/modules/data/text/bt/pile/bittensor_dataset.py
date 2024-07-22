@@ -1,14 +1,14 @@
-import bittensor
+import bt
 import commune as c
 
 class Dataset(c.Module):
     def __init__(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
 
-        bittensor_dataset_config = bittensor.dataset.config()
+        bittensor_dataset_config = bt.dataset.config()
         config = self.munch({**bittensor_dataset_config.dataset, **config})
         self.print(config)
-        self.dataset = bittensor.dataset(config = self.munch(dict(dataset=config)))
+        self.dataset = bt.dataset(config = self.munch(dict(dataset=config)))
         self.config = config
         self.sample()
         

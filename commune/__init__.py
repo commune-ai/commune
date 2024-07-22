@@ -1,9 +1,8 @@
 
 
-from .cli import cli
+
 from .module.module import Module
 from functools import  partial
-from .vali.vali import Vali
 # set the module functions as globals
 for k,v in Module.__dict__.items():
     globals()[k] = v
@@ -23,7 +22,7 @@ for f in Module.self_functions():
         return fn(*args, **kwargs)
     globals()[f] = partial(wrapper_fn, f)
 
-globals()['cli'] = cli
+
 
 c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 

@@ -3,12 +3,12 @@ from typing import *
 import os
 import glob
 import inspect
-from munch  import Munch
-from copy import deepcopy
 import yaml
 import json
 import time
 import shutil
+
+
 
 class Storage:
 
@@ -282,12 +282,14 @@ class Storage:
 
     @classmethod
     def put_yaml(cls, path:str,  data: dict) -> Dict:
+        from commune.utils.dict import save_yaml
+        from munch import Munch
+        from copy import deepcopy
         '''
         Loads a yaml file
         '''
         path = cls.resolve_path(path)
             
-        from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
             data = cls.munch2dict(deepcopy(data))
             

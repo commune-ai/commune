@@ -227,8 +227,8 @@ class AdapterModel(Model):
         
         if isinstance(tokenizer, str):
             if tokenizer == 'bittensor':
-                import bittensor
-                tokenizer = bittensor.tokenizer()
+                import bt
+                tokenizer = bt.tokenizer()
             else:
                 
                 try:
@@ -279,7 +279,7 @@ class AdapterModel(Model):
  
     @classmethod
     def run_neuron(cls, tokenizer='bittensor'):
-        import bittensor
+        import bt
         from commune.block.bittensor.neuron.miner import neuron
         self = cls( tokenizer=tokenizer)
         n = neuron(model=self)  

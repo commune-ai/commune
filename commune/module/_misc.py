@@ -6,7 +6,6 @@ import random
 import os
 from copy import deepcopy
 import concurrent
-from munch import Munch
 
 class Misc:
 
@@ -817,7 +816,8 @@ class Misc:
 
 
     @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> Munch:
+    def dict2munch(cls, x:dict, recursive:bool=True)-> 'Munch':
+        from munch import Munch
         '''
         Turn dictionary into Munch
         '''
@@ -829,7 +829,8 @@ class Misc:
         return x 
 
     @classmethod
-    def munch2dict(cls, x:Munch, recursive:bool=True)-> dict:
+    def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
+        from munch import Munch
         '''
         Turn munch object  into dictionary
         '''
@@ -843,7 +844,7 @@ class Misc:
 
     
     @classmethod
-    def munch(cls, x:Dict) -> Munch:
+    def munch(cls, x:Dict) -> 'Munch':
         '''
         Converts a dict to a munch
         '''
@@ -943,3 +944,8 @@ class Misc:
         
         cls.new_module(module=module, repo=repo)
         return {'module':module, 'repo':repo, 'status':'success'}
+    
+    # time within the context
+    @classmethod
+    def context_timer(cls, *args, **kwargs):
+        return cls.timer(*args, **kwargs)
