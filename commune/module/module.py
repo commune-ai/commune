@@ -1,63 +1,36 @@
-import sys
 import os
 import inspect
-import concurrent
-import threading
 from copy import deepcopy
 from typing import *
 import json
-from functools import partial
 from glob import glob
-import sys
 import argparse
-import asyncio
 import nest_asyncio
-
-core_dirpath = os.path.dirname(__file__)
-core_modules = []
-for f in os.listdir(core_dirpath):
-    f = f.split('/')[-1].split('.')[0]
-    if f.startswith('_') and not f.endswith('_') :
-        core_modules.append(f[1:])
-repo_name = core_dirpath.split('/')[-2]
-prefix = core_dirpath.split('/')[-1]
-import_paths = [f'{prefix}.{cm}' for cm in core_modules ]
-import_paths
-
-from commune.module._config import Config
-from commune.module._schema import Schema
-from commune.module._misc import Misc
-from commune.module._logger import Logger
-from commune.module._storage import Storage
-from commune.module._api import Api
-from commune.module._tree import Tree
-from commune.module._test import Test
-from commune.module._crypto import Crypto
-from commune.module._os import OS
-from commune.module._network import Network
-from commune.module._thread import Thread
-from commune.module._routes import Routes
-from commune.module._task import Task
+import time
+t1 = time.time()
 
 nest_asyncio.apply()
-CORE_BLOCKS =   [Config, # the config block for managing the configuration
-                 Schema, # the schema block for managing the functional schema of each module
-                 Misc, # the misc block for miscellaneous functions
-                 Logger, # the logger block for logging
-                 Storage , # the storage block for managing the storage of modules 
-                 Api, # the api block for managing the api keys for each module
-                 Tree, # the tree block for managing the tree of modules
-                 Test, 
-                 Crypto, 
-                 OS, 
-                 Network,
-                 Thread, 
-                 Routes, 
-                 Task]
-# AGI BEGINS 
-class c(*CORE_BLOCKS):
-    libname = lib_name = lib = 'commune' # the name of the library
 
+def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
+    core_dirpath = os.path.dirname(__file__)
+    core_modules = []
+    for f in os.listdir(core_dirpath):
+        f = f.split('/')[-1].split('.')[0]
+        if f.startswith(core_prefix) and not f.startswith('__') :
+            core_modules.append(f[1:])
+    results = []
+    for cm in core_modules:
+        obj_name = cm.upper() if cm.lower() == 'os' else cm.capitalize()
+        t0 = time.time()
+
+        results.append(eval(obj_name))
+    return results
+
+# AGI BEGINS 
+CORE_MODULES = get_core_modules()
+
+class c(*CORE_MODULES):
+    libname = lib_name = lib = 'commune' # the name of the library
     helper_functions  = ['info',
                 'metadata',
                 'schema',

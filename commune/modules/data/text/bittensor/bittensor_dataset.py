@@ -112,12 +112,12 @@ class BittensorDataset(Module):
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
         try:
-            import bittensor
+            import bt
         except RuntimeError as e:
             self.new_event_loop()
-            import bittensor
+            import bt
         if tokenizer == None:
-            tokenizer =   bittensor.tokenizer()
+            tokenizer =   bt.tokenizer()
         self.tokenizer = tokenizer
         self.pad_token = self.tokenizer.pad_token
         self.pad_token_idx = self.tokenizer(self.pad_token)['input_ids'][0]

@@ -6,7 +6,6 @@ import gc
 import subprocess
 import shlex
 import sys
-import commune as c
 
 class OS:
     @classmethod
@@ -291,9 +290,6 @@ class OS:
         return x
     
 
-    def resolve_path(self, path:str):
-        return os.path.expanduser(path)
-        
     @classmethod
     def disk_info(cls, path:str = '/', fmt:str='gb'):
         path = cls.resolve_path(path)
