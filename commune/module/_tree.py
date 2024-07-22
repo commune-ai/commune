@@ -337,7 +337,7 @@ class Tree:
         return False
 
     @classmethod
-    def find_classes(cls, path):
+    def find_classes(cls, path='./'):
         path = os.path.abspath(path)
         if os.path.isdir(path):
             path2classes = {}

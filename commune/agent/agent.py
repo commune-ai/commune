@@ -58,9 +58,4 @@ class Agent(c.Module):
             self.write_code(file, code, replace=True)
         return code
 
-    def code_function_score(self, code):
-        self.model 
-
-
-        
         

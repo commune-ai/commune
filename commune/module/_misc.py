@@ -949,3 +949,18 @@ class Misc:
     @classmethod
     def context_timer(cls, *args, **kwargs):
         return cls.timer(*args, **kwargs)
+    
+
+    @classmethod
+    def folder_structure(cls, path:str='./', search='py', max_depth:int=5, depth:int=0)-> dict:
+        import glob
+        files = cls.glob(path + '/**')
+        results = []
+        for file in files:
+            if os.path.isdir(file):
+                cls.folder_structure(file, search=search, max_depth=max_depth, depth=depth+1)
+            else:
+                if search in file:
+                    results.append(file)
+
+        return results
