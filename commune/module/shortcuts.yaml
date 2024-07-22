@@ -1,7 +1,6 @@
 # MODULE SHORTCUTS YAML
 
 
-bt: bittensor
 chain: subspace.chain
 d: docker
 f: frontend

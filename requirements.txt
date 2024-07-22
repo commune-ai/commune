@@ -19,5 +19,6 @@ loguru
 plotly
 openai
 aiohttp
+bittensor
 
 
