@@ -1,5 +1,5 @@
-CONTAINER=commune
-SCRIPTS_PATH=./commune/scripts
+CONTAINER=comtensor
+SCRIPTS_PATH=./scripts
 
 # include the arguments following this
 build:
