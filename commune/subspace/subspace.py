@@ -931,34 +931,10 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
     regblocks = registration_blocks = registration_block
 
-    def stake_from(self, netuid = 0,
-                    block=None, 
-                    update=False,
-                    max_age=10000,
-                    fmt='nano', 
-                    **kwargs) -> List[Dict[str, Union[str, int]]]:
-        
-        stake_from = self.query_map('StakeFrom', netuid=netuid, block=block, update=update, max_age=max_age,  **kwargs)
-        format_tuples = lambda x: [[_k, self.format_amount(_v, fmt=fmt)] for _k,_v in x]
-        if netuid == 'all':
-            stake_from = {netuid: {k: format_tuples(v) for k,v in stake_from[netuid].items()} for netuid in stake_from}
-            # if total:
-            #     stake = {}
-            #     for netuid, subnet_stake_from in stake_from.items():
-            #         for k, v in subnet_stake_from.items():
-            #             stake[k] = stake.get(k, 0) + v
-            #     return stake
-        else:
-            stake_from = {k: format_tuples(v) for k,v in stake_from.items()}
-
-    
-        return stake_from
-
-
 
     """ Returns network Tempo hyper parameter """
     def stakes(self, netuid: int = 0, fmt:str='nano', max_age = 100, update=False, **kwargs) -> int:
-        stakes =  self.query_map('Stake', netuid=netuid, update=update, max_age=max_age, **kwargs)
+        stakes =  self.query_map('Stake', update=update, max_age=max_age, **kwargs)
         if netuid == 'all':
             subnet2stakes = c.copy(stakes)
             stakes = {}
@@ -1155,73 +1131,22 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     def get_stake_to( self, 
                      key: str = None, 
                      module_key=None,
-                     netuid:int = 0 ,
                        block: Optional[int] = None, 
-                       names = False,
                         fmt='j' , update=False,
                         max_age = 60,
                         timeout = 10,
                          **kwargs) -> Optional['Balance']:
         
-        if netuid == 'all':
-            future2netuid = {}
-            key2stake_to = {}
-            for netuid in self.netuids():
-                future = c.submit(self.get_stake_to, kwargs=dict(key=key, module_key=module_key, netuid=netuid, block=block, names=names, fmt=fmt,  update=update, max_age=max_age, **kwargs), timeout=timeout)
-                future2netuid[future] = netuid
-            try:
-                for f in c.as_completed(future2netuid, timeout=timeout):
-                    netuid = future2netuid[f]
-                    result = f.result()
-                    if len(result) > 0:
-                        key2stake_to[netuid] = result
-            except Exception as e:
-                c.print(e)
-            sorted_key2stake_to = {k: key2stake_to[k] for k in sorted(key2stake_to.keys())}
-            return sorted_key2stake_to
-        
         key_address = self.resolve_key_ss58( key )
-
-        netuid = self.resolve_netuid( netuid )
-        stake_to = self.query( 'StakeTo', params=[netuid, key_address], block=block, update=update,  max_age=max_age)
-        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to}
-        if module_key != None:
-            module_key = self.resolve_key_ss58( module_key )
-            stake_to ={ k:v for k, v in stake_to.items()}.get(module_key, 0)
-        if names:
-            keys = list(stake_to.keys())
-            modules = self.get_modules(keys, netuid=netuid, **kwargs)
-            key2name = {m['key']: m['name'] for m in modules}
-
-            stake_to = {key2name[k]: v for k,v in stake_to.items()}
+        stake_to = self.query_map( 'StakeTo', params=[ key_address], block=block, update=update,  max_age=max_age)
+        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to.items()}
         return stake_to
     
-    def get_stake_total( self, 
-                     key: str = None, 
-                     module_key=None,
-                     netuid:int = 'all' ,
-                       block: Optional[int] = None, 
-                       timeout=20,
-                       names = False,
-                        fmt='j' , update=True,
-                         **kwargs) -> Optional['Balance']:
-        stake_to = self.get_stake_to(key=key, module_key=module_key, netuid=netuid, block=block, timeout=timeout, names=names, fmt=fmt,  update=update, **kwargs)
-        if netuid == 'all':
-            return sum([sum(list(x.values())) for x in stake_to])
-        else:
-            return sum(stake_to.values())
-
-    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j', update=True  ) -> Optional['Balance']:
+    def get_stake_from( self, key: str, block: Optional[int] = None,  fmt='j', update=True  ) -> Optional['Balance']:
         key = self.resolve_key_ss58( key )
-        netuid = self.resolve_netuid( netuid )
-        stake_from = self.query( 'StakeFrom', params=[netuid, key], block=block,  update=update )
-        state_from =  [(k, self.format_amount(v, fmt=fmt)) for k, v in stake_from ]
- 
-        if from_key != None:
-            from_key = self.resolve_key_ss58( from_key )
-            state_from ={ k:v for k, v in state_from}.get(from_key, 0)
-
-        return state_from
+        stake_from = self.query_map( 'StakeFrom', params=[key], block=block,  update=update )
+        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to.items()}
+        return stake_from
 
     def blocks_until_vote(self, netuid=0, **kwargs):
         netuid = self.resolve_netuid(netuid)
