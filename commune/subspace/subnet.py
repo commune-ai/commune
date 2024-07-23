@@ -4,16 +4,22 @@ import requests
 class SubspaceSubnet:
     
     def stake_to(self, netuid = 0,block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
-        stake_to = self.query_map('StakeTo', netuid=netuid, block=block, max_age=max_age, update=update,  **kwargs)
-        format_tuples = lambda x: [[_k, self.format_amount(_v, fmt=fmt)] for _k,_v in x]
-        if netuid == 'all':
-            stake_to = {netuid: {k: format_tuples(v) for k,v in stake_to[netuid].items()} for netuid in stake_to}
-        else:
-            stake_to = {k: format_tuples(v) for k,v in stake_to.items()}
-    
+        stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update,  **kwargs)
+        stake_to = {k: self.format_amount(v) for k,v in stake_to.items()}
         return stake_to
     
-    
+
+    def stake_from(self, 
+                    block=None, 
+                    update=False,
+                    max_age=10000,
+                    fmt='nano', 
+                    **kwargs) -> List[Dict[str, Union[str, int]]]:
+        
+        stake_from = self.query_map('StakeFrom', block=block, update=update, max_age=max_age,  **kwargs)
+        stake_from = {k: self.format_amount(v) for k,v in stake_from.items()}
+        return stake_from
+
     
     def min_stake(self, netuid: int = 0, fmt:str='j', **kwargs) -> int:
         min_stake = self.query('MinStake', netuid=netuid,  **kwargs)
@@ -107,17 +113,6 @@ class SubspaceSubnet:
 
     def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
         return self.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
-
-
-    def subnet2stake(self, network=None, update=False) -> dict:
-        subnet2stake = {}
-        for subnet_name in self.subnet_names(network=network):
-            c.print(f'Getting stake for subnet {subnet_name}')
-            subnet2stake[subnet_name] = self.my_total_stake(network=network, netuid=subnet_name , update=update)
-        return subnet2stake
-
-
-
 
 
     def key2name(self, key: str = None, netuid: int = 0) -> str:

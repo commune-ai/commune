@@ -1499,12 +1499,3 @@ class SubspaceWallet:
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
     
-
-
-
-                    
-
-
-
-
-
