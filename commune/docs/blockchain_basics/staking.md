@@ -38,7 +38,7 @@ c.stake_many(modules=['model1','model2'], amounts=[10,20], netuid=10)
 or if you want to specify the same amount, just do the amounts as an integer
 
 ```bash 
-c.stake_many(modules=[model1,model2], amounts=[10, 10], netuid=0)
+c.stake_many(modules=[model1,model2], amounts=[10, 10])
 ```
 
 
