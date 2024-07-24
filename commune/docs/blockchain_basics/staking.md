@@ -14,7 +14,7 @@ The following unstakes 100 tokens from the module with the address 5HYnok8FmBEx9
 The default key is the root key (module) and the default netuid is 0 (commune).
 
 ```python
-c.unstake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S , amount=10, netuid=0,  key='module')
+c.unstake(module=5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S , amount=10,  key='module')
 ```
 
 Unstake 100 tokens from the module with the name model.openai
@@ -24,7 +24,7 @@ NOTE:
 Please note that is is always more secure to use the address as the key, as the name can be changed by the user, and you can accidentally stake the incorrect key if your name2key is not up to date. 
 
 ```python
-c.unstake(module=model.openai, amount=100, netuid=0, key='module')
+c.unstake(module=model.openai, amount=100, key='module')
 ```
 
 ### Stake Many
@@ -32,7 +32,7 @@ c.unstake(module=model.openai, amount=100, netuid=0, key='module')
 To stake multiple modules at once do the following
 
 ```bash 
-c.stake_many(modules=[model1,model2].amounts=[10,20], netuid=10)
+c.stake_many(modules=['model1','model2'], amounts=[10,20], netuid=10)
 ```
 
 or if you want to specify the same amount, just do the amounts as an integer
