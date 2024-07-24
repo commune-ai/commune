@@ -3,6 +3,29 @@ import commune as c
 import requests
 class SubspaceSubnet:
     
+    subnet_param_features = [
+        "ImmunityPeriod",
+        "MinAllowedWeights",
+        "MaxAllowedWeights",
+        "Tempo",
+        "MaxAllowedUids",
+        "TargetRegistrationsInterval",
+        "TargetRegistrationsPerInterval",
+        "MaxRegistrationsPerInterval",
+        "Founder",
+        "FounderShare",
+        "IncentiveRatio",
+        "TrustRatio",
+        "SubnetNames",
+        "MaxWeightAge",
+        "BondsMovingAverage",
+        "MaximumSetWeightCallsPerEpoch",
+        "AdjustmentAlpha",
+        "MinImmunityStake",
+    ]
+
+
+
     def stake_to(self, netuid = 0,block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
         stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update,  **kwargs)
         stake_to = {k: self.format_amount(v) for k,v in stake_to.items()}
@@ -150,6 +173,61 @@ class SubspaceSubnet:
         delegation_fee = self.query_map('DelegationFee', netuid=netuid, block=block ,update=update)
         return delegation_fee
 
+ 
+
+
+    
+    def subnet_params(self, 
+                    netuid=0,
+                    update = False,
+                    max_age = 1000,
+                    timeout=40,
+                    fmt:str='j', 
+                    features  = None,
+                    value_features = [],
+                    **kwargs
+                    ) -> list:  
+        
+        features = features or self.subnet_param_features
+        netuid = self.resolve_netuid(netuid)
+        path = f'query/{self.network}/SubspaceModule.SubnetParams.{netuid}'          
+        subnet_params = self.get(path, None, max_age=max_age, update=update)
+        names = [self.feature2name(f) for f in features]
+        future2name = {}
+        name2feature = dict(zip(names, features))
+        for name, feature in name2feature.items():
+            if netuid == 'all':
+                query_kwargs = dict(name=feature, block=None, max_age=max_age, update=update)
+                fn = self.query_map
+            else:
+                query_kwargs = dict(name=feature, 
+                                    netuid=netuid,
+                                     block=None, 
+                                     max_age=max_age, 
+                                     update=update)
+                fn = self.query
+            f = c.submit(fn, kwargs=query_kwargs, timeout=timeout)
+            future2name[f] = name
+        
+        subnet_params = {}
+
+        for f in c.as_completed(future2name, timeout=timeout):
+            result = f.result()
+            subnet_params[future2name.pop(f)] = result
+        for k in value_features:
+            subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
+
+        if netuid == 'all':
+            subnet_params_keys = list(subnet_params.keys())
+            for k in subnet_params_keys:
+                netuid2value = subnet_params.pop(k)
+                for netuid, value in netuid2value.items():
+                    if netuid not in subnet_params:
+                        subnet_params[netuid] = {}
+                    subnet_params[netuid][k] = value
+        return subnet_params
+
+
 
 
     def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
@@ -169,9 +247,6 @@ class SubspaceSubnet:
             subnet_names = [s for s in subnet_names if search in s]
         return subnet_names
     
-
-
-
 
     def subnets(self, **kwargs) -> Dict[int, str]:
         return self.subnet_names(**kwargs)
@@ -362,19 +437,11 @@ class SubspaceSubnet:
             emissions = [sum(e) for e in emissions]
         return sum(emissions)
     
-
-    def modules(self, netuid = 0, block=None, update=True, max_age=100, **kwargs):
-        keys = self.keys(netuid=netuid, update=update, max_age=max_age)
-        modules = self.get_modules(keys, netuid=netuid, max_age=max_age, block=block, update=update, **kwargs)
-        return modules
-    
-    
-
     def get_modules(self,
                     keys : list = None,
                     netuid=0,
                     timeout=30,
-                    min_emission=0.0000000001,
+                    min_emission=0,
                     **kwargs):
 
         if keys == None :
@@ -382,7 +449,6 @@ class SubspaceSubnet:
         n = len(keys)
         modules = []
         print(f'Getting modules {n}')
-
         futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
         progress = c.tqdm(n)
         modules = []
@@ -391,16 +457,28 @@ class SubspaceSubnet:
         should_pass = lambda x: isinstance(x, dict) \
                         and 'name' in x \
                         and len(x['name']) > 0 \
-                        and x['emission'] > min_emission
+                        and x['emission'] >= min_emission
         
         for future in c.as_completed(futures, timeout=timeout):
             module = future.result()
+            print(module)
             if should_pass(module):
                 modules += [module]
                 progress.update(1)
                 
         return modules
 
+    module_param_features = [
+        'key',
+        'name',
+        'address',
+        'emission',
+        'incentive',
+        'dividends',
+        'last_update',
+        'stake_from',
+        'delegation_fee'
+    ]
     
     def get_module(self, 
                     module=None,
@@ -452,7 +530,328 @@ class SubspaceSubnet:
 
         module['vote_staleness'] = (block or self.block) - module['last_update']
         if lite :
-            features = self.config.module_features + ['stake', 'vote_staleness']
+            features = self.module_param_features + ['stake', 'vote_staleness']
             module = {f: module[f] for f in features}
         assert module['key'] == module_key, f"Key mismatch {module['key']} != {module_key}"
+        return module
+
+
+    def root_valis(self, netuid = 0, update=False, **kwargs):
+        return self.get_modules(netuid=netuid, update=update, **kwargs)
+
+
+
+
+    def root_keys(self, netuid = 0, update=False, **kwargs):
+        return self.keys(netuid=netuid, update=update, **kwargs)
+
+
+
+
+    def registration_block(self, netuid: int = 0, update=False, **kwargs):
+        registration_blocks = self.query_map('RegistrationBlock', netuid=netuid, update=update, **kwargs)
+        return registration_blocks
+
+    regblocks = registration_blocks = registration_block
+
+
+    """ Returns network Tempo hyper parameter """
+    def stakes(self, netuid: int = 0, fmt:str='nano', max_age = 100, update=False, **kwargs) -> int:
+        stakes =  self.query_map('Stake', update=update, max_age=max_age, **kwargs)
+        if netuid == 'all':
+            subnet2stakes = c.copy(stakes)
+            stakes = {}
+            for netuid, subnet_stakes in subnet2stakes.items():
+                for k,v in subnet_stakes.items():
+                    stakes[k] = stakes.get(k, 0) + v
+        
+        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
+
+
+
+
+    
+
+    def key2name(self, key=None, netuid: int = None, update=False) -> Dict[str, str]:
+        
+        key2name =  {v:k for k,v in self.name2key(netuid=netuid,  update=update).items()}
+        if key != None:
+            return key2name[key]
+        return key2name
+        
+
+
+
+    def name2key(self, name:str=None, 
+                 max_age=1000, 
+                 timeout=30, 
+                 netuid: int = 0, 
+                 update=False, 
+                 trials=3,
+                 **kwargs ) -> Dict[str, str]:
+        # netuid = self.resolve_netuid(netuid)
+        netuid = self.resolve_netuid(netuid)
+
+        names = c.submit(self.names, kwargs={'feature': 'names', 'netuid':netuid, 'update':update, 'max_age':max_age, 'network': self.network})
+        keys = c.submit(self.keys, kwargs={'feature': 'keys', 'netuid':netuid, 'update':update, 'max_age':max_age, 'network': self.network})
+        names, keys = c.wait([names, keys], timeout=timeout)
+        name2key = dict(zip(names, keys))
+        if name != None:
+            if name in name2key:
+                return name2key[name]
+            else:
+                trials -= 1
+                if trials == 0:
+                    return None
+                else:
+                    return self.name2key(name=name,
+                                        timeout=timeout, netuid=netuid, update=True, 
+                                        trials=trials, **kwargs)
+                
+        return name2key
+
+
+
+              
+    def name2uid(self, name = None, netuid: int = 0, search=None) -> int:
+        netuid = self.resolve_netuid(netuid)
+        uid2name = self.uid2name(netuid=netuid)
+
+        if netuid == 'all':
+            netuid2name2uid = {}
+            for netuid, netuid_uid2name in uid2name.items():
+                name2uid = self.search_dict(netuid_uid2name)
+                if name != None:
+                    name2uid = name2uid[name] 
+                netuid2name2uid[netuid] = name2uid
+            return netuid2name2uid
+            
+        else:
+            name2uid = {v:k for k,v in uid2name.items()}
+            if search != None:
+                name2uid =  self.search_dict(name2uid, search=search)
+            if name != None:
+                return name2uid[name] 
+            
+        return name2uid
+
+    def netuids(self,  update=False, block=None) -> Dict[int, str]:
+        return list(self.netuid2subnet( update=update, block=block).keys())
+
+    def netuid2subnet(self, netuid=None,  update=False, block=None, **kwargs ) -> Dict[str, str]:
+        netuid2subnet = self.query_map('SubnetNames', update=update,  block=block, **kwargs)
+        netuid2subnet = dict(sorted(netuid2subnet.items(), key=lambda x: x[0]))
+        if netuid != None:
+            return netuid2subnet[netuid]
+        return netuid2subnet
+    
+    def subnet2netuid(self, subnet=None,  update=False,  **kwargs ) -> Dict[str, str]:
+        subnet2netuid =  {v:k for k,v in self.netuid2subnet( update=update, **kwargs).items()}
+        # sort by subnet 
+        if subnet != None:
+            return subnet2netuid[subnet] if subnet in subnet2netuid else len(subnet2netuid)
+        return subnet2netuid
+
+    
+    
+    def get_uid( self, key: str, netuid: int = 0, block: Optional[int] = None, update=False, **kwargs) -> int:
+        return self.query( 'Uids', block=block, params=[ netuid, key ] , update=update, **kwargs)  
+
+
+    def weights(self,  netuid = 0,  update=False, **kwargs) -> list:
+        weights =  self.query_map('Weights',netuid=netuid, update=update, **kwargs)
+
+        return weights
+
+
+
+    def total_emissions(self, netuid = 0, block=None, update=False, fmt = 'nanos', **kwargs):
+
+        emissions = self.query_vector('Emission',  netuid=netuid, block=block, update=update, **kwargs)
+        if netuid == 'all':
+            for netuid, netuid_emissions in emissions.items():
+                emissions[netuid] = [self.format_amount(e, fmt=fmt) for e in netuid_emissions]
+        else:
+            emissions = [self.format_amount(e, fmt=fmt) for e in emissions]
+        
+        return sum(emissions)
+    
+
+    def subnet2params( self,  block: Optional[int] = None ) -> Optional[float]:
+        netuids = self.netuids()
+        subnet2params = {}
+        netuid2subnet = self.netuid2subnet()
+        for netuid in netuids:
+            subnet = netuid2subnet[netuid]
+            subnet2params[subnet] = self.subnet_params(netuid=netuid, block=block)
+        return subnet2params
+    
+
+
+
+    #################
+    #### UPDATE SUBNET ####
+    #################
+    def update_subnet(
+        self,
+        params: dict= None,
+        netuid: int = 0,
+        key: str = None,
+        nonce = None,
+        update= True,
+        **extra_params,
+    ) -> bool:
+        
+        params = {**(params or {}), **extra_params}
+            
+        netuid = self.resolve_netuid(netuid)
+        subnet_params = self.subnet_params( netuid=netuid , update=update, fmt='nanos')
+        # infer the key if you have it
+        for k in ['min_stake']:
+            if k in params:
+                params[k] = params[k] * 1e9
+        if key == None:
+            key2address = self.address2key()
+            if subnet_params['founder'] not in key2address:
+                return {'success': False, 'message': f"Subnet {netuid} not found in local namespace, please deploy it "}
+            key = c.get_key(key2address.get(subnet_params['founder']))
+            c.print(f'Using key: {key}')
+
+        # remove the params that are the same as the module info
+        params = {**subnet_params, **params}
+        for k in ['name']:
+            params[k] = params[k].encode('utf-8')
+        params['netuid'] = netuid
+        return self.compose_call(fn='update_subnet',
+                                     params=params, 
+                                     key=key, 
+                                     nonce=nonce)
+
+
+    #################
+    #### Serving ####
+    #################
+    def propose_subnet_update(
+        self,
+        netuid: int = None,
+        key: str = None,
+        nonce = None,
+        **params,
+    ) -> bool:
+
+        netuid = self.resolve_netuid(netuid)
+        c.print(f'Adding proposal to subnet {netuid}')
+        subnet_params = self.subnet_params( netuid=netuid , update=True)
+        # remove the params that are the same as the module info
+        params = {**subnet_params, **params}
+        for k in ['name', 'vote_mode']:
+            params[k] = params[k].encode('utf-8')
+        params['netuid'] = netuid
+
+        response = self.compose_call(fn='add_subnet_proposal',
+                                     params=params, 
+                                     key=key, 
+                                     nonce=nonce)
+
+
+        return response
+
+
+
+    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None , fmt='j', update=True ) -> Optional['Balance']:
+        
+        key_ss58 = self.resolve_key_ss58( key_ss58)
+        netuid = self.resolve_netuid( netuid )
+        stake = self.query( 'Stake',params=[netuid, key_ss58], block=block , update=update)
+        return self.format_amount(stake, fmt=fmt)
+
+
+
+    def min_register_stake(self, netuid: int = 0, fmt='j', **kwargs) -> float:
+        netuid = self.resolve_netuid(netuid)
+        min_burn = self.min_burn(  fmt=fmt)
+        min_stake = self.min_stake(netuid=netuid,  fmt=fmt)
+        return min_stake + min_burn
+    
+
+
+
+    def resolve_netuid(self, netuid: int = None) -> int:
+        '''
+        Resolves a netuid to a subnet name.
+        '''
+        if netuid == 'all':
+            return netuid
+        if netuid == None :
+            # If the netuid is not specified, use the default.
+            return 0
+        if isinstance(netuid, str):
+            subnet2netuid = self.subnet2netuid()
+            if netuid not in subnet2netuid: # if still not found, try lower case
+                subnet2netuid =self.subnet2netuid(update=True)
+            assert netuid in subnet2netuid, f"Subnet {netuid} not found in {subnet2netuid}"
+            return subnet2netuid[netuid]
+
+        elif isinstance(netuid, int):
+            if netuid == 0: 
+                return netuid
+            # If the netuid is an integer, ensure it is valid.
+            
+        assert isinstance(netuid, int), "netuid must be an integer"
+        return netuid
+    
+
+    def blocks_until_vote(self, netuid=0, **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        tempo = self.subnet_params(netuid=netuid, **kwargs)['tempo']
+        block = self.block
+        return tempo - ((block + netuid) % tempo)
+
+    def emission_per_epoch(self, netuid=None):
+        return self.subnet(netuid=netuid)['emission']*self.epoch_time(netuid=netuid)
+
+
+
+    
+
+    def get_stake_to( self, 
+                     key: str = None, 
+                     module_key=None,
+                       block: Optional[int] = None, 
+                        fmt='j' , update=False,
+                        max_age = 60,
+                        timeout = 10,
+                         **kwargs) -> Optional['Balance']:
+        
+        key_address = self.resolve_key_ss58( key )
+        stake_to = self.query_map( 'StakeTo', params=[ key_address], block=block, update=update,  max_age=max_age)
+        stake_to =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_to.items()}
+        return stake_to
+    
+    def get_stake_from( self, key: str, block: Optional[int] = None,  fmt='j', update=True  ) -> Optional['Balance']:
+        key = self.resolve_key_ss58( key )
+        stake_from = self.query_map( 'StakeFrom', params=[key], block=block,  update=update )
+        stake_from =  {k: self.format_amount(v, fmt=fmt) for k, v in stake_from.items()}
+        return stake_from
+
+
+    def epoch_time(self, netuid=0, update=False, **kwargs):
+        return self.subnet_params(netuid=netuid, update=update, **kwargs)['tempo']*self.block_time
+
+    def epochs_per_day(self, netuid=None):
+        return 24*60*60/self.epoch_time(netuid=netuid)
+
+    def seconds_per_epoch(self, netuid=None):
+        netuid =self.resolve_netuid(netuid)
+        return self.block_time * self.subnet(netuid=netuid)['tempo']
+
+
+    def format_module(self, module: 'ModuleInfo', fmt:str='j') -> 'ModuleInfo':
+        U16_MAX = 2**16 - 1
+        for k in ['emission']:
+            module[k] = self.format_amount(module[k], fmt=fmt)
+        for k in ['incentive', 'dividends']:
+            module[k] = module[k] / (U16_MAX)
+        
+        module['stake_from'] = {k: self.format_amount(v, fmt=fmt)  for k, v in module['stake_from']}
         return module

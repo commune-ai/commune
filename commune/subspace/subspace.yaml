@@ -1,55 +1,7 @@
-block_time: 8
-token_decimals: 9
-local: false
-loop: false
-mode: http
 netuid: 0
 network: main
 network_mode: ws
-retry_params:
-  backoff: 2
-  delay: 2
-  max_delay: 4
-  tries: 2
-run_loop: false
-save_interval: 1800
 subnet: commune
-token_decimals: 9
-url: null
-local: false
-mode: http
-global_features:
-- MaxNameLength
-- MaxAllowedModules
-- MaxAllowedSubnets
-- MaxRegistrationsPerBlock
-- MinWeightStake
-- UnitEmission
-module_features:
-- key
-- name
-- address
-- emission
-- incentive
-- dividends
-- last_update
-- stake_from
-- delegation_fee
-subnet_features:
-- Tempo
-- ImmunityPeriod
-- MinAllowedWeights
-- MaxAllowedWeights
-- MaxWeightAge
-- MaxAllowedUids
-- MaximumSetWeightCallsPerEpoch
-- MinStake
-- Founder
-- FounderShare
-- IncentiveRatio
-- TrustRatio
-- SubnetNames
-token_decimals: 9
 url: null
 url_search: commune
 urls:
