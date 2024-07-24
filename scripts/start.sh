@@ -4,9 +4,11 @@
 
 # if docker is not running, start it
 
-IMAGE_NAME=comtensor
+NAME=commune
+IMAGE_NAME=$NAME
+CONTAINER_NAME=$NAME
+
 IMAGE_PATH=./
-CONTAINER_NAME=comtensor
 SHM_SIZE=4g
 # RESOLVE PORT RANGE
 START_PORT=50050

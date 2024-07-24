@@ -1,4 +1,4 @@
-CONTAINER=comtensor
+CONTAINER=commune
 SCRIPTS_PATH=./scripts
 
 # include the arguments following this
