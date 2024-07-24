@@ -194,10 +194,7 @@ class Miner(c.Module):
             futures += [future]
         for f in c.as_completed(futures):
             print(f.result())
-
-    def stake_to(self):
-        return self.subspace.get_stake_to(self.key, netuid=self.netuid)
-
+            
     def sand(self):
         keys = c.keys()
         rm_keys = []

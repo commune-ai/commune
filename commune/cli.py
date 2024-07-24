@@ -123,22 +123,22 @@ class cli:
         except :
             fn_obj = getattr(module(), fn)
         # calling function buffer
-        msg = f'Calling {fn_path}'
-        self.input_msg =  msg
-        msg =  msg
-        c.print(msg, color='yellow')
+        input_msg = f'[bold]fn[/bold]: {fn_path}'
 
         if callable(fn_obj):
             args, kwargs = self.parse_args(argv)
             if len(args) > 0 or len(kwargs) > 0:
                 inputs = {"args":args, "kwargs":kwargs}
-                c.print(json.dumps(inputs))
+                input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
             output = lambda: fn_obj(*args, **kwargs)
         elif self.is_property(fn_obj):
             output =  lambda : getattr(module(), fn)
         else: 
-            output = lambda: fn_obj 
 
+            output = lambda: fn_obj 
+        self.input_msg = input_msg
+        buffer = '⚡️'*4
+        c.print(buffer+input_msg+buffer, color='yellow')
         response =  output()
         return response
     

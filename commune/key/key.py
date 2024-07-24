@@ -344,6 +344,9 @@ class Keypair(c.Module):
         if hasattr(path, 'ss58_address'):
             key = path
             return key
+        # if ss58_address is provided, get key from address
+        if cls.valid_ss58_address(path):
+            path = cls.address2key().get(path)
         if not cls.key_exists(path):
             if create_if_not_exists:
                 print(path, 'FAM')

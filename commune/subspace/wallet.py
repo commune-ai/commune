@@ -1,6 +1,7 @@
 import commune as c
 from typing import *
 import json
+import typer
 
 class SubspaceWallet:
 
@@ -12,7 +13,6 @@ class SubspaceWallet:
         dest: str, 
         amount: float , 
         key: str = None,
-        network : str = None,
         nonce= None,
         **kwargs
         
@@ -40,10 +40,6 @@ class SubspaceWallet:
         )
         
         return response
-
-    
-
-    send = transfer
 
     def add_profit_shares(
         self,
@@ -109,7 +105,6 @@ class SubspaceWallet:
         assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
         params = {
-            "netuid": netuid,
             "module_keys": module_keys,
             "amounts": amounts
         }
@@ -168,43 +163,38 @@ class SubspaceWallet:
         return modules
 
     def unstake_many( self, 
+                        
                         modules:Union[List[str], str] = None,
                         amounts:Union[List[str], float, int] = None,
                         key: str = None, 
-                        netuid:int = 0) -> Optional['Balance']:
+                        netuid=0, 
+                        update=True,
+                        
+                        ) -> Optional['Balance']:
         
         key = self.resolve_key( key )
+        name2key = {}
 
-        if modules == None or modules == 'all':
-            stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
-            module_keys = [k for k in stake_to.keys()]
-            # RESOLVE AMOUNTS
-            if amounts == None:
-                amounts = [stake_to[m] for m in module_keys]
+        module_keys = []
+        for i, module in enumerate(modules):
+            if c.valid_ss58_address(module):
+                module_keys += [module]
+            else:
+                if name2key == {}:
+                    name2key = self.name2key(netuid=netuid, update=update)
+                assert module in name2key, f"Invalid module {module} not found in SubNetwork {netuid}"
+                module_keys += [name2key[module]]
+            
+        # RESOLVE AMOUNTS
+        if amounts == None:
+            stake_to = self.get_stake_to(key=key, names=False, update=update, fmt='j') # name to amounts
+            amounts = [stake_to[m] for m in module_keys]
+            
+        if isinstance(amounts, (float, int)): 
+            amounts = [amounts] * len(module_keys)
 
-        else:
-            name2key = {}
-
-            module_keys = []
-            for i, module in enumerate(modules):
-                if c.valid_ss58_address(module):
-                    module_keys += [module]
-                else:
-                    if name2key == {}:
-                        name2key = self.name2key(netuid=netuid, update=True)
-                    assert module in name2key, f"Invalid module {module} not found in SubNetwork {netuid}"
-                    module_keys += [name2key[module]]
-                
-            # RESOLVE AMOUNTS
-            if amounts == None:
-                stake_to = self.get_staketo(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amounts
-                amounts = [stake_to[m] for m in module_keys]
-                
-            if isinstance(amounts, (float, int)): 
-                amounts = [amounts] * len(module_keys)
-
-            for i, amount in enumerate(amounts):
-                amounts[i] = self.to_nanos(amount) 
+        for i, amount in enumerate(amounts):
+            amounts[i] = self.to_nanos(amount) 
 
         assert len(module_keys) == len(amounts), f"Length of modules and amounts must be the same. Got {len(module_keys)} and {len(amounts)}."
 
@@ -214,8 +204,8 @@ class SubspaceWallet:
             "amounts": amounts
         }
         response = self.compose_call('remove_stake_multiple', params=params, key=key)
-
         return response
+
 
     def update_module(
         self,
@@ -271,32 +261,21 @@ class SubspaceWallet:
             new_module_key: str ,
             amount: Union[int, float] = None, 
             key: str = None,
-            netuid:int = 0,
         ) -> bool:
         # STILL UNDER DEVELOPMENT, DO NOT USE
-        netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
-
-        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
-        # Flag to indicate if we are using the wallet's own hotkey.
-
+        netuid = 0
         module_key = self.resolve_module_key(module_key, netuid=netuid)
         new_module_key = self.resolve_module_key(new_module_key, netuid=netuid)
-        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
+
         assert module_key != new_module_key, f"Module key {module_key} is the same as new_module_key {new_module_key}"
 
         if amount == None:
-            stake_to = self.get_stake_to( key=key , fmt='nanos', netuid=netuid, max_age=0)
-            amount = stake_to.get(module_key, 0)
-        else:
-            amount = amount * 10**9
-
-        assert amount > 0, f"Amount must be greater than 0"
-                
+            amount = self.get_stake_to( key=key , fmt='j', max_age=0).get(module_key, 0)
+        
         # Get current stake
         params={
-                    'netuid': netuid,
-                    'amount': int(amount),
+                    'amount': int(amount * 10**9),
                     'module_key': module_key,
                     'new_module_key': new_module_key
 
@@ -309,8 +288,6 @@ class SubspaceWallet:
             module : str = None, # defaults to most staked module
             amount: float =None, # defaults to all of the amount
             key : 'c.Key' = None,  # defaults to first key
-            netuid : Union[str, int] = 0, # defaults to module.netuid
-            network: str= None,
             **kwargs
         ) -> dict:
         """
@@ -329,8 +306,6 @@ class SubspaceWallet:
         """
         
         key = c.get_key(key)
-
-        netuid = self.resolve_netuid(netuid)
         # get most stake from the module
 
         if isinstance(module, int):
@@ -350,14 +325,13 @@ class SubspaceWallet:
         assert self.is_registered(module_key, netuid=netuid), f"Module {module} is not registered in SubNetwork {netuid}"
         
         if amount == None:
-            stake_to = self.get_stake_to(netuid=netuid, names = False, fmt='nano', key=module_key)
+            stake_to = self.get_stake_to(names = False, fmt='nano', key=module_key)
             amount = stake_to[module_key] - 100000
         else:
             amount = int(self.to_nanos(amount))
         # convert to nanos
         params={
             'amount': amount ,
-            'netuid': netuid,
             'module_key': module_key
             }
         response = self.compose_call(fn='remove_stake',params=params, key=key, **kwargs)
@@ -511,40 +485,7 @@ class SubspaceWallet:
     def my_total_stake(self, netuid='all', fmt='j', update=False):
         my_stake_to = self.my_stake_to(netuid=netuid,  fmt=fmt, update=update)
         return sum([sum(list(v.values())) for k,v in my_stake_to.items()])
-
-    def check_valis(self, **kwargs):
-        return self.check_servers(search='vali', **kwargs)
     
-    def check_servers(self, search='vali',update:bool=False, netuid=0, max_staleness=100, timeout=30, remote=False, **kwargs):
-        if remote:
-            kwargs = c.locals2kwargs(locals())
-            return self.remote_fn('check_servers', kwargs=kwargs)
-        module_stats = self.stats(search=search, netuid=netuid, df=False, update=update)
-        module2stats = {m['name']:m for m in module_stats}
-        response_batch = {}
-        c.print(f"Checking {len(module2stats)} {search} servers")
-        for module, stats in module2stats.items():
-            # check if the module is serving
-            should_serve = not c.server_exists(module) or stats['vote_staleness'] > max_staleness
-            if should_serve:
-
-                c.print(f"Serving {module}")
-                port = int(stats['address'].split(':')[-1])
-                response_batch[module]  = c.submit(c.serve, 
-                                                    kwargs=dict(module=module, 
-                                                                network=f'subspace.{netuid}', 
-                                                                port=port),
-                                                    timeout=timeout)
-
-        futures = list(response_batch.values())
-        future2key = {f: k for k,f in response_batch.items()}
-        for f in c.as_completed(futures, timeout=timeout):
-            key = future2key[f]
-            c.print(f.result())
-            response_batch[key] = f.result()
-        return response_batch
-
-
     def my_staked_module_keys(self, netuid = 0, **kwargs):
         my_stake_to = self.my_stake_to(netuid=netuid, **kwargs)
         module_keys = {} if netuid == 'all' else []
@@ -556,22 +497,14 @@ class SubspaceWallet:
                 module_keys += list(stake_to_key.keys())
         return module_keys
 
-    def my_stake_to(self, netuid = 'all', fmt='j', **kwargs):
+    def my_stake_to(self, netuid = 0, fmt='j', **kwargs):
         stake_to = self.stake_to(netuid=netuid, fmt=fmt, **kwargs)
         key2address = c.key2address()
         my_stake_to = {}
 
         for key, address in key2address.items():
-            if netuid == 'all':
-                my_stake_to[address] = my_stake_to.get(address, {})
-                for _netuid, stake_to_subnet in stake_to.items():
-                    if address in stake_to_subnet:
-                        my_stake_to[address][_netuid] = {k:v  for k,v in stake_to_subnet.get(address, [])}
-                        if my_stake_to[address][_netuid] == 0:
-                            del my_stake_to[address][_netuid]
-            else:
-                my_stake_to[address] = {k:v  for k,v in stake_to.get(address, [])}
-
+            my_stake_to[address] = {k:v  for k,v in stake_to.get(address, [])}
+            
         stake_to_keys = list(my_stake_to.keys())
         for key in stake_to_keys:
             if len(my_stake_to[key]) == 0:
@@ -612,36 +545,16 @@ class SubspaceWallet:
 
 
 
-    
-
-    def my_netuid2stake( self, 
-                     key: str = None, 
-                     module_key=None,
-                       block: Optional[int] = None, 
-                       timeout=20,
-                       names = False,
-                        fmt='j' , update=False,
-                        max_age = 1000,
-                         **kwargs) -> Optional['Balance']:
-        kwargs['netuid'] = 'all'
-        return self.get_stake_to(key=key, module_key=module_key,  block=block, timeout=timeout, names=names, fmt=fmt, 
-                                  update=update, 
-                                 max_age=max_age, **kwargs)
-        
-
     def my_total_stake_to( self, 
                      key: str = None, 
-                     module_key=None,
                        block: Optional[int] = None, 
                        timeout=20,
                        names = False,
                         fmt='j' ,
-                          update=False,
+                        update=False,
                         max_age = 1000,
                          **kwargs) -> Optional['Balance']:
-        kwargs['netuid'] = 'all'
-        return sum(list(self.my_netuid2stake(key=key, module_key=module_key,
-                                              block=block, timeout=timeout, names=names, fmt=fmt, 
+        return sum(list(self.get_stake_to(key=key,  block=block, timeout=timeout, names=names, fmt=fmt, 
                                   update=update, 
                                  max_age=max_age, **kwargs).values()))
         
@@ -660,7 +573,6 @@ class SubspaceWallet:
     def my_subnets(self, key=None, update=True, **kwargs):
         return list(self.my_subnet2netuid(key=key,  update=update, **kwargs).keys())
 
-
     def my_modules(self, search=None, netuid=0, generator=False,  **kwargs):
         keys = self.my_keys(netuid=netuid, search=search)
         if netuid == 'all':
@@ -676,7 +588,6 @@ class SubspaceWallet:
         modules =  self.get_modules(keys=keys, netuid=netuid, **kwargs)
         return modules
     
-
     def stats(self, 
               search = None,
               netuid=0,  
@@ -689,8 +600,7 @@ class SubspaceWallet:
               servers = None,
               **kwargs
               ):
-
-            
+        
         if isinstance(netuid, str):
             netuid = self.subnet2netuid(netuid)
 
@@ -796,8 +706,8 @@ class SubspaceWallet:
             module: Optional[str] = None, # defaults to key if not provided
             amount: Union['Balance', float] = None, 
             key: str = None,  # defaults to first key
-            netuid:int = None,
             existential_deposit: float = 0,
+            netuid=0,
             **kwargs
         ) -> bool:
         """
@@ -815,10 +725,7 @@ class SubspaceWallet:
             response: dict
         
         """
-        netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
-
-
         if c.valid_ss58_address(module):
             module_key = module
         else:
@@ -834,7 +741,6 @@ class SubspaceWallet:
         
         # Get current stake
         params={
-                    'netuid': netuid,
                     'amount': amount,
                     'module_key': module_key
                     }
@@ -846,8 +752,8 @@ class SubspaceWallet:
 
     def key_info(self, key:str = None, netuid='all', detail=0, timeout=10, update=False, **kwargs):
         key_info = {
-            'balance': c.get_balance(key=key, **kwargs),
-            'stake_to': c.get_stake_to(key=key, netuid=netuid, **kwargs),
+            'balance': self.get_balance(key=key, **kwargs),
+            'stake_to': self.get_stake_to(key=key, **kwargs),
         }
         if detail: 
             pass
@@ -870,8 +776,6 @@ class SubspaceWallet:
 
         return subnet2modules
     
-
-
     def staking_rewards( self, 
                      key: str = None, 
                      module_key=None,
@@ -997,13 +901,6 @@ class SubspaceWallet:
         assert c.valid_ss58_address(x), f"Module key {x} is not a valid ss58 address"
         return x
     
-    def _get_data(self, data):
-        return data
-
-    def _set_data(self, data, value):
-        data = value
-        return data
-
     def global_params(self, 
                     update = False,
                     max_age = 1000,
@@ -1221,7 +1118,7 @@ class SubspaceWallet:
         key : str  = None,
         module_key : str = None,
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
+        wait_for_finalization: bool = True,
         max_address_characters = 32,
         metadata = None,
         nonce=None,
@@ -1229,13 +1126,7 @@ class SubspaceWallet:
         ensure_server = True,
     **kwargs
     ) -> bool:
-
-        if tag != None:
-            name = f'{module}::{tag}'
-        # resolve module name and tag if they are in the server_name
-
         module_key =  c.get_key(module_key or name).ss58_address
-
         if subnet == None:
             netuid2subnet = self.netuid2subnet(update=False)   
             subnet = netuid2subnet[netuid]
@@ -1251,10 +1142,8 @@ class SubspaceWallet:
                 
         # require prompt to create new subnet        
         stake = (stake or 0) * 1e9
-
-        if '0.0.0.0' in address:
-            address = address.replace('0.0.0.0', c.ip())
-        
+        address = address or '0.0.0.0'
+        address = address.replace('0.0.0.0', c.ip())
         if len(address) > max_address_characters:
             address = address[-max_address_characters:]
 
@@ -1270,117 +1159,79 @@ class SubspaceWallet:
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
         return response
+    
+
+    def resolve_uids(self, uids: Union['torch.LongTensor', list], netuid: int = 0, update=False) -> None:
+        name2uid = None
+        key2uid = None
+        for i, uid in enumerate(uids):
+            if isinstance(uid, str):
+                if name2uid == None:
+                    name2uid = self.name2uid(netuid=netuid, update=update)
+                if uid in name2uid:
+                    uids[i] = name2uid[uid]
+                else:
+                    if key2uid == None:
+                        key2uid = self.key2uid(netuid=netuid, update=update)
+                    if uid in key2uid:
+                        uids[i] = key2uid[uid]
+        return uids
 
     def set_weights(
         self,
-        modules: Union['torch.LongTensor', list] = None,
-        weights: Union['torch.FloatTensor', list] = None,
-        uids = None,
+        uids: Union['torch.LongTensor', list] ,
+        weights: Union['torch.FloatTensor', list] ,
         netuid: int = 0,
         key: 'c.key' = None,
         update=False,
-        min_value = 0,
-        max_value = 1,
-        max_age = 100,
+        modules = None,
+        vector_length = 2**16 - 1,
         **kwargs
     ) -> bool:
         import torch
-
         netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
-        global_params = self.global_params()
-        subnet_params = self.subnet_params( netuid = netuid , max_age=None, update=False)
-        module_info = self.module_info(key.ss58_address, netuid=netuid)
-        min_stake = global_params['min_weight_stake'] * subnet_params['min_allowed_weights']
-        assert module_info['stake'] > min_stake
-        max_num_votes = module_info['stake'] // global_params['min_weight_stake']
-        n = int(min(max_num_votes, subnet_params['max_allowed_weights']))
-        modules = uids or modules
-        if modules == None:
-            modules = c.shuffle(self.uids(netuid=netuid, update=update))
-        # checking if the "uids" are passed as names -> strings
-        key2name, name2uid = None, None
-        for i, module in enumerate(modules):
-            if isinstance(module, str):
-                if key2name == None or name2uid == None:
-                    key2name = self.key2name(netuid=netuid, update=update)
-                    name2uid = self.name2uid(netuid=netuid, update=update)
-                if module in key2name:
-                    modules[i] = key2name[module]
-                elif module in name2uid:
-                    modules[i] = name2uid[module]
-                    
-        uids = modules
+
+        # ENSURE THE UIDS ARE VALID UIDS, CONVERTING THE NAMES AND KEYS ASSOCIATED WITH THEM
+        uids = self.resolve_uids(modules or uids, netuid=netuid, update=update)
+        weights = weights or  [1] * len(uids)
         
-        if weights is None:
-            weights = [1 for _ in uids]
-        if len(uids) < subnet_params['min_allowed_weights']:
-            n = self.n(netuid=netuid)
-            while len(uids) < subnet_params['min_allowed_weights']:
-                uid = c.choice(list(range(n)))
-                if uid not in uids:
-                    uids.append(uid)
-                    weights.append(min_value)
-
-        uid2weight = dict(sorted(zip(uids, weights), key=lambda item: item[1], reverse=True))
-        
-        self_uid = self.key2uid(netuid=netuid).get(key.ss58_address, None)
-        uid2weight.pop(self_uid, None)
-
-        uids = list(uid2weight.keys())
-        weights = list(uid2weight.values())
-
-
-        if len(uids) > subnet_params['max_allowed_weights']:
-            uids = uids[:subnet_params['max_allowed_weights']]
-            weights = weights[:subnet_params['max_allowed_weights']]
-
-
-        c.print(f'Voting for {len(uids)} modules')
+        # CHECK WEIGHTS LENGHTS
         assert len(uids) == len(weights), f"Length of uids {len(uids)} must be equal to length of weights {len(weights)}"
-        uids = torch.tensor(uids)
-        weights = torch.tensor(weights)
-        weights = weights / weights.sum() # normalize the weights between 0 and 1
-        # STEP 2: CLAMP THE WEIGHTS BETWEEN 0 AND 1 WITH MIN AND MAX VALUES
-        assert min_value >= 0 and max_value <= 1, f"min_value and max_value must be between 0 and 1"
-        weights = torch.clamp(weights, min_value, max_value) # min_value and max_value are between 0 and 1
-
-        weights = weights * (2**16 - 1)
-        weights = list(map(lambda x : int(min(x, U16_MAX)), weights.tolist()))
-        uids = list(map(int, uids.tolist()))
-
-
-
-        params = {'uids': uids,
-                  'weights': weights, 
-                  'netuid': netuid}
-
-        response = self.compose_call('set_weights',params = params , key=key, **kwargs)
-            
-        if response['success']:
-            return {'success': True, 
-                    'message': 'Voted', 
-                    'num_uids': len(uids)}
         
-        else:
-            return response
+        # NORMALIZE WEIGHTS
+        weights = torch.tensor(weights)
+        weights = (weights / weights.sum()) * vector_length # normalize the weights between 0 and 1
+        weights = torch.clamp(weights, 0, vector_length)  # min_value and max_value are between 0 and 1
+        
+        params = {'uids': list(map(int, uids)),
+                  'weights': list(map(int, weights.tolist())), 
+                  'netuid': netuid}
+        
+        return self.compose_call('set_weights',params = params , key=key, **kwargs)
         
     vote = set_weights
     
     def unstake_all( self, 
                         key: str = None, 
-                        netuid = 0,
-                        existential_deposit = 1) -> Optional['Balance']:
+                        existential_deposit = 1,
+                        min_stake = 0.5,
+                        ) -> Optional['Balance']:
         
         key = self.resolve_key( key )
-        netuid = self.resolve_netuid( netuid )
-        key_stake_to = self.get_stake_to(key=key, netuid=netuid, names=False, update=True, fmt='nanos') # name to amount
-        
+        key_stake_to = self.get_stake_to(key=key,  names=False, update=True, fmt='nanos') # name to amount
+
+        min_stake = min_stake * 1e9
+        key_stake_to = {k:v for k,v in key_stake_to.items() if v > min_stake }
+
         params = {
-            "netuid": netuid,
             "module_keys": list(key_stake_to.keys()),
             "amounts": list(key_stake_to.values())
         }
+
+        
+
+
 
         response = {}
 
@@ -1394,79 +1245,6 @@ class SubspaceWallet:
         total_stake = total_stake - existential_deposit
         
         return response
-    
-    def staked(self, 
-                       search = None,
-                        key = None, 
-                        update = False,
-                        n = None,
-                        netuid = 0, 
-                        df = True,
-                        keys = None,
-                        max_age = 1000,
-                        min_stake = 100,
-                        features = ['name','stake_from', 'dividends', 'delegation_fee',  'key'],
-                        sort_by = 'stake_from',
-                        **kwargs):
-        
-        key = self.resolve_key(key)
-        netuid = self.resolve_netuid(netuid)
-
-        if keys == None:
-            staked_modules = self.my_staked_module_keys(netuid=netuid,  max_age=max_age, update=update)
-            if netuid == 'all':
-                staked = {}
-                for netuid, keys in staked_modules.items():
-                    if len(keys) == 0:
-                        continue
-                    staked_netuid = self.staked(search=search, 
-                                                key=key, 
-                                                netuid=netuid, 
-                                                 
-                                                df=df, 
-                                                keys=keys)
-                    if len(staked_netuid) > 0:
-                        staked[netuid] = staked_netuid
-                
-                return staked
-            else: 
-                keys = staked_modules
-                
-
-        c.print(f'Getting staked modules for SubNetwork {netuid} with {len(keys)} modules')
-        if search != None:
-            key2name = self.my_key2name(search=search, netuid=netuid, max_age=max_age)
-            keys = [k for k in keys if search in key2name.get(k, k)]
-        block = self.block
-        if n != None:
-            keys = keys
-        modules = self.get_modules(keys, block=block, netuid=netuid)
-        for m in modules:          
-            if isinstance(m['stake_from'], dict): 
-                m['stake_from'] =  int(m['stake_from'].get(key.ss58_address, 0))
-            m['stake'] = int(m['stake'])
-        if search != None:
-            modules = [m for m in modules if search in m['name']]
-
-
-        if len(modules) == 0: 
-            return modules
-        modules = c.df(modules)[features]
-        modules = modules.sort_values(sort_by, ascending=False)
-        # filter out everything where stake_from > min_stake
-        modules = modules[modules['stake_from'] > min_stake]
-        if not df:
-            modules = modules.to_dict(orient='records')
-            modules = [{k: v for k,v in m.items()  if k in features} for m in modules]
-
-
-        if n != None:
-            modules = modules[:n]
-        return modules
-
-
-    staked_modules = staked
-
 
     def registered_keys(self, netuid='all'):
         key2address = c.key2address()
@@ -1485,9 +1263,6 @@ class SubspaceWallet:
 
         return registered_keys
 
-
-
-
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
         if not c.valid_ss58_address(key):
@@ -1498,4 +1273,46 @@ class SubspaceWallet:
         assert c.valid_ss58_address(key), f"Invalid key {key}"
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
-    
+        
+    def set_root_weights(self, 
+                        key: str=None, 
+                        subnets = None,
+                        weights = None,
+                        prompt:str=True):
+        """
+        Command for rootnet validators to set the weights on subnets.
+        """
+
+        key = self.resolve_key(key)
+
+        rootnet_id = 0
+
+        netuid2subnet = self.netuid2subnet()
+        netuid2subnet =  dict(sorted(netuid2subnet.items(), key=lambda x: x[0]))
+        choices = [f"{name}: {uid}" for  name, uid in netuid2subnet.items()]
+        # Prompt user to select subnets
+        if subnets == None:
+            if prompt:
+                subnets = typer.prompt(
+                    "Select subnets to set weights for (space-separated list of UIDs)",
+                    prompt_suffix="\n" + "\n".join(choices) + "\nEnter UIDs: "
+                )
+
+        # Parse the input string into a list of integers
+        uids = [int(uid.strip()) for uid in subnets.split()]
+        
+
+        if weights == None:
+            weights: list[int] = []
+            for uid in uids:
+                if prompt:
+                    weight = typer.prompt(
+                        f"Enter weight for subnet {uid} ({netuid2subnet[uid]})",
+                        type=float
+                    )
+                else:
+                    weight = 1
+                weights.append(weight)
+        subnet2weight = dict(zip(uids, weights))
+        c.print(f"Voting on RootNet {subnet2weight} ")
+        return self.set_weights(netuid=rootnet_id, uids=uids, weights=weights, key=key)
