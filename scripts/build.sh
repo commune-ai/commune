@@ -1,1 +1,1 @@
-docker build -t comtensor .
+docker build -t commune .
