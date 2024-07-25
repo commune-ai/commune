@@ -29,8 +29,8 @@ class SubspaceDashboard(c.Module):
         self.sync_subnet(netuid=0)
     
     def sync_subnet(self, netuid=0, update=False):
-        subnet_params = self.subspace.subnet_params(netuid=netuid, update=update, max_age=self.max_age)
-        subnet_modules = self.subspace.get_modules(netuid=netuid, update=update, max_age=self.max_age)
+        subnet_params = self.subspace.subnet_params(netuid=netuid, max_age=self.max_age)
+        subnet_modules = self.subspace.get_modules(netuid=netuid,  max_age=self.max_age)
         subnet_name = self.subnet2netuid.get(netuid)
         self.state = {
             'params': subnet_params,
@@ -39,10 +39,21 @@ class SubspaceDashboard(c.Module):
             'modules': subnet_modules
         }
   
+
+    def select_key(self, key='module'):
+        keys = c.keys()
+        key2idx = {key:i for i, key in enumerate(keys )}
+        key = st.selectbox("Key", keys, key2idx[key])
+        self.key  = key 
+
+        st.code(f"{self.key.ss58_address}")
+        return key
+
+
     def subnets_app(self):
         st.title("Subnets")
         self.sync_global()
-        subnet_name = st.selectbox("Subnet", self.subnet_names)
+        subnet_name = st.selectbox("Subnet", self.subnet_names, 0)
         netuid = self.subnet2netuid.get(subnet_name)
         self.sync_subnet(netuid=netuid)
         with st.expander(f"{subnet_name} (netuid={netuid})"):
@@ -52,10 +63,12 @@ class SubspaceDashboard(c.Module):
 
         with st.expander("Leaderboard"):
             st.write(leaderboard)
-            
 
+    def sidebar(self):
+        return self.select_key()
 
     def app(self):
+        self.sidebar()
         self.subnets_app()
 
 SubspaceDashboard().app()

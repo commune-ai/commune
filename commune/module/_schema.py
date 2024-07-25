@@ -720,7 +720,7 @@ class Schema:
             
         return functions
     @classmethod
-    def functions(cls, search = None, include_parents = False):
+    def functions(cls, search = None, include_parents = True):
         return cls.get_functions(search=search, include_parents=include_parents)
 
     fns = functions
