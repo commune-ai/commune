@@ -28,7 +28,8 @@ class SubspaceSubnet:
 
     def stake_to(self, netuid = 0,block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
         stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update,  **kwargs)
-        stake_to = {k: self.format_amount(v) for k,v in stake_to.items()}
+        format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
+        stake_to = {k: format_value(v) for k,v in stake_to.items()}
         return stake_to
     
 
@@ -39,9 +40,20 @@ class SubspaceSubnet:
                     fmt='nano', 
                     **kwargs) -> List[Dict[str, Union[str, int]]]:
         
-        stake_from = self.query_map('StakeFrom', block=block, update=update, max_age=max_age,  **kwargs)
-        stake_from = {k: self.format_amount(v) for k,v in stake_from.items()}
+        stake_from = self.query_map('StakeFrom', block=block, update=update, max_age=max_age )
+        format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
+        stake_from = {k: format_value(v) for k,v in stake_from.items()}
         return stake_from
+
+    """ Returns network Tempo hyper parameter """
+    def stakes(self, fmt:str='j', max_age = 100, update=False, **kwargs) -> int:
+        stake_from =  self.stake_from( update=update, max_age=max_age, fmt=fmt,)
+        stakes = {k: sum(v.values()) for k,v in stake_from.items()}
+        return stakes
+    
+    def leaderboard(self, netuid = 0, block=None, update=False, columns = ['emission', 'name', 'incentive', 'dividends'], **kwargs):
+        modules = self.get_modules(netuid=netuid, block=block, update=update, **kwargs)
+        return c.df(modules)[columns]
 
     
     def min_stake(self, netuid: int = 0, fmt:str='j', **kwargs) -> int:
@@ -442,30 +454,39 @@ class SubspaceSubnet:
                     netuid=0,
                     timeout=30,
                     min_emission=0,
+                    max_age = 1000,
+                    update=False,
                     **kwargs):
-
+        modules = None
+        path = None 
         if keys == None :
+            path = f'subnet/{self.network}/{netuid}/modules'
+            modules = self.get(path, None, max_age=max_age, update=update)
             keys = self.keys(netuid=netuid)
+
         n = len(keys)
-        modules = []
-        print(f'Getting modules {n}')
-        futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
-        progress = c.tqdm(n)
-        modules = []
+        if modules == None:
+            modules = []
+            print(f'Getting modules {n}')
+            futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
+            progress = c.tqdm(n)
+            modules = []
 
 
-        should_pass = lambda x: isinstance(x, dict) \
-                        and 'name' in x \
-                        and len(x['name']) > 0 \
-                        and x['emission'] >= min_emission
-        
-        for future in c.as_completed(futures, timeout=timeout):
-            module = future.result()
-            print(module)
-            if should_pass(module):
-                modules += [module]
-                progress.update(1)
-                
+            should_pass = lambda x: isinstance(x, dict) \
+                            and 'name' in x \
+                            and len(x['name']) > 0 \
+                            and x['emission'] >= min_emission
+            
+            for future in c.as_completed(futures, timeout=timeout):
+                module = future.result()
+                if should_pass(module):
+                    modules += [module]
+                    progress.update(1)
+            if path != None:
+                self.put(path, modules)
+            
+                    
         return modules
 
     module_param_features = [
@@ -554,18 +575,6 @@ class SubspaceSubnet:
 
     regblocks = registration_blocks = registration_block
 
-
-    """ Returns network Tempo hyper parameter """
-    def stakes(self, netuid: int = 0, fmt:str='nano', max_age = 100, update=False, **kwargs) -> int:
-        stakes =  self.query_map('Stake', update=update, max_age=max_age, **kwargs)
-        if netuid == 'all':
-            subnet2stakes = c.copy(stakes)
-            stakes = {}
-            for netuid, subnet_stakes in subnet2stakes.items():
-                for k,v in subnet_stakes.items():
-                    stakes[k] = stakes.get(k, 0) + v
-        
-        return {k: self.format_amount(v, fmt=fmt) for k,v in stakes.items()}
 
 
 

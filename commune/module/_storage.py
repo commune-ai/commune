@@ -261,7 +261,7 @@ class Storage:
         
         if path.startswith('/'):
             path = path
-        elif path.startswith('~/'):
+        elif path.startswith('~'):
             path =  os.path.expanduser(path)
         elif path.startswith('.'):
             path = os.path.abspath(path)

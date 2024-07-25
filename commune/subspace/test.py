@@ -8,6 +8,7 @@ class Test(c.Module):
     def test_global_params(self):
         global_params = self.subspace.global_params(fmt='dict')
         assert isinstance(global_params, dict)
+        return {'msg': 'global_params test passed', 'success': True}
 
     def test_subnet_params(self, netuid=0):
         subnet_params = self.subspace.subnet_params(netuid=0)
@@ -26,7 +27,7 @@ class Test(c.Module):
     
 
     def test_module_params(self, keys=['dividends', 'incentive'], netuid=0):
-        key = self.subspace.keys(update=1, netuid=netuid)[0]
+        key = self.subspace.keys(netuid=netuid)[0]
         module_info = self.subspace.get_module(key, netuid=netuid)
         assert isinstance(module_info, dict)
         for k in keys:
@@ -41,6 +42,7 @@ class Test(c.Module):
             c.print(c.module('subspace')().substrate)
             t2 = c.time()
             c.print(f'{t2-t1:.2f} seconds')
+        return {'msg': 'substrate test passed', 'success': True}
 
 
         

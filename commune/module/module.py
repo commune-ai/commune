@@ -12,6 +12,9 @@ t1 = time.time()
 nest_asyncio.apply()
 
 def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
+    """
+    find the core modules that construct the commune block module
+    """
     core_dirpath = os.path.dirname(__file__)
     core_modules = []
     for f in os.listdir(core_dirpath):
@@ -21,7 +24,7 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
     results = []
     for cm in core_modules:
         obj_name = cm.upper() if cm.lower() == 'os' else cm.capitalize()
-        exec(f'from {prefix}._{cm} import {obj_name}')
+        exec(f'from {prefix}.{core_prefix}{cm} import {obj_name}')
         results.append(eval(obj_name))
     return results
 
@@ -93,7 +96,6 @@ class c(*CORE_MODULES):
     def module_file(cls) -> str:
         # get the file of the module
         return inspect.getfile(cls)
-    
     @classmethod
     def filepath(cls, obj=None) -> str:
         '''
@@ -103,7 +105,7 @@ class c(*CORE_MODULES):
         try:
             module_path =  inspect.getfile(obj)
         except Exception as e:
-            c.print(f'Error: {e}', color='red')
+            c.print(f'Error: {e} {cls}', color='red')
             module_path =  inspect.getfile(cls)
         return module_path
 

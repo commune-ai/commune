@@ -288,6 +288,7 @@ class SubspaceWallet:
             module : str = None, # defaults to most staked module
             amount: float =None, # defaults to all of the amount
             key : 'c.Key' = None,  # defaults to first key
+            netuid=0,
             **kwargs
         ) -> dict:
         """
@@ -1143,13 +1144,12 @@ class SubspaceWallet:
         # require prompt to create new subnet        
         stake = (stake or 0) * 1e9
         address = address or '0.0.0.0'
-        address = address.replace('0.0.0.0', c.ip())
-        if len(address) > max_address_characters:
-            address = address[-max_address_characters:]
+        if c.server_exists(name):
+            address = c.namespace().get(name)
 
         params = { 
                     'network': subnet.encode('utf-8'),
-                    'address': address.encode('utf-8'),
+                    'address': address[-max_address_characters:].replace('0.0.0.0', c.ip()).encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
                     'module_key': module_key,
@@ -1160,7 +1160,6 @@ class SubspaceWallet:
         response = self.compose_call('register', params=params, key=key, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization, nonce=nonce)
         return response
     
-
     def resolve_uids(self, uids: Union['torch.LongTensor', list], netuid: int = 0, update=False) -> None:
         name2uid = None
         key2uid = None

@@ -23,7 +23,7 @@ c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
 If you want to register with another key 
    
 ```bash
-c vali register tag=sup subnet=commune key=vali::whadup
+c register vali netuid=0 key=vali::whadup
 ```
 
 
@@ -36,7 +36,6 @@ c call vali/module_info
 ```python
 c.call("vali/module_info")
 ```
-
 
 ```bash
 {
