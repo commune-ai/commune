@@ -9,46 +9,16 @@ To register a validator with a specific tag, use the following CLI command:
 
 ```python 
 import commune as c
-model = c.serve('model.openai::whadup', api_key='.....') # default to local network
-c.register('model.openai::whadup', subnet='commune') 
-```
-or 
-
-INPUT
-```bash
-c serve model.openai::whadup # defaults to (netuid=0 subnet=commune key=model.openai::whadup)
-c register vali::whadup # defaults to (netuid=0 subnet=commune key=module)
-```
-
-OUTPUT
-Result
-```bash
-{'success': True, 'message': 'Successfully registered model.openai::whadup'}
-```
-
-
-Check the logs 
-Now see if the miner is running
-
-```bash
-c logs model.openai::whadup
-
-```
-
-
-```bash
-369|model. | INFO:     Started server process [51470]
-369|model. | INFO:     Waiting for application startup.
-369|model. | INFO:     Application startup complete.
-369|model. | INFO:     Uvicorn running on http://0.0.0.0:50227 (Press CTRL+C to quit)
+name = 'model.openai::whadup'
+key = name # default to name
+netuid = 10 # the netuid of the subnet
+model = c.serve(name, api_key='.....') # default to local network
+c.register(name, netuid=netuid, key=key) 
 ```
 
 to call it 
 INPUT
 
-```bash
-c model.openai::whadup forward sup
-```
 OR
 ```python
 c.call("model.openai::whadup/forward", "sup")
@@ -69,7 +39,7 @@ Hey there! How can I assist you today?
 if people are calling your module
 
 ```bash
-c logs model.openai::whadup
+c.logs("model.openai::whadup")
 ```
 
 ```bash
@@ -97,7 +67,6 @@ to check servers
 ```python
 c.servers()
 ```
-
 ['servers']
 
 or 
@@ -112,8 +81,6 @@ to get the info
 ```python
 c call model.openai/info
 ```
-
-
 ```bash
 {
     'address': 'http://68.174.126.229:50113',

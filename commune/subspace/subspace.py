@@ -441,6 +441,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             while trials > 0:
                 try:
                     substrate = self.get_substrate( mode=mode)
+                    print(f'Querying {name} with params {params} and block {block}')
                     qmap =  substrate.query_map(
                         module=module,
                         storage_function = name,

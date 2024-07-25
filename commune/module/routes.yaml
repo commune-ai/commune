@@ -179,7 +179,7 @@ subspace:
   - unstake
   - register
   - subnet_params
-  - subnet_params
+  - global_params
   - balance
   - get_balance
   - get_stak
@@ -190,7 +190,9 @@ subspace:
   - unstake
   - stake
   - transfer
-  - send
+  - netuid2subnet
+  - subnet2netuid
+  - stake_transfer
 
 model.openrouter:
   - [generate, ask]
