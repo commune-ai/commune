@@ -946,7 +946,6 @@ class Schema:
                 'user2rate': user2rate,                
             }
             import commune as c
-            c.print(f'Adding metadata to {fn.__name__} : {metadata}')
             fn.__dict__['__metadata__'] = metadata
 
             return fn
@@ -967,6 +966,9 @@ class Schema:
 
         for f in dir(self):
             try:
+                if not callable(getattr(self, f)):
+                    continue
+
                 if search != None:
                     if search not in f:
                         continue

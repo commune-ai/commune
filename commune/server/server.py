@@ -30,7 +30,7 @@ class Server(c.Module):
         self.network = network
         if isinstance(module, str):
             module = c.module(module)()
-        # RESOLVE THE WHITELIST AND BLACKLIST
+        # RESOLVE THE WHITELIST AsND BLACKLIST
         module.whitelist = module.get_whitelist()
         module.name = module.server_name = name = name or module.server_name
         module.port = port if port not in ['None', None] else c.free_port()
@@ -55,8 +55,6 @@ class Server(c.Module):
         request_staleness = c.timestamp() - input.get('timestamp', 0) 
         assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old" 
         
-        
-        
         params = input.pop('params', None)
         if isinstance(params, dict):
             input['kwargs'] = params
@@ -72,20 +70,20 @@ class Server(c.Module):
         return input
     
     def get_output(self, fn:str, input:Dict):
+        print(self.module, fn)
+
         fn_obj = getattr(self.module, fn)
         if callable(fn_obj):
-            print('Calling', fn_obj, input['args'], input['kwargs'])
             output = fn_obj(*input['args'], **input['kwargs'])
         else:
+
             output = fn_obj
         if c.is_generator(output):
-            print('IS GENERATOR')
             def generator_wrapper(generator):
                 for item in generator:
                     yield self.serializer.serialize(item)
             return EventSourceResponse(generator_wrapper(output))
         else:
-            print('NOT GENERATOR', output)
             return self.serializer.serialize(output)
     
     def forward(self, fn, input):
@@ -183,7 +181,7 @@ class Server(c.Module):
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
             for _ in ['extra_kwargs', 'address']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            response = c.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            response = cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
             if response['success'] == False:
                 return response
             return {'success':True, 
@@ -196,7 +194,9 @@ class Server(c.Module):
         module_class = c.module(module)
         print('Serving', module_class, kwargs, module)
         kwargs.update(extra_kwargs)
-        cls(module=module_class(**kwargs), 
+        module = module_class(**kwargs)
+        print('Serving', module, kwargs)
+        cls(module=module, 
                                           name=name, 
                                           port=port, 
                                           network=server_network, 
@@ -234,7 +234,6 @@ class Server(c.Module):
         results_list = []
         for f in c.as_completed(futures, timeout=timeout):
             result = f.result()
-            c.print(result, verbose=verbose)
             progress.update(1)
             results_list += [result]
         servers = c.servers(network=network, update=True)
@@ -323,7 +322,6 @@ class Server(c.Module):
         results = []
         for future in c.as_completed(futures, timeout=timeout):
             result = future.result()
-            c.print(result)
             results.append(result)
 
         return results
@@ -342,7 +340,6 @@ class Server(c.Module):
         results = []
         for future in c.as_completed(futures):
             result = future.result()
-            c.print(result)
             results.append(result)
         return results
     serve_batch = serve_many

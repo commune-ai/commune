@@ -193,6 +193,11 @@ subspace:
   - netuid2subnet
   - subnet2netuid
   - stake_transfer
+  - is_registered
+  - registered_subnets
+  - registered_netuids
+  
+
 
 model.openrouter:
   - [generate, ask]
