@@ -13,12 +13,11 @@ asyncio
 aiofiles
 retry
 netaddr
-
+typer
 #
 loguru
 plotly
 openai
 aiohttp
-bittensor
 
 
