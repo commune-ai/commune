@@ -60,14 +60,11 @@ class SubspaceSubnet:
         min_stake = self.query('MinStake', netuid=netuid,  **kwargs)
         return self.format_amount(min_stake, fmt=fmt)
     
-
-
     def regblock(self, netuid: int = 0, block: Optional[int] = None,  update=False ) -> Optional[float]:
         regblock =  self.query_map('RegistrationBlock',block=block, update=update )
         if isinstance(netuid, int):
             regblock = regblock[netuid]
         return regblock
-
 
     def emissions(self, netuid = 0, block=None, update=False, fmt = 'nanos', **kwargs):
 
@@ -82,15 +79,10 @@ class SubspaceSubnet:
 
     emission = emissions
 
-    
-
-
 
     def total_emission( self, netuid: int = 0, block: Optional[int] = None, fmt:str = 'j', **kwargs ) -> Optional[float]:
         total_emission =  sum(self.emission(netuid=netuid, block=block, **kwargs))
         return self.format_amount(total_emission, fmt=fmt)
-
-
 
     def addresses(self, netuid: int = 0, update=False, **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
@@ -121,7 +113,6 @@ class SubspaceSubnet:
                 r = future.result()
                 if not c.is_error(r) and r != None:
                     results[key] = r
-
         
         if netuid == 'all':
             netuid2subnet = self.netuid2subnet()
@@ -144,11 +135,8 @@ class SubspaceSubnet:
 
         return namespace
 
-    
-
     def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
         return self.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
-
 
     def key2name(self, key: str = None, netuid: int = 0) -> str:
         modules = self.keys(netuid=netuid)
@@ -156,14 +144,10 @@ class SubspaceSubnet:
         if key != None:
             return key2name[key]
 
-    
-
-
     def uid2name(self, netuid: int = 0, update=False,  **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
         names = self.query_map('Name', netuid=netuid, update=update,**kwargs)
         return names
-
 
     def keys(self,
              netuid = 0,
@@ -178,17 +162,11 @@ class SubspaceSubnet:
             keys = list(keys.values())
         return keys
 
-
-
-
     def delegation_fee(self, netuid = 0, block=None, update=False, fmt='j'):
         delegation_fee = self.query_map('DelegationFee', netuid=netuid, block=block ,update=update)
         return delegation_fee
 
- 
 
-
-    
     def subnet_params(self, 
                     netuid=0,
                     update = False,
@@ -239,9 +217,6 @@ class SubspaceSubnet:
                     subnet_params[netuid][k] = value
         return subnet_params
 
-
-
-
     def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
         pending_deregistrations = self.query_map('PendingDeregisterUids',update=update,**kwargs)[netuid]
         return pending_deregistrations
@@ -250,8 +225,6 @@ class SubspaceSubnet:
         pending_deregistrations = self.pending_deregistrations(netuid=netuid, **kwargs)
         return len(pending_deregistrations)
         
-
-
     def subnet_names(self , search=None, update=False, block=None, max_age=60, **kwargs) -> Dict[str, str]:
         records = self.query_map('SubnetNames', update=update,  block=block, max_age=max_age, **kwargs)
         subnet_names = sorted(list(map(lambda x: str(x), records.values())))
@@ -266,9 +239,6 @@ class SubspaceSubnet:
     def num_subnets(self, **kwargs) -> int:
         return len(self.subnets(**kwargs))
     
-
-
-
     def subnet2stake(self, fmt='j'):
         netuid2subnet = self.netuid2subnet()
         netuid2stake = self.netuid2stake(fmt=fmt)
@@ -283,15 +253,10 @@ class SubspaceSubnet:
         for netuid, stake in netuid2stake.items():
             netuid2stake[netuid] = self.format_amount(stake, fmt=fmt)
         return netuid2stake
-
-
-
+    
     def netuid2n(self, fmt='j',  **kwargs):
         netuid2n = self.query_map('N',  **kwargs)
         return netuid2n
-    
-
-
 
     def trust(self, 
                   netuid = 0, 
@@ -299,7 +264,6 @@ class SubspaceSubnet:
                   update:bool = False, 
                   **kwargs):
         return self.query_vector('Trust', netuid=netuid,  block=block, update=update, **kwargs)
-    
 
     def incentives(self, 
                   netuid = 0, 
@@ -309,20 +273,13 @@ class SubspaceSubnet:
         return self.query_vector('Incentive', netuid=netuid,  block=block, update=update, **kwargs)
     incentive = incentives
 
-
-
     def last_update(self, netuid = 0, update=False, **kwargs):
         return self.query_vector('LastUpdate', netuid=netuid,   update=update, **kwargs)
 
     def dividends(self, netuid = 0, update=False, **kwargs):
         return  self.query_vector('Dividends', netuid=netuid,   update=update,  **kwargs)
             
-
     dividend = dividends
-
-
-
-       
     
     def names(self, 
               netuid: int = 0, 
@@ -337,7 +294,6 @@ class SubspaceSubnet:
             names = list(names.values())
         return names
 
-   
     def uids(self,
              netuid = 0,
               update=False, 
@@ -351,17 +307,6 @@ class SubspaceSubnet:
         else:
             keys = list(keys.keys())
         return keys
-
-    def netuid2emission(self, fmt='j',  **kwargs):
-        netuid2emission = self.query_map('SubnetEmission',  **kwargs)
-        for netuid, emission in netuid2emission.items():
-            netuid2emission[netuid] = self.format_amount(emission, fmt=fmt)
-        netuid2emission = dict(sorted(netuid2emission.items(), key=lambda x: x[1], reverse=True))
-
-        return netuid2emission
-
-
-
     
     def subnet2n(self, fmt='j',  **kwargs):
         netuid2n = self.netuid2n(fmt=fmt, **kwargs)
@@ -371,16 +316,11 @@ class SubspaceSubnet:
             subnet2n[subnet] = netuid2n[netuid]
         return subnet2n
     
-
-
     def subnet2stakes(self,  block=None, update=False, fmt='j', **kwargs):
         subnet2stakes = {}
         for netuid in self.netuids( update=update):
             subnet2stakes[netuid] = self.stakes(netuid=netuid,  block=block, update=update, fmt=fmt, **kwargs)
         return subnet2stakes
-
-
-
 
     def subnet_state(self,  netuid='all', block=None, update=False, fmt='j', **kwargs):
 
@@ -390,10 +330,8 @@ class SubspaceSubnet:
         }
         return subnet_state
 
-
-    
-
     def subnet2emission(self, fmt='j',  **kwargs):
+        subnet2params = self.subnet_params(netuid='all')
         netuid2emission = self.netuid2emission(fmt=fmt, **kwargs)
         netuid2subnet = self.netuid2subnet()
         subnet2emission = {}
@@ -401,7 +339,6 @@ class SubspaceSubnet:
             subnet2emission[subnet] = netuid2emission[netuid]
         # sort by emission
         subnet2emission = dict(sorted(subnet2emission.items(), key=lambda x: x[1], reverse=True))
-       
 
         return subnet2emission
 
@@ -670,11 +607,20 @@ class SubspaceSubnet:
     def weights(self,  netuid = 0,  update=False, **kwargs) -> list:
         weights =  self.query_map('Weights',netuid=netuid, update=update, **kwargs)
 
+        tuples2list = lambda x: [list(v) for v in x]
+        if netuid == 'all':
+            for netuid, netuid_weights in weights.items():
+                weights[netuid] = {k: tuples2list(v) for k,v in netuid_weights.items()}
+        else:
+            weights = {k: tuples2list(v) for k,v in weights.items()}
+            
         return weights
+    
 
 
 
-    def total_emissions(self, netuid = 0, block=None, update=False, fmt = 'nanos', **kwargs):
+
+    def total_emissions(self, netuid = 9, block=None, update=False, fmt = 'j', **kwargs):
 
         emissions = self.query_vector('Emission',  netuid=netuid, block=block, update=update, **kwargs)
         if netuid == 'all':
@@ -684,6 +630,66 @@ class SubspaceSubnet:
             emissions = [self.format_amount(e, fmt=fmt) for e in emissions]
         
         return sum(emissions)
+    
+
+
+    # def state(self, block=None, netuid='all', update=False, max_age=10000, fmt='j', **kwargs):
+    #     subnet_params = self.subnet_params(block=block, netuid=netuid, max_age=max_age, **kwargs)
+    #     subnet2emissions = self.emissions(netuid=netuid, max_age=max_age, block=block, **kwargs)
+    #     subnet2staketo = self.stake_to(netuid=netuid, block=block, update=update, fmt=fmt, **kwargs)
+    #     subnet2incentives = self.incentives(netuid=netuid, block=block, update=update, fmt=fmt, **kwargs)
+    #     subnet2trust = self.trust(netuid=netuid, block=block, update=update, fmt=fmt, **kwargs)
+    #     subnet2keys = self.keys(netuid=netuid, block=block, update=update, **kwargs)
+                        
+    #     subnet2state = {}
+    #     for netuid, params in subnet_params.items():
+    #         subnet_state = {
+    #             'params': params,
+    #             'incentives': subnet2incentives[netuid],
+    #             'emissions': subnet2emissions[netuid],
+    #             ''
+    #             'stake_to': subnet2staketo[netuid],
+    #             'keys': subnet2keys[netuid],
+
+    #         }
+    #         subnet_state[netuid] = subnet_state
+        
+    #     return subnet2state
+
+
+    def netuid2emission(self, fmt='j',  period='day', **kwargs):
+        netuid2emission = {}
+        netuid2tempo = None
+        emissions = self.query_vector('Emission',  netuid='all', **kwargs)
+        for netuid, netuid_emissions in emissions.items():
+            
+            if period == 'day':
+                if netuid2tempo == None:
+                    netuid2tempo = self.query_map('Tempo', netuid='all', **kwargs)
+                tempo = netuid2tempo.get(netuid, 100)
+                multiplier = self.blocks_per_day() / tempo
+            else:
+                multiplier = 1
+            netuid2emission[netuid] = self.format_amount(sum(netuid_emissions), fmt=fmt) * multiplier
+        
+        netuid2emission = {k: v   for k,v in netuid2emission.items()}
+
+        return netuid2emission
+
+    def subnet2emission(self, fmt='j',  period='day', **kwargs):
+        netuid2emission = self.netuid2emission(fmt=fmt, period=period, **kwargs)
+        netuid2subnet = self.netuid2subnet()
+        subnet2emission = {}
+        for netuid, emission in netuid2emission.items():
+            subnet = netuid2subnet[netuid]
+            subnet2emission[subnet] = emission
+        return subnet2emission
+    
+
+    def global_emissions(self,  **kwargs):
+        return sum(list(self.subnet2emissions( **kwargs).values()))
+
+
     
 
     def subnet2params( self,  block: Optional[int] = None ) -> Optional[float]:
@@ -847,12 +853,15 @@ class SubspaceSubnet:
     def epoch_time(self, netuid=0, update=False, **kwargs):
         return self.subnet_params(netuid=netuid, update=update, **kwargs)['tempo']*self.block_time
 
-    def epochs_per_day(self, netuid=None):
-        return 24*60*60/self.epoch_time(netuid=netuid)
+    def seconds_per_day(self, ):
+        return 24*60*60
+    
+    def epochs_per_day(self, netuid=0):
+        return self.seconds_per_day()/self.epoch_time(netuid=netuid)
 
-    def seconds_per_epoch(self, netuid=None):
+    def seconds_per_epoch(self, netuid='all'):
         netuid =self.resolve_netuid(netuid)
-        return self.block_time * self.subnet(netuid=netuid)['tempo']
+        return self.block_time * self.subnet_params(netuid=netuid)['tempo']
 
 
     def format_module(self, module: 'ModuleInfo', fmt:str='j') -> 'ModuleInfo':

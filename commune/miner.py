@@ -6,8 +6,8 @@ import os
 class Miner(c.Module): 
     
     def __init__(self, 
-                netuid = 3, 
-                n = 42, 
+                netuid = 17, 
+                n = 200, 
                 key : str =None, 
                 treasury_key_address:str = None,
                 stake=1, 
@@ -44,8 +44,6 @@ class Miner(c.Module):
         for i in range(self.n):
             name = f"miner_{i}"
             c.add_key(name)
-            
-        
 
 
     def transfer_to_miners(self, amount=None):
@@ -134,16 +132,31 @@ class Miner(c.Module):
         keys = self.subspace.keys(netuid=self.netuid, **kwargs)
         miner_key_addresses = self.key_addresses()
         return list(filter(lambda k: k in miner_key_addresses, keys))
+    
+    def uids(self):
+        key2uid = self.subspace.key2uid(netuid=self.netuid)
+        return [key2uid[key] for key in self.registered_keys()]
+    
 
-    def register_miners(self, timeout=60):
+
+
+
+    def register_miners(self, timeout=60, parallel=False, controller_key=None):
         keys = self.keys()
         futures = []
-        for i, key in enumerate(keys):
-            future = c.submit(self.register_miner, kwargs={'key': key})
-            futures += [future]
-        for f in c.as_completed(futures, timeout=timeout):
-            print(f.result())
-
+        c.print('Registering miners ...')
+        c.print(keys)
+        results = []
+        if parallel:
+            for i, key in enumerate(keys):
+                futures += [c.submit(self.register_miner, kwargs={'key': key, 'controller_key': controller_key or key})]
+            for f in c.as_completed(futures, timeout=timeout):
+                results.append(f.result())
+                c.print(results[-1])
+        else:
+            for i, key in enumerate(keys):
+                results.append(self.register_miner(key))
+                c.print(results[-1])
 
     def servers(self):
         return c.pm2ls()

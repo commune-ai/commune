@@ -856,12 +856,9 @@ class c(*CORE_MODULES):
             
         kwargs = kwargs if kwargs else {}
         args = args if args else []
-    
-    
         if name == None:
             module_path = cls.resolve_object(module).module_name()
             name = f"{module_path}{tag_seperator}{fn}"
-
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
 
@@ -898,6 +895,7 @@ class c(*CORE_MODULES):
                 refresh=refresh,
                 **extra_launch_kwargs
         )
+        print(launch_kwargs)
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)

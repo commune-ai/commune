@@ -15,29 +15,39 @@ st.markdown(css, unsafe_allow_html=True)
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self, root_netuid=0, max_age = 10000):
+    def __init__(self, root_netuid=0, max_age = 10000, api='subspace.api'):
         self.max_age = max_age
         self.root_netuid = root_netuid
-        self.sync_global()
+        if not c.server_exists(api):
+            c.serve(api, wait_for_server=True)
+        self.api = c.connect(api)
 
-
-    def sync_global(self):
-        self.subspace = c.module('subspace')()
-        self.global_params = self.subspace.global_params(max_age=self.max_age)
-        self.subnet2netuid = self.subspace.subnet2netuid(max_age=self.max_age)
-        self.subnet_names = list(self.subnet2netuid.keys())
-        self.sync_subnet(netuid=0)
+    @c.endpoint()
+    def global_state(self, max_age=None):
+        global_state = self.get('global_state', None, max_age=max_age)
+        if global_state == None :
+            global_state =  self.api.global_state(max_age=max_age)
+        return global_state
     
-    def sync_subnet(self, netuid=0, update=False):
-        subnet_params = self.subspace.subnet_params(netuid=netuid, max_age=self.max_age)
-        subnet_modules = self.subspace.get_modules(netuid=netuid,  max_age=self.max_age)
-        subnet_name = self.subnet2netuid.get(netuid)
-        self.state = {
-            'params': subnet_params,
-            'netuid': netuid,
-            'name': subnet_name,
-            'modules': subnet_modules
-        }
+    def sync(self, max_age=None):
+        global_state = self.global_state(max_age=max_age)
+        self.__dict__.update(global_state)
+        return global_state
+
+    def subnet_state(self, netuid=0, max_age=None):
+        subnet_state = self.get(f'subnet_state/{netuid}', None, netuid=netuid, max_age=max_age)
+        if subnet_state == None:
+            subnet_state = self.api.subnet_state(netuid=netuid, max_age=max_age)
+        return subnet_state
+
+    def sync_loop(self, max_age=1000, timeout=60, sleep=10):
+        while True:
+            self.global_state(**{'max_age': max_age})
+            for netuid in self.netuids:
+                c.print(f"Syncing {netuid}")
+                self.subnet_state(**{'netuid': netuid, 'max_age': max_age})
+                
+            c.sleep(sleep)
   
 
     def select_key(self, key='module'):
@@ -50,8 +60,10 @@ class SubspaceDashboard(c.Module):
         return key
 
 
-    def subnets_app(self):
+    def subnets_app(self, backend='app'):
         st.title("Subnets")
+
+        st.write(f"Connected to {backend}")
         self.sync_global()
         subnet_name = st.selectbox("Subnet", self.subnet_names, 0)
         netuid = self.subnet2netuid.get(subnet_name)
@@ -67,8 +79,14 @@ class SubspaceDashboard(c.Module):
     def sidebar(self):
         return self.select_key()
 
-    def app(self):
+    @classmethod
+    def app(cls, backend='app'):
+        while not c.server_exists(backend):
+            print(f"Waiting for {backend}")
+            c.serve(backend)
+            c.sleep(5)
+        self = cls(backend=backend)
         self.sidebar()
         self.subnets_app()
 
-SubspaceDashboard().app()
+SubspaceDashboard.run(__name__)

@@ -1272,6 +1272,23 @@ class SubspaceWallet:
         assert c.valid_ss58_address(key), f"Invalid key {key}"
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]))
         return is_reged
+    
+    def registered_netuids(self, key=None, **extra_kwargs):
+        netuids = self.netuids()
+        registered_netuids = []
+        future2netuid = {}
+        for netuid in netuids:
+            f = c.submit(self.is_registered, kwargs=dict(key=key, netuid=netuid, **extra_kwargs), timeout=10)
+            future2netuid[f] = netuid
+        progress = c.tqdm(total=len(future2netuid))
+        for f in c.as_completed(future2netuid):
+            netuid = future2netuid.pop(f)
+            if f.result():
+                registered_netuids.append(netuid)
+            progress.update(1)
+        return registered_netuids
+    
+    registered_subnets = registered_netuids
         
     def set_root_weights(self, 
                         key: str=None, 

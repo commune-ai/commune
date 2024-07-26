@@ -403,6 +403,16 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             _splits = name.split('_')
             name = _splits[0].capitalize() + ''.join([s[0].capitalize() + s[1:] for s in _splits[1:]])
         return name
+    
+
+    def events(self, block=None, max_age=1000, update=False):
+        path = f'events/{self.network}'
+        events = self.get(path, None, max_age=max_age, update=update)
+        if events == None:
+            events = self.substrate.get_events(block_hash=self.block_hash(block))
+            events = list(map(lambda x: x.value, events))
+            self.put(path, events)
+        return events
 
     def query_map(self, name: str = 'StakeFrom', 
                   params: list = None,

@@ -136,6 +136,15 @@ class Serializer(c.Module):
         return data
     
     def serialize_dict(self, data: dict) -> str :
+
+        int_keys = all([k for k in data.keys() if c.is_int(k)])
+        if int_keys:
+            data = {
+                'data': data,
+                'data_type': 'dict',
+                'serialized': True,
+                'int_keys': True
+            }
         data = self.dict2bytes(data=data)
         return  data
 
