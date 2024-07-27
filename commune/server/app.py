@@ -116,6 +116,6 @@ class ServerApp(c.Module):
         self._modules = c.get_modules()
 
 
-ServerApp.run()
+ServerApp.run(__name__)
 
 

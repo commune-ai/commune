@@ -348,7 +348,8 @@ class c(*CORE_MODULES):
     @classmethod
     def argparse(cls, verbose: bool = False, **kwargs):
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-fn', '--fn', dest='function', help='The function of the key', type=str, default="__init__")
+        parser.add_argument('-m', '--m', '--module', '-module', dest='function', help='The function', type=str, default=cls.module_name())
+        parser.add_argument('-fn', '--fn', dest='function', help='The function', type=str, default="__init__")
         parser.add_argument('-kw',  '-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
@@ -378,6 +379,8 @@ class c(*CORE_MODULES):
         if not is_main:
             return {'success':False, 'message':f'Not main module {name}'}
         args = cls.argparse()
+
+
 
         if args.function == '__init__':
             return cls(*args.args, **args.kwargs)     
@@ -855,7 +858,7 @@ class c(*CORE_MODULES):
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
  
-        c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow] class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
+        c.print(f'[bold cyan]Launching --> <<[/bold cyan][bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}>>', color='green')
 
         launch_kwargs = dict(
                 module=module, 
@@ -867,7 +870,6 @@ class c(*CORE_MODULES):
                 refresh=refresh,
                 **extra_launch_kwargs
         )
-        print(launch_kwargs)
         assert fn != None, 'fn must be specified for pm2 launch'
     
         return  getattr(cls, f'{mode}_launch')(**launch_kwargs)

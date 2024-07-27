@@ -8,10 +8,6 @@ class App(c.Module):
     port_range = [8501, 8600]
     name_prefix = 'app::'
 
-
-
-
-
     def start(self,
            module:str = 'server', 
            name : Optional[str] = None,
@@ -23,6 +19,7 @@ class App(c.Module):
            update:bool=False,
            cwd = None, 
            **extra_kwargs):
+        
 
         module = c.shortcuts().get(module, module)
         app2info = self.get('app2info', {})
@@ -38,6 +35,9 @@ class App(c.Module):
         kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
         module_class = c.module(module)
         cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+
+
+        print('cmd', cmd)
         cwd = cwd or os.path.dirname(module_class.filepath())
 
         if remote:
@@ -95,19 +95,11 @@ class App(c.Module):
         return bool(name.startswith(self.name_prefix))
         
     def apps(self, remove_prefix = True):
+
         apps =  [n for n in c.pm2ls() if n.startswith(self.name_prefix)]
         if remove_prefix:
             apps = [n[len(self.name_prefix):] for n in apps]
         return apps
     
-    
-    
-
-
-    
-    
-
 App.run(__name__)
-    
-
-c
+     
