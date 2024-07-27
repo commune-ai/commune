@@ -126,7 +126,6 @@ class Routes:
             module_ph = cls.module(module_ph)
             fn_type = module_ph.classify_fn(fn_ph)
             module_ph = module_ph() if fn_type == 'self' else module_ph
-            print(module_ph, fn_ph, args, kwargs)
             return getattr(module_ph, fn_ph)(*args, **kwargs)
 
         if routes == None:

@@ -49,11 +49,13 @@ CMD_STR="docker run -d \
   -v $PWD:/app \
   -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \
-  $CONTAINER_NAME"
+"
 
 if $DOCKER_WITHIN_DOCKER; then
   CMD_STR="$CMD_STR --privileged"
   
+CMD_STR="$CMD_STR $CONTAINER_NAME"
+
 fi
 
 

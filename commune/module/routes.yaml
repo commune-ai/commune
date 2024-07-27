@@ -95,10 +95,10 @@ namespace: [
                                ]
 
 app : 
-  - 'start_app'
-  - 'app'
-  - 'apps'
-  - 'app2info'
+  - start_app
+  - app
+  - apps
+  - app2info
   - [kill, kill_app]
 
 user: 
