@@ -379,20 +379,15 @@ class c(*CORE_MODULES):
         if not is_main:
             return {'success':False, 'message':f'Not main module {name}'}
         args = cls.argparse()
-
-
-
         if args.function == '__init__':
             return cls(*args.args, **args.kwargs)     
         else:
             fn = getattr(cls, args.function)
             fn_type = cls.classify_fn(fn)
-
             if fn_type == 'self':
                 module = cls(*args.args, **args.kwargs)
             else:
                 module = cls
-
             return getattr(module, args.function)(*args.args, **args.kwargs)     
     
     @classmethod
