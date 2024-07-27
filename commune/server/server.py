@@ -154,7 +154,7 @@ class Server(c.Module):
               ):
         
         if tag_seperator in str(module):
-            module, tag = module.split('::')
+            module, tag = module.split(tag_seperator)
         module = module or c.module_name()
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = name or server_name or module
@@ -192,10 +192,8 @@ class Server(c.Module):
                     } 
 
         module_class = c.module(module)
-        print('Serving', module_class, kwargs, module)
         kwargs.update(extra_kwargs)
         module = module_class(**kwargs)
-        print('Serving', module, kwargs)
         cls(module=module, 
                                           name=name, 
                                           port=port, 
@@ -277,6 +275,8 @@ class Server(c.Module):
                 c.deregister_server(m, network=network)
 
         return {'server_killed': delete_modules, 'update': update}
+    
+    
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
         servers = c.servers(network='local')

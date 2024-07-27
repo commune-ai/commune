@@ -446,7 +446,7 @@ class SubspaceSubnet:
                     mode = 'http',
                     block = None,
                     max_age = None,
-                    lite = True, 
+                    lite = False, 
                     update = False,
                     **kwargs ) -> 'ModuleInfo':
         U16_MAX = 2**16 - 1
@@ -873,3 +873,50 @@ class SubspaceSubnet:
         
         module['stake_from'] = {k: self.format_amount(v, fmt=fmt)  for k, v in module['stake_from']}
         return module
+    
+
+
+    def netuid2module(self, netuid: int = 0, update=False, fmt:str='j', **kwargs) -> 'ModuleInfo':
+        netuids = self.netuids(update=update)
+        future2netuid = {}
+        for netuid in netuids:
+            f  = c.submit(self.get_module, dict(netuid=netuid, update=update, fmt=fmt, **kwargs))
+            future2netuid[f] = netuid
+        netuid2module = {}
+        progress = c.tqdm(len(netuids))
+
+        for future in c.as_completed(future2netuid):
+            netuid = future2netuid.pop(future)
+            module = future.result()
+            if not c.is_error(module):
+                netuid2module[netuid] = module
+            progress.update(1)  
+            
+        return netuid2module
+                
+            
+        
+
+
+    def netuid2uid(self, key=None, update=False, **kwargs) -> Dict[str, str]:
+        key = self.resolve_key_ss58(key)
+        netuids = self.netuids(update=update)
+        netuid2uid = {}
+        progress = c.tqdm(len(netuids))
+
+        future2netuid = {}
+        for netuid in netuids:
+            f = c.submit(self.get_uid, kwargs=dict(key=key, netuid=netuid, **kwargs))
+            future2netuid[f] = netuid
+
+        for future in c.as_completed(future2netuid):
+            netuid = future2netuid.pop(future)
+            uid = future.result()
+            if uid != None:
+                netuid2uid[netuid] = uid
+            progress.update(1)
+        # sort by netuid key
+        netuid2uid = dict(sorted(netuid2uid.items(), key=lambda x: x[0]))
+
+        return netuid2uid
+

@@ -11,6 +11,8 @@ t1 = time.time()
 
 nest_asyncio.apply()
 
+# YOU CAN DEFINE YOUR CORE MODULES BY JUST adding a class to the core folder
+# for instance if you have a class called 'os_fam' the file would be ./commune/module/_os_fam.py
 def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
     """
     find the core modules that construct the commune block module
@@ -44,7 +46,6 @@ class c(*CORE_MODULES):
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
-    encrypted_prefix = 'ENCRYPTED' # the prefix for encrypted values
     giturl = git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
@@ -121,9 +122,13 @@ class c(*CORE_MODULES):
 
     @classmethod
     def module_name(cls, obj=None):
+        if hasattr(cls, 'name') and isinstance(cls.name, str):
+            return cls.name
+        
         obj = cls.resolve_object(obj)
         module_file =  inspect.getfile(obj)
         return cls.path2simple(module_file)
+    
     path  = name = module_name 
     
     @classmethod
@@ -209,14 +214,6 @@ class c(*CORE_MODULES):
         return cls.__name__
 
     @classmethod
-    def get_server_info(cls,name:str) -> Dict:
-        return cls.namespace_local().get(name, {})
-
-    @classmethod
-    async def async_connect(cls, *args, **kwargs):
-        return c.connect(*args, **kwargs)
-     
-    @classmethod
     def root_address(cls, name:str='module',
                     network : str = 'local',
                     timeout:int = 100, 
@@ -241,8 +238,6 @@ class c(*CORE_MODULES):
     def key_address(self):
         return self.key.ss58_address
 
-
-    
     @classmethod
     def is_module(cls, obj=None) -> bool:
         
@@ -423,6 +418,7 @@ class c(*CORE_MODULES):
         if kwargs is None:
             kwargs = {}
         return fn(*args, **kwargs)
+    
     fn = module_fn
     
     @classmethod
@@ -432,7 +428,7 @@ class c(*CORE_MODULES):
         '''
         module_class =  c.get_module(module,**kwargs)
         return module_class
-    m = mod = module
+    _module = m = mod = module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -722,6 +718,8 @@ class c(*CORE_MODULES):
         key = self.resolve_key(key)
         signature =  key.sign(data, **kwargs)
         return signature
+    
+    
     @classmethod
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
         key = c.get_key(key)
@@ -737,34 +735,8 @@ class c(*CORE_MODULES):
         self.users.pop(key, None)
     
     @classmethod
-    def client(cls, *args, **kwargs) -> 'Client':
-        return c.module('client')(*args, **kwargs)
-    
-    @classmethod
-    def serialize(cls, x, **kwargs):
-        return c.serializer().serialize(x, **kwargs)
-
-    @classmethod
-    def serializer(cls, *args, **kwargs):
-        return  c.module('serializer')(*args, **kwargs)
-    
-    @classmethod
-    def deserialize(cls, x, **kwargs):
-        return c.serializer().deserialize(x, **kwargs)
-    
-    @classmethod
-    def process(cls, *args, **kwargs):
-        return c.module('process').process(*args, **kwargs)
-
-    @classmethod
-    def copy(cls, data: Any) -> Any:
-        import copy
-        return copy.deepcopy(data)
-
-    @classmethod
     def check_module(cls, module:str):
         return c.connect(module)
-
 
     @classmethod
     def is_pwd(cls, module:str = None):

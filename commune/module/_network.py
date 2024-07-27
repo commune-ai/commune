@@ -6,6 +6,8 @@ from typing import *
 import socket
 
 class Network:
+    default_port_range = [50050, 50150] # the port range between 50050 and 50150
+
 
     @staticmethod
     def int_to_ip(int_val: int) -> str:
@@ -641,3 +643,15 @@ class Network:
         for port in range(*port_range):
             used_ports[port] = cls.port_used(port)
         return used_ports
+    
+
+    @classmethod
+    def resolve_ip(cls, ip=None, external:bool=True) -> str:
+        if ip == None:
+            if external:
+                ip = cls.external_ip()
+            else:
+                ip = '0.0.0.0'
+        assert isinstance(ip, str)
+        return ip
+

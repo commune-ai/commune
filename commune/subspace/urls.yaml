@@ -1,11 +1,4 @@
-netuid: 0
-network: main
-network_mode: ws
-subnet: commune
-url: null
-url_search: commune
-urls:
-  main:
+main:
     http:
     - https://commune.api.onfinality.io/public-http
     - https://commune-api-node-0.communeai.net
@@ -74,8 +67,8 @@ urls:
     - wss://commune-api-node-29.communeai.net
     - wss://commune-api-node-30.communeai.net
     - wss://commune-api-node-31.communeai.net
-  test:
-    http:
-    - https://testnet-commune-api-node-0.communeai.net
-    ws:
-    - wss://testnet-commune-api-node-0.communeai.net
+test:
+  http:
+  - https://testnet-commune-api-node-0.communeai.net
+  ws:
+  - wss://testnet-commune-api-node-0.communeai.net

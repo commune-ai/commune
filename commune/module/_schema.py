@@ -720,9 +720,22 @@ class Schema:
             
         return functions
     @classmethod
-    def functions(cls, search = None, include_parents = True):
-        return cls.get_functions(search=search, include_parents=include_parents)
+    def functions(cls, search = None, include_parents = True, avoid_functions = None):
+        if cls.is_root_module():
+            include_parents = True
+        else:
 
+            import commune as c
+            avoid_functions = c.functions()
+        functions =  cls.get_functions(search=search, include_parents=include_parents)
+        if avoid_functions != None:
+            functions = [f for f in functions if f not in avoid_functions]
+        return functions
+
+    def n_fns(self, search = None):
+        return len(self.fns(search=search))
+    
+    fn_n = n_fns
     fns = functions
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -1100,3 +1113,10 @@ class Schema:
                 found_lines += [line]
         
         return found_lines
+    
+
+    @classmethod
+    def params(cls, fn='__init__'):
+        params =  cls.fn_defaults(fn)
+        params.pop('self', None)
+        return params

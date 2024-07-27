@@ -10,7 +10,6 @@ class Config:
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict=None,
                    add_attributes: bool = False,
-                   save_config:bool = False,
                    **extra_kwargs
                    ) -> 'Munch':
         '''
@@ -35,8 +34,6 @@ class Config:
         self.config = config 
         self.kwargs = kwargs
 
-        if save_config:
-            self.save_config(config=config)
             
         return self.config
     
@@ -47,8 +44,8 @@ class Config:
         '''
         config = cls.load_config()
         if not config:
-            if hasattr(cls, 'init_kwargs'):
-                config = cls.init_kwargs()
+            if hasattr(cls, 'params'):
+                config = cls.params() # from _schema.py
             else:
                 config = {}
         return config
@@ -135,9 +132,6 @@ class Config:
                     x[k] = cls.munch2dict(v)
 
         return x 
-
-    
-
         
     @classmethod
     def has_config(cls) -> bool:
@@ -146,7 +140,6 @@ class Config:
             return os.path.exists(cls.config_path())
         except:
             return False
-        
     
     @classmethod
     def config_path(cls) -> str:
