@@ -3,6 +3,38 @@ import os
 from functools import partial
 from typing import List, Dict
 
+
+"""
+
+Routes are a way to connect different modules together through the routes.yaml file.
+The routes.yaml file is a dictionary that maps the module name to the function name.
+There are 3 ways to define a route:
+
+please look at self.resolve_to_from_fn_routes
+
+way 1
+
+```yaml
+module_name:
+    - function_name
+```
+
+For renaming the function name in the current module
+
+way 2a 
+
+```yaml
+module_name:
+    - [function_name, new_name]
+```
+or
+
+way 2b
+module_name:
+    - {fn: 'function_name', name: 'new_name'}
+
+"""
+
 class Routes:
 
     @classmethod
@@ -11,14 +43,19 @@ class Routes:
 
     @classmethod
     def has_routes(cls):
-        
         return os.path.exists(cls.routes_path()) or (hasattr(cls, 'routes') and isinstance(cls.routes, dict)) 
     
+    route_cache = None
     @classmethod
-    def routes(cls):
+    def routes(cls, cache=True):
+        if cls.route_cache is not None and cache:
+            return cls.route_cache 
         if not cls.has_routes():
             return {}
-        return cls.get_yaml(cls.routes_path())
+        
+        routes =  cls.get_yaml(cls.routes_path())
+        cls.route_cache = routes
+        return routes
 
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
@@ -83,14 +120,14 @@ class Routes:
 
         t0 = cls.time()
 
-        def fn_generator(*args, fn, module, **kwargs):
-            module = cls.module(module)
-            fn_type = module.classify_fn(fn)
-            if fn_type == 'self':
-                module = module()
-            else:
-                module = module
-            return getattr(module, fn)(*args, **kwargs)
+        # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
+        # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
+        def fn_generator( *args, module_ph, fn_ph, **kwargs):
+            module_ph = cls.module(module_ph)
+            fn_type = module_ph.classify_fn(fn_ph)
+            module_ph = module_ph() if fn_type == 'self' else module_ph
+            print(module_ph, fn_ph, args, kwargs)
+            return getattr(module_ph, fn_ph)(*args, **kwargs)
 
         if routes == None:
             if not hasattr(cls, 'routes'):
@@ -102,7 +139,8 @@ class Routes:
                 # resolve the from and to function names
                 from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
                 # create a partial function that is bound to the module
-                fn_obj = partial(fn_generator, fn=from_fn, module=m )
+                fn_obj = partial(fn_generator, fn_ph=from_fn, module_ph=m )
+                # make sure the funciton is as close to the original function as possible
                 fn_obj.__name__ = to_fn
                 # set the function to the current module
                 setattr(cls, to_fn, fn_obj)
@@ -112,4 +150,27 @@ class Routes:
         return {'success': True, 'msg': 'enabled routes'}
     
 
+    def fn2module(cls):
+        '''
+        get the module of a function
+        '''
+        routes = cls.routes()
+        fn2module = {}
+        for module, fn_routes in routes.items():
+            for fn_route in fn_routes:
+                if isinstance(fn_route, dict):
+                    fn_route = fn_route['to']
+                elif isinstance(fn_route, list):
+                    fn_route = fn_route[1]
+                fn2module[fn_route] = module
+
+            
+        return fn2module
+    
+
+    def is_route(cls, fn):
+        '''
+        check if a function is a route
+        '''
+        return fn in cls.fn2module()
     

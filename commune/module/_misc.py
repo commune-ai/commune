@@ -964,3 +964,9 @@ class Misc:
                     results.append(file)
 
         return results
+
+
+    @classmethod
+    def copy(cls, data: Any) -> Any:
+        import copy
+        return copy.deepcopy(data)

@@ -52,6 +52,8 @@ class Client(c.Module, ClientPool):
                 args = [fn] + list(args)
             module , fn = module.split('/')
 
+        print('module', module)
+
         module = cls.connect(module=module,
                            network=network,  
                            virtual=False, 

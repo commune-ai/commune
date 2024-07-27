@@ -168,15 +168,13 @@ class Namespace(c.Module):
         it will register itself with the namespace_local dictionary.
         '''
         namespace = {}
-        ip = c.ip()
-        addresses = [ip+':'+str(p) for p in c.used_ports()]
+        addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
         future2address = {}
+        print(addresses)
         for address in addresses:
-            f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
+            f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
             future2address[f] = address
         futures = list(future2address.keys())
-        c.print(f'Updating namespace {network} with {len(futures)} addresses')
-
         try:
             for f in c.as_completed(futures, timeout=timeout):
                 address = future2address[f]
@@ -354,48 +352,6 @@ class Namespace(c.Module):
         
         return {'success': True, 'msg': 'Namespace tests passed.'}
     
-
-    @classmethod
-    def build_namespace(cls,
-                        timeout:int = 2,
-                        network:str = 'local', 
-                        verbose=True)-> dict:
-        '''
-        The module port is where modules can connect with each othe.
-        When a module is served "module.serve())"
-        it will register itself with the namespace_local dictionary.
-        '''
-        namespace = {}
-        ip = c.ip()
-        addresses = [ip+':'+str(p) for p in c.used_ports()]
-        future2address = {}
-        for address in addresses:
-            f = c.submit(c.call, params=[address+'/server_name'], timeout=timeout)
-            future2address[f] = address
-        futures = list(future2address.keys())
-        c.print(f'Updating namespace {network} with {len(futures)} addresses')
-
-        try:
-            for f in c.as_completed(futures, timeout=timeout):
-                address = future2address[f]
-                try:
-                    name = f.result()
-                    if 'Internal Server Error' in name:
-                        raise Exception(name)
-                    if isinstance(name, dict) and 'error' in name:
-                        c.print(f'Error {name} with {address}', color='red', verbose=verbose)
-                    else:
-                        namespace[name] = address
-                    c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
-                except Exception as e:
-                    c.print(f'Error {e} with {address}', color='red', verbose=verbose)
-        except Exception as e:
-            c.print(f'Timeout error {e}', color='red', verbose=verbose)
-
-        cls.put_namespace(network, namespace)
-
-            
-        return namespace
 
     
     @classmethod

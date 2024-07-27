@@ -22,17 +22,17 @@ class SubspaceDashboard(c.Module):
             c.serve(api, wait_for_server=True)
         self.api = c.connect(api)
 
-    @c.endpoint()
     def global_state(self, max_age=None):
         global_state = self.get('global_state', None, max_age=max_age)
         if global_state == None :
-            global_state =  self.api.global_state(max_age=max_age)
+            return self.api.global_state(max_age=max_age)
         return global_state
     
     def sync(self, max_age=None):
         global_state = self.global_state(max_age=max_age)
         self.__dict__.update(global_state)
         return global_state
+
 
     def subnet_state(self, netuid=0, max_age=None):
         subnet_state = self.get(f'subnet_state/{netuid}', None, netuid=netuid, max_age=max_age)
@@ -79,13 +79,8 @@ class SubspaceDashboard(c.Module):
     def sidebar(self):
         return self.select_key()
 
-    @classmethod
-    def app(cls, backend='app'):
-        while not c.server_exists(backend):
-            print(f"Waiting for {backend}")
-            c.serve(backend)
-            c.sleep(5)
-        self = cls(backend=backend)
+    def app(cls):
+        self = cls()
         self.sidebar()
         self.subnets_app()
 

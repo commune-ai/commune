@@ -7,6 +7,7 @@
 NAME=commune
 IMAGE_NAME=$NAME
 CONTAINER_NAME=$NAME
+ENABLE_DOCKER=true
 
 IMAGE_PATH=./
 SHM_SIZE=4g
@@ -49,6 +50,12 @@ CMD_STR="docker run -d \
   -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \
   $CONTAINER_NAME"
+
+if $DOCKER_WITHIN_DOCKER; then
+  CMD_STR="$CMD_STR --privileged"
+  
+fi
+
 
 eval $CMD_STR
 

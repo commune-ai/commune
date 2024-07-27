@@ -1185,6 +1185,7 @@ class SubspaceWallet:
         update=False,
         modules = None,
         vector_length = 2**16 - 1,
+        nonce=None,
         **kwargs
     ) -> bool:
         import torch
@@ -1207,7 +1208,7 @@ class SubspaceWallet:
                   'weights': list(map(int, weights.tolist())), 
                   'netuid': netuid}
         
-        return self.compose_call('set_weights',params = params , key=key, **kwargs)
+        return self.compose_call('set_weights',params = params , key=key, nonce=nonce, **kwargs)
         
     vote = set_weights
     

@@ -25,4 +25,3 @@ for f in Module.self_functions():
 
 
 c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
-

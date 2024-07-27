@@ -548,6 +548,7 @@ class Tree:
             if search != None:
                 module_list = [m for m in module_list if search in m]
         return module_list
+    get_modules = modules
 
     @classmethod
     def has_module(cls, module):

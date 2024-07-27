@@ -7,7 +7,7 @@ import commune as c
 import requests 
 from .subnet import SubspaceSubnet
 from .wallet import SubspaceWallet
-from substrateinterface import SubstrateInterface, Keypair
+from substrateinterface import SubstrateInterface
 
 
 class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
@@ -26,11 +26,28 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                  'get_stake_from']
 
 
-    def __init__(self, network=None, **kwargs):
-        self.config = self.set_config(**kwargs)
+    def __init__(self, 
+                network: str =  'main',
+                network_mode: str =  'ws',
+                subnet: str = 'commune',
+                url: str = None,
+                url_search: str  = 'commune',
+                url_path: str = None,
+                netuid : int =  0,
+                max_age: int = 1000,
+                sync_loop = False,
+                **kwargs,
+        ):
+
+
+        
+        self.config = self.set_config(locals())
+        self.url_path = self.dirpath() +  '/urls.yaml'
         # merge the config with the subspace config
         self.config = c.dict2munch({**Subspace.config(), **self.config})
         self.set_network(network)
+        if sync_loop:
+            c.thread(self.sync_loop)
     
     init_subspace = __init__    
 
@@ -195,7 +212,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         
         network = self.resolve_network()
         if url == None:
-            urls_map = getattr(self.config.urls,  network)
+            urls_map = getattr(self.urls(),  network)
             urls = urls_map.get(mode, [])
             assert len(urls) > 0, f'No urls found for network {network} and mode {mode}'
             if len(urls) > 1:
@@ -847,8 +864,84 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         return f'<Subspace: network={self.config.network}>'
     def __str__(self) -> str:
         return f'<Subspace: network={self.config.network}>'
+    
+    def urls(self):
+        return c.dict2munch(c.load_yaml(self.url_path))
+    
 
+    def global_state(self, max_age=None, update=False):
+        max_age = max_age or self.config.max_age
 
+        global_state = self.get('global_state', None, max_age=max_age, update=update)
+
+        if global_state == None :
+            params = self.global_params(max_age=max_age)
+            subnet2netuid = self.subnet2netuid(max_age=max_age)
+            subnet_names = list(subnet2netuid.keys())
+            netuids = list(subnet2netuid.values())
+            subnet2emission = self.subnet2emission(max_age=max_age)
+            global_state =  {
+                'params': params,
+                'subnet2netuid': subnet2netuid,
+                'subnet_names': subnet_names,
+                'netuids': netuids,
+                'subnet2emission': subnet2emission
+            }
+        self.__dict__.update(global_state)
+        return global_state
+
+    def subnet_state(self, netuid=0, max_age=None, timeout=60):
+
+        max_age = max_age or self.config.max_age
+        subnet_state = self.get(f'subnet_state/{netuid}', None, netuid=netuid, max_age=max_age)
+        if subnet_state == None:
+            subnet_params = self.subnet_params(netuid=netuid, max_age=max_age)
+            subnet_modules = self.get_modules(netuid=netuid,  max_age=max_age)
+            subnet_name = subnet_params['name']
+            subnet_state = {
+                'params': subnet_params,
+                'netuid': netuid,
+                'name': subnet_name,
+                'modules': subnet_modules
+            }
+        return subnet_state
+    
+    def sync(self, max_age=None):
+        try:
+            self.state(max_age=max_age)
+        except Exception as e:
+            c.print(f'Error in syncing {e}')
+    
+    def state(self, max_age=None):
+        max_age = max_age or self.config.max_age
+        path = f'state/{self.network}'
+        state_dict = self.get(path, None, max_age=max_age)
+        if state_dict == None:
+            global_state = self.global_state( max_age=max_age)
+            progress_bar = c.tqdm(total=len(self.netuids))
+            subnet_state = {}
+            for netuid in self.netuids:
+                c.print(f"Syncing {netuid}")
+                subnet_state[netuid] = self.subnet_state(**{'netuid': netuid, 'max_age': max_age})     
+                progress_bar.update(1)
+            state = {'global': global_state, 'subnets': subnet_state}
+            self.put(path, state)
+        return {'msg': 'synced', 'netuids': self.netuids, 'subnet_names': self.subnet_names}
+    
+    
+    def sync_loop(self,max_age=None):
+        max_age = max_age or self.config.max_age
+
+        c.print(f'Starting Sync Loop max_age={max_age}')
+        futures = []
+        while True:
+            if len(futures) > 0:
+                c.print('Waiting for futures to complete')
+                
+            futures += [c.submit(self.sync)]
+            c.print(c.wait(futures, timeout=self.config.max_age))
+            c.print('Synced all subnets, sleeping')
+            c.sleep(self.config.max_age)
 
 Subspace.run(__name__)
 
