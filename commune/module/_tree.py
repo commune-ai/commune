@@ -34,10 +34,11 @@ class Tree:
             return simple_path
         if simple_path.endswith(extension):
             simple_path = simple_path[:-len(extension)]
+    
 
         path = None
         pwd = cls.pwd()
-        dir_paths = list(set([pwd, pwd + '/src', cls.root_path + '/module', cls.root_path + '/modules',  cls.root_path,   ]))
+        dir_paths = list(set([ cls.root_path ,  cls.root_path + '/modules', pwd, pwd + '/src'  ]))
 
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
@@ -58,9 +59,7 @@ class Tree:
                         if os.path.isfile(new_path):
                             path = new_path
                             break   
- 
 
-                
             if path != None:
                 break
 
@@ -429,7 +428,6 @@ class Tree:
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
             object_path = object_path[1:]
-        print(object_path, 'object_path')
         object_path = object_path + '.' + classes[-1]
         return object_path
 
@@ -458,7 +456,7 @@ class Tree:
     def import_module(cls, 
                       import_path:str, 
                       included_pwd_in_path=True, 
-                      try_prefixes = ['commune', 'commune.modules', 'modules', 'commune.subspace', 'subspace']
+                      try_prefixes = ['commune','commune.modules', 'modules', 'commune.subspace', 'subspace']
                       ) -> 'Object':
         from importlib import import_module
         if included_pwd_in_path and not cls.included_pwd_in_path:
@@ -467,6 +465,10 @@ class Tree:
             sys.path.append(pwd)
             sys.path = list(set(sys.path))
             cls.included_pwd_in_path = True
+
+        # if commune is in the path more than once, we want to remove the duplicates
+        if cls.libname in import_path:
+            import_path = cls.libname + import_path.split(cls.libname)[-1]
         pwd = cls.pwd()
         try:
             return import_module(import_path)
