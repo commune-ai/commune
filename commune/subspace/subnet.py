@@ -616,6 +616,28 @@ class SubspaceSubnet:
             
         return weights
     
+    def resolve_uid(self, uid=None, netuid=0, **kwargs) -> int:
+        if isinstance(uid, int):
+            return uid
+        elif isinstance(uid, str):
+            if c.key_exists(uid):
+                # for key
+                uid = self.resolve_key_ss58(uid)
+                uid = self.key2uid(netuid=netuid,**kwargs)[uid]
+            else:
+                # resolve name
+                uid = self.name2uid(name=uid, netuid=netuid, **kwargs)
+                
+        return uid
+        
+
+
+    def get_weights(self, key=None, netuid = 0,  update=False, **kwargs) -> list:
+        uid = self.resolve_uid(key, netuid=netuid)
+        weights =  self.query('Weights', params=[netuid, uid], update=update, **kwargs)
+        return weights
+    
+    
 
 
 

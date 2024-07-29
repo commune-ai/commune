@@ -72,7 +72,7 @@ class App(c.Module):
         }
         app2info[name] = app_info
         self.put('app2info', app2info )
-        c.cmd(cmd, verbose=True, cwd=cwd)
+        c.cmd(cmd, verbose=True, cwd=c.pwd())
         return app_info
     
     start_app = app = start

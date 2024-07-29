@@ -23,25 +23,24 @@ class Task(c.Module):
                 kwargs:dict, 
                 timeout:int=10, 
                 priority:int=1, 
-                save:bool = False,
-                path = None,
+                path = None, 
                 **extra_kwargs):
         
         self.future = Future()
         self.fn = fn # the function to run
         self.start_time = time.time() # the time the task was created
+        self.end_time = None
         self.args = args # the arguments of the task
         self.kwargs = kwargs # the arguments of the task
         self.timeout = timeout # the timeout of the task
         self.priority = priority # the priority of the task
         self.data = None # the result of the task
+        self.latency = None
     
         self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
-        self.extra_kwargs = extra_kwargs
-        self.save = save
+        self.path = self.resolve_path(path) if path != None else None
         self.status = 'pending' # pending, running, done
-        self.__dict__.update(extra_kwargs)
         # save the task state
 
 
@@ -53,46 +52,29 @@ class Task(c.Module):
     def state(self) -> dict:
         return {
             'fn': self.fn.__name__,
-            'kwargs': self.kwargs,
             'args': self.args,
+            'kwargs': self.kwargs,
             'timeout': self.timeout,
             'start_time': self.start_time, 
+            'end_time': self.end_time,
+            'latency': self.latency,
             'priority': self.priority,
             'status': self.status,
             'data': self.data, 
-            **self.extra_kwargs
         }
     
-    @property
-    def save_state(self):
-        
-        self.path
-        path = f"{self.status}_{self.fn_name}_args={str(self.args)}_kwargs={str(self.kwargs)}"
-        if self.path != None:
-            path = f"{self.path}/{path}"
-        if self.status == 'pending':
-            return self.put(self.status2path[self.status], self.state)
-        elif self.status in ['complete', 'failed']:
-            if c.exists(self.paths['pending']):
-                c.rm(self.paths['pending'])
-            return self.put(self.paths[self.status], self.state)
-        else:
-            raise ValueError(f"Task status must be pending or complete, not {self.status}")
     
     def run(self):
         """Run the given work item"""
         # Checks if future is canceled or if work item is stale
-        if (not self.future.set_running_or_notify_cancel()) or (
-            (time.time() - self.start_time) > self.timeout
-        ):
-            self.future.set_exception(TimeoutError('Task timed out'))
+        self.start_time = c.time()
 
+        if (not self.future.set_running_or_notify_cancel()) or (time.time() - self.start_time) > self.timeout:
+            self.future.set_exception(TimeoutError('Task timed out'))
         try:
             data = self.fn(*self.args, **self.kwargs)
             self.status = 'complete'
         except Exception as e:
-
-            # what does this do? A: it sets the exception of the future, and sets the status to failed
             data = c.detailed_error(e)
             if 'event loop' in data['error']: 
                 c.new_event_loop(nest_asyncio=True)
@@ -100,11 +82,14 @@ class Task(c.Module):
 
         self.future.set_result(data)
         # store the result of the task
+        if self.path != None:
+            self.save(self.path, self.state)
         
+        self.end_time = c.time()
+        self.latency = self.end_time - self.start_time
         self.data = data       
 
-        if self.save:
-            self.save_state()
+
 
     def result(self) -> object:
         return self.future.result()
@@ -136,6 +121,3 @@ class Task(c.Module):
             return self.priority < other
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
-
-
-

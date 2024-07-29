@@ -97,7 +97,6 @@ class Client(c.Module, ClientPool):
         assert info['key'] == key.ss58_address
         return {'info': info, 'key': str(key)}
 
-
     def __str__ ( self ):
         return "Client({})".format(self.address) 
     def __repr__ ( self ):
@@ -110,10 +109,7 @@ class Client(c.Module, ClientPool):
     def __repr__(self) -> str:
         return super().__repr__()
 
-    def forward(self,
-                       *args,
-                       timeout:int=10,
-                          **kwargs):
+    def forward(self, *args, timeout:int=10, **kwargs):
         return self.loop.run_until_complete(asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout))
 
     async def async_forward(self, 
@@ -142,13 +138,18 @@ class Client(c.Module, ClientPool):
                 args = params
             elif isinstance(params, dict):
                 kwargs = params  
+
+
         input =  { 
                     "args": args or [],
                     "kwargs": {**(kwargs or {}), **extra_kwargs},
                     "timestamp": c.timestamp(),
                     }
-        input = self.serializer.serialize(input)
-        input = self.key.sign(input, return_json=True)  
+        
+
+        input = self.key.sign(self.serializer.serialize(input), return_json=True)
+
+    
 
 
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)

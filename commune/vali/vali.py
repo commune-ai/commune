@@ -63,7 +63,7 @@ class Vali(c.Module):
         self.config.storage_path = storage_path
         self.module = module
 
-    def init_vali(self, config=None, module=None, score_fn=None, **kwargs):
+    def init_vali(self, config=None, module=None, score_fn=None, update=0, **kwargs):
         # initialize the validator
         # merge the config with the default config
         if module != None:
@@ -72,6 +72,8 @@ class Vali(c.Module):
         config = c.dict2munch({**Vali.config(), **config})
         config.verbose = bool(config.verbose or config.debug)
         self.config = config
+        if update:
+            self.config.max_staleness = 0
 
         self.init_state()
         self.set_score_fn(score_fn)
@@ -243,13 +245,13 @@ class Vali(c.Module):
     epoch2results = {}
 
     @classmethod
-    def run_epoch(cls, network='local', vali=None, run_loop=False,  **kwargs):
+    def run_epoch(cls, network='local', vali=None, run_loop=False, update=1, **kwargs):
         if vali != None:
             cls = c.module(vali)
-        self = cls(network=network, run_loop=run_loop, **kwargs)
+        self = cls(network=network, run_loop=run_loop, update=update, **kwargs)
         return self.epoch()
 
-    def epoch(self,  **kwargs):
+    def epoch(self,  df=True,  **kwargs):
     
         try:
             self.epochs += 1
@@ -284,13 +286,11 @@ class Vali(c.Module):
             c.print(c.detailed_error(e), color='red')
 
         results = [r for r in results if not c.is_error(r)]
-        print(len(results))
-        if len(results) > 0 and 'w' in results[0]:
-            df =  c.df(results)
-            df = df.sort_values(by='w', ascending=False)
-            return df
-        else:
-            return results
+        if df:
+            if len(results) > 0 and 'w' in results[0]:
+                results =  c.df(results)
+                results = results.sort_values(by='w', ascending=False)
+        return results
 
 
     @property

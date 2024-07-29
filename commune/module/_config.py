@@ -130,7 +130,6 @@ class Config:
             for k,v in x.items():
                 if isinstance(v, Munch) and recursive:
                     x[k] = cls.munch2dict(v)
-
         return x 
         
     @classmethod

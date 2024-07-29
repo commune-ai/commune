@@ -11,62 +11,205 @@ import json
 
 
 
-class Serializer(c.Module):
 
-    def serialize(self,x:dict, mode = 'str', copy_value = True):
-        if copy_value:
-            x = c.copy(x)
-        x = self.resolve_value(x)
-        x = self.resolve_serialized_output(x, mode=mode)
-        return x
+class MunchSerializer:
+
+    def serialize(self, data: dict) -> str:
+        return  json.dumps(self.munch2dict(data))
+
+    def deserialize(self, data: bytes) -> 'Munch':
+        return self.dict2munch(self.str2dict(data))
+
     
-    def resolve_serialized_output(self, x, mode='str'):
-        if mode == 'str':
-            if isinstance(x, dict):
-                x = self.dict2str(x)
-        elif mode == 'bytes':
-            if isinstance(x, dict):
-                x = self.dict2bytes(x)
-            elif isinstance(x, str):
-                x = self.str2bytes(x)
-        elif mode == 'dict' or mode == None or mode == 'nothing':
-            x = x
-        else:
-            raise Exception(f'{mode} not supported')
+    def str2dict(self, data:str) -> bytes:
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        if isinstance(data, str):
+            data = json.loads(data)
+        return data
+
+    @classmethod
+    def dict2munch(cls, x:dict, recursive:bool=True)-> 'Munch':
+        from munch import Munch
+        '''
+        Turn dictionary into Munch
+        '''
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = cls.dict2munch(v)
+            x = Munch(x)
         return x 
 
-    def resolve_value(self, x):
+    @classmethod
+    def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
+        from munch import Munch
+        '''
+        Turn munch object  into dictionary
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = cls.munch2dict(v)
+        return x 
+        
 
-        if type(x) in [dict, list, set, tuple]:
+    def dict2str(self, data:dict) -> bytes:
+        return
+
+
+class BytesSerializer:
+
+    def serialize(self, data: dict) -> bytes:
+        return data.hex()
+        
+    def deserialize(self, data: bytes) -> 'DataBlock':
+        if isinstance(data, str):
+            data = bytes.fromhex(data)
+        return data
+
+
+class NumpySerializer:
+    
+    def serialize(self, data: 'np.ndarray') -> 'np.ndarray':     
+        return  self.numpy2bytes(data).hex()
+
+    def deserialize(self, data: bytes) -> 'np.ndarray':     
+        if isinstance(data, str):
+            data = bytes.fromhex(data)
+        return self.bytes2numpy(data)
+
+    def bytes2numpy(self, data:bytes) -> np.ndarray:
+        import msgpack_numpy
+        import msgpack
+        output = msgpack.unpackb(data, object_hook=msgpack_numpy.decode)
+        return output
+    
+
+    def numpy2bytes(self, data:np.ndarray)-> bytes:
+        import msgpack_numpy
+        import msgpack
+        output = msgpack.packb(data, default=msgpack_numpy.encode)
+        return output
+    
+    @classmethod
+    def bytes2str(cls, x, **kwargs):
+        return x.hex()
+    
+    @classmethod
+    def str2bytes(cls, x, **kwargs):
+        return 
+
+
+
+class PandasSerializer:
+
+    def serialize(self, data: 'pd.DataFrame') -> 'DataBlock':
+        data = data.to_json()
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        return data
+    
+    def deserialize(self, data: bytes) -> 'pd.DataFrame':
+        import pandas as pd
+        data = pd.DataFrame.from_dict(json.loads(data))
+        return data
+    
+
+class TorchSerializer:
+    def deserialize(self, data: dict) -> 'torch.Tensor':
+        import safetensors
+        if isinstance(data, str):
+            data = self.str2bytes(data)
+        data = safetensors.torch.load(data)
+        return data['data']
+
+    def serialize(self, data: 'torch.Tensor') -> 'DataBlock':     
+        import safetensors
+        return safetensors.torch.save({'data':data}).hex()
+
+# get all the objects that end in Serializer
+
+# get all the objects that end in Serializer
+name2serializer = {k.split('Serializer')[0].lower():v for k,v in locals().items() if k.endswith('Serializer')}
+# name2serializer
+
+
+
+class Serializer(c.Module):
+
+    name2serializer = name2serializer
+    list_types = [list, set, tuple] # shit that you can turn into lists for json
+    iterable_types = [list, set, tuple, dict] # 
+    json_serializable_types = [int, float, str, bool, type(None)]
+
+
+    def serialize(self,x:dict, mode = 'dict', copy_value = True):
+        if copy_value:
+            x = c.copy(x)
+            
+        if type(x) in self.iterable_types:
             k_list = []
             if isinstance(x, dict):
                 k_list = list(x.keys())
-            elif type(x) in [list, set, tuple]:
+            else:
+                assert type(x) in self.list_types, f'{type(x)} not supported'
                 k_list = list(range(len(x)))
                 x = list(x) 
             for k in k_list:
-                x[k] = self.resolve_value(x[k])
-            return x
-        new_value = None
+                x[k] = self.serialize(x[k],mode=None)
+            return x        
         v_type = type(x)
-        if v_type in [dict, list, tuple, set]:
-            new_value = self.serialize(x, mode=None)
-        elif v_type in [int, float, str, bool, type(None)]:
-            new_value = x
+
+        if v_type in self.json_serializable_types:
+
+            result = x
+
         else:
             # GET THE TYPE OF THE VALUE
-            str_v_type = self.get_type_str(data=x)
-
-            if hasattr(self, f'serialize_{str_v_type}'):
+            data_type = str(type(x)).split("'")[1]
+            if 'Munch' in data_type:
+                data_type = 'munch'
+            if 'Tensor' in data_type or 'torch' in data_type:
+                data_type = 'torch'
+            if 'ndarray' in data_type:
+                data_type = 'numpy'
+            if  'DataFrame' in data_type:
+                data_type = 'pandas'
+            serializer = self.name2serializer[data_type]
+            if not hasattr(serializer, 'date_type'):
+                serializer = serializer()
+                setattr(serializer, 'date_type', data_type)
+                self.name2serializer[data_type] = serializer
+            if serializer is not None:
                 # SERIALIZE MODE ON
-                new_value = {'data':  getattr(self, f'serialize_{str_v_type}')(data=x), 
-                             'data_type': str_v_type,  
+                result = {'data':  serializer.serialize(x), 
+                             'data_type': serializer.date_type,  
                              'serialized': True}
             else:
-                new_value = {"success": False, "error": f"Type {str_v_type} not supported"}
+                result = {"success": False, "error": f"Type {serializer.data_type} not supported"}
 
-        return new_value
+        result = self.resolve_serialized_result(result, mode=mode)
+        return result
+
+
+    def resolve_serialized_result(self, result, mode = 'str'):
+        if mode == 'str':
+            if isinstance(result, dict):
+                result = json.dumps(result)
+        elif mode == 'bytes':
+            if isinstance(result, dict):
+                result = self.dict2bytes(result)    
+            elif isinstance(result, str):
+                result = self.str2bytes(result)
+        elif mode in ['dict' , 'nothing', None]:
+            pass
+        else:
+            raise Exception(f'{mode} not supported')
+        return result
     
+
 
     def is_serialized(self, data):
         if isinstance(data, dict) and data.get('serialized', False) and \
@@ -78,7 +221,6 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
-
         if isinstance(x, dict) and isinstance(x.get('data', None), str):
             x = x['data']
 
@@ -119,68 +261,13 @@ class Serializer(c.Module):
             x = x[0]
         return x
 
-    """
-    ################ BIG DICT LAND ############################
-    """
-    
-
-    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
-        data = data.to_json()
-        if isinstance(data, bytes):
-            data = data.decode('utf-8')
-        return data
-    
-    def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
-        import pandas as pd
-        data = pd.DataFrame.from_dict(json.loads(data))
-        return data
-    
-    def serialize_dict(self, data: dict) -> str :
-
-        int_keys = all([k for k in data.keys() if c.is_int(k)])
-        if int_keys:
-            data = {
-                'data': data,
-                'data_type': 'dict',
-                'serialized': True,
-                'int_keys': True
-            }
-        data = self.dict2bytes(data=data)
-        return  data
-
-    def deserialize_dict(self, data: bytes) -> dict:
-        data = self.bytes2dict(data=data)
-        return data
-
-    def serialize_bytes(self, data: dict) -> bytes:
-        return self.bytes2str(data)
-        
-    def deserialize_bytes(self, data: bytes) -> 'DataBlock':
-        if isinstance(data, str):
-            data = self.str2bytes(data)
-        return data
-
-    def serialize_munch(self, data: dict) -> str:
-        data=self.munch2dict(data)
-        data = self.dict2str(data=data)
-        return  data
-
-    def deserialize_munch(self, data: bytes) -> 'Munch':
-        return self.dict2munch(self.str2dict(data))
-
     def dict2bytes(self, data:dict) -> bytes:
         import msgpack
         data_json_str = json.dumps(data)
         data_json_bytes = msgpack.packb(data_json_str)
         return data_json_bytes
     
-    def dict2str(self, data:dict) -> bytes:
-        try:
-            data_json_str = json.dumps(data)
-        except Exception as e:
-            c.print(data)
-            raise e
-        return data_json_str
+
     
     def str2dict(self, data:str) -> bytes:
         if isinstance(data, bytes):
@@ -188,119 +275,3 @@ class Serializer(c.Module):
         if isinstance(data, str):
             data = json.loads(data)
         return data
-    
-    @classmethod
-    def hex2str(cls, x, **kwargs):
-        return x.hex()
-
-    bytes2str = hex2str
-    
-    @classmethod
-    def str2hex(cls, x, **kwargs):
-        return bytes.fromhex(x)
-
-    str2bytes = str2hex
-        
-
-
-    def bytes2dict(self, data:bytes) -> dict:
-        import msgpack
-        json_object_bytes = msgpack.unpackb(data)
-        return json.loads(json_object_bytes)
-
-    """
-    ################ BIG TORCH LAND ############################
-    """
-    def torch2bytes(self, data:'torch.Tensor')-> bytes:
-        return self.numpy2bytes(self.torch2numpy(data))
-    
-    def torch2numpy(self, data:'torch.Tensor')-> 'np.ndarray':
-        if data.requires_grad:
-            data = data.detach()
-        data = data.cpu().numpy()
-        return data
-
-    def numpy2bytes(self, data:np.ndarray)-> bytes:
-        import msgpack_numpy
-        import msgpack
-        output = msgpack.packb(data, default=msgpack_numpy.encode)
-        return output
-    
-    def bytes2torch(self, data:bytes, ) -> 'torch.Tensor':
-        import torch
-        numpy_object = self.bytes2numpy(data)
-        int64_workaround = bool(numpy_object.dtype == np.int64)
-        if int64_workaround:
-            numpy_object = numpy_object.astype(np.float64)
-        torch_object = torch.tensor(numpy_object)
-        if int64_workaround:
-            dtype = torch.int64
-        return torch_object
-    
-    def bytes2numpy(self, data:bytes) -> np.ndarray:
-        import msgpack_numpy
-        import msgpack
-        output = msgpack.unpackb(data, object_hook=msgpack_numpy.decode)
-        return output
-
-    
-    def deserialize_torch(self, data: dict) -> 'torch.Tensor':
-        from safetensors.torch import load
-        if isinstance(data, str):
-            data = self.str2bytes(data)
-        data = load(data)
-        return data['data']
-
-    def serialize_torch(self, data: 'torch.Tensor') -> 'DataBlock':     
-        from safetensors.torch import save
-        output = save({'data':data})  
-        return self.bytes2str(output)
-
-    def serialize_numpy(self, data: 'np.ndarray') -> 'np.ndarray':     
-        data =  self.numpy2bytes(data)
-        return self.bytes2str(data)
-
-    def deserialize_numpy(self, data: bytes) -> 'np.ndarray':     
-        if isinstance(data, str):
-            data = self.str2bytes(data)
-        return self.bytes2numpy(data)
-
-    def get_type_str(self, data):
-        '''
-        ## Documentation for get_type_str function
-        ### Purpose
-        The purpose of this function is to determine and return the data type of the input given to it in string format. It supports identification of various data types including Munch, Tensor, ndarray, and DataFrame.
-        
-        ### Parameters
-        - `self`: The instance of the class calling this function.
-        - `data`: The input data whose type needs to be identified.
-        
-        ### Returns
-        - `data_type`: A string representing the type of `data`. It can be one of the following:
-          - 'munch' if the input data is of type Munch
-          - 'torch' if the input data is a Torch tensor
-          - 'numpy' if the input data is a NumPy ndarray
-          - 'pandas' if the input data is a Pandas DataFrame
-          - The actual type of the data as a string if it does not match any of the above
-        
-        ### Example Usage
-        ```python
-        my_class_instance = MyClass()
-        data_type = my_class_instance.get_type_str(my_data)
-        print(f"The data type is {data_type}")
-        ```
-        
-        ### Notes
-        This function utilizes Python's `type()` built-in function and string manipulation to parse and determine the data type. It simplifies type checking for specific common data types used in data science and machine learning applications.
-        '''
-        data_type = str(type(data)).split("'")[1]
-        if 'Munch' in data_type:
-            data_type = 'munch'
-        if 'Tensor' in data_type or 'torch' in data_type:
-            data_type = 'torch'
-        if 'ndarray' in data_type:
-            data_type = 'numpy'
-        if  'DataFrame' in data_type:
-            data_type = 'pandas'
-        return data_type
-
