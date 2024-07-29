@@ -171,6 +171,7 @@ vali:
   - from_module
 
 subspace: 
+  - key2balance
   - my_keys
   - key2value
   - send

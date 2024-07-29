@@ -36,7 +36,8 @@ class Tree:
             simple_path = simple_path[:-len(extension)]
 
         path = None
-        dir_paths = list(set([cls.pwd(), cls.root_path + '/module', cls.root_path + '/modules',  cls.root_path  ]))
+        pwd = cls.pwd()
+        dir_paths = list(set([pwd, pwd + '/src', cls.root_path + '/module', cls.root_path + '/modules',  cls.root_path,   ]))
 
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
@@ -413,31 +414,23 @@ class Tree:
                           simple_path:str,
                            cactch_exception = False, 
                            **kwargs) -> str:
-        
-        if cactch_exception:
-            try:
-                object_path = cls.simple2objectpath(simple_path, cactch_exception=False, **kwargs)
-            except Exception as e:
-                cls.print(f'Error in simple2objectpath: {cls.detailed_error(e)}', color='red')
-                object_path = simple_path
-            return object_path
 
         pwd = cls.pwd()
         object_path = cls.simple2path(simple_path, **kwargs)
         classes =  cls.find_classes(object_path)
 
-        if object_path.startswith(cls.libpath):
-            object_path = object_path[len(cls.libpath):]
-        object_path = object_path.replace('.py', '')
         if object_path.startswith(pwd):
             object_path = object_path[len(pwd):]
+        elif object_path.startswith(cls.libpath ):
+            object_path = object_path[len(cls.libpath)+1:]
+
+        object_path = object_path.replace('.py', '')
 
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
             object_path = object_path[1:]
+        print(object_path, 'object_path')
         object_path = object_path + '.' + classes[-1]
-
-
         return object_path
 
 

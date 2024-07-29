@@ -9,7 +9,6 @@ from .subnet import SubspaceSubnet
 from .wallet import SubspaceWallet
 from substrateinterface import SubstrateInterface
 
-
 class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     """
     Handles interactions with the subspace chain.
@@ -317,10 +316,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
         return substrate
     
-    
-    
-
-
 
     def set_network(self, 
                 network:str = None,
@@ -337,10 +332,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         response =  {'network': self.network, 'url': self.url}
         c.print(response)
         return response
-
-    
-
-
 
     def query(self, 
               name:str,  
@@ -412,9 +403,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             
         return value
     
-    
-
-
     def resolve_storage_name(self, name):
         if name[0].islower():
             _splits = name.split('_')
@@ -817,9 +805,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         
         return key_address
 
-    
-    
-
     global_param_features = [
             'MaxNameLength',
             'MaxAllowedModules',
@@ -928,7 +913,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             self.put(path, state)
         return {'msg': 'synced', 'netuids': self.netuids, 'subnet_names': self.subnet_names}
     
-    
     def sync_loop(self,max_age=None):
         max_age = max_age or self.config.max_age
 
@@ -944,7 +928,4 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             c.sleep(self.config.max_age)
 
 Subspace.run(__name__)
-
-
-
 

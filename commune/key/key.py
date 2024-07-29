@@ -651,8 +651,10 @@ class Keypair(c.Module):
 
     # def resolve_crypto_type()
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=42, crypto_type=KeypairType.SR25519,
-                             language_code: str = MnemonicLanguageCode.ENGLISH, return_kwargs:bool = False) -> 'Keypair':
+    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=42, 
+                             crypto_type=KeypairType.SR25519,
+                             language_code: str = MnemonicLanguageCode.ENGLISH, 
+                             return_kwargs:bool = False) -> 'Keypair':
         """
         Create a Keypair for given memonic
 
@@ -1038,10 +1040,9 @@ class Keypair(c.Module):
         if isinstance(data, dict):
 
             signature = data.pop('signature')
-            public_key = self.ss58_decode(data['address'])
+            address = data['address']
             if 'data' in data:
                 data = data.pop('data')
-            
             if not isinstance(data, str):
                 data = c.python2str(data)
 

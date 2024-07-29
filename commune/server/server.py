@@ -153,6 +153,9 @@ class Server(c.Module):
               **extra_kwargs
               ):
         
+        if module.endswith('.py'):
+            module = module[:-3]
+        
         if tag_seperator in str(module):
             module, tag = module.split(tag_seperator)
         module = module or c.module_name()

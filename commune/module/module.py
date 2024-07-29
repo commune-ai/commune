@@ -156,11 +156,20 @@ class c(*CORE_MODULES):
     def get_module(cls, 
                    path:str = 'module',  
                    cache=True,
-                   trials = 3,
+                   trials = 5,
                    verbose = False,
                    update_tree_if_fail = True,
                    init_kwargs = None,
                    ) -> str:
+        if path in ['module', 'c']:
+            return c
+        if trials > 0:
+            try:
+                module = cls.get_module(path=path, cache=cache, trials=trials-1, verbose=verbose, update_tree_if_fail=update_tree_if_fail, init_kwargs=init_kwargs)
+                return module
+            except Exception as e:
+                if verbose:
+                    c.print(f'Error: {e}', color='red')
         """
         params: 
             path: the path to the module
@@ -181,17 +190,33 @@ class c(*CORE_MODULES):
             module = c.module_cache[cache_key]
             return module
         module = c.simple2object(path)
-        
-        if cache:
-            c.module_cache[cache_key] = module
 
+        # ensure module
+
+        
         if verbose:
             c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
         
         if init_kwargs != None:
             module = module(**init_kwargs)
 
+        module = c.resolve_module(module)
+
+        if cache:
+            c.module_cache[cache_key] = module
+
+
+
         return module
+    
+    @classmethod
+    def resolve_module(self,module):
+        if not hasattr(module, 'module_name'):
+            setattr(module, 'module_name', lambda: module.__name__.lower())
+
+        return module
+
+            
 
     
     @classmethod
@@ -372,7 +397,7 @@ class c(*CORE_MODULES):
                 raise Exception('Invalid params', args.params)
             
         return args
-    
+        
     @classmethod
     def run(cls, name:str = None) -> Any: 
         is_main =  name == '__main__' or name == None or name == cls.__name__
@@ -422,6 +447,7 @@ class c(*CORE_MODULES):
     @classmethod
     def module(cls,module: Any = 'module' , **kwargs):
         '''
+        
         Wraps a python class as a module
         '''
         module_class =  c.get_module(module,**kwargs)
