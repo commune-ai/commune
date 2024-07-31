@@ -30,8 +30,8 @@ class Tree:
         Parameters:
             path (str): The module path
         """
-        if cls.can_import_object(simple_path):
-            return simple_path
+        # if cls.can_import_object(simple_path):
+        #     return simple_path
         if simple_path.endswith(extension):
             simple_path = simple_path[:-len(extension)]
     

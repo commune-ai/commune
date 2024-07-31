@@ -547,12 +547,12 @@ class Schema:
         return type(obj).__name__ == 'type'
 
 
-    @staticmethod
-    def resolve_class(obj):
+    @classmethod
+    def resolve_class(cls, obj):
         '''
         resolve class of object or return class if it is a class
         '''
-        if c.is_class(obj):
+        if cls.is_class(obj):
             return obj
         else:
             return obj.__class__
@@ -661,6 +661,8 @@ class Schema:
         for parent in cls.parents(obj):
             parent_functions[parent.__name__] = cls.get_functions(parent)
         return parent_functions
+    
+    parent2fns = parent2functions
 
     @classmethod
     def get_functions(cls, obj: Any = None,

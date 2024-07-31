@@ -1,23 +1,40 @@
 
+# server stuff 
 fastapi 
 sse-starlette 
-msgpack_numpy
-substrate-interface
 paramiko
-torch
-streamlit
-pytest
-munch
+
+# crypto
+substrate-interface
+
+# async stuff
 nest_asyncio
 asyncio
 aiofiles
+aiohttp
+
+# testing 
+pytest
+
+#ml/ai/llms/buzzwords
+openai
+torch
+
+#misc
+msgpack_numpy
+munch
 retry
 netaddr
 typer
-#
 loguru
+
+#plot
 plotly
-openai
-aiohttp
+streamlit
+# gradio OMITTING FOR NOW
+
+# for uploading to pypi
+twine
+
 
 

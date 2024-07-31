@@ -238,23 +238,33 @@ class OS:
 
         def stream_output(process):
             pipe = process.stdout
-            for ch in iter(lambda: pipe.read(1), b""):
-                # if the the terminal is stuck and needs to enter
-                process.poll() 
-                try:
+            try:
+                for ch in iter(lambda: pipe.read(1), b""):
+                    # if the the terminal is stuck and needs to enter
+                    process.poll() 
                     yield ch.decode()
-                except Exception as e:
-                    pass       
+            except Exception as e:
+                pass
+    
             kill_process(process)
 
 
-
+        streamer = stream_output(process)
         if generator:
-            return stream_output(process)
+            return streamer
 
         else:
             text = ''
             new_line = ''
+
+            for ch in streamer:
+                    text += ch
+                    if verbose:
+                        new_line += ch
+                        if ch == '\n':
+                            print(new_line)
+                            new_line = ''
+
             
             for ch in stream_output(process):
                 
