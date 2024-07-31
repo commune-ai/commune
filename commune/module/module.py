@@ -72,6 +72,8 @@ class c(*CORE_MODULES):
     @property
     def key(self):
         if not hasattr(self, '_key'):
+            if not hasattr(self, 'server_name') or self.server_name == None:
+                self.server_name = self.module_name()
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
     
@@ -290,7 +292,7 @@ class c(*CORE_MODULES):
     @property
     def server_name(self):
         if not hasattr(self, '_server_name'): 
-            self._server_name = None
+            self._server_name = self.module_name()
         return self._server_name
             
     @server_name.setter
@@ -904,10 +906,13 @@ class c(*CORE_MODULES):
         return f'<{self.class_name()}'
     def __str__(self) -> str:
         return f'<{self.class_name()}'
+    
 
-    def build_docker(self):
-        cmd = f'docker build -t {self.server_name} .'
-        return c.cmd(cmd)
+    def pytest(self):
+        test_path = c.root_path + '/tests'
+        return c.cmd(f'pytest {test_path}', verbose=True)
+
+
 
 c.enable_routes()
 Module = c # Module is alias of c

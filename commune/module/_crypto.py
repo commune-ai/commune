@@ -32,3 +32,23 @@ class Crypto:
     
 
 
+    
+    @classmethod
+    def set_key(self, key:str, **kwargs) -> None:
+        key = self.get_key(key)
+        self.key = key
+        return key
+    
+    @classmethod
+    def resolve_keypath(cls, key = None):
+        if key == None:
+            key = cls.module_name()
+        return key
+    
+
+    def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
+        key = self.resolve_key(key)
+        signature =  key.sign(data, **kwargs)
+        return signature
+    
+

@@ -492,6 +492,10 @@ class Storage:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
 
+        if not os.path.exists(path):
+            if os.path.exists(path + '.json'):
+                path = path + '.json'
+
         # Read the contents of the file
         with open(path, 'rb') as file:
 
@@ -537,6 +541,13 @@ class Storage:
             else:
                 content = content_bytes.decode()
         return content
+
+
+    def is_encrypted(self, path:str) -> bool:
+        try:
+            return self.get_json(path).get('encrypted', False)
+        except:
+            return False
 
     @classmethod
     def storage_dir(cls):

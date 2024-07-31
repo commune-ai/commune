@@ -1032,19 +1032,26 @@ class Keypair(c.Module):
             data, signature = data.split(seperator)
 
         if max_age != None:
-            staleness = c.timestamp() - int(data)
+            if isinstance(data, int):
+                staleness = c.timestamp() - int(data)
+            
             assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
 
         data = c.copy(data)
         
         if isinstance(data, dict):
 
-            signature = data.pop('signature')
-            address = data['address']
-            if 'data' in data:
+            is_type_1 = 'data' in data and 'signature' in data and 'address' in data                
+            if signature == None:
+                signature = data.pop('signature')
+            if address == None:
+                address = data.pop('address', address)
+            if is_type_1:
                 data = data.pop('data')
-            if not isinstance(data, str):
-                data = c.python2str(data)
+            
+        if not isinstance(data, str):
+            data = c.python2str(data)
+
 
         if address != None:
             public_key = self.ss58_decode(address)
@@ -1524,6 +1531,9 @@ class Keypair(c.Module):
         else:
             address = key
         return address
+    
+
+    
       
 Keypair.run(__name__)
 
