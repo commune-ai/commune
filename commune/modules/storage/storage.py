@@ -102,7 +102,7 @@ class Storage(c.Module):
 
         return {'success': True, 'msg': 'Storage hash test passed'}
     
-    def items(self, search=None, include_replicas:bool=True, tag=None) -> List:
+    def items(self, search=None) -> List:
         """
         List the item names
         """

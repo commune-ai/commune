@@ -2,18 +2,23 @@ import commune as c
 import json
 
 class Ticket(c.Module):
+    ticket_features = ['signature', 'address', 'crypto_type']
+    data_features = ['data', 'time']
+    max_age = 10
     description = """
-    # THIS CREATES A TOKEN THAT CAN BE USED TO VERIFY THE ORIGIN OF A MESSAGE, AND IS GENERATED CLIENT SIDE
-    # THIS USES THE SAME T
-    # ECHNOLOGY AS ACCESS TOKENS, BUT IS USED FOR CLIENT SIDE VERIFICATION, AND NOT SERVER SIDE
-    # THIS GIVES USERS THE ABILITY TO VERIFY THE ORIGIN OF A MESSAGE, AND TO VERIFY THAT THE MESSAGE HAS NOT BEEN TAMPERED WITH
-    #data={DATA}::address={ADDRESS}::time={time}::signature={SIGNATURE}
-    where variable_seperator = '::'
-    """
-    variable_seperator = '::'
-    signature_seperator = variable_seperator + 'signature='
+    {
+        'data': dict (SIGNED)
+        'time': int: (SIGNED)
+        'signature': str (NOT SIGNED): the signature of the data
+        'address': str: (NOT SIGNED): the address of the signer
+        'crypto_type': str/int: (NOT SIGNED): the type of crypto used to sign
+    }
 
-    def create(self, data=None, key=None, json_str=False, **kwargs):
+    To verify 
+
+    """
+
+    def ticket(self, data='commune', key=None, **kwargs):
         """
         params:
             data: dict: data to be signed
@@ -21,34 +26,61 @@ class Ticket(c.Module):
             json_str: bool: if True, the ticket will be returned as a json string
             
         """
-        key = c.get_key(key)
+        key = c.get_key(key) if key else self.key
         ticket_dict = {
             'data': data,
             'time': c.time(),
         }
         signtature = key.sign(ticket_dict, **kwargs).hex()
-        ticket = {'signature': signtature, 'address': key.ss58_address, 'crypto_type': key.crypto_type}
-        ticket_dict['ticket'] = ticket
+        ticket_dict.update({'signature': signtature, 
+                            'address': key.ss58_address,
+                            'crypto_type': key.crypto_type})
         return ticket_dict
 
-    ticket = create
+    create = ticket
     
-
     def ticket2address(self, ticket):
         """
         Get the address from a ticket
         """
         return ticket['address']
     
+
+    def is_ticket_dict(self, ticket):
+        if isinstance(ticket, dict):
+            return all([self.is_ticket(v) in ticket for v in ticket.values()])
+        return False
     
-    def verify(self, data,  max_age:str=5,  age=None, timeout=None, **kwargs):
-        max_age = age or timeout or max_age 
-        staleness = c.time() - data['time']
-        assert staleness < max_age, f"Staleness: {staleness} > {max_age}"
-        ticket = data.get('ticket')
-        address = ticket['address']
-        signature = ticket.pop('signature')
-        return c.verify(ticket, signature=signature, address=address, seperator=self.signature_seperator,  **kwargs)
+
+    def is_ticket_list(self, ticket):
+        if isinstance(ticket, list):
+            return all([self.is_ticket(v) in ticket for v in ticket])
+        return False
+
+
+    def is_ticket(self, data):
+        return all([f in data for f in self.ticket_features])
+
+    def verify(self, data, 
+                max_age:str=None,  
+               **kwargs):
+        data = c.copy(data)
+        max_age = max_age or self.max_age 
+        date_time = data.get('time', data.get('timestamp'))
+        staleness = c.time() - date_time
+        if staleness >  max_age:
+            print(f"Signature too Old! from {data} : {staleness} > {max_age}")
+            return False
+
+        ticket = {}
+        if 'ticket' in data:
+            ticket = data.pop('ticket')
+        elif self.is_ticket(data):
+            for f in self.ticket_features:
+                ticket[f] = data.pop(f)
+        else:
+            raise ValueError(f"Data is not a ticket: {data}")
+        return c.verify(data, **ticket)
 
 
     @classmethod
@@ -61,8 +93,22 @@ class Ticket(c.Module):
         print('waiting for staleness')
         c.sleep(max_age + 0.1)
         key = c.get_key(key)
-        assert not self.verify(ticket, max_age=max_age), 'Failed to verify'
+        assert not c.verify_ticket(ticket, max_age=max_age), 'Failed to verify'
         return {'success': True, 'ticket': ticket, 'key': str(key)}
 
-    def qr(self,filename='ticket.png'):
+    def qr(self,filename='./ticket.png'):
+        filename = self.resolve_path(filename)
         return c.module('qrcode').text2qrcode(self.ticket(), filename=filename)
+    
+
+
+    @classmethod
+    def test(cls, key='test'):
+        key = c.new_key()
+        self = cls()
+        ticket = self.ticket(key=key)
+        reciept = self.verify(ticket)
+        print(reciept)
+        assert reciept, 'Failed to verify'
+        return {'success': True, 'ticket': ticket, 'key': str(key), 'reciept': reciept}
+    

@@ -50,4 +50,3 @@ class History(c.Module):
 
         return df
     
-    

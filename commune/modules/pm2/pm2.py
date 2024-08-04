@@ -53,8 +53,8 @@ class PM2(c.Module):
         return {'success':True, 'message':f'Killed {name}'}
     
     @classmethod
-    def status(cls, verbose=True):
-        stdout = c.cmd(f"pm2 status")
+    def status(cls, verbose=False):
+        stdout = c.cmd(f"pm2 status", verbose=False)
         if verbose:
             c.print(stdout,color='green')
         return stdout
@@ -130,9 +130,8 @@ class PM2(c.Module):
         output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n'):
-            if '  default  ' in line:
-                server_name = line.split('default')[0].strip()
-                server_name = server_name.split(' ')[-1].strip()
+            if  line.count('│') > 2:
+                server_name = line.split('│')[2].strip()
                 if 'errored' in line:
                     cls.kill(server_name, verbose=True)
                     continue
@@ -142,6 +141,8 @@ class PM2(c.Module):
         if search != None:
             search_true = lambda x: any([s in x for s in search])
             module_list = [m for m in module_list if search_true(m)]
+
+        module_list = sorted(list(set(module_list)))
                 
         return module_list
     
@@ -192,72 +193,6 @@ class PM2(c.Module):
             kwargs['cwd'] = c.dirpath(path)
 
         return c.cmd(cmd, verbose=verbose, **kwargs)
-        
-    @classmethod
-    def launch(cls, 
-                   module:str = None,  
-                   fn: str = 'serve',
-                   name:Optional[str]=None, 
-                   tag : str = None,
-                   args : list = None,
-                   kwargs: dict = None,
-                   device:str=None, 
-                   interpreter:str='python3', 
-                   autorestart: bool = True,
-                   verbose: bool = False , 
-                   force:bool = True,
-                   meta_fn: str = 'module_fn',
-                   tag_seperator:str = '::',
-                   cwd = None,
-                   refresh:bool=True ):
-
-        if hasattr(module, 'module_name'):
-            module = module.module_name()
-            
-        # avoid these references fucking shit up
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-
-        # convert args and kwargs to json strings
-        kwargs =  {
-            'module': module ,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs 
-        }
-
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-
-        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
-
-        if refresh:
-            cls.kill(name)
-        
-        module = c.module()
-        # build command to run pm2
-        filepath = c.filepath()
-        cwd = cwd or module.dirpath()
-        command = f"pm2 start {filepath} --name {name} --interpreter {interpreter}"
-
-        if not autorestart:
-            command += ' --no-autorestart'
-        if force:
-            command += ' -f '
-        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
-        env = {}
-        if device != None:
-            if isinstance(device, int):
-                env['CUDA_VISIBLE_DEVICES']=str(device)
-            if isinstance(device, list):
-                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-        if refresh:
-            cls.kill(name)  
-        
-        cwd = cwd or module.dirpath()
-        
-        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
-
 
 
 

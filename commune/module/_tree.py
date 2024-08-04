@@ -14,10 +14,11 @@ class Tree:
 
     @classmethod
     def simple2path(cls, 
-                    simple_path:str,
+                    simple:str,
                     tree = None,
                     extension = '.py',
-                    verbose = False,
+                
+                    verbose = 1,
                     **kwargs) -> bool:
         """
         converts the module path to a file path
@@ -30,51 +31,46 @@ class Tree:
         Parameters:
             path (str): The module path
         """
-        # if cls.can_import_object(simple_path):
-        #     return simple_path
-        if simple_path.endswith(extension):
-            simple_path = simple_path[:-len(extension)]
-    
+        # if cls.libname in simple and '/' not in simple and cls.can_import_module(simple):
+        #     return simple
+
+
+        if simple.endswith(extension):
+            simple = simple[:-len(extension)]
 
         path = None
         pwd = cls.pwd()
-        dir_paths = list(set([ cls.root_path ,  cls.root_path + '/modules', pwd, pwd + '/src'  ]))
+        path_options = []
+        simple = simple.replace('/', '.')
 
+        avoid_dirnames = ['', '/src', '/modules', '/commune']
+        local_prefix_paths = list([pwd+x for x in avoid_dirnames])
+        root_prefix_paths = list([cls.root_path + x for x in avoid_dirnames])
+        dir_paths = local_prefix_paths+root_prefix_paths # pwd prefixes
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
-            module_dirpath = dir_path + '/' + simple_path.replace('.', '/')
-            module_filepath = dir_path + '/' + cls.resolve_extension(simple_path.replace('.', '/'))
-            is_module_dir = os.path.isdir(module_dirpath)
-            is_module_file = os.path.isfile(module_filepath)
+            module_dirpath = dir_path + '/' + simple.replace('.', '/')
+            if os.path.isdir(module_dirpath):
+                simple_filename = simple.replace('.', '_')
+                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module', 'main'] + simple.split('.')
+                path_options +=  [module_dirpath + '/' + cls.resolve_extension(f)  for f in filename_options]  
+            else:
+                module_filepath = dir_path + '/' + cls.resolve_extension(simple.replace('.', '/'), extension=extension)
+                path_options += [module_filepath]
 
-            if is_module_file:
-                path = module_filepath
-            elif is_module_dir:
-                simple_path_filename = simple_path.replace('.', '_')
-                filename_options = [cls.resolve_extension(f)  for f in [simple_path_filename, simple_path_filename + '_module', 'module_'+ simple_path_filename] + ['module', 'main'] + simple_path.split('.')]  
-                paths_in_dir = os.listdir(module_dirpath)
-                for p in paths_in_dir:
-                    if p.split('/')[-1] in filename_options:
-                        new_path = module_dirpath + '/' + p
-                        if os.path.isfile(new_path):
-                            path = new_path
-                            break   
 
+            for p in path_options:
+                if os.path.exists(p):
+                    path =  p
+                    break
+    
             if path != None:
                 break
 
-        if path == None:
-            tree = cls.tree()
-            is_in_tree = bool(simple_path in tree)
-            if not  is_in_tree:
-                cls.print(f'Path not found in tree: {simple_path}', color='red', verbose=verbose )
-                tree = cls.tree(update=False, include_root=True)
-            if simple_path in tree:
-                path = tree[simple_path]
-        assert path != None, f'Path not found for simple path {simple_path}'
 
+        assert path != None, f'"{simple}" DOES NOT EXIST'
         return path
-    
+
     def path2tree(self, **kwargs) -> str:
         trees = self.trees()
         path2tree = {}
@@ -112,7 +108,7 @@ class Tree:
         tree = {}
         mode = None
         timestamp = cls.time()
-
+     
         path = os.path.abspath(path or cls.default_tree_path())
         cache_path = path.split('/')[-1]
         # the tree is cached in memory to avoid repeated reads from storage
@@ -378,6 +374,20 @@ class Tree:
                 fns += [fn]
         return [c for c in fns]
     
+
+    @classmethod
+    def find_paths(cls, path:str = './', **kwargs):
+        classes = cls.find_classes(path)
+        
+        if isinstance(classes, dict):
+            object_paths = []
+            for p, c in classes.items():
+                
+                object_paths += [cls.path2simple(p) + '.' + c for c in classes[p]]
+            return object_paths
+        object_paths = [path + '.' + c for c in classes]
+        return object_paths
+    
     @classmethod
     def find_async_functions(cls, path):
         if os.path.isdir(path):
@@ -414,10 +424,10 @@ class Tree:
                            cactch_exception = False, 
                            **kwargs) -> str:
 
-        pwd = cls.pwd()
         object_path = cls.simple2path(simple_path, **kwargs)
         classes =  cls.find_classes(object_path)
-
+        
+        pwd = cls.pwd()
         if object_path.startswith(pwd):
             object_path = object_path[len(pwd):]
         elif object_path.startswith(cls.libpath ):
@@ -531,7 +541,14 @@ class Tree:
         '''
         Returns true if the module exists
         '''
-        return module in cls.modules(**kwargs)
+        module_exists =  module in cls.modules(**kwargs)
+        if not module_exists:
+            try:
+                module = cls.simple2path(module)
+                module_exists = cls.exists()
+            except:
+                pass
+        return module_exists
 
 
     @classmethod

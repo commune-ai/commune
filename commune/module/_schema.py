@@ -14,7 +14,7 @@ class Schema:
         schema = {}
         if cache and self._schema != None:
             return self._schema
-        fns = self.public_functions()
+        fns = self.get_whitelist()
         for fn in fns:
             if search != None and search not in fn:
                 continue
@@ -414,6 +414,7 @@ class Schema:
 
     @classmethod
     def chash(cls,  *args, **kwargs):
+        import commune as c
         """
         The hash of the code, where the code is the code of the class (cls)
         """
@@ -945,6 +946,7 @@ class Schema:
                  user2rate : dict = None, 
                  rate_limit : int = 100, # calls per minute
                  timestale : int = 60,
+                 public:bool = False,
                  cost_keys = ['cost', 'w', 'weight'],
                  **kwargs):
         
@@ -958,7 +960,9 @@ class Schema:
                 **Schema.fn_schema(fn),
                 'cost': cost,
                 'rate_limit': rate_limit,
-                'user2rate': user2rate,                
+                'user2rate': user2rate,   
+                'timestale': timestale,
+                'public': public,            
             }
             import commune as c
             fn.__dict__['__metadata__'] = metadata
@@ -968,13 +972,20 @@ class Schema:
         return decorator_fn
     
 
+    @classmethod
+    def is_public(cls, fn):
+        if not cls.is_endpoint(fn):
+            return False
+        return getattr(fn, '__metadata__')['public']
+    
+
     def is_endpoint(self, fn) -> bool:
         if isinstance(fn, str):
             fn = getattr(self, fn)
         return hasattr(fn, '__metadata__')
 
     
-    def public_functions(self, search=None, include_helper_functions = True):
+    def whitelist_functions(self, search=None, include_helper_functions = True):
         endpoints = []  
         if include_helper_functions:
             endpoints += self.helper_functions
@@ -999,7 +1010,7 @@ class Schema:
 
         return endpoints
 
-    get_whitelist = endpoints = public_functions
+    get_whitelist = whiteboy_functions = cracka_fns = wigga_fns = endpoints = public_functions  = whitelist_functions
     
 
     def cost_fn(self, fn:str, args:list, kwargs:dict):

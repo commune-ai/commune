@@ -59,6 +59,8 @@ key:
   - decrypt_file
   - get_key_for_address
   - resolve_key_address
+  - verify_ticket
+  - ticket
 
 remote:
   - host2ssh
@@ -66,7 +68,6 @@ remote:
 
 namespace: [
             add_remote, 
-            networks, 
             network2namespace, 
             register_server,
             deregister_server,
@@ -116,10 +117,6 @@ user:
   - num_roles
   - rm_user
 
-ticket: 
-  - ticket
-  - ticket2dict
-  - verify_ticket
 
 streamlit:
   - load_style

@@ -18,7 +18,6 @@ class KeyApp(c.Module):
     
     def sync(self):
         self._max_width_()
-        self.local_css("style.css")
         # Load CSS
         @st.cache_resource()
         def load_keys():
@@ -74,33 +73,20 @@ class KeyApp(c.Module):
         st.write('# Key App')
         with st.expander('Description'):
             st.markdown(self.description)
-        names = list(self.name2fn.keys())
-        cols = st.columns(2)
-        selected_fns = cols[0].multiselect('Select Options', names, ['Select Key'], key='select')
-        num_cols = cols[1].number_input('Number of Columns', 0, 5, 1, 1)
+        functions = list(self.name2fn.values())
 
         def app_wrapper(fn):
             try:
-                with st.expander(fn, expanded=True):
-                    getattr(self, self.name2fn[fn])()
+                getattr(self, self.name2fn[fn])()
             except Exception as e:
                 try:
                     getattr(self, self.name2fn[fn])()
                 except Exception as e:
                     st.error(e)
 
-
-        if num_cols > 1:
-            cols = st.columns(num_cols)
-            for i, fn in enumerate(selected_fns):
-                with cols[i % num_cols]:
-                    app_wrapper(fn)
-
-        else:
-            for fn in selected_fns:
-                
-                with st.expander(fn, expanded=True):
-                    app_wrapper(fn)
+        for fn in functions:
+            with st.expander(fn, expanded=True):
+                getattr(self, fn)()
 
     def squares(self, cols=3):
         color_classes = ['color1', 'color2', 'color3', 'color4', 'color5', 'color6']
@@ -121,19 +107,16 @@ class KeyApp(c.Module):
             st.write('Ticket')
             st.code(ticket)
         self.ticket = ticket
-        self.verify_ticket()
+        self.verify_ticket(ticket)
 
-    def verify_ticket(self):
-        ticket = st.text_input('Enter the Ticket', self.ticket)
+    def verify_ticket(self, ticket=None):
+        ticket = st.text_input('Enter the Ticket', ticket)
         st.write('FORMAT')
         st.code('data={data}time={time}::address={address}::signature={signature}')
         verify_ticket = st.button('Verify Ticket')
         if verify_ticket:
-            
-            st.write(ticket)
             result = c.verify_ticket(ticket)
             st.write('Result')
-
             st.write(result)
         else:
             result = None
@@ -229,7 +212,6 @@ class KeyApp(c.Module):
     '''
 
 
-
-b = KeyApp.run(__name__)
+KeyApp.run(__name__)
 
 

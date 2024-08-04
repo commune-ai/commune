@@ -17,6 +17,7 @@ class Namespace(c.Module):
                     update:bool = False, 
                     netuid=None, 
                     max_age:int = None,
+                    public = False,
                     **kwargs) -> dict:
         
         network = network or 'local'
@@ -43,12 +44,10 @@ class Namespace(c.Module):
         namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
-        
-        if network == 'local':
-            namespace = {k: '0.0.0.0:' + v.split(':')[-1] for k,v in namespace.items() }
-        
+    
+        ip  = c.ip()
+        namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
-
         return namespace
     
     get_namespace = namespace
@@ -183,13 +182,17 @@ class Namespace(c.Module):
                     namespace[name] = address
                     c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
                 except Exception as e:
+                    print(name)
                     c.print(f'Error {e} with {address}', color='red', verbose=verbose)
         except Exception as e:
+            c.print(c.detailed_error(e))
             c.print(f'Timeout error {e}', color='red', verbose=verbose)
 
         cls.put_namespace(network, namespace)
         
         return namespace
+    
+    update_namespace = build_namespace
 
     @classmethod
     def merge_namespace(cls, from_network:str, to_network:str, module = None):

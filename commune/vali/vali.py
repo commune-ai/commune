@@ -673,12 +673,9 @@ class Vali(c.Module):
     @classmethod
     def from_function(cls, 
                    function,
-                   config=None, 
-                   functions = ['eval_module', 'score_module', 'eval', 'leaderboard', 'run_epoch'],
                    **kwargs):
-        vali = cls(config=config, **kwargs)
-        for fn in functions:
-            setattr(vali, fn, function)
+        vali = cls( **kwargs)
+        setattr(vali, 'score_module', function)
         return vali
 
     def print_header(self):

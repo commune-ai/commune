@@ -413,6 +413,7 @@ class Storage:
             v = cls.encrypt(v, password=password)
 
         if not cls.jsonable(v):
+            print(v)
             v = cls.serialize(v)    
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': cls.timestamp()}            
