@@ -30,18 +30,15 @@ class Server(c.Module):
         self.network = network
         if isinstance(module, str):
             module = c.module(module)()
-        # RESOLVE THE WHITELIST AsND BLACKLIST
         module.whitelist = module.get_whitelist()
-        module.name = module.server_name = name = name or module.server_name
+        module.name = module.server_name = name or module.server_name
         module.port = port if port not in ['None', None] else c.free_port()
-        module.ip = c.ip()
-        module.address = f"{module.ip}:{module.port}"
+        module.address = f"{c.ip()}:{module.port}"
         module.network = network
-        self.key  = c.get_key(key or module.name, create_if_not_exists=True)
-        module.key = self.key 
+        module.key  = c.get_key(key or module.name, create_if_not_exists=True)
         self.module = module
         self.access_module = c.module('server.access')(module=self.module)
-        self.set_api(max_bytes=max_bytes)
+        self.set_api(max_bytes=max_bytes, **kwargs)
 
     def add_fn(self, name:str, fn: str):
         assert callable(fn), 'fn not callable'
@@ -88,7 +85,6 @@ class Server(c.Module):
     
     def forward(self, fn, input):
         try:
-            print(input)
             input = self.get_input(fn=fn, input=input)
             output = self.get_output(fn=fn, input=input)
         except Exception as e:
@@ -101,6 +97,7 @@ class Server(c.Module):
                 allow_credentials=True,
                 allow_methods=["*"],
                 allow_headers=["*"],
+                **kwargs
                 ):
 
         self.app = FastAPI()
@@ -116,7 +113,7 @@ class Server(c.Module):
         
         @self.app.post("/{fn}")
         def forward(fn:str, input:Dict):
-            return self.forward(fn=fn, input=input)
+            return self.forward(fn, input)
         
         # start the server
         try:
@@ -152,13 +149,11 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
-        
+        module = module or c.module_name()
         if module.endswith('.py'):
             module = module[:-3]
-        
         if tag_seperator in str(module):
             module, tag = module.split(tag_seperator)
-        module = module or c.module_name()
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = name or server_name or module
         if tag_seperator in name:
@@ -267,7 +262,6 @@ class Server(c.Module):
         else:
             delete_modules.append(killed_module)
         # update modules
-        
         c.deregister_server(module, network=network)
 
         assert c.server_exists(module, network=network) == False, f'module {module} still exists'

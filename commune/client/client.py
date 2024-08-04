@@ -10,6 +10,7 @@ from .virtual import VirtualClient
 # from .pool import ClientPool
 
 class Client(c.Module, ClientPool):
+    network2namespace = {}
     def __init__( 
             self,
             module : str = '0.0.0.0:8000',
@@ -21,57 +22,45 @@ class Client(c.Module, ClientPool):
 
         self.serializer = c.module('serializer')()
         self.session = aiohttp.ClientSession()
+        self.network = network
         self.loop = c.get_event_loop() if loop == None else loop
         self.key  = c.get_key(key, create_if_not_exists=True)
-        print('key', self.key)
-        # we dont want to load the namespace if we have the address
-        if not c.is_address(module):
-            namespace = c.get_namespace(search=module, network=network)
-            if module in namespace:
-                module = namespace[module]
         self.module = module
+
+
+
+    def resolve_namespace(self, network):
+        if not network in self.network2namespace:
+            self.network2namespace[network] = c.get_namespace(network=self.network)
+        return self.network2namespace[network]
+
 
     @classmethod
     def call(cls, 
-                module : str, 
-                fn:str = None,
+                fn:str = 'info',
                 *args,
                 kwargs = None,
                 params = None,
+                module : str = None,
                 network:str = 'local',
                 key:str = None,
                 timeout=40,
                 **extra_kwargs) -> None:
-          
-        # if '
-        if '//' in module:
-            module = module.split('//')[-1]
-            mode = module.split('//')[0]
-        if '/' in module:
-            if fn != None:
-                args = [fn] + list(args)
-            module , fn = module.split('/')
-
-        print('module', module)
-
-        module = cls.connect(module=module,
-                           network=network,  
-                           virtual=False, 
-                           key=key)
-
-        if params != None:
-            kwargs = params
-
-        if kwargs == None:
-            kwargs = {}
-
-        kwargs.update(extra_kwargs)
-
-        return  module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        if '/' in str(fn):
+            module = '.'.join(fn.split('/')[:-1])
+            fn = fn.split('/')[-1]
+        client = cls.connect(module, virtual=False, network=network)
+        return  client.forward(fn=fn, 
+                                args=args,
+                                kwargs=kwargs, 
+                                params=params,
+                                key=key  ,
+                                timeout=timeout, 
+                                **extra_kwargs)
 
     @classmethod
     def connect(cls,
-                module:str, 
+                module:str = 'module', 
                 network : str = 'local',
                 virtual:bool = True, 
                 **kwargs):
@@ -109,50 +98,69 @@ class Client(c.Module, ClientPool):
     def __repr__(self) -> str:
         return super().__repr__()
 
-    def forward(self, *args, timeout:int=10, **kwargs):
-        return self.loop.run_until_complete(asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout))
+
+    def get_params(self, args=None, kwargs=None, params=None, version=1):
+
+        if version == 1:
+            input =  { 
+                        "args": args or [],
+                        "kwargs": params or (kwargs or {}),
+                        "timestamp": c.timestamp(),
+                        }
+            input = self.serializer.serialize(input)
+            input = self.key.sign(input, return_json=True)
+        else:
+            raise ValueError(f"Invalid version: {version}")
+    
+
+        return input
+
+
+    def get_url(self, fn, module, mode='http', network=None):
+        network = network or self.network
+        module = module or self.module
+        if '/' in str(module):  
+            module, fn = module.split('/')
+        if '/' in str(fn):
+            module, fn = fn.split('/')
+        if '/' in module.split('://')[-1]:
+            module = module.split('://')[-1]
+
+        namespace = self.resolve_namespace(network)
+        if module in namespace:
+            module = namespace[module]
+        url = f"{module}/{fn}/"
+        url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
+
+        return url        
+
+
+    def forward(self, *args, **kwargs):
+        return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
 
     async def async_forward(self, 
                             fn  = 'info', 
                             params = None, 
                             args=None,
-                            kwargs=None,
+                            kwargs = None,
                            timeout:int=10, 
                            module = None,
                            key = None,
                            headers = {'Content-Type': 'application/json'},
                            verbose=False, 
+                           network = None,
+                           version = 1,
+                           mode = 'http',
                            **extra_kwargs):
-        if '/' in str(fn):
-            module, fn = fn.split('/')
         key = self.resolve_key(key)
-        module = module or self.module
-        if '/' in module.split('://')[-1]:
-            module = module.split('://')[-1]
-        url = f"{module}/{fn}/"
-        url = 'http://' + url if not url.startswith('http://') else url
+        url = self.get_url(fn=fn, module=module,mode=mode,  network=network)
+        kwargs = {**(kwargs or {}), **extra_kwargs}
+        input = self.get_params( args=args, 
+                                   kwargs=kwargs, 
+                                   params = params,
+                                   version=version)
+        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key})", color='green', verbose=verbose)
 
-        if params != None:
-            assert type(params) in [list, dict], f'params must be a list or dict, not {type(params)}'
-            if isinstance(params, list):
-                args = params
-            elif isinstance(params, dict):
-                kwargs = params  
-
-
-        input =  { 
-                    "args": args or [],
-                    "kwargs": {**(kwargs or {}), **extra_kwargs},
-                    "timestamp": c.timestamp(),
-                    }
-        
-
-        input = self.key.sign(self.serializer.serialize(input), return_json=True)
-
-    
-
-
-        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key.ss58_address})", color='green', verbose=verbose)
         try:
             response =  await self.session.post(url, json=input, headers=headers)
             if response.content_type == 'text/event-stream':

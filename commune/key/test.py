@@ -3,18 +3,11 @@ import commune as c
 
 
 class TestKey(c.m('key')):
+
     @classmethod
     def test_verification(cls, key='test'):
-        c.add_key(key)
-        key = c.get_key(key)
-        self = cls()
-        ticket = self.ticket(key=key)
-        key = c.get_key(key)
-        c.print(ticket, 'fam')
-        reciept = self.verify_ticket(ticket)
-        assert reciept, 'Failed to verify'
-        return {'success': True, 'ticket': ticket, 'key': str(key), 'reciept': reciept}
-    
+        return c.module('key.ticket').test()
+
     @classmethod
     def test_encryption(cls,value = 10):
         key = cls.new_key()

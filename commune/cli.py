@@ -3,6 +3,7 @@ import commune as c
 import json
 import sys
 import time
+import os
 import threading
 
 class cli:
@@ -20,6 +21,7 @@ class cli:
                 buffer_size=4,
                 save: bool = False):
         
+        
         self.seperator = seperator
         self.buffer_size = buffer_size
         self.verbose = verbose
@@ -29,6 +31,7 @@ class cli:
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
         
         self.forward(args=args)
+
     
     def forward(self, args=None):
         t0 = time.time()

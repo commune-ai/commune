@@ -494,11 +494,17 @@ class SubspaceSubnet:
         return module
 
 
-    def root_valis(self, netuid = 0, update=False, **kwargs):
-        return self.get_modules(netuid=netuid, update=update, **kwargs)
-
-
-
+    def root_valis(self, search=None, netuid = 0, update=False, **kwargs):
+        root_valis = []
+        for module in self.get_modules(netuid=netuid, update=update, **kwargs):
+            if search != None:
+                if search not in module['name']:
+                    continue
+            module.pop('stake_from')
+            root_valis += [module ]
+        
+        return c.df(root_valis)[['name', 'key', 'stake']]
+    
 
     def root_keys(self, netuid = 0, update=False, **kwargs):
         return self.keys(netuid=netuid, update=update, **kwargs)

@@ -239,10 +239,8 @@ class OS:
         def stream_output(process):
             pipe = process.stdout
             try:
-                for ch in iter(lambda: pipe.read(1), b""):
-                    # if the the terminal is stuck and needs to enter
-                    process.poll() 
-                    yield ch.decode()
+                for line in iter(pipe.read, b''):
+                    yield line.decode('utf-8') 
             except Exception as e:
                 pass
     
@@ -255,27 +253,9 @@ class OS:
 
         else:
             text = ''
-            new_line = ''
 
             for ch in streamer:
-                    text += ch
-                    if verbose:
-                        new_line += ch
-                        if ch == '\n':
-                            print(new_line)
-                            new_line = ''
-
-            
-            for ch in stream_output(process):
-                
                 text += ch
-                # only for verbose
-                if verbose:
-                    new_line += ch
-
-                    if ch == '\n':
-                        print(new_line[:-1])
-                        new_line = ''
 
         return text
 

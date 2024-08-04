@@ -287,6 +287,10 @@ class c(*CORE_MODULES):
             
         return False
     is_module_root = is_root_module = is_root
+    
+    @classmethod
+    def serialize(cls, *args, **kwargs):
+        return c.module('serializer')().serialize(*args, **kwargs)
 
 
     @property
@@ -432,36 +436,31 @@ class c(*CORE_MODULES):
     def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
         module = c.module(module)
         is_self_method = bool(fn in module.self_functions())
-
         if is_self_method:
             module = module()
             fn = getattr(module, fn)
         else:
             fn =  getattr(module, fn)
-        if args is None:
-            args = []
-        if kwargs is None:
-            kwargs = {}
+        args = args or []
+        kwargs = kwargs or {}
         return fn(*args, **kwargs)
     
     fn = module_fn
     
     @classmethod
-    def module(cls,module: Any = 'module' , **kwargs):
+    def module(cls,module: Any = 'module' , verbose=False, **kwargs):
         '''
-        
         Wraps a python class as a module
         '''
+        t0 = c.time()
         module_class =  c.get_module(module,**kwargs)
+        latency = c.time() - t0
+        c.print(f'Loaded {module} in {latency} seconds', color='green', verbose=verbose)
         return module_class
     _module = m = mod = module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
-    @classmethod
-    def modulefn(cls, module, fn, *args, **kwargs):
-        return getattr(c.module(module), fn)(*args, **kwargs)
-        
     def setattr(self, k, v):
         setattr(self, k, v)
         
@@ -471,9 +470,6 @@ class c(*CORE_MODULES):
         '''
         assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
         self.__dict__.update(new_attributes)
-        
-
-
 
     @classmethod
     def pip_install(cls, 
@@ -517,7 +513,7 @@ class c(*CORE_MODULES):
     
     @classmethod
     def version(cls, lib:str=libname):
-        lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
+        lines = [l for l in cls.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()
         else:
@@ -750,7 +746,14 @@ class c(*CORE_MODULES):
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
         key = c.get_key(key)
         return key.verify(auth, **kwargs)
+
+    @classmethod
+    def verify_ticket(cls, auth, key=None, **kwargs ) -> bool:  
+        key = c.get_key(key)
+        return key.verify_ticket(auth, **kwargs)
+
     
+
     @classmethod
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
@@ -831,6 +834,73 @@ class c(*CORE_MODULES):
 
 
     @classmethod
+    def launch(cls, 
+                   module:str = None,  
+                   fn: str = 'serve',
+                   name:Optional[str]=None, 
+                   tag : str = None,
+                   args : list = None,
+                   kwargs: dict = None,
+                   device:str=None, 
+                   interpreter:str='python3', 
+                   autorestart: bool = True,
+                   verbose: bool = False , 
+                   force:bool = True,
+                   meta_fn: str = 'module_fn',
+                   tag_seperator:str = '::',
+                   cwd = None,
+                   refresh:bool=True ):
+
+        if hasattr(module, 'module_name'):
+            module = module.module_name()
+            
+        # avoid these references fucking shit up
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+
+        # convert args and kwargs to json strings
+        kwargs =  {
+            'module': module ,
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs 
+        }
+
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+
+        name = name or module
+        if refresh:
+            cls.pm2_kill(name)
+        module = c.module()
+        # build command to run pm2
+        filepath = c.filepath()
+        cwd = cwd or module.dirpath()
+        command = f"pm2 start {filepath} --name {name} --interpreter {interpreter}"
+
+        if not autorestart:
+            command += ' --no-autorestart'
+        if force:
+            command += ' -f '
+        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
+        env = {}
+        if device != None:
+            if isinstance(device, int):
+                env['CUDA_VISIBLE_DEVICES']=str(device)
+            if isinstance(device, list):
+                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
+        if refresh:
+            cls.pm2_kill(name)  
+        
+        cwd = cwd or module.dirpath()
+        
+        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
+        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
+
+
+
+
+
+    @classmethod
     def remote_fn(cls, 
                     fn: str='train', 
                     module: str = None,
@@ -895,7 +965,7 @@ class c(*CORE_MODULES):
         )
         assert fn != None, 'fn must be specified for pm2 launch'
     
-        return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
+        return  cls.launch(**launch_kwargs)
 
 
     @classmethod
@@ -911,8 +981,74 @@ class c(*CORE_MODULES):
     def pytest(self):
         test_path = c.root_path + '/tests'
         return c.cmd(f'pytest {test_path}', verbose=True)
+    
 
 
+    def check_word(self, word:str)-> str:
+        files = c.glob('./')
+        progress = c.tqdm(len(files))
+        for f in files:
+            try:
+                text = c.get_text(f)
+            except Exception as e:
+                continue
+            if word in text:
+                return True
+            progress.update(1)
+        return False
+    
+    def file2lines(self, path:str='./')-> List[str]:
+        files = c.glob(path)
+        file2lines = {}
+        progress = c.tqdm(len(files))
+        for f in files:
+            try:
+                file2lines[f] = c.get_text(f).split('\n')
+            except Exception as e:
+                pass
+            progress.update(1)
+        return file2lines
+    
+    def num_files(self, path:str='./')-> int:
+        return len(c.glob(path))
+    
+    def hidden_files(self, path:str='./')-> List[str]:
+        path = self.resolve_path(path)
+        files = [f[len(path)+1:] for f in  c.glob(path)]
+        print(files)
+        hidden_files = [f for f in files if f.startswith('.')]
+        return hidden_files
+    
+    def find_word(self, word:str, path='./')-> str:
+        path = c.resolve_path(path)
+        files = c.glob(path)
+        progress = c.tqdm(len(files))
+        found_files = {}
+        for f in files:
+            try:
+                text = c.get_text(f)
+                if word not in text:
+                    continue
+                lines = text.split('\n')
+            except Exception as e:
+                continue
+            
+            line2text = {i:line for i, line in enumerate(lines) if word in line}
+            found_files[f[len(path)+1:]]  = line2text
+            progress.update(1)
+        return found_files
+
+
+    # def update(self):
+    #     c.ip(update=1)
+    #     return c.namespace(update=1, public=1)
+    
+
+    # def update_loop(self, interval:int = 1):
+    #     while True:
+    #         self.update()
+    #         c.namespace(public=1)
+    #         time.sleep(interval)
 
 c.enable_routes()
 Module = c # Module is alias of c

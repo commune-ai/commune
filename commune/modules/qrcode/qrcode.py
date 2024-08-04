@@ -4,11 +4,6 @@ import commune as c
 # Specify Encode type
 
 class Barcode(c.Module):
-    def __init__(self, a=1):
-        self.a = a
-    def call(self, b = 1):
-        return self.a + b
-    
     def text2qrcode(self, text='whadup', filename='barcode.png'):
         import qrcode
         qr = qrcode.QRCode(

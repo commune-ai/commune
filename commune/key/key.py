@@ -154,11 +154,8 @@ class Keypair(c.Module):
                 ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
 
         self.public_key: bytes = public_key
-
         self.ss58_address: str = ss58_address
-
         self.private_key: bytes = private_key
-
         self.mnemonic = mnemonic
         
 
@@ -987,7 +984,7 @@ class Keypair(c.Module):
         if return_json:
             return {
                 'data': data.decode(),
-                'crypto_type': self.crypto_type,
+                'crypto_type': self.crypto_type, # optional
                 'signature': signature.hex(),
                 'address': self.ss58_address,
             }
@@ -1001,6 +998,7 @@ class Keypair(c.Module):
 
     def signature2address(self, sig, **kwargs):
         return self.verify(sig, return_address=True, **kwargs)
+    
     sig2addy = signature2address
 
     
@@ -1028,35 +1026,47 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
 
         if max_age != None:
             if isinstance(data, int):
                 staleness = c.timestamp() - int(data)
+            elif 'timestamp' in data or 'time' in data:
+                timestamp = data.get('timestamp', data.get('time'))
+                staleness = c.timestamp() - int(timestamp)
+            else:
+                raise ValueError('data should be a timestamp or a dict with a timestamp key')
             
             assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
 
         data = c.copy(data)
+
         
         if isinstance(data, dict):
-
-            is_type_1 = 'data' in data and 'signature' in data and 'address' in data                
-            if signature == None:
+            if 'data' in data and 'ticket' in data:
+                ticket = data.pop('ticket')
+                address = ticket.get('address', address)
+                signature = ticket.get('signature', signature)
+            elif 'data' in data and 'signature' in data and 'address' in data:
                 signature = data.pop('signature')
-            if address == None:
                 address = data.pop('address', address)
-            if is_type_1:
                 data = data.pop('data')
-            
+            else:
+                assert signature != None, 'signature not found in data'
+                assert address != None, 'address not found in data'
+
         if not isinstance(data, str):
             data = c.python2str(data)
 
-
         if address != None:
-            public_key = self.ss58_decode(address)
+            public_key = ss58_decode(address)
+
+            
         if public_key == None:
-            public_key = public_key or self.public_key
+            
+            public_key = self.public_key
         else:
             if self.is_ss58(public_key):
                 public_key = self.ss58_decode(public_key)
@@ -1408,16 +1418,13 @@ class Keypair(c.Module):
         
     def id_card(self, return_json=True,**kwargs):
         return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
-
-
+    
     def ticket(self, *args, key=None, **kwargs):
         key = key or self.key
-        return c.module('ticket')().ticket(*args,key=key, **kwargs)
+        return c.module('key.ticket')().ticket(*args,key=key, **kwargs)
 
     def verify_ticket(self, ticket, **kwargs):
-        return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
-    
-
+        return c.module('key.ticket')().verify(ticket, key=self.key, **kwargs)
     
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic
@@ -1467,7 +1474,7 @@ class Keypair(c.Module):
             if data.startswith(prefix):
                 return True
         elif isinstance(data, dict):
-            return bool(data.get('encrypted', False) == True)
+            return bool(data.get('encrypted', False))
         else:
             return False
         

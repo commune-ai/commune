@@ -119,7 +119,12 @@ class OpenRouter(c.Module):
         )
         return {"status": "success", "base_url": base_url}
     
-    def models(self, search: str = None, names=True, path='models', max_age=0, update=False):
+    def get_model_info(self, model):
+        url = f'https://openrouter.ai/api/v1/models/{model}'
+        response = requests.get(url)
+        return json.loads(response.text)['data']
+    
+    def model2info(self, search: str = None, path='models', max_age=0, update=False):
         models = self.get(path, default={}, max_age=max_age, update=update)
         if len(models) == 0:
             print('Updating models...')
@@ -129,9 +134,19 @@ class OpenRouter(c.Module):
             self.put(path, models)
     
         models = self.filter_models(models, search=search)
-        if names:
-            models = [m['id'] for m in models]
+        models = {m['id']:m for m in models}
         return models
+    
+    def models(self, search: str = None, path='models', max_age=0, update=False):
+        return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
+
+    
+    def model_infos(self, search: str = None, path='models', max_age=0, update=False):
+        return list(self.model2info(search=search, path=path, max_age=max_age, update=update).values())
+    
+    def get_model_info(self, model):
+        model2info = self.model2info()
+        return model2info[model]
     
     @classmethod
     def filter_models(cls, models, search:str = None):
