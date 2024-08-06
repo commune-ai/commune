@@ -172,17 +172,15 @@ class SubspaceSubnet:
 
 
     def feature2name(self, feature='MinStake'):
+        name = ''
         for i, ch in enumerate(feature):
             if ch.isupper():
                 if i == 0:
-                    chunks += [ch.lower()]
+                    chunks += ch.lower()
                 else:
-                    chunks += [f'_{ch.lower()}']
+                    chunks += f'_{ch.lower()}'
             else:
                 chunks += [ch]
-        name =  ''.join(chunks)
-
-        chunks = []
         return name
 
 
