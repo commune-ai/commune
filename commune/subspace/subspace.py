@@ -70,25 +70,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             storage += x
         return storage
 
-    def feature2name(self, feature='MinStake'):
-        chunks = []
-        for i, ch in enumerate(feature):
-            if ch.isupper():
-                if i == 0:
-                    chunks += [ch.lower()]
-                else:
-                    chunks += [f'_{ch.lower()}']
-            else:
-                chunks += [ch]
-
-        name =  ''.join(chunks)
-        if name == 'vote_mode_subnet':
-            name =  'vote_mode'
-        elif name == 'subnet_names':
-            name  = 'name'
-            
-        return name
-
     def name2feature(self, name='min_stake_fam'):
         chunks = name.split('_')
         return ''.join([c.capitalize() for c in chunks])
@@ -352,6 +333,9 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         query a subspace storage function with params and block.
         """
         name = feature or name # feature is an alias for name
+
+        module = self.resolve_query_module_from_name(name)
+
         path = f'query/{self.config.network}/{module}.{name}'
         params = params or []
         if not isinstance(params, list):
@@ -420,6 +404,17 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             events = list(map(lambda x: x.value, events))
             self.put(path, events)
         return events
+    
+
+    def resolve_query_module_from_name(self, name):
+        if name  == 'Account':
+            module = 'System'
+        elif name in ['SubnetGovernanceConfig', 'GlobalGovernanceConfig'] :
+            module = 'GovernanceModule'
+        else:
+            module = 'SubspaceModule'
+
+        return module
 
     def query_map(self, name: str = 'StakeFrom', 
                   params: list = None,
@@ -437,8 +432,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         """ Queries subspace map storage with params and block. """
         # if all lowercase then we want to capitalize the first letter
 
-        if name  == 'Account':
-            module = 'System'
+        module = self.resolve_query_module_from_name(name)
         path = f'query/{self.config.network}/{module}.{name}'
         # resolving the params
         params = params or []
