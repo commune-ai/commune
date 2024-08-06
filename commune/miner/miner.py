@@ -6,14 +6,15 @@ import os
 class Miner(c.Module): 
     
     def __init__(self, 
-                netuid = 2, 
-                n = 200, 
+                netuid = 15, 
+                n = 42, 
                 key : str =None, 
                 treasury_key_address:str = None,
                 stake=1, 
                 miner_key_prefix = 'miner_', 
                 max_age=600, 
-                update=False
+                update=False,
+                key_path='miner_mems'
                 ):
         
         self.miner_key_prefix = miner_key_prefix
@@ -29,13 +30,14 @@ class Miner(c.Module):
         self.key = c.get_key(key)
         self.treasury_key_address = treasury_key_address or self.key.ss58_address
         self.stake = stake
+        self.key_path = self.resolve_path(key_path, extension='json')
 
     @property
     def subnet_params(self):
         return self.subspace.subnet_params(netuid=self.netuid, max_age=self.max_age)
 
 
-    def keys(self):
+    def keys(self, names = False):
         keys =  c.keys(self.miner_key_prefix)
         keys = list(filter(lambda k: int(k.split('_')[-1]) < self.n, keys))
         return keys
@@ -106,8 +108,7 @@ class Miner(c.Module):
         ip = address.split(':')[0]
         key_name = address2key.get(key, key)
         key = address2key.get(key, key)
-        
-        if self.is_running:
+        if self.is_running(name):
             if refresh:
                 self.kill_miner(name)
             else:
@@ -128,10 +129,17 @@ class Miner(c.Module):
             print(f.result())
 
 
-    def registered_keys(self, **kwargs):
+    def registered_keys(self, names=False, prefix='miner_', **kwargs):
         keys = self.subspace.keys(netuid=self.netuid, **kwargs)
-        miner_key_addresses = self.key_addresses()
-        return list(filter(lambda k: k in miner_key_addresses, keys))
+        address2key = c.address2key()
+        address2key = {k: v for k,v in address2key.items() if v.startswith(prefix)}
+        miner_key_addresses = list(address2key.keys())
+        keys =  list(filter(lambda k: k in miner_key_addresses, keys))
+        if names:
+            return [address2key[k] for k in keys]
+        return keys
+
+            
     
     def uids(self):
         key2uid = self.subspace.key2uid(netuid=self.netuid)
@@ -234,8 +242,20 @@ class Miner(c.Module):
         df = df.sort_values(by=sort_by, ascending=reverse)
         return df
 
+    def save_keys(self, path='miner_mems'):
+        keys = self.keys()
+        key2mnemonic = {}
+        for key in keys:
+            mnemonic = c.get_key(key).mnemonic
+            key2mnemonic[key] = mnemonic
+        c.put_json(self.key_path, key2mnemonic)
+        return {"msg": "keys saved", "path": self.key_path}
 
-    
+    def load_keys(self):
+        key2mnemonic = c.get_json(self.key_path)
+        return key2mnemonic
+        
+
 
 print(Miner.run(__name__))
                 
