@@ -233,15 +233,23 @@ class OS:
                                     cwd = cwd,
                                     env={**os.environ, **env}, **kwargs)
         
+
+        
         if return_process:
             return process
 
         def stream_output(process):
-            pipe = process.stdout
             try:
-                for line in iter(pipe.read, b''):
-                    yield line.decode('utf-8') 
+                modes = ['stdout', 'stderr']
+                for mode in modes:
+                    pipe = getattr(process, mode)
+                    for line in iter(pipe.readline, b''):
+                        line = line.decode('utf-8')
+                        if verbose:
+                            cls.print(line[:-1])
+                        yield line
             except Exception as e:
+                print(e)
                 pass
     
             kill_process(process)
@@ -250,13 +258,10 @@ class OS:
         streamer = stream_output(process)
         if generator:
             return streamer
-
         else:
             text = ''
-
             for ch in streamer:
                 text += ch
-
         return text
 
 
