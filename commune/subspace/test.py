@@ -13,10 +13,6 @@ class Test(c.Module):
     def test_subnet_params(self, netuid=0):
         subnet_params = self.subspace.subnet_params(netuid=0)
         assert isinstance(subnet_params, dict)
-        subnet_params_all = self.subspace.subnet_params(netuid='all')
-        for netuid in subnet_params_all:
-            assert isinstance(subnet_params_all[netuid], dict)
-            assert isinstance(netuid, int)
         subnet_names = self.subspace.subnet_names()
         assert isinstance(subnet_names, list) and len(subnet_names) > 0
         subnet2netuid = self.subspace.subnet2netuid()

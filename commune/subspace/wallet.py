@@ -562,21 +562,7 @@ class SubspaceWallet:
                                   update=update, 
                                  max_age=max_age, **kwargs).values()))
         
-
-
     
-    def my_subnet2netuid(self, key=None, block=None, update=False, **kwargs):
-        address2key = c.address2key()
-        subnet_params = self.subnet_params(block=block, update=update, netuid='all', **kwargs)
-        subnet2netuid = {}
-        for netuid, subnet_params in subnet_params.items():
-            if subnet_params['founder'] in address2key:
-                subnet2netuid[subnet_params['name']] = netuid
-        return subnet2netuid
-    
-    def my_subnets(self, key=None, update=True, **kwargs):
-        return list(self.my_subnet2netuid(key=key,  update=update, **kwargs).keys())
-
     def my_modules(self, search=None, netuid=0, generator=False,  **kwargs):
         keys = self.my_keys(netuid=netuid, search=search)
         if netuid == 'all':
