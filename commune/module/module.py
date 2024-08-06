@@ -274,17 +274,19 @@ class c(*CORE_MODULES):
             return True
         return False
     
-
+    @classmethod
+    def root_functions(cls):
+        return c.fns()
+    
     @classmethod
     def is_root(cls, obj=None) -> bool:
-        
+        required_features = ['module_class','root_module_class', 'module_name']
         if obj is None:
             obj = cls
-        if hasattr(obj, 'module_class'):
+        if all([hasattr(obj, k) for k in required_features]):
             module_class = obj.module_class()
             if module_class == cls.root_module_class:
                 return True
-            
         return False
     is_module_root = is_root_module = is_root
     
@@ -997,17 +999,24 @@ class c(*CORE_MODULES):
             progress.update(1)
         return False
     
-    def file2lines(self, path:str='./')-> List[str]:
+    def file2text(self, path:str='./')-> List[str]:
         files = c.glob(path)
         file2lines = {}
         progress = c.tqdm(len(files))
         for f in files:
             try:
-                file2lines[f] = c.get_text(f).split('\n')
+                file2lines[f] = c.get_text(f)
             except Exception as e:
                 pass
             progress.update(1)
         return file2lines
+    
+    def file2lines(self, path:str='./')-> List[str]:
+        file2text = self.file2text(path)
+        file2lines = {f: text.split('\n') for f, text in file2text.items()}
+        return file2lines
+    
+
     
     def num_files(self, path:str='./')-> int:
         return len(c.glob(path))

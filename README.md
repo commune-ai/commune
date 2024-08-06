@@ -7,7 +7,7 @@
 [![Website Uptime](https://img.shields.io/website-up-down-green-red/http/monip.org.svg)](https://www.communeai.org/)
 [![Twitter Follow](https://img.shields.io/twitter/follow/communeaidotorg.svg?style=social&label=Follow)](https://twitter.com/communeaidotorg)
 
-
+![Alt text](image.png)
 PLEASE REFER TO THE DOCS FOLDER FOR MORE INFO
 
 [DOCS](./commune/docs)

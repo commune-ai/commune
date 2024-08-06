@@ -1,10 +1,11 @@
 import commune as c
 import streamlit as st
 from typing import *
-import json
+import json 
+from commune.modules.remote.remote import Remote
 class App(c.Module):
     def __init__(self, **kwargs):
-        remote = c.module('remote')()
+        remote = Remote()
         for fn in dir(remote):
             if not fn.startswith('_'):
                 try:
@@ -86,11 +87,17 @@ class App(c.Module):
             cols = st.columns(2)
             pwd = cols[1].text_input('Password',default_parmas['pwd'], type='password')
             name = cols[0].text_input('Name', default_host)
+            metadata = st.text_area('Metadata', default_parmas.get('metadata', ''))
             add_host = st.button('Add Host')
 
             if add_host:
-                r = self.add_host(host=host, port=port, user=user, pwd=pwd, name=name)
-                st.write(r)
+                r = self.add_host(host=host, 
+                                  port=port, 
+                                  user=user, 
+                                  pwd=pwd, 
+                                  name=name, 
+                                  metadata=metadata)
+                st.success(r)
 
 
    
@@ -163,8 +170,8 @@ class App(c.Module):
         fn_code = f'lambda x: {fn_code}'
         fn_code = eval(fn_code)                               
         cols = st.columns(2)
-        run_button = cols[0].button('Run')
-        stop_button = cols[1].button('Stop')
+        run_button = cols[0].button('Run', use_container_width=True)
+        stop_button = cols[1].button('Stop', use_container_width=True)
 
 
         host2stats = self.get('host2stats', {})

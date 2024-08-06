@@ -6,7 +6,7 @@ import os
 class Miner(c.Module): 
     
     def __init__(self, 
-                netuid = 17, 
+                netuid = 2, 
                 n = 200, 
                 key : str =None, 
                 treasury_key_address:str = None,

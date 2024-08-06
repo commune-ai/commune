@@ -100,18 +100,16 @@ class Client(c.Module, ClientPool):
 
 
     def get_params(self, args=None, kwargs=None, params=None, version=1):
-
         if version == 1:
             input =  { 
                         "args": args or [],
-                        "kwargs": params or (kwargs or {}),
+                        "kwargs": params or kwargs or {},
                         "timestamp": c.timestamp(),
                         }
             input = self.serializer.serialize(input)
             input = self.key.sign(input, return_json=True)
         else:
             raise ValueError(f"Invalid version: {version}")
-    
 
         return input
 

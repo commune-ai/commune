@@ -1,5 +1,6 @@
 import os
 import commune as c
+import streamlit as st
 
 class ApiManager(c.Module):
     def __init__(self, path='api_vault', password=None, api_keys=[]):
@@ -18,6 +19,13 @@ class ApiManager(c.Module):
         self.save_api_keys(api_keys)
         return {'msg': f'api_key {name} added', 'num_keys': num_keys}
     
+    def remove_api_key(self, name, api_key):
+        api_keys = self.api_keys
+        assert api_key in api_keys[name], f"api_key {name} does not exist"
+        api_keys[name].remove(api_key)
+        self.save_api_keys(api_keys)
+        return {'msg': f'api_key {name} removed', 'num_keys': len(api_keys[name])}
+    
     def pop_api_key(self, name, index=-1, api_key=None):
         api_keys = self.api_keys
         api_keys = api_keys.get(name, [])
@@ -35,3 +43,11 @@ class ApiManager(c.Module):
 
     def save_api_keys(self, api_keys):
         self.put(self.path, api_keys)
+
+    @property
+    def api_names(self):
+        return list(self.api_keys.keys())
+
+
+    
+ApiManager.run(__name__)

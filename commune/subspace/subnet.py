@@ -26,7 +26,7 @@ class SubspaceSubnet:
 
 
 
-    def stake_to(self, netuid = 0,block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
+    def stake_to(self, block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
         stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update,  **kwargs)
         format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
         stake_to = {k: format_value(v) for k,v in stake_to.items()}
@@ -66,8 +66,8 @@ class SubspaceSubnet:
             regblock = regblock[netuid]
         return regblock
 
-    def emissions(self, netuid = 0, block=None, update=False, fmt = 'nanos', **kwargs):
-
+    def emissions(self, netuid = None, block=None, update=False, fmt = 'nanos', **kwargs):
+        netuid = self.resolve_netuid(netuid)
         emissions = self.query_vector('Emission',  netuid=netuid, block=block, update=update, **kwargs)
         if netuid == 'all':
             for netuid, netuid_emissions in emissions.items():
@@ -135,7 +135,8 @@ class SubspaceSubnet:
 
         return namespace
 
-    def emissions(self, netuid = 0, network = "main", block=None, update=False, **kwargs):
+    def emissions(self, netuid = None, network = "main", block=None, update=False, **kwargs):
+        netuid = self.resolve_netuid(netuid)
         return self.query_vector('Emission', network=network, netuid=netuid, block=block, update=update, **kwargs)
 
     def key2name(self, key: str = None, netuid: int = 0) -> str:
@@ -150,10 +151,11 @@ class SubspaceSubnet:
         return names
 
     def keys(self,
-             netuid = 0,
+             netuid = None,
               update=False, 
               max_age=1000,
              **kwargs) -> List[str]:
+        netuid = self.resolve_netuid(netuid)
         keys =  self.query_map('Keys', netuid=netuid, update=update,  max_age=max_age, **kwargs)
         if netuid == 'all':
             for netuid, netuid_keys in keys.items():
@@ -162,13 +164,14 @@ class SubspaceSubnet:
             keys = list(keys.values())
         return keys
 
-    def delegation_fee(self, netuid = 0, block=None, update=False, fmt='j'):
+    def delegation_fee(self, netuid = None, block=None, update=False, fmt='j'):
+        netuid = self.resolve_netuid(netuid)
         delegation_fee = self.query_map('DelegationFee', netuid=netuid, block=block ,update=update)
         return delegation_fee
 
 
     def subnet_params(self, 
-                    netuid=0,
+                    netuid=None,
                     update = False,
                     max_age = 1000,
                     timeout=40,
@@ -217,7 +220,8 @@ class SubspaceSubnet:
                     subnet_params[netuid][k] = value
         return subnet_params
 
-    def pending_deregistrations(self, netuid = 0, update=False, **kwargs):
+    def pending_deregistrations(self, netuid = None, update=False, **kwargs):
+        netuid = self.resolve_netuid(netuid)
         pending_deregistrations = self.query_map('PendingDeregisterUids',update=update,**kwargs)[netuid]
         return pending_deregistrations
     
@@ -388,12 +392,13 @@ class SubspaceSubnet:
     
     def get_modules(self,
                     keys : list = None,
-                    netuid=0,
+                    netuid=None,
                     timeout=30,
                     min_emission=0,
                     max_age = 1000,
                     update=False,
                     **kwargs):
+        netuid = self.resolve_netuid(netuid)
         modules = None
         path = None 
         if keys == None :
@@ -440,7 +445,7 @@ class SubspaceSubnet:
     
     def get_module(self, 
                     module=None,
-                    netuid=0,
+                    netuid=None,
                     trials = 4,
                     fmt='j',
                     mode = 'http',
@@ -450,6 +455,8 @@ class SubspaceSubnet:
                     update = False,
                     **kwargs ) -> 'ModuleInfo':
         U16_MAX = 2**16 - 1
+
+        netuid = self.resolve_netuid(netuid)
         
         if module == None:
             module = self.keys(netuid=netuid, update=update, max_age=max_age)[0]
@@ -622,7 +629,8 @@ class SubspaceSubnet:
             
         return weights
     
-    def resolve_uid(self, uid=None, netuid=0, **kwargs) -> int:
+    def resolve_uid(self, uid=None, netuid=None, **kwargs) -> int:
+        netuid = self.resolve_netuid(netuid)
         if isinstance(uid, int):
             return uid
         elif isinstance(uid, str):
@@ -827,7 +835,7 @@ class SubspaceSubnet:
             return netuid
         if netuid == None :
             # If the netuid is not specified, use the default.
-            return 0
+            return self.netuid
         if isinstance(netuid, str):
             subnet2netuid = self.subnet2netuid()
             if netuid not in subnet2netuid: # if still not found, try lower case
@@ -844,7 +852,7 @@ class SubspaceSubnet:
         return netuid
     
 
-    def blocks_until_vote(self, netuid=0, **kwargs):
+    def blocks_until_vote(self, netuid=None, **kwargs):
         netuid = self.resolve_netuid(netuid)
         tempo = self.subnet_params(netuid=netuid, **kwargs)['tempo']
         block = self.block
@@ -878,13 +886,19 @@ class SubspaceSubnet:
         return stake_from
 
 
-    def epoch_time(self, netuid=0, update=False, **kwargs):
+    def epoch_time(self, netuid=None, update=False, **kwargs):
+        netuid = self.resolve_netuid(netuid)
         return self.subnet_params(netuid=netuid, update=update, **kwargs)['tempo']*self.block_time
 
-    def seconds_per_day(self, ):
+    def set_netuid(self, netuid:int):
+        self.netuid = netuid
+        return self.netuid
+
+    def seconds_per_day(self ):
         return 24*60*60
     
-    def epochs_per_day(self, netuid=0):
+    def epochs_per_day(self, netuid=None):
+        netuid = self.resolve_netuid(netuid)
         return self.seconds_per_day()/self.epoch_time(netuid=netuid)
 
     def seconds_per_epoch(self, netuid='all'):
@@ -904,7 +918,7 @@ class SubspaceSubnet:
     
 
 
-    def netuid2module(self, netuid: int = 0, update=False, fmt:str='j', **kwargs) -> 'ModuleInfo':
+    def netuid2module(self, update=False, fmt:str='j', **kwargs) -> 'ModuleInfo':
         netuids = self.netuids(update=update)
         future2netuid = {}
         for netuid in netuids:

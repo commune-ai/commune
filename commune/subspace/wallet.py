@@ -26,7 +26,6 @@ class SubspaceWallet:
         key = self.resolve_key(key)
         dest = self.resolve_key_ss58(dest)
         amount = self.to_nanos(amount) # convert to nano (10^9 nanos = 1 token)
-
         response = self.compose_call(
             module='Balances',
             fn='transfer_keep_alive',
@@ -41,6 +40,10 @@ class SubspaceWallet:
         
         return response
 
+    
+    
+    
+    
     def add_profit_shares(
         self,
         keys: List[str], # the keys to add profit shares to

@@ -52,7 +52,7 @@ class Tree:
             module_dirpath = dir_path + '/' + simple.replace('.', '/')
             if os.path.isdir(module_dirpath):
                 simple_filename = simple.replace('.', '_')
-                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module', 'main'] + simple.split('.')
+                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module', 'main'] + simple.split('.') + ['__init__']
                 path_options +=  [module_dirpath + '/' + cls.resolve_extension(f)  for f in filename_options]  
             else:
                 module_filepath = dir_path + '/' + cls.resolve_extension(simple.replace('.', '/'), extension=extension)
@@ -61,6 +61,11 @@ class Tree:
 
             for p in path_options:
                 if os.path.exists(p):
+                    p_text = cls.get_text(p)
+                    is_class_text = 'class ' in p_text or '  def ' in p_text
+                    if is_class_text:
+                        path = p
+                        break
                     path =  p
                     break
     
@@ -438,6 +443,8 @@ class Tree:
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
             object_path = object_path[1:]
+        if '.__init__' in object_path:
+            object_path = object_path.replace('__init__', '')
         object_path = object_path + '.' + classes[-1]
         return object_path
 
@@ -544,11 +551,15 @@ class Tree:
         module_exists =  module in cls.modules(**kwargs)
         if not module_exists:
             try:
-                module = cls.simple2path(module)
-                module_exists = cls.exists()
+                module_path = cls.simple2path(module)
+                module_exists = cls.exists(module_path)
             except:
                 pass
         return module_exists
+    
+    @classmethod
+    def has_app(cls, module:str, **kwargs) -> bool:
+        return cls.module_exists(module + '.app', **kwargs)
 
 
     @classmethod

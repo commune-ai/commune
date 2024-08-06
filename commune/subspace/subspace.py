@@ -45,6 +45,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         # merge the config with the subspace config
         self.config = c.dict2munch({**Subspace.config(), **self.config})
         self.set_network(network)
+        self.set_netuid(netuid)
         if sync_loop:
             c.thread(self.sync_loop)
     
@@ -53,6 +54,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     ###########################
     #### Global Parameters ####
     ###########################
+
 
     def feature2storage(self, feature:str):
         storage = ''
