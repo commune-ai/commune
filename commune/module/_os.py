@@ -243,6 +243,8 @@ class OS:
                 modes = ['stdout', 'stderr']
                 for mode in modes:
                     pipe = getattr(process, mode)
+                    if pipe == None:
+                        continue
                     for line in iter(pipe.readline, b''):
                         line = line.decode('utf-8')
                         if verbose:
@@ -261,7 +263,7 @@ class OS:
         else:
             text = ''
             for ch in streamer:
-                text += ch
+                text += (ch + '\n')
         return text
 
 
