@@ -176,11 +176,11 @@ class SubspaceSubnet:
         for i, ch in enumerate(feature):
             if ch.isupper():
                 if i == 0:
-                    chunks += ch.lower()
+                    name += ch.lower()
                 else:
-                    chunks += f'_{ch.lower()}'
+                    name += f'_{ch.lower()}'
             else:
-                chunks += [ch]
+                name += ch
         return name
 
 
