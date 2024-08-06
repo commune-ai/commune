@@ -4,6 +4,7 @@ import json
 import streamlit as st
 from typing import *
 
+
 class App(c.Module):
     port_range = [8501, 8600]
     name_prefix = 'app::'
@@ -28,8 +29,10 @@ class App(c.Module):
         port = port or app2info.get(name, {}).get('port', c.free_port())
         if update:
             port = c.free_port()
+        process_name = self.name_prefix + name 
         if c.port_used(port):
             c.kill_port(port)
+            c.pm2_kill(process_name)
         if c.module_exists(module + '.app'):
             module = module + '.app'
         kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
@@ -37,7 +40,6 @@ class App(c.Module):
         cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
 
 
-        print('cmd', cmd)
         cwd = cwd or os.path.dirname(module_class.filepath())
 
         if remote:
@@ -45,6 +47,7 @@ class App(c.Module):
             rkwargs['remote'] = False
             del rkwargs['module_class']
             del rkwargs['app2info']
+            del rkwargs['process_name']
             self.remote_fn(
                         fn='start',
                         name=self.name_prefix + name ,
@@ -101,5 +104,24 @@ class App(c.Module):
             apps = [n[len(self.name_prefix):] for n in apps]
         return apps
     
+    def app_modules(self, **kwargs):
+        return list(set([m.replace('.app','') for m in self.modules() if self.has_app(m, **kwargs)]))
+    
+    def is_running(self, name):
+        return self.resolve_process_name(name) in self.apps()
+    
+    def resolve_process_name(self, name):
+        return self.name_prefix + name
+
+    def run_all(self):
+        for app in self.app_modules():
+            c.print(self.start(app))
+
+    # def app(self, **kwargs):
+    #     # create a dashbaord of all apps
+    #     app_modules = self.app_modules(**kwargs)
+
+
+        
 App.run(__name__)
      

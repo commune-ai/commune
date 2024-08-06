@@ -4,6 +4,7 @@
 import commune as c
 
 import streamlit as st
+import os
 
 class UsersApp(c.Module):
     @classmethod

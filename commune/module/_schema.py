@@ -668,7 +668,7 @@ class Schema:
     @classmethod
     def get_functions(cls, obj: Any = None,
                       search = None,
-                      include_parents:bool=False, 
+                      include_parents:bool=True, 
                       include_hidden:bool = False) -> List[str]:
         '''
         Get a list of functions in a class
@@ -678,62 +678,87 @@ class Schema:
             include_parents: whether to include the parent functions
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
-        
+        is_root_module = cls.is_root_module()
+    
         obj = cls.resolve_object(obj)
-        functions = []
-        child_functions = list(obj.__dict__.keys())
-        parent_functions = []
-
-
-        if cls.is_root_module():
-            include_parents = True
-            
         if include_parents:
             parent_functions = cls.parent_functions(obj)
+        else:
+            parent_functions = []
+        avoid_functions = []
+        if not is_root_module:
+            import commune as c
+            avoid_functions = c.functions()
+        else:
+            avoid_functions = []
 
- 
+        functions = []
+        child_functions = dir(obj)
+        function_names = [fn_name for fn_name in child_functions + parent_functions]
 
-        for fn_name in (child_functions + parent_functions):
-            if search != None and search not in fn_name :
+
+        for fn_name in function_names:
+            if fn_name in avoid_functions:
                 continue
-            
-            # skip hidden functions if include_hidden is False
             if not include_hidden:
                 if ((fn_name.startswith('__') or fn_name.endswith('_'))):
                     if fn_name != '__init__':
                         continue
-
-            # if the function is in the parent class, skip it
-            if not include_parents:
-                if fn_name in parent_functions:
-                    continue
-
-
-
             fn_obj = getattr(obj, fn_name)
-
-            # if the function is a property, skip it
-            if cls.is_property(fn_obj):
-                continue
             # if the function is callable, include it
             if callable(fn_obj):
                 functions.append(fn_name)
 
-        functions = list(set(functions))     
+        text_derived_fns = cls.parse_functions_from_module_text()
+    
+        functions = sorted(list(set(functions + text_derived_fns)))
             
+        if search != None:
+            functions = [f for f in functions if search in f]
         return functions
+    
     @classmethod
-    def functions(cls, search = None, include_parents = True, avoid_functions = None):
-        if cls.is_root_module():
-            include_parents = True
-        else:
+    def functions(cls, search = None, include_parents = True):
+        return cls.get_functions(search=search, include_parents=include_parents)
 
-            import commune as c
-            avoid_functions = c.functions()
-        functions =  cls.get_functions(search=search, include_parents=include_parents)
-        if avoid_functions != None:
-            functions = [f for f in functions if f not in avoid_functions]
+
+    @classmethod
+    def get_conflict_functions(cls, obj = None):
+        '''
+        Does the object conflict with the current object
+        '''
+        if isinstance(obj, str):
+            obj = cls.get_module(obj)
+        root_fns = cls.root_functions()
+        conflict_functions = []
+        for fn in obj.functions():
+            if fn in root_fns:
+                print(f'Conflict: {fn}')
+                conflict_functions.append(fn)
+        return conflict_functions
+    
+    @classmethod
+    def does_module_conflict(cls, obj):
+        return len(cls.get_conflict_functions(obj)) > 0
+    
+
+    
+    @classmethod
+    def parse_functions_from_module_text(cls, obj=None, splitter_options = ["   def " , "    def "]):
+        # reutrn only functions in this class
+        import inspect
+        obj = obj or cls
+        text = inspect.getsource(obj)
+        functions = []
+        for splitter in splitter_options:
+            for line in text.split('\n'):
+                if f'"{splitter}"' in line:
+                    continue
+                if line.startswith(splitter):
+                    functions += [line.split(splitter)[1].split('(')[0]]
+
         return functions
+
 
     def n_fns(self, search = None):
         return len(self.fns(search=search))
@@ -884,14 +909,13 @@ class Schema:
         obj = obj or cls
         parents = cls.get_parents(obj)
         for parent in parents:
+            is_parent_root = cls.is_root_module(parent)
+            if is_parent_root:
+                continue
+            
             for name, member in parent.__dict__.items():
                 if not name.startswith('__'):
                     functions.append(name)
-        if cls.is_root_module():
-            include_root = True
-        if not include_root:
-            root_fns = cls.root_fns()
-            functions = [f for f in functions if f not in root_fns]
         return functions
 
     @classmethod

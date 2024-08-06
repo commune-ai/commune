@@ -132,7 +132,8 @@ class Remote(c.Module):
                  user:str = 'root',
                  pwd:str = None,
                  password:str = None,
-                 name : str = None
+                 name : str = None,
+                 metadata = None
                  
                  ):
         
@@ -143,7 +144,8 @@ class Remote(c.Module):
             'host': host, # IP address of the remote machine
             'port': port, # Remote port (typically 22)
             'user': user, # Remote username
-            'pwd': pwd or password # Remote password
+            'pwd': pwd or password, # Remote password
+            'metadata': metadata or {}
         }
 
         if name == None:
@@ -548,5 +550,4 @@ class Remote(c.Module):
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
     
-
 Remote.run(__name__)

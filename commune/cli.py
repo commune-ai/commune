@@ -36,6 +36,7 @@ class cli:
     def forward(self, args=None):
         t0 = time.time()
         args = args or self.argv()
+        
         self.input_str = 'c ' + ' '.join(args)
         output = self.get_output(args)
         latency = time.time() - t0
@@ -82,7 +83,15 @@ class cli:
         if you are calling a function ont he module function (the root module), it is not necessary to specify the module
         c {fn} arg1 arg2 arg3 ... argn
         """
+        # any of the --flags are init kwargs
         init_kwargs = {}
+        if any([arg.startswith('--') for arg in argv]): 
+            for arg in argv:
+                if arg.startswith('--'):
+                    argv.remove(arg)
+                    key, value = arg[2:].split('=')
+                    init_kwargs[key] = self.determine_type(value)
+
         if argv[0].endswith('.py'):
             argv[0] = argv[0][:-3]
 
@@ -113,12 +122,11 @@ class cli:
 
         fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
 
-        if not hasattr(module, 'argv_init_kwargs'):
-            argv_init_kwargs_fn = self.argv_init_kwargs
-        init_kwargs = {**init_kwargs, **argv_init_kwargs_fn(argv)}
-        if len(init_kwargs) > 0 or fn_class == 'self' and not is_fn: 
-            module = module(**init_kwargs)
-
+        if not is_fn:
+            if len(init_kwargs) > 0 or fn_class == 'self': 
+                print('init_kwargs', init_kwargs)
+                module = module(**init_kwargs)
+                
         module_name = module.module_name()
         fn_path = f'{module_name}/{fn}'
         try: 
@@ -160,15 +168,9 @@ class cli:
         kwargs = {}
         parsing_kwargs = False
         for arg in argv:
-
-            # TODO fix exception with  "="
-            # if any([arg.startswith(_) for _ in ['"', "'"]]):
-            #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-            #     args.append(cls.determine_type(arg))
             if '=' in arg:
                 parsing_kwargs = True
                 key, value = arg.split('=')
-                # use determine_type to convert the value to its actual type
                 kwargs[key] = cls.determine_type(value)
 
             else:
