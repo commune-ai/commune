@@ -239,9 +239,15 @@ class SubspaceSubnet:
                 subnet_params[k] = v
             
             self.put(path, subnet_params)
-        subnet_params['name'] = subnet_params.pop('subnet_names')
-        subnet_params['bonds_ma'] = subnet_params.pop('bonds_moving_average')
+            
         subnet_params.update(subnet_params.pop('subnet_governance_config')) 
+        translation = {
+            'subnet_names': 'name', 
+            'bonds_moving_average': 'bonds_ma'
+        }
+        for k,v in translation.items():
+            if k in subnet_params:
+                subnet_params[v] = subnet_params.pop(k)
         return subnet_params
 
 
