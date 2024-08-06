@@ -108,7 +108,7 @@ class PM2(c.Module):
             
             return text
         elif mode == 'cmd':
-            return c.cmd(f"pm2 logs {module}", verbose=verbose)
+            return c.cmd(f"pm2 logs {module}", verbose=True)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
    
