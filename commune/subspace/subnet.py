@@ -172,6 +172,9 @@ class SubspaceSubnet:
 
 
     def feature2name(self, feature='MinStake'):
+        translations = {
+            'subnet_names': 'name'
+        }
         name = ''
         for i, ch in enumerate(feature):
             if ch.isupper():
@@ -181,6 +184,7 @@ class SubspaceSubnet:
                     name += f'_{ch.lower()}'
             else:
                 name += ch
+        name = translations.get(name, name)
         return name
 
 
