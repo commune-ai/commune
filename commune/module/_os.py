@@ -187,6 +187,32 @@ class OS:
         return cls.cmd(f"ssh-keygen -b {b} -t {t}")
     
     @classmethod
+    def stream_output(cls, process, verbose=True):
+        try:
+            modes = ['stdout', 'stderr']
+            for mode in modes:
+                pipe = getattr(process, mode)
+                if pipe == None:
+                    continue
+                # read per character for non-blocking
+                while True:
+                    try:
+                        out = pipe.read(1).decode('utf')
+                        # print along the way without \n character
+                        if verbose:
+                            cls.print(out, end='', color='green')
+                        if out == '' and process.poll() != None:
+                            break
+                        yield out
+                    except Exception as e:
+                        cls.print(e, color='red')
+                        break
+        except Exception as e:
+            cls.print(e, color='red')
+            pass
+        
+
+    @classmethod
     def cmd(cls, 
                     command:Union[str, list],
                     *args,
@@ -237,33 +263,14 @@ class OS:
         
         if return_process:
             return process
-
-        def stream_output(process):
-            try:
-                modes = ['stdout', 'stderr']
-                for mode in modes:
-                    pipe = getattr(process, mode)
-                    if pipe == None:
-                        continue
-                    for line in iter(pipe.readline, b''):
-                        line = line.decode('utf-8')
-                        if verbose:
-                            cls.print(line[:-1])
-                        yield line
-            except Exception as e:
-                print(e)
-                pass
-    
             kill_process(process)
-
-
-        streamer = stream_output(process)
+        streamer = cls.stream_output(process, verbose=verbose)
         if generator:
             return streamer
         else:
             text = ''
             for ch in streamer:
-                text += (ch + '\n')
+                text += ch
         return text
 
 

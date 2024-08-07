@@ -1,5 +1,6 @@
 from typing import *
-
+from munch import Munch
+from copy import deepcopy
 import os
 
 class Config:
@@ -22,8 +23,8 @@ class Config:
         config.update(kwargs)
         default_config = self.config if not callable(self.config) else self.config()
         config = {**default_config, **config}
-        if 'kwargs' in config:
-            config.update(config.pop('kwargs'))
+        config.update(config.pop('kwargs', {}))
+        
         if isinstance(config, dict):
             config = self.dict2munch(config)
         # get the config

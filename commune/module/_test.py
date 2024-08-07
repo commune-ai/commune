@@ -48,3 +48,11 @@ class Test:
 
                 
         return fn2result
+    
+
+
+    def pytest(self, path=None):
+        path = path or self.libpath + '/tests'
+        print(path)
+        return self.cmd(f'pytest {path}', verbose=1)
+

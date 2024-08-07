@@ -7,8 +7,20 @@ We have a pythonic cli for commune, which is a wrapper around the `c.Module` lib
 ```bash
 c {module_name}/{function_name} *args **kwargs
 
+c model.openai/forward text="sup"
 
 ```
+
+
+## Local Modules
+
+
+lets say you have a file called openai.py and it has a class in it
+
+```python
+
+```bash
+
 
 ## Pythoni
 You do not need to specify the module when calling the root (name=module) module.

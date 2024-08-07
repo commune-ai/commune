@@ -80,7 +80,7 @@ class Ticket(c.Module):
                 ticket[f] = data.pop(f)
         else:
             raise ValueError(f"Data is not a ticket: {data}")
-        return c.verify(data, **ticket)
+        return c.verify(data, address=ticket['address'], signature=ticket['signature'])
 
 
     @classmethod
@@ -109,6 +109,11 @@ class Ticket(c.Module):
         ticket = self.ticket(key=key)
         reciept = self.verify(ticket)
         print(reciept)
+        null_key = c.new_key()
+
         assert reciept, 'Failed to verify'
+        ticket['address'] = null_key.ss58_address
+        assert not self.verify(ticket), 'Failed to verify'
+        
         return {'success': True, 'ticket': ticket, 'key': str(key), 'reciept': reciept}
     

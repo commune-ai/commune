@@ -1357,7 +1357,7 @@ class Keypair(c.Module):
         """
         try:
             return ss58.is_valid_ss58_address( address, valid_ss58_format=c.__ss58_format__ )
-        except (IndexError):
+        except Exception as e:
             return False
         
     @classmethod
@@ -1386,9 +1386,8 @@ class Keypair(c.Module):
                               ss58_format=c.__ss58_format__)
 
             ss58_addr = keypair.ss58_address
-            return ss58_addr is not None
-
-        except (ValueError, IndexError):
+            return bool(ss58_addr is not None)
+        except Exception as e:
             return False
 
     @classmethod

@@ -13,7 +13,7 @@ nest_asyncio.apply()
 
 # YOU CAN DEFINE YOUR CORE MODULES BY JUST adding a class to the core folder
 # for instance if you have a class called 'os_fam' the file would be ./commune/module/_os_fam.py
-def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
+def get_module_blocks(prefix = 'commune.module', core_prefix = '_'):
     """
     find the core modules that construct the commune block module
     """
@@ -31,9 +31,19 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
     return results
 
 # AGI BEGINS 
-CORE_MODULES = get_core_modules()
+MODULE_BLOCKS = get_module_blocks()
 
-class c(*CORE_MODULES):
+class c(*MODULE_BLOCKS):
+    core_modules = [
+        'module',
+        'key',
+        'server',
+        'client',
+        'pm2',
+        'subspace',
+        'key.ticket'
+    ]
+    
     libname = lib_name = lib = 'commune' # the name of the library
     helper_functions  = ['info',
                 'metadata',
@@ -170,8 +180,10 @@ class c(*CORE_MODULES):
                 module = cls.get_module(path=path, cache=cache, trials=trials-1, verbose=verbose, update_tree_if_fail=update_tree_if_fail, init_kwargs=init_kwargs)
                 return module
             except Exception as e:
+                e = c.detailed_error(e)
                 if verbose:
                     c.print(f'Error: {e}', color='red')
+                return e
         """
         params: 
             path: the path to the module
@@ -980,12 +992,6 @@ class c(*CORE_MODULES):
         return f'<{self.class_name()}'
     
 
-    def pytest(self):
-        test_path = c.root_path + '/tests'
-        return c.cmd(f'pytest {test_path}', verbose=True)
-    
-
-
     def check_word(self, word:str)-> str:
         files = c.glob('./')
         progress = c.tqdm(len(files))
@@ -1016,6 +1022,46 @@ class c(*CORE_MODULES):
         file2lines = {f: text.split('\n') for f, text in file2text.items()}
         return file2lines
     
+
+    def access_ticket(self, module = None, key=None):
+        try:
+            module = self if module ==None else c.module(module)
+            module_name = module.module_name()
+            key = key or module_name
+            ticket = c.ticket(module_name, key=key)
+        except Exception as e:
+            return c.detailed_error(e)
+        
+        return ticket
+    
+
+    def verify_access_ticket(self, ticket, module = None, key=None):
+        try:
+            return bool(self.module_name() == ticket['data'])
+        except Exception as e:
+            return False
+        
+    
+    def test_access_ticket(self, module = None, key=None):
+        null_key = c.new_key()
+        og_ticket = self.access_ticket(module=module, key=key)
+        ticket = c.copy(og_ticket)
+        assert self.verify_access_ticket(ticket), 'Access Ticket Verification Failed'
+        ticket['data'] =  'fam'
+        print(ticket)
+        assert not self.verify_access_ticket(ticket), 'Access Ticket Verification Failed'
+        ticket = c.copy(og_ticket)
+        ticket['address'] = null_key.ss58_address
+        print(ticket, self.verify_access_ticket(ticket))
+        assert not self.verify_access_ticket(ticket), 'Access Ticket Verification Failed'
+        
+
+        return {'success': True, 'message': 'Access Ticket Verification Passed'}
+
+        # test null case where module is 
+
+    
+
 
     
     def num_files(self, path:str='./')-> int:

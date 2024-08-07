@@ -239,7 +239,7 @@ class SubspaceSubnet:
                 subnet_params[k] = v
             
             self.put(path, subnet_params)
-            
+
         subnet_params.update(subnet_params.pop('subnet_governance_config')) 
         translation = {
             'subnet_names': 'name', 

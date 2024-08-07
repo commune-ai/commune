@@ -22,13 +22,10 @@ class Access(c.Module):
         
         self.set_config(locals())
         self.period = self.timescale_map[self.config.timescale]
-        self.user_module = c.module("user")()
         self.state_path = self.resolve_path(state_path)
         if refresh:
             self.rm_state()
-        if isinstance(module, str):
-            module = c.module(module)()
-        self.module = module
+        self.module = c.module(module)() if isinstance(module, str) else module
         c.thread(self.run_loop)
 
         self.state = {'sync_time': 0, 
@@ -47,7 +44,6 @@ class Access(c.Module):
         return rate_limit
 
     whitelist = ['info', 'verify', 'rm_state']
-    @c.endpoint(cost=1)
     def forward(self, fn: str = 'info' ,  address=None, input:dict = None) -> dict:
         """
         input:
@@ -75,7 +71,7 @@ class Access(c.Module):
         is_private_fn = bool(fn.startswith('__') or fn.startswith('_'))
         assert not is_private_fn, f'Function {fn} is private'
         # CHECK IF THE ADDRESS IS A LOCAL KEY
-        is_local_key = address in self.address2key
+        is_local_key = bool(address in self.address2key)
         is_user = c.is_user(address)
         if is_local_key or is_user:
             return {'success': True, 'msg': f'address {address} is a local key or user, so it has unlimited access'}
@@ -113,6 +109,10 @@ class Access(c.Module):
             c.print(r)
             c.sleep(self.config.max_staleness)
 
+    def admin_ticket(self, ticket):
+        return c.ticket(self.module_name())
+
+
     def sync_network(self, update=False, max_age=None, netuid=None, network=None):
         state = self.get(self.state_path, {}, max_age=self.config.max_staleness)
         netuid = netuid or self.config.netuid
@@ -135,8 +135,8 @@ class Access(c.Module):
             response['msg'] =  'Synced with the network'
             response['staleness'] = 0
         self.subspace = c.module('subspace')(network=network)
-        state['stake'] = self.subspace.stakes(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
-        state['stake_from'] = self.subspace.stake_from(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
+        state['stake'] = self.subspace.stakes(fmt='j',update=update, max_age=self.config.max_staleness)
+        state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=self.config.max_staleness)
         self.state = state
         self.put(self.state_path, self.state)
         return response

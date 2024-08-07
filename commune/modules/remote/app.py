@@ -190,6 +190,7 @@ class App(c.Module):
             failed_hosts = []
             errors = []
             futures = list(future2host.keys())
+            col_idx = 0
 
             try:
                 for future in c.as_completed(futures, timeout=timeout):
@@ -208,8 +209,9 @@ class App(c.Module):
                         msg = fn_code(msg)
                         stats['last_success'] = c.time()
                         stats['success'] += 1
-                        with st.expander(f'Results {host}', expanded=expanded):
-                            st.write(title)
+                        col_idx = (col_idx + 1) % num_columns
+                        checkmark_emoji = '✅'
+                        with cols[col_idx].expander(f'{checkmark_emoji} {host} {checkmark_emoji}', expanded=False):
                             st.code('\n'.join(msg.split('\n')))
                     else:
                         msg = result

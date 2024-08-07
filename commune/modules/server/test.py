@@ -47,3 +47,10 @@ class Test(c.Module):
         c.rm_key(key_name)
         return {'success': True, 'msg': 'server test passed'}
 
+
+
+
+    def test_calling_with_new_key(self, module_name = 'module::test', key_name='module::test2'):
+        c.add_key(key_name)
+        return {'success': True, 'msg': 'server test passed'}
+    

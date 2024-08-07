@@ -28,15 +28,11 @@ class Logger:
         cls.console = console
         return console
     
-
-
-
-
     @classmethod
     def logmap(cls, *args, **kwargs):
         logmap = {}
         for m in c.servers(*args,**kwargs):
-            logmap[m] = c.logs(m)
+            logmap[m] = cls.logs(m)
         return logmap
 
     @classmethod
