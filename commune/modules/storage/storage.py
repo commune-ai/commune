@@ -14,6 +14,7 @@ class Storage(c.Module):
 
     def resolve_item_path(self, path: str) -> str:
         store_dir = self.store_dir
+        path = str(path)
         path = path if  path.startswith(store_dir) else f'{store_dir}/{path}' 
         path = self.resolve_path(path)
         return path
@@ -30,6 +31,7 @@ class Storage(c.Module):
 
     @c.endpoint()
     def put_item(self, k,  v: Dict, encrypt:bool=False):
+        k = str(k)
         timestamp = c.timestamp()
         path = self.resolve_item_path(k)    
         # encrypt it if you want

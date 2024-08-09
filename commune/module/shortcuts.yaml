@@ -18,4 +18,5 @@ w: wombo
 router: model.openrouter
 ticket: key.ticket
 namespace: server.namespace
+serializer: server.serializer
 

@@ -15,10 +15,8 @@ class Tree:
     @classmethod
     def simple2path(cls, 
                     simple:str,
-                    tree = None,
                     extension = '.py',
-                
-                    verbose = 1,
+                    avoid_dirnames = ['', '/src', '/commune', '/commune/module', '/commune/modules', '/modules', '/blocks', '/agents', 'commune/agents'],
                     **kwargs) -> bool:
         """
         converts the module path to a file path
@@ -33,6 +31,8 @@ class Tree:
         """
         # if cls.libname in simple and '/' not in simple and cls.can_import_module(simple):
         #     return simple
+        shortcuts = cls.shortcuts()
+        simple = shortcuts.get(simple, simple)
 
 
         if simple.endswith(extension):
@@ -43,10 +43,9 @@ class Tree:
         path_options = []
         simple = simple.replace('/', '.')
 
-        avoid_dirnames = ['', '/src', '/modules', '/commune']
-        local_prefix_paths = list([pwd+x for x in avoid_dirnames])
-        root_prefix_paths = list([cls.root_path + x for x in avoid_dirnames])
-        dir_paths = local_prefix_paths+root_prefix_paths # pwd prefixes
+        dir_paths = list([pwd+x for x in avoid_dirnames]) # local first
+        dir_paths += list([cls.libpath + x for x in avoid_dirnames]) # add libpath stuff
+
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
             module_dirpath = dir_path + '/' + simple.replace('.', '/')
@@ -58,16 +57,15 @@ class Tree:
                 module_filepath = dir_path + '/' + cls.resolve_extension(simple.replace('.', '/'), extension=extension)
                 path_options += [module_filepath]
 
-
             for p in path_options:
                 if os.path.exists(p):
                     p_text = cls.get_text(p)
+                    # gas class in text
                     is_class_text = 'class ' in p_text or '  def ' in p_text
                     if is_class_text:
                         path = p
                         break
                     path =  p
-                    break
     
             if path != None:
                 break
@@ -439,12 +437,13 @@ class Tree:
             object_path = object_path[len(cls.libpath)+1:]
 
         object_path = object_path.replace('.py', '')
-
+    
         object_path = object_path.replace('/', '.')
         if object_path.startswith('.'):
             object_path = object_path[1:]
         if '.__init__' in object_path:
-            object_path = object_path.replace('__init__', '')
+            object_path = object_path.replace('.__init__', '')
+            
         object_path = object_path + '.' + classes[-1]
         return object_path
 

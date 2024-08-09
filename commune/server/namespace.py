@@ -24,7 +24,7 @@ class Namespace(c.Module):
         if netuid != None:
             network = f'subspace.{netuid}'
 
-        namespace = cls.get(network, {}, max_age=max_age)
+        namespace = cls.get(network, {}, max_age=max_age, update=update)
         if 'subspace' in network:
             if '.' in network:
                 network, netuid = network.split('.')
@@ -160,7 +160,7 @@ class Namespace(c.Module):
     def build_namespace(cls,
                         timeout:int = 10,
                         network:str = 'local', 
-                        verbose=True)-> dict:
+                        verbose=False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -169,7 +169,6 @@ class Namespace(c.Module):
         namespace = {}
         addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
         future2address = {}
-        print(addresses)
         for address in addresses:
             f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
             future2address[f] = address

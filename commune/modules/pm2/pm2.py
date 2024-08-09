@@ -117,7 +117,7 @@ class PM2(c.Module):
         futures = []
         for name in cls.servers(search=search):
             c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
-            f = c.submit(cls.kill, kwargs=dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            f = c.submit(cls.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
             futures.append(f)
         return c.wait(futures)
     
