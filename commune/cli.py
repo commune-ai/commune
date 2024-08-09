@@ -126,7 +126,7 @@ class cli:
             if len(init_kwargs) > 0 or fn_class == 'self': 
                 print('init_kwargs', init_kwargs)
                 module = module(**init_kwargs)
-                
+        print(module)
         module_name = module.module_name()
         fn_path = f'{module_name}/{fn}'
         try: 

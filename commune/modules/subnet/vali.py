@@ -4,7 +4,7 @@ class Subnet(c.m('vali')):
     def __init__(self, network='local', search=None, **kwargs):
         self.init_vali(locals())
 
-    def score_module(self, module):
+    def score(self, module):
         a = c.random_int()
         b = c.random_int()
         output = module.forward(a, b)
@@ -13,13 +13,13 @@ class Subnet(c.m('vali')):
         else:
             return 0
         
-    def test(self, n=3, sleep_time=4):
+    def test(self, n=3, sleep_time=4, **kwargs):
         test_miners = ['subnet.miner.add::test' for i in range(n)]
         for miner in test_miners:
             c.serve(miner)
         test_vali = 'subnet.vali.add::test'
         for miner in test_miners:
-            c.serve(test_vali, kwargs={'network': 'local'})
+            c.serve(test_vali, kwargs={'network': 'local', **kwargs})
         
         c.print('Sleeping for 3 seconds')
         c.sleep(sleep_time)

@@ -44,10 +44,10 @@ class Test(c.Module):
         while c.time() - t0 < sleep_time:
 
             leaderboard = c.call(test_vali+'/leaderboard')
-            if len(leaderboard) >= n and isinstance(leaderboard, pd.DataFrame):
+            if len(leaderboard) >= n:
                 break
             else:
-                c.print(f'Waiting for leaderboard to be updated {len(leaderboard)}')
+                c.print(f'Waiting for leaderboard to be updated {len(leaderboard)} is n={n}')
             c.sleep(1)
 
         leaderboard = c.call(test_vali+'/leaderboard')

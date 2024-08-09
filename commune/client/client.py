@@ -41,7 +41,7 @@ class Client(c.Module, ClientPool):
                 *args,
                 kwargs = None,
                 params = None,
-                module : str = None,
+                module : str = 'module',
                 network:str = 'local',
                 key:str = None,
                 timeout=40,
@@ -49,6 +49,9 @@ class Client(c.Module, ClientPool):
         if '/' in str(fn):
             module = '.'.join(fn.split('/')[:-1])
             fn = fn.split('/')[-1]
+        else:
+            module = fn
+            fn = 'info'
         client = cls.connect(module, virtual=False, network=network)
         return  client.forward(fn=fn, 
                                 args=args,
@@ -114,22 +117,21 @@ class Client(c.Module, ClientPool):
         return input
 
 
-    def get_url(self, fn, module, mode='http', network=None):
+    def get_url(self, fn, mode='http', network=None):
         network = network or self.network
-        module = module or self.module
-        if '/' in str(module):  
+        if '://' in str(fn):
+            mode ,fn = fn.split('://')
+        if '/' in str(fn):  
             module, fn = module.split('/')
+        else:
+            module = self.module
         if '/' in str(fn):
             module, fn = fn.split('/')
-        if '/' in module.split('://')[-1]:
-            module = module.split('://')[-1]
-
         namespace = self.resolve_namespace(network)
         if module in namespace:
             module = namespace[module]
         url = f"{module}/{fn}/"
         url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
-
         return url        
 
 
@@ -151,7 +153,8 @@ class Client(c.Module, ClientPool):
                            mode = 'http',
                            **extra_kwargs):
         key = self.resolve_key(key)
-        url = self.get_url(fn=fn, module=module,mode=mode,  network=network)
+        network = network or self.network
+        url = self.get_url(fn=fn,mode=mode,  network=network)
         kwargs = {**(kwargs or {}), **extra_kwargs}
         input = self.get_params( args=args, 
                                    kwargs=kwargs, 

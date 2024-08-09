@@ -101,11 +101,6 @@ class Schema:
                 except ValueError:
                     return x
                 
-
-    @classmethod
-    def resolve_object(cls, obj) -> Any:
-        return obj or cls
-
     
     @classmethod
     def fn2code(cls, search=None, module=None)-> Dict[str, str]:
@@ -400,9 +395,9 @@ class Schema:
     def code(cls, module = None, search=None, *args, **kwargs):
         if '/' in str(module) or module in cls.fns():
             return cls.fn_code(module)
-            
         module = cls.resolve_object(module)
-        text =  cls.get_text( module.pypath(), *args, **kwargs)
+        print(module)
+        text =  cls.get_text( module.filepath(), *args, **kwargs)
         if search != None:
             find_lines = cls.find_lines(text=text, search=search)
             return find_lines
@@ -494,7 +489,6 @@ class Schema:
             front_lines = lines[:idx]
             back_lines = lines[idx:]
             new_lines = text.split('\n')
-            c.print(new_lines)
             lines = front_lines + new_lines + back_lines
         else:
             lines[idx-1] = text
@@ -1101,9 +1095,8 @@ class Schema:
         # Write the text to the file
         if line != None:
             line=int(line)
-            lines = c.get_text(path).split('\n')
+            lines = cls.get_text(path).split('\n')
             lines = lines[:line] + [text] + lines[line:]
-            c.print(lines)
 
             text = '\n'.join(lines)
         with open(path, 'w') as file:

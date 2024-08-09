@@ -42,6 +42,7 @@ class c(*CORE_MODULES):
                 'is_admin',
                 'namespace',
                 'whitelist', 
+                'forward',
                 'fns'] # whitelist of helper functions to load
     cost = 1
     description = """This is a module"""
@@ -126,7 +127,6 @@ class c(*CORE_MODULES):
     def module_name(cls, obj=None):
         if hasattr(cls, 'name') and isinstance(cls.name, str):
             return cls.name
-        
         obj = cls.resolve_object(obj)
         module_file =  inspect.getfile(obj)
         return cls.path2simple(module_file)
@@ -154,6 +154,7 @@ class c(*CORE_MODULES):
     sand = sandbox
 
     module_cache = {}
+    _obj = None
     @classmethod
     def get_module(cls, 
                    path:str = 'module',  
@@ -191,6 +192,8 @@ class c(*CORE_MODULES):
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
             return module
+        
+
         module = c.simple2object(path)
 
         # ensure module
@@ -202,23 +205,34 @@ class c(*CORE_MODULES):
         if init_kwargs != None:
             module = module(**init_kwargs)
 
-        module = c.resolve_module(module)
-
+        is_module = c.is_module(module)
+        if not is_module:
+            module = cls.obj2module(module)
         if cache:
-            c.module_cache[cache_key] = module
-
-
-
+            c.module_cache[cache_key] = module            
         return module
     
     @classmethod
-    def resolve_module(self,module):
-        if not hasattr(module, 'module_name'):
-            setattr(module, 'module_name', lambda: module.__name__.lower())
-
-        return module
-
+    def obj2module(cls,obj):
+        import commune as c
+        class WrapperModule(c.Module):
+            _obj = obj
+            def __name__(self):
+                return self._obj.__name__
+            def __class__(self):
+                return self._obj.__class__
             
+        m = WrapperModule
+                
+        for fn in dir(obj):
+            try:
+                setattr(m, fn, getattr(obj, fn))
+            except:
+                pass
+            
+        return m()
+        
+
 
     
     @classmethod
@@ -336,12 +350,11 @@ class c(*CORE_MODULES):
     resolve_name = resolve_server_name
 
     @classmethod
-    def resolve_object(cls, module:str = None, **kwargs):
-        if module == None:
-            module = cls.module_name()
-        if isinstance(module, str):
-            module = c.module(module)
-        return module
+    def resolve_object(cls, obj:str = None, **kwargs):
+        if cls._obj != None:
+            return cls._obj
+        else:
+            return obj or cls
     
     def self_destruct(self):
         c.kill(self.server_name)    
@@ -815,21 +828,6 @@ class c(*CORE_MODULES):
         return {'success': True, 'msg': f'Created module {module}', 'path': path}
     
     add_module = new_module
-    
-    @classmethod
-    def resolve_object(cls, module=None):
-        """
-        Resolves the moduls from the class 
-        Case type(module):
-            if None -> cls, the class method of the object
-            if str -> c.module({module}) 
-            if 
-        """
-        if module == None:
-            module = cls
-        if isinstance(module, str):
-            module = c.module(module)
-        return module
 
 
     thread_map = {}
@@ -1046,6 +1044,10 @@ class c(*CORE_MODULES):
             found_files[f[len(path)+1:]]  = line2text
             progress.update(1)
         return found_files
+
+ 
+        
+
 
 
     # def update(self):
