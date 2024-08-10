@@ -186,6 +186,26 @@ class OS:
     def add_rsa_key(cls, b=2048, t='rsa'):
         return cls.cmd(f"ssh-keygen -b {b} -t {t}")
     
+
+    @classmethod
+    def stream_output(cls, process, verbose=False):
+        try:
+            modes = ['stdout', 'stderr']
+            for mode in modes:
+                pipe = getattr(process, mode)
+                if pipe == None:
+                    continue
+                for line in iter(pipe.readline, b''):
+                    line = line.decode('utf-8')
+                    if verbose:
+                        cls.print(line[:-1])
+                    yield line
+        except Exception as e:
+            print(e)
+            pass
+
+        cls.kill_process(process)
+
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
@@ -208,14 +228,7 @@ class OS:
         
         if len(args) > 0:
             command = ' '.join([command] + list(args))
-
         
-        def kill_process(process):
-            import signal
-            process.stdout.close()
-            process.send_signal(signal.SIGINT)
-            process.wait()
-            # sys.exit(0)
             
         if password != None:
             sudo = True
@@ -227,45 +240,35 @@ class OS:
         if bash:
             command = f'bash -c "{command}"'
 
+        cwd = cls.resolve_path(cwd)
+    
+        env = {**os.environ, **env}
+
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     stderr=subprocess.STDOUT,
                                     cwd = cwd,
-                                    env={**os.environ, **env}, **kwargs)
-        
-
-        
+                                    env=env, **kwargs)
         if return_process:
             return process
-
-        def stream_output(process):
-            try:
-                modes = ['stdout', 'stderr']
-                for mode in modes:
-                    pipe = getattr(process, mode)
-                    if pipe == None:
-                        continue
-                    for line in iter(pipe.readline, b''):
-                        line = line.decode('utf-8')
-                        if verbose:
-                            cls.print(line[:-1])
-                        yield line
-            except Exception as e:
-                print(e)
-                pass
-    
-            kill_process(process)
-
-
-        streamer = stream_output(process)
+        streamer = cls.stream_output(process, verbose=verbose)
         if generator:
             return streamer
         else:
             text = ''
             for ch in streamer:
-                text += (ch + '\n')
+                text += ch
         return text
 
+    @staticmethod
+    def kill_process(process):
+        import signal
+        process_id = process.pid
+        process.stdout.close()
+        process.send_signal(signal.SIGINT)
+        process.wait()
+        return {'success': True, 'msg': 'process killed', 'pid': process_id}
+        # sys.exit(0)
 
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):

@@ -23,7 +23,7 @@ c serve model.openai::tag
 The server can be called in several ways
 
 ```python
-c call model.openai::tag/forward "sup"
+c.call("model.openai::tag/forward",  "sup")
 ```
 
 "hey there homie"
@@ -40,7 +40,7 @@ with the data being a json request in the format of the following
 You can view the available servers using the `servers()` method:
 
 ```python
-c.servers()
+c.servers() # or c servers
 ```
 
 ### Viewing Server Logs

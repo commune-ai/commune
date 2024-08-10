@@ -469,18 +469,21 @@ class Network:
 
     
     @classmethod
-    def scan_ports(cls,host=None, start_port=1, end_port=50000):
+    def scan_ports(cls,host=None, start_port=None, end_port=None, timeout=24):
+        if start_port == None and end_port == None:
+            start_port, end_port = cls.port_range()
         if host == None:
             host = cls.external_ip()
         import socket
         open_ports = []
+        future2port = {}
         for port in range(start_port, end_port + 1):  # ports from start_port to end_port
-            if cls.port_used(port=port, ip=host):
-                print(f'Port {port} is open')
-                open_ports.append(port)
-            else:
-                cls.print(f'Port {port} is closed', color='red')
-        return open_ports
+            future2port[cls.submit(cls.port_used, kwargs=dict(port=port, ip=host), timeout=timeout)] = port
+        port2open = {}
+        for future in cls.as_completed(future2port, timeout=timeout):
+            port = future2port[future]
+            port2open[port] = future.result()
+        return port2open
 
     @classmethod
     def resolve_port(cls, port:int=None, **kwargs):

@@ -8,7 +8,6 @@ class Vali(c.Module):
 
     whitelist = ['eval_module', 'score', 'eval', 'leaderboard']
     voting_networks = ['bittensor', 'commune']
-    score_fns = ['score_module', 'score', 'reward'], # the score functions
 
     def __init__(self,
                     # NETWORK CONFIGURATION
@@ -35,6 +34,7 @@ class Vali(c.Module):
                     vote_interval= 100, # the number of iterations to wait before voting
                     module = None,
                     timeout_info= 4, # (OPTIONAL) the timeout for the info worker
+                    miner= False , # converts from a validator to a miner
 
                     update=False,
                  **kwargs):
@@ -82,20 +82,7 @@ class Vali(c.Module):
             futures = [],
         ))
 
-    def set_module(self, 
-                   module:str, 
-                   **kwargs):
 
-        if isinstance(module, str):
-            module = c.module(module, **kwargs)()
-        does_module_have_score_fn = any([hasattr(module, fn) for fn in self.score_fns])
-        assert does_module_have_score_fn, f'Module must have a score function, got {module}'
-        if hasattr(module, 'storage_dir'):
-            path = self.storage_dir()
-        else:
-            path = module.__class__.__name__
-        self.config.path = path
-        self.module = module
     @property
     def sent_staleness(self):
         return c.time()  - self.state.last_sent
@@ -299,24 +286,22 @@ class Vali(c.Module):
         output = module.get_item(str(a))
         if output == expected_output:
             return 1
-
         return 0
+    
     def next_module(self):
         return c.choice(list(self.namespace.keys()))
 
     module2last_update = {}
-
     
     def check_info(self, info:dict) -> bool:
         expected_info_keys =  ['w', 'address', 'name', 'key'] # the keys for the expected info function
         return bool(isinstance(info, dict) and all([k in info for k in expected_info_keys]))
 
-
-
     def eval(self,  module:str, **kwargs):
         """
         The following evaluates a module sver
         """
+        alpha = self.config.alpha
         try:
             info = {}
             # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
@@ -339,30 +324,25 @@ class Vali(c.Module):
             self.state.last_sent = c.time()
             self.state.requests += 1
             info['timestamp'] = c.timestamp() # the timestamp
-            info['w'] = info.get('w', 0) # the weight from the module
-            info['past_w'] = info['w'] # for calculating alpha
-
+            previous_w = info.get('w', 0)
             # SCORE 
             response = self.score(module_client, **kwargs)
 
             # PROCESS THE SCORE
             if type(response) in [int, float, bool]:
                 # if the response is a number, we want to convert it to a dict
-                response = {'w': float(response)}
-            if not type(response['w']) in [int, float]:
-                raise f'Response weight must be a number, got {response["w"]} with result : {response}'
+                response = {'w': response}
+            response['w'] = float(response.get('w', 0))
             info.update(response)
             info['latency'] = c.round(c.time() - info['timestamp'], 3)
-            info['w'] = info['w']  * self.config.alpha + info['past_w'] * (1 - self.config.alpha)
+            info['w'] = info['w']  * alpha + previous_w * (1 - alpha)
             info['history'] = info.get('history', []) + [{'w': info['w'], 'timestamp': info['timestamp']}]
             #  have a minimum weight to save storage of stale modules
             self.state.successes += 1
             self.state.last_success = c.time()
             info['staleness'] = c.round(c.time() - info.get('timestamp', 0), 3)
-    
             if response['w'] > self.config.min_leaderboard_weight:
                 self.put_json(path, info)
-
             return info
 
         except Exception as e:
@@ -530,5 +510,8 @@ class Vali(c.Module):
         vali = cls( **kwargs)
         setattr(vali, 'score_module', function)
         return vali
+    
+    def forward(self, a=1, b=1):
+        return self.module.forward(a, b)
 
 Vali.run(__name__)
