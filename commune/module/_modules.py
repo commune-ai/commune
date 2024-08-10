@@ -3,7 +3,7 @@ from typing import *
 import os
 from copy import deepcopy
 
-class Tree:
+class Modules:
     tree_cache = {} # cache for tree
 
     @classmethod
@@ -71,7 +71,7 @@ class Tree:
                 break
 
 
-        assert path != None, f'"{simple}" DOES NOT EXIST'
+        assert path != None, f'"THE {simple}" MODULE DOES NOT EXIST'
         return path
 
     def path2tree(self, **kwargs) -> str:
