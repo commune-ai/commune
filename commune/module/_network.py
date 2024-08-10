@@ -6,8 +6,8 @@ from typing import *
 import socket
 
 class Network:
+    
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
-
 
     @staticmethod
     def int_to_ip(int_val: int) -> str:
@@ -483,21 +483,20 @@ class Network:
         for future in cls.as_completed(future2port, timeout=timeout):
             port = future2port[future]
             port2open[port] = future.result()
+        # sort the ports
+        port2open = {k: v for k, v in sorted(port2open.items(), key=lambda item: item[1])}
+
         return port2open
 
     @classmethod
     def resolve_port(cls, port:int=None, **kwargs):
-        
         '''
-        
         Resolves the port and finds one that is available
         '''
         if port == None or port == 0:
             port = cls.free_port(port, **kwargs)
-            
         if cls.port_used(port):
             port = cls.free_port(port, **kwargs)
-            
         return int(port)
 
     @classmethod
@@ -526,8 +525,6 @@ class Network:
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)
 
-    
-
     @classmethod
     def set_port_range(cls, *port_range: list):
         if '-' in port_range[0]:
@@ -537,13 +534,10 @@ class Network:
         elif len(port_range) == 1:
             if port_range[0] == None:
                 port_range = cls.default_port_range
-
         assert len(port_range) == 2, 'Port range must be a list of two integers'        
         for port in port_range:
             assert isinstance(port, int), f'Port {port} range must be a list of integers'
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
-                
-        cls.put('port_range', port_range)
         return port_range
     
     @classmethod
@@ -553,12 +547,9 @@ class Network:
             port += 1   
         return port 
     
-
-    
     @classmethod
     def port_free(cls, *args, **kwargs) -> bool:
         return not cls.port_used(*args, **kwargs)
-
 
     @classmethod
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
@@ -596,9 +587,6 @@ class Network:
 
     get_used_ports = used_ports
     
-
-    
-
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
         port_range = cls.resolve_port_range(port_range)
@@ -612,7 +600,6 @@ class Network:
                   
         return available_ports
     available_ports = get_available_ports
-
 
     @classmethod
     def set_ip(cls, ip):
@@ -647,7 +634,6 @@ class Network:
             used_ports[port] = cls.port_used(port)
         return used_ports
     
-
     @classmethod
     def resolve_ip(cls, ip=None, external:bool=True) -> str:
         if ip == None:
@@ -657,4 +643,3 @@ class Network:
                 ip = '0.0.0.0'
         assert isinstance(ip, str)
         return ip
-
