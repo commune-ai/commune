@@ -501,14 +501,12 @@ class SubspaceWallet:
                 module_keys += list(stake_to_key.keys())
         return module_keys
 
-    def my_stake_to(self, netuid = 0, fmt='j', **kwargs):
-        stake_to = self.stake_to(netuid=netuid, fmt=fmt, **kwargs)
+    def my_stake_to(self, fmt='j', **kwargs):
+        stake_to = self.stake_to(fmt=fmt, **kwargs)
         key2address = c.key2address()
         my_stake_to = {}
-
         for key, address in key2address.items():
-            my_stake_to[address] = {k:v  for k,v in stake_to.get(address, [])}
-            
+            my_stake_to[address] = {k:v  for k,v in stake_to.get(address, {}).items()}
         stake_to_keys = list(my_stake_to.keys())
         for key in stake_to_keys:
             if len(my_stake_to[key]) == 0:

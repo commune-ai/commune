@@ -316,6 +316,29 @@ class Storage:
     def filesize(cls, filepath:str):
         filepath = cls.resolve_path(filepath)
         return os.path.getsize(filepath)
+    
+
+    def search_files(self, path:str='./', search:str='__pycache__') -> List[str]:
+        path = self.resolve_path(path)
+        files = self.glob(path)
+        return list(filter(lambda x: search in x, files))
+    
+    def rm_pycache(self, path:str='./') -> List[str]:
+        files = self.search_files(path, search='__pycache__')
+        for file in files:
+            self.print(self.rm(file))
+        return files
+    
+    def file2size(self, path='./', fmt='mb') -> int:
+        files = self.glob(path)
+        file2size = {}
+        pwd = self.pwd()
+        for file in files:
+            file2size[file.replace(pwd+'/','')] = self.format_data_size(self.filesize(file), fmt)
+
+        # sort by size
+        file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
+        return file2size
 
 
     @classmethod

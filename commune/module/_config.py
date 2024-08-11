@@ -44,8 +44,8 @@ class Config:
         '''
         config = cls.load_config()
         if not config:
-            if hasattr(cls, 'params'):
-                config = cls.params() # from _schema.py
+            if hasattr(cls, 'init_kwargs'):
+                config = cls.init_kwargs() # from _schema.py
             else:
                 config = {}
         return config
@@ -106,7 +106,7 @@ class Config:
     
 
     @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> 'Munch':
+    def munch(cls, x:dict, recursive:bool=True)-> 'Munch':
         from munch import Munch
         '''
         Turn dictionary into Munch
@@ -117,6 +117,7 @@ class Config:
                     x[k] = cls.dict2munch(v)
             x = Munch(x)
         return x 
+    dict2munch = munch 
 
     @classmethod
     def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
@@ -130,6 +131,8 @@ class Config:
                 if isinstance(v, Munch) and recursive:
                     x[k] = cls.munch2dict(v)
         return x 
+    to_dict = munch2dict
+    
         
     @classmethod
     def has_config(cls) -> bool:

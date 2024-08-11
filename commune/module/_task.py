@@ -42,7 +42,6 @@ class Task:
                         else:
                             yield future.result()
                 except Exception as e:
-                    cls.print(f'Error: {e}')
                     yield None
                 
         else:

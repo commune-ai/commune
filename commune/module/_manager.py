@@ -3,9 +3,9 @@ from typing import *
 import os
 from copy import deepcopy
 
-class Modules:
-    tree_cache = {} # cache for tree
-
+class Manager:
+    avoid_dirnames = ['', '/src', '/commune', '/commune/module', '/commune/modules', '/modules', '/blocks', '/agents', 'commune/agents']
+    extension = '.py'
     @classmethod
     def resolve_extension(cls, filename:str, extension = '.py') -> str:
         if filename.endswith(extension):
@@ -15,8 +15,8 @@ class Modules:
     @classmethod
     def simple2path(cls, 
                     simple:str,
-                    extension = '.py',
-                    avoid_dirnames = ['', '/src', '/commune', '/commune/module', '/commune/modules', '/modules', '/blocks', '/agents', 'commune/agents'],
+                    extension = extension,
+                    avoid_dirnames = avoid_dirnames,
                     **kwargs) -> bool:
         """
         converts the module path to a file path
@@ -71,7 +71,7 @@ class Modules:
                 break
 
 
-        assert path != None, f'"THE {simple}" MODULE DOES NOT EXIST'
+        assert path != None, f'MODULE {simple} DOES NOT EXIST'
         return path
 
     def path2tree(self, **kwargs) -> str:
@@ -95,7 +95,6 @@ class Modules:
     def default_tree_path(cls):
         return cls.libpath
     
-    
     @classmethod
     def tree(cls, 
                 path = None,
@@ -108,6 +107,10 @@ class Modules:
                 save = True,
                 **kwargs
                 ) -> List[str]:
+        
+        if not hasattr(cls, 'tree_cache'):
+            cls.tree_cache = {}
+
         tree = {}
         mode = None
         timestamp = cls.time()
@@ -182,69 +185,7 @@ class Modules:
     @classmethod
     def tree_paths(cls, update=False, **kwargs) -> List[str]:
         return cls.ls()
-    
-    @classmethod
-    def tree_hash(cls, *args, **kwargs):
-        tree = cls.tree(*args, **kwargs)
-        tree_hash = cls.hash(tree)
-        cls.put('tree_hash', tree_hash)
-        return tree_hash
 
-    @classmethod
-    def old_tree_hash(cls, *args, **kwargs):
-        return cls.get('tree_hash', None)
-
-    @classmethod
-    def has_tree_changed(cls, *args, **kwargs):
-        old_tree_hash = cls.old_tree_hash(*args, **kwargs)
-        new_tree_hash = cls.tree_hash(*args, **kwargs)
-        return old_tree_hash != new_tree_hash
-
-    def run_loop(self, *args, sleep_time=10, **kwargs):
-        while True:
-            self.print('Checking for tree changes')
-            if self.has_tree_changed():
-                self.tree(update=True)
-            self.sleep(10)
-        
-    @classmethod
-    def add_tree(cls, tree_path:str = './', **kwargs):
-        return cls.tree(tree_path, update=True)
-    
-    @classmethod
-    def rm_tree(cls, tree_path:str, **kwargs):
-        return cls.rm(tree_path)
-    
-    @classmethod
-    def rm_trees(cls, **kwargs):
-        for tree_path in cls.tree_paths():
-            cls.rm(tree_path)
-
-    
-
-    @classmethod
-    def pwd_tree(cls):
-        tree2path   =  cls.tree2path()
-        pwd = cls.pwd()
-        return {v:k for k,v in tree2path.items()}.get(pwd, None)
-
-    @classmethod
-    def is_pwd_tree(cls):
-        return cls.pwd() == cls.libpath
-    
-    @classmethod
-    def trees(cls):
-        tree_paths = cls.tree_paths()
-        trees = [t.split('/')[-1] for t in tree_paths]
-        return trees
-
-    @classmethod
-    def tree2path(cls, tree : str = None, **kwargs) -> str:
-        tree_paths = cls.tree_paths(**kwargs)
-        tree2path = {t.split('/')[-1]: t for t in tree_paths}
-        if tree != None:
-            return tree2path[tree]
-        return tree2path
     
     @classmethod
     def path2simple(cls,  
@@ -311,7 +252,7 @@ class Modules:
             suffix = '.' + suffix
             if simple_path.endswith(suffix) and simple_path != suffix:
                 simple_path = simple_path[:-len(suffix)]
-                cls.print(f'Suffix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
+                cls.print(f'Suffix {suffix} in path {simple_path}', color='yellow', verbose=verbose)
 
         # remove leading and trailing dots
         if simple_path.startswith('.'):
@@ -336,18 +277,32 @@ class Modules:
         return False
 
     @classmethod
-    def find_classes(cls, path='./'):
+    def find_classes(cls, path='./', working=False):
         path = os.path.abspath(path)
         if os.path.isdir(path):
-            path2classes = {}
+            classes = []
             for p in cls.glob(path+'/**/**.py', recursive=True):
+                print(p)
                 if p.endswith('.py'):
-                    classes =  cls.find_classes(p)
-                    if len(classes) > 0:
-                        path2classes[p] = classes
-            return path2classes
+                    p_classes =  cls.find_classes(p)
+                    if working:
+                        for class_path in p_classes:
+                            try:
+                                cls.import_object(class_path)
+                                classes += [class_path]
+                            except Exception as e:
+                                r = cls.detailed_error(e)
+                                r['class'] = class_path
+                                cls.print(r, color='red')
+                                continue
+                    else:
+                        classes += p_classes
+                        
+            return classes
+        
         code = cls.get_text(path)
         classes = []
+        file_path = cls.path2objectpath(path)
         for line in code.split('\n'):
             if all([s in line for s in ['class ', ':']]):
                 new_class = line.split('class ')[-1].split('(')[0].strip()
@@ -356,41 +311,41 @@ class Modules:
                 if ' ' in new_class:
                     continue
                 classes += [new_class]
-        return [c for c in classes]
+        return [file_path + '.' + c for c in classes]
     
     @classmethod
-    def find_functions(cls, path):
-        if os.path.isdir(path):
-            path2functions = {}
-            path = os.path.abspath(path)
-
-            for p in cls.glob(path+'/**/**.py', recursive=True):
-                functions = cls.find_functions(p)
-                if len(functions) > 0:
-                    path2functions[p] = functions
-            return path2functions
-        code = cls.get_text(path)
+    def path2objectpath(cls, path:str, pwd=None, **kwargs) -> str:
+        pwd = pwd or cls.pwd()
+        return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
+    @classmethod
+    def find_functions(cls, path, working=True):
         fns = []
-        for line in code.split('\n'):
-            if line.startswith('def ') or line.startswith('async def '):
-                fn = line.split('def ')[-1].split('(')[0].strip()
-                fns += [fn]
-        return [c for c in fns]
+        if os.path.isdir(path):
+            path = os.path.abspath(path)
+            for p in cls.glob(path+'/**/**.py', recursive=True):
+                p_fns = cls.find_functions(p)
+                file_object_path = cls.path2objectpath(p)
+                p_fns = [file_object_path + '.' + f for f in p_fns]
+                if working:
+                    for fn in p_fns:
+                        try:
+                            cls.import_object(fn)
+                        except Exception as e:
+                            r = cls.detailed_error(e)
+                            r['fn'] = fn
+                            cls.print(r, color='red')
+                            continue
+                        fns += [fn]
+
+        else:
+            code = cls.get_text(path)
+            for line in code.split('\n'):
+                if line.startswith('def ') or line.startswith('async def '):
+                    fn = line.split('def ')[-1].split('(')[0].strip()
+                    fns += [fn]
+        return fns
     
 
-    @classmethod
-    def find_paths(cls, path:str = './', **kwargs):
-        classes = cls.find_classes(path)
-        
-        if isinstance(classes, dict):
-            object_paths = []
-            for p, c in classes.items():
-                
-                object_paths += [cls.path2simple(p) + '.' + c for c in classes[p]]
-            return object_paths
-        object_paths = [path + '.' + c for c in classes]
-        return object_paths
-    
     @classmethod
     def find_async_functions(cls, path):
         if os.path.isdir(path):
@@ -407,19 +362,30 @@ class Modules:
         return [c for c in fns]
     
     @classmethod
-    def find_object_paths(cls, path:str = './', **kwargs):
-        classes = cls.find_classes(path)
-        
-        if isinstance(classes, dict):
-            object_paths = []
-            for p, c in classes.items():
-                
-                object_paths += [cls.path2simple(p) + '.' + c for c in classes[p]]
-            return object_paths
-        object_paths = [path + '.' + c for c in classes]
+    def find_objects(cls, path:str = './', working=True, **kwargs):
+        classes = cls.find_classes(path, working=working)
+        object_paths = classes
         return object_paths
+    
 
+    def find_working_objects(self, path:str = './', **kwargs):
+        objects = self.find_objects(path, **kwargs)
+        working_objects = []
+        progress = self.tqdm(objects, desc='Progress')
+        error_progress = self.tqdm(objects, desc='Errors')
 
+        for obj in objects:
+
+            try:
+                self.import_object(obj)
+                working_objects += [obj]
+                progress.update(1)
+            except:
+                error_progress.update(1)
+                pass
+        return working_objects
+
+    search = find_objects
 
     @classmethod
     def simple2objectpath(cls, 
@@ -447,17 +413,6 @@ class Modules:
         object_path = object_path + '.' + classes[-1]
         return object_path
 
-
-    @classmethod
-    def pwdtree(cls):
-        tree2path   =  cls.tree2path()
-        pwd = cls.pwd()
-        return {v:k for k,v in tree2path.items()}.get(pwd, None)
-    which_tree = pwdtree
-    
-    @classmethod
-    def istree(cls):
-        return cls.pwdtree() != None
 
 
     @classmethod
@@ -575,15 +530,3 @@ class Modules:
     @classmethod
     def has_module(cls, module):
         return module in cls.modules()
-    
-
-    @classmethod
-    def pwdtree(cls):
-        tree2path   =  cls.tree2path()
-        pwd = cls.pwd()
-        return {v:k for k,v in tree2path.items()}.get(pwd, None)
-    which_tree = pwdtree
-    
-    @classmethod
-    def is_tree(cls):
-        return cls.pwdtree() != None

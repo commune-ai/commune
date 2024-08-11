@@ -970,3 +970,4 @@ class Misc:
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
+    

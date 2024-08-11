@@ -5,7 +5,7 @@ import sys
 import time
 import os
 import threading
-
+import sys
 class cli:
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
@@ -19,9 +19,10 @@ class cli:
                 forget_fns = ['module.key_info', 'module.save_keys'], 
                 seperator = ' ',
                 buffer_size=4,
+                helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info'],
                 save: bool = False):
         
-        
+        self.helper_fns = helper_fns
         self.seperator = seperator
         self.buffer_size = buffer_size
         self.verbose = verbose
@@ -30,17 +31,106 @@ class cli:
         self.base_module = c.module(module)() if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
         
-        self.forward(args=args)
+        self.forward(args)
 
-    
-    def forward(self, args=None):
+
+
+    def forward(self, argv=None):
         t0 = time.time()
-        args = args or self.argv()
-        
-        self.input_str = 'c ' + ' '.join(args)
-        output = self.get_output(args)
-        latency = time.time() - t0
+        argv = argv or self.argv()
+        self.input_msg = 'c ' + ' '.join(argv)
+        output = None
+        """
+        the cli works as follows 
+        c {module}/{fn} arg1 arg2 arg3 ... argn
+        if you are calling a function ont he module function (the root module), it is not necessary to specify the module
+        c {fn} arg1 arg2 arg3 ... argn
+        """
+        # any of the --flags are init kwargs
+    
+        init_kwargs = {}
+        cwd_command = False
+        cwd = os.getcwd()
+        if any([arg.startswith('--') for arg in argv]): 
+            for arg in argv:
+                if arg.startswith('--'):
+                    key = arg[2:].split('=')[0]
+                    if key in self.helper_fns:
+                        new_argvs = self.argv()
+                        new_argvs.remove(arg)
+                        new_argvs = [key , new_argvs[0]]
+                        print(new_argvs, 'FAM')
+                        return self.forward(new_argvs)
+                    value = arg.split('=')[1]
+                    init_kwargs[key] = self.determine_type(value)
 
+        if output == None:
+
+            if argv[0].endswith('.py'):
+                argv[0] = argv[0][:-3]
+
+            if ':' in argv[0]:
+                # {module}:{fn} arg1 arg2 arg3 ... argn
+                argv[0] = argv[0].replace(':', '/')
+                
+            if '/' in argv[0]:
+                module = '.'.join(argv[0].split('/')[:-1])
+                fn = argv[0].split('/')[-1]
+                argv = [module , fn , *argv[1:]]
+                is_fn = False
+            else:
+                is_fn = argv[0] in self.base_module_attributes
+
+            if is_fn:
+                module = self.base_module
+                fn = argv.pop(0)
+            else:
+                module = argv.pop(0)
+                if isinstance(module, str):
+                    module = c.module(module)
+                fn = argv.pop(0)
+            
+
+            # module = self.base_module.from_object(module)
+
+
+            fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
+
+            if not is_fn:
+                if len(init_kwargs) > 0 or fn_class == 'self': 
+                    print('init_kwargs', init_kwargs)
+                    module = module(**init_kwargs)
+            module_name = module.module_name()
+            fn_path = f'{module_name}/{fn}'
+            try: 
+                fn_obj = getattr(module, fn)
+            except :
+                fn_obj = getattr(module(), fn)
+            # calling function buffer
+            input_msg = f'[bold]fn[/bold]: {fn_path}'
+
+            if callable(fn_obj):
+                args, kwargs  = self.parse_args(argv)
+                if len(args) > 0 or len(kwargs) > 0:
+                    inputs = {"args":args, "kwargs":kwargs}
+                    input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
+                output = lambda: fn_obj(*args, **kwargs)
+            elif self.is_property(fn_obj):
+                output =  lambda : getattr(module(), fn)
+            else: 
+
+                output = lambda: fn_obj 
+            self.input_msg = input_msg
+            buffer = '⚡️'*4
+            c.print(buffer+input_msg+buffer, color='yellow')
+            output =  output()
+
+
+
+
+
+
+        latency = time.time() - t0
 
         is_error =  c.is_error(output)
         if is_error:
@@ -68,90 +158,7 @@ class cli:
     
         # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
     
-    def argv(self):
-        import sys
-        return sys.argv[1:] 
 
-
-
-
-    def get_output(self, argv):
-
-        """
-        the cli works as follows 
-        c {module}/{fn} arg1 arg2 arg3 ... argn
-        if you are calling a function ont he module function (the root module), it is not necessary to specify the module
-        c {fn} arg1 arg2 arg3 ... argn
-        """
-        # any of the --flags are init kwargs
-        init_kwargs = {}
-        if any([arg.startswith('--') for arg in argv]): 
-            for arg in argv:
-                if arg.startswith('--'):
-                    argv.remove(arg)
-                    key, value = arg[2:].split('=')
-                    init_kwargs[key] = self.determine_type(value)
-
-        if argv[0].endswith('.py'):
-            argv[0] = argv[0][:-3]
-
-        if ':' in argv[0]:
-            # {module}:{fn} arg1 arg2 arg3 ... argn
-            argv[0] = argv[0].replace(':', '/')
-            
-        if '/' in argv[0]:
-            module = '.'.join(argv[0].split('/')[:-1])
-            fn = argv[0].split('/')[-1]
-            argv = [module , fn , *argv[1:]]
-            is_fn = False
-        else:
-            is_fn = argv[0] in self.base_module_attributes
-
-        if is_fn:
-            module = self.base_module
-            fn = argv.pop(0)
-        else:
-            module = argv.pop(0)
-            if isinstance(module, str):
-                module = c.module(module)
-            fn = argv.pop(0)
-        
-
-        # module = self.base_module.from_object(module)
-
-
-        fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
-
-        if not is_fn:
-            if len(init_kwargs) > 0 or fn_class == 'self': 
-                print('init_kwargs', init_kwargs)
-                module = module(**init_kwargs)
-        module_name = module.module_name()
-        fn_path = f'{module_name}/{fn}'
-        try: 
-            fn_obj = getattr(module, fn)
-        except :
-            fn_obj = getattr(module(), fn)
-        # calling function buffer
-        input_msg = f'[bold]fn[/bold]: {fn_path}'
-
-        if callable(fn_obj):
-            args, kwargs = self.parse_args(argv)
-            if len(args) > 0 or len(kwargs) > 0:
-                inputs = {"args":args, "kwargs":kwargs}
-                input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
-            output = lambda: fn_obj(*args, **kwargs)
-        elif self.is_property(fn_obj):
-            output =  lambda : getattr(module(), fn)
-        else: 
-
-            output = lambda: fn_obj 
-        self.input_msg = input_msg
-        buffer = '⚡️'*4
-        c.print(buffer+input_msg+buffer, color='yellow')
-        response =  output()
-        return response
-    
 
     @classmethod
     def is_property(cls, obj):
@@ -229,6 +236,10 @@ class cli:
             argv.remove('--testnet')
 
         return init_kwargs
+    
+
+    def argv(self):
+        return sys.argv[1:]
                 
 def main():
     cli()

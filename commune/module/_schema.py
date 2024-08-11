@@ -11,6 +11,8 @@ class Schema:
                 docs: bool = True,
                 defaults:bool = True, 
                 cache=True) -> 'Schema':
+        if self.is_str_fn(search):
+            return self.fn_schema(search, docs=docs, defaults=defaults)
         schema = {}
         if cache and self._schema != None:
             return self._schema
@@ -26,6 +28,8 @@ class Schema:
             self._schema = schema
 
         return schema
+    
+
     @classmethod
     def get_schema(cls,
                 module = None,
@@ -56,10 +60,9 @@ class Schema:
         if whitelist != None :
             schema = {k:v for k,v in schema.items() if k in whitelist}
         return schema
+    
+    help = schema
         
-
-
-
     @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null' or x == 'None':
@@ -269,7 +272,7 @@ class Schema:
         elif '@staticmethod' in lines[0]:
             mode = 'static'
     
-        start_line_text = None
+        start_line_text = 0
         lines_before_fn_def = 0
         for l in lines:
             
@@ -281,7 +284,8 @@ class Schema:
             
         assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
         module_code = cls.code()
-        start_line = cls.find_code_line(start_line_text, code=module_code) - lines_before_fn_def - 1
+        start_line = cls.find_code_line(start_line_text, code=module_code) - 1
+
         end_line = start_line + len(lines)   # find the endline
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
@@ -311,12 +315,12 @@ class Schema:
 
 
     @classmethod
-    def find_code_line(cls, search:str, code:str = None):
+    def find_code_line(cls, search:str=None, code:str = None):
         if code == None:
             code = cls.code() # get the code
         found_lines = [] # list of found lines
         for i, line in enumerate(code.split('\n')):
-            if search in line:
+            if str(search) in line:
                 found_lines.append({'idx': i+1, 'text': line})
         if len(found_lines) == 0:
             return None
@@ -384,6 +388,7 @@ class Schema:
             del kwargs['kwargs']
 
         return kwargs
+    init_params = init_kwargs
     
     @classmethod
     def lines_of_code(cls, code:str=None):
@@ -430,6 +435,16 @@ class Schema:
             return found_lines[0]['idx']
         return found_lines
     
+
+    def fn_code_first_line(self, fn):
+        code = self.fn_code(fn)
+        return code.split('):')[0] + '):'
+    
+    def fn_code_first_line_idx(self, fn):
+        code = self.fn_code(fn)
+        return self.find_code_line(self.fn_code_first_line(fn), code=code)
+    
+    
     @classmethod
     def fn_info(cls, fn:str='test_fn') -> dict:
         r = {}
@@ -440,20 +455,9 @@ class Schema:
             mode = 'class'
         elif '@staticmethod' in lines[0]:
             mode = 'static'
-    
-        start_line_text = None
-        lines_before_fn_def = 0
-        for l in lines:
-            
-            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
-                start_line_text = l
-                break
-            else:
-                lines_before_fn_def += 1
-            
-        assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
         module_code = cls.code()
-        start_line = cls.find_code_line(start_line_text, code=module_code) - lines_before_fn_def - 1
+        start_line_text = module_code.split('):')[0] + '):'
+        start_line = cls.find_code_line(start_line_text, code=module_code)[0]['idx'] - lines_before_fn_def - 1
         end_line = start_line + len(lines)   # find the endline
         has_docs = bool('"""' in code or "'''" in code)
         filepath = cls.filepath()
@@ -959,81 +963,12 @@ class Schema:
 
 
     @classmethod
-    def endpoint(cls, 
-                 cost=1, # cost per call 
-                 user2rate : dict = None, 
-                 rate_limit : int = 100, # calls per minute
-                 timestale : int = 60,
-                 public:bool = False,
-                 cost_keys = ['cost', 'w', 'weight'],
-                 **kwargs):
-        
-        for k in cost_keys:
-            if k in kwargs:
-                cost = kwargs[k]
-                break
-
-        def decorator_fn(fn):
-            metadata = {
-                **Schema.fn_schema(fn),
-                'cost': cost,
-                'rate_limit': rate_limit,
-                'user2rate': user2rate,   
-                'timestale': timestale,
-                'public': public,            
-            }
-            import commune as c
-            fn.__dict__['__metadata__'] = metadata
-
-            return fn
-
-        return decorator_fn
-    
-
-    @classmethod
     def is_public(cls, fn):
         if not cls.is_endpoint(fn):
             return False
         return getattr(fn, '__metadata__')['public']
-    
 
-    def is_endpoint(self, fn) -> bool:
-        if isinstance(fn, str):
-            fn = getattr(self, fn)
-        return hasattr(fn, '__metadata__')
 
-    
-    def whitelist_functions(self, search=None, include_helper_functions = True):
-        endpoints = []  
-        if include_helper_functions:
-            endpoints += self.helper_functions
-
-        for f in dir(self):
-            try:
-                if not callable(getattr(self, f)):
-                    continue
-
-                if search != None:
-                    if search not in f:
-                        continue
-                fn_obj = getattr(self, f) # you need to watchout for properties
-                is_endpoint = hasattr(fn_obj, '__metadata__')
-                if is_endpoint:
-                    endpoints.append(f)
-            except:
-                print(f)
-        if hasattr(self, 'whitelist'):
-            endpoints += self.whitelist
-            endpoints = list(set(endpoints))
-
-        return endpoints
-
-    get_whitelist = whiteboy_functions = cracka_fns = wigga_fns = endpoints = public_functions  = whitelist_functions
-    
-
-    def cost_fn(self, fn:str, args:list, kwargs:dict):
-        return 1
-    
     urls = {'github': None,
              'website': None,
              'docs': None, 
@@ -1150,3 +1085,15 @@ class Schema:
         params =  cls.fn_defaults(fn)
         params.pop('self', None)
         return params
+    
+    
+    @classmethod
+    def is_str_fn(cls, fn):
+        if '/' in fn:
+            module, fn = fn.split('/')
+            module = cls.module(module)
+        else:
+            module = cls 
+        
+        return hasattr(module, fn)
+        

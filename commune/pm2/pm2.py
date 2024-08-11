@@ -27,21 +27,6 @@ class PM2(c.Module):
             cls.rm_logs(n)  
         return {'success':True, 'message':f'Restarted {name}'}
        
-    @classmethod
-    def restart_prefix(cls, name:str = None, verbose:bool=False):
-        list = cls.servers()
-            
-        restarted_modules = []
-        
-        for module in list:
-            if module.startswith(name) or name in ['all']:
-                if verbose:
-                    c.print(f'Restarting {module}', color='cyan')
-                c.cmd(f"pm2 restart {module}", verbose=verbose)
-                restarted_modules.append(module)
-        
-        return restarted_modules
-       
 
     @classmethod
     def kill(cls, name:str, verbose:bool = False, **kwargs):
@@ -76,9 +61,6 @@ class PM2(c.Module):
             return logs_path_map.get(name, {})
 
         return logs_path_map
-
-   
-   
    
     @classmethod
     def rm_logs( cls, name):
@@ -116,14 +98,17 @@ class PM2(c.Module):
     def kill_many(cls, search=None, verbose:bool = True, timeout=10):
         futures = []
         for name in cls.servers(search=search):
-            c.print(f'[bold cyan]Killing[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green', verbose=verbose)
             f = c.submit(cls.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
             futures.append(f)
         return c.wait(futures)
     
     @classmethod
-    def kill_all(cls, verbose:bool = True, timeout=10):
-        return cls.kill_many(search=None, verbose=verbose, timeout=timeout)
+    def kill_all(cls, verbose:bool = True, timeout=10, trials=10):
+        while len(cls.servers()) > 0:
+            results = cls.kill_many(search=None, verbose=verbose, timeout=timeout)
+            trials -= 1
+            assert trials > 0, 'Failed to kill all processes'
+
                 
     @classmethod
     def servers(cls, search=None,  verbose:bool = False) -> List[str]:
@@ -194,8 +179,6 @@ class PM2(c.Module):
 
         return c.cmd(cmd, verbose=verbose, **kwargs)
 
-
-
     @classmethod
     def restart_many(cls, search:str = None, network = None, **kwargs):
         t1 = c.time()
@@ -204,6 +187,5 @@ class PM2(c.Module):
         results = []
         for f in c.as_completed(futures):
             result = f.result()
-            c.print(result)
             results.append(result)
         return results
