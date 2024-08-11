@@ -4,6 +4,7 @@
 from .module.module import Module
 from functools import  partial
 # set the module functions as globals
+core_modules = ['module', 'key', 'client', 'server', 'serializer']
 for k,v in Module.__dict__.items():
     globals()[k] = v
 

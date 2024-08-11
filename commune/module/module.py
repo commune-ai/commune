@@ -34,6 +34,7 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
 CORE_MODULES = get_core_modules()
 
 class c(*CORE_MODULES):
+    core_modules = ['module', 'key', 'client', 'server', 'serializer']
     libname = lib_name = lib = 'commune' # the name of the library
     helper_functions  = ['info',
                 'metadata',
@@ -181,7 +182,7 @@ class c(*CORE_MODULES):
             update_if_fail: whether to update the tree if the module is not found
         """
 
-
+        # if the module is a valid import path 
         path = path or 'module'
         shortcuts = c.shortcuts()
         if path in shortcuts:
@@ -192,7 +193,6 @@ class c(*CORE_MODULES):
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
             return module
-        
 
         module = c.simple2object(path)
 
@@ -1045,10 +1045,17 @@ class c(*CORE_MODULES):
             progress.update(1)
         return found_files
 
- 
+    def set_reference_module(self, module='storage', **kwargs):
+        if not hasattr(self, 'reference_module'):
+            reference_module = c.module(module)(**kwargs)
+            my_endpoints = self.endpoints()
+            for k in reference_module.endpoints():
+                if k in my_endpoints:
+                    c.print(f'Endpoint {k} already exists in {self.class_name()}')
+                self.add_endpoint(k, getattr(reference_module, k))
+            self.reference_module = reference_module
+        return {'success': True, 'msg': 'Set reference module', 'module': module, 'endpoints': self.endpoints()}
         
-
-
 
     # def update(self):
     #     c.ip(update=1)

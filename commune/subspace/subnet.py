@@ -27,8 +27,8 @@ class SubspaceSubnet:
 
 
 
-    def stake_to(self, block=None,  max_age=1000, update=False, fmt='nano',**kwargs):
-        stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update,  **kwargs)
+    def stake_to(self, block=None,  max_age=1000, update=False, fmt='nano', **kwargs):
+        stake_to = self.query_map('StakeTo', block=block, max_age=max_age, update=update, **kwargs)
         format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
         stake_to = {k: format_value(v) for k,v in stake_to.items()}
         return stake_to

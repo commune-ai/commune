@@ -16,6 +16,9 @@ RUN npm install -g pm2
 ENV LIBNAME commune
 ENV PWD /app
 WORKDIR /app
+RUN git clone https://github.com/commune-ai/commune.git /commune 
+RUN pip install -e /commune
+
 
 # WANT TO HAVE TO REBUILD THE WHOLE IMAGE EVERY TIME WE CHANGE THE REQUIREMENTS
 COPY ./requirements.txt /app/requirements.txt

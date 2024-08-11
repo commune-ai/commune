@@ -10,19 +10,19 @@ class Vali(c.Module):
     voting_networks = ['bittensor', 'commune']
 
     def __init__(self,
-                    # NETWORK CONFIGURATION
+                    # NETWORK
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     netuid = 0, # (NOT LOCAL) the subnetwork uid or the netuid. This is a unique identifier for the subnetwork 
                     search=  None, # (OPTIONAL) the search string for the network 
                     max_network_staleness=  10, # the maximum staleness of the network
-                    # LOGGING CONFIGURATION
+                    # LOGGING
                     verbose=  True, # the verbose mode for the worker
-                    # WORKER EPOCH CONFIGURATION
-                    max_size=  128,
-                    max_workers=  64 ,
+                    # EPOCH
                     batch_size= 64,
+                    queue_size=  128,
+                    max_workers=  None ,
                     score_fn = None,
-                    # MODULE EVAL CONFIGURATION
+                    #EVAL
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
                     timeout= 10, # timeout per evaluation of the module
@@ -35,23 +35,33 @@ class Vali(c.Module):
                     module = None,
                     timeout_info= 4, # (OPTIONAL) the timeout for the info worker
                     miner= False , # converts from a validator to a miner
-
                     update=False,
                  **kwargs):
-        
+        max_workers = max_workers or batch_size
         config = self.set_config(locals())
         config = c.dict2munch({**Vali.config(), **config})
         self.config = config
         if update:
             self.config.max_staleness = 0
-        self.sync(network=config.network, 
-                     search=config.search,  
-                     netuid=config.netuid, 
-                     max_network_staleness = config.max_network_staleness)
+        self.sync()
         # start the run loop
         if self.config.run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
+        
+
+
+    def score(self, module):
+        # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
+        a = c.random_int()
+        b = c.random_int()
+        expected_output = b
+        module.put_item(str(a),b)
+        output = module.get_item(str(a))
+        if output == expected_output:
+            return 1
+        return 0
+
         
     def set_score_fn(self, score_fn: Union[Callable, str]):
         """
@@ -65,7 +75,7 @@ class Vali(c.Module):
         return {'success': True, 'msg': 'Set score function', 'score_fn': self.score.__name__}
 
     def init_state(self):
-        self.executor = c.module('executor.thread')(max_workers=self.config.max_workers,  maxsize=self.config.max_size)
+        self.executor = c.module('executor.thread')(max_workers=self.config.max_workers,  maxsize=self.config.queue_size)
         self.futures = []
         self.state = c.dict2munch(dict(
             requests = 0,
@@ -140,15 +150,18 @@ class Vali(c.Module):
             for future in c.as_completed(self.futures, timeout=self.config.timeout):
                 self.futures.remove(future) 
                 result = future.result()
-                emoji =  '🟢' if result['w'] > 0 else '🔴'
+                result['w'] = result.get('w', 0)
 
-                if c.is_error(result):
-                    msg = ' '.join([f'{k}={result[k]}' for k in result.keys()])
-                    msg =  f'ERROR({msg})'
-                else:
+                did_score_bool = bool(result['w'] > 0)
+                emoji =  '🟢' if did_score_bool else '🔴'
+                if did_score_bool:
                     result = {k: result.get(k, None) for k in ['w',  'name', 'key', 'address'] if k in result}
                     msg = ' '.join([f'{k}={result[k]}' for k in result])
                     msg = f'SUCCESS({msg})'
+                else:
+                    result = {k: result.get(k, None) for k in ['w', 'name', 'key', 'address', 'msg'] if k in result}
+                    msg = ' '.join([f'{k}={result[k]}' for k in result.keys()])
+                    msg =  f'ERROR({msg})'
                 break
         except Exception as e:
             emoji = '🔴'
@@ -267,7 +280,7 @@ class Vali(c.Module):
         config.netuid = netuid
         self.config = config
         c.print(f'Network(network={config.network}, netuid={config.netuid} staleness={self.network_staleness})')
-        self.state['network'] = {
+        self.network_state = {
             'network': network,
             'netuid': netuid,
             'n': self.n,
@@ -275,18 +288,12 @@ class Vali(c.Module):
             'namespace': namespace,
             
         }
+
+        self.put_json(self.path + '/network', self.network_state)
+
         return 
     
-    def score(self, module):
-        # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        a = c.random_int()
-        b = c.random_int()
-        expected_output = b
-        module.put_item(str(a),b)
-        output = module.get_item(str(a))
-        if output == expected_output:
-            return 1
-        return 0
+
     
     def next_module(self):
         return c.choice(list(self.namespace.keys()))
@@ -327,12 +334,12 @@ class Vali(c.Module):
             previous_w = info.get('w', 0)
             # SCORE 
             response = self.score(module_client, **kwargs)
-
             # PROCESS THE SCORE
             if type(response) in [int, float, bool]:
                 # if the response is a number, we want to convert it to a dict
                 response = {'w': response}
             response['w'] = float(response.get('w', 0))
+
             info.update(response)
             info['latency'] = c.round(c.time() - info['timestamp'], 3)
             info['w'] = info['w']  * alpha + previous_w * (1 - alpha)
@@ -341,17 +348,19 @@ class Vali(c.Module):
             self.state.successes += 1
             self.state.last_success = c.time()
             info['staleness'] = c.round(c.time() - info.get('timestamp', 0), 3)
+
             if response['w'] > self.config.min_leaderboard_weight:
                 self.put_json(path, info)
-            return info
-
+                
         except Exception as e:
-            info = c.detailed_error(e)
-            info['w'] = 0
-            info['name'] = info.get('name', module)
+            response = c.detailed_error(e)
+            response['w'] = 0
+            response['name'] = info.get('name', module)
             self.errors += 1
             self.state.last_error  = c.time() # the last time an error occured
-            return response
+            info.update(response)
+        
+        return info
     
     eval_module = eval
       
@@ -511,7 +520,15 @@ class Vali(c.Module):
         setattr(vali, 'score_module', function)
         return vali
     
-    def forward(self, a=1, b=1):
-        return self.module.forward(a, b)
+    def set_reference_module(self, module='storage', **kwargs):
+        if not hasattr(self, 'reference_module'):
+            reference_module = c.module(module)(**kwargs)
+            my_endpoints = self.endpoints()
+            for k in reference_module.endpoints():
+                if k in my_endpoints:
+                    c.print(f'Endpoint {k} already exists in {self.class_name()}')
+                self.add_endpoint(k, getattr(reference_module, k))
+            self.reference_module = reference_module
+        return {'success': True, 'msg': 'Set reference module', 'module': module, 'endpoints': self.endpoints()}
 
 Vali.run(__name__)

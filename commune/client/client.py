@@ -81,8 +81,6 @@ class Client(c.Module, ClientPool):
     def test(self, module='module::test_client'):
         c.serve(module)
         c.sleep(1)
-        c.print(c.server_exists(module))
-        c.print('Module started')
 
         info = c.call(module+'/info')
         key  = c.get_key(module)
@@ -171,7 +169,10 @@ class Client(c.Module, ClientPool):
             elif response.content_type == 'text/plain':
                 result = await asyncio.wait_for(response.text(), timeout=timeout)
             else:
-                raise ValueError(f"Invalid response content type: {response.content_type}")
+                result = await asyncio.wait_for(response.read(), timeout=timeout)
+                # if its an error we will raise it
+                if response.status != 200:
+                    raise Exception(result)
             result = self.serializer.deserialize(result)
         except Exception as e:
             result = c.detailed_error(e)

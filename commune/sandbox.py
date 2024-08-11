@@ -1,6 +1,3 @@
 import commune as c
-import torch
-import json
-file2line = c.file2lines('./commune')
 
-print(len(file2line))
+c.module('model.openai').serve(tag='v1', port=5000)

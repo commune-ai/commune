@@ -313,7 +313,6 @@ class Server(c.Module):
         
         for i in range(n):
             module_name = f'{module}{i}'
-            print(f'Serving {module_name}')
             future = c.submit(cls.serve, kwargs=dict(module=module_name), timeout=timeout)
             futures.append(future)
         results = []

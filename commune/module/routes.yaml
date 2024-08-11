@@ -195,7 +195,7 @@ subspace:
   - registered_subnets
   - registered_netuids
   
-
-
 model.openrouter:
-  - [generate, ask]
+  - generate
+  - ask
+  - models

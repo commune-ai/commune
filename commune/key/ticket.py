@@ -6,6 +6,7 @@ class Ticket(c.Module):
     data_features = ['data', 'time']
     max_age = 10
     description = """
+    SINGLE SIGNATURE A (VANILLA SIGNATURE WITH TIMESTAMP):
     {
         'data': dict (SIGNED)
         'time': int: (SIGNED)
@@ -14,11 +15,29 @@ class Ticket(c.Module):
         'crypto_type': str/int: (NOT SIGNED): the type of crypto used to sign
     }
 
+    SINGLE SIGNATURE B (TICKET):
+    {
+        'data': dict (SIGNED)
+        'time': int: (SIGNED)
+        ticket: {
+            'signature': str (NOT SIGNED): the signature of the data
+            'address': str: (NOT SIGNED): the address of the signer
+            'crypto_type': str/int: (NOT SIGNED): the type of crypto used to sign
+        }
+    }
+
+    MULTIPLE SIGNATURES:
+    {
+        'data': dict (SIGNED)
+        'time': OPTIONAL[int] : (SIGNED) this is the time the ticket was signed, it can be replaced by the signature time
+        'signatures': {name: {signature:str, address:str, crypto_type:int, time: OPTIONAL[int] }}
+    }
+
     To verify 
 
     """
 
-    def ticket(self, data='commune', key=None, **kwargs):
+    def ticket(self, data='commune', key=None, ticket_mode=False,  **kwargs):
         """
         params:
             data: dict: data to be signed
@@ -26,15 +45,20 @@ class Ticket(c.Module):
             json_str: bool: if True, the ticket will be returned as a json string
             
         """
-        key = c.get_key(key) if key else self.key
+        key = c.get_key(key)
         ticket_dict = {
             'data': data,
             'time': c.time(),
         }
         signtature = key.sign(ticket_dict, **kwargs).hex()
-        ticket_dict.update({'signature': signtature, 
+        ticket = {'signature': signtature, 
                             'address': key.ss58_address,
-                            'crypto_type': key.crypto_type})
+                            'crypto_type': key.crypto_type}
+        if ticket_mode:
+            ticket_dict['ticket'] = ticket
+        else:
+            ticket_dict.update(ticket)
+    
         return ticket_dict
 
     create = ticket
@@ -66,21 +90,36 @@ class Ticket(c.Module):
                **kwargs):
         data = c.copy(data)
         max_age = max_age or self.max_age 
-        date_time = data.get('time', data.get('timestamp'))
+        date_time = data.get('time', data.get('timestamp', 0))
         staleness = c.time() - date_time
         if staleness >  max_age:
             print(f"Signature too Old! from {data} : {staleness} > {max_age}")
             return False
-
-        ticket = {}
+        tickets = []
+        # Ticket scnearios 
         if 'ticket' in data:
-            ticket = data.pop('ticket')
-        elif self.is_ticket(data):
-            for f in self.ticket_features:
-                ticket[f] = data.pop(f)
+            tickets = [data.pop('ticket')]
+        elif 'tickets' in data:
+            tickets = list(data.pop('tickets').values())
+        elif 'signature' in data and 'address' in data and 'crypto_type' in data:
+            ticket = [{
+                'signature': data.pop('signature'),
+                'address': data.pop('address'),
+                'crypto_type': data.pop('crypto_type')
+            }]
         else:
-            raise ValueError(f"Data is not a ticket: {data}")
-        return c.verify(data, **ticket)
+            raise ValueError(f"Invalid Ticket {data}")
+
+        for ticket in tickets:
+            ticket_data = c.copy(data)
+            if 'timestamp' in ticket:
+                ticket_data['timestamp'] = ticket_data['timestamp']
+            ticket_verified =  c.verify(data, **ticket)
+            if not ticket_verified:
+                print(f"Failed to verify ticket {ticket}")
+                return False
+                
+        return True
 
 
     @classmethod
