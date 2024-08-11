@@ -91,38 +91,27 @@ class cli:
                 fn = argv.pop(0)
             
             # module = self.base_module.from_object(module)
-            if len(init_kwargs) > 0:
-                module = module(**init_kwargs)
             module_name = module.module_name()
             fn_path = f'{module_name}/{fn}'
-            print(module, fn)
-            try: 
-                fn_obj = getattr(module, fn)
-            except :
+            fn_obj = getattr(module, fn)
+            fn_type = c.classify_fn(fn_obj)
+            if fn_type == 'self' or len(init_kwargs) > 0:
                 fn_obj = getattr(module(**init_kwargs), fn)
             # calling function buffer
             input_msg = f'[bold]fn[/bold]: {fn_path}'
 
-            if callable(fn_obj):
+            if callable(fn_obj) and not c.is_property(fn_obj):
                 args, kwargs  = self.parse_args(argv)
                 if len(args) > 0 or len(kwargs) > 0:
                     inputs = {"args":args, "kwargs":kwargs}
                     input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
                 output = lambda: fn_obj(*args, **kwargs)
-            elif self.is_property(fn_obj):
-                output =  lambda : getattr(module(), fn)
             else: 
-
                 output = lambda: fn_obj 
             self.input_msg = input_msg
             buffer = '⚡️'*4
             c.print(buffer+input_msg+buffer, color='yellow')
             output =  output()
-
-
-
-
-
 
         latency = time.time() - t0
 

@@ -10,37 +10,29 @@ class Namespace(c.Module):
 
     # the default
     network : str = 'local'
+    @classmethod
+    def resolve_network_path(cls, network:str, netuid:str=None):
+        if netuid != None:
+            if network not in ['subspace']:
+                network = f'subspace'
+            network = f'subspace/{netuid}'
+        return cls.resolve_path(network + '.json')
 
     @classmethod
-    def namespace(cls, search=None,
+    def get_namespace(cls, search=None,
                     network:str = 'local',
                     update:bool = False, 
                     netuid=None, 
-                    max_age:int = None,
-                    public = False,
+                    max_age:int = 1,
                     **kwargs) -> dict:
         
         network = network or 'local'
-        if netuid != None:
-            network = f'subspace.{netuid}'
+        path = cls.resolve_network_path(network)
+        namespace = cls.get(path, {}, max_age=max_age, update=update)
+        if len(namespace) == 0:
+            namespace = cls.build_namespace(network=network, netuid=netuid, **kwargs)
+            cls.put_namespace(network, namespace)
 
-        namespace = cls.get(network, {}, max_age=max_age, update=update)
-        if 'subspace' in network:
-            if '.' in network:
-                network, netuid = network.split('.')
-            else: 
-                netuid = netuid or 0
-            if c.is_int(netuid):
-                netuid = int(netuid)
-            namespace = c.module(network)().namespace(search=search, 
-                                                 update=update, 
-                                                 netuid=netuid,
-                                                 **kwargs)
-        elif network == 'local':
-            if update:
-                namespace = cls.build_namespace(network=network)  
-
-   
         namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
@@ -50,7 +42,7 @@ class Namespace(c.Module):
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
     
-    get_namespace = namespace
+    namespace = get_namespace
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:
@@ -90,8 +82,6 @@ class Namespace(c.Module):
     
     @classmethod
     def put_namespace(cls, network:str, namespace:dict) -> None:
-        address2name = {v: k for k, v in namespace.items()}
-        namespace = {v:k for k,v in address2name.items()}
         assert isinstance(namespace, dict), 'Namespace must be a dict.'
         return cls.put(network, namespace)        
     
@@ -127,7 +117,7 @@ class Namespace(c.Module):
     
     @classmethod
     def namespace_exists(cls, network:str) -> bool:
-        path = cls.resolve_path( network, extension='json')
+        path = cls.resolve_network_path( network)
         return os.path.exists(path)
 
     @classmethod
@@ -158,36 +148,50 @@ class Namespace(c.Module):
 
     @classmethod
     def build_namespace(cls,
-                        timeout:int = 10,
                         network:str = 'local', 
-                        verbose=False)-> dict:
+                        search:str = None,
+                        update:bool = False,
+                        timeout:int = 10,
+                        verbose=False, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
         it will register itself with the namespace_local dictionary.
         '''
-        namespace = {}
-        addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
-        future2address = {}
-        for address in addresses:
-            f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
-            future2address[f] = address
-        futures = list(future2address.keys())
-        try:
-            for f in c.as_completed(futures, timeout=timeout):
-                address = future2address[f]
-                try:
-                    name = f.result()
-                    namespace[name] = address
-                    c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
-                except Exception as e:
-                    print(name)
-                    c.print(f'Error {e} with {address}', color='red', verbose=verbose)
-        except Exception as e:
-            c.print(c.detailed_error(e))
-            c.print(f'Timeout error {e}', color='red', verbose=verbose)
-
-        cls.put_namespace(network, namespace)
+        if 'subspace' in network:
+            if '.' in network:
+                network, netuid = network.split('.')
+            else: 
+                netuid = netuid or 0
+            if c.is_int(netuid):
+                netuid = int(netuid)
+            namespace = c.module(network)().namespace(search=search, 
+                                                update=update, 
+                                                netuid=netuid,
+                                                **kwargs)
+        elif network == 'local':
+            namespace = {}
+            addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
+            future2address = {}
+            for address in addresses:
+                f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
+                future2address[f] = address
+            futures = list(future2address.keys())
+            try:
+                for f in c.as_completed(futures, timeout=timeout):
+                    address = future2address[f]
+                    try:
+                        name = f.result()
+                        namespace[name] = address
+                        c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
+                    except Exception as e:
+                        print(name)
+                        c.print(f'Error {e} with {address}', color='red', verbose=verbose)
+            except Exception as e:
+                c.print(c.detailed_error(e))
+                c.print(f'Timeout error {e}', color='red', verbose=verbose)
+        else:
+            namespace = {}
         
         return namespace
     
