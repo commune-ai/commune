@@ -30,7 +30,7 @@ class cli:
         self.forget_fns = forget_fns
         self.base_module = c.module(module)() if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
-        
+
         self.forward(args)
 
 
@@ -51,6 +51,7 @@ class cli:
         init_kwargs = {}
         cwd_command = False
         cwd = os.getcwd()
+        
         if any([arg.startswith('--') for arg in argv]): 
             for arg in argv:
                 if arg.startswith('--'):
@@ -59,7 +60,6 @@ class cli:
                         new_argvs = self.argv()
                         new_argvs.remove(arg)
                         new_argvs = [key , new_argvs[0]]
-                        print(new_argvs, 'FAM')
                         return self.forward(new_argvs)
                     value = arg.split('=')[1]
                     init_kwargs[key] = self.determine_type(value)
@@ -79,7 +79,7 @@ class cli:
                 argv = [module , fn , *argv[1:]]
                 is_fn = False
             else:
-                is_fn = argv[0] in self.base_module_attributes
+                is_fn = argv[0] in self.base_module_attributes 
 
             if is_fn:
                 module = self.base_module
@@ -87,25 +87,19 @@ class cli:
             else:
                 module = argv.pop(0)
                 if isinstance(module, str):
-                    module = c.module(module)
+                    module = c.get_module(module)
                 fn = argv.pop(0)
             
-
             # module = self.base_module.from_object(module)
-
-
-            fn_class = module.classify_fn(fn) if hasattr(module, 'classify_fn') else self.base_module.classify_fn(fn)
-
-            if not is_fn:
-                if len(init_kwargs) > 0 or fn_class == 'self': 
-                    print('init_kwargs', init_kwargs)
-                    module = module(**init_kwargs)
+            if len(init_kwargs) > 0:
+                module = module(**init_kwargs)
             module_name = module.module_name()
             fn_path = f'{module_name}/{fn}'
+            print(module, fn)
             try: 
                 fn_obj = getattr(module, fn)
             except :
-                fn_obj = getattr(module(), fn)
+                fn_obj = getattr(module(**init_kwargs), fn)
             # calling function buffer
             input_msg = f'[bold]fn[/bold]: {fn_path}'
 

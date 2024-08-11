@@ -520,15 +520,6 @@ class Vali(c.Module):
         setattr(vali, 'score_module', function)
         return vali
     
-    def set_reference_module(self, module='storage', **kwargs):
-        if not hasattr(self, 'reference_module'):
-            reference_module = c.module(module)(**kwargs)
-            my_endpoints = self.endpoints()
-            for k in reference_module.endpoints():
-                if k in my_endpoints:
-                    c.print(f'Endpoint {k} already exists in {self.class_name()}')
-                self.add_endpoint(k, getattr(reference_module, k))
-            self.reference_module = reference_module
-        return {'success': True, 'msg': 'Set reference module', 'module': module, 'endpoints': self.endpoints()}
+ 
 
 Vali.run(__name__)
