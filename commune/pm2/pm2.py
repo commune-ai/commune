@@ -114,7 +114,7 @@ class PM2(c.Module):
     def servers(cls, search=None,  verbose:bool = False) -> List[str]:
         output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
-        for line in output_string.split('\n'):
+        for line in output_string.split('\n')[3:]:
             if  line.count('│') > 2:
                 server_name = line.split('│')[2].strip()
                 if 'errored' in line:

@@ -125,8 +125,8 @@ class Client(c.Module, ClientPool):
             module = self.module
         if '/' in str(fn):
             module, fn = fn.split('/')
-        namespace = self.resolve_namespace(network)
-        if module in namespace:
+        if not c.is_address(module):
+            namespace = self.resolve_namespace(network)
             module = namespace[module]
         url = f"{module}/{fn}/"
         url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
