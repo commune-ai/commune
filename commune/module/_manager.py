@@ -395,23 +395,7 @@ class Manager:
 
         object_path = cls.simple2path(simple_path, **kwargs)
         classes =  cls.find_classes(object_path)
-        
-        pwd = cls.pwd()
-        if object_path.startswith(pwd):
-            object_path = object_path[len(pwd):]
-        elif object_path.startswith(cls.libpath ):
-            object_path = object_path[len(cls.libpath)+1:]
-
-        object_path = object_path.replace('.py', '')
-    
-        object_path = object_path.replace('/', '.')
-        if object_path.startswith('.'):
-            object_path = object_path[1:]
-        if '.__init__' in object_path:
-            object_path = object_path.replace('.__init__', '')
-            
-        object_path = object_path + '.' + classes[-1]
-        return object_path
+        return classes[-1]
 
 
 

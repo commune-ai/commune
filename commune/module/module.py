@@ -195,19 +195,15 @@ class c(*CORE_MODULES):
             return module
 
         module = c.simple2object(path)
-
         # ensure module
-
-        
         if verbose:
             c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
         
         if init_kwargs != None:
             module = module(**init_kwargs)
-
         is_module = c.is_module(module)
-        if not is_module:
-            module = cls.obj2module(module)
+        # if not is_module:
+        #     module = cls.obj2module(module)
         if cache:
             c.module_cache[cache_key] = module            
         return module
@@ -1045,17 +1041,6 @@ class c(*CORE_MODULES):
             progress.update(1)
         return found_files
 
-    def set_reference_module(self, module='storage', **kwargs):
-        if not hasattr(self, 'reference_module'):
-            reference_module = c.module(module)(**kwargs)
-            my_endpoints = self.endpoints()
-            for k in reference_module.endpoints():
-                if k in my_endpoints:
-                    c.print(f'Endpoint {k} already exists in {self.class_name()}')
-                self.add_endpoint(k, getattr(reference_module, k))
-            self.reference_module = reference_module
-        return {'success': True, 'msg': 'Set reference module', 'module': module, 'endpoints': self.endpoints()}
-        
 
     # def update(self):
     #     c.ip(update=1)
