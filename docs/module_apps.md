@@ -24,9 +24,11 @@ class AGI(c.Module):
             output = self.model.generate(input_text)
             st.write(output)
 
-# =
-App.run(ChatApp)
+if __name__ == "__main__":
+    AGI.run()
 
+```
+App.run()
 ```
 
 If you want to run the app as a standalone app, you can run the following command in the terminal
