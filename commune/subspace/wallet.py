@@ -1128,7 +1128,7 @@ class SubspaceWallet:
             address = c.namespace().get(name)
 
         params = { 
-                    'network': subnet.encode('utf-8'),
+                    'network_name': subnet.encode('utf-8'),
                     'address': address[-max_address_characters:].replace('0.0.0.0', c.ip()).encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
