@@ -841,12 +841,12 @@ class SubspaceWallet:
         key = self.resolve_module_key(key)
         return self.query_map('ProfitShares',  **kwargs)
 
-    def key2stake(self, netuid = 'all',
+    def key2stake(self, 
                      block=None, 
                     update=False, 
                     names = True,
                     max_age = 1000,fmt='j'):
-        stake_to = self.stake_to(netuid=netuid, 
+        stake_to = self.stake_to(
                                 block=block, 
                                 max_age=max_age,
                                 update=update, 
@@ -854,26 +854,19 @@ class SubspaceWallet:
                                 fmt=fmt)
         address2key = c.address2key()
         stake_to_total = {}
-        if netuid == 'all':
-            stake_to_dict = stake_to
-           
-            for staker_address in address2key.keys():
-                for netuid, stake_to in stake_to_dict.items(): 
-                    if staker_address in stake_to:
-                        stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to.get(staker_address)])
-        else:
-            for staker_address in address2key.keys():
-                if staker_address in stake_to:
-                    stake_to_total[staker_address] = stake_to_total.get(staker_address, 0) + sum([v[1] for v in stake_to[staker_address]])
-            # sort the dictionary by value
-            stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
+ 
+        for staker_address in address2key.keys():
+            if staker_address in stake_to:
+                stake_to_total[staker_address] = sum(stake_to.get(staker_address, {}).values())
+        # sort the dictionary by value
+        stake_to_total = dict(sorted(stake_to_total.items(), key=lambda x: x[1], reverse=True))
         if names:
             stake_to_total = {address2key.get(k, k): v for k,v in stake_to_total.items()}
         return stake_to_total
 
-    def key2value(self, netuid = 'all', block=None, update=False, max_age=1000, fmt='j', min_value=0, **kwargs):
+    def key2value(self,  block=None, update=False, max_age=1000, fmt='j', min_value=0, **kwargs):
         key2balance = self.key2balance(block=block, update=update,  max_age=max_age, fmt=fmt)
-        key2stake = self.key2stake(netuid=netuid, block=block, update=update,  max_age=max_age, fmt=fmt)
+        key2stake = self.key2stake( block=block, update=update,  max_age=max_age, fmt=fmt)
         key2value = {}
         keys = set(list(key2balance.keys()) + list(key2stake.keys()))
         for key in keys:
