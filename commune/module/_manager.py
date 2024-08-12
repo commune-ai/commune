@@ -4,7 +4,7 @@ import os
 from copy import deepcopy
 
 class Manager:
-    avoid_dirnames = ['', '/src', '/commune', '/commune/module', '/commune/modules', '/modules', '/blocks', '/agents', 'commune/agents']
+    avoid_dirnames = ['', 'src', 'commune', 'commune/module', 'commune/modules', 'modules', 'blocks', 'agents', 'commune/agents']
     extension = '.py'
     @classmethod
     def resolve_extension(cls, filename:str, extension = '.py') -> str:
@@ -43,8 +43,8 @@ class Manager:
         path_options = []
         simple = simple.replace('/', '.')
 
-        dir_paths = list([pwd+x for x in avoid_dirnames]) # local first
-        dir_paths += list([cls.libpath + x for x in avoid_dirnames]) # add libpath stuff
+        dir_paths = list([pwd+ '/' + x for x in avoid_dirnames]) # local first
+        dir_paths += list([cls.libpath + '/' + x for x in avoid_dirnames]) # add libpath stuff
 
         for dir_path in dir_paths:
             # '/' count how many times the path has been split
@@ -403,7 +403,6 @@ class Manager:
     def simple2object(cls, path:str, **kwargs) -> str:
         path =  cls.simple2objectpath(path, **kwargs)
         return cls.import_object(path)
-    
 
 
     included_pwd_in_path = False

@@ -44,22 +44,30 @@ class Client(c.Module, ClientPool):
                 module : str = 'module',
                 network:str = 'local',
                 key:str = None,
+                trials = 10, 
                 timeout=40,
                 **extra_kwargs) -> None:
+        
         if '/' in str(fn):
             module = '.'.join(fn.split('/')[:-1])
             fn = fn.split('/')[-1]
         else:
             module = fn
             fn = 'info'
-        client = cls.connect(module, virtual=False, network=network)
-        return  client.forward(fn=fn, 
-                                args=args,
-                                kwargs=kwargs, 
-                                params=params,
-                                key=key  ,
-                                timeout=timeout, 
-                                **extra_kwargs)
+        for i in range(trials):
+            try:
+                client = cls.connect(module, virtual=False, network=network)
+                response =  client.forward(fn=fn, 
+                                        args=args,
+                                        kwargs=kwargs, 
+                                        params=params,
+                                        key=key  ,
+                                        timeout=timeout, 
+                                        **extra_kwargs)
+            except Exception as e:
+                response = c.detailed_error(e)
+
+            return response
 
     @classmethod
     def connect(cls,
@@ -264,5 +272,10 @@ class Client(c.Module, ClientPool):
         module2connection = dict(zip(modules, connections))
     
         return module2connection
+    
+
+    def sand(self):
+        for i in range(10):
+            c.print(self.forward('basi.plinty'))
 
   
