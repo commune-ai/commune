@@ -2,7 +2,7 @@ import commune as c
 import streamlit as st
 from typing import *
 import json 
-from commune.modules.remote.remote import Remote
+from commune.remote.remote import Remote
 class App(c.Module):
     def __init__(self, **kwargs):
         remote = Remote()
@@ -141,14 +141,12 @@ class App(c.Module):
                 cols[i].write('')
             self.sudo = cols[2].checkbox('Sudo')
             st.write('---')
-            st.write('## Docker')
             cols = st.columns([2,1])
             enable_docker = cols[1].checkbox('Enable Docker')
             docker_container = cols[0].text_input('Docker Container', 'commune')
 
             # line 
             st.write('---')
-            st.write('## Function')
             cols = st.columns([4,1])
             num_columns = cols[1].number_input('Num Columns', 1, 10, 2)
             fn_code = cols[0].text_input('Function', 'x')
@@ -162,14 +160,13 @@ class App(c.Module):
 
 
         host_map = self._host_map
-        cols = st.columns([5,1])
         
-        cmd = cols[0].text_input('Command', 'ls')
+        cmd = st.text_input('Command', 'ls')
         if 'x' not in fn_code:
             fn_code = f'x'
         fn_code = f'lambda x: {fn_code}'
-        fn_code = eval(fn_code)                               
-        cols = st.columns(2)
+        fn_code = eval(fn_code)  
+        cols = st.columns([1,1])                             
         run_button = cols[0].button('Run', use_container_width=True)
         stop_button = cols[1].button('Stop', use_container_width=True)
 
@@ -190,7 +187,8 @@ class App(c.Module):
             failed_hosts = []
             errors = []
             futures = list(future2host.keys())
-
+            cols = st.columns(num_columns)
+            col_idx = 0
             try:
                 for future in c.as_completed(futures, timeout=timeout):
                     if host == None:
@@ -208,7 +206,10 @@ class App(c.Module):
                         msg = fn_code(msg)
                         stats['last_success'] = c.time()
                         stats['success'] += 1
-                        with st.expander(f'Results {host}', expanded=expanded):
+                        col = cols[col_idx % num_columns]
+                        col_idx += 1
+                        emoji = c.emoji("check")
+                        with col.expander(f'{title}', expanded=0):
                             st.write(title)
                             st.code('\n'.join(msg.split('\n')))
                     else:

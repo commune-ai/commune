@@ -53,7 +53,7 @@ class cli:
         cwd = os.getcwd()
         
         if any([arg.startswith('--') for arg in argv]): 
-            for arg in argv:
+            for arg in c.copy(argv):
                 if arg.startswith('--'):
                     key = arg[2:].split('=')[0]
                     if key in self.helper_fns:
@@ -61,8 +61,10 @@ class cli:
                         new_argvs.remove(arg)
                         new_argvs = [key , new_argvs[0]]
                         return self.forward(new_argvs)
+                    argv.remove(arg)
                     value = arg.split('=')[1]
                     init_kwargs[key] = self.determine_type(value)
+                
 
         if output == None:
 
@@ -94,6 +96,7 @@ class cli:
             module_name = module.module_name()
             fn_path = f'{module_name}/{fn}'
             fn_obj = getattr(module, fn)
+            print(init_kwargs, 'FAM')
             fn_type = c.classify_fn(fn_obj)
             if fn_type == 'self' or len(init_kwargs) > 0:
                 fn_obj = getattr(module(**init_kwargs), fn)
@@ -211,14 +214,6 @@ class cli:
                     return float(x)
                 except ValueError:
                     return x
-                
-    def argv_init_kwargs(self, argv):
-        init_kwargs = {}
-        if '--testnet' in argv:
-            init_kwargs['network'] = 'test'
-            argv.remove('--testnet')
-
-        return init_kwargs
     
 
     def argv(self):

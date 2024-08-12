@@ -66,7 +66,6 @@ class Client(c.Module, ClientPool):
                                         **extra_kwargs)
             except Exception as e:
                 response = c.detailed_error(e)
-
             return response
 
     @classmethod

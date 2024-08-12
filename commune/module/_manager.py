@@ -228,8 +228,6 @@ class Manager:
         if path.endswith(module_extension):
             path = path[:-len(module_extension)]
 
-
-    
         if compress_path:
             # we want to remove redundant chunks 
             # for example if the path is 'module/module' we want to remove the redundant module
