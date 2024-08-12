@@ -48,16 +48,13 @@ class Vali(c.Module):
         if self.config.run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
-        
-
-
     def score(self, module):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        a = c.random_int()
+        a = str(c.random_int())
         b = c.random_int()
         expected_output = b
-        module.put_item(str(a),b)
-        output = module.get_item(str(a))
+        module.put_item(a,b)
+        output = module.get_item(a)
         if output == expected_output:
             return 1
         return 0
@@ -205,10 +202,13 @@ class Vali(c.Module):
         while len(self.futures) > 0:
             results.append(self.wait_for_result())
         results = [r for r in results if not c.is_error(r)]
+        results = [r for r in results if r.get('w', 0) > 0]
         if df:
             if len(results) > 0 and 'w' in results[0]:
+
                 results =  c.df(results)
                 results = results.sort_values(by='w', ascending=False)
+                
         return results
     
     
