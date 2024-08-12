@@ -47,8 +47,8 @@ class SubspaceSubnet:
         return stake_from
 
     """ Returns network Tempo hyper parameter """
-    def stakes(self, fmt:str='j', max_age = 100, update=False, **kwargs) -> int:
-        stake_from =  self.stake_from( update=update, max_age=max_age, fmt=fmt,)
+    def stakes(self, fmt:str='j', max_age = 100, update=False, stake_from=None, **kwargs) -> int:
+        stake_from = stake_from or self.stake_from( update=update, max_age=max_age, fmt=fmt)
         stakes = {k: sum(v.values()) for k,v in stake_from.items()}
         return stakes
     
@@ -150,6 +150,15 @@ class SubspaceSubnet:
         netuid = self.resolve_netuid(netuid)
         names = self.query_map('Name', netuid=netuid, update=update,**kwargs)
         return names
+    
+    def is_registered(self, key: str, netuid: int = 0, update=False, **kwargs) -> bool:
+        key_address = self.resolve_key_ss58(key)
+        try:
+            uid =  self.get_uid(key_address, netuid=netuid, update=update, **kwargs)
+            if isinstance(uid, int):
+                return True
+        except Exception as e:
+            return False
 
     def keys(self,
              netuid = None,

@@ -133,11 +133,11 @@ class Access(c.Module):
         else:
             response['msg'] =  'Synced with the network'
             response['staleness'] = 0
-    
         c.namespace(max_age=self.config.max_staleness)
         self.subspace = c.module('subspace')(network=network)
-        state['stake'] = self.subspace.stakes(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
-        state['stake_from'] = self.subspace.stake_from(fmt='j', netuid=netuid, update=update, max_age=self.config.max_staleness)
+        state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=self.config.max_staleness)
+        state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
+
         self.state = state
         self.put(self.state_path, self.state)
         return response
