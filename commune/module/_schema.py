@@ -861,18 +861,20 @@ class Schema:
     
     @classmethod
     def classify_fn(cls, fn):
-        
-        if not callable(fn):
-            fn = cls.get_fn(fn)
-        if not callable(fn):
-            return None
-        args = cls.get_function_args(fn)
-        if len(args) == 0:
-            return 'static'
-        elif args[0] == 'self':
-            return 'self'
-        else:
-            return 'class'
+        try:
+            if not callable(fn):
+                fn = cls.get_fn(fn)
+            if not callable(fn):
+                return None
+            args = cls.get_function_args(fn)
+            if len(args) == 0:
+                return 'static'
+            elif args[0] == 'self':
+                return 'self'
+            else:
+                return 'class'
+        except Exception as e:
+            return 'property'
         
     
 

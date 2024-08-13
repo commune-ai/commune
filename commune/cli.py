@@ -28,7 +28,7 @@ class cli:
         self.verbose = verbose
         self.save = save
         self.forget_fns = forget_fns
-        self.base_module = c.module(module)() if isinstance(module, str) else module
+        self.base_module = c.module(module) if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
 
         self.forward(args)
@@ -98,6 +98,7 @@ class cli:
             fn_obj = getattr(module, fn)
             print(init_kwargs, 'FAM')
             fn_type = c.classify_fn(fn_obj)
+            print(fn_type, 'FAM')
             if fn_type == 'self' or len(init_kwargs) > 0:
                 fn_obj = getattr(module(**init_kwargs), fn)
             # calling function buffer

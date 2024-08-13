@@ -1052,6 +1052,13 @@ class c(*CORE_MODULES):
     #         self.update()
     #         c.namespace(public=1)
     #         time.sleep(interval)
+    def pull(self):
+        return c.cmd('git pull', verbose=True, cwd=c.libpath)
+    
+    def push(self, msg:str = 'update'):
+        c.cmd('git add .', verbose=True, cwd=c.libpath)
+        c.cmd(f'git commit -m "{msg}"', verbose=True, cwd=c.libpath)
+        return c.cmd('git push', verbose=True, cwd=c.libpath)
 
 c.enable_routes()
 Module = c # Module is alias of c
