@@ -151,7 +151,7 @@ class Namespace(c.Module):
                         network:str = 'local', 
                         search:str = None,
                         update:bool = False,
-                        timeout:int = 10,
+                        timeout:int = 1,
                         verbose=False, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
@@ -188,7 +188,6 @@ class Namespace(c.Module):
                         print(name)
                         c.print(f'Error {e} with {address}', color='red', verbose=verbose)
             except Exception as e:
-                c.print(c.detailed_error(e))
                 c.print(f'Timeout error {e}', color='red', verbose=verbose)
         else:
             namespace = {}
