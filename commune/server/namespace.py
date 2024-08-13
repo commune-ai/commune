@@ -23,7 +23,7 @@ class Namespace(c.Module):
                     network:str = 'local',
                     update:bool = False, 
                     netuid=None, 
-                    max_age:int = 1,
+                    max_age:int = 60,
                     **kwargs) -> dict:
         
         network = network or 'local'
