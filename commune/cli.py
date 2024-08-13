@@ -96,9 +96,7 @@ class cli:
             module_name = module.module_name()
             fn_path = f'{module_name}/{fn}'
             fn_obj = getattr(module, fn)
-            print(init_kwargs, 'FAM')
             fn_type = c.classify_fn(fn_obj)
-            print(fn_type, 'FAM')
             if fn_type == 'self' or len(init_kwargs) > 0:
                 fn_obj = getattr(module(**init_kwargs), fn)
             # calling function buffer
