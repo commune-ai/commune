@@ -538,6 +538,7 @@ class Network:
         for port in port_range:
             assert isinstance(port, int), f'Port {port} range must be a list of integers'
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
+        cls.put('port_range', port_range)
         return port_range
     
     @classmethod
