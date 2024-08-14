@@ -426,14 +426,14 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                   update: bool = False,
                   max_age : str = 1000, # max age in seconds
                   mode = 'ws',
-                  trials = 4,
+                  trials = 1,
                   **kwargs
                   ) -> Optional[object]:
         """ Queries subspace map storage with params and block. """
         # if all lowercase then we want to capitalize the first letter
 
         module = self.resolve_query_module_from_name(name)
-        path = f'query/{self.config.network}/{module}.{name}'
+        path = f'query_map/{self.config.network}/{module}.{name}'
         # resolving the params
         params = params or []
         is_single_subnet = bool(netuid != 'all' and netuid != None)

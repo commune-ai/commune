@@ -11,13 +11,14 @@ class Miner(c.Module):
                 key : str =None, 
                 treasury_key_address:str = None,
                 stake=1, 
-                miner_key_prefix = 'miner_', 
+                name_prefix = None,
+                key_prefix = 'tang_', 
                 max_age=600, 
                 update=False,
                 key_path='miner_mems'
                 ):
         
-        self.miner_key_prefix = miner_key_prefix
+        self.key_prefix = key_prefix
         self.subspace = c.module('subspace')()
         self.docker = c.module('docker')()
         self.pm2 = c.module('pm2')()
@@ -25,7 +26,7 @@ class Miner(c.Module):
         self.max_age = max_age
         self.update = update
         self.subnet = self.subnet_params['name']
-        self.subnet_prefix = self.subnet.lower() + '_'
+        self.name_prefix = (self.subnet.lower() + '_') if name_prefix == None else name_prefix
         self.n = int(n)
         self.key = c.get_key(key)
         self.treasury_key_address = treasury_key_address or self.key.ss58_address
@@ -37,9 +38,24 @@ class Miner(c.Module):
         return self.subspace.subnet_params(netuid=self.netuid, max_age=self.max_age)
 
     def keys(self, names = False):
-        keys =  c.keys(self.miner_key_prefix)
+        keys =  c.keys(self.key_prefix)
         keys = list(filter(lambda k: int(k.split('_')[-1]) < self.n, keys))
+        if names:
+            address2key = c.address2key()
+            return [address2key[k] for k in keys]
         return keys
+    
+    def key_names(self):
+        return [self.key_prefix + '_' + str(i) for i in range(self.n)]
+    
+    def miner_names(self):
+        return [self.get_miner_name(key) for key in self.keys()]
+
+    
+    def get_miner_name(self, key):
+        return self.name_prefix + key.replace('::', '_')
+    
+
 
     def add_keys(self):
         for i in range(self.n):
@@ -68,6 +84,7 @@ class Miner(c.Module):
 
     def is_running(self, name):
         return name in c.pm2ls(name)
+
     def register_miner(self, key, controller_key=None):
         if controller_key == None:
             controller_key = self.key.ss58_address 
@@ -77,8 +94,8 @@ class Miner(c.Module):
         key_address = c.get_key(key).ss58_address
         if self.subspace.is_registered(key_address, netuid=self.netuid):
             return {'msg': 'already registered'}
-        subnet_prefix = self.subnet.lower()
-        name = f"{subnet_prefix}_{key.replace('::', '_')}"
+        name_prefix = self.subnet.lower()
+        name = f"{name_prefix}_{key.replace('::', '_')}"
         address = f'{c.ip()}:{port}'
         c.print(f"Registering {name} at {address}")
         return self.subspace.register(name=name, 
@@ -205,7 +222,7 @@ class Miner(c.Module):
         keys = c.keys()
         rm_keys = []
         for k in keys:
-            if '.' in k and k.startswith(self.miner_key_prefix):
+            if '.' in k and k.startswith(self.key_prefix):
                 rm_keys.append(k)
         return c.rm_keys(rm_keys)
 

@@ -3,25 +3,26 @@ import commune as c
 import requests
 class SubspaceSubnet:
     
+
+
     subnet_param_features = [
-        "ImmunityPeriod",
-        "MinAllowedWeights",
-        "MaxAllowedWeights",
-        "Tempo",
-        "MaxAllowedUids",
-        "TargetRegistrationsInterval",
-        "TargetRegistrationsPerInterval",
-        "MaxRegistrationsPerInterval",
-        "Founder",
-        "FounderShare",
-        "IncentiveRatio",
-        "TrustRatio",
-        "SubnetNames",
-        "MaxWeightAge",
-        "BondsMovingAverage",
-        "MaximumSetWeightCallsPerEpoch",
-        "AdjustmentAlpha",
-        "MinImmunityStake",
+                "ImmunityPeriod", 
+                "MinAllowedWeights",
+                "MaxAllowedWeights", 
+                "Tempo",
+                "MaxAllowedUids",
+                "Founder",
+                "FounderShare",
+                "IncentiveRatio",
+                "TrustRatio",
+                "SubnetNames", 
+                "MaxWeightAge",
+                "BondsMovingAverage", 
+                "MaximumSetWeightCallsPerEpoch", 
+                "MinValidatorStake",
+                "MaxAllowedValidators",
+    "ModuleBurnConfig",
+     "SubnetMetadata",
         'SubnetGovernanceConfig'
     ]
 
@@ -219,12 +220,13 @@ class SubspaceSubnet:
         
 
         default_params = {
-            'maximum_set_weight_calls_per_epoch': 30
+            'maximum_set_weight_calls_per_epoch': 30,
+            'max_allowed_validators': 50
         }
         
         features = features or self.subnet_param_features
         netuid = self.resolve_netuid(netuid)
-        path = f'query/{self.network}/SubspaceModule.SubnetParams.{netuid}'          
+        path = f'query/{self.network}/SubnetParams.{netuid}'          
         subnet_params = self.get(path, max_age=max_age, update=update)
         if subnet_params == None:
 
@@ -232,23 +234,29 @@ class SubspaceSubnet:
             future2name = {}
             for name, feature in dict(zip(names, features)).items():
                 query_kwargs = dict(name=feature, netuid=netuid,block=None, max_age=max_age, update=update)
-                fn = self.query
+                if name in ['SubnetGovernanceConfig']:
+                    fn = self.query_map
+                else:
+                    fn = self.query
+
                 f = c.submit(fn, kwargs=query_kwargs, timeout=timeout)
                 future2name[f] = name
             subnet_params = {}
             for f in c.as_completed(future2name, timeout=timeout):
                 result = f.result()
+                print(future2name.values())
                 subnet_params[future2name.pop(f)] = result
             for k in subnet_params.keys():
                 v = subnet_params[k]
                 if v == None:
-                    v = default_params[k]
+                    v = default_params.get(k, v)
                 if k in value_features:
                     v = self.format_amount(v, fmt=fmt)
                 subnet_params[k] = v
             
             self.put(path, subnet_params)
             
+        print(subnet_params)
         subnet_params.update(subnet_params.pop('subnet_governance_config')) 
         translation = {
             'subnet_names': 'name', 
@@ -269,7 +277,7 @@ class SubspaceSubnet:
         
         features = features or self.subnet_param_features
         netuid = self.resolve_netuid(netuid)
-        path = f'query/{self.network}/SubspaceModule.SubnetParams.all'          
+        path = f'query/{self.network}/SubnetParams.all'          
         all_subnet_params = self.get(path, max_age=max_age, update=update)
         if all_subnet_params == None:
             all_subnet_params = {}
