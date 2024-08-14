@@ -36,7 +36,6 @@ class Miner(c.Module):
     def subnet_params(self):
         return self.subspace.subnet_params(netuid=self.netuid, max_age=self.max_age)
 
-
     def keys(self, names = False):
         keys =  c.keys(self.miner_key_prefix)
         keys = list(filter(lambda k: int(k.split('_')[-1]) < self.n, keys))
@@ -46,7 +45,6 @@ class Miner(c.Module):
         for i in range(self.n):
             name = f"miner_{i}"
             c.add_key(name)
-
 
     def transfer_to_miners(self, amount=None):
         amount = amount or self.stake
@@ -62,14 +60,9 @@ class Miner(c.Module):
             miner2balance[key] = f.result()
         return miner2balance
 
-
-
     def key_addresses(self):
         key2address = c.key2address()
         return [key2address[miner] for miner in self.keys()]
-
-
-
 
     used_ports = []
 
@@ -97,7 +90,6 @@ class Miner(c.Module):
 
     def kill_miner(self, name):
         return self.pm2.kill(name)
-    
     
     def run_miner(self, key, refresh=False):
         address2key = c.address2key()
@@ -128,7 +120,6 @@ class Miner(c.Module):
         for f in c.as_completed(futures):
             print(f.result())
 
-
     def registered_keys(self, names=False, prefix='miner_', **kwargs):
         keys = self.subspace.keys(netuid=self.netuid, **kwargs)
         address2key = c.address2key()
@@ -139,15 +130,9 @@ class Miner(c.Module):
             return [address2key[k] for k in keys]
         return keys
 
-            
-    
     def uids(self):
         key2uid = self.subspace.key2uid(netuid=self.netuid)
         return [key2uid[key] for key in self.registered_keys()]
-    
-
-
-
 
     def register_miners(self, timeout=60, parallel=False, controller_key=None):
         keys = self.keys()

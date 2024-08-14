@@ -74,117 +74,11 @@ class Manager:
         assert path != None, f'MODULE {simple} DOES NOT EXIST'
         return path
 
-    def path2tree(self, **kwargs) -> str:
-        trees = self.trees()
-        path2tree = {}
-        for tree in trees:
-            for module, path in self.tree(tree).items():
-                path2tree[path] = tree
-        return path2tree
     
-    @classmethod
-    def root_tree(cls, **kwargs):
-        return cls.tree(path = cls.libpath, include_root=False, **kwargs)
-
     @classmethod
     def is_repo(cls, libpath:str ):
         # has the .git folder
         return bool([f for f in cls.ls(libpath) if '.git' in f and os.path.isdir(f)])
-    
-    @classmethod
-    def default_tree_path(cls):
-        return cls.libpath
-    
-    @classmethod
-    def tree(cls, 
-                path = None,
-                search=None,
-                update = False,
-                max_age = None, 
-                include_root = False,
-                verbose = False,
-                cache = True,
-                save = True,
-                **kwargs
-                ) -> List[str]:
-        
-        if not hasattr(cls, 'tree_cache'):
-            cls.tree_cache = {}
-
-        tree = {}
-        mode = None
-        timestamp = cls.time()
-     
-        path = os.path.abspath(path or cls.default_tree_path())
-        cache_path = path.split('/')[-1]
-        # the tree is cached in memory to avoid repeated reads from storage
-        # if the tree is in the cache and the max_age is not None, we want to check the age of the cache
-        use_tree_cache = bool(cache and cache_path in cls.tree_cache) and not update
-        if use_tree_cache:
-            tree_data = cls.tree_cache[cache_path]
-            assert all([k in tree_data for k in ['data', 'timestamp']]), 'Invalid tree cache'
-            cache_age = timestamp - tree_data['timestamp']
-            if max_age != None and cache_age < max_age:
-                tree = tree_data['data']
-                assert isinstance(tree, dict), 'Invalid tree data'
-                mode = 'memory_cache'
-
-        if len(tree) == 0:
-            # if the tree is not cached in memory or we want to check the storage cache
-            tree =  cls.get(cache_path, {}, max_age=max_age, update=update)
-            mode = 'storage_cache'
-            if len(tree) == 0 :
-                # if the tree is not in the storage cache, we want to build it and store it
-                mode = 'build'
-                tree = cls.build_tree(path)
-                cls.tree_cache[cache_path] = {'data': tree, 'timestamp': timestamp}
-                if save: # we want to save the tree to storage
-                    cls.put(cache_path, tree)
-        
-        assert mode != None, 'Invalid mode'
-        if search != None:
-            tree = {k:v for k,v in tree.items() if search in k}
-        if include_root:
-            tree = {**tree, **cls.root_tree()}
-        
-        if verbose:
-            latency = cls.time() - timestamp
-            cls.print(f'Tree  path={path} latency={latency}, n={len(tree)} mode={mode}', color='cyan')
-        return tree
-    
-    
-    @classmethod
-    def local_tree(cls, **kwargs):
-        return cls.build_tree(cls.pwd(), **kwargs)
-    
-
-    @classmethod
-    def build_tree(cls,
-                    tree_path:str = None, 
-                    extension = '.py', 
-                    verbose = True,
-                    avoid_paths = ['__pycache__', '.git', '.vscode', '.ipynb_checkpoints', '/env/'],
-                    search=None,
-                   **kwargs):
-        
-        tree_path = tree_path or cls.libpath
-        t1 = cls.time()
-        tree_path = cls.resolve_path(tree_path)
-        module_tree = {}
-        for path in cls.glob(tree_path+'/**/**.py', recursive=True):
-            simple_path = cls.path2simple(path)
-            if simple_path == None:
-                continue
-            module_tree[simple_path] = path
-        latency = cls.time() - t1
-        if search != None:
-            module_tree = {k:v for k,v in module_tree.items() if search in k}
-        cls.print(f'Tree updated -> path={tree_path} latency={latency}, n={len(module_tree)}',  color='cyan', verbose=verbose)
-
-        return module_tree
-    @classmethod
-    def tree_paths(cls, update=False, **kwargs) -> List[str]:
-        return cls.ls()
 
     
     @classmethod
@@ -275,41 +169,46 @@ class Manager:
         return False
 
     @classmethod
-    def find_classes(cls, path='./', working=False):
-        path = os.path.abspath(path)
-        if os.path.isdir(path):
+    def find_classes(cls, path='./', update=True, max_age=None, working=False):
+        cache_path = f'cached_paths/{path}'
+        classes = cls.get(cache_path, default={}, update=update, max_age=max_age)
+        if len(classes) == 0:
+            path = os.path.abspath(path)
+            if os.path.isdir(path):
+                classes = []
+                for p in cls.glob(path+'/**/**.py', recursive=True):
+                    if p.endswith('.py'):
+                        p_classes =  cls.find_classes(p)
+                        if working:
+                            for class_path in p_classes:
+                                try:
+                                    cls.import_object(class_path)
+                                    classes += [class_path]
+                                except Exception as e:
+                                    r = cls.detailed_error(e)
+                                    r['class'] = class_path
+                                    cls.print(r, color='red')
+                                    continue
+                        else:
+                            classes += p_classes
+                            
+                return classes
+            
+            code = cls.get_text(path)
             classes = []
-            for p in cls.glob(path+'/**/**.py', recursive=True):
-                print(p)
-                if p.endswith('.py'):
-                    p_classes =  cls.find_classes(p)
-                    if working:
-                        for class_path in p_classes:
-                            try:
-                                cls.import_object(class_path)
-                                classes += [class_path]
-                            except Exception as e:
-                                r = cls.detailed_error(e)
-                                r['class'] = class_path
-                                cls.print(r, color='red')
-                                continue
-                    else:
-                        classes += p_classes
-                        
-            return classes
+            file_path = cls.path2objectpath(path)
+            for line in code.split('\n'):
+                if all([s in line for s in ['class ', ':']]):
+                    new_class = line.split('class ')[-1].split('(')[0].strip()
+                    if new_class.endswith(':'):
+                        new_class = new_class[:-1]
+                    if ' ' in new_class:
+                        continue
+                    classes += [new_class]
+            classes = [file_path + '.' + c for c in classes]
+            cls.put(cache_path, classes)
         
-        code = cls.get_text(path)
-        classes = []
-        file_path = cls.path2objectpath(path)
-        for line in code.split('\n'):
-            if all([s in line for s in ['class ', ':']]):
-                new_class = line.split('class ')[-1].split('(')[0].strip()
-                if new_class.endswith(':'):
-                    new_class = new_class[:-1]
-                if ' ' in new_class:
-                    continue
-                classes += [new_class]
-        return [file_path + '.' + c for c in classes]
+        return classes
     
     @classmethod
     def path2objectpath(cls, path:str, pwd=None, **kwargs) -> str:
@@ -360,7 +259,7 @@ class Manager:
         return [c for c in fns]
     
     @classmethod
-    def find_objects(cls, path:str = './', working=True, **kwargs):
+    def find_objects(cls, path:str = './', working=False, **kwargs):
         classes = cls.find_classes(path, working=working)
         object_paths = classes
         return object_paths
@@ -495,17 +394,60 @@ class Manager:
     @classmethod
     def has_app(cls, module:str, **kwargs) -> bool:
         return cls.module_exists(module + '.app', **kwargs)
+    
+    @classmethod
+    def objectpath2module_path(cls, p):
+        chunks = p.split('.')
+        file_name = chunks[-2]
+        chunks = chunks[:-1]
+        path = ''
+        for chunk in chunks:
+            if chunk in path:
+                continue
+            path += chunk + '.'
+        if file_name.endswith('_module'):
+            path = '.'.join(path.split('.')[:-1])
+        
+        if path.startswith(cls.libname + '.'):
+            path = path[len(cls.libname)+1:]
+
+        if path.endswith('.'):
+            path = path[:-1]
+
+        if '_' in file_name:
+            file_chunks =  file_name.split('_')
+            if all([c in path for c in file_chunks]):
+                path = '.'.join(path.split('.')[:-1])
+
+        return path
+
+    @classmethod
+    def local_modules(cls, search=None):
+        objects = cls.find_classes(cls.pwd())
+        object_paths = [cls.objectpath2module_path(obj) for obj in objects]
+        if search != None:
+            object_paths = [obj for obj in object_paths if search in obj]
+        return sorted(list(set(object_paths)))
+
+    @classmethod
+    def lib_modules(cls, search=None):
+        objects = cls.find_classes(cls.libpath)
+        object_paths = [cls.objectpath2module_path(obj) for obj in objects]
+        if search != None:
+            object_paths = [obj for obj in object_paths if search in obj]
+        return sorted(list(set(object_paths)))
+    
+    @classmethod
+    def find_modules(cls, search=None, **kwargs):
+        local_modules = cls.local_modules(search=search)
+        lib_modules = cls.lib_modules(search=search)
+        return sorted(list(set(local_modules + lib_modules)))
 
 
     @classmethod
-    def modules(cls, search=None, mode='local', tree='commune', **kwargs)-> List[str]:
-        if any([str(k) in ['subspace', 's'] for k in [mode, search]]):
-            module_list = cls.module('subspace')().modules(search=search, **kwargs)
-        else:
-            module_list = list(cls.tree(search=search, tree=tree, **kwargs).keys())
-            if search != None:
-                module_list = [m for m in module_list if search in m]
-        return module_list
+    def modules(cls, search=None, **kwargs)-> List[str]:
+
+        return cls.find_modules(search=search, **kwargs)
     get_modules = modules
 
     @classmethod

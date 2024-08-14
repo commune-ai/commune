@@ -385,9 +385,7 @@ class Namespace(c.Module):
 
         namespace = {v:k for k,v in address2name.items()}
         return namespace     
-
-
-
+    
     @classmethod
     def port2module(cls, *args, **kwargs):
         namespace = c.namespace(*args, **kwargs)
