@@ -674,25 +674,18 @@ class Misc:
     @classmethod
     def update(cls, 
                module = None,
-               tree:bool = True,
                namespace: bool = False,
                subspace: bool = False,
                network: str = 'local',
                **kwargs
                ):
         responses = []
-        if tree:
-            r = cls.tree()
-            responses.append(r)
         if module != None:
             return cls.module(module).update()
         # update local namespace
         cls.ip(update=True)
         if namespace:
             responses.append(cls.namespace(network=network, update=True))
-        if subspace:
-            responses.append(cls.module('subspace').sync())
-        
         return {'success': True, 'responses': responses}
     
 

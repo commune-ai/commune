@@ -50,10 +50,7 @@ class Routes:
     def routes(cls, cache=True):
         if cls.route_cache is not None and cache:
             return cls.route_cache 
-        if not cls.has_routes():
-            return {}
-        
-        routes =  cls.get_yaml(cls.routes_path())
+        routes =  cls.get_yaml(os.path.dirname(__file__)+ '/module.yaml').get('routes')
         cls.route_cache = routes
         return routes
 
@@ -172,4 +169,7 @@ class Routes:
         check if a function is a route
         '''
         return fn in cls.fn2module()
+    
+
+
     

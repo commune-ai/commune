@@ -966,7 +966,8 @@ class c(*CORE_MODULES):
 
     @classmethod
     def shortcuts(cls, cache=True) -> Dict[str, str]:
-        return cls.get_yaml(os.path.dirname(__file__)+ '/shortcuts.yaml')
+
+        return cls.get_yaml(os.path.dirname(__file__)+ '/module.yaml').get('shortcuts')
 
     def __repr__(self) -> str:
         return f'<{self.class_name()}'
@@ -1059,6 +1060,41 @@ class c(*CORE_MODULES):
         c.cmd('git add .', verbose=True, cwd=c.libpath)
         c.cmd(f'git commit -m "{msg}"', verbose=True, cwd=c.libpath)
         return c.cmd('git push', verbose=True, cwd=c.libpath)
+    @classmethod
+    def base_config(cls, cache=True):
+        if cache and hasattr(cls, '_base_config'):
+            return cls._base_config
+        cls._base_config = cls.get_yaml(cls.config_path())
+        return cls._base_config
+    
+    @classmethod
+    def cfg(cls):
+        base_cfg = cls.base_config()
+        local_cfg = cls.local_config()
+
+        return base_cfg
+    
+
+    @classmethod
+    def local_config(cls, filename_options = ['module', 'commune', 'config', 'cfg'], cache=True):
+        if cache and hasattr(cls, '_local_config'):
+            return cls._local_config
+        local_config = {}
+        for filename in filename_options:
+            if os.path.exists(f'./{filename}.yaml'):
+                local_config = cls.get_yaml(f'./{filename}.yaml')
+            if local_config != None:
+                break
+        cls._local_config = local_config
+        return cls._local_config
+    
+    def has_local_module(self, path=None):
+        path = '.' if path == None else path
+        if os.path.exists(f'{path}/module.py'):
+            text = c.get_text(f'{path}/module.py')
+            if 'class ' in text:
+                return True
+        return False
 
 c.enable_routes()
 Module = c # Module is alias of c

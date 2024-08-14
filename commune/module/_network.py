@@ -390,23 +390,6 @@ class Network:
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
         return not cls.port_used(port=port, ip=ip)
         
-   
-
-    @classmethod
-    def get_port_range(cls, port_range: list = None) -> list:
-        if port_range == None:
-            port_range = cls.get('port_range', default=cls.default_port_range)
-            
-        if len(port_range) == 0:
-            port_range = cls.default_port_range
-        port_range = list(port_range)
-        assert isinstance(port_range, list), 'Port range must be a list'
-        assert isinstance(port_range[0], int), 'Port range must be a list of integers'
-        assert isinstance(port_range[1], int), 'Port range must be a list of integers'
-        return port_range
-    
-
-
 
     @classmethod
     def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
@@ -506,9 +489,13 @@ class Network:
 
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
+        base_config = cls.base_config()
+        if 'port_range' in base_config:
+            port_range = base_config['port_range']
         if port_range == None:
             port_range = cls.get('port_range', default=cls.default_port_range)
-            
+        if isinstance(port_range, str):
+            port_range = list(map(int, port_range.split('-')))
         if len(port_range) == 0:
             port_range = cls.default_port_range
         port_range = list(port_range)

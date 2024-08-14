@@ -658,13 +658,15 @@ class SubspaceSubnet:
         if netuid != None:
             return netuid2subnet[netuid]
         return netuid2subnet
-    
+    netuid2name = netuid2subnet
+
     def subnet2netuid(self, subnet=None,  update=False,  **kwargs ) -> Dict[str, str]:
         subnet2netuid =  {v:k for k,v in self.netuid2subnet( update=update, **kwargs).items()}
         # sort by subnet 
         if subnet != None:
             return subnet2netuid[subnet] if subnet in subnet2netuid else len(subnet2netuid)
         return subnet2netuid
+    name2netuid = subnet2netuid
 
     
     
@@ -1014,5 +1016,7 @@ class SubspaceSubnet:
         netuid2uid = dict(sorted(netuid2uid.items(), key=lambda x: x[0]))
 
         return netuid2uid
+    
+        
 
 
