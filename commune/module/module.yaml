@@ -39,6 +39,7 @@ routes:
   repo: 
     - is_repo
   key:
+    - rename_key
     - ss58_encode
     - ss58_decode
     - key2mem

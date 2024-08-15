@@ -8,14 +8,18 @@ import inspect
 from munch import Munch
 
 class Code(c.Module):
-
-    def file2text(self, path = './', relative=False,  **kwargs):
+    
+    def file2text(self, path = './', relative=True,  **kwargs):
         path = os.path.abspath(path)
         file2text = {}
         for file in glob.glob(path, recursive=True):
             with open(file, 'r') as f:
                 content = f.read()
                 file2text[file] = content
+        if relative:
+            print(path)
+            return {k[len(path)+1:]:v for k,v in file2text.items()}
+
         return file2text
                 
     def file2file(self, path, **kwargs):

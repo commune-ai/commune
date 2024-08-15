@@ -393,9 +393,9 @@ class Keypair(c.Module):
         
 
     @classmethod
-    def key2address(cls, search=None, update=False, **kwargs):
+    def key2address(cls, search=None, update=False, max_age=None, **kwargs):
         path = 'key2address'
-        key2address =  cls.get(path, None , max_age=None, update=update)
+        key2address =  cls.get(path, None , max_age=max_age, update=update)
         if key2address == None:
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)

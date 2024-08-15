@@ -20,12 +20,9 @@ class Crypto:
             return hashlib.sha3_512(x.encode()).hexdigest()
         else:
             raise ValueError(f'unknown mode {mode}')
-
         #TODO: add quantum resistant hash functions
-
-
         return hash_output
-    
+    str2hash = hash
     @classmethod
     def hash_modes(cls):
         return ['keccak', 'ss58', 'python', 'md5', 'sha256', 'sha512', 'sha3_512']

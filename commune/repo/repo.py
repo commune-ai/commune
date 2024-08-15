@@ -131,7 +131,7 @@ class Repo(c.Module):
                  sudo=False):
         cwd = cwd or c.home_path
 
-        repo_name =  os.path.basename(path).replace('.git', '')
+        repo_name =  os.path.basename(repo_path).replace('.git', '')
         
         if path == None:
             path = c.home_path + '/'+ repo_name

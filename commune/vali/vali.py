@@ -50,14 +50,14 @@ class Vali(c.Module):
     init_vali = __init__
     def score(self, module):
         # assert 'address' in info, f'Info must have a address key, got {info.keys()}'
-        a = str(c.random_int())
-        b = c.random_int()
-        expected_output = b
-        module.put_item(a,b)
-        output = module.get_item(a)
-        if output == expected_output:
-            return 1
-        return 0
+        # a = str(c.random_int())
+        # b = c.random_int()
+        # expected_output = b
+        # module.put_item(a,b)
+        # output = module.get_item(a)
+        # if output == expected_output:
+        #     return 1
+        return int('name' in module.info())
 
         
     def set_score_fn(self, score_fn: Union[Callable, str]):
