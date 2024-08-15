@@ -244,7 +244,6 @@ class SubspaceSubnet:
             subnet_params = {}
             for f in c.as_completed(future2name, timeout=timeout):
                 result = f.result()
-                print(future2name.values())
                 subnet_params[future2name.pop(f)] = result
             for k in subnet_params.keys():
                 v = subnet_params[k]
@@ -256,7 +255,6 @@ class SubspaceSubnet:
             
             self.put(path, subnet_params)
             
-        print(subnet_params)
         subnet_params.update(subnet_params.pop('subnet_governance_config')) 
         translation = {
             'subnet_names': 'name', 
@@ -758,7 +756,7 @@ class SubspaceSubnet:
     #     return subnet2state
 
 
-    def netuid2emission(self, fmt='j',  period='day', **kwargs):
+    def netuid2emission(self, fmt='j',  period='day', names=1, **kwargs):
         netuid2emission = {}
         netuid2tempo = None
         emissions = self.query_vector('Emission',  netuid='all', **kwargs)
@@ -774,6 +772,8 @@ class SubspaceSubnet:
             netuid2emission[netuid] = self.format_amount(sum(netuid_emissions), fmt=fmt) * multiplier
         
         netuid2emission = {k: v   for k,v in netuid2emission.items()}
+        if names:
+            netuid2emission = {self.netuid2name(netuid=k): v for k,v in netuid2emission.items()}
 
         return netuid2emission
 

@@ -1,14 +1,9 @@
 import os
 import inspect
-from copy import deepcopy
 from typing import *
 import json
-from glob import glob
 import argparse
 import nest_asyncio
-import time
-t1 = time.time()
-
 nest_asyncio.apply()
 
 # YOU CAN DEFINE YOUR CORE MODULES BY JUST adding a class to the core folder
@@ -994,18 +989,20 @@ class c(*CORE_MODULES):
             progress.update(1)
         return False
     
-    def file2text(self, path:str='./')-> List[str]:
-        files = c.glob(path)
-        file2lines = {}
-        progress = c.tqdm(len(files))
-        for f in files:
-            try:
-                file2lines[f] = c.get_text(f)
-            except Exception as e:
-                pass
-            progress.update(1)
-        return file2lines
+    def file2text(self, path = './', relative=True,  **kwargs):
+        path = os.path.abspath(path)
+        file2text = {}
+        for file in c.glob(path, recursive=True):
+            with open(file, 'r') as f:
+                content = f.read()
+                file2text[file] = content
+        if relative:
+            print(path)
+            return {k[len(path)+1:]:v for k,v in file2text.items()}
+
+        return file2text
     
+
     def file2lines(self, path:str='./')-> List[str]:
         file2text = self.file2text(path)
         file2lines = {f: text.split('\n') for f, text in file2text.items()}
@@ -1099,6 +1096,5 @@ class c(*CORE_MODULES):
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
-
 
 

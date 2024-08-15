@@ -1095,7 +1095,7 @@ class SubspaceWallet:
         address : str = None,
         stake : float = None,
         netuid = 0,
-        subnet: str = None,
+        subnet : str = None,
         key : str  = None,
         module_key : str = None,
         wait_for_inclusion: bool = True,
@@ -1103,8 +1103,6 @@ class SubspaceWallet:
         max_address_characters = 32,
         metadata = None,
         nonce=None,
-        tag = None,
-        ensure_server = True,
     **kwargs
     ) -> bool:
         module_key =  c.get_key(module_key or name).ss58_address
@@ -1123,9 +1121,11 @@ class SubspaceWallet:
                 
         # require prompt to create new subnet        
         stake = (stake or 0) * 1e9
-        address = address or '0.0.0.0'
+
         if c.server_exists(name):
             address = c.namespace().get(name)
+        else:
+            address = address or 'NA'
 
         params = { 
                     'network_name': subnet.encode('utf-8'),

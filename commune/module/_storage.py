@@ -459,6 +459,7 @@ class Storage:
             key: 'Key' = None,
             update :bool = False,
             password : str = None,
+            verbose = True,
             **kwargs) -> Any:
         
         '''
@@ -471,7 +472,6 @@ class Storage:
                 return cls.cache[k]
         data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
         
-            
 
         if password != None:
             assert data['encrypted'] , f'{k} is not encrypted'
@@ -487,7 +487,7 @@ class Storage:
                 if timestamp != None:
                     age = int(time.time() - timestamp)
                     if age > max_age: # if the age is greater than the max age
-                        print(f'{k} is too old ({age} > {max_age})')
+                        cls.print(f'{k} is too old ({age} > {max_age})', verbose=verbose)
                         return default
         else:
             data = default
@@ -501,6 +501,14 @@ class Storage:
         if cache:
             cls.cache[k] = data
         return data
+    
+    def get_age(self, k:str) -> int:
+        data = self.get_json(k)
+        timestamp = data.get('timestamp', None)
+        if timestamp != None:
+            age = int(time.time() - timestamp)
+            return age
+        return -1
   
 
 

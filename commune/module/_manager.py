@@ -51,7 +51,7 @@ class Manager:
             module_dirpath = dir_path + '/' + simple.replace('.', '/')
             if os.path.isdir(module_dirpath):
                 simple_filename = simple.replace('.', '_')
-                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module', 'main'] + simple.split('.') + ['__init__']
+                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module'] + simple.split('.') + ['__init__']
                 path_options +=  [module_dirpath + '/' + cls.resolve_extension(f)  for f in filename_options]  
             else:
                 module_filepath = dir_path + '/' + cls.resolve_extension(simple.replace('.', '/'), extension=extension)
@@ -61,7 +61,7 @@ class Manager:
                 if os.path.exists(p):
                     p_text = cls.get_text(p)
                     # gas class in text
-                    is_class_text = 'class ' in p_text or '  def ' in p_text
+                    is_class_text = 'commune' in p_text and 'class ' in p_text or '  def ' in p_text
                     if is_class_text:
                         path = p
                         break
@@ -168,46 +168,61 @@ class Manager:
             return True
         return False
 
+
     @classmethod
-    def find_classes(cls, path='./', update=True, max_age=None, working=False):
-        cache_path = f'cached_paths/{path}'
-        classes = cls.get(cache_path, default={}, update=update, max_age=max_age)
-        if len(classes) == 0:
-            path = os.path.abspath(path)
-            if os.path.isdir(path):
-                classes = []
-                for p in cls.glob(path+'/**/**.py', recursive=True):
-                    if p.endswith('.py'):
-                        p_classes =  cls.find_classes(p)
-                        if working:
-                            for class_path in p_classes:
-                                try:
-                                    cls.import_object(class_path)
-                                    classes += [class_path]
-                                except Exception as e:
-                                    r = cls.detailed_error(e)
-                                    r['class'] = class_path
-                                    cls.print(r, color='red')
-                                    continue
-                        else:
-                            classes += p_classes
-                            
-                return classes
-            
-            code = cls.get_text(path)
+    def resolve_cache_path(self, path):
+        path = path.replace("/", "_")
+        if path.startswith('_'):
+            path = path[1:]
+        path = f'cached_path/{path}'
+        print(path)
+        return path
+    
+    @classmethod
+    def cached_paths(cls):
+        return cls.ls('cached_paths')
+    
+
+    @classmethod
+    def find_classes(cls, path='./',  working=False):
+
+        path = os.path.abspath(path)
+        if os.path.isdir(path):
             classes = []
-            file_path = cls.path2objectpath(path)
-            for line in code.split('\n'):
-                if all([s in line for s in ['class ', ':']]):
-                    new_class = line.split('class ')[-1].split('(')[0].strip()
-                    if new_class.endswith(':'):
-                        new_class = new_class[:-1]
-                    if ' ' in new_class:
-                        continue
-                    classes += [new_class]
-            classes = [file_path + '.' + c for c in classes]
-            cls.put(cache_path, classes)
+            for p in cls.glob(path+'/**/**.py', recursive=True):
+                if p.endswith('.py'):
+                    p_classes =  cls.find_classes(p )
+                    if working:
+                        for class_path in p_classes:
+                            try:
+                                cls.import_object(class_path)
+                                classes += [class_path]
+                            except Exception as e:
+                                r = cls.detailed_error(e)
+                                r['class'] = class_path
+                                cls.print(r, color='red')
+                                continue
+                    else:
+                        classes += p_classes
+                        
+            return classes
         
+        code = cls.get_text(path)
+        classes = []
+        file_path = cls.path2objectpath(path)
+            
+        for line in code.split('\n'):
+            if all([s in line for s in ['class ', ':']]):
+                new_class = line.split('class ')[-1].split('(')[0].strip()
+                if new_class.endswith(':'):
+                    new_class = new_class[:-1]
+                if ' ' in new_class:
+                    continue
+                classes += [new_class]
+        classes = [file_path + '.' + c for c in classes]
+
+        libpath_objpath_prefix = cls.libpath.replace('/', '.')[1:] + '.'
+        classes = [c.replace(libpath_objpath_prefix, '') for c in classes]
         return classes
     
     @classmethod
@@ -431,7 +446,7 @@ class Manager:
 
     @classmethod
     def lib_modules(cls, search=None):
-        objects = cls.find_classes(cls.libpath)
+        objects = cls.find_classes(cls.libpath, )
         object_paths = [cls.objectpath2module_path(obj) for obj in objects]
         if search != None:
             object_paths = [obj for obj in object_paths if search in obj]
@@ -443,11 +458,15 @@ class Manager:
         lib_modules = cls.lib_modules(search=search)
         return sorted(list(set(local_modules + lib_modules)))
 
-
+    _modules = None
     @classmethod
-    def modules(cls, search=None, **kwargs)-> List[str]:
-
-        return cls.find_modules(search=search, **kwargs)
+    def modules(cls, search=None, cache=True,   **kwargs)-> List[str]:
+        modules = cls._modules
+        if not cache or modules == None:
+            modules =  cls.find_modules(search=None, **kwargs)
+        if search != None:
+            modules = [m for m in modules if search in m]
+        return modules
     get_modules = modules
 
     @classmethod

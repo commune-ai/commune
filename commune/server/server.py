@@ -39,6 +39,7 @@ class Server(c.Module):
         self.module = module
         self.access_module = c.module('server.access')(module=self.module)
         self.set_api(max_bytes=max_bytes, **kwargs)
+        c.thread(self.run_loop)
 
     def add_fn(self, name:str, fn: str):
         assert callable(fn), 'fn not callable'
@@ -230,12 +231,13 @@ class Server(c.Module):
         results_list = []
         for f in c.as_completed(futures, timeout=timeout):
             result = f.result()
+            print(result)
             progress.update(1)
             results_list += [result]
-        servers = c.servers(network=network, update=True)
+        namespace = c.namespace(network=network, update=True)
         new_n = len(servers)
         c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
-        return results_list
+        return {'success':True, 'old_n':n, 'new_n':new_n, 'servers':servers, 'namespace':namespace}
    
    
     @classmethod
@@ -358,6 +360,12 @@ class Server(c.Module):
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for {name} to start')
         return True
+    
+
+    def run_loop(self):
+        while True:
+            c.print(self.register_keys())
+            c.sleep(5)
 
     
 

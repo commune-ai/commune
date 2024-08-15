@@ -7,53 +7,105 @@ class Miner(c.Module):
     
     def __init__(self, 
                 netuid = 15, 
-                n = 42, 
+                n = 10, 
                 key : str =None, 
-                treasury_key_address:str = None,
-                stake=1, 
                 name_prefix = None,
-                key_prefix = 'tang_', 
-                max_age=600, 
+                key_prefix = 'miner_', 
+                max_age=100600, 
                 update=False,
-                key_path='miner_mems'
+                use_subnet_prefix=True,
+                key_path='miner_mems',
+                prefix_seperator = "::"
                 ):
-        
-        self.key_prefix = key_prefix
-        self.subspace = c.module('subspace')()
+        self.key_prefix = key_prefix 
         self.docker = c.module('docker')()
         self.pm2 = c.module('pm2')()
-        self.netuid = netuid
-        self.max_age = max_age
-        self.update = update
-        self.subnet = self.subnet_params['name']
-        self.name_prefix = (self.subnet.lower() + '_') if name_prefix == None else name_prefix
+        self.set_subnet(netuid=netuid, max_age=max_age, update=update)
         self.n = int(n)
         self.key = c.get_key(key)
-        self.treasury_key_address = treasury_key_address or self.key.ss58_address
-        self.stake = stake
         self.key_path = self.resolve_path(key_path, extension='json')
+        # miner name prefix
+        self.use_subnet_prefix = use_subnet_prefix
+        self.prefix_seperator = prefix_seperator
+        self.name_prefix = (self.subnet["name"].lower() if self.use_subnet_prefix else name_prefix) 
+        if self.name_prefix != None:
+            self.name_prefix = self.name_prefix + self.prefix_seperator
 
-    @property
-    def subnet_params(self):
-        return self.subspace.subnet_params(netuid=self.netuid, max_age=self.max_age)
+
+        self.resolve_keys()
+
+    def set_subnet(self, netuid=None,  max_age=10000,  update=False,  **kwargs):
+        if not hasattr(self, 'subspace'):
+            self.subspace = c.module('subspace')()
+        if netuid == None:
+            netuid = self.netuid
+        params = self.subspace.subnet_params(netuid=netuid, max_age=max_age, update=update)
+        keys = self.subspace.keys(netuid=netuid, max_age=max_age, update=update)
+        uids = list(range(len(keys)))
+        self.subnet = {
+            'name': params['name'],
+            'keys': keys,
+            'uids': uids,
+            'netuid': netuid,
+            'params': params
+
+        }
+        self.netuid = netuid
+
+    def resolve_keys(self):
+        key2exist = self.key2exist()
+        keys = self.key_names()
+        for key in keys:
+            if not key2exist[key]:
+                c.print(c.add_key(key))
+        return self.key2exist()
+    
+
+    def key2registered(self):
+        key2registered = {}
+        for k in self.keys():
+            key2registered[k] = self.is_registered(k)
+        return key2registered
+    key2reg = key2registered
+    
+    def unregistered_keys(self):
+        key2registered = self.key2registered()
+        return [k for k in key2registered if not key2registered[k]]
+    unreged = unregistered_keys
+
 
     def keys(self, names = False):
-        keys =  c.keys(self.key_prefix)
-        keys = list(filter(lambda k: int(k.split('_')[-1]) < self.n, keys))
+        keys =  c.keys()
+
+        def filter_key(k):
+            try:
+                return k.startswith(self.key_prefix) and int(k[len(self.key_prefix):]) < self.n
+            except:
+                return False
+        keys = list(filter(filter_key, keys))
         if names:
             address2key = c.address2key()
             return [address2key[k] for k in keys]
         return keys
     
-    def key_names(self):
-        return [self.key_prefix + '_' + str(i) for i in range(self.n)]
+    def key2exist(self):
+        keys = self.key_names()
+        key2address = c.key2address()
+        return {k: k in key2address for k in keys}
     
-    def miner_names(self):
+    def key_names(self):
+        return [self.key_prefix + str(i) for i in range(self.n)]
+    
+    def key_addresses(self):
+        return [c.get_key(key).ss58_address for key in self.key_names()]
+    
+    def names(self):
         return [self.get_miner_name(key) for key in self.keys()]
 
     
     def get_miner_name(self, key):
-        return self.name_prefix + key.replace('::', '_')
+
+        return self.name_prefix + key
     
 
 
@@ -62,8 +114,7 @@ class Miner(c.Module):
             name = f"miner_{i}"
             c.add_key(name)
 
-    def transfer_to_miners(self, amount=None):
-        amount = amount or self.stake
+    def transfer_to_miners(self, amount):
         return self.subspace.transfer_multiple(self.key_addresses(), amount)
 
     def miner2balance(self, timeout=30, max_age=30, **kwargs):
@@ -84,26 +135,29 @@ class Miner(c.Module):
 
     def is_running(self, name):
         return name in c.pm2ls(name)
+    
 
-    def register_miner(self, key, controller_key=None):
-        if controller_key == None:
-            controller_key = self.key.ss58_address 
-        port = c.free_port()
-        while port in self.used_ports:
-            port = c.free_port()
+    def resolve_controller(self, controller):
+        if controller == None:
+            return self.key.ss58_address
+        return controller
+
+    def register_miner(self, key, controller=None, stake=1,  nonce=None):
+        controller = self.resolve_controller(controller)
         key_address = c.get_key(key).ss58_address
+        name = self.get_miner_name(key)
         if self.subspace.is_registered(key_address, netuid=self.netuid):
             return {'msg': 'already registered'}
-        name_prefix = self.subnet.lower()
-        name = f"{name_prefix}_{key.replace('::', '_')}"
+        port = c.free_port()
+        key_address = c.get_key(key).ss58_address
         address = f'{c.ip()}:{port}'
-        c.print(f"Registering {name} at {address}")
         return self.subspace.register(name=name, 
                                      address=address, 
                                      module_key=key,
                                      netuid=self.netuid, 
-                                     key=controller_key, 
-                                     stake=self.stake)
+                                     key=controller, 
+                                     stake=stake, 
+                                     nonce=nonce)
 
     def kill_miner(self, name):
         return self.pm2.kill(name)
@@ -137,36 +191,55 @@ class Miner(c.Module):
         for f in c.as_completed(futures):
             print(f.result())
 
-    def registered_keys(self, names=False, prefix='miner_', **kwargs):
-        keys = self.subspace.keys(netuid=self.netuid, **kwargs)
-        address2key = c.address2key()
-        address2key = {k: v for k,v in address2key.items() if v.startswith(prefix)}
-        miner_key_addresses = list(address2key.keys())
-        keys =  list(filter(lambda k: k in miner_key_addresses, keys))
-        if names:
-            return [address2key[k] for k in keys]
-        return keys
+    def unregisered_keys(self):
+        key_addresses = self.key_addresses()
+        return [k for k in key_addresses if k not in self.subnet['keys']]
+
+    def registered_keys(self,  **kwargs):
+        return [k for k,v in self.key2reg().items()if v ]
 
     def uids(self):
-        key2uid = self.subspace.key2uid(netuid=self.netuid)
+        key2uid = dict(zip(self.subnet['keys'] , self.subnet['uids']))
         return [key2uid[key] for key in self.registered_keys()]
 
-    def register_miners(self, timeout=60, parallel=False, controller_key=None):
+    def resolve_key_address(self, key):
+        if c.key_exists(key):
+            return c.get_key(key).ss58_address
+        else:
+            return key
+
+
+    def is_registered(self, key):
+        key = self.resolve_key_address(key)
+        return key in self.subnet["keys"]
+
+    def register_miners(self, timeout=60, parallel=False, controller=None):
         keys = self.keys()
-        futures = []
         c.print('Registering miners ...')
-        c.print(keys)
+        futures = []
         results = []
         if parallel:
+            nonce = self.subspace.get_nonce(controller)
+        
+        if parallel:
             for i, key in enumerate(keys):
-                futures += [c.submit(self.register_miner, kwargs={'key': key, 'controller_key': controller_key or key})]
+                if self.is_registered(key):
+                    print(f'{key} is already registered')
+                    continue 
+                
+                futures += [c.submit(self.register_miner, kwargs={'key': key, 'controller': controller, 'nonce': nonce}, timeout=timeout)]
+                nonce += 1
             for f in c.as_completed(futures, timeout=timeout):
                 results.append(f.result())
                 c.print(results[-1])
         else:
             for i, key in enumerate(keys):
+                if self.is_registered(key):
+                    print(f'{key} is already registered')
+                    continue
                 results.append(self.register_miner(key))
                 c.print(results[-1])
+    register_keys = register_miners
 
     def servers(self):
         return c.pm2ls()
@@ -179,7 +252,7 @@ class Miner(c.Module):
             self.put('modules', modules)
         return modules
 
-    def sync(self, timeout=60, **kwargs):
+    def update(self, timeout=60, **kwargs):
         modules = self.modules(**kwargs)
         futures = []
         ip = c.ip(update=1)
@@ -245,17 +318,32 @@ class Miner(c.Module):
         return df
 
     def save_keys(self, path='miner_mems'):
+        c.put_json(self.key_path, self.key_state())
+        return {"msg": "keys saved", "path": self.key_path}
+    
+    def key_state(self):
         keys = self.keys()
         key2mnemonic = {}
         for key in keys:
             mnemonic = c.get_key(key).mnemonic
             key2mnemonic[key] = mnemonic
-        c.put_json(self.key_path, key2mnemonic)
-        return {"msg": "keys saved", "path": self.key_path}
+        return key2mnemonic
+
 
     def load_keys(self):
         key2mnemonic = c.get_json(self.key_path)
         return key2mnemonic
+    
+    def rename_keys(self, new_prefix):
+        keys = self.keys()
+        old_prefix = self.key_prefix
+        for key in keys:
+            if key.startswith(old_prefix):
+                new_key = new_prefix + key[len(old_prefix):] 
+                c.print(c.rename_key(key, new_key))
+                print(f"{key} --> {new_key}")
+        self.key_prefix = new_prefix
+        return {"msg": "keys renamed", "new_prefix": new_prefix, "old_prefix": old_prefix}
         
 
 

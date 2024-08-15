@@ -95,7 +95,11 @@ class cli:
             # module = self.base_module.from_object(module)
             module_name = module.module_name()
             fn_path = f'{module_name}/{fn}'
-            fn_obj = getattr(module, fn)
+            try:
+                fn_obj = getattr(module, fn)
+            except Exception as e:
+                fn_obj =getattr(module(), fn)
+
             fn_type = c.classify_fn(fn_obj)
             if fn_type == 'self' or len(init_kwargs) > 0:
                 fn_obj = getattr(module(**init_kwargs), fn)
@@ -119,11 +123,12 @@ class cli:
 
         is_error =  c.is_error(output)
         if is_error:
-            buffer = '🔴'
-            msg =  f'Error ({latency})' 
+            buffer = '❌'
+            msg =  f'Error(latency= {latency:.3f})' 
         else:
-            buffer = '🟢' 
-            msg = f'Result ({latency:.2f})'
+            buffer = '✅'
+            msg = f'Result(latency={latency:.3f})'
+        print(buffer + msg + buffer)
         
         num_spacers = max(0,  len(self.input_msg) - len(msg) )
         left_spacers = num_spacers//2
