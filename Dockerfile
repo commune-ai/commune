@@ -30,5 +30,6 @@ RUN pip install -e ./
 COPY ./ /app
 # git safety for app
 RUN git config --global --add safe.directory /app
+RUN git config pull.rebase false
 # IMPORT EVERYTHING ELSE
 ENTRYPOINT [ "tail", "-f", "/dev/null"]
