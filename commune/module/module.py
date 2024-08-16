@@ -1092,6 +1092,20 @@ class c(*CORE_MODULES):
             if 'class ' in text:
                 return True
         return False
+    
+    def wordinfolder(self, word:str, path:str='./')-> bool:
+        path = c.resolve_path(path)
+        files = c.glob(path)
+        progress = c.tqdm(len(files))
+        for f in files:
+            try:
+                text = c.get_text(f)
+            except Exception as e:
+                continue
+            if word in text:
+                return True
+            progress.update(1)
+        return False
 
 c.enable_routes()
 Module = c # Module is alias of c
