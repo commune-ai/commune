@@ -28,5 +28,7 @@ COPY ./README.md /app/README.md
 RUN pip install -e ./ 
 # THIS IS FOR THE LOCAL PACKAG
 COPY ./ /app
+# git safety for app
+RUN git config --global --add safe.directory /app
 # IMPORT EVERYTHING ELSE
 ENTRYPOINT [ "tail", "-f", "/dev/null"]
