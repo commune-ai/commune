@@ -129,7 +129,6 @@ class Vali(c.Module):
         - voting: check the staleness of the last vote to vote (if it is a voting network)
         
         """
-        self.sync()
         # start the workers
 
         while True:
@@ -152,12 +151,13 @@ class Vali(c.Module):
                 did_score_bool = bool(result['w'] > 0)
                 emoji =  '🟢' if did_score_bool else '🔴'
                 if did_score_bool:
-                    result = {k: result.get(k, None) for k in ['w',  'name', 'key', 'address'] if k in result}
-                    msg = ' '.join([f'{k}={result[k]}' for k in result])
+                    result = {k: result.get(k, None) for k in ['w',  'name',  'address', 'latency'] if k in result}
+                    msg = ' '.join([f'{k}={result[k]}\t' for k in result])
                     msg = f'SUCCESS({msg})'
                 else:
-                    result = {k: result.get(k, None) for k in ['w', 'name', 'key', 'address', 'msg'] if k in result}
-                    msg = ' '.join([f'{k}={result[k]}' for k in result.keys()])
+                    result = {k: result.get(k, None) for k in ['w', 'name', 'msg'] if k in result}
+
+                    msg = ' '.join([f'{k}={result[k]}\t' for k in result.keys()])
                     msg =  f'ERROR({msg})'
                 break
         except Exception as e:
@@ -168,6 +168,7 @@ class Vali(c.Module):
         c.print(emoji + msg + emoji, 
                 color='cyan', 
                 verbose=True)
+        
         return result
 
 
@@ -185,8 +186,10 @@ class Vali(c.Module):
         return self.epoch(df=1)
 
     def epoch(self, df=True):
+        if self.state.epochs > 0:
+            self.sync()
         self.state.epochs += 1
-        self.sync()
+        
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.state.epochs} with {self.n} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses)//4)            
