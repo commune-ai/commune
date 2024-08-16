@@ -24,19 +24,59 @@ class Namespace(c.Module):
                     update:bool = False, 
                     netuid=None, 
                     max_age:int = 60,
+                    timeout=6,
+                    verbose=True,
                     **kwargs) -> dict:
         
         network = network or 'local'
         path = cls.resolve_network_path(network)
         namespace = cls.get(path, {}, max_age=max_age, update=update)
         if len(namespace) == 0:
-            namespace = cls.build_namespace(network=network, netuid=netuid, **kwargs)
+            if network == 'local':
+                namespace = {}
+                addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
+                future2address = {}
+                for address in addresses:
+
+                    f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
+                    future2address[f] = address
+                futures = list(future2address.keys())
+                try:
+                    progress = c.tqdm(len(futures))
+                    for f in c.as_completed(futures, timeout=timeout):
+                        address = future2address[f]
+                        progress.update(1)
+                        try:
+                            name = f.result()
+                            namespace[name] = address
+                            c.print(f'{name}-->{address}', color='green', verbose=verbose)
+                        except Exception as e:
+                            c.print(f'Error {e} with {name} and {address}', color='red', verbose=verbose)
+                except Exception as e:
+                    c.print(f'Timeout error {e}', color='red', verbose=verbose)   
+            elif 'subspace' in network:
+                if '.' in network:
+                    network, netuid = network.split('.')
+                else: 
+                    netuid = netuid or 0
+                if c.is_int(netuid):
+                    netuid = int(netuid)
+                namespace = c.module(network)().namespace(search=search, 
+                                                    update=update, 
+                                                    netuid=netuid,
+                                                    **kwargs)
+            else:
+                namespace = {}
+            
+            namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
             cls.put_namespace(network, namespace)
 
-        namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         if search != None:
-            namespace = {k:v for k,v in namespace.items() if search in k}
-    
+            namespace = {k:v for k,v in namespace.items() if search in k} 
+
+        return namespace
+
+
         ip  = c.ip()
         namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
@@ -146,55 +186,6 @@ class Namespace(c.Module):
         return {'success': True, 'msg': 'Servers checked.'}
     
 
-    @classmethod
-    def build_namespace(cls,
-                        network:str = 'local', 
-                        search:str = None,
-                        update:bool = False,
-                        timeout:int = 1,
-                        verbose=False, **kwargs)-> dict:
-        '''
-        The module port is where modules can connect with each othe.
-        When a module is served "module.serve())"
-        it will register itself with the namespace_local dictionary.
-        '''
-        if 'subspace' in network:
-            if '.' in network:
-                network, netuid = network.split('.')
-            else: 
-                netuid = netuid or 0
-            if c.is_int(netuid):
-                netuid = int(netuid)
-            namespace = c.module(network)().namespace(search=search, 
-                                                update=update, 
-                                                netuid=netuid,
-                                                **kwargs)
-        elif network == 'local':
-            namespace = {}
-            addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
-            future2address = {}
-            for address in addresses:
-                f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
-                future2address[f] = address
-            futures = list(future2address.keys())
-            try:
-                for f in c.as_completed(futures, timeout=timeout):
-                    address = future2address[f]
-                    try:
-                        name = f.result()
-                        namespace[name] = address
-                        c.print(f'Updated {name} to {address}', color='green', verbose=verbose)
-                    except Exception as e:
-                        print(name)
-                        c.print(f'Error {e} with {address}', color='red', verbose=verbose)
-            except Exception as e:
-                c.print(f'Timeout error {e}', color='red', verbose=verbose)
-        else:
-            namespace = {}
-        
-        return namespace
-    
-    update_namespace = build_namespace
 
     @classmethod
     def merge_namespace(cls, from_network:str, to_network:str, module = None):
