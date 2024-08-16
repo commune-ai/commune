@@ -27,7 +27,7 @@ retry
 netaddr
 typer
 loguru
-pyaml
+pyyaml
 #plot
 plotly
 streamlit
