@@ -36,11 +36,12 @@ if [ $CONTAINER_EXISTS ]; then
 
 fi
 # rm the container id if it exists
-CONTAINER_EXISTS=$(docker ps -aq -f name=$CONTAINER_NAME)
-if [ $CONTAINER_EXISTS ]; then
+CONTAINER_ID=$(docker ps -aq -f name=$CONTAINER_NAME)
+if [ $CONTAINER_ID ]; then
   echo "REMOVING CONTAINER $CONTAINER_NAME"
   docker rm $CONTAINER_NAME
 fi
+
 CMD_STR="docker run -d \
   --name $CONTAINER_NAME \
   --shm-size $SHM_SIZE \
