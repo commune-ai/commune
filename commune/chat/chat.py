@@ -156,7 +156,6 @@ class Chat(c.Module):
             try:
                 output = data['data']['output']
                 output = lambda_fn(output)
-                st.write(output)
             except Exception as e:
                 st.error(e)
 

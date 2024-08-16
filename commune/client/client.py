@@ -19,9 +19,8 @@ class Client(c.Module, ClientPool):
             loop = None,
             **kwargs
         ):
-
+        self.loop = c.get_event_loop()
         self.serializer = c.module('serializer')()
-        self.session = aiohttp.ClientSession()
         self.network = network
         self.loop = c.get_event_loop() if loop == None else loop
         self.key  = c.get_key(key, create_if_not_exists=True)
@@ -141,6 +140,7 @@ class Client(c.Module, ClientPool):
 
 
     def forward(self, *args, **kwargs):
+
         return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
 
     async def async_forward(self, 
@@ -167,22 +167,23 @@ class Client(c.Module, ClientPool):
                                    version=version)
         c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key})", color='green', verbose=verbose)
 
-        try:
-            response =  await self.session.post(url, json=input, headers=headers)
-            if response.content_type == 'text/event-stream':
-                return self.iter_over_async(self.stream_generator(response))
-            if response.content_type == 'application/json':
-                result = await asyncio.wait_for(response.json(), timeout=timeout)
-            elif response.content_type == 'text/plain':
-                result = await asyncio.wait_for(response.text(), timeout=timeout)
-            else:
-                result = await asyncio.wait_for(response.read(), timeout=timeout)
-                # if its an error we will raise it
-                if response.status != 200:
-                    raise Exception(result)
-            result = self.serializer.deserialize(result)
-        except Exception as e:
-            result = c.detailed_error(e)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=input, headers=headers) as response:   
+                try:             
+                    if response.content_type == 'text/event-stream':
+                        return self.iter_over_async(self.stream_generator(response))
+                    if response.content_type == 'application/json':
+                        result = await asyncio.wait_for(response.json(), timeout=timeout)
+                    elif response.content_type == 'text/plain':
+                        result = await asyncio.wait_for(response.text(), timeout=timeout)
+                    else:
+                        result = await asyncio.wait_for(response.read(), timeout=timeout)
+                        # if its an error we will raise it
+                        if response.status != 200:
+                            raise Exception(result)
+                    result = self.serializer.deserialize(result)
+                except Exception as e:
+                    result = c.detailed_error(e)
 
         return result
     
