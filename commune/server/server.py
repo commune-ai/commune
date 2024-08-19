@@ -29,7 +29,7 @@ class Server(c.Module):
         self.network = network
         if isinstance(module, str):
             module = c.module(module)()
-        module.whitelist = module.get_whitelist()
+        module.endpoints = module.get_endpoints()
         module.name = module.server_name = name or module.server_name
         module.port = port if port not in ['None', None] else c.free_port()
         module.address = f"{c.ip()}:{module.port}"
@@ -55,7 +55,12 @@ class Server(c.Module):
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
-        print(headers)
+        server_str = f"Server(fn={fn})"
+        client_str = f"Client(key={headers['key'][:4]}...)"
+        info_str = f"fn={fn} from={headers['key'][:4]}..."
+        msg = f"REQUEST({info_str})"
+
+        c.print(msg, color='cyan')
         signature_data = {'data': data, 'timestamp': headers['timestamp']}
         assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
         self.access_module.forward(fn=fn, address=key_address)
@@ -70,11 +75,13 @@ class Server(c.Module):
         data['kwargs'] = dict(data.get('kwargs', {}))
         assert isinstance(data['args'], list), 'args must be a list'
         assert isinstance(data['kwargs'], dict), 'kwargs must be a dict'
-
         # STEP 3 : CALL THE FUNCTION FOR THE RESPONSE
         fn_obj = getattr(self.module, fn)
         response = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-
+        latency = c.time() - int(headers['timestamp'])
+        correct_emoji = '✅' 
+        msg = f"RESPONSE({info_str} status={correct_emoji} latency={latency}s)"
+        c.print(msg, color='green')
         # STEP 4 : SERIALIZE THE RESPONSE AND RETURN SSE IF IT IS A GENERATOR AND JSON IF IT IS A SINGLE OBJECT
         #TODO WS: ADD THE SSE RESPONSE
         if c.is_generator(response):
