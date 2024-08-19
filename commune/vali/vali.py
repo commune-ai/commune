@@ -14,15 +14,12 @@ class Vali(c.Module):
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     netuid = 0, # (NOT LOCAL) the subnetwork uid or the netuid. This is a unique identifier for the subnetwork 
                     search=  None, # (OPTIONAL) the search string for the network 
-                    max_network_staleness=  10, # the maximum staleness of the network
-                    # LOGGING
-                    verbose=  True, # the verbose mode for the worker
-                    # EPOCH
+                    max_network_staleness=  10, # the maximum staleness of the network # LOGGING
+                    verbose=  True, # the verbose mode for the worker # EPOCH
                     batch_size= 64,
                     queue_size=  128,
                     max_workers=  None ,
-                    score_fn = None,
-                    #EVAL
+                    score_fn = None, #EVAL
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
                     timeout= 10, # timeout per evaluation of the module
@@ -36,7 +33,6 @@ class Vali(c.Module):
                     timeout_info= 4, # (OPTIONAL) the timeout for the info worker
                     miner= False , # converts from a validator to a miner
                     max_history=  10, # the maximum history of the module (save last n interactions)
-
                     update=False,
                  **kwargs):
         max_workers = max_workers or batch_size
@@ -49,14 +45,15 @@ class Vali(c.Module):
         # start the run loop
         if self.config.run_loop:
             c.thread(self.run_loop)
+
     init_vali = __init__
+
     def score(self, module):
         a = 1 
         b = 2
         c = a + b 
-        return int(module.forward(a, b) == c)
+        return 1 - int(module.forward(a, b) - c)
 
-        
     def set_score_fn(self, score_fn: Union[Callable, str]):
         """
         Set the score function for the validator
@@ -181,6 +178,10 @@ class Vali(c.Module):
         return self.epoch(df=1)
 
     def epoch(self, df=True):
+        """
+        The following runs an epoch for the validator
+        
+        """
         if self.state.epochs > 0:
             self.sync()
         self.state.epochs += 1
