@@ -27,9 +27,6 @@ class Crypto:
     def hash_modes(cls):
         return ['keccak', 'ss58', 'python', 'md5', 'sha256', 'sha512', 'sha3_512']
     
-
-
-    
     @classmethod
     def set_key(self, key:str, **kwargs) -> None:
         key = self.get_key(key)

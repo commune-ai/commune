@@ -76,3 +76,29 @@ class ClientPool:
         return module_clients
 
 
+  
+    @classmethod
+    def check_connection(cls, *args, **kwargs):
+        return c.gather(cls.async_check_connection(*args, **kwargs))
+
+    @classmethod
+    def module2connection(cls,modules = None, network=None):
+        if modules == None:
+            modules = c.servers(network=network)
+        connections = c.gather([ c.async_check_connection(m) for m in modules])
+
+        module2connection = dict(zip(modules, connections))
+    
+        return module2connection
+
+    @classmethod
+    async def async_check_connection(cls, module, timeout=5, **kwargs):
+        try:
+            module = await cls.async_connect(module, return_future=False, virtual=False, **kwargs)
+        except Exception as e:
+            return False
+        server_name =  await module(fn='server_name',  return_future=True)
+        if cls.check_response(server_name):
+            return True
+        else:
+            return False

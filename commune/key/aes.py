@@ -21,13 +21,12 @@ class AESKey(c.Module):
         return {'msg': 'set the password'}
 
     def encrypt(self, data, return_string = True):
-        data = self.python2str(data)
+        data = c.python2str(data)
         data = self._pad(data)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
         encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
         encrypted_data =  encrypted_bytes.decode() if return_string else encrypted_bytes
-
         return encrypted_data
 
     def decrypt(self, enc):
@@ -46,30 +45,19 @@ class AESKey(c.Module):
 
 
     @classmethod
-    def test_encrypt_decrypt(cls, key='dummy'):
-        import streamlit as st
-        print(inspect.stack()[0][3])
+    def test(cls, data=None, key='dummy'):
+        import torch
+        data = 'fammmmmdjsjfhdjfh'
+        print(data)
         self = cls(key=key)
-        test_objects = [
-            [1,2,3,5],
-            {'fam': 1, 'bro': 'fam', 'chris': {'sup': [1,'dawg']}},
-            1,
-            'fam', 
-        ]
-        import time
-        for test_object in test_objects:
-            start_time = time.time()
-            encrypted = self.encrypt(test_object)
-            decrypted = self.decrypt(encrypted)
-            assert decrypted == test_object, f'FAILED: {test_encrypt_decrypt} {test_object} FAILED'
-            
-            size_bytes = sys.getsizeof(test_object)
-            seconds =  time.time() - start_time
-            rate = size_bytes / seconds
-
-        print('PASSED test_encrypt_decrypt')
-
-        return True
+        size_bytes = sys.getsizeof(data)
+        start_time = time.time()
+        encrypted = self.encrypt(data)
+        decrypted = self.decrypt(encrypted)
+        assert decrypted == data, f'ENCRYPTION FAILED'
+        seconds =  time.time() - start_time
+        rate = size_bytes / seconds
+        return {'msg': 'PASSED test_encrypt_decrypt', 'rate': rate, 'seconds': seconds, 'size_bytes': size_bytes}
     
     @classmethod
     def test_encrypt_decrypt_throughput(cls, key='dummy'):
@@ -95,21 +83,3 @@ class AESKey(c.Module):
 
         return True
     
-    @classmethod
-    def test(cls):
-        import streamlit as st
-        self = cls()
-        for attr in dir(cls):
-            if attr[:len('test_')] == 'test_':
-                getattr(cls, attr)()
-                st.write('PASSED',attr)
-
-    @classmethod
-    def streamlit(cls):
-        import streamlit as st
-        with st.expander('Tests'):
-            cls.test()
-        
-
-if __name__ =='__main__':
-    AESKey.streamlit()

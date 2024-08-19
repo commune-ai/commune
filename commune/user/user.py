@@ -97,6 +97,7 @@ class User(c.Module):
     @classmethod
     def is_admin(cls, address:str):
         return cls.get_role(address) == 'admin'
+    
     @classmethod
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']

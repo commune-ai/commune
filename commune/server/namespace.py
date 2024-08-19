@@ -19,19 +19,20 @@ class Namespace(c.Module):
         return cls.resolve_path(network + '.json')
 
     @classmethod
-    def get_namespace(cls, search=None,
+    def namespace(cls, search=None,
                     network:str = 'local',
                     update:bool = False, 
                     netuid=None, 
                     max_age:int = 60,
                     timeout=6,
-                    verbose=True,
+                    verbose=False,
                     **kwargs) -> dict:
         
         network = network or 'local'
         path = cls.resolve_network_path(network)
         namespace = cls.get(path, {}, max_age=max_age, update=update)
         if len(namespace) == 0:
+            c.print(f'UPDATING NETWORK(network={network})', color='blue', verbose=verbose)
             if network == 'local':
                 namespace = {}
                 addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
@@ -74,15 +75,16 @@ class Namespace(c.Module):
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k} 
 
-        return namespace
-
-
         ip  = c.ip()
         namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
     
-    namespace = get_namespace
+
+
+
+    
+    get_namespace = _namespace = namespace
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:
@@ -301,7 +303,7 @@ class Namespace(c.Module):
 
     
     @classmethod
-    def servers(cls, search=None, network:str = 'local', **kwargs):
+    def servers(cls, search=None, network:str = 'local',  **kwargs):
         namespace = cls.namespace(search=search, network=network, **kwargs)
         return list(namespace.keys())
     

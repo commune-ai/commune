@@ -6,6 +6,7 @@ class Schema:
     whitelist = []
 
     _schema = None
+    
     def schema(self,
                 search = None,
                 docs: bool = True,
@@ -1091,6 +1092,8 @@ class Schema:
     
     @classmethod
     def is_str_fn(cls, fn):
+        if fn == None:
+            return False
         if '/' in fn:
             module, fn = fn.split('/')
             module = cls.module(module)

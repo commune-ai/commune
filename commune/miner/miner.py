@@ -30,8 +30,6 @@ class Miner(c.Module):
         self.name_prefix = (self.subnet["name"].lower() if self.use_subnet_prefix else name_prefix) 
         if self.name_prefix != None:
             self.name_prefix = self.name_prefix + self.prefix_seperator
-
-
         self.resolve_keys()
 
     def set_subnet(self, netuid=None,  max_age=10000,  update=False,  **kwargs):
@@ -251,6 +249,11 @@ class Miner(c.Module):
             modules = self.subspace.get_modules(keys, netuid=self.netuid)
             self.put('modules', modules)
         return modules
+    
+    def leaderboard(self, *args, **kwargs):
+        modules = self.modules(*args, **kwargs)
+        df = c.df(modules)
+        return df
 
     def update(self, timeout=60, **kwargs):
         modules = self.modules(**kwargs)

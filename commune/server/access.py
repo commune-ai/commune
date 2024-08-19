@@ -48,7 +48,7 @@ class Access(c.Module):
 
     whitelist = ['info', 'verify', 'rm_state']
     @c.endpoint(cost=1)
-    def forward(self, fn: str = 'info' ,  address=None, input:dict = None) -> dict:
+    def forward(self, fn: str = 'info' ,  address=None) -> dict:
         """
         input:
             {
@@ -66,9 +66,6 @@ class Access(c.Module):
         2. Local keys have unlimited access but only to the functions in the whitelist
         returns : dict
         """
-        input = input or {}
-        address = input.get('address', address)
-        print(f'address={address}')
         if c.is_admin(address):
             return {'success': True, 'msg': f'is verified admin'}
         assert fn in self.module.whitelist , f"Function {fn} not in whitelist={self.module.whitelist}"
