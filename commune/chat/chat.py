@@ -88,11 +88,6 @@ class Chat(c.Module):
                 max_tokens = self.max_tokens
             max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
             system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
-        with st.sidebar.expander('Model Info', False):
-            model_info.pop('description')
-            model_info.pop('id')
-            model_info.pop('name')
-            st.write(model_info)
 
         input  = st.text_area('Text',self.text, height=100)
         

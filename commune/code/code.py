@@ -343,7 +343,7 @@ class Code(c.Module):
             try:
                 fn_code_map[fn] = module.fn_code(fn)
             except Exception as e:
-                c.print(f'Error: {e}', color='red')
+                c.print(f'Error (fn={fn}): {e}', color='red')
         return fn_code_map
     
 

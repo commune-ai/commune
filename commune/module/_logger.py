@@ -35,8 +35,8 @@ class Logger:
     @classmethod
     def logmap(cls, *args, **kwargs):
         logmap = {}
-        for m in c.servers(*args,**kwargs):
-            logmap[m] = c.logs(m)
+        for m in cls.servers(*args,**kwargs):
+            logmap[m] = cls.logs(m)
         return logmap
 
     @classmethod

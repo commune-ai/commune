@@ -35,6 +35,8 @@ class Vali(c.Module):
                     module = None,
                     timeout_info= 4, # (OPTIONAL) the timeout for the info worker
                     miner= False , # converts from a validator to a miner
+                    max_history=  10, # the maximum history of the module (save last n interactions)
+
                     update=False,
                  **kwargs):
         max_workers = max_workers or batch_size
@@ -57,6 +59,7 @@ class Vali(c.Module):
         # output = module.get_item(a)
         # if output == expected_output:
         #     return 1
+        info = module.info()
         return int('name' in module.info())
 
         
@@ -141,24 +144,22 @@ class Vali(c.Module):
     def age(self):
         return c.time() - self.state.start_time
 
-    def wait_for_result(self):
+    def get_next_result(self, futures=None):
+        futures = futures or self.futures
         try:
-            for future in c.as_completed(self.futures, timeout=self.config.timeout):
-                self.futures.remove(future) 
+            for future in c.as_completed(futures, timeout=self.config.timeout):
+                futures.remove(future) 
                 result = future.result()
                 result['w'] = result.get('w', 0)
-
                 did_score_bool = bool(result['w'] > 0)
                 emoji =  '🟢' if did_score_bool else '🔴'
                 if did_score_bool:
-                    result = {k: result.get(k, None) for k in ['w',  'name',  'address', 'latency'] if k in result}
-                    msg = ' '.join([f'{k}={result[k]}\t' for k in result])
-                    msg = f'SUCCESS({msg})'
+                    keys = ['w', 'name', 'address', 'latency']
                 else:
-                    result = {k: result.get(k, None) for k in ['w', 'name', 'msg'] if k in result}
-
-                    msg = ' '.join([f'{k}={result[k]}\t' for k in result.keys()])
-                    msg =  f'ERROR({msg})'
+                    keys = ['w', 'name', 'msg']
+                result = {k: result.get(k, None) for k in keys if k in result}
+                msg = ' '.join([f'{k}={result[k]}' for k in result])
+                msg = f'RESULT({msg})'
                 break
         except Exception as e:
             emoji = '🔴'
@@ -189,22 +190,17 @@ class Vali(c.Module):
         if self.state.epochs > 0:
             self.sync()
         self.state.epochs += 1
-        
         module_addresses = c.shuffle(list(self.namespace.values()))
         c.print(f'Epoch {self.state.epochs} with {self.n} modules', color='yellow')
         batch_size = min(self.config.batch_size, len(module_addresses)//4)            
         results = []
-        timeout = self.config.timeout
-        self.current_epoch = self.state.epochs
         for module_address in module_addresses:
             if not self.executor.is_full:
-                future = self.executor.submit(self.eval, {'module': module_address},timeout=timeout)
-                self.futures.append(future)
+                self.futures.append(self.executor.submit(self.eval, [module_address], timeout=self.config.timeout))
             if len(self.futures) >= batch_size:
-                results.append(self.wait_for_result())
+                results.append(self.get_next_result(self.futures))
         while len(self.futures) > 0:
-            results.append(self.wait_for_result())
-        results = [r for r in results if not c.is_error(r)]
+            results.append(self.get_next_result())
         results = [r for r in results if r.get('w', 0) > 0]
         if df:
             if len(results) > 0 and 'w' in results[0]:
@@ -251,38 +247,22 @@ class Vali(c.Module):
                     'n': self.n,
                     'search': search,
                     }
-        
         self.state.last_sync_time = c.time()
         # RESOLVE THE VOTING NETWORKS
-        if 'local' in config.network:
+        if 'local' in network:
             # local network does not need to be updated as it is atomically updated
-            namespace = c.namespace(search=config.search, update=1)
-
-        else:
-            for sep in [':', '/']:
-                if sep in config.network:
-                    # subtensor{sep}test
-                    if len(config.network.split(sep)) == 2:
-                        _ , network = config.network.split(sep)
-                    elif len(config.network.split(sep)) == 3:
-                        _ , network, netuid = config.network.split(sep)
-                        netuid = int(netuid)
-                    break
-
-                # the network is a voting network
-                self.subspace = c.module('subspace')(network=network, netuid=netuid)
-                namespace = self.subspace.namespace(netuid=config.netuid, update=1)
-
-
+            namespace = c.namespace(search=search, update=1, max_age=max_network_staleness)
+        elif 'subspace' in network:
+            # the network is a voting network
+            self.subspace = c.module('subspace')(network=network, netuid=netuid)
+            namespace = self.subspace.namespace(netuid=netuid, update=1)
         namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
-        self.name2address = {k:v for k, v in namespace.items()}
-        self.address2name = {v: k for k, v in namespace.items()} 
         self.namespace = namespace
         self.n  = len(self.namespace)    
         config.network = network
         config.netuid = netuid
         self.config = config
-        c.print(f'Network(network={config.network}, netuid={config.netuid} staleness={self.network_staleness})')
+        c.print(f'Network(network={config.network}, netuid={config.netuid} n=self.n)')
         self.network_state = {
             'network': network,
             'netuid': netuid,
@@ -346,7 +326,6 @@ class Vali(c.Module):
             info.update(response)
             info['latency'] = c.round(c.time() - info['timestamp'], 3)
             info['w'] = info['w']  * alpha + previous_w * (1 - alpha)
-            info['history'] = info.get('history', []) + [{'w': info['w'], 'timestamp': info['timestamp']}]
             #  have a minimum weight to save storage of stale modules
             self.state.successes += 1
             self.state.last_success = c.time()
@@ -356,13 +335,14 @@ class Vali(c.Module):
                 self.put_json(path, info)
                 
         except Exception as e:
+            raise e
             response = c.detailed_error(e)
             response['w'] = 0
             response['name'] = info.get('name', module)
-            self.errors += 1
+            self.state['errors'] += 1
             self.state.last_error  = c.time() # the last time an error occured
             info.update(response)
-        
+        info.pop('history', None)
         return info
     
     eval_module = eval

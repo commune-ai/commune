@@ -30,7 +30,7 @@ class Endpoint:
 
 
     
-    def whitelist_functions(self, search=None, include_helper_functions = True):
+    def endpoints(self, search=None, include_helper_functions = True):
         endpoints = []  
         if include_helper_functions:
             endpoints += self.helper_functions
@@ -55,7 +55,7 @@ class Endpoint:
 
         return endpoints
 
-    get_whitelist = whiteboy_functions = cracka_fns = wigga_fns = endpoints = public_functions  = whitelist_functions
+    get_whitelist = whitelist_functions = endpoints
     
 
     def cost_fn(self, fn:str, args:list, kwargs:dict):
@@ -94,3 +94,5 @@ class Endpoint:
 
         return decorator_fn
     
+
+

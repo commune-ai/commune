@@ -13,20 +13,17 @@ class Client(c.Module, ClientPool):
     network2namespace = {}
     def __init__( 
             self,
-            module : str = '0.0.0.0:8000',
+            module : str = 'module',
             network: bool = 'local',
             key = None,
-            loop = None,
             **kwargs
         ):
-        self.loop = c.get_event_loop()
         self.serializer = c.module('serializer')()
         self.network = network
-        self.loop = c.get_event_loop() if loop == None else loop
+        self.loop = asyncio.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-
-
+        self.address = self.resolve_module_address(module)
 
     def resolve_namespace(self, network):
         if not network in self.network2namespace:
@@ -105,21 +102,15 @@ class Client(c.Module, ClientPool):
     def __repr__(self) -> str:
         return super().__repr__()
 
-
-    def get_params(self, args=None, kwargs=None, params=None, version=1):
-        if version == 1:
-            input =  { 
-                        "args": args or [],
-                        "kwargs": params or kwargs or {},
-                        "timestamp": c.timestamp(),
-                        }
-            input = self.serializer.serialize(input)
-            input = self.key.sign(input, return_json=True)
+    def resolve_module_address(self, module, mode='http'):
+        if not c.is_address(module):
+            namespace = self.resolve_namespace(self.network)
+            url = namespace[module]
         else:
-            raise ValueError(f"Invalid version: {version}")
+            url = module
+        url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
 
-        return input
-
+        return url
 
     def get_url(self, fn, mode='http', network=None):
         network = network or self.network
@@ -129,46 +120,15 @@ class Client(c.Module, ClientPool):
             module, fn = module.split('/')
         else:
             module = self.module
-        if '/' in str(fn):
-            module, fn = fn.split('/')
-        if not c.is_address(module):
-            namespace = self.resolve_namespace(network)
-            module = namespace[module]
-        url = f"{module}/{fn}/"
-        url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
+        module_address = self.resolve_module_address(module, mode=mode)
+        url = f"{module_address}/{fn}/"
         return url        
 
 
-    def forward(self, *args, **kwargs):
-
-        return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
-
-    async def async_forward(self, 
-                            fn  = 'info', 
-                            params = None, 
-                            args=None,
-                            kwargs = None,
-                           timeout:int=10, 
-                           module = None,
-                           key = None,
-                           headers = {'Content-Type': 'application/json'},
-                           verbose=False, 
-                           network = None,
-                           version = 1,
-                           mode = 'http',
-                           **extra_kwargs):
-        key = self.resolve_key(key)
-        network = network or self.network
-        url = self.get_url(fn=fn,mode=mode,  network=network)
-        kwargs = {**(kwargs or {}), **extra_kwargs}
-        input = self.get_params( args=args, 
-                                   kwargs=kwargs, 
-                                   params = params,
-                                   version=version)
-        c.print(f"🛰️ Call {url} 🛰️  (🔑{self.key})", color='green', verbose=verbose)
-
+    async def async_request(self, url : str, data:dict, headers:dict, timeout:int=10):
+        
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=input, headers=headers) as response:   
+            async with session.post(url, json=data, headers=headers) as response:   
                 try:             
                     if response.content_type == 'text/event-stream':
                         return self.iter_over_async(self.stream_generator(response))
@@ -186,6 +146,53 @@ class Client(c.Module, ClientPool):
                     result = c.detailed_error(e)
 
         return result
+
+    def forward(self, fn  = 'info', 
+                            params = None, 
+                            args=None,
+                            kwargs = None,
+                            timeout:int=10, 
+                            key = None,
+                            verbose=False, 
+                            network = None,
+                            mode = 'http',
+                            return_future = False,
+                            **extra_kwargs):
+        
+        # step 1: preparing data
+        kwargs = kwargs or {}
+        args = args or []
+        network = network or self.network
+        if isinstance(params, dict):
+            kwargs = {**kwargs, **params}
+        kwargs.update(extra_kwargs)
+        if isinstance(params, list):
+            args = args + params
+        data =  { 
+                    "args": args or [],
+                    "kwargs": params or kwargs or {},
+                    }
+        data = self.serializer.serialize(data)
+
+        # step 2: preparing headers
+        key = self.resolve_key(key)
+        headers = {'Content-Type': 'application/json', 
+                    'key': key.ss58_address, 
+                    'hash': c.hash(data),
+                    'crypto_type': str(key.crypto_type),
+                    'timestamp': str(c.timestamp())
+                   }
+        signature_data = {'data': data, 'timestamp': headers['timestamp']}
+        headers['signature'] = key.sign(signature_data).hex()
+        url = self.get_url(fn=fn,mode=mode,  network=network)
+        kwargs = {**(kwargs or {}), **extra_kwargs}
+        result = self.async_request( url=url,data=data,headers= headers,timeout= timeout)
+        if  return_future:
+            return result
+        return self.loop.run_until_complete(result)
+
+
+
     
     def __del__(self):
         try:
@@ -240,17 +247,6 @@ class Client(c.Module, ClientPool):
         return event_data
 
 
-    @classmethod
-    async def async_check_connection(cls, module, timeout=5, **kwargs):
-        try:
-            module = await cls.async_connect(module, return_future=False, virtual=False, **kwargs)
-        except Exception as e:
-            return False
-        server_name =  await module(fn='server_name',  return_future=True)
-        if cls.check_response(server_name):
-            return True
-        else:
-            return False
         
     @staticmethod
     def check_response(x) -> bool:
@@ -259,23 +255,40 @@ class Client(c.Module, ClientPool):
         else:
             return True
     
-    @classmethod
-    def check_connection(cls, *args, **kwargs):
-        return c.gather(cls.async_check_connection(*args, **kwargs))
+    def get_curl(self, 
+                        fn='info', 
+                        params=None, 
+                        args=None,
+                        kwargs=None,
+                        timeout=10, 
+                        module=None,
+                        key=None,
+                        headers={'Content-Type': 'application/json'},
+                        network=None,
+                        version=1,
+                        mode='http',
+                        **extra_kwargs):
+            key = self.resolve_key(key)
+            network = network or self.network
+            url = self.get_url(fn=fn, mode=mode, network=network)
+            kwargs = {**(kwargs or {}), **extra_kwargs}
+            input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
 
-    @classmethod
-    def module2connection(cls,modules = None, network=None):
-        if modules == None:
-            modules = c.servers(network=network)
-        connections = c.gather([ c.async_check_connection(m) for m in modules])
+            # Convert the headers to curl format
+            headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
 
-        module2connection = dict(zip(modules, connections))
+            # Convert the input data to JSON string
+            data_str = json.dumps(input_data).replace('"', '\\"')
+
+            # Construct the curl command
+            curl_command = f'curl -X POST {headers_str} -d "{data_str}" "{url}"'
+
+            return curl_command
     
-        return module2connection
-    
 
-    def sand(self):
-        for i in range(10):
-            c.print(self.forward('basi.plinty'))
-
-  
+    def run_curl(self, *args, **kwargs):
+        curl_command = self.get_curl(*args, **kwargs)
+        # get the output of the curl command
+        import subprocess
+        output = subprocess.check_output(curl_command, shell=True)
+        return output.decode('utf-8')

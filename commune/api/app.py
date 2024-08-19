@@ -1,7 +1,7 @@
 
 import streamlit as st
 import commune as c
-from commune.modules.api.api import ApiManager
+from commune.api.api import ApiManager
 class App(c.Module):
     def app(self):
     

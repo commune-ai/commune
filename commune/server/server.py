@@ -1,12 +1,11 @@
 import commune as c
 import pandas as pd
 from typing import *
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from .middleware import ServerMiddleware
 from sse_starlette.sse import EventSourceResponse
-
 
 class Server(c.Module):
     def __init__(
@@ -39,58 +38,62 @@ class Server(c.Module):
         self.module = module
         self.access_module = c.module('server.access')(module=self.module)
         self.set_api(max_bytes=max_bytes, **kwargs)
-        c.thread(self.run_loop)
 
     def add_fn(self, name:str, fn: str):
         assert callable(fn), 'fn not callable'
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
 
-    def get_input(self, fn:str, input:Dict):
-        address = input.get('address', None)
-        assert c.verify(input), f"Data not signed with correct key {input}"
-        input = self.serializer.deserialize(input['data']) 
-        request_staleness = c.timestamp() - input.get('timestamp', 0) 
-        assert  request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old" 
-        
-        params = input.pop('params', None)
-        if isinstance(params, dict):
-            input['kwargs'] = params
-        elif isinstance(params, list):
-            input['args'] = params 
-        input =  {
-                'args': input.get('args', []),
-                'kwargs': input.get('kwargs', {}), 
-                'address': address, 
-                'timestamp': input.get('timestamp', c.timestamp())
-                }
-        self.access_module.forward(fn=fn, input=input)
-        return input
-    
-    def get_output(self, fn:str, input:Dict):
-        print(self.module, fn)
 
+    def forward(self, fn,  request: Request):
+        headers = dict(request.headers.items())
+
+        # STEP 1 : VERIFY THE SIGNATURE AND STALENESS OF THE REQUEST TO MAKE SURE IT IS AUTHENTIC
+        key_address = headers.get('key', headers.get('address', None))
+        assert key_address, 'No key or address in headers'
+        request_staleness = c.timestamp() - int(headers['timestamp'])
+        assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
+        data = self.loop.run_until_complete(request.json())
+        data = self.serializer.deserialize(data) 
+        print(headers)
+        signature_data = {'data': data, 'timestamp': headers['timestamp']}
+        assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
+        self.access_module.forward(fn=fn, address=key_address)
+
+        # STEP 2 : PREPARE THE DATA FOR THE FUNCTION CALL
+        if 'params' in data:
+            data['kwargs'] = data['params']
+        # if the data is just key words arguments
+        if not 'args' in data and not 'kwargs' in data:
+            data = {'kwargs': data, 'args': []}
+        data['args'] =  list(data.get('args', []))
+        data['kwargs'] = dict(data.get('kwargs', {}))
+        assert isinstance(data['args'], list), 'args must be a list'
+        assert isinstance(data['kwargs'], dict), 'kwargs must be a dict'
+
+        # STEP 3 : CALL THE FUNCTION FOR THE RESPONSE
         fn_obj = getattr(self.module, fn)
-        if callable(fn_obj):
-            output = fn_obj(*input['args'], **input['kwargs'])
-        else:
+        response = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
 
-            output = fn_obj
-        if c.is_generator(output):
+        # STEP 4 : SERIALIZE THE RESPONSE AND RETURN SSE IF IT IS A GENERATOR AND JSON IF IT IS A SINGLE OBJECT
+        #TODO WS: ADD THE SSE RESPONSE
+        if c.is_generator(response):
             def generator_wrapper(generator):
                 for item in generator:
                     yield self.serializer.serialize(item)
-            return EventSourceResponse(generator_wrapper(output))
+            return EventSourceResponse(generator_wrapper(response))
         else:
-            return self.serializer.serialize(output)
-    
-    def forward(self, fn, input):
-        try:
-            input = self.get_input(fn=fn, input=input)
-            output = self.get_output(fn=fn, input=input)
-        except Exception as e:
-            output =  c.detailed_error(e)
-        return output
+            return self.serializer.serialize(response)
+
+    def wrapper_forward(self, fn:str):
+        def fn_forward(request: Request):
+            try:
+                output = self.forward(fn, request)
+            except Exception as e:
+                output =  c.detailed_error(e)
+            return output
+        return fn_forward
+
 
     def set_api(self, 
                 max_bytes=1024 * 1024,
@@ -112,10 +115,13 @@ class Server(c.Module):
                 allow_headers=allow_headers,
             )
         
-        @self.app.post("/{fn}")
-        def forward(fn:str, input:Dict):
-            return self.forward(fn, input)
-        
+
+        # add all of the whitelist functions in the module
+        for fn in self.module.whitelist:
+            c.print(f'Adding {fn} to the server')
+            # make a copy of the forward function
+            self.app.post(f"/{fn}")(self.wrapper_forward(fn))
+
         # start the server
         try:
             c.print(f' Served(name={self.module.name}, address={self.module.address}, key=🔑{self.module.key}🔑 ) 🚀 ', color='purple')
@@ -174,7 +180,7 @@ class Server(c.Module):
                 port = c.free_port()
         # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
 
-        # # NOTE REMOVE THIS FROM THE KWARGS REMOTE
+        # # NOTE REMOVE is FROM THE KWARGS REMOTE
         if remote:
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
             remote_kwargs['remote'] = False  # SET THIS TO FALSE TO AVOID RECURSION
@@ -361,11 +367,6 @@ class Server(c.Module):
                 raise TimeoutError(f'Timeout waiting for {name} to start')
         return True
     
-
-    def run_loop(self):
-        while True:
-            c.print(self.register_keys())
-            c.sleep(5)
 
     
 

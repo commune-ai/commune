@@ -38,6 +38,7 @@ class c(*CORE_MODULES):
                 'is_admin',
                 'namespace',
                 'whitelist', 
+                'endpoints',
                 'forward',
                 'fns'] # whitelist of helper functions to load
     cost = 1
@@ -298,6 +299,9 @@ class c(*CORE_MODULES):
     @classmethod
     def serialize(cls, *args, **kwargs):
         return c.module('serializer')().serialize(*args, **kwargs)
+    @classmethod
+    def deserialize(cls, *args, **kwargs):
+        return c.module('serializer')().deserialize(*args, **kwargs)
 
 
     @property

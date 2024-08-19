@@ -840,12 +840,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
-
-    def __repr__(self) -> str:
-        return f'<Subspace: network={self.config.network}>'
-    def __str__(self) -> str:
-        return f'<Subspace: network={self.config.network}>'
-    
     def urls(self):
         return c.dict2munch(c.load_yaml(self.url_path))
     
