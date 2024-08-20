@@ -183,8 +183,8 @@ cython_debug/
 .env.production.local
 
 # PIPY Stuff
-bittensor.egg-info
-bittensor*.egg
+commune.egg-info
+commune*.egg
 bdist.*
 
 npm-debug.log*
