@@ -57,9 +57,9 @@ class Server(c.Module):
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
         info_str = f"fn={fn} from={headers['key'][:4]}..."
-        signature_data = {'data': data, 'timestamp': headers['timestamp']}
+        signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
         assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
-        self.access_module.forward(fn=fn, address=key_address)
+        self.access_module.verify(fn=fn, address=key_address)
 
         # STEP 2 : PREPARE THE DATA FOR THE FUNCTION CALL
         if 'params' in data:

@@ -23,7 +23,7 @@ class Client(c.Module, ClientPool):
         self.loop = asyncio.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-        self.address = self.resolve_module_address(module)
+        self.address = self.resolve_module_address(module, network=network)
 
     def resolve_namespace(self, network):
         if not network in self.network2namespace:
@@ -50,19 +50,17 @@ class Client(c.Module, ClientPool):
         else:
             module = fn
             fn = 'info'
-        for i in range(trials):
-            try:
-                client = cls.connect(module, virtual=False, network=network)
-                response =  client.forward(fn=fn, 
-                                        args=args,
-                                        kwargs=kwargs, 
-                                        params=params,
-                                        key=key  ,
-                                        timeout=timeout, 
-                                        **extra_kwargs)
-            except Exception as e:
-                response = c.detailed_error(e)
-            return response
+            
+        client = cls.connect(module, virtual=False, network=network)
+        response =  client.forward(fn=fn, 
+                                args=args,
+                                kwargs=kwargs, 
+                                params=params,
+                                key=key  ,
+                                timeout=timeout, 
+                                **extra_kwargs)
+
+        return response
 
     @classmethod
     def connect(cls,
@@ -84,7 +82,6 @@ class Client(c.Module, ClientPool):
     def test(self, module='module::test_client'):
         c.serve(module)
         c.sleep(1)
-
         info = c.call(module+'/info')
         key  = c.get_key(module)
         assert info['key'] == key.ss58_address
@@ -95,16 +92,17 @@ class Client(c.Module, ClientPool):
     def __repr__ ( self ):
         return self.__str__()
 
-
     def virtual(self):
         return VirtualClient(module = self)
     
     def __repr__(self) -> str:
         return super().__repr__()
 
-    def resolve_module_address(self, module, mode='http'):
+    def resolve_module_address(self, module, mode='http', network=None):
+        network = network or self.network
         if not c.is_address(module):
-            namespace = self.resolve_namespace(self.network)
+            namespace = self.resolve_namespace(network)
+            print(namespace)
             url = namespace[module]
         else:
             url = module
@@ -113,17 +111,16 @@ class Client(c.Module, ClientPool):
         return url
 
     def get_url(self, fn, mode='http', network=None):
-        network = network or self.network
+        
         if '://' in str(fn):
             mode ,fn = fn.split('://')
         if '/' in str(fn):  
             module, fn = module.split('/')
         else:
             module = self.module
-        module_address = self.resolve_module_address(module, mode=mode)
+        module_address = self.resolve_module_address(module, mode=mode, network=network)
         url = f"{module_address}/{fn}/"
         return url        
-
 
     async def async_request(self, url : str, data:dict, headers:dict, timeout:int=10):
         
@@ -146,6 +143,19 @@ class Client(c.Module, ClientPool):
                     result = c.detailed_error(e)
 
         return result
+    
+    def get_headers(self, data, key=None):
+        key = self.resolve_key(key)
+        headers = {'Content-Type': 'application/json', 
+                    'key': key.ss58_address, 
+                    'hash': c.hash(data),
+                    'crypto_type': str(key.crypto_type),
+                    'timestamp': str(c.timestamp())
+                   }
+        signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
+        headers['signature'] = key.sign(signature_data).hex()
+        return headers
+
 
     def forward(self, fn  = 'info', 
                             params = None, 
@@ -156,9 +166,9 @@ class Client(c.Module, ClientPool):
                             verbose=False, 
                             network = None,
                             mode = 'http',
+                            headers = None,
                             return_future = False,
                             **extra_kwargs):
-        
         # step 1: preparing data
         kwargs = kwargs or {}
         args = args or []
@@ -173,26 +183,14 @@ class Client(c.Module, ClientPool):
                     "kwargs": params or kwargs or {},
                     }
         data = self.serializer.serialize(data)
-
         # step 2: preparing headers
-        key = self.resolve_key(key)
-        headers = {'Content-Type': 'application/json', 
-                    'key': key.ss58_address, 
-                    'hash': c.hash(data),
-                    'crypto_type': str(key.crypto_type),
-                    'timestamp': str(c.timestamp())
-                   }
-        signature_data = {'data': data, 'timestamp': headers['timestamp']}
-        headers['signature'] = key.sign(signature_data).hex()
+        headers = headers or self.get_headers(data=data, key=key)
         url = self.get_url(fn=fn,mode=mode,  network=network)
         kwargs = {**(kwargs or {}), **extra_kwargs}
         result = self.async_request( url=url,data=data,headers= headers,timeout= timeout)
         if  return_future:
             return result
         return self.loop.run_until_complete(result)
-
-
-
     
     def __del__(self):
         try:

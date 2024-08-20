@@ -31,16 +31,6 @@ CORE_MODULES = get_core_modules()
 class c(*CORE_MODULES):
     core_modules = ['module', 'key', 'client', 'server', 'serializer']
     libname = lib_name = lib = 'commune' # the name of the library
-    helper_functions  = ['info',
-                'metadata',
-                'schema',
-                'server_name',
-                'is_admin',
-                'namespace',
-                'whitelist', 
-                'endpoints',
-                'forward',
-                'fns'] # whitelist of helper functions to load
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
