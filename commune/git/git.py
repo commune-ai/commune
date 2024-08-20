@@ -60,12 +60,24 @@ class Git(c.Module):
         c.cmd(f'git push', cwd=cwd)
 
     @classmethod
-    def gstat(cls, cwd=None):
+    def status(cls, cwd=None):
         if cwd is None:
             cwd = c.libpath
         return c.cmd(f'git status', cwd=cwd, verbose=False)
 
         
+    def git_repos(self, path='./'):
+            import os
+            repos = []
+            for root, dirs, files in os.walk(path):
+                for d in dirs:
+                    if d.endswith('.git'):
+                        repos +=  [f"{root}"]
+
+            repos = [r for r in repos if not r == path]
+
+            return repos
+
 
 
     @classmethod

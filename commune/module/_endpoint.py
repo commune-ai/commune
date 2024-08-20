@@ -1,40 +1,40 @@
 from typing import *
 class Endpoint:
 
-    def set_reference_module(self, module='storage', **kwargs):
-        if not hasattr(self, 'reference_module'):
-            reference_module = self.get_module(module)(**kwargs)
-            my_endpoints = self.endpoints
-            for k in reference_module.endpoints:
-                if k in my_endpoints:
-                    c.print(f'Endpoint {k} already exists in {self.class_name()}')
-                self.add_endpoint(k, getattr(reference_module, k))
-            self.reference_module = reference_module
-        return {'success': True, 'msg': 'Set reference module', 'module': module, 'endpoints': self.endpoints}
-        
+    helper_functions  = ['info',
+                'metadata',
+                'schema',
+                'server_name',
+                'is_admin',
+                'namespace',
+                'whitelist', 
+                'endpoints',
+                'forward',
+                'fns'] # whitelist of helper functions to load
+    
     def add_endpoint(self, name, fn):
-        if name in ['whitelist', 'blacklist']:
-            print(f'Cannot add {name} as an endpoint')
-            return {'success':False, 'message':f'Cannot add {fn} as an endpoint'}
         setattr(self, name, fn)
         self.endpoints.append(name)
         assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
         return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
-
-
 
     def is_endpoint(self, fn) -> bool:
         if isinstance(fn, str):
             fn = getattr(self, fn)
         return hasattr(fn, '__metadata__')
 
-
-    
-    def get_endpoints(self, search: str =None , helper_fn_attributes = ['helper_functions', 'whitelist']):
+    def get_endpoints(self, search: str =None , helper_fn_attributes = ['helper_functions', 
+                                                                        'whitelist', 
+                                                                        '_endpoints',
+                                                                        '__endpoints___']):
         endpoints = []
         for k in helper_fn_attributes:
             if hasattr(self, k):
-                endpoints += getattr(self, k) 
+                fn_obj = getattr(self, k)
+                if callable(fn_obj):
+                    endpoints += fn_obj()
+                else:
+                    endpoints += fn_obj
         for f in dir(self):
             try:
                 if not callable(getattr(self, f)) or  (search != None and search not in f):
@@ -46,15 +46,12 @@ class Endpoint:
             except Exception as e:
                 print(f'Error in get_endpoints: {e} for {f}')
         return sorted(list(set(endpoints)))
-
-    get_whitelist = whitelist_functions  = endpoints = get_endpoints
-
+    
+    endpoints = get_endpoints
     
 
     def cost_fn(self, fn:str, args:list, kwargs:dict):
         return 1
-    
-
 
     @classmethod
     def endpoint(cls, 
@@ -132,3 +129,29 @@ class Endpoint:
              'telegram': None,
              'linkedin': None,
              'email': None}
+    
+
+    
+    def schema(self,
+                search = None,
+                docs: bool = True,
+                defaults:bool = True, 
+                cache=True) -> 'Schema':
+        if self.is_str_fn(search):
+            return self.fn_schema(search, docs=docs, defaults=defaults)
+        schema = {}
+        if cache and self._schema != None:
+            return self._schema
+        fns = self.get_endpoints()
+        for fn in fns:
+            if search != None and search not in fn:
+                continue
+            if callable(getattr(self, fn )):
+                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)        
+        # sort by keys
+        schema = dict(sorted(schema.items()))
+        if cache:
+            self._schema = schema
+
+        return schema
+    

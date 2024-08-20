@@ -6,30 +6,6 @@ class Schema:
     whitelist = []
 
     _schema = None
-    
-    def schema(self,
-                search = None,
-                docs: bool = True,
-                defaults:bool = True, 
-                cache=True) -> 'Schema':
-        if self.is_str_fn(search):
-            return self.fn_schema(search, docs=docs, defaults=defaults)
-        schema = {}
-        if cache and self._schema != None:
-            return self._schema
-        fns = self.get_whitelist()
-        for fn in fns:
-            if search != None and search not in fn:
-                continue
-            if callable(getattr(self, fn )):
-                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)        
-        # sort by keys
-        schema = dict(sorted(schema.items()))
-        if cache:
-            self._schema = schema
-
-        return schema
-    
 
     @classmethod
     def get_schema(cls,
@@ -62,7 +38,6 @@ class Schema:
             schema = {k:v for k,v in schema.items() if k in whitelist}
         return schema
     
-    help = schema
         
     @classmethod
     def determine_type(cls, x):

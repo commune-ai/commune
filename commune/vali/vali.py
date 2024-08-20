@@ -49,10 +49,12 @@ class Vali(c.Module):
     init_vali = __init__
 
     def score(self, module):
-        value = c.random_int()
-        key = c.hash(key)
-        module.put_item(key, value)
-        return 1 
+        v = c.random_int()
+        k = c.hash(v)
+        module.put_item(k, v)
+        if module.get_item(k) == v:
+            return 1
+        return 0
 
     def set_score_fn(self, score_fn: Union[Callable, str]):
         """
@@ -147,7 +149,7 @@ class Vali(c.Module):
                 if did_score_bool:
                     keys = ['w', 'name', 'address', 'latency']
                 else:
-                    keys = ['w', 'name', 'msg']
+                    keys = ['w', 'name', 'error']
                 result = {k: result.get(k, None) for k in keys if k in result}
                 msg = ' '.join([f'{k}={result[k]}' for k in result])
                 msg = f'RESULT({msg})'
