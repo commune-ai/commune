@@ -10,7 +10,6 @@ class Vali(c.Module):
     voting_networks = ['bittensor', 'commune']
 
     def __init__(self,
-                    # NETWORK
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     netuid = 0, # (NOT LOCAL) the subnetwork uid or the netuid. This is a unique identifier for the subnetwork 
                     search=  None, # (OPTIONAL) the search string for the network 
@@ -46,13 +45,14 @@ class Vali(c.Module):
         if self.config.run_loop:
             c.thread(self.run_loop)
 
+
     init_vali = __init__
 
     def score(self, module):
-        a = 1 
-        b = 2
-        c = a + b 
-        return 1 - int(module.forward(a, b) - c)
+        value = c.random_int()
+        key = c.hash(key)
+        module.put_item(key, value)
+        return 1 
 
     def set_score_fn(self, score_fn: Union[Callable, str]):
         """

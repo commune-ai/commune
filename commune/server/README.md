@@ -35,6 +35,29 @@ or
 
 
 
+Endpoints
+
+The default whitelist functions are the functions from the Module class. These functions are available to all users by default. The whitelist does not require a
+
+These are functions that are available to all users by default.
+
+['info', 'metadata', 'schema', 'server_name', 'is_admin', 'namespace', 'whitelist', 'endpoints', 'forward', 'fns']
+
+
+c.module('module').endpoints()
+
+info: the info of the module
+endpoints : the endpoints of the module
+schema : the schema of the module
+metadata : the metadata of the module
+namespace : the namespace of name -> address for the servers.
+server_name : the name of the server
+is_admin : checks whether the user is an admin
+
+
+Stake Per Rate: Stake Based Rate Limiting
+
+We do stake based rate limiting by having a stake2rate variable that determiens the number of calls per minute by dividing the total stake by the stake2rate variable.
 
 
 
@@ -63,52 +86,6 @@ else:
         return False
 
 ```
-
-
-Whitelist/Blacklist Functions
-
-If you want to restrict access to a module, you can use the whitelist and blacklist functions. These functions are used to restrict access to a module based on the user's role.
-
-Only Admins can have access to all functions in a module and there is by default one admin per commune (computer). The admin can add other admins if needed.
-
-Anyone who is not the admin can be assigned a role. They also must only call functions that are whitelisted for their role.
-
-To add a user to a role, use the add_user function. For example, to add a user to the admin role:
-
-```python
-c.add_user("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY", role="admin")
-```
-
-To add a user to a custom role:
-
-```python
-c.add_user("5DUdqShkPzzVDYGznZJQ92xP8cdp5BTt9XSrgMDMgHRArRyY", role="custom_role")
-```
-
-
-Default Whitelist Functions
-
-The default whitelist functions are the functions from the Module class. These functions are available to all users by default. The whitelist does not require a blacklist of any functions as at the moment.
-
-
-c.module('module').whitelist
-
-whitelist = ['info',
-            'schema',
-            'server_name',
-            'is_admin',
-            'namespace',
-            'whitelist', 
-            'blacklist',
-            'fns'] # whitelist of helper functions to load
-
-
-blacklist = []
-
-
-Stake Per Rate: Stake Based Rate Limiting
-
-We do stake based rate limiting by having a stake2rate variable that determiens the number of calls per minute by dividing the total stake by the stake2rate variable.
 
 
 To see the module

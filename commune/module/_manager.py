@@ -238,8 +238,8 @@ class Manager:
                 p_fns = cls.find_functions(p)
                 file_object_path = cls.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
-                if working:
-                    for fn in p_fns:
+                for fn in p_fns:
+                    if working:
                         try:
                             cls.import_object(fn)
                         except Exception as e:
@@ -247,7 +247,7 @@ class Manager:
                             r['fn'] = fn
                             cls.print(r, color='red')
                             continue
-                        fns += [fn]
+                    fns += [fn]
 
         else:
             code = cls.get_text(path)
@@ -274,10 +274,17 @@ class Manager:
         return [c for c in fns]
     
     @classmethod
-    def find_objects(cls, path:str = './', working=False, **kwargs):
+    def find_objects(cls, path:str = './', search=None, working=False, **kwargs):
         classes = cls.find_classes(path, working=working)
-        object_paths = classes
+        functions = cls.find_functions(path, working=working)
+
+        if search != None:
+            classes = [c for c in classes if search in c]
+            functions = [f for f in functions if search in f]
+        object_paths = functions + classes
         return object_paths
+    objs = find_objects
+
     
 
     def find_working_objects(self, path:str = './', **kwargs):
@@ -377,9 +384,10 @@ class Manager:
         object_name = key.split('.')[-1]
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
-        
         obj =  getattr(cls.import_module(module), object_name)
         return obj
+    
+    obj = get_obj = import_object
 
 
     @classmethod
