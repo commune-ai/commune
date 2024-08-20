@@ -6,6 +6,8 @@ import os
 from typing import *
 from eth_account.datastructures import SignedMessage
 from eth_account.messages import SignableMessage
+from eth_account.messages import encode_defunct
+
 from hexbytes.main import HexBytes
 from eth_keys import keys
 from eth_account import Account
@@ -95,7 +97,7 @@ from eth_account.signers.local import (
 
 VRS = TypeVar("VRS", bytes, HexStr, int)
 
-class EVMKey(c.Module):
+class EVMAccount(c.Module):
 
     _last_tx_count = {}
     def __init__(
@@ -189,7 +191,6 @@ class EVMKey(c.Module):
 
     
     def resolve_message(self, message) :
-        from eth_account.messages import encode_defunct
         message = c.python2str(message)
         if isinstance(message, str):
             message = encode_defunct(text=message)

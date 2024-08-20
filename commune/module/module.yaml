@@ -18,20 +18,15 @@ shortcuts:
   router: model.openrouter
   ticket: key.ticket
   namespace: server.namespace
-  
-
 routes:
   vali:
     - run_epoch
   cli: 
     - parse_args
-
   streamlit: 
     - set_page_config
-
   docker: 
     - containers
-
   client: 
     - call
     - call_search
@@ -83,11 +78,8 @@ routes:
     - resolve_key_address
     - verify_ticket
     - ticket
-
   remote:
     - host2ssh
-
-
   namespace: [
               add_remote, 
               network2namespace, 
@@ -114,8 +106,7 @@ routes:
               servers,
               name2address, 
               namespace, 
-              get_address
-                                ]
+              get_address]
 
   app : 
     - start_app
@@ -138,7 +129,6 @@ routes:
     - rm_admin
     - num_roles
     - rm_user
-
 
   streamlit:
     - load_style

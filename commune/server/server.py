@@ -16,6 +16,7 @@ class Server(c.Module):
         port: Optional[int] = None,
         key = None,
         nest_asyncio = True,
+        endpoints = None,
         max_request_staleness = 5,
         loop = None,
         max_bytes = 10 * 1024 * 1024,  # 1 MB limit
@@ -29,7 +30,8 @@ class Server(c.Module):
         self.network = network
         if isinstance(module, str):
             module = c.module(module)()
-        module.endpoints = module.get_endpoints()
+        endpoints = endpoints or module.get_endpoints()
+        module.endpoints = endpoints
         module.name = module.server_name = name or module.server_name
         module.port = port if port not in ['None', None] else c.free_port()
         module.address = f"{c.ip()}:{module.port}"
@@ -44,7 +46,6 @@ class Server(c.Module):
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
 
-
     def forward(self, fn,  request: Request):
         headers = dict(request.headers.items())
 
@@ -55,12 +56,7 @@ class Server(c.Module):
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
-        server_str = f"Server(fn={fn})"
-        client_str = f"Client(key={headers['key'][:4]}...)"
         info_str = f"fn={fn} from={headers['key'][:4]}..."
-        msg = f"REQUEST({info_str})"
-
-        c.print(msg, color='cyan')
         signature_data = {'data': data, 'timestamp': headers['timestamp']}
         assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
         self.access_module.forward(fn=fn, address=key_address)
@@ -78,9 +74,9 @@ class Server(c.Module):
         # STEP 3 : CALL THE FUNCTION FOR THE RESPONSE
         fn_obj = getattr(self.module, fn)
         response = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-        latency = c.time() - int(headers['timestamp'])
+        latency = c.round(c.time() - int(headers['timestamp']), 3)
         correct_emoji = '✅' 
-        msg = f"RESPONSE({info_str} status={correct_emoji} latency={latency}s)"
+        msg = f"<{correct_emoji}Response({info_str} latency={latency}s){correct_emoji}>"
         c.print(msg, color='green')
         # STEP 4 : SERIALIZE THE RESPONSE AND RETURN SSE IF IT IS A GENERATOR AND JSON IF IT IS A SINGLE OBJECT
         #TODO WS: ADD THE SSE RESPONSE
@@ -101,7 +97,6 @@ class Server(c.Module):
             return output
         return fn_forward
 
-
     def set_api(self, 
                 max_bytes=1024 * 1024,
                 allow_origins = ["*"],
@@ -121,10 +116,9 @@ class Server(c.Module):
                 allow_methods=allow_methods,
                 allow_headers=allow_headers,
             )
-        
 
         # add all of the whitelist functions in the module
-        for fn in self.module.whitelist:
+        for fn in self.module.endpoints:
             c.print(f'Adding {fn} to the server')
             # make a copy of the forward function
             self.app.post(f"/{fn}")(self.wrapper_forward(fn))
@@ -355,7 +349,6 @@ class Server(c.Module):
         return results
     serve_batch = serve_many
 
-    
     @classmethod
     def wait_for_server(cls,
                           name: str ,
@@ -374,7 +367,4 @@ class Server(c.Module):
                 raise TimeoutError(f'Timeout waiting for {name} to start')
         return True
     
-
-    
-
 Server.run(__name__)

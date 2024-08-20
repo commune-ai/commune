@@ -2,7 +2,7 @@ import hashlib
 
 class Crypto:
     @classmethod
-    def hash(cls, x, mode: str='sha256',*args,**kwargs):
+    def hash(cls, x, mode: str='sha256',*args,**kwargs) -> str:
         x = cls.python2str(x)
         if mode == 'keccak':
             return cls.import_object('web3.main.Web3').keccak(text=x, *args, **kwargs).hex()

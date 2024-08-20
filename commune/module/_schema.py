@@ -259,9 +259,7 @@ class Schema:
         fn_schema['input'] = {k: {'type':v, 'default':fn_defaults.get(k)} for k,v in fn_schema['input'].items()}
 
         return fn_schema
-
-
-
+    
     @classmethod
     def fn_info(cls, fn:str='test_fn') -> dict:
         r = {}
@@ -364,10 +362,6 @@ class Schema:
     
 
     add_attribute = add_attr = add_function = add_fn
-
-    def metadata(self):
-        schema = self.schema()
-        return {fn: schema[fn] for fn in self.whitelist if fn not in self.blacklist and fn in schema}
 
     @classmethod
     def init_schema(cls):
@@ -947,49 +941,6 @@ class Schema:
 
 
 
-    def info(self , 
-             module = None,
-             lite_features = ['name', 'address', 'schema', 'key', 'description'],
-             lite = True,
-             cost = False,
-             **kwargs
-             ) -> Dict[str, Any]:
-        '''
-        hey, whadup hey how is it going
-        '''
-        info = self.metadata()
-        info['name'] = self.server_name or self.module_name()
-        info['address'] = self.address
-        info['key'] = self.key.ss58_address
-        return info
-    
-
-
-    @classmethod
-    def is_public(cls, fn):
-        if not cls.is_endpoint(fn):
-            return False
-        return getattr(fn, '__metadata__')['public']
-
-
-    urls = {'github': None,
-             'website': None,
-             'docs': None, 
-             'twitter': None,
-             'discord': None,
-             'telegram': None,
-             'linkedin': None,
-             'email': None}
-    
-    def metadata(self, to_string=False, code=False):
-        schema = {f:getattr(getattr(self, f), '__metadata__') for f in self.endpoints() if self.is_endpoint(f)}
-        metadata = {}
-        metadata['schema'] = schema
-        metadata['description'] = self.description
-        metadata['urls'] = {k: v for k,v in self.urls.items() if v != None}
-        if to_string:
-            return self.python2str(metadata)
-        return metadata
     
 
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
@@ -1066,8 +1017,8 @@ class Schema:
 
     @classmethod
     def find_code_lines(cls,  search:str = None , module=None) -> List[str]:
-        module_code = c.module(module).code()
-        return c.find_lines(search=search, text=module_code)
+        module_code = cls.get_module(module).code()
+        return cls.find_lines(search=search, text=module_code)
 
     @classmethod
     def find_lines(self, text:str, search:str) -> List[str]:

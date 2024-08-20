@@ -43,12 +43,9 @@ class Access(c.Module):
         stake = (stake_from * self.config.stake_from_multipler) + stake
         fn_info = self.state.get('fn_info', {}).get(fn, {'stake2rate': self.config.stake2rate, 'max_rate': self.config.max_rate})
         rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
-
         return rate_limit
 
-    whitelist = ['info', 'verify', 'rm_state']
-    @c.endpoint(cost=1)
-    def forward(self, fn: str = 'info' ,  address=None) -> dict:
+    def verify(self, fn: str = 'info' ,  address=None) -> dict:
         """
         input:
             {
@@ -68,7 +65,7 @@ class Access(c.Module):
         """
         if c.is_admin(address):
             return {'success': True, 'msg': f'is verified admin'}
-        assert fn in self.module.whitelist , f"Function {fn} not in whitelist={self.module.whitelist}"
+        assert fn in self.module.endpoints , f"Function {fn} not in whitelist={self.module.endpoints}"
         is_private_fn = bool(fn.startswith('__') or fn.startswith('_'))
         assert not is_private_fn, f'Function {fn} is private'
         # CHECK IF THE ADDRESS IS A LOCAL KEY
@@ -95,7 +92,6 @@ class Access(c.Module):
         # check the rate limit
         return user_info
 
-    verify = forward
 
     def rm_state(self):
         self.put(self.state_path, {})

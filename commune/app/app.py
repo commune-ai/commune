@@ -117,6 +117,15 @@ class App(c.Module):
         for app in self.app_modules():
             c.print(self.start(app))
 
+    def app2url(self):
+        app2info = self.app2info()
+        app2url = {}
+        for app, info in app2info.items():
+            port = info['port']
+            if c.port_used(port):
+                app2url[app] = '0.0.0.0:' + str(info['port'])
+        return app2url
+
     # def app(self, **kwargs):
     #     # create a dashbaord of all apps
     #     app_modules = self.app_modules(**kwargs)
