@@ -5,6 +5,7 @@
 # if docker is not running, start it
 
 NAME=commune
+PWD=~/$NAME
 IMAGE_NAME=$NAME
 CONTAINER_NAME=$NAME
 ENABLE_DOCKER=true
@@ -27,9 +28,9 @@ fi
 CMD_STR="docker run -d \
   --name $CONTAINER_NAME \
   --shm-size $SHM_SIZE \
-  -v ~/.commune:/root/.commune \
+  -v ~/.$NAME:/root/.$NAME \
   -v ~/.bittensor:/root/.bittensor \
-  -v $PWD:/app \
+  -v $PWD:/$NAME \
   -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \
   --privileged

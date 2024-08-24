@@ -925,22 +925,13 @@ class c(*CORE_MODULES):
             
         kwargs = kwargs if kwargs else {}
         args = args if args else []
-        if name == None:
-            module_path = cls.resolve_object(module).module_name()
-            name = f"{module_path}{tag_seperator}{fn}"
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
-
         if 'remote' in kwargs:
             kwargs['remote'] = False
-        
-        cwd = cwd or cls.dirpath()
 
+        cwd = cwd or cls.dirpath()
         kwargs = kwargs or {}
         args = args or []
-
         module = cls.resolve_object(module)
-            
         # resolve the name
         if name == None:
             # if the module has a module_path function, use that as the name
@@ -948,10 +939,7 @@ class c(*CORE_MODULES):
                 name = module.module_name()
             else:
                 name = module.__name__.lower() 
-            # resolve the tag
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
- 
+        
         c.print(f'[bold cyan]Launching --> <<[/bold cyan][bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}>>', color='green')
 
         launch_kwargs = dict(

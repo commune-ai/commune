@@ -104,7 +104,6 @@ class PM2(c.Module):
     
     @classmethod
     def kill_all(cls, verbose:bool = True, timeout=10, trials=10):
-        results = {}
         while len(cls.servers()) > 0:
             results = cls.kill_many(search=None, verbose=verbose, timeout=timeout)
             trials -= 1
@@ -122,7 +121,6 @@ class PM2(c.Module):
                 if 'errored' in line:
                     cls.kill(server_name, verbose=True)
                     continue
-
                 module_list += [server_name]
             
         if search != None:
@@ -135,7 +133,6 @@ class PM2(c.Module):
     
     pm2ls = servers
     
-
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
     @classmethod

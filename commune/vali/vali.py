@@ -49,12 +49,7 @@ class Vali(c.Module):
     init_vali = __init__
 
     def score(self, module):
-        v = c.random_int()
-        k = c.hash(v)
-        module.put_item(k, v)
-        if module.get_item(k) == v:
-            return 1
-        return 0
+        return 'name' in module.info()
 
     def set_score_fn(self, score_fn: Union[Callable, str]):
         """
@@ -149,7 +144,7 @@ class Vali(c.Module):
                 if did_score_bool:
                     keys = ['w', 'name', 'address', 'latency']
                 else:
-                    keys = ['w', 'name', 'error']
+                    keys = list(result.keys())
                 result = {k: result.get(k, None) for k in keys if k in result}
                 msg = ' '.join([f'{k}={result[k]}' for k in result])
                 msg = f'RESULT({msg})'
@@ -204,10 +199,9 @@ class Vali(c.Module):
 
                 results =  c.df(results)
                 results = results.sort_values(by='w', ascending=False)
-                
+     
         return results
-    
-    
+
     @property
     def network_staleness(self) -> int:
         """
@@ -223,7 +217,6 @@ class Vali(c.Module):
             search_list = [search]
         return all([s == None or s in module  for s in search_list ])
 
-    
     def sync(self,  
                      network:str=None, 
                       netuid:int=None,

@@ -53,9 +53,7 @@ class ServerManager:
 
 
     @classmethod
-    def kill_many(cls, servers, search:str = None, network='local', parallel=True,  timeout=10, **kwargs):
-
-
+    def kill_many(cls, servers, search:str = None, network='local',  timeout=10, **kwargs):
         servers = c.servers(network=network)
         servers = [s for s in servers if  search in s]
         futures = []
@@ -66,9 +64,7 @@ class ServerManager:
         results = []
         for r in c.as_completed(futures, timeout=timeout):
             results += [r.result()]
-
         c.print(f'Killed {len(results)} servers', color='red')
-
         return results
     
 

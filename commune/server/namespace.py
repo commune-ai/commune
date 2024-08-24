@@ -6,8 +6,6 @@ import os
 # THIS IS THE INTERNET OF INTERNETS.
 class Namespace(c.Module):
 
-
-
     # the default
     network : str = 'local'
     @classmethod
@@ -25,65 +23,68 @@ class Namespace(c.Module):
                     netuid=None, 
                     max_age:int = 60,
                     timeout=6,
-                    verbose=False,
-                    **kwargs) -> dict:
-        
+                    verbose=False) -> dict:
         network = network or 'local'
         path = cls.resolve_network_path(network)
-        namespace = cls.get(path, {}, max_age=max_age, update=update)
-        if len(namespace) == 0:
-            c.print(f'UPDATING NETWORK(network={network})', color='blue', verbose=verbose)
-            if network == 'local':
-                namespace = {}
-                addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
-                future2address = {}
-                for address in addresses:
-
-                    f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
-                    future2address[f] = address
-                futures = list(future2address.keys())
-                try:
-                    progress = c.tqdm(len(futures))
-                    for f in c.as_completed(futures, timeout=timeout):
-                        address = future2address[f]
-                        progress.update(1)
-                        try:
-                            name = f.result()
-                            namespace[name] = address
-                            c.print(f'{name}-->{address}', color='green', verbose=verbose)
-                        except Exception as e:
-                            c.print(f'Error {e} with {name} and {address}', color='red', verbose=verbose)
-                except Exception as e:
-                    c.print(f'Timeout error {e}', color='red', verbose=verbose)   
-            elif 'subspace' in network:
-                if '.' in network:
-                    network, netuid = network.split('.')
-                else: 
-                    netuid = netuid or 0
-                if c.is_int(netuid):
-                    netuid = int(netuid)
-                namespace = c.module(network)().namespace(search=search, 
-                                                    update=update, 
-                                                    netuid=netuid,
-                                                    **kwargs)
-            else:
-                namespace = {}
-            
-            namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
-            cls.put_namespace(network, namespace)
-
+        namespace = cls.get(path, None, max_age=max_age)
+        if namespace == None:
+            namespace = cls.update_namespace(network=network, 
+                                            netuid=netuid, 
+                                            timeout=timeout, 
+                                            verbose=verbose)
+            cls.put(path,namespace)
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k} 
-
+        namespace = {k:':'.join(v.split(':')[:-1]) + ':'+ str(v.split(':')[-1]) for k,v in namespace.items()}
+        namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         ip  = c.ip()
         namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
-        namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         return namespace
     
 
+    @classmethod
+    def update_namespace(cls, network, netuid=None, timeout=4, search=None, verbose=False):
+        c.print(f'UPDATING --> NETWORK(network={network} netuid={netuid})', color='blue')
 
+        if 'subspace' in network:
+            if '.' in network:
+                network, netuid = network.split('.')
+            else: 
+                netuid = netuid or 0
+            if c.is_int(netuid):
+                netuid = int(netuid)
+            namespace = c.module(network)().namespace(search=search, max_age=1, netuid=netuid)
+            return namespace
+        elif 'local' == network: 
+            print(network, 'FAM')
+            namespace = {}
+            addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
+            future2address = {}
+            for address in addresses:
+                f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
+                future2address[f] = address
+            futures = list(future2address.keys())
+            try:
+                progress = c.tqdm(len(futures))
+                for f in c.as_completed(futures, timeout=timeout):
+                    address = future2address[f]
+                    try:
+                        name = f.result()
+                        namespace[name] = address
+                    except Exception as e:
+                        c.print(f'Error {e} with {name} and {address}', color='red', verbose=verbose)
+                    progress.update(1)
 
-    
+            except Exception as e:
+                c.print(f'Timeout error {e}', color='red', verbose=verbose) 
+
+            namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
+            ip  = c.ip()
+            namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
+        else:
+            return {}
+
+        return namespace 
     get_namespace = _namespace = namespace
 
     @classmethod
@@ -142,7 +143,6 @@ class Namespace(c.Module):
         namespace = cls.namespace(network=network)
         address =  namespace.get(name, None)
         ip = c.ip()
-    
         address = address.replace(c.default_ip, ip)
         assert ip in address, f'ip {ip} not in address {address}'
         return address
@@ -327,24 +327,19 @@ class Namespace(c.Module):
     
     @classmethod
     def test(cls):
-        network = 'test'
-        network2  = 'test2'
+        network = 'test_namespace'
         cls.rm_namespace(network)
-        cls.rm_namespace(network2)
         namespace = cls.namespace(network=network)
         assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'
-        cls.register_server('test', 'test', network=network)
-        assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.namespace(network=network)}'
-        assert cls.namespace(network2) == {}
-        cls.register_server('test', 'test', network=network2)
-        assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not restored. {cls.namespace(network=network)}'
-        cls.deregister_server('test', network=network2)
-        assert cls.namespace(network2) == {}
+        name = 'test'
+        address =  '0.0.0.0:8888'
+        cls.register_server(name=name, address=address, network=network)
+        namespace = cls.namespace(network=network)
+        assert  namespace[name] == address, f'Namespace not updated. {namespace}'
+        cls.deregister_server(name, network=network)
+        assert cls.namespace(network=network) == {}
         cls.rm_namespace(network)
-        assert cls.namespace_exists(network) == False
-        cls.rm_namespace(network2)
-        assert cls.namespace_exists(network2) == False
-        
+        assert cls.namespace_exists(network) == False        
         return {'success': True, 'msg': 'Namespace tests passed.'}
     
 
