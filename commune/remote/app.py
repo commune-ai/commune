@@ -21,9 +21,9 @@ class App(c.Module):
         with st.sidebar:
 
             self.filter_hosts_dashboard()
-            self.manage_hosts()
+        tabs = st.tabs(['SSH', 'Manage Hosts'])
+        self.manage_hosts()
 
-        page = 'manage_hosts'
         self.ssh()
 
 
@@ -120,6 +120,12 @@ class App(c.Module):
 
         with st.expander('Edit Hosts', expanded=False):
             self.edit_hosts()
+
+        with st.expander('Save SSH Config', expanded=True):
+            path = st.text_input('Enter Path', "~/.ssh/config")
+            if  st.button(f'Save SSH Config to {path}'):
+                st.success(self.save_ssh_config(path))
+
 
 
     def host2ssh_search(self, expander=True):

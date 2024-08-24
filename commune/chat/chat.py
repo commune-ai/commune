@@ -50,7 +50,6 @@ class Chat(c.Module):
         params = c.copy(data['data'])
         input = params.pop('input')
         system_prompt = params.pop('system_prompt', None)
-        
         if system_prompt:
             input = system_prompt + '\n' + input
         r =  self.model.generate( input,stream=1, **params)
@@ -71,19 +70,17 @@ class Chat(c.Module):
 
     def get_params(self):
         model = st.selectbox('Model', self.models)
-        with st.sidebar.expander('Parameters', False):
 
+        temperature = st.slider('Temperature', 0.0, 1.0, 0.5)
 
-            temperature = st.slider('Temperature', 0.0, 1.0, 0.5)
-
-            if hasattr(self.model, 'get_model_info'):
-                model_info = self.model.get_model_info(model)
-                max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
-            else:
-                model_info = {}
-                max_tokens = self.max_tokens
-            max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
-            system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
+        if hasattr(self.model, 'get_model_info'):
+            model_info = self.model.get_model_info(model)
+            max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
+        else:
+            model_info = {}
+            max_tokens = self.max_tokens
+        max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
+        system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
 
         input  = st.text_area('Text',self.text, height=100)
         
@@ -111,8 +108,7 @@ class Chat(c.Module):
                             'path': self.resolve_path('history', self.key.ss58_address ),
                             'history': self.history(self.key.ss58_address)
                             })
-            with st.expander('History', expanded=False):
-                self.search_hsitory()
+    
     def search_history(self):
         search = st.text_input('Search')
         # if the search is in any of the columns
@@ -134,7 +130,9 @@ class Chat(c.Module):
             self.history_page()
 
     def chat_page(self):
-        data = c.ticket(self.get_params(), key=self.key)
+        with st.sidebar.expander('Params', expanded=True):
+            params = self.get_params()
+        data = c.ticket(params, key=self.key)
 
         # make the buttons cover the whole page
         cols = st.columns([1,1])
@@ -147,18 +145,20 @@ class Chat(c.Module):
             reverse_emojis = emojis[::-1]
             with st.spinner(f'{emojis} Generating {reverse_emojis}'):
                 st.write_stream(r)
+   
+            self.post_processing(data)
 
-        with st.expander('Post Processing', False):
-            lambda_string = st.text_area('fn(x={model_output})', 'x', height=100)
-            prefix = 'lambda x: '
-            lambda_string = prefix + lambda_string if not lambda_string.startswith(prefix) else lambda_string
-            lambda_fn = eval(lambda_string)
-            print(data)
-            try:
-                output = data['data']['output']
-                output = lambda_fn(output)
-            except Exception as e:
-                st.error(e)
+
+    def post_processing(self, data):
+        lambda_string = st.text_area('fn(x={model_output})', 'x', height=100)
+        prefix = 'lambda x: '
+        lambda_string = prefix + lambda_string if not lambda_string.startswith(prefix) else lambda_string
+        lambda_fn = eval(lambda_string)
+        try:
+            output = data['data']['output']
+            output = lambda_fn(output)
+        except Exception as e:
+            st.error(e)
 
     def history_page(self):
         history = self.data.history

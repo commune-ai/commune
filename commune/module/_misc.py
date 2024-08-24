@@ -562,10 +562,8 @@ class Misc:
     
     @classmethod
     def pwd(cls):
-        pwd = os.getenv('PWD', '/app') # the current wor king directory from the process starts 
+        pwd = os.getenv('PWD', '/commune') # the current wor king directory from the process starts 
         return pwd
-    
-
     
     @classmethod
     def choice(cls, options:Union[list, dict])->list:

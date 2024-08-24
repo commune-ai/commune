@@ -9,6 +9,16 @@ class App(c.Module):
     port_range = [8501, 8600]
     name_prefix = 'app::'
 
+
+    def get_free_port(self, module, port=None, update=False):
+        app2info = self.get('app2info', {})
+        if update:
+            return c.free_port()
+        port = app2info.get(module, {}).get('port', None)
+        if port == None:
+            port = c.free_port()
+        return port
+
     def start(self,
            module:str = 'server', 
            name : Optional[str] = None,
@@ -18,51 +28,45 @@ class App(c.Module):
            kwargs:dict=None, 
            cmd = None,
            update:bool=False,
-           cwd = None, 
-           **extra_kwargs):
-        
-
-        module = c.shortcuts().get(module, module)
-        app2info = self.get('app2info', {})
-        kwargs = kwargs or {}
-        name = name or module
-        port = port or app2info.get(name, {}).get('port', c.free_port())
-        if update:
-            port = c.free_port()
-        process_name = self.name_prefix + name 
-        if c.port_used(port):
-            c.kill_port(port)
-            c.pm2_kill(process_name)
-        if c.module_exists(module + '.app'):
-            module = module + '.app'
-        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
-        module_class = c.module(module)
-        cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
-
-
-        cwd = cwd or os.path.dirname(module_class.filepath())
-
+           process_name:str=None,
+           cwd = None):
+        port = self.get_free_port(module=module, port=port, update=update)
         if remote:
+            if self.app_exists(name):
+                self.kill_app(name)
             rkwargs = c.locals2kwargs(locals())
             rkwargs['remote'] = False
-            del rkwargs['module_class']
-            del rkwargs['app2info']
-            del rkwargs['process_name']
             self.remote_fn(
                         fn='start',
-                        name=self.name_prefix + name ,
+                        name=self.name_prefix + module ,
                         kwargs= rkwargs)
         
             return {
-                'name': name,
-                'cwd': cwd,
-                'fn': fn,
+                'success': True,
+                'module': module,
                 'address': {
                     'local': f'http://localhost:{port}',
                     'public': f'http://{c.ip()}:{port}',
-                }  
+                }  ,
+                'kwargs': rkwargs
 
             }
+
+
+        module = c.shortcuts().get(module, module)
+        
+        kwargs = kwargs or {}
+        name = name or module
+        port = port or self.get_free_port(module)
+        # if the process is already running, kill it
+        # if the module is an app, we need to add the .app to the module name
+        if c.module_exists(module + '.app'):
+            module = module + '.app'
+        app2info = self.app2info()
+        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
+        module_class = c.module(module)
+        cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+        cwd = cwd or os.path.dirname(module_class.filepath())
 
         module = c.module(module)
         app_info= {
@@ -85,13 +89,23 @@ class App(c.Module):
         app2info =  self.get('app2info', {})
         if not isinstance(app2info, dict):
             app2info = {}
+        changed = False
+        og_app2info = app2info.copy()
+        for name, info in og_app2info.items():
+            if not c.port_used(info['port']):
+                c.print(f'Port {info["port"]} is not used. Killing {name}')
+                changed = True
+                del app2info[name]
+        if changed:
+            self.put('app2info', app2info)
+
         return app2info
     
 
     def kill_all(self):
         return c.module('pm2').kill_many(self.apps())
     
-    def kill(self, name):
+    def kill_app(self, name):
         return c.module('pm2').kill(self.name_prefix+name)
     
     def filter_name(self, name:str) -> bool:
@@ -104,6 +118,11 @@ class App(c.Module):
             apps = [n[len(self.name_prefix):] for n in apps]
         return apps
     
+
+    def app_exists(self, name):
+        return name in self.apps()
+    
+
     def app_modules(self, **kwargs):
         return list(set([m.replace('.app','') for m in self.modules() if self.has_app(m, **kwargs)]))
     

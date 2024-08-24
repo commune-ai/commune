@@ -1,14 +1,14 @@
-from .serializers import serilizer_map
 import commune as c
+import json
+
 class Serializer(c.Module):
 
-    serilizer_map = serilizer_map
-    serializers = serilizer_map.values()
     list_types = [list, set, tuple] # shit that you can turn into lists for json
     iterable_types = [list, set, tuple, dict] # 
     json_serializable_types = [int, float, str, bool, type(None)]
 
     def serialize(self,x:dict, mode = 'dict', copy_value = True):
+        
         if copy_value:
             x = c.copy(x)
         if type(x) in self.iterable_types:
@@ -28,7 +28,6 @@ class Serializer(c.Module):
         else:
             # GET THE TYPE OF THE VALUE
             data_type = str(type(x)).split("'")[1].lower()
-
             if 'munch' in data_type:
                 data_type = 'munch'
             if 'tensor' in data_type or 'torch' in data_type:
@@ -38,12 +37,8 @@ class Serializer(c.Module):
             if  'dataframe' in data_type:
                 data_type = 'pandas'
 
-            serializer = serilizer_map[data_type]
-            if not hasattr(serializer, 'date_type'):
-                serializer = serializer()
-                setattr(serializer, 'date_type', data_type)
-                serilizer_map[data_type] = serializer
-            if serializer is not None:
+            serializer = self.get_serializer(data_type)
+            if serializer != None:
                 # SERIALIZE MODE ON
                 result = {'data':  serializer.serialize(x), 
                              'data_type': serializer.date_type,  
@@ -51,10 +46,13 @@ class Serializer(c.Module):
             else:
                 result = {"success": False, "error": f"Type {serializer.data_type} not supported"}
 
-        result = self.resolve_serialized_result(result, mode=mode)
-        return result
+        return self.process_output(result, mode=mode)
 
-    def resolve_serialized_result(self, result, mode = 'str'):
+    def process_output(self, result, mode = 'str'):
+        """
+    
+        
+        """
         if mode == 'str':
             if isinstance(result, dict):
                 result = json.dumps(result)
@@ -79,10 +77,6 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
-        if isinstance(x, dict) and isinstance(x.get('data', None), str):
-            x = x['data']
-
-
         if isinstance(x, str):
             if x.startswith('{') or x.startswith('['):
                 x = self.str2dict(x)
@@ -92,32 +86,32 @@ class Serializer(c.Module):
                 elif c.is_float(x):
                     x = float(x)
                 return x
-        
-        is_single = isinstance(x,dict) and all([k in x for k in ['data', 'data_type', 'serialized']])
-        if is_single:
-            x = [x]
-        k_list = []
-        if isinstance(x, dict):
-            k_list = list(x.keys())
-        elif type(x) in [list]:
-            k_list = list(range(len(x)))
-        elif type(x) in [tuple, set]: 
-            # convert to list, to format as json
-            x = list(x) 
-            k_list = list(range(len(x)))
-
-        for k in k_list:
-            v = x[k]
-            if self.is_serialized(v):
-                data_type = v['data_type']
-                data = v['data']
-                if hasattr(self, f'deserialize_{data_type}'):
-                    x[k] = getattr(self, f'deserialize_{data_type}')(data=data)
-            elif type(v) in [dict, list, tuple, set]:
-                x[k] = self.deserialize(x=v)
-        if is_single:
-            x = x[0]
+        is_serialized = self.is_serialized(x)
+        if is_serialized:
+            serializer = self.get_serializer(x['data_type'])
+            return serializer.deserialize(x['data'])
         return x
+    
+    def serializer_map(self):
+        type_path = self.dirpath() + '/types'
+        module_paths = c.find_objects(type_path)
+        return {p.split('.')[-2]: c.obj(p)() for p in module_paths}
+    
+
+    def types(self):
+        return list(self.serializer_map().keys())
+    
+
+    def get_serializer(self, data_type):
+        serializer_map = self.serializer_map()
+        if data_type in serializer_map:
+            serializer = serializer_map[data_type]
+            if not hasattr(serializer, 'date_type'):
+                setattr(serializer, 'date_type', data_type)
+                serializer_map[data_type] = serializer
+        else:
+            raise TypeError(f'Type Not supported for serializeation ({data_type})')
+        return serializer
 
     def dict2bytes(self, data:dict) -> bytes:
         import msgpack
@@ -133,29 +127,3 @@ class Serializer(c.Module):
         if isinstance(data, str):
             data = json.loads(data)
         return data
-
-    def test(self):
-        import torch, time
-        data_list = [
-            torch.ones(1000),
-            torch.zeros(1000),
-            torch.rand(1000), 
-            [1,2,3,4,5],
-            {'a':1, 'b':2, 'c':3},
-            'hello world',
-            1,
-            1.0,
-            True,
-            False,
-            None
-
-        ]
-        for data in data_list:
-            t1 = time.time()
-            data = self.serialize(data)
-            data = self.deserialize(data)
-            t2 = time.time()
-            latency = t2 - t1
-            emoji = '✅' if data == data else '❌'
-            print('DATA', data, 'LATENCY', latency, emoji)
-        return {'msg': 'PASSED test_serialize_deserialize'}

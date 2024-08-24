@@ -418,8 +418,16 @@ class Manager:
         return cls.module_exists(module + '.app', **kwargs)
     
     @classmethod
+    def simplify_paths(cls,  paths):
+        paths = [cls.simplify_path(p) for p in paths]
+        paths = [p for p in paths if p]
+        return paths
+
+    @classmethod
     def simplify_path(cls, p, avoid_terms=['modules']):
         chunks = p.split('.')
+        if len(chunks) < 2:
+            return None
         file_name = chunks[-2]
         chunks = chunks[:-1]
         path = ''
@@ -448,18 +456,18 @@ class Manager:
 
     @classmethod
     def local_modules(cls, search=None):
-        objects = cls.find_classes(cls.pwd())
-        object_paths = [cls.simplify_path(obj) for obj in objects]
+        object_paths = cls.find_classes(cls.pwd())
+        object_paths = cls.simplify_paths(object_paths) 
         if search != None:
-            object_paths = [obj for obj in object_paths if search in obj]
+            object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
 
     @classmethod
     def lib_modules(cls, search=None):
-        objects = cls.find_classes(cls.libpath, )
-        object_paths = [cls.simplify_path(obj) for obj in objects]
+        object_paths = cls.find_classes(cls.libpath )
+        object_paths = cls.simplify_paths(object_paths) 
         if search != None:
-            object_paths = [obj for obj in object_paths if search in obj]
+            object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
     
     @classmethod
