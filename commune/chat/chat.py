@@ -1,8 +1,6 @@
 import commune as c
 import streamlit as st
 
-    
-
 
 class Chat(c.Module):
 
@@ -46,8 +44,6 @@ class Chat(c.Module):
         files = c.glob(cwd)
         files = st.multi_select(files, 'files')
         file_options  = [f.name for f in files]
-
-    
 
     def generate(self, data):
         c.verify_ticket(c.copy(data))
@@ -110,12 +106,22 @@ class Chat(c.Module):
             pwd = st.text_input('Password', password, type='password')
             seed = c.hash(user_name + seperator + pwd)
             self.key = c.pwd2key(seed)
-            self.metadata = c.dict2munch({  
+            self.data = c.dict2munch({  
                             'user': user_name, 
                             'path': self.resolve_path('history', self.key.ss58_address ),
                             'history': self.history(self.key.ss58_address)
                             })
+            with st.expander('History', expanded=False):
+                self.search_hsitory()
+    def search_history(self):
+        search = st.text_input('Search')
+        # if the search is in any of the columns
+        history = c.copy(self.data.history)
 
+        history = [h for h in history if search in str(h)]
+        df = c.df(history)
+        st.write(df)
+            
     def app(self):
         self.sidebar()
 
@@ -155,7 +161,7 @@ class Chat(c.Module):
                 st.error(e)
 
     def history_page(self):
-        history = self.metadata.history
+        history = self.data.history
         if len(history) == 0:
             st.error('No History')
             return
@@ -165,15 +171,15 @@ class Chat(c.Module):
             df = c.df(history)[selected_columns]
             st.write(df)
     def user_files(self):
-        return c.get(self.metadata['path'])
+        return c.get(self.data['path'])
 
 
 
-    def save_metadata(self, address, metadata):
-        return c.put(self.history_path + '/' + address +'/metadata.json', metadata)
+    def save_data(self, address, data):
+        return c.put(self.history_path + '/' + address +'/data.json', data)
     
-    def get_metadata(self, address):
-        return c.get(self.history_path + '/' + address +'/metadata.json')
+    def get_data(self, address):
+        return c.get(self.history_path + '/' + address +'/data.json')
 
         
     def clear_history(self, address):

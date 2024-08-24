@@ -2,8 +2,6 @@ from typing import *
 import commune as c
 import requests
 class SubspaceSubnet:
-    
-
 
     subnet_param_features = [
                 "ImmunityPeriod", 
@@ -33,6 +31,12 @@ class SubspaceSubnet:
         format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
         stake_to = {k: format_value(v) for k,v in stake_to.items()}
         return stake_to
+    
+
+
+    def netuid2founder(self, fmt='j',  **kwargs):
+        netuid2founder = self.query_map('Founder',  **kwargs)
+        return netuid2founder
     
 
     def stake_from(self, 
@@ -196,7 +200,6 @@ class SubspaceSubnet:
                 name += ch
         name = translations.get(name, name)
         return name
-
 
 
     def subnet_params(self, 
@@ -756,7 +759,7 @@ class SubspaceSubnet:
     #     return subnet2state
 
 
-    def netuid2emission(self, fmt='j',  period='day', names=1, **kwargs):
+    def netuid2emission(self, fmt='j',  period='day', names=None, **kwargs):
         netuid2emission = {}
         netuid2tempo = None
         emissions = self.query_vector('Emission',  netuid='all', **kwargs)
@@ -774,17 +777,10 @@ class SubspaceSubnet:
         netuid2emission = {k: v   for k,v in netuid2emission.items()}
         if names:
             netuid2emission = {self.netuid2name(netuid=k): v for k,v in netuid2emission.items()}
-
         return netuid2emission
 
     def subnet2emission(self, fmt='j',  period='day', **kwargs):
-        netuid2emission = self.netuid2emission(fmt=fmt, period=period, **kwargs)
-        netuid2subnet = self.netuid2subnet()
-        subnet2emission = {}
-        for netuid, emission in netuid2emission.items():
-            subnet = netuid2subnet[netuid]
-            subnet2emission[subnet] = emission
-        return subnet2emission
+        return self.netuid2emission(fmt=fmt, period=period, names=1, **kwargs)
     
 
     def global_emissions(self,  **kwargs):
@@ -953,9 +949,6 @@ class SubspaceSubnet:
         netuid = self.resolve_netuid(netuid)
         return self.subnet_params(netuid=netuid, update=update, **kwargs)['tempo']*self.block_time
 
-    def set_netuid(self, netuid:int):
-        self.netuid = netuid
-        return self.netuid
 
     def seconds_per_day(self ):
         return 24*60*60
@@ -1025,6 +1018,39 @@ class SubspaceSubnet:
 
         return netuid2uid
     
-        
 
+    def subnet_state(self, netuid=0, update=False,  **kwargs):
 
+        modules = self.get_modules(netuid=netuid, update=update, **kwargs)
+
+        return {
+            'params': self.subnet_params(netuid=netuid, 
+                                         update=update, 
+                                         fmt='nanos'),
+            'modules': modules
+        }
+    
+    def register_subnet(self, key: 'Keypair', name: str, metadata: str | None = None) -> 'c':
+        """
+        Registers a new subnet in the network.
+
+        Args:
+            key (Keypair): The keypair used for registering the subnet.
+            name (str): The name of the subnet to be registered.
+            metadata (str | None, optional): Additional metadata for the subnet. Defaults to None.
+
+        Returns:
+            ExtrinsicReceipt: A receipt of the subnet registration transaction.
+
+        Raises:
+            ChainTransactionError: If the transaction fails.
+        """
+
+        params = {
+            "name": name,
+            "metadata": metadata,
+        }
+
+        response = self.compose_call("register_subnet", params=params, key=key)
+
+        return response

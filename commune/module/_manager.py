@@ -70,7 +70,6 @@ class Manager:
             if path != None:
                 break
 
-
         assert path != None, f'MODULE {simple} DOES NOT EXIST'
         return path
 
@@ -419,7 +418,7 @@ class Manager:
         return cls.module_exists(module + '.app', **kwargs)
     
     @classmethod
-    def objectpath2module_path(cls, p):
+    def simplify_path(cls, p, avoid_terms=['modules']):
         chunks = p.split('.')
         file_name = chunks[-2]
         chunks = chunks[:-1]
@@ -441,13 +440,16 @@ class Manager:
             file_chunks =  file_name.split('_')
             if all([c in path for c in file_chunks]):
                 path = '.'.join(path.split('.')[:-1])
-
+        for avoid in avoid_terms:
+            avoid = f'{avoid}.' 
+            if avoid in path:
+                path = path.replace(avoid, '')
         return path
 
     @classmethod
     def local_modules(cls, search=None):
         objects = cls.find_classes(cls.pwd())
-        object_paths = [cls.objectpath2module_path(obj) for obj in objects]
+        object_paths = [cls.simplify_path(obj) for obj in objects]
         if search != None:
             object_paths = [obj for obj in object_paths if search in obj]
         return sorted(list(set(object_paths)))
@@ -455,7 +457,7 @@ class Manager:
     @classmethod
     def lib_modules(cls, search=None):
         objects = cls.find_classes(cls.libpath, )
-        object_paths = [cls.objectpath2module_path(obj) for obj in objects]
+        object_paths = [cls.simplify_path(obj) for obj in objects]
         if search != None:
             object_paths = [obj for obj in object_paths if search in obj]
         return sorted(list(set(object_paths)))
@@ -473,7 +475,7 @@ class Manager:
         if not cache or modules == None:
             modules =  cls.find_modules(search=None, **kwargs)
         if search != None:
-            modules = [m for m in modules if search in m]
+            modules = [m for m in modules if search in m]            
         return modules
     get_modules = modules
 

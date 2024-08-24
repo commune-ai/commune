@@ -1,7 +1,15 @@
 
 
 import commune as c
-class ClientPool:
+import json
+
+import commune as c
+from functools import partial
+import asyncio
+
+
+
+class ClientTools:
 
     @classmethod
     def call_search(cls, 
@@ -102,3 +110,50 @@ class ClientPool:
             return True
         else:
             return False
+
+    @staticmethod
+    def check_response(x) -> bool:
+        if isinstance(x, dict) and 'error' in x:
+            return False
+        else:
+            return True
+    
+  
+    def get_curl(self, 
+                        fn='info', 
+                        params=None, 
+                        args=None,
+                        kwargs=None,
+                        timeout=10, 
+                        module=None,
+                        key=None,
+                        headers={'Content-Type': 'application/json'},
+                        network=None,
+                        version=1,
+                        mode='http',
+                        **extra_kwargs):
+            key = self.resolve_key(key)
+            network = network or self.network
+            url = self.get_url(fn=fn, mode=mode, network=network)
+            kwargs = {**(kwargs or {}), **extra_kwargs}
+            input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
+
+            # Convert the headers to curl format
+            headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
+
+            # Convert the input data to JSON string
+            data_str = json.dumps(input_data).replace('"', '\\"')
+
+            # Construct the curl command
+            curl_command = f'curl -X POST {headers_str} -d "{data_str}" "{url}"'
+
+            return curl_command
+    
+
+    def run_curl(self, *args, **kwargs):
+        curl_command = self.get_curl(*args, **kwargs)
+        # get the output of the curl command
+        import subprocess
+        output = subprocess.check_output(curl_command, shell=True)
+        return output.decode('utf-8')
+

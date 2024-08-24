@@ -29,7 +29,7 @@ class PM2(c.Module):
        
 
     @classmethod
-    def kill(cls, name:str, verbose:bool = False, **kwargs):
+    def kill(cls, name:str, verbose:bool = True, **kwargs):
         if name == 'all':
             return cls.kill_all(verbose=verbose)
         c.cmd(f"pm2 delete {name}", verbose=False)
@@ -104,10 +104,12 @@ class PM2(c.Module):
     
     @classmethod
     def kill_all(cls, verbose:bool = True, timeout=10, trials=10):
+        results = {}
         while len(cls.servers()) > 0:
             results = cls.kill_many(search=None, verbose=verbose, timeout=timeout)
             trials -= 1
             assert trials > 0, 'Failed to kill all processes'
+        return {'success':True, 'message':f'Killed all processes'}
 
                 
     @classmethod

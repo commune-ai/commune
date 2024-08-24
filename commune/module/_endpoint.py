@@ -10,6 +10,8 @@ class Endpoint:
                 'whitelist', 
                 'endpoints',
                 'forward',
+                'name',
+                'address',
                 'fns'] # whitelist of helper functions to load
     
     def add_endpoint(self, name, fn):

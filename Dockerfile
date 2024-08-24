@@ -1,12 +1,10 @@
 # THE GENERAL CONTAINER FOR CONNECTING ALL THE ENVIRONMENTS 😈
 FROM ubuntu:22.04
-FROM python:3.12.3-bullseye
 
 #SYSTEM
 ARG DEBIAN_FRONTEND=noninteractive
 RUN usermod -s /bin/bash root
 RUN apt-get update 
-
 #RUST
 RUN apt-get install curl nano build-essential cargo libstd-rust-dev -y
 
@@ -18,6 +16,9 @@ ENV PWD /app
 WORKDIR /app
 RUN git clone https://github.com/commune-ai/commune.git /commune 
 RUN pip install -e /commune
+
+#PYTHON
+RUN apt-get install python3 python3-pip python3-venv -y
 
 
 # WANT TO HAVE TO REBUILD THE WHOLE IMAGE EVERY TIME WE CHANGE THE REQUIREMENTS

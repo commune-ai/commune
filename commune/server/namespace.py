@@ -331,13 +331,10 @@ class Namespace(c.Module):
         network2  = 'test2'
         cls.rm_namespace(network)
         cls.rm_namespace(network2)
-
         namespace = cls.namespace(network=network)
-        
         assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'
         cls.register_server('test', 'test', network=network)
         assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.namespace(network=network)}'
-
         assert cls.namespace(network2) == {}
         cls.register_server('test', 'test', network=network2)
         assert cls.namespace(network=network) == {'test': 'test'}, f'Namespace not restored. {cls.namespace(network=network)}'

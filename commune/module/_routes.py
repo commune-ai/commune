@@ -43,7 +43,7 @@ class Routes:
 
     @classmethod
     def has_routes(cls):
-        return os.path.exists(cls.routes_path()) or (hasattr(cls, 'routes') and isinstance(cls.routes, dict)) 
+        return cls.config().get('routes') is not None
     
     route_cache = None
     @classmethod
@@ -131,7 +131,6 @@ class Routes:
             routes = cls.routes() if callable(cls.routes) else cls.routes
         for m, fns in routes.items():
             for fn in fns: 
-                cls.print(f'Enabling route {m}.{fn} -> {my_path}:{fn}', verbose=verbose)
                 # resolve the from and to function names
                 from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
                 # create a partial function that is bound to the module
@@ -140,12 +139,14 @@ class Routes:
                 fn_obj.__name__ = to_fn
                 # set the function to the current module
                 setattr(cls, to_fn, fn_obj)
+                cls.print(f'ROUTE({m}.{fn} -> {my_path}:{fn})', verbose=verbose)
+
         t1 = cls.time()
         cls.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
         return {'success': True, 'msg': 'enabled routes'}
     
-
+    @classmethod
     def fn2module(cls):
         '''
         get the module of a function
@@ -158,11 +159,8 @@ class Routes:
                     fn_route = fn_route['to']
                 elif isinstance(fn_route, list):
                     fn_route = fn_route[1]
-                fn2module[fn_route] = module
-
-            
+                fn2module[fn_route] = module    
         return fn2module
-    
 
     def is_route(cls, fn):
         '''
