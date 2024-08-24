@@ -599,24 +599,12 @@ class Schema:
     
     static_methods = static_fns =  static_functions
 
-
-
-
     @classmethod
     def property_fns(cls) -> bool:
         '''
         Get a list of property functions in a class
         '''
         return [fn for fn in dir(cls) if cls.is_property(fn)]
-    
-
-    # @classmethod
-    # def get_parents(cls, obj=None):
-    #     '''
-    #     Get the parent classes of a class
-    #     '''
-    #     obj = cls.resolve_object(obj)
-    #     return obj.__bases__
     
     parents = get_parents
     
@@ -804,21 +792,24 @@ class Schema:
 
 
     @classmethod
-    def get_function_args(cls, fn) -> List[str]:
+    def get_args(cls, fn) -> List[str]:
         """
         get the arguments of a function
         params:
             fn: the function
         
         """
+        # if fn is an object get the __
+        
         if not callable(fn):
             fn = cls.get_fn(fn)
-
         try:
             args = inspect.getfullargspec(fn).args
         except Exception as e:
             args = []
         return args
+    
+    get_function_args = get_args 
 
     
     @classmethod

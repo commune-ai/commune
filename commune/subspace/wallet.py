@@ -1095,27 +1095,30 @@ class SubspaceWallet:
         address : str = None,
         stake : float = None,
         netuid = 0,
-        subnet : str = None,
+        network_name : str = None,
         key : str  = None,
         module_key : str = None,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         max_address_characters = 32,
         metadata = None,
+        network = None,
         nonce=None,
     **kwargs
     ) -> bool:
         module_key =  c.get_key(module_key or name).ss58_address
-        if subnet == None:
-            netuid2subnet = self.netuid2subnet(update=False)   
-            subnet = netuid2subnet[netuid]
+        netuid2subnet = self.netuid2subnet(update=False)  
+        subnet2netuid = {v:k for k,v in netuid2subnet.items()}
+
+        if network_name == None and netuid != 0:
+            network_name = netuid2subnet[netuid]
         else:
-            assert isinstance(subnet, str), f"Subnet must be a string"
-            if not subnet in subnet2netuid:
+            assert isinstance(network_name, str), f"Subnet must be a string"
+            if not network_name in subnet2netuid:
                 subnet2netuid = self.subnet2netuid(update=True)
-                if subnet not in subnet2netuid:
-                    subnet2netuid[subnet] = len(subnet2netuid)
-                    response = input(f"Do you want to create a new subnet ({subnet}) (yes or y or dope): ")
+                if network_name not in subnet2netuid:
+                    subnet2netuid[network_name] = len(subnet2netuid)
+                    response = input(f"Do you want to create a new subnet ({network_name}) (yes or y or dope): ")
                     if response.lower() not in ["yes", 'y', 'dope']:
                         return {'success': False, 'msg': 'Subnet not found and not created'}
                 
@@ -1128,7 +1131,7 @@ class SubspaceWallet:
             address = address or 'NA'
 
         params = { 
-                    'network_name': subnet.encode('utf-8'),
+                    'network_name': network_name.encode('utf-8'),
                     'address': address[-max_address_characters:].replace('0.0.0.0', c.ip()).encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,

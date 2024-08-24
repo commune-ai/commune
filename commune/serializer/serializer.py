@@ -3,6 +3,7 @@ import commune as c
 class Serializer(c.Module):
 
     serilizer_map = serilizer_map
+    serializers = serilizer_map.values()
     list_types = [list, set, tuple] # shit that you can turn into lists for json
     iterable_types = [list, set, tuple, dict] # 
     json_serializable_types = [int, float, str, bool, type(None)]

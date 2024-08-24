@@ -6,6 +6,8 @@ import time
 import os
 import threading
 import sys
+
+
 class cli:
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
@@ -49,9 +51,7 @@ class cli:
         # any of the --flags are init kwargs
     
         init_kwargs = {}
-        cwd_command = False
-        cwd = os.getcwd()
-        
+
         if any([arg.startswith('--') for arg in argv]): 
             for arg in c.copy(argv):
                 if arg.startswith('--'):
@@ -65,59 +65,60 @@ class cli:
                     value = arg.split('=')[1]
                     init_kwargs[key] = self.determine_type(value)
                 
+        if argv[0].endswith('.py'):
+            argv[0] = argv[0][:-3]
 
-        if output == None:
-
-            if argv[0].endswith('.py'):
-                argv[0] = argv[0][:-3]
-
-            if ':' in argv[0]:
-                # {module}:{fn} arg1 arg2 arg3 ... argn
-                argv[0] = argv[0].replace(':', '/')
-                
-            if '/' in argv[0]:
-                module = '.'.join(argv[0].split('/')[:-1])
-                fn = argv[0].split('/')[-1]
-                argv = [module , fn , *argv[1:]]
-                is_fn = False
-            else:
-                is_fn = argv[0] in self.base_module_attributes 
-
-            if is_fn:
-                module = self.base_module
-                fn = argv.pop(0)
-            else:
-                module = argv.pop(0)
-                if isinstance(module, str):
-                    module = c.get_module(module)
-                fn = argv.pop(0)
+        if ':' in argv[0]:
+            # {module}:{fn} arg1 arg2 arg3 ... argn
+            argv[0] = argv[0].replace(':', '/')
             
-            # module = self.base_module.from_object(module)
-            module_name = module.module_name()
-            fn_path = f'{module_name}/{fn}'
+        if '/' in argv[0]:
+            module = '.'.join(argv[0].split('/')[:-1])
+            fn = argv[0].split('/')[-1]
+            argv = [module , fn , *argv[1:]]
+            is_fn = False
+        else:
+            is_fn = argv[0] in self.base_module_attributes 
+
+        if is_fn:
+            module = self.base_module
+            fn = argv.pop(0)
+        else:
+            module = argv.pop(0)
+            fn = argv.pop(0)
+        
+        if isinstance(module, str):
             try:
-                fn_obj = getattr(module, fn)
-            except Exception as e:
-                fn_obj =getattr(module(), fn)
+                module = c.get_module(module)
+            except:
+                return {'error': f'Could not find module {module}'}
+        
+        # module = self.base_module.from_object(module)
+        module_name = module.module_name()
+        fn_path = f'{module_name}/{fn}'
+        try:
+            fn_obj = getattr(module, fn)
+        except Exception as e:
+            fn_obj =getattr(module(), fn)
 
-            fn_type = c.classify_fn(fn_obj)
-            if fn_type == 'self' or len(init_kwargs) > 0:
-                fn_obj = getattr(module(**init_kwargs), fn)
-            # calling function buffer
-            input_msg = f'[bold]fn[/bold]: {fn_path}'
+        fn_type = c.classify_fn(fn_obj)
+        if fn_type == 'self' or len(init_kwargs) > 0:
+            fn_obj = getattr(module(**init_kwargs), fn)
+        # calling function buffer
+        input_msg = f'[bold]fn[/bold]: {fn_path}'
 
-            if callable(fn_obj) and not c.is_property(fn_obj):
-                args, kwargs  = self.parse_args(argv)
-                if len(args) > 0 or len(kwargs) > 0:
-                    inputs = {"args":args, "kwargs":kwargs}
-                    input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
-                output = lambda: fn_obj(*args, **kwargs)
-            else: 
-                output = lambda: fn_obj 
-            self.input_msg = input_msg
-            buffer = '⚡️'*4
-            c.print(buffer+input_msg+buffer, color='yellow')
-            output =  output()
+        if callable(fn_obj) and not c.is_property(fn_obj):
+            args, kwargs  = self.parse_args(argv)
+            if len(args) > 0 or len(kwargs) > 0:
+                inputs = {"args":args, "kwargs":kwargs}
+                input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
+            output = lambda: fn_obj(*args, **kwargs)
+        else: 
+            output = lambda: fn_obj 
+        self.input_msg = input_msg
+        buffer = '⚡️'*4
+        c.print(buffer+input_msg+buffer, color='yellow')
+        output =  output()
 
         latency = time.time() - t0
 

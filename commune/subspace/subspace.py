@@ -24,6 +24,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                  'get_stake_to', 
                  'get_stake_from']
 
+    supported_modes = ['http', 'ws']
 
     def __init__(self, 
                 network: str =  'main',
@@ -44,7 +45,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         self.url_path = self.dirpath() +  '/urls.yaml'
         # merge the config with the subspace config
         self.config = c.dict2munch({**Subspace.config(), **self.config})
-        self.set_network(network)
+        self.set_network(network )
         self.set_netuid(netuid)
         if sync_loop:
             c.thread(self.sync_loop)
@@ -55,6 +56,9 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     #### Global Parameters ####
     ###########################
 
+    def set_netuid(self, netuid:int):
+        self.netuid = netuid
+        return self.netuid
 
     def feature2storage(self, feature:str):
         storage = ''
@@ -185,14 +189,17 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         return any([x in url for x in url_search_terms])
     
 
-    def resolve_url(self, url = None, mode=None, **kwargs):
+    def resolve_url(self, 
+                    url = None, 
+                    mode='ws', 
+                    network=None, 
+                    **kwargs):
         mode =  mode or self.config.network_mode
         url = url or self.config.url
-        assert mode in ['http', 'ws']
+        assert mode in self.supported_modes
         if url != None:
             return url
-        
-        network = self.resolve_network()
+        network = self.resolve_network(network)
         if url == None:
             urls_map = getattr(self.urls(),  network)
             urls = urls_map.get(mode, [])
@@ -236,6 +243,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
+                network=None,
                 trials:int = 10,
                 update : bool = False,
                 mode = 'http'):
@@ -264,11 +272,12 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
+        
 
-        while trials > 0:
+        for i in range(trials):
             try:
           
-                url = self.resolve_url(url, mode=mode)
+                url = self.resolve_url(url, mode=mode, network=network)
 
                 if not update:
                     if url in self.url2substrate:
@@ -285,18 +294,15 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                             ws_options=ws_options, 
                             auto_discover=auto_discover, 
                             auto_reconnect=auto_reconnect)
-                break
+                    
+                self.url = url
+                self.url2substrate[url] = substrate
+                return substrate
             except Exception as e:
                 print('ERROR IN CONNECTION: ', c.detailed_error(e), self.config)
-                trials = trials - 1
-                if trials == 0:
+                if i == trials - 1:
                     raise e
                 
-        self.url = url
-        self.url2substrate[url] = substrate
-                
-  
-
         return substrate
     
 
@@ -580,21 +586,12 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
     
     def resolve_network(self, 
                         network: Optional[int] = None,
-                        spliters: List[str] = [ '::', ':'], 
                         **kwargs) -> int:
         """
         Resolve the network to use for the current session.
         
         """
         network = network or self.config.network
-
-        for spliter in spliters:
-            # if the spliter is in the network then we want to split the network
-            # for example if the network is 'subspace::main' then we want to split it
-            # and get the last part which is 'main'
-            if spliter in str(network):
-                network = network.split(spliter)[-1]
-                break
         if network == 'subspace':
             network = 'main'
         return network
@@ -647,12 +644,14 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                     mode='ws',
                     trials = 4,
                     max_tip = 10000,
+                    network = None,
                      **kwargs):
 
         """
         Composes a call to a Substrate chain.
 
         """
+        network = self.resolve_network(network)
         key = self.resolve_key(key)
 
         if remote_module != None:
@@ -668,7 +667,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
         start_time = c.datetime()
         ss58_address = key.ss58_address
-        paths = {m: f'history/{self.config.network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
+        paths = {m: f'history/{network}/{ss58_address}/{m}/{start_time}.json' for m in ['complete', 'pending']}
         params = {k: int(v) if type(v) in [float]  else v for k,v in params.items()}
         compose_kwargs = dict(
                 call_module=module,
@@ -846,9 +845,7 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
 
     def global_state(self, max_age=None, update=False):
         max_age = max_age or self.config.max_age
-
         global_state = self.get('global_state', None, max_age=max_age, update=update)
-
         if global_state == None :
             params = self.global_params(max_age=max_age)
             subnet2netuid = self.subnet2netuid(max_age=max_age)
@@ -862,7 +859,6 @@ class Subspace( SubspaceSubnet, SubspaceWallet, c.Module):
                 'netuids': netuids,
                 'subnet2emission': subnet2emission
             }
-        self.__dict__.update(global_state)
         return global_state
 
     def subnet_state(self, netuid=0, max_age=None, timeout=60):

@@ -50,28 +50,29 @@ class Config:
                 config = {}
         return config
 
+
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = True , default=None) -> Union['Munch', Dict]:
+    def load_config(cls, path:str=None, 
+                    default=None,
+                    to_munch:bool = True  
+                    ) -> Union['Munch', Dict]:
         '''
         Args:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
+
         default = default or {}
         path = path if path else cls.config_path()
+
         if os.path.exists(path):
             config = cls.load_yaml(path)
         else:
             config = default
-
         config = config or {} 
-        # convert to munch
         if to_munch:
             config =  cls.dict2munch(config)
         return config
-    
-    
-
     
     @classmethod
     def save_config(cls, config:Union['Munch', Dict]= None, path:str=None) -> 'Munch':

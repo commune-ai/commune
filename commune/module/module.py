@@ -150,7 +150,14 @@ class c(*CORE_MODULES):
                    verbose = False,
                    update_tree_if_fail = True,
                    init_kwargs = None,
+                   catch_error = False,
                    ) -> str:
+        if catch_error:
+            try:
+                return cls.get_module(path=path, cache=cache, trials=trials, verbose=verbose, update_tree_if_fail=update_tree_if_fail,
+                                       init_kwargs=init_kwargs, catch_error=False)
+            except Exception as e:
+                return c.detailed_error(e)
         if path in ['module', 'c']:
             return c
         if trials > 0:
@@ -188,8 +195,8 @@ class c(*CORE_MODULES):
         if init_kwargs != None:
             module = module(**init_kwargs)
         is_module = c.is_module(module)
-        # if not is_module:
-        #     module = cls.obj2module(module)
+        if not is_module:
+            module = cls.obj2module(module)
         if cache:
             c.module_cache[cache_key] = module            
         return module
@@ -200,19 +207,23 @@ class c(*CORE_MODULES):
         class WrapperModule(c.Module):
             _obj = obj
             def __name__(self):
-                return self._obj.__name__
+                return obj.__name__
             def __class__(self):
-                return self._obj.__class__
-            
-        m = WrapperModule
-                
-        for fn in dir(obj):
+                return obj.__class__
+            @classmethod
+            def filepath(cls) -> str:
+                return super().filepath(cls._obj)  
+
+        for fn in dir(WrapperModule):
             try:
-                setattr(m, fn, getattr(obj, fn))
+                setattr(obj, fn, getattr(WrapperModule, fn))
             except:
-                pass
-            
-        return m()
+                pass 
+
+
+
+ 
+        return obj
         
 
 
@@ -255,6 +266,7 @@ class c(*CORE_MODULES):
             c.print(f'Error: {e}', color='red')
             address = None
         return address
+    
     addy = root_address
 
     @property
@@ -446,7 +458,11 @@ class c(*CORE_MODULES):
         return fn(*args, **kwargs)
     
     fn = module_fn
-    
+
+    @classmethod
+    def info_hash(self):
+        return c.commit_hash()
+
     @classmethod
     def module(cls,module: Any = 'module' , verbose=False, **kwargs):
         '''
@@ -1079,13 +1095,15 @@ class c(*CORE_MODULES):
         cls._local_config = local_config
         return cls._local_config
     
-    def has_local_module(self, path=None):
+    @classmethod
+    def has_local_module(cls, path=None):
         path = '.' if path == None else path
         if os.path.exists(f'{path}/module.py'):
             text = c.get_text(f'{path}/module.py')
             if 'class ' in text:
                 return True
         return False
+    
     
     def wordinfolder(self, word:str, path:str='./')-> bool:
         path = c.resolve_path(path)

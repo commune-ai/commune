@@ -24,26 +24,34 @@ class Test(c.Module):
         module = c.serve(server_name)
         c.wait_for_server(server_name)
         module = c.connect(server_name)
-        r = module.put("hey",1)
-        v = module.get("hey")
-        assert v == 1, f"get failed {v}"
+        r = module.info()
+        assert 'name' in r, f"get failed {v}"
         c.kill(server_name)
+        assert server_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
 
 
     @classmethod
     def test_serving_with_different_key(cls, module_name = 'module::test', key_name='module::test2'):
-        c.add_key(key_name)
-        if module_name in c.servers():
+
+        if not c.key_exists(key_name):
+            key = c.add_key(key_name)
+        if c.server_exists(module_name):
             c.kill(module_name)
-        module = c.serve(module_name, key=key_name)
+        while c.server_exists(module_name):
+            c.sleep(1)
+        address = c.serve(module_name, key=key_name)['address']
         key = c.get_key(key_name)
-        c.sleep(1)
-        module = c.connect(module_name)
-        info = module.info()
+        while not c.server_exists(module_name):
+            c.sleep(1)
+            c.print('waiting for server {}'.format(module_name))
+        try:
+            info = c.connect(module_name).info()
+        except Exception as e:
+            print(c.namespace())
+            print(info)
         assert info['key'] == key.ss58_address, f"key failed {key.ss58_address} != {info['key']}"
         c.kill(module_name)
-
         c.rm_key(key_name)
         return {'success': True, 'msg': 'server test passed'}
 
