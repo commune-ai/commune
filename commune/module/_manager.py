@@ -69,7 +69,6 @@ class Manager:
     
             if path != None:
                 break
-
         assert path != None, f'MODULE {simple} DOES NOT EXIST'
         return path
 
@@ -226,8 +225,13 @@ class Manager:
     
     @classmethod
     def path2objectpath(cls, path:str, pwd=None, **kwargs) -> str:
-        pwd = pwd or cls.pwd()
-        return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
+        libpath = cls.libpath
+        if path.startswith(libpath):
+            return cls.libname + '.' + path.replace(libpath, '')[1:].replace('/', '.').replace('.py', '')
+        elif path.startswith():
+            pwd = pwd or cls.pwd()
+            return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
+
     @classmethod
     def find_functions(cls, path, working=True):
         fns = []
@@ -320,7 +324,12 @@ class Manager:
     @classmethod
     def simple2object(cls, path:str, **kwargs) -> str:
         path =  cls.simple2objectpath(path, **kwargs)
-        return cls.import_object(path)
+        try:
+            return cls.import_object(path)
+        except:
+            path = cls.tree().get(path)
+            return cls.import_object(path)
+            
 
 
     included_pwd_in_path = False
@@ -461,6 +470,36 @@ class Manager:
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
+    @classmethod
+    def lib_tree(cls, ):
+        return cls.get_tree(cls.libpath)
+    @classmethod
+    def local_tree(cls ):
+        return cls.get_tree(cls.pwd())
+    
+    @classmethod
+    def get_tree(cls, path):
+        class_paths = cls.find_classes(path)
+        simple_paths = cls.simplify_paths(class_paths) 
+        return dict(zip(simple_paths, class_paths))
+    
+    
+    _tree = None
+    @classmethod
+    def tree(cls, search=None, cache=True):
+        if cls._tree != None and cache:
+            return cls._tree
+        local_tree = cls.local_tree()
+        lib_tree = cls.lib_tree()
+        tree = {**local_tree, **lib_tree}
+        if cache:
+            cls._tree = tree
+        if search != None:
+            tree = {k:v for k,v in tree.items() if search in k}
+        return tree
+
+        return tree
+    
 
     @classmethod
     def lib_modules(cls, search=None):

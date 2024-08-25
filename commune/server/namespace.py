@@ -35,15 +35,21 @@ class Namespace(c.Module):
             cls.put(path,namespace)
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k} 
+
+        namespace = cls.clean_namespace(namespace)
+
+        return namespace
+    
+    @classmethod
+    def clean_namespace(cls, namespace):
         namespace = {k:':'.join(v.split(':')[:-1]) + ':'+ str(v.split(':')[-1]) for k,v in namespace.items()}
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
         ip  = c.ip()
         namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
+        namespace = { k.replace('"', ''): v for k,v in namespace.items() }
         return namespace
-    
-
     @classmethod
-    def update_namespace(cls, network, netuid=None, timeout=4, search=None, verbose=False):
+    def update_namespace(cls, network, netuid=None, timeout=5, search=None, verbose=False):
         c.print(f'UPDATING --> NETWORK(network={network} netuid={netuid})', color='blue')
 
         if 'subspace' in network:
@@ -72,14 +78,14 @@ class Namespace(c.Module):
                         name = f.result()
                         namespace[name] = address
                     except Exception as e:
-                        c.print(f'Error {e} with {name} and {address}', color='red', verbose=verbose)
+                        c.print(f'Error {e} with {name} and {address}', color='red', verbose=True)
                     progress.update(1)
 
             except Exception as e:
-                c.print(f'Timeout error {e}', color='red', verbose=verbose) 
+                c.print(f'Timeout error {e}', color='red', verbose=True) 
 
             namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
-            ip  = c.ip()
+            ip  = c.ip(update=1)
             namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
         else:
             return {}

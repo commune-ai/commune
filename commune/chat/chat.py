@@ -13,7 +13,7 @@ class Chat(c.Module):
                  model = None,
                  history_path='history',
                 **kwargs):
-        
+
         self.max_tokens = max_tokens
         self.text = text
        
@@ -45,23 +45,48 @@ class Chat(c.Module):
         files = st.multi_select(files, 'files')
         file_options  = [f.name for f in files]
 
-    def generate(self, data):
-        c.verify_ticket(c.copy(data))
-        params = c.copy(data['data'])
-        input = params.pop('input')
-        system_prompt = params.pop('system_prompt', None)
-        if system_prompt:
-            input = system_prompt + '\n' + input
-        r =  self.model.generate( input,stream=1, **params)
-        params['input'] = input
-        params['output'] = ''
-        for token in r:
-            params['output'] += token
-            yield token
-        data['data']['output'] = params['output'].strip()
-        self.save_data(data)
-        yield data
 
+    def call(self, 
+            input = 'whats 2+2?' ,
+            temperature= 0.5,
+            max_tokens= 1000000,
+            model= 'anthropic/claude-3.5-sonnet', 
+            system_prompt= 'make this shit work',
+            key = None,
+            stream=True, 
+            ):
+        # key = self.resolve_key(key)
+        data = c.locals2kwargs(locals())
+        signature = self.key.ticket(c.hash(data))
+        return signature
+    
+
+    @c.endpoint()
+    def generate(self,  
+            input = 'whats 2+2?' ,
+            temperature= 0.5,
+            max_tokens= 1000000,
+            model= 'anthropic/claude-3.5-sonnet', 
+            system_prompt= 'make this shit work',
+            stream=True, 
+            headers = None,
+            ):
+        # c.verify_ticket(ticket)
+        text = system_prompt + '\n' + input
+        output =  self.model.generate( text,stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
+        data = {
+            'input': input, 
+            'output': '', 
+            'max_tokens': max_tokens, 
+            'temperature': temperature,
+            'system_prompt': system_prompt,
+            'headers': headers
+        }
+        for token in output:
+            data['output'] += token
+            yield token
+        # data_saved = self.save_data(data)
+        # yield data
 
     def save_data(self, data):
         path = self.data2path(data)
@@ -70,9 +95,7 @@ class Chat(c.Module):
 
     def get_params(self):
         model = st.selectbox('Model', self.models)
-
         temperature = st.slider('Temperature', 0.0, 1.0, 0.5)
-
         if hasattr(self.model, 'get_model_info'):
             model_info = self.model.get_model_info(model)
             max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
@@ -81,9 +104,8 @@ class Chat(c.Module):
             max_tokens = self.max_tokens
         max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
         system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
-
         input  = st.text_area('Text',self.text, height=100)
-        
+
         params = {
             'model': model,
             'temperature': temperature,

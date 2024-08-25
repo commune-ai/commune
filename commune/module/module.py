@@ -146,37 +146,24 @@ class c(*CORE_MODULES):
     def get_module(cls, 
                    path:str = 'module',  
                    cache=True,
-                   trials = 5,
                    verbose = False,
                    update_tree_if_fail = True,
                    init_kwargs = None,
                    catch_error = False,
                    ) -> str:
+        path = path or 'module'
         if catch_error:
             try:
-                return cls.get_module(path=path, cache=cache, trials=trials, verbose=verbose, update_tree_if_fail=update_tree_if_fail,
-                                       init_kwargs=init_kwargs, catch_error=False)
+                return cls.get_module(path=path, cache=cache, 
+                                      verbose=verbose, 
+                                      update_tree_if_fail=update_tree_if_fail,
+                                       init_kwargs=init_kwargs, 
+                                       catch_error=False)
             except Exception as e:
                 return c.detailed_error(e)
         if path in ['module', 'c']:
             return c
-        if trials > 0:
-            try:
-                module = cls.get_module(path=path, cache=cache, trials=trials-1, verbose=verbose, update_tree_if_fail=update_tree_if_fail, init_kwargs=init_kwargs)
-                return module
-            except Exception as e:
-                if verbose:
-                    c.print(f'Error: {e}', color='red')
-        """
-        params: 
-            path: the path to the module
-            cache: whether to cache the module
-            tree: the tree to search for the module
-            update_if_fail: whether to update the tree if the module is not found
-        """
-
         # if the module is a valid import path 
-        path = path or 'module'
         shortcuts = c.shortcuts()
         if path in shortcuts:
             path = shortcuts[path]
@@ -186,7 +173,6 @@ class c(*CORE_MODULES):
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
             return module
-
         module = c.simple2object(path)
         # ensure module
         if verbose:
@@ -443,6 +429,12 @@ class c(*CORE_MODULES):
             libpath = c.libpath
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
+    @classmethod
+    def commit_ticket(cls, **kwargs):
+        commit_hash = cls.commit_hash()
+        ticket = c.ticket(commit_hash, **kwargs)
+        assert c.verify(ticket)
+        return ticket
 
     @classmethod
     def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
@@ -1107,6 +1099,25 @@ class c(*CORE_MODULES):
             progress.update(1)
         return False
 
+
+
+    # local update  
+    @classmethod
+    def update(cls, 
+               module = None,
+               namespace: bool = False,
+               subspace: bool = False,
+               network: str = 'local',
+               **kwargs
+               ):
+        responses = []
+        if module != None:
+            return c.module(module).update()
+        # update local namespace
+        if namespace:
+            responses.append(c.namespace(network=network, update=True))
+        return {'success': True, 'responses': responses}
+    
 c.enable_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

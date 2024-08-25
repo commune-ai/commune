@@ -3,9 +3,10 @@
 from typing import *
 import asyncio
 import commune as c
+import json
 import aiohttp
+import requests
 from .tools import ClientTools
-from .sse import ClientSSE
 from .virtual import ClientVirtual
 
 # from .pool import ClientPool
@@ -20,18 +21,19 @@ class Client(c.Module, ClientTools):
             stream_prefix = 'data: ',
             fn2max_age = {'info': 60, 'name': 60},
             virtual = False,
+            loop = None, 
             **kwargs
         ):
         self.serializer = c.module('serializer')()
         self.network = network
-        self.loop = asyncio.get_event_loop()
+        self.loop =  c.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-        self.sse = ClientSSE()
         self.fn2max_age = fn2max_age
         self.stream_prefix = stream_prefix
         self.address = self.resolve_module_address(module, network=network)
         self.virtual = virtual
+        self.session = requests.Session()
 
     def resolve_namespace(self, network):
         if not network in self.network2namespace:
@@ -55,12 +57,11 @@ class Client(c.Module, ClientTools):
         else:
             module = fn
             fn = 'info'
-        client = cls.connect(module, virtual=False, network=network)
+        client = cls.connect(module, virtual=False, key=key, network=network)
         response =  client.forward(fn=fn, 
                                 args=args,
                                 kwargs=kwargs, 
                                 params=params,
-                                key=key,
                                 timeout=timeout, 
                                 **extra_kwargs)
 
@@ -118,31 +119,23 @@ class Client(c.Module, ClientTools):
         module_address = self.resolve_module_address(module, mode=mode, network=network)
         url = f"{module_address}/{fn}/"
         return url        
-
-    async def async_request(self, url : str, data:dict, headers:dict, timeout:int=10):
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=data, headers=headers) as response:   
-                try:             
-                    if response.content_type == 'text/event-stream':
-                        return self.sse.stream(response)
-                    if response.content_type == 'application/json':
-                        result = await asyncio.wait_for(response.json(), timeout=timeout)
-                    elif response.content_type == 'text/plain':
-                        result = await asyncio.wait_for(response.text(), timeout=timeout)
-                    else:
-                        result = await asyncio.wait_for(response.read(), timeout=timeout)
-                        # if its an error we will raise it
-                        if response.status != 200:
-                            raise Exception(result)
-                    result = self.serializer.deserialize(result)
-                except Exception as e:
-                    result = c.detailed_error(e)
+    def request(self, url: str, data: dict, headers: dict, timeout: int = 10, stream: bool = True):
+        response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
+        try:             
+            if 'text/event-stream' in response.headers.get('Content-Type', ''):
+                return self.stream(response)
+            if 'application/json' in response.headers.get('Content-Type', ''):
+                result = response.json()
+            elif 'text/plain' in response.headers.get('Content-Type', ''):
+                result = response.text
+            else:
+                result = response.content
+                if response.status_code != 200:
+                    raise Exception(result)
+            result = self.serializer.deserialize(result)
+        except Exception as e:
+            result = c.detailed_error(e)
         return result
-    
-
-    def request(self, url : str, data:dict, headers:dict, timeout:int=10):
-        return self.loop.run_until_complete(self.async_request(url=url, data=data, headers=headers, timeout=timeout))
-    
     def get_headers(self, data:Any, key=None, headers=None):
         key = self.resolve_key(key)
         if headers:
@@ -193,29 +186,13 @@ class Client(c.Module, ClientTools):
                 headers = None,
                 return_future = False,
                 data = None,
-                loop = None,
-                fn2max_age = None,
                 **extra_kwargs):
         network = network or self.network
-        fn2max_age = fn2max_age or self.fn2max_age
-
-        if fn in fn2max_age:
-            c.print(f"'{fn}': {self.fn2max_age[fn]}")
-            path = f'{self.address}/{fn}'
-            max_age = self.fn2max_age[fn]
-            response = self.get(path, None, max_age=max_age)
-            if response != None:
-                return response
-            
         url = self.get_url(fn=fn, mode=mode,  network=network)
-        data = data or self.get_data(args=args,  kwargs=kwargs,   params=params, key=key, **extra_kwargs)
+        data = data or self.get_data(args=args,  kwargs=kwargs, params=params, **extra_kwargs)
         headers = headers or self.get_headers(data=data, key=key)
         kwargs = {**(kwargs or {}), **extra_kwargs}
-        future = self.async_request( url=url,data=data,headers= headers,timeout= timeout)
-        if  return_future:
-            return future
-        loop = loop or self.loop
-        result =  self.loop.run_until_complete(future)
+        result = self.request( url=url,data=data,headers= headers,timeout= timeout)
         return result
     
     def __del__(self):
@@ -231,3 +208,30 @@ class Client(c.Module, ClientTools):
         if isinstance(key, str):
             key = c.get_key(key)
         return key
+
+
+    def stream(self, response):
+        buffer = ""
+        
+        for chunk in response.iter_lines():
+            line = self.process_stream_line(chunk)
+            yield line
+
+
+    def tokenize(self, data):
+        # Customize tokenization logic here. For example, split by spaces.
+        # Returning a list of tokens and the last incomplete token (if any) as a string.
+        tokens = data.split()
+        return tokens
+    def process_stream_line(self, line , stream_prefix=None):
+        stream_prefix = stream_prefix or self.stream_prefix
+        event_data = line.decode('utf-8')
+        if event_data.startswith(stream_prefix):
+            event_data = event_data[len(stream_prefix):] 
+        event_data = event_data.strip() # remove leading and trailing whitespaces
+        if event_data == "": # skip empty lines if the event data is empty
+            return ''
+        if isinstance(event_data, str):
+            if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
+                event_data = json.loads(event_data)['data']
+        return event_data
