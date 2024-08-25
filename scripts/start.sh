@@ -29,7 +29,6 @@ CMD_STR="docker run -d \
   --name $CONTAINER_NAME \
   --shm-size $SHM_SIZE \
   -v ~/.$NAME:/root/.$NAME \
-  -v ~/.bittensor:/root/.bittensor \
   -v $PWD:/$NAME \
   -p $START_PORT-$END_PORT:$START_PORT-$END_PORT \
   --restart unless-stopped \

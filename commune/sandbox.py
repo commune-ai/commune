@@ -1,3 +1,3 @@
 import commune as c
 
-print(c.connect('module::test').info())
+print(c.call('chat/module_name'))

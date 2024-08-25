@@ -562,7 +562,7 @@ class Misc:
     
     @classmethod
     def pwd(cls):
-        pwd = os.getenv('PWD', '/commune') # the current wor king directory from the process starts 
+        pwd = os.getenv('PWD', cls.libpath) # the current wor king directory from the process starts 
         return pwd
     
     @classmethod
@@ -666,26 +666,6 @@ class Misc:
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
         return [text for text in text_list if filter_text in text]
 
-
-
-    # local update  
-    @classmethod
-    def update(cls, 
-               module = None,
-               namespace: bool = False,
-               subspace: bool = False,
-               network: str = 'local',
-               **kwargs
-               ):
-        responses = []
-        if module != None:
-            return cls.module(module).update()
-        # update local namespace
-        cls.ip(update=True)
-        if namespace:
-            responses.append(cls.namespace(network=network, update=True))
-        return {'success': True, 'responses': responses}
-    
 
     @classmethod
     def is_success(cls, x):

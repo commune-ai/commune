@@ -1001,7 +1001,8 @@ class Keypair(c.Module):
     
     sig2addy = signature2address
 
-    
+    def is_ticket(self, data):
+        return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
@@ -1026,25 +1027,16 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        data = c.copy(data)
 
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
 
-        if max_age != None:
-            if isinstance(data, int):
-                staleness = c.timestamp() - int(data)
-            elif 'timestamp' in data or 'time' in data:
-                timestamp = data.get('timestamp', data.get('time'))
-                staleness = c.timestamp() - int(timestamp)
-            else:
-                raise ValueError('data should be a timestamp or a dict with a timestamp key')
-            
-            assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
-
-        data = c.copy(data)
-
-        
+        print(data, signature, 'FAM')
         if isinstance(data, dict):
+            if self.is_ticket(data):
+                address = data.pop('address')
+                signature = data.pop('signature')
             if 'data' in data and 'ticket' in data:
                 ticket = data.pop('ticket')
                 address = ticket.get('address', address)
@@ -1057,15 +1049,20 @@ class Keypair(c.Module):
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
 
+        if max_age != None:
+            if isinstance(data, int):
+                staleness = c.timestamp() - int(data)
+            elif 'timestamp' in data or 'time' in data:
+                timestamp = data.get('timestamp', data.get('time'))
+                staleness = c.timestamp() - int(timestamp)
+            else:
+                raise ValueError('data should be a timestamp or a dict with a timestamp key')
+            assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
         if not isinstance(data, str):
             data = c.python2str(data)
-
         if address != None:
             public_key = ss58_decode(address)
-
-            
         if public_key == None:
-            
             public_key = self.public_key
         else:
             if self.is_ss58(public_key):

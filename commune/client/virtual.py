@@ -10,9 +10,8 @@ class ClientVirtual:
             client = c.connect(client)
         self.client = client
 
-    def remote_call(self, *args, return_future= False, timeout:int=10, **kwargs):
-        remote_fn = kwargs.pop('remote_fn')
-        result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, return_future=return_future)
+    def remote_call(self, remote_fn, *args, return_future= False, timeout:int=10, key=None, **kwargs):
+        result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
         return result
             
     def __str__(self):

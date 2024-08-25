@@ -70,7 +70,6 @@ class Server(ServerManager, c.Module):
 
     def forward(self, fn,  request: Request):
         headers = dict(request.headers.items())
-
         # STEP 1 : VERIFY THE SIGNATURE AND STALENESS OF THE REQUEST TO MAKE SURE IT IS AUTHENTIC
         key_address = headers.get('key', headers.get('address', None))
         assert key_address, 'No key or address in headers'
@@ -78,7 +77,6 @@ class Server(ServerManager, c.Module):
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
-        info_str = f"fn={fn} from={headers['key'][:4]}..."
         signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
         assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
         self.access_module.verify(fn=fn, address=key_address)
@@ -98,6 +96,8 @@ class Server(ServerManager, c.Module):
         response = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.round(c.time() - int(headers['timestamp']), 3)
         correct_emoji = '✅' 
+        
+        info_str = f"fn={fn} from={headers['key'][:4]}..."
         msg = f"<{correct_emoji}Response({info_str} latency={latency}s){correct_emoji}>"
         c.print(msg, color='green')
         # STEP 4 : SERIALIZE THE RESPONSE AND RETURN SSE IF IT IS A GENERATOR AND JSON IF IT IS A SINGLE OBJECT

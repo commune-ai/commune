@@ -10,6 +10,8 @@ class Endpoint:
                 'whitelist', 
                 'endpoints',
                 'forward',
+                'module_name', 
+                'class_name',
                 'name',
                 'address',
                 'fns'] # whitelist of helper functions to load
