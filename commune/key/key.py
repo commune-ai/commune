@@ -992,14 +992,6 @@ class Keypair(c.Module):
         if return_string:
             return f'{data.decode()}{seperator}{signature.hex()}'
         return signature
-    
-    def ticket2address(self, ticket, **kwargs):
-        return self.verify(ticket, **kwargs)
-
-    def signature2address(self, sig, **kwargs):
-        return self.verify(sig, return_address=True, **kwargs)
-    
-    sig2addy = signature2address
 
     def is_ticket(self, data):
         return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
@@ -1029,10 +1021,9 @@ class Keypair(c.Module):
         """
         data = c.copy(data)
 
+
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
-
-        print(data, signature, 'FAM')
         if isinstance(data, dict):
             if self.is_ticket(data):
                 address = data.pop('address')
@@ -1058,6 +1049,7 @@ class Keypair(c.Module):
             else:
                 raise ValueError('data should be a timestamp or a dict with a timestamp key')
             assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
+        
         if not isinstance(data, str):
             data = c.python2str(data)
         if address != None:
@@ -1067,7 +1059,6 @@ class Keypair(c.Module):
         else:
             if self.is_ss58(public_key):
                 public_key = self.ss58_decode(public_key)
-
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
 
@@ -1077,14 +1068,12 @@ class Keypair(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-            
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
-
         if self.crypto_type == KeypairType.SR25519:
             crypto_verify_fn = sr25519.verify
         elif self.crypto_type == KeypairType.ED25519:
@@ -1100,7 +1089,6 @@ class Keypair(c.Module):
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
-
         if return_address:
             return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
@@ -1132,7 +1120,7 @@ class Keypair(c.Module):
         if password == None:
             c.print('Using the KeyPair private key as the encryption key')
             password = self.mnemonic or self.private_key
-        return c.module('key.aes')(password)
+        return c.module('key.aes')(c.hash(password))
 
     def decrypt(self, data: Union[str, bytes], password=None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
@@ -1140,7 +1128,10 @@ class Keypair(c.Module):
         return data
 
     def encrypt_message(
-        self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
+        self, 
+        message: Union[bytes, str], 
+        recipient_public_key: bytes, 
+        nonce: bytes = secrets.token_bytes(24),
     ) -> bytes:
         """
         Encrypts message with for specified recipient
@@ -1155,6 +1146,11 @@ class Keypair(c.Module):
         -------
         Encrypted message
         """
+        # if isinstance(recipient_public_key, str):
+        #     # if ss58_address is provided, get key from address
+        #     if self.valid_ss58_address(recipient_public_key):
+        #         recipient_public_key = self.ss58_decode(recipient_public_key)
+        #     recipient_public_key = bytes.fromhex(recipient_public_key)
 
         if not self.private_key:
             raise ConfigurationError('No private key set to encrypt')

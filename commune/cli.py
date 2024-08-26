@@ -140,8 +140,13 @@ class cli:
         is_generator = c.is_generator(output)
 
         if is_generator:
-            for output_item in output:
-                c.print( output_item)
+            # print the items side by side instead of vertically
+            for item in output:
+                if isinstance(item, dict):
+                    c.print(item)
+                else:
+                    c.print(item, end='')
+                
         else:
             
             c.print( output)

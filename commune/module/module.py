@@ -29,7 +29,7 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
 CORE_MODULES = get_core_modules()
 
 class c(*CORE_MODULES):
-    core_modules = ['module', 'key', 'client', 'server', 'serializer']
+    core_modules = ['module', 'key', 'client', 'server', 'serializer', ]
     libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""

@@ -16,7 +16,6 @@ class Chat(c.Module):
 
         self.max_tokens = max_tokens
         self.text = text
-       
         self.set_module(model, 
                         password = password,
                         name = name,
@@ -27,10 +26,8 @@ class Chat(c.Module):
     def set_module(self,
                     model, 
                    history_path='history', 
-                   name='chat',
                    password=None,
                    system_prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
-                   key=None,
                     **kwargs):
         self.system_prompt = system_prompt
         self.admin_key = c.pwd2key(password) if password else self.key
@@ -60,43 +57,6 @@ class Chat(c.Module):
         signature = self.key.ticket(c.hash(data))
         return signature
     
-
-    @c.endpoint()
-    def generate(self,  
-            input = 'whats 2+2?' ,
-            temperature= 0.5,
-            max_tokens= 1000000,
-            model= 'anthropic/claude-3.5-sonnet', 
-            system_prompt= 'make this shit work',
-            stream=True, 
-            headers = None,
-            ):
-        print(input, 'bro')
-        # c.verify_ticket(ticket)
-        text = system_prompt + '\n' + input
-        output =  self.model.generate( text,stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
-        data = {
-            'input': input, 
-            'output': '', 
-            'max_tokens': max_tokens, 
-            'temperature': temperature,
-            'system_prompt': system_prompt,
-            'headers': headers
-        }
-        for token in output:
-            yield token
-
-
-    def ask(self, *text, **kwargs): 
-        return self.generate(' '.join(text), **kwargs)
-
-             
-
-            
-
-        # data_saved = self.save_data(data)
-        # yield data
-
     def save_data(self, data):
         path = self.data2path(data)
         return c.put(path, data)
@@ -258,10 +218,5 @@ class Chat(c.Module):
     def user_addresses(self, display_name=False):
         users = [u.split('/')[-1] for u in c.ls(self.history_path)]
         return users
-    
-
-    def models(self):
-        return self.model.models()
-
 
 Chat.run(__name__)

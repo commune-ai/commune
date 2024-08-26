@@ -107,14 +107,12 @@ routes:
               name2address, 
               namespace, 
               get_address]
-
   app : 
     - start_app
     - app
     - apps
     - app2info
     - [kill, kill_app]
-
   user: 
     - role2users
     - is_user
@@ -129,15 +127,12 @@ routes:
     - rm_admin
     - num_roles
     - rm_user
-
   streamlit:
     - load_style
     - st_load_css
-
   docker:
     - dlogs
     - images
-
   code: 
     - determine_type
     - process_kwargs
@@ -211,3 +206,6 @@ routes:
     - generate
     - ask
     - models
+
+  chat:
+    - ask s

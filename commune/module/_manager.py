@@ -1,11 +1,9 @@
 
 from typing import *
 import os
-from copy import deepcopy
 
 class Manager:
-    avoid_dirnames = ['', 'src', 'commune', 'commune/module', 'commune/modules', 'modules', 'blocks', 'agents', 'commune/agents']
-    extension = '.py'
+
     @classmethod
     def resolve_extension(cls, filename:str, extension = '.py') -> str:
         if filename.endswith(extension):
@@ -15,8 +13,8 @@ class Manager:
     @classmethod
     def simple2path(cls, 
                     simple:str,
-                    extension = extension,
-                    avoid_dirnames = avoid_dirnames,
+                    extension = '.py',
+                    avoid_dirnames = ['', 'src', 'commune', 'commune/module', 'commune/modules', 'modules', 'blocks', 'agents', 'commune/agents'],
                     **kwargs) -> bool:
         """
         converts the module path to a file path
@@ -34,7 +32,6 @@ class Manager:
         shortcuts = cls.shortcuts()
         simple = shortcuts.get(simple, simple)
 
-
         if simple.endswith(extension):
             simple = simple[:-len(extension)]
 
@@ -43,10 +40,13 @@ class Manager:
         path_options = []
         simple = simple.replace('/', '.')
 
+        # create all of the possible paths by combining the avoid_dirnames with the simple path
         dir_paths = list([pwd+ '/' + x for x in avoid_dirnames]) # local first
         dir_paths += list([cls.libpath + '/' + x for x in avoid_dirnames]) # add libpath stuff
 
         for dir_path in dir_paths:
+            if dir_path.endswith('/'):
+                dir_path = dir_path[:-1]
             # '/' count how many times the path has been split
             module_dirpath = dir_path + '/' + simple.replace('.', '/')
             if os.path.isdir(module_dirpath):
@@ -224,12 +224,12 @@ class Manager:
         return classes
     
     @classmethod
-    def path2objectpath(cls, path:str, pwd=None, **kwargs) -> str:
+    def path2objectpath(cls, path:str, **kwargs) -> str:
         libpath = cls.libpath
         if path.startswith(libpath):
             return cls.libname + '.' + path.replace(libpath, '')[1:].replace('/', '.').replace('.py', '')
-        elif path.startswith():
-            pwd = pwd or cls.pwd()
+        pwd = cls.pwd()
+        if path.startswith(pwd):
             return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
 
     @classmethod
@@ -499,6 +499,12 @@ class Manager:
         return tree
 
         return tree
+    
+
+    def overlapping_modules(self, search:str=None, **kwargs):
+        local_modules = self.local_modules(search=search)
+        lib_modules = self.lib_modules(search=search)
+        return [m for m in local_modules if m in lib_modules]
     
 
     @classmethod
