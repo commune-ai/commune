@@ -182,8 +182,6 @@ class SSH(c.Module):
         
         return cls.ssh_pubkey(path) 
     
-
-
     @classmethod
     def id_rsa(cls, path=None):
         path = cls.resolve_ssh_path(path)

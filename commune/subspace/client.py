@@ -11,7 +11,7 @@ from substrateinterface import Keypair  # type: ignore
 from substrateinterface import SubstrateInterface  # type: ignore
 from substrateinterface.storage import StorageKey  # type: ignore
 
-from commune._common import transform_stake_dmap
+from commune.subspace.utils import transform_stake_dmap
 from commune.errors import ChainTransactionError, NetworkQueryError
 from commune.types import NetworkParams, Ss58Address, SubnetParams
 

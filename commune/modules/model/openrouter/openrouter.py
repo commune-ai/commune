@@ -40,7 +40,7 @@ class OpenRouter(c.Module):
 
         self.model = model
 
-    @c.endpoint(cost=1)
+    @c.endpoint()
     def generate(
         self,
         message: str,
@@ -50,7 +50,6 @@ class OpenRouter(c.Module):
         stream: bool = False,
         model:str = None,
         max_tokens: int = 100000,
-        text = None,
         temperature: float = 1.0,
     ) -> str | Generator[str, None, None]:
         """
@@ -72,28 +71,31 @@ class OpenRouter(c.Module):
         system_prompt = system_prompt or self.system_prompt
         message = message + system_prompt
         model = model or self.model
-        stream = bool(stream)
+        # robot emojis = 
+        c.print('Using Model --> ', model, color='cyan')
         messages = history.copy()
-        # append new message to model
         messages.append({"role": "user", "content": message})
-
         result = self.client.chat.completions.create(
                                                     model=model,
                                                     messages=messages,
-                                                    stream=stream, 
+                                                    stream= bool(stream), 
                                                     max_tokens = max_tokens,
                                                     temperature= temperature, 
                                                     )
+       
+       
+       
         if stream:
-            return self.stream_generator(result)
+
+            def stream_generator( result):
+                for token in result:
+                    yield token.choices[0].delta.content
+            return stream_generator(result)
         else:
             return result.choices[0].message.content
         
     forward = generate
 
-    def stream_generator(self, result):
-        for token in result:
-            yield token.choices[0].delta.content
 
     def authenticate(
         self,
@@ -124,7 +126,7 @@ class OpenRouter(c.Module):
         response = requests.get(url)
         return json.loads(response.text)['data']
     
-    def model2info(self, search: str = None, path='models', max_age=0, update=False):
+    def model2info(self, search: str = None, path='models', max_age=100, update=False):
         models = self.get(path, default={}, max_age=max_age, update=update)
         if len(models) == 0:
             print('Updating models...')

@@ -1,13 +1,7 @@
 from rich.console import Console
 
-
 class Logger:
     console = Console() # the consolve
-
-    @classmethod
-    def logs(cls, *args, **kwargs):
-        return cls.pm2_logs(*args, **kwargs)
-
 
     @classmethod
     def critical(cls, *args, **kwargs):

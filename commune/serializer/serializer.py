@@ -21,32 +21,31 @@ class Serializer(c.Module):
                 x = list(x) 
             for k in k_list:
                 x[k] = self.serialize(x[k],mode=None)
-            return x        
-        v_type = type(x)
-        if v_type in self.json_serializable_types:
+            return x
+                
+        if type(x) in self.json_serializable_types:
             result = x
         else:
-            # GET THE TYPE OF THE VALUE
-            data_type = str(type(x)).split("'")[1].lower()
-            if 'munch' in data_type:
-                data_type = 'munch'
-            if 'tensor' in data_type or 'torch' in data_type:
-                data_type = 'torch'
-            if 'ndarray' in data_type:
-                data_type = 'numpy'
-            if  'dataframe' in data_type:
-                data_type = 'pandas'
-
+            data_type = self.get_data_type_string(x)
             serializer = self.get_serializer(data_type)
-            if serializer != None:
-                # SERIALIZE MODE ON
-                result = {'data':  serializer.serialize(x), 
-                             'data_type': serializer.date_type,  
-                             'serialized': True}
-            else:
-                result = {"success": False, "error": f"Type {serializer.data_type} not supported"}
-
+            result = {'data':  serializer.serialize(x), 
+                            'data_type': serializer.date_type,  
+                            'serialized': True}
         return self.process_output(result, mode=mode)
+
+    def get_data_type_string(self, x):
+        # GET THE TYPE OF THE VALUE
+        data_type = str(type(x)).split("'")[1].lower()
+        if 'munch' in data_type:
+            data_type = 'munch'
+        if 'tensor' in data_type or 'torch' in data_type:
+            data_type = 'torch'
+        if 'ndarray' in data_type:
+            data_type = 'numpy'
+        if  'dataframe' in data_type:
+            data_type = 'pandas'
+
+        return data_type
 
     def process_output(self, result, mode = 'str'):
         """

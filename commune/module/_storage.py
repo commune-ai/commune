@@ -8,8 +8,6 @@ import json
 import time
 import shutil
 
-
-
 class Storage:
 
     @classmethod

@@ -4,7 +4,6 @@ from typing import *
 import asyncio
 import commune as c
 import json
-import aiohttp
 import requests
 from .tools import ClientTools
 from .virtual import ClientVirtual
