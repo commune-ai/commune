@@ -22,9 +22,11 @@ class App(c.Module):
 
             self.filter_hosts_dashboard()
         tabs = st.tabs(['SSH', 'Manage Hosts'])
-        self.manage_hosts()
 
-        self.ssh()
+        with tabs[0]:
+            self.ssh()
+        with tabs[1]:
+            self.manage_hosts()
 
 
     def edit_hosts(self):
@@ -63,7 +65,7 @@ class App(c.Module):
         n = len(host_names)
         
         # get the search terms
-        with st.expander(f'Hosts(n={n})', expanded=False):   
+        with st.expander(f'Hosts(n={n})', expanded=True):   
             host_names = st.multiselect(f'Hosts', host_names, host_names)
             self._host_map = {k:host_map[k] for k in host_names}
             self.host2ssh = self.host2ssh(host_map=host_map)
