@@ -3,7 +3,7 @@ A server is a module that is converted to an http server.
 
 The server can be called in several ways
 
-The name of the endpoing is formated as
+The name of the endpoing is formatted as
 
 
 {server_ip}:{server_port}/{function}

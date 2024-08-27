@@ -286,7 +286,7 @@ class Model(nn.Module, c.Module):
             for name, child in reverted_child_list:    
                 if isinstance(child, nn.ModuleList):
                     if num_layers > len(child):
-                        self.print(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
+                        self.print(f'Number of finetune layers was set higher then the layers available {len(child)}')
                         return None
                     return (name + '.' +str(len(child) - num_layers))
                 
