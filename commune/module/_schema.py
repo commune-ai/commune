@@ -4,9 +4,7 @@ import inspect
 
 class Schema:
     whitelist = []
-
     _schema = None
-
     @classmethod
     def get_schema(cls,
                 module = None,
@@ -171,8 +169,8 @@ class Schema:
 
     @classmethod
     def fn_signature_map(cls, obj=None, include_parents:bool = False):
-        function_signature_map = {}
         obj = cls.resolve_object(obj)
+        function_signature_map = {}
         for f in cls.get_functions(obj = obj, include_parents=include_parents):
             if f.startswith('__') and f.endswith('__'):
                 if f in ['__init__']:
@@ -183,8 +181,6 @@ class Schema:
                 continue
             if callable(getattr(cls, f )):
                 function_signature_map[f] = {k:str(v) for k,v in cls.get_function_signature(getattr(cls, f )).items()}        
-        
-    
         return function_signature_map
 
 
@@ -377,11 +373,7 @@ class Schema:
             find_lines = cls.find_lines(text=text, search=search)
             return find_lines
         return text
-        
-
-
     pycode = code
-
     @classmethod
     def chash(cls,  *args, **kwargs):
         import commune as c

@@ -319,8 +319,6 @@ class Manager:
         classes =  cls.find_classes(object_path)
         return classes[-1]
 
-
-
     @classmethod
     def simple2object(cls, path:str, **kwargs) -> str:
         path =  cls.simple2objectpath(path, **kwargs)
@@ -330,8 +328,6 @@ class Manager:
             path = cls.tree().get(path)
             return cls.import_object(path)
             
-
-
     included_pwd_in_path = False
     @classmethod
     def import_module(cls, 

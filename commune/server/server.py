@@ -95,10 +95,7 @@ class Server(ServerManager, c.Module):
         fn_obj = getattr(self.module, fn)
         response = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.round(c.time() - int(headers['timestamp']), 3)
-        correct_emoji = '✅' 
-        
-        info_str = f"fn={fn} from={headers['key'][:4]}..."
-        msg = f"<{correct_emoji}Response({info_str} latency={latency}s){correct_emoji}>"
+        msg = f"<✅Response(fn={fn} from={headers['key'][:4]}... latency={latency}s)✅>"
         c.print(msg, color='green')
         # STEP 4 : SERIALIZE THE RESPONSE AND RETURN SSE IF IT IS A GENERATOR AND JSON IF IT IS A SINGLE OBJECT
         #TODO WS: ADD THE SSE RESPONSE

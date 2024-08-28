@@ -1,14 +1,11 @@
 from rich.console import Console
-
 class Logger:
-    console = Console() # the consolve
 
     @classmethod
     def critical(cls, *args, **kwargs):
         console = cls.resolve_console()
         return console.critical(*args, **kwargs)
     
-
     @classmethod
     def resolve_console(cls, console = None, **kwargs):
         if hasattr(cls,'console'):
@@ -22,17 +19,6 @@ class Logger:
         cls.console = console
         return console
     
-
-
-
-
-    @classmethod
-    def logmap(cls, *args, **kwargs):
-        logmap = {}
-        for m in cls.servers(*args,**kwargs):
-            logmap[m] = cls.logs(m)
-        return logmap
-
     @classmethod
     def print(cls, *text:str, 
               color:str=None, 
@@ -86,9 +72,6 @@ class Logger:
     def log(cls, *args, **kwargs):
         console = cls.resolve_console()
         return console.log(*args, **kwargs)
-    
-
-
 
     ### LOGGER LAND ###
     @classmethod
@@ -99,7 +82,6 @@ class Logger:
         if logger is not None:
             cls.logger = logger
         return cls.logger
-
 
     @staticmethod
     def echo(x):

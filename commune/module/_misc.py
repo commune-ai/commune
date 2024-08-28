@@ -8,16 +8,6 @@ from copy import deepcopy
 import concurrent
 
 class Misc:
-    def utils(self):
-        path2functions = self.path2functions(self.root_path + '/utils')
-        utils = []
-        for path, functions in path2functions.items():
-            for f in functions:
-                k = self.libname +'.utils.' +path.split('.')[0] + '.' + f
-                utils.append(k)
-        return utils
-
-                 
 
     def path2functions(self, path=None):
         path = path or (self.root_path + '/utils')
