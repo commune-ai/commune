@@ -20,29 +20,11 @@ class Crypto:
             return hashlib.sha3_512(x.encode()).hexdigest()
         else:
             raise ValueError(f'unknown mode {mode}')
-        #TODO: add quantum resistant hash functions
-        return hash_output
-    str2hash = hash
+    
+
     @classmethod
     def hash_modes(cls):
         return ['keccak', 'ss58', 'python', 'md5', 'sha256', 'sha512', 'sha3_512']
     
-    @classmethod
-    def set_key(self, key:str, **kwargs) -> None:
-        key = self.get_key(key)
-        self.key = key
-        return key
-    
-    @classmethod
-    def resolve_keypath(cls, key = None):
-        if key == None:
-            key = cls.module_name()
-        return key
-    
-
-    def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
-        key = self.resolve_key(key)
-        signature =  key.sign(data, **kwargs)
-        return signature
-    
-
+    str2hash = hash
+   

@@ -1,5 +1,4 @@
 from typing import *
-from munch import Munch
 import os
 
 class Config:
@@ -77,6 +76,8 @@ class Config:
     @classmethod
     def save_config(cls, config:Union['Munch', Dict]= None, path:str=None) -> 'Munch':
         from copy import deepcopy
+        from munch import Munch
+
         '''
         Saves the config to a yaml file
         '''
@@ -122,7 +123,8 @@ class Config:
 
     @classmethod
     def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
-        
+        from munch import Munch
+
         '''
         Turn munch object  into dictionary
         '''

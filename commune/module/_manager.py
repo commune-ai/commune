@@ -225,15 +225,15 @@ class Manager:
     
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
-        libpath = cls.libpath
+        libpath = cls.libpath + '/' + cls.libname
         if path.startswith(libpath):
-            return cls.libname + '.' + path.replace(libpath, '')[1:].replace('/', '.').replace('.py', '')
+            return cls.libname + '.' + path.replace(libpath , '')[1:].replace('/', '.').replace('.py', '')
         pwd = cls.pwd()
         if path.startswith(pwd):
             return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
 
     @classmethod
-    def find_functions(cls, path, working=True):
+    def find_functions(cls, path = './', working=False):
         fns = []
         if os.path.isdir(path):
             path = os.path.abspath(path)

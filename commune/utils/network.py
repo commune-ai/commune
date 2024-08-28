@@ -1,7 +1,7 @@
 # hey/thanks bittensor
 import os
 import urllib
-
+import requests
 from loguru import logger
 
 def int_to_ip(int_val: int) -> str:
@@ -64,6 +64,7 @@ class ExternalIPNotFound(Exception):
     """ Raised if we cannot attain your external ip from CURL/URLLIB/IPIFY/AWS """
 
 def external_ip() -> str:
+    import commune as c
     r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
         Returns:
             external_ip  (:obj:`str` `required`):
