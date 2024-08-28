@@ -210,12 +210,13 @@ class Client(c.Module, ClientTools):
 
 
     def stream(self, response):
-        buffer = ""
-        
-        for chunk in response.iter_lines():
-            line = self.process_stream_line(chunk)
-            yield line
-
+        try:
+            for chunk in response.iter_lines():
+                line = self.process_stream_line(chunk)
+                yield line
+        except Exception as e:
+            print(f'Error in stream: {e}')
+            yield None
 
     def tokenize(self, data):
         # Customize tokenization logic here. For example, split by spaces.
@@ -227,7 +228,6 @@ class Client(c.Module, ClientTools):
         event_data = line.decode('utf-8')
         if event_data.startswith(stream_prefix):
             event_data = event_data[len(stream_prefix):] 
-        event_data = event_data.strip() # remove leading and trailing whitespaces
         if event_data == "": # skip empty lines if the event data is empty
             return ''
         if isinstance(event_data, str):

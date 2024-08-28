@@ -90,8 +90,10 @@ class cli:
         if isinstance(module, str):
             try:
                 module = c.get_module(module)
-            except:
-                return {'error': f'Could not find module {module}'}
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+                return None
+                
         
         # module = self.base_module.from_object(module)
         module_name = module.module_name()
@@ -99,6 +101,7 @@ class cli:
         try:
             fn_obj = getattr(module, fn)
         except Exception as e:
+        
             fn_obj =getattr(module(), fn)
 
         fn_type = c.classify_fn(fn_obj)

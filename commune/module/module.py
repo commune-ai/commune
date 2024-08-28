@@ -100,7 +100,7 @@ class c(*CORE_MODULES):
             module_path =  inspect.getfile(cls)
         return module_path
 
-    pythonpath = pypath =  filepath
+    pythonpath = pypath =  file_path =  filepath
 
     @classmethod
     def dirpath(cls) -> str:
@@ -108,7 +108,7 @@ class c(*CORE_MODULES):
         removes the PWD with respect to where module.py is located
         '''
         return os.path.dirname(cls.filepath())
-    folderpath = dirname = dirpath
+    folderpath = dirname = dir_path =  dirpath
 
     @classmethod
     def module_name(cls, obj=None):
@@ -138,6 +138,7 @@ class c(*CORE_MODULES):
     def sandbox(cls):
         c.cmd(f'python3 {c.root_path}/sandbox.py', verbose=True)
         return 
+    
     sand = sandbox
 
     module_cache = {}
@@ -205,14 +206,8 @@ class c(*CORE_MODULES):
                 setattr(obj, fn, getattr(WrapperModule, fn))
             except:
                 pass 
-
-
-
  
         return obj
-        
-
-
     
     @classmethod
     def storage_dir(cls):
@@ -662,7 +657,6 @@ class c(*CORE_MODULES):
 
     @classmethod
     def readme_paths(cls):
-
         readme_paths =  [f for f in c.ls(cls.dirpath()) if f.endswith('md')]
         return readme_paths
 
@@ -1136,7 +1130,8 @@ class c(*CORE_MODULES):
         signature =  key.sign(data, **kwargs)
         return signature
     
-
+    def logs(self, name:str = None, verbose: bool = False):
+        return c.pm2_logs(name, verbose=verbose)
   
 c.enable_routes()
 Module = c # Module is alias of c

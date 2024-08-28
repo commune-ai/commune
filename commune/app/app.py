@@ -8,8 +8,7 @@ from typing import *
 class App(c.Module):
     port_range = [8501, 8600]
     name_prefix = 'app::'
-
-
+    
     def get_free_port(self, module, port=None, update=False):
         app2info = self.get('app2info', {})
         if update:

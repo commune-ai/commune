@@ -38,16 +38,12 @@ class Storage:
 
     @classmethod
     def rm_json(cls, path=None):
-        from .utils.dict import rm_json
-
+        from commune.utils.dict import rm_json
         if path in ['all', '**']:
             return [cls.rm_json(f) for f in cls.glob(files_only=False)]
-        
         path = cls.resolve_path(path=path, extension='json')
-
         return rm_json(path )
     
-
     @classmethod
     def rmdir(cls, path):
         return shutil.rmtree(path)
@@ -70,8 +66,6 @@ class Storage:
             cls.rm(path)
         return {'success':True, 'message':f'{cls.storage_dir()} removed'}
         
-
-
     @classmethod
     def rm(cls, path, extension=None, mode = 'json'):
         
@@ -532,9 +526,6 @@ class Storage:
             age = int(time.time() - timestamp)
             return age
         return -1
-  
-
-
     
     @classmethod
     def get_text(cls, 

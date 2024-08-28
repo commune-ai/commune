@@ -71,7 +71,6 @@ class Chat(c.Module):
             stream=True, 
             headers = None,
             ):
-        print(input, 'bro')
         # c.verify_ticket(ticket)
         text = system_prompt + '\n' + input
         output =  self.model.generate( text,stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
@@ -85,8 +84,6 @@ class Chat(c.Module):
         }
         for token in output:
             yield token
-
-
     def ask(self, *text, **kwargs): 
         return self.generate(' '.join(text), **kwargs)
 

@@ -36,10 +36,6 @@ module_name:
 class Routes:
 
     @classmethod
-    def routes_path(cls):
-        return cls.dirpath() + '/routes.yaml'
-
-    @classmethod
     def has_routes(cls):
         return cls.config().get('routes') is not None
     
