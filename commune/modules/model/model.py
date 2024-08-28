@@ -368,10 +368,7 @@ class Model(nn.Module, c.Module):
                 dtype=torch.qint8, **kwargs)
         return self
     
-    @classmethod
-    def resolve_server_name(cls, *args, **kwargs):
-        return cls.base_model().resolve_server_name(*args, **kwargs)
-    
+
     @staticmethod
     def get_trainable_params(model: 'nn.Module') -> int: 
         """

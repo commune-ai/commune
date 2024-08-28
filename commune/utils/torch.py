@@ -130,8 +130,6 @@ def confuse_gradients(model):
             p.grad.data = torch.randn(p.grad.data.shape).to(p.grad.data.device)
 
 
-
-
 def get_device_memory():
     import nvidia_smi
 

@@ -653,3 +653,55 @@ class Storage:
         
 
 
+
+    def file2text(self, path = './', relative=True,  **kwargs):
+        path = os.path.abspath(path)
+        file2text = {}
+        for file in c.glob(path, recursive=True):
+            with open(file, 'r') as f:
+                content = f.read()
+                file2text[file] = content
+        if relative:
+            print(path)
+            return {k[len(path)+1:]:v for k,v in file2text.items()}
+
+        return file2text
+    
+    def file2lines(self, path:str='./')-> List[str]:
+        file2text = self.file2text(path)
+        file2lines = {f: text.split('\n') for f, text in file2text.items()}
+        return file2lines
+    
+    def num_files(self, path:str='./')-> int:
+        import commune as c
+        return len(c.glob(path))
+    
+    def hidden_files(self, path:str='./')-> List[str]:
+        import commune as c
+        path = self.resolve_path(path)
+        files = [f[len(path)+1:] for f in  c.glob(path)]
+        print(files)
+        hidden_files = [f for f in files if f.startswith('.')]
+        return hidden_files
+    
+
+    @staticmethod
+    def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
+        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        fmt2scale = {
+            'b': 1,
+            'kb': 1000,
+            'mb': 1000**2,
+            'gb': 1000**3,
+            'GiB': 1024**3,
+            'tb': 1000**4,
+        }
+            
+        assert fmt in fmt2scale.keys(), f'fmt must be one of {fmt2scale.keys()}'
+        scale = fmt2scale[fmt] 
+        x = x/scale 
+        
+        if prettify:
+            return f'{x:.2f} {f}'
+        else:
+            return x

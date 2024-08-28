@@ -1,6 +1,7 @@
 import asyncio
-import aiofiles
+
 async def async_read(path, mode='r'):
+    import aiofiles
     async with aiofiles.open(path, mode=mode) as f:
         data = await f.read()
     return data

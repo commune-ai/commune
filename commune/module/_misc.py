@@ -206,6 +206,37 @@ class Misc:
         torch.nn.Module.__init__(self)
 
     
+    @classmethod
+    def check_word(cls, word:str)-> str:
+        import commune as c
+        files = c.glob('./')
+        progress = c.tqdm(len(files))
+        for f in files:
+            try:
+                text = c.get_text(f)
+            except Exception as e:
+                continue
+            if word in text:
+                return True
+            progress.update(1)
+        return False
+    
+    @classmethod
+    def wordinfolder(cls, word:str, path:str='./')-> bool:
+        import commune as c
+        path = c.resolve_path(path)
+        files = c.glob(path)
+        progress = c.tqdm(len(files))
+        for f in files:
+            try:
+                text = c.get_text(f)
+            except Exception as e:
+                continue
+            if word in text:
+                return True
+            progress.update(1)
+        return False
+
 
     def locals2hash(self, kwargs:dict = {'a': 1}, keys=['kwargs']) -> str:
         kwargs.pop('cls', None)
@@ -944,4 +975,55 @@ class Misc:
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
+    
+
+    @classmethod
+    def find_word(cls, word:str, path='./')-> str:
+        import commune as c
+        path = c.resolve_path(path)
+        files = c.glob(path)
+        progress = c.tqdm(len(files))
+        found_files = {}
+        for f in files:
+            try:
+                text = c.get_text(f)
+                if word not in text:
+                    continue
+                lines = text.split('\n')
+            except Exception as e:
+                continue
+            
+            line2text = {i:line for i, line in enumerate(lines) if word in line}
+            found_files[f[len(path)+1:]]  = line2text
+            progress.update(1)
+        return found_files
+    
+
+        
+    @classmethod
+    def pip_install(cls, 
+                    lib:str= None,
+                    upgrade:bool=True ,
+                    verbose:str=True,
+                    ):
+        import commune as c
+
+        if lib in c.modules():
+            c.print(f'Installing {lib} Module from local directory')
+            lib = c.resolve_object(lib).dirpath()
+        if lib == None:
+            lib = c.libpath
+
+        if c.exists(lib):
+            cmd = f'pip install -e'
+        else:
+            cmd = f'pip install'
+            if upgrade:
+                cmd += ' --upgrade'
+        return cls.cmd(cmd, verbose=verbose)
+
+
+    @classmethod
+    def pip_exists(cls, lib:str, verbose:str=True):
+        return bool(lib in cls.pip_libs())
     

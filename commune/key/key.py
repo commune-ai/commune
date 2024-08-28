@@ -67,7 +67,6 @@ class MnemonicLanguageCode:
 
 
 class Keypair(c.Module):
-    keys_path = c.data_path + '/keys.json'
     def __init__(self, 
                  ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,

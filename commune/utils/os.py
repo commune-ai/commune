@@ -1,12 +1,15 @@
 
 import os
-from typing import *
 import shutil
 import subprocess
 import shlex
+import sys
+from typing import *
 
 def resolve_path(path):
-    return os.path.abspath(os.path.expanduser(path))
+    path = os.path.expanduser(path)
+    path = os.path.abspath(path)
+    return path
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
@@ -176,27 +179,27 @@ def memory_info(fmt='gb'):
     return response
 
 
-def virtual_memory_available(cls):
+def virtual_memory_available():
     import psutil
     return psutil.virtual_memory().available
 
 
-def virtual_memory_total(cls):
+def virtual_memory_total():
     import psutil
     return psutil.virtual_memory().total
 
 
-def virtual_memory_percent(cls):
+def virtual_memory_percent():
     import psutil
     return psutil.virtual_memory().percent
 
 
-def cpu_type(cls):
+def cpu_type():
     import platform
     return platform.processor()
 
 
-def cpu_info(cls):
+def cpu_info():
     
     return {
         'cpu_count': cpu_count(),
@@ -211,20 +214,15 @@ def cpu_usage(self):
     return cpu_usage
 
 
-
-
-def gpu_memory(cls):
+def gpu_memory():
     import torch
     return torch.cuda.memory_allocated()
 
-
-def num_gpus(cls):
+def num_gpus():
     import torch
     return torch.cuda.device_count()
 
-
-
-def gpus(cls):
+def gpus():
     return list(range(num_gpus()))
 
 def add_rsa_key(b=2048, t='rsa'):
@@ -390,12 +388,12 @@ def cp(path1:str, path2:str, refresh:bool = False):
 
 
 
-def cuda_available(cls) -> bool:
+def cuda_available() -> bool:
     import torch
     return torch.cuda.is_available()
 
 
-def free_gpu_memory(cls):
+def free_gpu_memory():
     gpu_info = gpu_info()
     return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
 
@@ -446,7 +444,6 @@ def gpu_info(fmt='gb') -> Dict[int, Dict[str, float]]:
 
 gpu_map =gpu_info
 
-
 def hardware(fmt:str='gb'):
     return {
         'cpu': cpu_info(),
@@ -454,8 +451,6 @@ def hardware(fmt:str='gb'):
         'disk': disk_info(fmt=fmt),
         'gpu': gpu_info(fmt=fmt),
     }
-
-
 
 def get_folder_size(folder_path:str='/'):
     folder_path = resolve_path(folder_path)
@@ -467,7 +462,6 @@ def get_folder_size(folder_path:str='/'):
             if not os.path.islink(file_path):
                 total_size += os.path.getsize(file_path)
     return total_size
-
 
 def find_largest_folder(directory: str = '~/'):
     directory = resolve_path(directory)
@@ -485,11 +479,8 @@ def find_largest_folder(directory: str = '~/'):
 
     return largest_folder, largest_size
 
-
-
 def getcwd(*args,  **kwargs):
     return os.getcwd(*args, **kwargs)
-
 
 def argv(include_script:bool = False):
     import sys
@@ -498,7 +489,6 @@ def argv(include_script:bool = False):
         return args
     else:
         return args[1:]
-
 
 def mv(path1, path2):
     assert os.path.exists(path1), path1
@@ -511,21 +501,18 @@ def mv(path1, path2):
     assert not os.path.exists(path1), path1
     return {'success': True, 'msg': f'Moved {path1} to {path2}'}
 
-
-def sys_path(cls):
+def sys_path():
     return sys.path
 
-
-def gc(cls):
+def gc():
     gc.collect()
     return {'success': True, 'msg': 'garbage collected'}
-
 
 def get_pid():
     return os.getpid()
 
 
-def nest_asyncio(cls):
+def nest_asyncio():
     import nest_asyncio
     nest_asyncio.apply()
 
