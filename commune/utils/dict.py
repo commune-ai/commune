@@ -1,25 +1,19 @@
-import os
-import time
 from time import  strftime
-import random
 import yaml
 import json
 from copy import deepcopy
 import numpy as np
 from contextlib import contextmanager
-from typing import Dict, List, Union, Any, Tuple, Callable, Optional
+from typing import *
 from importlib import import_module
-import pickle
-import math
 from typing import Union
-import datetime
-import munch
 from commune.utils.asyncio import sync_wrapper
-from commune.utils.os import ensure_path, path_exists
+from commune.utils.os import ensure_path
 import pandas as pd
+import shutil, os
 
 def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
-    import shutil, os
+    
     if os.path.isdir(path):
         shutil.rmtree(path)
     elif os.path.isfile(path):
@@ -499,26 +493,6 @@ async def async_get_yaml(path:str, return_type:str='dict', handle_error: bool = 
     return data
 
 read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
-
-async def async_put_yaml( path, data):
-    
-    from commune.utils.asyncio import  async_write
-
-    # Directly from dictionary
-    path = ensure_path(path)
-    data_type = type(data)
-    if data_type in [dict, list, tuple, set, float, str, int]:
-        yaml_str = yaml.dump(data)
-    elif data_type in [pd.DataFrame]:
-        yaml_str = yaml.dump(data.to_dict())
-    else:
-        raise NotImplementedError(f"{data_type}, is not supported")
-    
-    return await async_write(path, yaml_str)
-
-put_yaml = save_yaml = sync_wrapper(async_put_yaml)
-
-
 
 from munch import Munch
 

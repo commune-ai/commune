@@ -8,6 +8,39 @@ from copy import deepcopy
 import concurrent
 
 class Misc:
+    def utils(self):
+        path2functions = self.path2functions(self.root_path + '/utils')
+        utils = []
+        for path, functions in path2functions.items():
+            for f in functions:
+                k = self.libname +'.utils.' +path.split('.')[0] + '.' + f
+                utils.append(k)
+        return utils
+
+                 
+
+    def path2functions(self, path=None):
+        path = path or (self.root_path + '/utils')
+        paths = self.ls(path)
+        path2functions = {}
+        print(paths)
+        
+        for p in paths:
+
+            functions = []
+            if os.path.isfile(p) == False:
+                continue
+            text = self.get_text(p)
+            if len(text) == 0:
+                continue
+            
+            for line in text.split('\n'):
+                print(line)
+                if 'def ' in line and '(' in line:
+                    functions.append(line.split('def ')[1].split('(')[0])
+            replative_path = p[len(path)+1:]
+            path2functions[replative_path] = functions
+        return path2functions
 
     @staticmethod
     def chunk(sequence:list = [0,2,3,4,5,6,6,7],
@@ -64,19 +97,12 @@ class Misc:
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        x = float(x)
-        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
+        from commune.utils.math import round_sig
+        return round_sig(x, sig=sig, small_value=small_value)
     
     @classmethod
     def round_decimals(cls, x:Union[float, int], decimals: int=6, small_value: float=1.0e-9):
+       
         import math
         """
         Rounds x to the number of {sig} digits
@@ -385,20 +411,6 @@ class Misc:
             
         return params_map
     
-    @staticmethod
-    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        x = float(x)
-        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-    
-
 
 
     @classmethod
@@ -582,8 +594,6 @@ class Misc:
         options = cls.shuffle(options)
         return options[:n]
         
-
-
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
@@ -605,10 +615,13 @@ class Misc:
         return random.choice(cls.colors())
     randcolor = randcolour = colour = color = random_colour = random_color
 
+
+    def get_util(self, util:str):
+        return self.get_module(util)
+
     @classmethod
     def random_float(cls, min=0, max=1):
         return random.uniform(min, max)
-
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:

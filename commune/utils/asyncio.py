@@ -5,10 +5,6 @@ async def async_read(path, mode='r'):
         data = await f.read()
     return data
 
-async def async_write(path, data,  mode ='w'):
-    async with aiofiles.open(path, mode=mode) as f:
-        await f.write(data)
-
 def get_new_event_loop(nest_asyncio:bool = False):
     if nest_asyncio:
         import nest_asyncio

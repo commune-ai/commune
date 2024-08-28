@@ -7,6 +7,7 @@ import yaml
 import json
 import time
 import shutil
+import pandas as pd
 
 class Storage:
 
@@ -141,7 +142,6 @@ class Storage:
                 path:str,
                 default:Any=None,
                 verbose: bool = False,**kwargs):
-        from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json')
 
         cls.print(f'Loading json from {path}', verbose=verbose)
@@ -277,21 +277,47 @@ class Storage:
     
 
 
+    @staticmethod
+    def ensure_path( path):
+        """
+        ensures a dir_path exists, otherwise, it will create it 
+        """
 
+        dir_path = os.path.dirname(path)
+        if not os.path.isdir(dir_path):
+            os.makedirs(dir_path, exist_ok=True)
+
+        return path
+
+    @staticmethod
+    async def async_write(path, data,  mode ='w'):
+        import aiofiles
+        async with aiofiles.open(path, mode=mode) as f:
+            await f.write(data)
+            
     @classmethod
     def put_yaml(cls, path:str,  data: dict) -> Dict:
-        from commune.utils.dict import save_yaml
         from munch import Munch
         from copy import deepcopy
         '''
         Loads a yaml file
         '''
-        path = cls.resolve_path(path)
-            
-        if isinstance(data, Munch):
+        # Directly from dictionary
+        data_type = type(data)
+        if data_type in [pd.DataFrame]:
+            data = data.to_dict()
+        if data_type in [Munch]:
             data = cls.munch2dict(deepcopy(data))
-            
-        return save_yaml(data=data , path=path)
+        if data_type in [dict, list, tuple, set, float, str, int]:
+            yaml_str = yaml.dump(data)
+        else:
+            raise NotImplementedError(f"{data_type}, is not supported")
+        with open(path, 'w') as file:
+            file.write(yaml_str)
+        return {'success': True, 'msg': f'Wrote yaml to {path}'}
+        
+
+        
     
 
     @classmethod
