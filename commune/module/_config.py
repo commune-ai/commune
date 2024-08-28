@@ -152,3 +152,11 @@ class Config:
     def update_config(self, config):
         self.config.update(config)
         return self.config
+    
+
+    @classmethod
+    def base_config(cls, cache=True):
+        if cache and hasattr(cls, '_base_config'):
+            return cls._base_config
+        cls._base_config = cls.get_yaml(cls.config_path())
+        return cls._base_config

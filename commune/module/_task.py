@@ -8,6 +8,9 @@ import threading
     
 class Task:
 
+
+    thread_map = {}
+
     @classmethod
     def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
         is_singleton = bool(not isinstance(futures, list))

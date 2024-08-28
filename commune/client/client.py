@@ -119,8 +119,9 @@ class Client(c.Module, ClientTools):
         url = f"{module_address}/{fn}/"
         return url        
     def request(self, url: str, data: dict, headers: dict, timeout: int = 10, stream: bool = True):
-        response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
         try:             
+            response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
+
             if 'text/event-stream' in response.headers.get('Content-Type', ''):
                 return self.stream(response)
             if 'application/json' in response.headers.get('Content-Type', ''):
@@ -190,8 +191,10 @@ class Client(c.Module, ClientTools):
         url = self.get_url(fn=fn, mode=mode,  network=network)
         data = data or self.get_data(args=args,  kwargs=kwargs, params=params, **extra_kwargs)
         headers = headers or self.get_headers(data=data, key=key)
-        kwargs = {**(kwargs or {}), **extra_kwargs}
-        result = self.request( url=url,data=data,headers= headers,timeout= timeout)
+        result = self.request(url=url, 
+                              data=data,
+                              headers=headers,
+                              timeout=timeout)
         return result
     
     def __del__(self):

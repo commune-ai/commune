@@ -14,7 +14,14 @@ class Manager:
     def simple2path(cls, 
                     simple:str,
                     extension = '.py',
-                    avoid_dirnames = ['', 'src', 'commune', 'commune/module', 'commune/modules', 'modules', 'blocks', 'agents', 'commune/agents'],
+                    avoid_dirnames = ['', 'src', 
+                                      'commune', 
+                                      'commune/module', 
+                                      'commune/modules', 
+                                      'modules', 
+                                      'blocks', 
+                                      'agents', 
+                                      'commune/agents'],
                     **kwargs) -> bool:
         """
         converts the module path to a file path
@@ -52,24 +59,19 @@ class Manager:
             if os.path.isdir(module_dirpath):
                 simple_filename = simple.replace('.', '_')
                 filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module'] + simple.split('.') + ['__init__']
-                path_options +=  [module_dirpath + '/' + cls.resolve_extension(f)  for f in filename_options]  
+                path_options +=  [module_dirpath + '/' + f  for f in filename_options]  
             else:
-                module_filepath = dir_path + '/' + cls.resolve_extension(simple.replace('.', '/'), extension=extension)
+                module_filepath = dir_path + '/' + simple.replace('.', '/') 
                 path_options += [module_filepath]
-
             for p in path_options:
+                p = cls.resolve_extension(p)
                 if os.path.exists(p):
                     p_text = cls.get_text(p)
-                    # gas class in text
-                    is_class_text = 'commune' in p_text and 'class ' in p_text or '  def ' in p_text
-                    if is_class_text:
-                        path = p
-                        break
                     path =  p
-    
+                    if 'commune' in p_text and 'class ' in p_text or '  def ' in p_text:
+                        return p   
             if path != None:
                 break
-        assert path != None, f'MODULE {simple} DOES NOT EXIST'
         return path
 
     
@@ -119,7 +121,6 @@ class Manager:
         module_extension = '.'+module_extension
         if path.endswith(module_extension):
             path = path[:-len(module_extension)]
-
         if compress_path:
             # we want to remove redundant chunks 
             # for example if the path is 'module/module' we want to remove the redundant module
@@ -173,7 +174,6 @@ class Manager:
         if path.startswith('_'):
             path = path[1:]
         path = f'cached_path/{path}'
-        print(path)
         return path
     
     @classmethod
@@ -187,7 +187,8 @@ class Manager:
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
-            for p in cls.glob(path+'/**/**.py', recursive=True):
+            generator = cls.glob(path+'/**/**.py', recursive=True)
+            for p in generator:
                 if p.endswith('.py'):
                     p_classes =  cls.find_classes(p )
                     if working:
@@ -223,14 +224,60 @@ class Manager:
         classes = [c.replace(libpath_objpath_prefix, '') for c in classes]
         return classes
     
+
+
+
+    @classmethod
+    def find_class2functions(cls, path,  working=False):
+
+        path = os.path.abspath(path)
+        if os.path.isdir(path):
+            class2functions = {}
+            for p in cls.glob(path+'/**/**.py', recursive=True):
+                if p.endswith('.py'):
+                    object_path = cls.path2objectpath(p)
+                    response =  cls.find_class2functions(p )
+                    for k,v in response.items():
+                        class2functions[object_path+ '.' +k] = v
+            return class2functions
+
+        code = cls.get_text(path)
+        classes = []
+        class2functions = {}
+        class_functions = []
+        new_class = None
+        for line in code.split('\n'):
+            if all([s in line for s in ['class ', ':']]):
+                new_class = line.split('class ')[-1].split('(')[0].strip()
+                if new_class.endswith(':'):
+                    new_class = new_class[:-1]
+                if ' ' in new_class:
+                    continue
+                classes += [new_class]
+                if len(class_functions) > 0:
+                    class2functions[new_class] = cls.copy(class_functions)
+                class_functions = []
+            if all([s in line for s in ['   def', '(']]):
+                fn = line.split(' def')[-1].split('(')[0].strip()
+                class_functions += [fn]
+        if new_class != None:
+            class2functions[new_class] = class_functions
+
+        return class2functions
+    
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
-        libpath = cls.libpath + '/' + cls.libname
+        libpath = cls.libpath 
+        path.replace
         if path.startswith(libpath):
-            return cls.libname + '.' + path.replace(libpath , '')[1:].replace('/', '.').replace('.py', '')
-        pwd = cls.pwd()
-        if path.startswith(pwd):
-            return path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
+            path =   path.replace(libpath , '')[1:].replace('/', '.').replace('.py', '')
+        else: 
+            pwd = cls.pwd()
+            if path.startswith(pwd):
+                path =  path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
+            
+        return path.replace('__init__.', '.')
+        
 
     @classmethod
     def find_functions(cls, path = './', working=False):
@@ -429,7 +476,7 @@ class Manager:
         return paths
 
     @classmethod
-    def simplify_path(cls, p, avoid_terms=['modules']):
+    def simplify_path(cls, p, avoid_terms=['modules', 'agents']):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -478,6 +525,52 @@ class Manager:
         class_paths = cls.find_classes(path)
         simple_paths = cls.simplify_paths(class_paths) 
         return dict(zip(simple_paths, class_paths))
+    
+    @classmethod
+    def get_module(cls, 
+                   path:str = 'module',  
+                   cache=True,
+                   verbose = False,
+                   update_tree_if_fail = True,
+                   init_kwargs = None,
+                   catch_error = False,
+                   ) -> str:
+        import commune as c
+        path = path or 'module'
+        if catch_error:
+            try:
+                return cls.get_module(path=path, cache=cache, 
+                                      verbose=verbose, 
+                                      update_tree_if_fail=update_tree_if_fail,
+                                       init_kwargs=init_kwargs, 
+                                       catch_error=False)
+            except Exception as e:
+                return c.detailed_error(e)
+        if path in ['module', 'c']:
+            return c
+        # if the module is a valid import path 
+        shortcuts = c.shortcuts()
+        if path in shortcuts:
+            path = shortcuts[path]
+        module = None
+        cache_key = path
+        t0 = c.time()
+        if cache and cache_key in c.module_cache:
+            module = c.module_cache[cache_key]
+            return module
+        module = c.simple2object(path)
+        # ensure module
+        if verbose:
+            c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
+        
+        if init_kwargs != None:
+            module = module(**init_kwargs)
+        is_module = c.is_module(module)
+        if not is_module:
+            module = cls.obj2module(module)
+        if cache:
+            c.module_cache[cache_key] = module            
+        return module
     
     
     _tree = None
@@ -531,3 +624,57 @@ class Manager:
     @classmethod
     def has_module(cls, module):
         return module in cls.modules()
+    
+
+
+
+    
+    def new_modules(self, *modules, **kwargs):
+        for module in modules:
+            self.new_module(module=module, **kwargs)
+
+
+
+    @classmethod
+    def new_module( cls,
+                   module : str ,
+                   base_module : str = 'demo', 
+                   folder_module : bool = False,
+                   update=1
+                   ):
+        
+        import commune as c
+        base_module = c.module(base_module)
+        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in module.split('.')])
+        base_module_class_name = base_module.class_name()
+        base_module_code = base_module.code().replace(base_module_class_name, module_class_name)
+        pwd = c.pwd()
+        path = os.path.join(pwd, module.replace('.', '/'))
+        if folder_module:
+            dirpath = path
+            filename = module.replace('.', '_')
+            path = os.path.join(path, filename)
+        
+        path = path + '.py'
+        dirpath = os.path.dirname(path)
+        if os.path.exists(path) and not update:
+            return {'success': True, 'msg': f'Module {module} already exists', 'path': path}
+        if not os.path.exists(dirpath):
+            os.makedirs(dirpath, exist_ok=True)
+
+        c.put_text(path, base_module_code)
+        
+        return {'success': True, 'msg': f'Created module {module}', 'path': path}
+    
+    add_module = new_module
+
+
+    @classmethod
+    def has_local_module(cls, path=None):
+        import commune as c 
+        path = '.' if path == None else path
+        if os.path.exists(f'{path}/module.py'):
+            text = c.get_text(f'{path}/module.py')
+            if 'class ' in text:
+                return True
+        return False

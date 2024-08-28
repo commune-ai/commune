@@ -67,7 +67,6 @@ class Server(ServerManager, c.Module):
         assert callable(fn), 'fn not callable'
         setattr(self.module, name, fn)
         return {'success':True, 'message':f'Added {name} to {self.name} module'}
-
     def forward(self, fn,  request: Request):
         headers = dict(request.headers.items())
         # STEP 1 : VERIFY THE SIGNATURE AND STALENESS OF THE REQUEST TO MAKE SURE IT IS AUTHENTIC
@@ -80,7 +79,6 @@ class Server(ServerManager, c.Module):
         signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
         assert c.verify(auth=signature_data, signature=headers['signature'], address=key_address)
         self.access_module.verify(fn=fn, address=key_address)
-
         # STEP 2 : PREPARE THE DATA FOR THE FUNCTION CALL
         if 'params' in data:
             data['kwargs'] = data['params']

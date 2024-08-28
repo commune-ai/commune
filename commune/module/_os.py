@@ -493,3 +493,13 @@ class OS:
         process = psutil.Process()
         scale = fmt2scale.get(fmt)
         return (process.memory_info().rss // 1024) / scale
+    
+    @classmethod
+    def get_env(cls, key:str)-> None:
+        '''
+        Pay attention to this function. It sets the environment variable
+        '''
+        return  os.environ[key] 
+
+    env = get_env
+    
