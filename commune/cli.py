@@ -35,23 +35,14 @@ class cli:
 
         self.forward(args)
 
-
-
     def forward(self, argv=None):
+
         t0 = time.time()
         argv = argv or self.argv()
         self.input_msg = 'c ' + ' '.join(argv)
         output = None
-        """
-        the cli works as follows 
-        c {module}/{fn} arg1 arg2 arg3 ... argn
-        if you are calling a function ont he module function (the root module), it is not necessary to specify the module
-        c {fn} arg1 arg2 arg3 ... argn
-        """
-        # any of the --flags are init kwargs
-    
-        init_kwargs = {}
 
+        init_kwargs = {}
         if any([arg.startswith('--') for arg in argv]): 
             for arg in c.copy(argv):
                 if arg.startswith('--'):
@@ -62,17 +53,22 @@ class cli:
                         new_argvs = [key , new_argvs[0]]
                         return self.forward(new_argvs)
                     argv.remove(arg)
+                    if '=' not in arg:
+                        value = True
                     value = arg.split('=')[1]
                     init_kwargs[key] = self.determine_type(value)
-                
+        
+        # any of the --flags are init kwargs
         if argv[0].endswith('.py'):
             argv[0] = argv[0][:-3]
+        
 
         if ':' in argv[0]:
             # {module}:{fn} arg1 arg2 arg3 ... argn
             argv[0] = argv[0].replace(':', '/')
-            
+
         if '/' in argv[0]:
+            # prioritize the module over the function
             module = '.'.join(argv[0].split('/')[:-1])
             fn = argv[0].split('/')[-1]
             argv = [module , fn , *argv[1:]]
@@ -86,24 +82,13 @@ class cli:
         else:
             module = argv.pop(0)
             fn = argv.pop(0)
-        
+
         if isinstance(module, str):
-            try:
-                module = c.get_module(module)
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-                return None
-                
-        
+            module = c.get_module(module)
         # module = self.base_module.from_object(module)
         module_name = module.module_name()
         fn_path = f'{module_name}/{fn}'
-        try:
-            fn_obj = getattr(module, fn)
-        except Exception as e:
-        
-            fn_obj =getattr(module(), fn)
-
+        fn_obj = getattr(module, fn)
         fn_type = c.classify_fn(fn_obj)
         if fn_type == 'self' or len(init_kwargs) > 0:
             fn_obj = getattr(module(**init_kwargs), fn)
@@ -122,16 +107,16 @@ class cli:
         buffer = '⚡️'*4
         c.print(buffer+input_msg+buffer, color='yellow')
         output =  output()
-
         latency = time.time() - t0
-
         is_error =  c.is_error(output)
+
         if is_error:
             buffer = '❌'
-            msg =  f'Error(latency= {latency:.3f})' 
+            msg =  f'Error(latency={latency:.3f})' 
         else:
             buffer = '✅'
             msg = f'Result(latency={latency:.3f})'
+
         print(buffer + msg + buffer)
         
         num_spacers = max(0,  len(self.input_msg) - len(msg) )
@@ -139,7 +124,6 @@ class cli:
         right_spacers = num_spacers - left_spacers
         msg = self.seperator*left_spacers + msg + self.seperator*right_spacers
         buffer =  self.buffer_size * buffer
-        result_header = f'{buffer}{msg}{buffer}'
         is_generator = c.is_generator(output)
 
         if is_generator:
@@ -149,10 +133,9 @@ class cli:
                     c.print(item)
                 else:
                     c.print(item, end='')
-                
         else:
-            
-            c.print( output)
+            c.print(output)
+
         return output
     
         # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')

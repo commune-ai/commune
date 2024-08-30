@@ -6,7 +6,6 @@ import argparse
 import nest_asyncio
 nest_asyncio.apply()
 
-# YOU CAN DEFINE YOUR CORE MODULES BY JUST adding a class to the core folder
 # for instance if you have a class called 'os_fam' the file would be ./commune/module/_os_fam.py
 def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
     """
@@ -29,7 +28,7 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
 CORE_MODULES = get_core_modules()
 
 class c(*CORE_MODULES):
-    core_modules = ['module', 'key', 'client', 'server', 'serializer', ]
+    core_modules = ['module', 'key', 'client', 'server', 'serializer']
     libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""
@@ -403,7 +402,6 @@ class c(*CORE_MODULES):
     def forward(self, a=1, b=2):
         return a+b
     
-
     ### DICT LAND ###
 
     def to_dict(self)-> Dict:
@@ -639,7 +637,17 @@ class c(*CORE_MODULES):
         cls._local_config = local_config
         return cls._local_config
     
-
+    @classmethod
+    def local_module(cls, filename_options = ['module', 'agent', 'block'], cache=True):
+        for filename in filename_options:
+            path = os.path.dirname(f'./{filename}.py')
+            for filename in filename_options:
+                if os.path.exists(path):
+                    classes = cls.find_classes(path)
+                    if len(classes) > 0:
+                        return classes[-1]
+        return None
+    
     # local update  
     @classmethod
     def update(cls, 
@@ -668,7 +676,6 @@ class c(*CORE_MODULES):
         if key == None:
             key = cls.module_name()
         return key
-    
 
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
@@ -680,6 +687,12 @@ class c(*CORE_MODULES):
     
     def hardware(self, *args, **kwargs):
         return c.obj('commune.utils.os.hardware')(*args, **kwargs)
+
+    def set_params(self,*args, **kwargs):
+        return self.set_config(*args, **kwargs)
+    
+    def init_module(self,*args, **kwargs):
+        return self.set_config(*args, **kwargs)
   
 c.enable_routes()
 Module = c # Module is alias of c

@@ -12,8 +12,8 @@ from substrateinterface import SubstrateInterface  # type: ignore
 from substrateinterface.storage import StorageKey  # type: ignore
 
 from commune.subspace.utils import transform_stake_dmap
-from commune.errors import ChainTransactionError, NetworkQueryError
-from commune.types import NetworkParams, Ss58Address, SubnetParams
+from commune.utils.errors import ChainTransactionError, NetworkQueryError
+from commune.utils.types import NetworkParams, Ss58Address, SubnetParams
 
 # TODO: InsufficientBalanceError, MismatchedLengthError etc
 
