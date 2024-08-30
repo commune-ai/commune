@@ -966,30 +966,16 @@ def path2text(cls, path:str, relative=False):
 def root_key(cls):
     return cls.get_key()
 
-
 def root_key_address(cls) -> str:
     return cls.root_key().ss58_address
 
-
-
 def is_root_key(cls, address:str)-> str:
     return address == cls.root_key().ss58_address
-
-
-@staticmethod
-def repo2module( repo, module = None):
-    if module == None:
-        module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-    
-    cls.new_module(module=module, repo=repo)
-    return {'module':module, 'repo':repo, 'status':'success'}
 
 # time within the context
 
 def context_timer(cls, *args, **kwargs):
     return cls.timer(*args, **kwargs)
-
-
 
 def folder_structure(cls, path:str='./', search='py', max_depth:int=5, depth:int=0)-> dict:
     import glob

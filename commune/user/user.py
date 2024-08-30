@@ -164,6 +164,6 @@ class User(c.Module):
                 response = getattr(self, f'rm_user')(add_user_address)
                 st.write(response)
 
-
-User.run(__name__)
+if __name__ == '__main__':
+    User.run()
 
