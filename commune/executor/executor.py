@@ -3,11 +3,8 @@ import concurrent
 import threading
 from typing import *
 import threading
-
-
-    
-class Task:
-
+import commune as c
+class Executor(c.Module):
 
     thread_map = {}
 
@@ -223,16 +220,6 @@ class Task:
         tasks = getattr(cls, f'{mode}_list')(task)
         tasks = list(filter(lambda x: x not in modules, tasks))
         return tasks
-
-
-    @classmethod
-    def asubmit(cls, fn:str, *args, **kwargs):
-        
-        async def _asubmit():
-            kwargs.update(kwargs.pop('kwargs',{}))
-            return fn(*args, **kwargs)
-        return _asubmit()
-
 
 
     thread_map = {}

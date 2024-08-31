@@ -155,6 +155,7 @@ routes:
     - kill_many
     - kill_all
     - wait_for_server
+    - remote_fn
 
   pm2:
     - [kill_many, pm2_kill_many]
@@ -206,6 +207,17 @@ routes:
     - generate
     - ask
     - models
+  executor:
+    - wait
+    - gather
+    - submit
+    - submit_batch
+    - thread
+    - threads
+    - as_completed
+    - is_coroutine
+    - obj2typestr
+    - tasks
+    - thread_map
 
-  chat:
-    - ask s
+
