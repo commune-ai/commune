@@ -434,44 +434,28 @@ class Subspace(c.Module):
         # if all lowercase then we want to capitalize the first letter
 
         module = self.resolve_query_module_from_name(name)
-        path = f'query_map/{self.config.network}/{module}.{name}'
         # resolving the params
         params = params or []
-        is_single_subnet = bool(netuid != 'all' and netuid != None)
-        if is_single_subnet:
-            params = [netuid] + params
-        if not isinstance(params, list):
-            params = [params]
+        params = [netuid] + params if bool(netuid != 'all' and netuid != None) else params
+        params = params if isinstance(params, list) else [params]
+        path = f'query_map/{self.network}/{module}.{name}'
         if len(params) > 0 :
             path = path + f'::params::' + '-'.join([str(p) for p in params])
-
         value = self.get(path, None , max_age=max_age, update=update)
-
         if value == None:
             # if the value is a tuple then we want to convert it to a list
-    
-            while trials > 0:
-                try:
-                    substrate = self.get_substrate( mode=mode)
-                    print(f'Querying {name} with params {params} and block {block}')
-                    qmap =  substrate.query_map(
-                        module=module,
-                        storage_function = name,
-                        params = params,
-                        page_size = page_size,
-                        max_results = max_results,
-                        block_hash =substrate.get_block_hash(block)
-                    )
-                    break
-                except Exception as e:
-                    trials = trials - 1
-                    if trials == 0:
-                        raise e
-                    
+            substrate = self.get_substrate( mode=mode)
+            c.print(f'Querying {name} with params {params} and block {block}')
+            qmap =  substrate.query_map(
+                module=module,
+                storage_function = name,
+                params = params,
+                page_size = page_size,
+                max_results = max_results,
+                block_hash =substrate.get_block_hash(block)
+            )
             new_qmap = {} 
-            progress_bar = c.progress(qmap, desc=f'Querying {name}(network={self.network})')
             for (k,v) in qmap:
-                progress_bar.update(1)
                 if not isinstance(k, tuple):
                     k = [k]
                 if type(k) in [tuple,list]:
@@ -501,9 +485,7 @@ class Subspace(c.Module):
                 # sort the dictionary by key
                 d = dict(sorted(d.items()))
             return d
-        
         new_map = process_qmap(new_qmap)
-
         return new_map
     
     def runtime_spec_version(self):
@@ -3057,10 +3039,6 @@ class Subspace(c.Module):
             
         return netuid2module
                 
-            
-        
-
-
     def netuid2uid(self, key=None, update=False, **kwargs) -> Dict[str, str]:
         key = self.resolve_key_ss58(key)
         netuids = self.netuids(update=update)

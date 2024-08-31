@@ -547,7 +547,7 @@ class Manager:
             except Exception as e:
                 return c.detailed_error(e)
         if path in ['module', 'c']:
-            return c
+            return c.Module
         # if the module is a valid import path 
         shortcuts = c.shortcuts()
         if path in shortcuts:
