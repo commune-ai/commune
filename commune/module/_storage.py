@@ -12,16 +12,11 @@ import pandas as pd
 class Storage:
 
     @classmethod
-    async def async_put_json(cls,*args,**kwargs) -> str:
-        return cls.put_json(*args, **kwargs) 
-    
-    @classmethod
     def put_json(cls, 
                  path:str, 
                  data:Dict, 
                  meta = None,
                  verbose: bool = False,
-
                  **kwargs) -> str:
         if meta != None:
             data = {'data':data, 'meta':meta}
@@ -48,13 +43,11 @@ class Storage:
     def rmdir(cls, path):
         return shutil.rmtree(path)
 
-
     @classmethod
     def isdir(cls, path):
         path = cls.resolve_path(path=path)
         return os.path.isdir(path)
         
-    
     @classmethod
     def isfile(cls, path):
         path = cls.resolve_path(path=path)
@@ -167,24 +160,7 @@ class Storage:
         return exists
 
  
-    exists = exists_json = file_exists 
-
-
-    @classmethod
-    def filepath(cls, obj=None) -> str:
-        '''
-        removes the PWD with respect to where module.py is located
-        '''
-        obj = cls.resolve_object(obj)
-        try:
-            module_path =  inspect.getfile(obj)
-        except Exception as e:
-            print(f'Error: {e}')
-            module_path =  inspect.getfile(cls)
-        return module_path
-
-    pythonpath = pypath =  filepath
-
+    exists = exists_json = file_exists
 
 
     @classmethod
@@ -637,6 +613,7 @@ class Storage:
 
     def is_dir_empty(self, path:str):
         return len(self.ls(path)) == 0
+    
     @classmethod
     def get_file_size(cls, path:str):
         path = cls.resolve_path(path)
@@ -650,9 +627,6 @@ class Storage:
             return True
         except:
             return False
-        
-
-
 
     def file2text(self, path = './', relative=True,  **kwargs):
         path = os.path.abspath(path)
@@ -684,7 +658,6 @@ class Storage:
         hidden_files = [f for f in files if f.startswith('.')]
         return hidden_files
     
-
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
         assert type(x) in [int, float], f'x must be int or float, not {type(x)}'

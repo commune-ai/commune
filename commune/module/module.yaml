@@ -1,5 +1,5 @@
 
-port_range: 2500-5000
+port_range: 2500-5001
 shortcuts:
   chain: subspace.chain
   d: docker
@@ -18,6 +18,7 @@ shortcuts:
   router: model.openrouter
   ticket: key.ticket
   namespace: server.namespace
+
 routes:
   vali:
     - run_epoch
@@ -148,17 +149,9 @@ routes:
     - dict2json
     - json2dict
 
-  server:
-    - serve
-    - fleet
-    - kill
-    - kill_many
-    - kill_all
-    - wait_for_server
-    - remote_fn
-
+  server: [serve, serve_many, serve_all, kill, kill_many, kill_all, wait_for_server]
   pm2:
-    - [kill_many, pm2_kill_many]
+    - [kill_many, pm2_kill_many] # we can change the name of the function
     - [kill, pm2_kill]
     - [pm2ls, pm2ls]
     - [kill_all, pm2_kill_all]
@@ -169,7 +162,8 @@ routes:
     - [exists, pm2_exists]
     - [servers, pm2_servers]
     - [logs, pm2_logs]
-
+    - launch
+    - remote_fn
   vali:
     - run_epoch
     - setup_vali
@@ -219,5 +213,6 @@ routes:
     - obj2typestr
     - tasks
     - thread_map
+    - detailed_error
 
 

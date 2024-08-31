@@ -13,7 +13,7 @@ class Logger:
         import logging
         from rich.logging import RichHandler
         from rich.console import Console
-        logging.basicConfig(level=logging.DEBUG, handlers=[RichHandler()])   
+        logging.basicConfig( handlers=[RichHandler()])   
             # print the line number
         console = Console()
         cls.console = console

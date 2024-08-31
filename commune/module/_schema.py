@@ -418,12 +418,22 @@ class Schema:
         elif '@staticmethod' in lines[0]:
             mode = 'static'
         module_code = cls.code()
-        start_line_text = module_code.split('):')[0] + '):'
-        start_line = cls.find_code_line(start_line_text, code=module_code)[0]['idx'] - lines_before_fn_def - 1
-        end_line = start_line + len(lines)   # find the endline
-        has_docs = bool('"""' in code or "'''" in code)
-        filepath = cls.filepath()
+        in_fn = False
+        start_line = 0
+        end_line = 0
+        fn_code_lines = []
+        for i, line in enumerate(module_code.split('\n')):
+            if f'def {fn}('.replace(' ', '') in line.replace(' ', ''):
+                in_fn = True
+                start_line = i + 1
+            if in_fn:
+                fn_code_lines.append(line)
+                if ('def ' in line or '' == line) and len(fn_code_lines) > 1:
+                    end_line = i - 1
+                    break
 
+        if not in_fn:
+            end_line = start_line + len(fn_code_lines)   # find the endline
         # start code line
         for i, line in enumerate(lines):
             
@@ -432,15 +442,12 @@ class Schema:
                 start_code_line = i
                 break 
 
-        
         return {
             'start_line': start_line,
             'end_line': end_line,
-            'has_docs': has_docs,
             'code': code,
             'n_lines': len(lines),
-            'hash': c.hash(code),
-            'path': filepath,
+            'hash': cls.hash(code),
             'start_code_line': start_code_line + start_line ,
             'mode': mode
             
@@ -627,7 +634,6 @@ class Schema:
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
         is_root_module = cls.is_root_module()
-    
         obj = cls.resolve_object(obj)
         if include_parents:
             parent_functions = cls.parent_functions(obj)
@@ -643,7 +649,6 @@ class Schema:
         functions = []
         child_functions = dir(obj)
         function_names = [fn_name for fn_name in child_functions + parent_functions]
-
 
         for fn_name in function_names:
             if fn_name in avoid_functions:
@@ -712,7 +717,9 @@ class Schema:
         return len(self.fns(search=search))
     
     fn_n = n_fns
-    fns = functions
+    @classmethod
+    def fns(self, search = None, include_parents = True):
+        return self.get_functions(search=search, include_parents=include_parents)
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
         '''

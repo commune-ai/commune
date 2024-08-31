@@ -137,18 +137,6 @@ class Web(c.Module):
     def find(self,url=None, tag='p', **kwargs):
         return self.soup(url=url).find(tag, **kwargs)
 
-
-    def sand(self, url='https://www.fool.ca/recent-headlines/', **kwargs):
-        
-
-        webpage = self.webpage(url)
-        page_soup = self.soup(webpage, "html.parser", **kwargs)
-        title = page_soup.find("title")
-        containers = page_soup.findAll("p","promo")
-        for container in containers:
-            print(container)
-
-    
     @classmethod
     def install(cls):
         c.cmd("pip3 install beautifulsoup4")
