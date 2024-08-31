@@ -598,19 +598,6 @@ class Keypair(c.Module):
         if 'ss58_address' in obj:
             obj['_ss58_address'] = obj.pop('ss58_address')
         return  cls(**obj)
-    
-    @classmethod
-    def sand(cls):
-        
-        for k in cls.new_key(suri=2):
-            
-            password = 'fam'
-            enc = cls.encrypt(k, password=password)
-            dec = cls.decrypt(enc, password='bro ')
-            
-            
-
-
 
     @classmethod
     def generate_mnemonic(cls, words: int = 24, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -1533,8 +1520,8 @@ class Keypair(c.Module):
     
 
     
-      
-Keypair.run(__name__)
+if __name__ == "__main__":      
+    Keypair.run()
 
 
 

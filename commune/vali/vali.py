@@ -493,6 +493,5 @@ class Vali(c.Module):
         setattr(vali, 'score_module', function)
         return vali
     
- 
-
-Vali.run(__name__)
+if __name__ == '__main__':
+    Vali.run()

@@ -2,6 +2,7 @@ import os
 import inspect
 from typing import *
 import json
+
 import argparse
 import nest_asyncio
 nest_asyncio.apply()
@@ -28,23 +29,22 @@ def get_core_modules(prefix = 'commune.module', core_prefix = '_'):
 CORE_MODULES = get_core_modules()
 
 class c(*CORE_MODULES):
-    core_modules = ['module', 'key', 'client', 'server', 'serializer']
+    core_modules = ['module', 'key', 'subspace', 'web3', 'serializer', 'pm2',  
+                    'executor', 'client', 'server', 
+                    'namespace' ]
     libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
-    giturl = git_url = 'https://github.com/commune-ai/commune.git' # tge gutg
+    giturl = 'https://github.com/commune-ai/commune.git' # tge gutg
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
-    rootpath = root_path  = root   = '/'.join(__file__.split('/')[:-2])  # the path to the root of the library
+    rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-2])  # the path to the root of the library
     homepath = home_path = os.path.expanduser('~') # the home path
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
-    repo_path  = os.path.dirname(root_path) # the path to the repo
-    blacklist = [] # blacklist of functions to not to access for outside use
-    server_mode = 'http' # http, grpc, ws (websocket)
-    default_network = 'local' # local, subnet
+    repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
@@ -251,6 +251,8 @@ class c(*CORE_MODULES):
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
+        if isinstance(obj, str):
+            obj = c.module(obj, **kwargs)
         if cls._obj != None:
             return cls._obj
         else:
@@ -292,7 +294,7 @@ class c(*CORE_MODULES):
     refresh = reset = restart
     
     @classmethod
-    def argparse(cls, verbose: bool = False, **kwargs):
+    def argparse(cls):
         parser = argparse.ArgumentParser(description='Argparse for the module')
         parser.add_argument('-m', '--m', '--module', '-module', dest='function', help='The function', type=str, default=cls.module_name())
         parser.add_argument('-fn', '--fn', dest='function', help='The function', type=str, default="__init__")
@@ -301,8 +303,6 @@ class c(*CORE_MODULES):
         parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
-        if verbose:
-            c.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.params = json.loads(args.params.replace("'",'"'))
         args.inputs = json.loads(args.input.replace("'",'"'))
@@ -316,7 +316,6 @@ class c(*CORE_MODULES):
                 args.args = args.params
             else:
                 raise Exception('Invalid params', args.params)
-            
         return args
         
     @classmethod
@@ -855,6 +854,187 @@ class c(*CORE_MODULES):
 
         return schema
     
+
+    @classmethod
+    def has_routes(cls):
+        return cls.config().get('routes') is not None
+    
+    route_cache = None
+    @classmethod
+    def routes(cls, cache=True):
+        if cls.route_cache is not None and cache:
+            return cls.route_cache 
+        routes =  cls.get_yaml(os.path.dirname(__file__)+ '/module.yaml').get('routes')
+        cls.route_cache = routes
+        return routes
+
+    #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
+
+
+    @classmethod
+    def route_fns(cls):
+        routes = cls.routes()
+        route_fns = []
+        for module, fns in routes.items():
+            for fn in fns:
+                if isinstance(fn, dict):
+                    fn = fn['to']
+                elif isinstance(fn, list):
+                    fn = fn[1]
+                elif isinstance(fn, str):
+                    fn
+                else:
+                    raise ValueError(f'Invalid route {fn}')
+                route_fns.append(fn)
+        return route_fns
+            
+
+    @staticmethod
+    def resolve_to_from_fn_routes(fn):
+        '''
+        resolve the from and to function names from the routes
+        option 1: 
+        {fn: 'fn_name', name: 'name_in_current_module'}
+        option 2:
+        {from: 'fn_name', to: 'name_in_current_module'}
+        '''
+        
+        if type(fn) in [list, set, tuple] and len(fn) == 2:
+            # option 1: ['fn_name', 'name_in_current_module']
+            from_fn = fn[0]
+            to_fn = fn[1]
+        elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
+            if 'fn' in fn and 'name' in fn:
+                to_fn = fn['name']
+                from_fn = fn['fn']
+            elif 'from' in fn and 'to' in fn:
+                from_fn = fn['from']
+                to_fn = fn['to']
+        else:
+            from_fn = fn
+            to_fn = fn
+        
+        return from_fn, to_fn
+    
+
+    @classmethod
+    def enable_routes(cls, routes:dict=None, verbose=False):
+        from functools import partial
+        """
+        This ties other modules into the current module.
+        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
+        This allows you to call the function as if it were a method of the current module.
+        for example
+        """
+        my_path = cls.class_name()
+        if not hasattr(cls, 'routes_enabled'): 
+            cls.routes_enabled = False
+
+        t0 = cls.time()
+
+        # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
+        # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
+        def fn_generator( *args, module_ph, fn_ph, **kwargs):
+            module_ph = cls.module(module_ph)
+            fn_type = module_ph.classify_fn(fn_ph)
+            module_ph = module_ph() if fn_type == 'self' else module_ph
+            return getattr(module_ph, fn_ph)(*args, **kwargs)
+
+        if routes == None:
+            if not hasattr(cls, 'routes'):
+                return {'success': False, 'msg': 'routes not found'}
+            routes = cls.routes() if callable(cls.routes) else cls.routes
+        for m, fns in routes.items():
+            if fns in ['all', '*']:
+                fns = c.functions(m)
+
+            for fn in fns: 
+                # resolve the from and to function names
+                from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
+                # create a partial function that is bound to the module
+                fn_obj = partial(fn_generator, fn_ph=from_fn, module_ph=m )
+                # make sure the funciton is as close to the original function as possible
+                fn_obj.__name__ = to_fn
+                # set the function to the current module
+                setattr(cls, to_fn, fn_obj)
+                cls.print(f'ROUTE({m}.{fn} -> {my_path}:{fn})', verbose=verbose)
+
+        t1 = cls.time()
+        cls.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
+        cls.routes_enabled = True
+        return {'success': True, 'msg': 'enabled routes'}
+    
+    @classmethod
+    def fn2module(cls):
+        '''
+        get the module of a function
+        '''
+        routes = cls.routes()
+        fn2module = {}
+        for module, fn_routes in routes.items():
+            for fn_route in fn_routes:
+                if isinstance(fn_route, dict):
+                    fn_route = fn_route['to']
+                elif isinstance(fn_route, list):
+                    fn_route = fn_route[1]
+                fn2module[fn_route] = module    
+        return fn2module
+
+    def is_route(cls, fn):
+        '''
+        check if a function is a route
+        '''
+        return fn in cls.fn2module()
+    
+
+    
+    @classmethod
+    def has_test_module(cls, module=None):
+        module = module or cls.module_name()
+        return cls.module_exists(cls.module_name() + '.test')
+    
+    @classmethod
+    def test(cls,
+              module=None,
+              timeout=42, 
+              trials=3, 
+              parallel=False,
+              ):
+        module = module or cls.module_name()
+
+        if cls.has_test_module(module):
+            cls.print('FOUND TEST MODULE', color='yellow')
+            module = module + '.test'
+        self = cls.module(module)()
+        test_fns = self.test_fns()
+        print(f'testing {module} {test_fns}')
+
+        def trial_wrapper(fn, trials=trials):
+            def trial_fn(trials=trials):
+
+                for i in range(trials):
+                    try:
+                        return fn()
+                    except Exception as e:
+                        print(f'Error: {e}, Retrying {i}/{trials}')
+                        cls.sleep(1)
+                return False
+            return trial_fn
+        fn2result = {}
+        if parallel:
+            future2fn = {}
+            for fn in self.test_fns():
+                cls.print(f'testing {fn}')
+                f = cls.submit(trial_wrapper(getattr(self, fn)), timeout=timeout)
+                future2fn[f] = fn
+            for f in cls.as_completed(future2fn, timeout=timeout):
+                fn = future2fn.pop(f)
+                fn2result[fn] = f.result()
+        else:
+            for fn in self.test_fns():
+                fn2result[fn] = trial_wrapper(getattr(self, fn))()       
+        return fn2result
+
 
 c.enable_routes()
 Module = c # Module is alias of c

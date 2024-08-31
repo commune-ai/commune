@@ -222,6 +222,16 @@ class Executor(c.Module):
         return tasks
 
 
+    @classmethod
+    def asubmit(cls, fn:str, *args, **kwargs):
+        
+        async def _asubmit():
+            kwargs.update(kwargs.pop('kwargs',{}))
+            return fn(*args, **kwargs)
+        return _asubmit()
+
+
+
     thread_map = {}
     
     @classmethod

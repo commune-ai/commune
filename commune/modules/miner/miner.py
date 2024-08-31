@@ -293,14 +293,6 @@ class Miner(c.Module):
             futures += [future]
         for f in c.as_completed(futures):
             print(f.result())
-            
-    def sand(self):
-        keys = c.keys()
-        rm_keys = []
-        for k in keys:
-            if '.' in k and k.startswith(self.key_prefix):
-                rm_keys.append(k)
-        return c.rm_keys(rm_keys)
 
     def leaderboard(self, 
                 avoid_keys=['stake_from', 'key', 
