@@ -22,7 +22,7 @@ class OpenAILLM(c.Module):
                 ):
         
 
-        self.set_config(kwargs=locals())
+        self.set_config(locals())
         self.usage = c.module('model.openai.usage_tracker')(tokenizer=tokenizer, max_output_tokens=max_output_tokens, max_input_tokens=max_input_tokens)
         self.birth_time = c.time()
         self.set_api_key(api_key)

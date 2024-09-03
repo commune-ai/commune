@@ -1,0 +1,182 @@
+vali:
+  - run_epoch
+cli: 
+  - parse_args
+streamlit: 
+  - set_page_config
+docker: 
+  - containers
+client: 
+  - call
+  - call_search
+  - connect
+repo: 
+  - is_repo
+key:
+  - rename_key
+  - ss58_encode
+  - ss58_decode
+  - key2mem
+  - key_info_map
+  - key_info
+  - valid_ss58_address
+  - add_key
+  - from_password
+  - str2key
+  - pwd2key
+  - getmem
+  - mem
+  - mems
+  - switch_key
+  - module_info
+  - rename_kefy
+  - mv_key
+  - add_key
+  - add_keys
+  - key_exists
+  - ls_keys
+  - rm_key
+  - key_encrypted
+  - encrypt_key
+  - staked
+  - encrypt_key
+  - get_keys
+  - rm_keys
+  - key2address
+  - key_addresses
+  - address2key
+  - is_key
+  - new_key
+  - save_keys
+  - load_key
+  - load_keys 
+  - get_signer 
+  - encrypt_file
+  - decrypt_file
+  - get_key_for_address
+  - resolve_key_address
+  - verify_ticket
+  - ticket
+remote:
+  - host2ssh
+namespace: [
+            add_remote, 
+            network2namespace, 
+            register_server,
+            deregister_server,
+            server_exists, 
+            add_server,
+            has_server,
+            add_servers, 
+            rm_servers,
+            rm_server,
+            remote_servers,
+            namespace, 
+            rm_namespace,
+            empty_namespace,
+            add_namespace,
+            update_namespace,
+            build_namespace,
+            put_namespace,
+            get_namespace,
+            server2info, 
+            infos, 
+            get_address, 
+            servers,
+            name2address, 
+            namespace, 
+            get_address]
+app : 
+  - start_app
+  - app
+  - apps
+  - app2info
+  - [kill, kill_app]
+user: 
+  - role2users
+  - is_user
+  - get_user
+  - update_user
+  - get_role
+  - refresh_users
+  - user_exists
+  - is_admin
+  - admins
+  - add_admin
+  - rm_admin
+  - num_roles
+  - rm_user
+streamlit:
+  - load_style
+  - st_load_css
+docker:
+  - dlogs
+  - images
+code: 
+  - determine_type
+  - process_kwargs
+  - python2str
+  - str2python
+  - bytes2str
+  - str2bytes
+  - str2python
+  - python2str
+  - is_generator
+  - dict2munch
+  - munch2dict
+  - dict2json
+  - json2dict
+
+server: [serve, serve_many, serve_all, kill, kill_many, kill_all, wait_for_server]
+pm2:
+  - [kill_many, pm2_kill_many] # we can change the name of the function
+  - [kill, pm2_kill]
+  - [pm2ls, pm2ls]
+  - [kill_all, pm2_kill_all]
+  - [start, pm2_start]
+  - [stop, pm2_stop]
+  - [restart, pm2_restart]
+  - [restart_prefix, pm2_restart_prefix]
+  - [exists, pm2_exists]
+  - [servers, pm2_servers]
+  - [logs, pm2_logs]
+  - launch
+  - remote_fn
+vali:
+  - run_epoch
+  - setup_vali
+  - from_module
+
+subspace: 
+  - key2balance
+  - my_keys
+  - key2value
+  - send
+  - transfer
+  - stake
+  - unstake
+  - register
+  - subnet_params
+  - global_params
+  - balance
+  - get_balance
+  - get_stak
+  - get_stake_to
+  - get_stake_from
+  - my_stake_to
+  - register
+  - unstake
+  - stake
+  - transfer
+  - netuid2subnet
+  - subnet2netuid
+  - stake_transfer
+  - is_registered
+  - registered_subnets
+  - registered_netuids
+model.openrouter:
+  - generate
+  - ask
+  - models
+chat: 
+  - ask

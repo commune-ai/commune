@@ -2,7 +2,7 @@ import commune as c
 
 class DataTextCode(c.Module):
     def __init__(self, **kwargs):
-        config = self.set_config(kwargs=kwargs)
+        config = self.set_config(kwargs)
         self.folder_path = self.resolve_path(config.folder_path)
         self.filepaths = sorted([f for f in self.walk(self.folder_path) if f.endswith('.py')])
 

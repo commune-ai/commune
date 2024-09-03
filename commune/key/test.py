@@ -2,7 +2,7 @@
 import commune as c
 
 
-class TestKey(c.m('key')):
+class TestKey(c.module('key')):
 
     @classmethod
     def test_verification(cls, key='test'):

@@ -6,7 +6,6 @@ import os
 import commune as c
 import requests 
 from substrateinterface import SubstrateInterface
-
 class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
@@ -37,7 +36,7 @@ class Subspace(c.Module):
                 **kwargs,
         ):
         self.config = self.set_config(locals())
-        self.url_path = self.dirpath() +  '/urls.yaml'
+    
         # merge the config with the subspace config
         self.config = c.dict2munch({**Subspace.config(), **self.config})
         self.set_network(network )
@@ -196,7 +195,7 @@ class Subspace(c.Module):
             return url
         network = self.resolve_network(network)
         if url == None:
-            urls_map = getattr(self.urls(),  network)
+            urls_map = self.urls()
             urls = urls_map.get(mode, [])
             assert len(urls) > 0, f'No urls found for network {network} and mode {mode}'
             if len(urls) > 1:
@@ -220,8 +219,10 @@ class Subspace(c.Module):
         if self._substrate == None:
             self.set_network()
         return self._substrate
-
     
+    def urls(self):
+        return c.get_yaml(self.dirpath() + '/urls.yaml').get(self.network)
+
     @substrate.setter
     def substrate(self, value):
         self._substrate = value
@@ -816,9 +817,6 @@ class Subspace(c.Module):
             subnet_params[k] = self.format_amount(subnet_params[k], fmt=fmt)
         return subnet_params
 
-    def urls(self):
-        return c.dict2munch(c.load_yaml(self.url_path))
-    
 
     def global_state(self, max_age=None, update=False):
         max_age = max_age or self.config.max_age
@@ -2724,8 +2722,7 @@ class Subspace(c.Module):
         return subnet2netuid
     name2netuid = subnet2netuid
 
-    
-    
+
     def get_uid( self, key: str, netuid: int = 0, block: Optional[int] = None, update=False, **kwargs) -> int:
         return self.query( 'Uids', block=block, params=[ netuid, key ] , update=update, **kwargs)  
 
@@ -2811,7 +2808,6 @@ class Subspace(c.Module):
         netuid2tempo = None
         emissions = self.query_vector('Emission',  netuid='all', **kwargs)
         for netuid, netuid_emissions in emissions.items():
-            
             if period == 'day':
                 if netuid2tempo == None:
                     netuid2tempo = self.query_map('Tempo', netuid='all', **kwargs)
@@ -2820,7 +2816,6 @@ class Subspace(c.Module):
             else:
                 multiplier = 1
             netuid2emission[netuid] = self.format_amount(sum(netuid_emissions), fmt=fmt) * multiplier
-        
         netuid2emission = {k: v   for k,v in netuid2emission.items()}
         if names:
             netuid2emission = {self.netuid2name(netuid=k): v for k,v in netuid2emission.items()}

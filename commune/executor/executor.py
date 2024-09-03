@@ -1,286 +1,364 @@
-import asyncio
+
+import os
+import sys
+import time
+import queue
+import random
+import weakref
+import itertools
+import threading
+
+from loguru import logger
+from typing import Callable
 import concurrent
-import threading
-from typing import *
-import threading
+from concurrent.futures._base import Future
 import commune as c
-class Executor(c.Module):
+import gc
 
-    thread_map = {}
+import time
+from concurrent.futures._base import Future
+import commune as c
 
-    @classmethod
-    def wait(cls, futures:list, timeout:int = None, generator:bool=False, return_dict:bool = True) -> list:
-        is_singleton = bool(not isinstance(futures, list))
-
-        futures = [futures] if is_singleton else futures
-        # if type(futures[0]) in [asyncio.Task, asyncio.Future]:
-        #     return cls.gather(futures, timeout=timeout)
-            
-        if len(futures) == 0:
-            return []
-        if cls.is_coroutine(futures[0]):
-            return cls.gather(futures, timeout=timeout)
+class Task(c.Module):
+    def __init__(self, 
+                fn:str,
+                args:list, 
+                kwargs:dict, 
+                timeout:int=10, 
+                priority:int=1, 
+                path = None, 
+                **extra_kwargs):
         
-        future2idx = {future:i for i,future in enumerate(futures)}
-
-        if timeout == None:
-            if hasattr(futures[0], 'timeout'):
-                timeout = futures[0].timeout
-            else:
-                timeout = 30
+        self.future = Future()
+        self.fn = fn # the function to run
+        self.start_time = time.time() # the time the task was created
+        self.end_time = None
+        self.args = args # the arguments of the task
+        self.kwargs = kwargs # the arguments of the task
+        self.timeout = timeout # the timeout of the task
+        self.priority = priority # the priority of the task
+        self.data = None # the result of the task
+        self.latency = None
     
-        if generator:
-            def get_results(futures):
-                try: 
-                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                        if return_dict:
-                            idx = future2idx[future]
-                            yield {'idx': idx, 'result': future.result()}
-                        else:
-                            yield future.result()
-                except Exception as e:
-                    yield None
-                
-        else:
-            def get_results(futures):
-                results = [None]*len(futures)
-                try:
-                    for future in concurrent.futures.as_completed(futures, timeout=timeout):
-                        idx = future2idx[future]
-                        results[idx] = future.result()
-                        del future2idx[future]
-                    if is_singleton: 
-                        results = results[0]
-                except Exception as e:
-                    unfinished_futures = [future for future in futures if future in future2idx]
-                    cls.print(f'Error: {e}, {len(unfinished_futures)} unfinished futures with timeout {timeout} seconds')
-                return results
-
-        return get_results(futures)
+        self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
+        # for the sake of simplicity, we'll just add all the extra kwargs to the task object
+        self.path = self.resolve_path(path) if path != None else None
+        self.status = 'pending' # pending, running, done
+        # save the task state
 
 
+    @property
+    def lifetime(self) -> float:
+        return time.time() - self.start_time
 
-    @classmethod
-    def gather(cls,jobs:list, timeout:int = 20, loop=None)-> list:
+    @property
+    def state(self) -> dict:
+        return {
+            'fn': self.fn.__name__,
+            'args': self.args,
+            'kwargs': self.kwargs,
+            'timeout': self.timeout,
+            'start_time': self.start_time, 
+            'end_time': self.end_time,
+            'latency': self.latency,
+            'priority': self.priority,
+            'status': self.status,
+            'data': self.data, 
+        }
+    
+    
+    def run(self):
+        """Run the given work item"""
+        # Checks if future is canceled or if work item is stale
+        self.start_time = c.time()
 
-        if loop == None:
-            loop = cls.get_event_loop()
+        if (not self.future.set_running_or_notify_cancel()) or (time.time() - self.start_time) > self.timeout:
+            self.future.set_exception(TimeoutError('Task timed out'))
+        try:
+            data = self.fn(*self.args, **self.kwargs)
+            self.status = 'complete'
+        except Exception as e:
+            data = c.detailed_error(e)
+            if 'event loop' in data['error']: 
+                c.new_event_loop(nest_asyncio=True)
+            self.status = 'failed'
 
-        if not isinstance(jobs, list):
-            singleton = True
-            jobs = [jobs]
-        else:
-            singleton = False
-
-        assert isinstance(jobs, list) and len(jobs) > 0, f'Invalid jobs: {jobs}'
-        # determine if we are using asyncio or multiprocessing
-
-        # wait until they finish, and if they dont, give them none
-
-        # return the futures that done timeout or not
-        async def wait_for(future, timeout):
-            try:
-                result = await asyncio.wait_for(future, timeout=timeout)
-            except asyncio.TimeoutError:
-                result = {'error': f'TimeoutError: {timeout} seconds'}
-
-            return result
+        self.future.set_result(data)
+        # store the result of the task
+        if self.path != None:
+            self.save(self.path, self.state)
         
-        jobs = [wait_for(job, timeout=timeout) for job in jobs]
-        future = asyncio.gather(*jobs)
-        results = loop.run_until_complete(future)
+        self.end_time = c.time()
+        self.latency = self.end_time - self.start_time
+        self.data = data       
 
-        if singleton:
-            return results[0]
-        return results
+
+
+    def result(self) -> object:
+        return self.future.result()
+
+    @property
+    def _condition(self) -> bool:
+        return self.future._condition
+    @property
+    def _state(self, *args, **kwargs) -> bool:
+        return self.future._state
+
+    @property
+    def _waiters(self) -> bool:
+        return self.future._waiters
+
+    def cancel(self) -> bool:
+        self.future.cancel()
+
+    def running(self) -> bool:
+        return self.future.running()
     
+    def done(self) -> bool:
+        return self.future.done()
+
+    def __lt__(self, other):
+        if isinstance(other, Task):
+            return self.priority < other.priority
+        elif isinstance(other, int):
+            return self.priority < other
+        else:
+            raise TypeError(f"Cannot compare Task with {type(other)}")
 
 
+NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
-    @classmethod
-    def submit(cls, 
-                fn, 
-                params = None,
-                kwargs: dict = None, 
-                args:list = None, 
-                timeout:int = 40, 
+class ThreadPoolExecutor(c.Module):
+    """Base threadpool executor with a priority queue"""
+
+    # Used to assign unique thread names when thread_name_prefix is not supplied.
+    _counter = itertools.count().__next__
+    # submit.__doc__ = _base.Executor.submit.__doc__
+    threads_queues = weakref.WeakKeyDictionary()
+
+    def __init__(
+        self,
+        max_workers: int =None,
+        maxsize : int = None ,
+        thread_name_prefix : str ="",
+        mode = 'thread',
+    ):
+        """Initializes a new ThreadPoolExecutor instance.
+        Args:
+            max_workers: The maximum number of threads that can be used to
+                execute the given calls.
+            thread_name_prefix: An optional name prefix to give our threads.
+        """
+        self.start_time = c.time()
+
+        max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
+        maxsize = max_workers * 10 or None
+        if max_workers <= 0:
+            raise ValueError("max_workers must be greater than 0")
+        self.mode = mode
+        self.max_workers = max_workers
+        self.work_queue = queue.PriorityQueue(maxsize=maxsize)
+        self.idle_semaphore = threading.Semaphore(0)
+        self.threads = []
+        self.broken = False
+        self.shutdown = False
+        self.shutdown_lock = threading.Lock()
+        self.thread_name_prefix = thread_name_prefix or ("ThreadPoolExecutor-%d" % self._counter() )
+
+    @property
+    def is_empty(self):
+        return self.work_queue.empty()
+
+    @property
+    def is_full(self):
+        return self.work_queue.full()
+
+
+    def default_priority_score(self):
+        # older scores are higher priority
+        return 1 # abs((self.start_time - c.time()))
+
+
+    
+    def submit(self, 
+               fn: Callable,
+               params = None,
+                args:dict=None, 
+                kwargs:dict=None, 
+                priority:int=1,
+                timeout=200, 
                 return_future:bool=True,
-                init_args : list = [],
-                init_kwargs:dict= {},
-                executor = None,
-                module: str = None,
-                mode:str='thread',
-                max_workers : int = 100,
-                ):
-        kwargs = {} if kwargs == None else kwargs
-        args = [] if args == None else args
+                wait = True, 
+                path:str=None) -> Future:
         if params != None:
             if isinstance(params, dict):
-                kwargs = {**kwargs, **params}
+                kwargs = params
             elif isinstance(params, list):
-                args = [*args, *params]
+                args = params
             else:
-                raise ValueError('params must be a list or a dictionary')
-        
-        fn = cls.get_fn(fn)
-        executor = cls.executor(max_workers=max_workers, mode=mode) if executor == None else executor
-        args = cls.copy(args)
-        kwargs = cls.copy(kwargs)
-        init_kwargs = cls.copy(init_kwargs)
-        init_args = cls.copy(init_args)
-        if module == None:
-            module = cls
-        else:
-            module = cls.module(module)
-        if isinstance(fn, str):
-            method_type = cls.classify_fn(getattr(module, fn))
-        elif callable(fn):
-            method_type = cls.classify_fn(fn)
-        else:
-            raise ValueError('fn must be a string or a callable')
-        
-        if method_type == 'self':
-            module = module(*init_args, **init_kwargs)
+                raise ValueError("params must be a list or a dict")
+        # check if the queue is full and if so, raise an exception
+        if self.work_queue.full():
+            if wait:
+                while self.work_queue.full():
+                    time.sleep(0.1)
+            else:
+                return {'success': False, 'msg':"cannot schedule new futures after maxsize exceeded"}
 
-        future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        args = args or []
+        kwargs = kwargs or {}
 
-        if not hasattr(cls, 'futures'):
-            cls.futures = []
-        
-        cls.futures.append(future)
+        with self.shutdown_lock:
+
+            if self.broken:
+                raise Exception("ThreadPoolExecutor is broken")
+            if self.shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
+            priority = kwargs.get("priority", priority)
+            if "priority" in kwargs:
+                del kwargs["priority"]
+            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
+            # add the work item to the queue
+            self.work_queue.put((priority, task), block=False)
+            # adjust the thread count to match the new task
+            self.adjust_thread_count()
             
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        if return_future:
+            return task.future
         
-        if return_future:
-            return future
-        else:
-            return cls.wait(future, timeout=timeout)
+        return task.future.result()
 
-    @classmethod
-    def submit_batch(cls,  fn:str, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, module = None,  *args, **kwargs):
-        n = len(batch_kwargs)
-        module = cls if module == None else module
-        executor = cls.executor(max_workers=n)
-        futures = [ executor.submit(fn=getattr(module, fn), kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
-        if return_future:
-            return futures
-        return cls.wait(futures)
 
-   
-    executor_cache = {}
-    @classmethod
-    def executor(cls, max_workers:int=None, mode:str="thread", cache:bool = True, maxsize=200, **kwargs):
-        if cache:
-            if mode in cls.executor_cache:
-                return cls.executor_cache[mode]
-        executor =  cls.module(f'executor.{mode}')(max_workers=max_workers, maxsize=maxsize , **kwargs)
-        if cache:
-            cls.executor_cache[mode] = executor
-        return executor
-    
+    def adjust_thread_count(self):
+        # if idle threads are available, don't spin new threads
+        if self.idle_semaphore.acquire(timeout=0):
+            return
 
+        # When the executor gets lost, the weakref callback will wake up
+        # the worker threads.
+        def weakref_cb(_, q=self.work_queue):
+            q.put(NULL_ENTRY)
+
+        num_threads = len(self.threads)
+        if num_threads < self.max_workers:
+            thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
+            t = threading.Thread(
+                name=thread_name,
+                target=self.worker,
+                args=(
+                    weakref.ref(self, weakref_cb),
+                    self.work_queue,
+                ),
+            )
+            t.daemon = True
+            t.start()
+            self.threads.append(t)
+            self.threads_queues[t] = self.work_queue
+
+    def shutdown(self, wait=True):
+        with self.shutdown_lock:
+            self.shutdown = True
+            self.work_queue.put(NULL_ENTRY)
+        if wait:
+            for t in self.threads:
+                try:
+                    t.join(timeout=2)
+                except Exception:
+                    pass
 
     @staticmethod
-    def detailed_error(e) -> dict:
-        import traceback
-        tb = traceback.extract_tb(e.__traceback__)
-        file_name = tb[-1].filename
-        line_no = tb[-1].lineno
-        line_text = tb[-1].line
-        response = {
-            'success': False,
-            'error': str(e),
-            'file_name': file_name,
-            'line_no': line_no,
-            'line_text': line_text
-        }   
-        return response
+    def worker(executor_reference, work_queue):
+        c.new_event_loop(nest_asyncio=True)
     
+        try:
+            while True:
+                work_item = work_queue.get(block=True)
+                priority = work_item[0]
+
+                if priority == sys.maxsize:
+                    # Wake up queue management thread.
+                    work_queue.put(NULL_ENTRY)
+                    break
+
+                item = work_item[1]
+
+                if item is not None:
+                    item.run()
+                    # Delete references to object. See issue16284
+                    del item
+                    continue
+
+                executor = executor_reference()
+                # Exit if:
+                #   - The interpreter is shutting down OR
+                #   - The executor that owns the worker has been collected OR
+                #   - The executor that owns the worker has been shutdown.
+                if executor is None or executor.shutdown:
+                    # Flag the executor as shutting down as early as possible if it
+                    # is not gc-ed yet.
+                    if executor is not None:
+                        executor.shutdown = True
+                    # Notice other workers
+                    work_queue.put(NULL_ENTRY)
+                    return
+                del executor
+        except Exception as e:
+            e = c.detailed_error(e)
+
+    @property
+    def num_tasks(self):
+        return self.work_queue.qsize()
 
     @classmethod
-    def as_completed(cls , futures:list, timeout:int=10, **kwargs):
-        return concurrent.futures.as_completed(futures, timeout=timeout)
-    
-    @classmethod
-    def is_coroutine(cls, future):
-        """
-        returns True if future is a coroutine
-        """
-        return cls.obj2typestr(future) == 'coroutine'
+    def as_completed(futures: list):
+        assert isinstance(futures, list), "futures must be a list"
+        return [f for f in futures if not f.done()]
 
+    @staticmethod
+    def wait(futures:list) -> list:
+        futures = [futures] if not isinstance(futures, list) else futures
+        results = []
+        for future in c.as_completed(futures):
+            results += [future.result()]
+        return results
 
-    @classmethod
-    def obj2typestr(cls, obj):
-        return str(type(obj)).split("'")[1]
-
-    @classmethod
-    def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
-        kwargs['network'] = 'local'
-        kwargs['update'] = False
-        modules = cls.servers( **kwargs)
-        tasks = getattr(cls, f'{mode}_list')(task)
-        tasks = list(filter(lambda x: x not in modules, tasks))
-        return tasks
-
-
-    @classmethod
-    def asubmit(cls, fn:str, *args, **kwargs):
-        
-        async def _asubmit():
-            kwargs.update(kwargs.pop('kwargs',{}))
-            return fn(*args, **kwargs)
-        return _asubmit()
-
-
-
-    thread_map = {}
-    
-    @classmethod
-    def thread(cls,fn: Union['callable', str],  
-                    args:list = None, 
-                    kwargs:dict = None, 
-                    daemon:bool = True, 
-                    name = None,
-                    tag = None,
-                    start:bool = True,
-                    tag_seperator:str='::', 
-                    **extra_kwargs):
-        
-        if isinstance(fn, str):
-            fn = cls.get_fn(fn)
-        if args == None:
-            args = []
-        if kwargs == None:
-            kwargs = {}
-
-        assert callable(fn), f'target must be callable, got {fn}'
-        assert  isinstance(args, list), f'args must be a list, got {args}'
-        assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
-        
-        # unique thread name
-        if name == None:
-            name = fn.__name__
-            cnt = 0
-            while name in cls.thread_map:
-                cnt += 1
-                if tag == None:
-                    tag = ''
-                name = name + tag_seperator + tag + str(cnt)
-        
-        if name in cls.thread_map:
-            cls.thread_map[name].join()
-
-        t = threading.Thread(target=fn, args=args, kwargs=kwargs, **extra_kwargs)
-        # set the time it starts
-        setattr(t, 'start_time', cls.time())
-        t.daemon = daemon
-        if start:
-            t.start()
-        cls.thread_map[name] = t
-        return t
     
     @classmethod
-    def threads(cls, search:str = None):
-        threads =  list(cls.thread_map.keys())
-        if search != None:
-            threads = [t for t in threads if search in t]
-        return threads
+    def test(cls):
+        def fn(x):
+            result =  x*2
+            c.print(result)
+            return result
+            
+        self = cls()
+        futures = []
+        for i in range(10):
+            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
+        for future in c.tqdm(futures):
+            future.result()
+        for i in range(10):
+            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
+
+        results = c.wait(futures, timeout=10)
+        
+        while self.num_tasks > 0:
+            c.print(self.num_tasks, 'tasks remaining', color='red')
+
+
+        return {'success': True, 'msg': 'thread pool test passed'}
+
+        
+
+    @property
+    def is_empty(self):
+        return self.work_queue.empty()
+    def status(self):
+        return dict(
+            num_threads = len(self.threads),
+            num_tasks = self.num_tasks,
+            is_empty = self.is_empty,
+            is_full = self.is_full
+        )
+    
+    

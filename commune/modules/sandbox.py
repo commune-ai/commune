@@ -1,3 +1,4 @@
 import commune as c
 
-print(c.call('chat/module_name'))
+print(dir(c.import_module('commune.module._storage')))
+print('FAM')

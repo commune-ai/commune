@@ -24,7 +24,6 @@ class Server(c.Module):
         nest_asyncio:bool = True, # whether to use nest asyncio
         process_request:Optional[Union[callable, str]] = None,
         network_staleness = 60,
-        netuid: int = 'all', # subnet id
         path:str = 'state',
         **kwargs,
         ) -> 'Server':
