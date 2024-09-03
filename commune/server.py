@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
 
+
 class ServerMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_bytes: int):
         super().__init__(app)
@@ -607,7 +608,9 @@ class Server(c.Module):
             print(result)
             progress.update(1)
             results_list += [result]
-        namespace = c.namespace(network=network, update=True)
+        namespace = c.namespace
+        print(namespace)
+        namespace = namespace(network=network, update=True)
         new_n = len(servers)
         c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
         return {'success':True, 'old_n':n, 'new_n':new_n, 'servers':servers, 'namespace':namespace}

@@ -44,42 +44,4 @@ class AESKey(c.Module):
     def _unpad(self, s):
         return s[:-ord(s[len(s)-1:])]
     
-    @classmethod
-    def test(cls, data=None, key='dummy'):
-        import torch
-        data = 'fammmmmdjsjfhdjfh'
-        print(data)
-        self = cls(key=key)
-        size_bytes = sys.getsizeof(data)
-        start_time = time.time()
-        encrypted = self.encrypt(data)
-        decrypted = self.decrypt(encrypted)
-        assert decrypted == data, f'ENCRYPTION FAILED'
-        seconds =  time.time() - start_time
-        rate = size_bytes / seconds
-        return {'msg': 'PASSED test_encrypt_decrypt', 'rate': rate, 'seconds': seconds, 'size_bytes': size_bytes}
-    
-    @classmethod
-    def test_encrypt_decrypt_throughput(cls, key='dummy'):
-        import streamlit as st
-        self = cls(key=key)
-        test_object = [1,2,3,5]*1000000
-        start_time = time.time()
-        encrypted = self.encrypt(test_object)
-        seconds =  time.time() - start_time        
-        size_bytes = sys.getsizeof(test_object)
-        encrypt_rate = size_bytes / seconds
-
-        start_time = time.time()
-        decrypted = self.decrypt(encrypted)
-        seconds =  time.time() - start_time        
-        size_bytes = sys.getsizeof(test_object)
-        decrypt_rate = size_bytes / seconds
-
-        st.write(f'ENCRYPT SPEED (MB per Second): {encrypt_rate//1000}')
-        st.write(f'DECRYPT SPEED (MB per Second): {decrypt_rate//1000}')
-
-        print('PASSED test_encrypt_decrypt')
-
-        return True
-    
+   

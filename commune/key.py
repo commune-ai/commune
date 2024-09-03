@@ -211,7 +211,6 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         c.print(cls.put(path, key_json))
-        cls.add_key_address(path, key.ss58_address)
         cls.update()
         return  json.loads(key_json)
     
@@ -239,23 +238,6 @@ class Keypair(c.Module):
     @property
     def hash_pass(self): 
         return c.hash(self.private_key)
-    
-    @classmethod
-    def get_hash_pass(cls, key=None, max_age=10000): 
-        time_seed = str(time.time() // max_age)
-        return c.hash(str(c.get_key(key).to_json()) + time_seed)
-    @classmethod
-    def key2hash(cls, search=None, max_age=10000):
-        key2hash = {}
-        for key in cls.keys(search=search):
-            print(key)
-            try:
-                key_hash = cls.get_hash_pass(key)
-            except Exception as e:
-                c.print(f'failed to get hash for {key} due to {e}', color='red')
-                continue
-            key2hash[key] = key_hash
-        return key2hash
             
     @classmethod
     def mv_key(cls, path, new_path):
@@ -267,7 +249,6 @@ class Keypair(c.Module):
         new_key = cls.get_key(new_path)
         return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
     
-
     rename_key = mv_key 
     
     @classmethod
