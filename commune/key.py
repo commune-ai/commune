@@ -227,7 +227,6 @@ class Keypair(c.Module):
         key2address.pop(key, None)
         cls.put('key2address', key2address)
 
-    
     @classmethod
     def update(cls, **kwargs):
         return cls.key2address(update=True,**kwargs)
@@ -502,12 +501,10 @@ class Keypair(c.Module):
             if key in addresses:
                 key_exists = True
         return key_exists
-    
 
     @classmethod
     def get_key_address(cls, key): 
         return cls.get_key(key).ss58_address
-    
     
     @classmethod
     def rm_key(cls, key=None):
@@ -517,7 +514,6 @@ class Keypair(c.Module):
         if key not in keys:
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
-        cls.rm_key_address(key)
         return {'deleted':[key]}
     
     @property
@@ -537,10 +533,7 @@ class Keypair(c.Module):
             cls.rm_key(rm_key)
         
         return {'removed_keys':rm_keys}
-    
-    @classmethod
-    def rm_all_keys(cls):
-        return cls.rm_keys(cls.keys())
+
     
     crypto_types = ['ED25519', 'SR25519', 'ECDSA']
 
@@ -566,13 +559,11 @@ class Keypair(c.Module):
         
     @classmethod
     def resolve_crypto_type(cls, crypto_type):
-            
         if isinstance(crypto_type, str):
             crypto_type = crypto_type.upper()
             crypto_type = cls.crypto_name2type(crypto_type)
         elif isinstance(crypto_type, int):
             assert crypto_type in list(KeypairType.__dict__.values()), f'crypto_type {crypto_type} not supported'
-            
         assert crypto_type in list(KeypairType.__dict__.values()), f'crypto_type {crypto_type} not supported'
         return crypto_type
     
@@ -588,8 +579,6 @@ class Keypair(c.Module):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        mnemonic = kwargs.pop('m', mnemonic)
-
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
 
@@ -610,8 +599,6 @@ class Keypair(c.Module):
         return key
     
     create = gen = new_key
-
-    
     
     def to_json(self, password: str = None ) -> dict:
         state_dict =  self.copy(self.__dict__)
@@ -1275,12 +1262,6 @@ class Keypair(c.Module):
         c.put_json(path, self.to_json())
         return {'saved':path}
     
-    def diplicate(self, new_path):
-        c.print(f'copying key from {self.path} to {new_path}')
-        c.cp(self.path, new_path)
-        return {'copied':new_path}
-    
-    
 
     def __repr__(self):
         return self.__str__()
@@ -1349,17 +1330,6 @@ class Keypair(c.Module):
             duplicate_keys[a] += [k]
         
         return {k:v for k,v in duplicate_keys.items() if len(v) > 1}
-
-    @classmethod
-    def clean_all_keys(cls):
-        key2adress = c.key2address()
-        for k,a in key2adress.items():
-            if c.key_exists(a):
-                c.print(f'removing {a}', color='red')
-                c.rm_key(a)
-            c.print('cleaning', k, a,  c.key_exists(a))
-
-        
 
     @classmethod
     def from_private_key(cls, private_key:str):
