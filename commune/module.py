@@ -43,7 +43,7 @@ class c:
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
-    rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-2])  # the path to the root of the library
+    rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1])  # the path to the root of the library
     homepath = home_path = os.path.expanduser('~') # the home path
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
     repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
@@ -950,7 +950,7 @@ class c:
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
         def fn_generator( *args, module_ph, fn_ph, **kwargs):
-            module_ph = cls.module(module_ph)
+            module_ph = c.get_module(module_ph)
             fn_type = module_ph.classify_fn(fn_ph)
             module_ph = module_ph() if fn_type == 'self' else module_ph
             return getattr(module_ph, fn_ph)(*args, **kwargs)
@@ -4412,8 +4412,10 @@ class c:
         return classes[-1]
 
     @classmethod
-    def simple2object(cls, path:str, **kwargs) -> str:
-        path =  cls.simple2objectpath(path, **kwargs)
+    def simple2object(cls, path:str = None, **kwargs) -> str:
+        path = path or 'module'
+        path =  c.simple2objectpath(path, **kwargs)
+        print(path)
         try:
             return cls.import_object(path)
         except:
@@ -4566,14 +4568,15 @@ class c:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
     @classmethod
-    def lib_tree(cls, ):
-        return cls.get_tree(cls.libpath)
+    def lib_tree(cls):
+        return c.get_tree(cls.libpath)
     @classmethod
     def local_tree(cls ):
         return cls.get_tree(cls.pwd())
     
     @classmethod
     def get_tree(cls, path):
+        print(path)
         class_paths = cls.find_classes(path)
         simple_paths = cls.simplify_paths(class_paths) 
         return dict(zip(simple_paths, class_paths))
@@ -4610,11 +4613,11 @@ class c:
         if cache and cache_key in c.module_cache:
             module = c.module_cache[cache_key]
             return module
+        print(path)
         module = c.simple2object(path)
         # ensure module
         if verbose:
             c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
-        
         if init_kwargs != None:
             module = module(**init_kwargs)
         is_module = c.is_module(module)
@@ -4637,8 +4640,6 @@ class c:
             cls._tree = tree
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
-        return tree
-
         return tree
     
 
@@ -6098,6 +6099,70 @@ class c:
         return threads
 
 
+    
+    @classmethod
+    def python2str(cls, input):
+        input = deepcopy(input)
+        input_type = type(input)
+        if input_type == str:
+            return input
+        if input_type in [dict]:
+            input = json.dumps(input)
+        elif input_type in [bytes]:
+            input = cls.bytes2str(input)
+        elif input_type in [list, tuple, set]:
+            input = json.dumps(list(input))
+        elif input_type in [int, float, bool]:
+            input = str(input)
+        return input
+    
+
+    
+    # JSON2BYTES
+    @classmethod
+    def dict2str(cls, data: str) -> str:
+        return json.dumps(data)
+    
+    @classmethod
+    def dict2bytes(cls, data: str) -> bytes:
+        return cls.str2bytes(cls.json2str(data))
+    
+    @classmethod
+    def bytes2dict(cls, data: bytes) -> str:
+        data = cls.bytes2str(data)
+        return json.loads(data)
+    
+
+    # BYTES LAND
+    
+    # STRING2BYTES
+    @classmethod
+    def str2bytes(cls, data: str, mode: str = 'hex') -> bytes:
+        if mode in ['utf-8']:
+            return bytes(data, mode)
+        elif mode in ['hex']:
+            return bytes.fromhex(data)
+    
+    @classmethod
+    def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
+        
+        if hasattr(data, 'hex'):
+            return data.hex()
+        else:
+            if isinstance(data, str):
+                return data
+            return bytes.decode(data, mode)
+
+
+    @classmethod
+    def str2python(cls, input)-> dict:
+        assert isinstance(input, str), 'input must be a string, got {}'.format(input)
+        try:
+            output_dict = json.loads(input)
+        except json.JSONDecodeError as e:
+            return input
+
+        return output_dict
 
 c.enable_routes()
 # c.add_utils()

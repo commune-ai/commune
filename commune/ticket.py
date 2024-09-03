@@ -63,28 +63,6 @@ class Ticket(c.Module):
 
     create = ticket
     
-    def ticket2address(self, ticket):
-        """
-        Get the address from a ticket
-        """
-        return ticket['address']
-    
-
-    def is_ticket_dict(self, ticket):
-        if isinstance(ticket, dict):
-            return all([self.is_ticket(v) in ticket for v in ticket.values()])
-        return False
-    
-
-    def is_ticket_list(self, ticket):
-        if isinstance(ticket, list):
-            return all([self.is_ticket(v) in ticket for v in ticket])
-        return False
-
-
-    def is_ticket(self, data):
-        return all([f in data for f in self.ticket_features])
-
     def verify(self, data, 
                 max_age:str=None,  
                **kwargs):

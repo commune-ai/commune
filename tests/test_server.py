@@ -67,4 +67,3 @@ def test_namespace():
     cls.rm_namespace(network)
     assert cls.namespace_exists(network) == False        
     return {'success': True, 'msg': 'Namespace tests passed.'}
-

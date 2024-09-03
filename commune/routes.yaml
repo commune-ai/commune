@@ -112,20 +112,6 @@ streamlit:
 docker:
   - dlogs
   - images
-code: 
-  - determine_type
-  - process_kwargs
-  - python2str
-  - str2python
-  - bytes2str
-  - str2bytes
-  - str2python
-  - python2str
-  - is_generator
-  - dict2munch
-  - munch2dict
-  - dict2json
-  - json2dict
 
 server: [serve, serve_many, serve_all, kill, kill_many, kill_all, wait_for_server]
 pm2:
