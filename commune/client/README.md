@@ -1,7 +1,7 @@
 
 To use the client
 
-c serve moduel::fam
+c serve module::fam
 
 {'success': True, 'name': 'module::fam', 'address': '198.161.104.67:50236', 'kwargs': {}, 'module': 'module'}
 

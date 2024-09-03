@@ -28,7 +28,7 @@ c.call("model.openai::tag/forward",  "sup")
 
 "hey there homie"
 
-The name of the endpoing is formated as
+The name of the endpoing is formatted as
 
 {server_ip}:{server_port}/{function}
 
