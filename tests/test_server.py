@@ -50,3 +50,21 @@ def test_serving_with_different_key(module = 'module'):
     assert not c.server_exists(module_name)
     return {'success': True, 'msg': 'server test passed'}
 
+
+def test_namespace():
+    cls = c.module('namespace')
+    network = 'test_namespace'
+    cls.rm_namespace(network)
+    namespace = cls.namespace(network=network)
+    assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'
+    name = 'test'
+    address =  '0.0.0.0:8888'
+    cls.register_server(name=name, address=address, network=network)
+    namespace = cls.namespace(network=network)
+    assert  namespace[name] == address, f'Namespace not updated. {namespace}'
+    cls.deregister_server(name, network=network)
+    assert cls.namespace(network=network) == {}
+    cls.rm_namespace(network)
+    assert cls.namespace_exists(network) == False        
+    return {'success': True, 'msg': 'Namespace tests passed.'}
+

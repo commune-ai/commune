@@ -41,11 +41,9 @@ class AESKey(c.Module):
     def _pad(self, s):
         return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
 
-    @staticmethod
-    def _unpad(s):
+    def _unpad(self, s):
         return s[:-ord(s[len(s)-1:])]
-
-
+    
     @classmethod
     def test(cls, data=None, key='dummy'):
         import torch
