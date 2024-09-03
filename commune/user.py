@@ -44,24 +44,20 @@ class User(c.Module):
     def is_user(self, address):
         return address in self.users()
 
-    def is_blacklisted(self, address):
-        return address in self.blacklisted()
-
-
-    def blacklisted_user(self, address):
-        blacklist = self.blacklisted()
+    def blacklist_user(self, address):
+        blacklist = self.blacklist()
         assert c.valid_ss58_address(address), f'{address} is not a valid address'
         blacklist.append(address)
         self.put('blacklist', blacklist)
-        return {'success': True, 'msg': f'blacklisted {address}'}
+        return {'success': True, 'msg': f'blacklist {address}'}
 
     def whitelist_user(self, address):
-        blacklist = self.blacklisted()
+        blacklist = self.blacklist()
         blacklist.remove(address)
         self.put('blacklist', blacklist)
         return {'success': True, 'msg': f'whitelisted {address}'}
 
-    def blacklisted(self):
+    def blacklist(self):
         return self.get('blacklist', [])
 
 
