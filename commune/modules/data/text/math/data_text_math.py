@@ -2,7 +2,7 @@ import commune as c
 import random 
 class DataTextMath(c.Module):
     def __init__(self, **kwargs):
-        config = self.set_config(kwargs=kwargs)
+        config = self.set_config(kwargs)
         self.operations = {
             'add': '+',
             'subtract': '-',

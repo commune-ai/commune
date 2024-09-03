@@ -4,7 +4,7 @@ import streamlit as st
 
 class Repo(c.Module):
     def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
+        self.set_config(locals())
 
     def is_repo(self, path):
         # is a directory 

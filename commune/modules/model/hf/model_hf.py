@@ -28,7 +28,7 @@ class ModelTransformer(Model):
                  test:bool = True): # OPTIONS = ['int4', 'int8', None]
 
         # Here you would initial
-        config = self.set_config(kwargs=locals())
+        config = self.set_config(locals())
         self.init_model()
         self.set_model(config)
 

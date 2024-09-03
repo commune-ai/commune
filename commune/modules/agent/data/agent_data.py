@@ -7,7 +7,7 @@ class Demo(c.Module):
 
     """
     def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
+        self.set_config(locals())
 
     def call(self, timeout=30) -> int:
         model = c.connect('model.openai') # connect to the model

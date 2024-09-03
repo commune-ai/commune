@@ -28,6 +28,7 @@ class Namespace(c.Module):
         path = cls.resolve_network_path(network)
         namespace = cls.get(path, None, max_age=max_age)
         if namespace == None:
+            
             namespace = cls.update_namespace(network=network, 
                                             netuid=netuid, 
                                             timeout=timeout, 
@@ -51,7 +52,6 @@ class Namespace(c.Module):
     @classmethod
     def update_namespace(cls, network, netuid=None, timeout=5, search=None, verbose=False):
         c.print(f'UPDATING --> NETWORK(network={network} netuid={netuid})', color='blue')
-
         if 'subspace' in network:
             if '.' in network:
                 network, netuid = network.split('.')
@@ -80,8 +80,7 @@ class Namespace(c.Module):
             except Exception as e:
                 c.print(f'Error: {e}', color='red', verbose=True) 
             namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
-            ip  = c.ip(update=1)
-            namespace = {k: v.replace(ip, '0.0.0.0') for k,v in namespace.items() }
+            namespace = {k: '0.0.0.0:' + str(v.split(':')[-1]) for k,v in namespace.items() }
         else:
             return {}
         return namespace 

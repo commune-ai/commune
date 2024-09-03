@@ -12,7 +12,7 @@ class Demo(c.Module):
         
     }
     def __init__(self, a=1, b=2):
-        self.set_config(kwargs=locals())
+        self.set_config(locals())
 
     def call(self, description) -> int:
         x = json.dumps({

@@ -981,6 +981,8 @@ class Keypair(c.Module):
 
     def is_ticket(self, data):
         return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
+    
+
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
@@ -1006,8 +1008,6 @@ class Keypair(c.Module):
         True if data is signed with this Keypair, otherwise False
         """
         data = c.copy(data)
-
-
         if isinstance(data, str) and seperator in data:
             data, signature = data.split(seperator)
         if isinstance(data, dict):
@@ -1410,20 +1410,11 @@ class Keypair(c.Module):
         return Mnemonic('english').to_mnemonic(self.private_key)
     
 
-    def ticket_staleness(self, ticket, **kwargs):
-        
-        return self.verify(ticket, **kwargs)
-    
-    def app(self):
-        c.module('key.app').app()
-
-
     @staticmethod
     def is_ss58(address):
         # Check address length
         if len(address) != 47:
             return False
-        
         # Check prefix
         network_prefixes = ['1', '2', '5', '7']  # Add more prefixes as needed
         if address[0] not in network_prefixes:
@@ -1446,7 +1437,6 @@ class Keypair(c.Module):
         
         return True
  
-
     @classmethod
     def is_encrypted(cls, data, prefix=encrypted_prefix):
         if isinstance(data, str):

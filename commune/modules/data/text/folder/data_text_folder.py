@@ -2,7 +2,7 @@ import commune as c
 
 class DataFolder(c.Module):
     def __init__(self, folder_path: str = './', suffix: str = '.py'):
-        config = self.set_config(kwargs=locals())
+        config = self.set_config(locals())
         self.folder_path = self.resolve_path(config.folder_path)
         self.filepaths = sorted([f for f in self.walk(self.folder_path) if f.endswith('.py')])
 

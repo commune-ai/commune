@@ -5,12 +5,38 @@ import asyncio
 import commune as c
 import json
 import requests
-from .tools import ClientTools
-from .virtual import ClientVirtual
 
 # from .pool import ClientPool
 
-class Client(c.Module, ClientTools):
+
+class ClientVirtual:
+    protected_attributes = [ 'client', 'remote_call']
+    
+    def __init__(self, client: str ='ReactAgentModule'):
+        if isinstance(client, str):
+            client = c.connect(client)
+        self.client = client
+    
+    def remote_call(self, remote_fn, *args, return_future= False, timeout:int=10, key=None, **kwargs):
+        result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
+        return result
+
+    def __str__(self):
+        return str(self.client)
+
+    def __repr__(self):
+        return self.__str__()
+        
+    def __getattr__(self, key):
+
+        if key in self.protected_attributes :
+            return getattr(self, key)
+        else:
+            return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
+        
+
+
+class Client(c.Module):
     network2namespace = {}
     def __init__( 
             self,
@@ -237,3 +263,125 @@ class Client(c.Module, ClientTools):
             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                 event_data = json.loads(event_data)['data']
         return event_data
+    
+
+
+    @classmethod
+    def call_search(cls, 
+                    search : str, 
+                *args,
+                timeout : int = 10,
+                network:str = 'local',
+                key:str = None,
+                kwargs = None,
+                **extra_kwargs) -> None:
+        if '/' in search:
+            search, fn = search.split('/')
+        namespace = c.namespace(search=search, network=network)
+        future2module = {}
+        for module, address in namespace.items():
+            c.print(f"Calling {module}/{fn}", color='green')
+            future = c.submit(cls.call,
+                               args = [module, fn] + list(args),
+                               kwargs = {'timeout': timeout, 
+                                         'network': network, 'key': key, 
+                                         'kwargs': kwargs,
+                                         **extra_kwargs} , timeout=timeout)
+            future2module[future] = module
+        futures = list(future2module.keys())
+        result = {}
+        progress_bar = c.tqdm(len(futures))
+        for future in c.as_completed(futures, timeout=timeout):
+            module = future2module.pop(future)
+            futures.remove(future)
+            progress_bar.update(1)
+            result[module] = future.result()
+
+        return result
+            
+    
+    @classmethod
+    def call_pool(cls, 
+                    modules, 
+                    fn = 'info',
+                    *args, 
+                    network =  'local',
+                    timeout = 10,
+                    n=None,
+                    **kwargs):
+        
+        args = args or []
+        kwargs = kwargs or {}
+        
+        if isinstance(modules, str) or modules == None:
+            modules = c.servers(modules, network=network)
+        if n == None:
+            n = len(modules)
+        modules = cls.shuffle(modules)[:n]
+        assert isinstance(modules, list), 'modules must be a list'
+        futures = []
+        for m in modules:
+            job_kwargs = {'module':  m, 'fn': fn, 'network': network, **kwargs}
+            future = c.submit(c.call, kwargs=job_kwargs, args=[*args] , timeout=timeout)
+            futures.append(future)
+        responses = c.wait(futures, timeout=timeout)
+        return responses
+    
+
+    @classmethod
+    def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
+        if modules == None:
+            modules = c.servers(modules)
+        
+        module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
+        if return_dict:
+            return dict(zip(modules, module_clients))
+        return module_clients
+
+
+    @staticmethod
+    def check_response(x) -> bool:
+        if isinstance(x, dict) and 'error' in x:
+            return False
+        else:
+            return True
+    
+  
+    def get_curl(self, 
+                        fn='info', 
+                        params=None, 
+                        args=None,
+                        kwargs=None,
+                        timeout=10, 
+                        module=None,
+                        key=None,
+                        headers={'Content-Type': 'application/json'},
+                        network=None,
+                        version=1,
+                        mode='http',
+                        **extra_kwargs):
+            key = self.resolve_key(key)
+            network = network or self.network
+            url = self.get_url(fn=fn, mode=mode, network=network)
+            kwargs = {**(kwargs or {}), **extra_kwargs}
+            input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
+
+            # Convert the headers to curl format
+            headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
+
+            # Convert the input data to JSON string
+            data_str = json.dumps(input_data).replace('"', '\\"')
+
+            # Construct the curl command
+            curl_command = f'curl -X POST {headers_str} -d "{data_str}" "{url}"'
+
+            return curl_command
+    
+
+    def run_curl(self, *args, **kwargs):
+        curl_command = self.get_curl(*args, **kwargs)
+        # get the output of the curl command
+        import subprocess
+        output = subprocess.check_output(curl_command, shell=True)
+        return output.decode('utf-8')
+

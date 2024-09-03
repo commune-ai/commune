@@ -32,7 +32,6 @@ class cli:
         self.forget_fns = forget_fns
         self.base_module = c.module(module) if isinstance(module, str) else module
         self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
-
         self.forward(args)
 
     def forward(self, argv=None):
@@ -47,6 +46,18 @@ class cli:
             for arg in c.copy(argv):
                 if arg.startswith('--'):
                     key = arg[2:].split('=')[0]
+                    # if key == 'cwd':
+                    #     new_argv = []
+                    #     for item in c.copy(argv):
+                    #         if '--cwd' in item:
+                    #             continue
+                    #         new_argv.append(item)
+                    #     new_cmd = 'c ' + ' '.join(c.copy(new_argv))
+
+                    #     cwd = c.resolve_path(arg.split('=')[1])
+                    #     v = c.cmd(f'{new_cmd}', cwd=cwd)
+                    #     c.print(v)
+                    #     return new_cmd
                     if key in self.helper_fns:
                         new_argvs = self.argv()
                         new_argvs.remove(arg)
@@ -214,6 +225,6 @@ class cli:
 
     def argv(self):
         return sys.argv[1:]
-                
+          
 def main():
     cli()
