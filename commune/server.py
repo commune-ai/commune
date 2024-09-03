@@ -5,8 +5,24 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import json
 import asyncio
-from .middleware import ServerMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
+
+class ServerMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_bytes: int):
+        super().__init__(app)
+        self.max_bytes = max_bytes
+    async def dispatch(self, request: Request, call_next):
+        content_length = request.headers.get('content-length')
+        if content_length:
+            if int(content_length) > self.max_bytes:
+                return JSONResponse(status_code=413, content={"error": "Request too large"})
+        body = await request.body()
+        if len(body) > self.max_bytes:
+            return JSONResponse(status_code=413, content={"error": "Request too large"})
+        response = await call_next(request)
+        return response
 
 class Server(c.Module):
     def __init__(
@@ -186,7 +202,7 @@ class Server(c.Module):
         if tag != None:
             name = f'{module}{tag_seperator}{tag}'
         if port == None:
-            namespace = c.namespace()
+            namespace = c.get_namespace()
             if name in namespace:
                 port = int(namespace.get(name).split(':')[-1])
             else:
@@ -433,7 +449,7 @@ class Server(c.Module):
         else:
             response['msg'] =  'Synced with the network'
             response['staleness'] = 0
-        c.namespace(max_age=self.network_staleness)
+        c.get_namespace(max_age=self.network_staleness)
         self.subspace = c.module('subspace')(network=network)
         state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=self.network_staleness)
         state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
@@ -556,7 +572,7 @@ class Server(c.Module):
         
         time_waiting = 0
         while time_waiting < timeout:
-            namespace = c.namespace(network=network)
+            namespace = c.get_namespace(network=network)
             if name in namespace:
                 c.print(f'{name} is ready', color='green')
                 return True

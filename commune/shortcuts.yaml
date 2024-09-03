@@ -1,8 +1,6 @@
 chain: subspace.chain
 d: docker
-f: frontend
 freegpt: model.freegpt
-lit: lit_gpt
 openai: model.openai
 openrouter: model.openrouter
 or: model.openrouter
@@ -10,8 +8,3 @@ r: remote
 s: subspace
 sel: selenium
 store: storage
-tg: textgen
-w: wombo
-router: model.openrouter
-ticket: key.ticket
-namespace: server.namespace

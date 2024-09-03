@@ -6,7 +6,7 @@ class TestKey(c.module('key')):
 
     @classmethod
     def test_verification(cls, key='test'):
-        return c.module('key.ticket').test()
+        return c.module('ticket').test()
 
     @classmethod
     def test_encryption(cls,value = 10):

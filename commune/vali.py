@@ -63,7 +63,7 @@ class Vali(c.Module):
         return {'success': True, 'msg': 'Set score function', 'score_fn': self.score.__name__}
 
     def init_state(self):
-        self.executor = c.module('executor.thread')(max_workers=self.config.max_workers,  maxsize=self.config.queue_size)
+        self.executor = c.module('executor')(max_workers=self.config.max_workers,  maxsize=self.config.queue_size)
         self.futures = []
         self.state = c.dict2munch(dict(
             requests = 0,

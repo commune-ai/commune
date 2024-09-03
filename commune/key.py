@@ -25,6 +25,47 @@ import sr25519
 import ed25519_zebra
 import commune as c
 
+
+class KeypairType:
+    """
+    Type of cryptography, used in `Keypair` instance to encrypt and sign data
+
+    * ED25519 = 0
+    * SR25519 = 1
+    * ECDSA = 2
+
+    """
+    ED25519 = 0
+    SR25519 = 1
+    ECDSA = 2
+
+
+class MnemonicLanguageCode:
+    """
+    Available language codes to generate mnemonics
+
+    * ENGLISH = 'en'
+    * CHINESE_SIMPLIFIED = 'zh-hans'
+    * CHINESE_TRADITIONAL = 'zh-hant'
+    * FRENCH = 'fr'
+    * ITALIAN = 'it'
+    * JAPANESE = 'ja'
+    * KOREAN = 'ko'
+    * SPANISH = 'es'
+
+    """
+    ENGLISH = 'en'
+    CHINESE_SIMPLIFIED = 'zh-hans'
+    CHINESE_TRADITIONAL = 'zh-hant'
+    FRENCH = 'fr'
+    ITALIAN = 'it'
+    JAPANESE = 'ja'
+    KOREAN = 'ko'
+    SPANISH = 'es'
+
+
+
+
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
 
 
@@ -340,6 +381,7 @@ class Keypair(c.Module):
         if hasattr(path, 'ss58_address'):
             key = path
             return key
+        path = path or 'module'
         # if ss58_address is provided, get key from address
         if cls.valid_ss58_address(path):
             path = cls.address2key().get(path)
@@ -1106,7 +1148,7 @@ class Keypair(c.Module):
         if password == None:
             c.print('Using the KeyPair private key as the encryption key')
             password = self.mnemonic or self.private_key
-        return c.module('key.aes')(c.hash(password))
+        return c.module('aes')(c.hash(password))
 
     def decrypt(self, data: Union[str, bytes], password=None, **kwargs) -> bytes:
         aes_key = self.resolve_aes_key(password)
@@ -1400,10 +1442,10 @@ class Keypair(c.Module):
     
     def ticket(self, *args, key=None, **kwargs):
         key = key or self.key
-        return c.module('key.ticket')().ticket(*args,key=key, **kwargs)
+        return c.module('ticket')().ticket(*args,key=key, **kwargs)
 
     def verify_ticket(self, ticket, **kwargs):
-        return c.module('key.ticket')().verify(ticket, key=self.key, **kwargs)
+        return c.module('ticket')().verify(ticket, key=self.key, **kwargs)
     
     def to_mnemonic(self, password=None):
         from mnemonic import Mnemonic

@@ -453,25 +453,8 @@ class c:
     is_module_folder = is_folder_module
 
     @classmethod
-    def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
-        mode2module = {
-            'commune': 'key',
-            'subspace': 'subspace.key',
-            'substrate': 'web3.account.substrate',
-            'evm': 'web3.account.evm',
-            'aes': 'key.aes',
-            }
-        
-        key = cls.resolve_keypath(key)
-        if 'Keypair' in c.type_str(key):
-            return key
-        module = c.module(mode2module[mode])
-        if hasattr(module, 'get_key'):
-            key = module.get_key(key, **kwargs)
-        else:
-            key = module(key, **kwargs)
-
-        return key
+    def get_key(cls,key:str = None , **kwargs) -> None:
+        return c.module('key').get_key(key, **kwargs)
 
     @classmethod
     def id(self):
@@ -651,20 +634,12 @@ class c:
     
     # local update  
     @classmethod
-    def update(cls, 
-               module = None,
-               namespace: bool = False,
-               subspace: bool = False,
-               network: str = 'local',
-               **kwargs
-               ):
-        responses = []
-        if module != None:
-            return c.module(module).update()
-        # update local namespace
-        if namespace:
-            responses.append(c.namespace(network=network, update=True))
-        return {'success': True, 'responses': responses}
+    def update(cls,  ):
+   
+        c.namespace(update=True)
+        c.ip(update=1)
+        return {'ip': c.ip(), 'namespace': c.namespace()}
+
 
     @classmethod
     def set_key(self, key:str, **kwargs) -> None:
@@ -6121,8 +6096,6 @@ class c:
         if search != None:
             threads = [t for t in threads if search in t]
         return threads
-
-
 
 
 

@@ -6,6 +6,10 @@ import os
 import commune as c
 import requests 
 from substrateinterface import SubstrateInterface
+
+__ss58_format__ = 42
+
+
 class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.

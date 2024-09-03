@@ -50,7 +50,7 @@ class Namespace(c.Module):
         namespace = { k.replace('"', ''): v for k,v in namespace.items() }
         return namespace
     @classmethod
-    def update_namespace(cls, network, netuid=None, timeout=5, search=None, verbose=False):
+    def update_namespace(cls, network, netuid=None, timeout=1, search=None, verbose=False):
         c.print(f'UPDATING --> NETWORK(network={network} netuid={netuid})', color='blue')
         if 'subspace' in network:
             if '.' in network:
@@ -72,13 +72,14 @@ class Namespace(c.Module):
             try:
                 for f in c.as_completed(futures, timeout=timeout):
                     address = future2address[f]
-                    try:
-                        name = f.result()
+                    name = f.result()
+                    if isinstance(name, str):
                         namespace[name] = address
-                    except Exception as e:
-                        c.print(f'Error {e} with {name} and {address}', color='red', verbose=True)
+                    else:
+                        print(f'Error: {name}')
             except Exception as e:
-                c.print(f'Error: {e}', color='red', verbose=True) 
+                print(e)
+
             namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
             namespace = {k: '0.0.0.0:' + str(v.split(':')[-1]) for k,v in namespace.items() }
         else:
@@ -159,7 +160,7 @@ class Namespace(c.Module):
     @classmethod
     def check_servers(self, *args, **kwargs):
         servers = c.pm2ls()
-        namespace = c.namespace(*args, **kwargs)
+        namespace = c.get_namespace(*args, **kwargs)
         c.print('Checking servers', color='blue')
         for server in servers:
             if server in namespace:
