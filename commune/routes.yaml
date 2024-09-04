@@ -166,3 +166,33 @@ model.openrouter:
   - models
 chat: 
   - ask
+utils.types: 
+  - str2bytes
+  - python2str
+  - str2python
+  - bytes2str
+  - detailed_error
+utils.os: 
+  - cmd
+
+utils.network:
+  - free_port
+  - port_used
+  - port_available
+  - get_port_range
+  - ip
+  - external_ip
+  - port_free
+  - used_port
+  - used_ports
+  - free_ports
+  - get_available_ports
+  - resolve_ip
+
+utils.asyncio:
+  - gather
+  - get_event_loop
+  - new_event_loop
+
+
+
