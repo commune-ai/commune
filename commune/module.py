@@ -649,7 +649,6 @@ class c:
                 fn = fn.split('.')[-1]
                 return getattr(c, fn)(*args, **kwargs)
         for k, fn in utils.items():
-            print(fn)
             setattr(obj, k, partial(wrapper_fn2, fn))
         return {'success': True, 'message': 'added utils'}
     route_cache = None
@@ -748,7 +747,6 @@ class c:
             if fns in ['all', '*']:
                 fns = c.functions(m)
             for fn in fns: 
-
                 # resolve the from and to function names
                 from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
                 # create a partial function that is bound to the module
@@ -2196,7 +2194,6 @@ class c:
         if '/' in str(module) or module in cls.fns():
             return cls.fn_code(module)
         module = cls.resolve_object(module)
-        print(module)
         text =  cls.get_text( module.filepath(), *args, **kwargs)
         if search != None:
             find_lines = cls.find_lines(text=text, search=search)
@@ -3116,7 +3113,6 @@ class c:
     def simple2object(cls, path:str = None, **kwargs) -> str:
         path = path or 'module'
         path =  c.simple2objectpath(path, **kwargs)
-        print(path)
         try:
             return cls.import_object(path)
         except:

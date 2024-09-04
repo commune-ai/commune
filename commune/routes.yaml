@@ -188,6 +188,7 @@ utils.network:
   - free_ports
   - get_available_ports
   - resolve_ip
+  - is_valid_ip
 
 utils.asyncio:
   - gather
