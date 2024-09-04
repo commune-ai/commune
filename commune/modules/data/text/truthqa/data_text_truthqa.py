@@ -7,7 +7,7 @@ class DataTextTruthQa(c.Module):
     def score(self, module:str, fn='sample', kwargs={'idx': 0}):
         reference_output = getattr(self.dataset, fn=fn)(**kwargs)
         if isinstance(module, str):
-            output =  c.async_call(module=module,fn=fn, **kwargs)
+            output =  c.call(module=module,fn=fn, **kwargs)
         else:
             output = getattr(module,fn)(**kwargs)
         if isinstance(output, dict):

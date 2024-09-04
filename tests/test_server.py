@@ -14,7 +14,6 @@ def test_basics() -> dict:
     return {'success': True, 'msg': 'server test passed'}
 
 
-
 def test_serving(server_name = 'module::test'):
     if server_name in c.servers():
         c.kill(server_name)

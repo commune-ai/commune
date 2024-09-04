@@ -1,7 +1,7 @@
 """
 Common types for the communex module.
 """
-
+import json
 from enum import Enum
 from typing import NewType, TypedDict
 
@@ -15,7 +15,6 @@ chains.
 .. _SS58 encoded address format:
     https://docs.substrate.io/reference/address-formats/
 """
-
 
 # TODO: replace with dataclasses
 
@@ -72,7 +71,6 @@ class NetworkParams(TypedDict):
 
     kappa: int
     rho: int
-
 
 class SubnetParamsMaps(TypedDict):
     netuid_to_founder: dict[int, Ss58Address]
@@ -149,3 +147,81 @@ class ModuleInfoWithBalance(ModuleInfo):
 
 class ModuleInfoWithOptionalBalance(ModuleInfo):
     balance: int | None
+
+
+
+def bytes2str( data: bytes, mode: str = 'utf-8') -> str:
+    
+    if hasattr(data, 'hex'):
+        return data.hex()
+    else:
+        if isinstance(data, str):
+            return data
+        return bytes.decode(data, mode)
+
+def python2str( input):
+    from copy import deepcopy
+    import json
+    input = deepcopy(input)
+    input_type = type(input)
+    if input_type == str:
+        return input
+    if input_type in [dict]:
+        input = json.dumps(input)
+    elif input_type in [bytes]:
+        input = bytes2str(input)
+    elif input_type in [list, tuple, set]:
+        input = json.dumps(list(input))
+    elif input_type in [int, float, bool]:
+        input = str(input)
+    return input
+
+def dict2str(cls, data: str) -> str:
+    import json
+    return json.dumps(data)
+
+def bytes2dict(data: bytes) -> str:
+    import json
+    data = bytes2str(data)
+    return json.loads(data)
+
+def str2bytes( data: str, mode: str = 'hex') -> bytes:
+    if mode in ['utf-8']:
+        return bytes(data, mode)
+    elif mode in ['hex']:
+        return bytes.fromhex(data)
+
+def bytes2str( data: bytes, mode: str = 'utf-8') -> str:
+    
+    if hasattr(data, 'hex'):
+        return data.hex()
+    else:
+        if isinstance(data, str):
+            return data
+        return bytes.decode(data, mode)
+
+def str2python(input)-> dict:
+    assert isinstance(input, str), 'input must be a string, got {}'.format(input)
+    try:
+        output_dict = json.loads(input)
+    except json.JSONDecodeError as e:
+        return input
+
+    return output_dict
+
+
+def detailed_error(e) -> dict:
+    import traceback
+    tb = traceback.extract_tb(e.__traceback__)
+    file_name = tb[-1].filename
+    line_no = tb[-1].lineno
+    line_text = tb[-1].line
+    response = {
+        'success': False,
+        'error': str(e),
+        'file_name': file_name,
+        'line_no': line_no,
+        'line_text': line_text
+    }   
+    return response
+    

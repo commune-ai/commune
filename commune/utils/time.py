@@ -1,12 +1,12 @@
-import commune
 
+def time() -> float:
+    import time
+    return time.time()
+    
 def get_current_time():
     from time import strftime
     from time import gmtime
     return strftime("%m%d%H%M%S", gmtime())
-
-
-
 def roundTime(dt=None, roundTo=60):
    """Round a datetime object to any time lapse in seconds
    dt : datetime.datetime object, default now.
@@ -55,40 +55,24 @@ def timedeltatimestamp( **kwargs):
 
 
 
-class Timer:
-    def __init__(self, start=True, sigdigs:int=2):
-        if start:
-            self.start()
-        
-        self.sigdigs = sigdigs
-    
-    
-    def start(self):
-        import time
-        self.start_time = time.time()
-        return self.start_time
-    
-    @property
-    def seconds(self) -> int:
-        import time
-        return commune.round(time.time() - self.start_time, self.sigdigs)
-    def stop(self) -> int:
-        time_passed  = self.seconds
-        return time_passed
-        
-        
-    def __enter__(self):
-        self.start()
-        return self
-    def __exit__(self, *args):
-        self.stop()
-
-timer = Timer
-
-
 def hour_rounder(t):
     import datetime
     # Rounds to nearest hour by adding a timedelta hour if minute >= 30
     return (t.replace(second=0, microsecond=0, minute=0, hour=t.hour)
             + datetime.timedelta(hours=t.minute // 30))
 
+def timestamp() -> float:
+    return int(time())
+
+def sleep(seconds:float) -> None:
+    import time
+    time.sleep(seconds)
+    return None
+
+def datetime():
+    import datetime
+    return datetime.datetime.utcnow().strftime("%Y-%m-%d_%H:%M:%S")
+
+def time2datetime(t:float):
+    import datetime
+    return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d_%H:%M:%S")

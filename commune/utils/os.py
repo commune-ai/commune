@@ -249,61 +249,6 @@ def stream_output(process, verbose=False):
     kill_process(process)
 
 
-def cmd(
-                command:Union[str, list],
-                *args,
-                verbose:bool = False , 
-                env:Dict[str, str] = {}, 
-                sudo:bool = False,
-                password: bool = None,
-                bash : bool = False,
-                return_process: bool = False,
-                generator: bool =  False,
-                color : str = 'white',
-                cwd : str = None,
-                **kwargs) -> 'subprocess.Popen':
-    
-    '''
-    Runs  a command in the shell.
-    
-    '''
-    import shlex, subprocess
-    
-    if len(args) > 0:
-        command = ' '.join([command] + list(args))
-    
-        
-    if password != None:
-        sudo = True
-        
-    if sudo:
-        command = f'sudo {command}'
-        
-        
-    if bash:
-        command = f'bash -c "{command}"'
-
-    cwd = resolve_path(cwd)
-
-    env = {**os.environ, **env}
-
-    process = subprocess.Popen(shlex.split(command),
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.STDOUT,
-                                cwd = cwd,
-                                env=env, **kwargs)
-    if return_process:
-        return process
-    streamer = stream_output(process, verbose=verbose)
-    if generator:
-        return streamer
-    else:
-        text = ''
-        for ch in streamer:
-            text += ch
-    return text
-
-
 def kill_process(process):
     import signal
     process_id = process.pid
@@ -472,7 +417,7 @@ def find_largest_folder(directory: str = '~/'):
     for folder_name in os.listdir(directory):
         folder_path = os.path.join(directory, folder_name)
         if os.path.isdir(folder_path):
-            folder_size = cls.get_folder_size(folder_path)
+            folder_size = get_folder_size(folder_path)
             if folder_size > largest_size:
                 largest_size = folder_size
                 largest_folder = folder_path
@@ -523,3 +468,262 @@ def memory_usage(fmt='gb'):
     process = psutil.Process()
     scale = fmt2scale.get(fmt)
     return (process.memory_info().rss // 1024) / scale
+
+
+from typing import *
+def num_gpus():
+    import torch
+    return torch.cuda.device_count()
+
+def gpu_memory():
+    import torch
+    return torch.cuda.memory_allocated()
+def gpus():
+    return list(range(num_gpus()))
+
+def gpu_info( fmt='gb') -> Dict[int, Dict[str, float]]:
+    import torch
+    gpu_info = {}
+    for gpu_id in gpus():
+        mem_info = torch.cuda.mem_get_info(gpu_id)
+        gpu_info[int(gpu_id)] = {
+            'name': torch.cuda.get_device_name(gpu_id),
+            'free': mem_info[0],
+            'used': (mem_info[1]- mem_info[0]),
+            'total': mem_info[1], 
+            'ratio': mem_info[0]/mem_info[1],
+        }
+
+    gpu_info_map = {}
+
+    skip_keys =  ['ratio', 'total', 'name']
+
+    for gpu_id, gpu_info in gpu_info.items():
+        for key, value in gpu_info.items():
+            if key in skip_keys:
+                continue
+            gpu_info[key] = format_data_size(value, fmt=fmt)
+        gpu_info_map[gpu_id] = gpu_info
+    return gpu_info_map
+    
+
+def cuda_available() -> bool:
+    import torch
+    return torch.cuda.is_available()
+
+def free_gpu_memory():
+    gpu_info = gpu_info()
+    return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
+
+def most_used_gpu():
+    most_used_gpu = max(free_gpu_memory().items(), key=lambda x: x[1])[0]
+    return most_used_gpu
+
+def most_used_gpu_memory():
+    most_used_gpu = max(free_gpu_memory().items(), key=lambda x: x[1])[1]
+    return most_used_gpu
+    
+
+def least_used_gpu():
+    least_used_gpu = min(free_gpu_memory().items(), key=lambda x: x[1])[0]
+    return least_used_gpu
+
+def least_used_gpu_memory():
+    least_used_gpu = min(free_gpu_memory().items(), key=lambda x: x[1])[1]
+    return least_used_gpu
+
+def disk_info( path:str = '/', fmt:str='gb'):
+    import shutil
+    response = shutil.disk_usage(path)
+    response = {
+        'total': response.total,
+        'used': response.used,
+        'free': response.free,
+    }
+    for key, value in response.items():
+        response[key] = format_data_size(value, fmt=fmt)
+    return response
+
+
+@staticmethod
+def get_pid():
+    return os.getpid()
+
+def memory_usage_info(fmt='gb'):
+    import psutil
+    process = psutil.Process(os.getpid())
+    memory_info = process.memory_info()
+    response = {
+        'rss': memory_info.rss,
+        'vms': memory_info.vms,
+        'pageins' : memory_info.pageins,
+        'pfaults': memory_info.pfaults,
+    }
+
+    for key, value in response.items():
+        response[key] = format_data_size(value, fmt=fmt)
+
+    return response
+
+def memory_info(fmt='gb'):
+    import psutil
+    """
+    Returns the current memory usage and total memory of the system.
+    """
+    # Get memory statistics
+    memory_stats = psutil.virtual_memory()
+
+    # Total memory in the system
+    response = {
+        'total': memory_stats.total,
+        'available': memory_stats.available,
+        'used': memory_stats.total - memory_stats.available,
+        'free': memory_stats.available,
+        'active': memory_stats.active,
+        'inactive': memory_stats.inactive,
+        'percent': memory_stats.percent,
+        'ratio': memory_stats.percent/100,
+    }
+
+    for key, value in response.items():
+        if key in ['percent', 'ratio']:
+            continue
+        response[key] = format_data_size(value, fmt=fmt)    
+
+    return response
+
+def virtual_memory_available():
+    import psutil
+    return psutil.virtual_memory().available
+
+def virtual_memory_total():
+    import psutil
+    return psutil.virtual_memory().total
+
+def virtual_memory_percent():
+    import psutil
+    return psutil.virtual_memory().percent
+
+def cpu_info():
+    
+    return {
+        'cpu_count': cpu_count(),
+        'cpu_type': cpu_type(),
+    }
+
+
+def cpu_usage():
+    import psutil
+    # get the system performance data for the cpu
+    cpu_usage = psutil.cpu_percent()
+    return cpu_usage
+
+def add_rsa_key(b=2048, t='rsa'):
+    return cmd(f"ssh-keygen -b {b} -t {t}")
+
+
+
+
+def kill_process(process):
+    import signal
+    process_id = process.pid
+    process.stdout.close()
+    process.send_signal(signal.SIGINT)
+    process.wait()
+    return {'success': True, 'msg': 'process killed', 'pid': process_id}
+    # sys.exit(0)
+
+
+def seed_everything(seed: int) -> None:
+    import torch, random
+    import numpy as np
+    "seeding function for reproducibility"
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+def set_env(key:str, value:str):
+    os.environ[key] = value
+    return {'success': True, 'key': key, 'value': value}
+
+def get_env(key:str):
+    return os.environ.get(key)
+
+
+
+def cmd( command:Union[str, list],
+                *args,
+                verbose:bool = False , 
+                env:Dict[str, str] = {}, 
+                sudo:bool = False,
+                password: bool = None,
+                bash : bool = False,
+                return_process: bool = False,
+                generator: bool =  False,
+                color : str = 'white',
+                cwd : str = None,
+                **kwargs) -> 'subprocess.Popen':
+    import commune as c
+    if len(args) > 0:
+        command = ' '.join([command] + list(args))
+
+    sudo = bool(password != None)
+
+    if sudo:
+        command = f'sudo {command}'
+
+    if bash:
+        command = f'bash -c "{command}"'
+
+    cwd = c.resolve_path(cwd)
+
+    env = {**os.environ, **env}
+
+    process = subprocess.Popen(shlex.split(command),
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.STDOUT,
+                                cwd = cwd,
+                                env=env, **kwargs)
+    if return_process:
+        return process
+    streamer = stream_output(process, verbose=verbose)
+    if generator:
+        return streamer
+    else:
+        text = ''
+        for ch in streamer:
+            text += ch
+    return text
+
+
+
+def gpu_info( fmt='gb') -> Dict[int, Dict[str, float]]:
+    import torch
+    gpu_info = {}
+    for gpu_id in gpus():
+        mem_info = torch.cuda.mem_get_info(gpu_id)
+        gpu_info[int(gpu_id)] = {
+            'name': torch.cuda.get_device_name(gpu_id),
+            'free': mem_info[0],
+            'used': (mem_info[1]- mem_info[0]),
+            'total': mem_info[1], 
+            'ratio': mem_info[0]/mem_info[1],
+        }
+
+    gpu_info_map = {}
+
+    skip_keys =  ['ratio', 'total', 'name']
+
+    for gpu_id, gpu_info in gpu_info.items():
+        for key, value in gpu_info.items():
+            if key in skip_keys:
+                continue
+            gpu_info[key] = format_data_size(value, fmt=fmt)
+        gpu_info_map[gpu_id] = gpu_info
+    return gpu_info_map
+    
+
+gpu_map =gpu_info
