@@ -608,9 +608,8 @@ class Server(c.Module):
             print(result)
             progress.update(1)
             results_list += [result]
-        namespace = c.namespace
+        namespace = c.get_namespace(network=network, update=True)
         print(namespace)
-        namespace = namespace(network=network, update=True)
         new_n = len(servers)
         c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
         return {'success':True, 'old_n':n, 'new_n':new_n, 'servers':servers, 'namespace':namespace}
