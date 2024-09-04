@@ -11,14 +11,13 @@ import commune as c
 
 
 class AESKey(c.Module):
-
+    bs = AES.block_size
     def __init__(self, key:str = 'dummy' ): 
         self.set_password(key)
 
     def set_password(self, key:str):
         if isinstance(key, str):
             key = key.encode()
-        self.bs = AES.block_size
         self.key_phrase = hashlib.sha256(key).digest()
         return {'msg': 'set the password'}
 
@@ -36,7 +35,7 @@ class AESKey(c.Module):
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
         decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-        return self.str2python(decrypted_data)
+        return c.str2python(decrypted_data)
 
     def _pad(self, s):
         return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)

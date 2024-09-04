@@ -225,3 +225,43 @@ def detailed_error(e) -> dict:
     }   
     return response
     
+
+    
+    @classmethod
+    def determine_type(cls, x):
+        if x.lower() == 'null' or x == 'None':
+            return None
+        elif x.lower() in ['true', 'false']:
+            return bool(x.lower() == 'true')
+        elif x.startswith('[') and x.endswith(']'):
+            # this is a list
+            try:
+                list_items = x[1:-1].split(',')
+                # try to convert each item to its actual type
+                x =  [cls.determine_type(item.strip()) for item in list_items]
+                if len(x) == 1 and x[0] == '':
+                    x = []
+                return x
+            except:
+                # if conversion fails, return as string
+                return x
+        elif x.startswith('{') and x.endswith('}'):
+            # this is a dictionary
+            if len(x) == 2:
+                return {}
+            try:
+                dict_items = x[1:-1].split(',')
+                # try to convert each item to a key-value pair
+                return {key.strip(): cls.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+            except:
+                # if conversion fails, return as string
+                return x
+        else:
+            # try to convert to int or float, otherwise return as string
+            try:
+                return int(x)
+            except ValueError:
+                try:
+                    return float(x)
+                except ValueError:
+                    return x

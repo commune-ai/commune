@@ -178,6 +178,7 @@ utils.os:
 utils.network:
   - free_port
   - port_used
+  - kill_port
   - port_available
   - get_port_range
   - ip
