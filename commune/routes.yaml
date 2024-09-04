@@ -196,5 +196,11 @@ utils.asyncio:
   - get_event_loop
   - new_event_loop
 
+utils.thread:
+  - thread
+  - threads
+  - submit
+  - as_completed
+
 
 
