@@ -88,9 +88,6 @@ class Chat(c.Module):
         return self.generate(' '.join(text), **kwargs)
 
              
-
-            
-
         # data_saved = self.save_data(data)
         # yield data
 

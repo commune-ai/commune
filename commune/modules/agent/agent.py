@@ -25,7 +25,7 @@ class Agent(c.Module):
             file=None , 
             trials=1, 
             code = None,
-            stream=False,
+            stream=True,
             objective=None,
              ):
         

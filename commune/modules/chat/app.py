@@ -9,7 +9,6 @@ class Chat(c.Module):
                  password = None,
                  text = 'Hello whaduop fam',
                  system_prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
-                 name='chat',
                  model = None,
                  history_path='history',
                 **kwargs):
@@ -18,7 +17,6 @@ class Chat(c.Module):
         self.text = text
         self.set_module(model, 
                         password = password,
-                        name = name,
                         history_path=history_path, 
                         system_prompt=system_prompt,
                         **kwargs)
@@ -31,7 +29,7 @@ class Chat(c.Module):
                     **kwargs):
         self.system_prompt = system_prompt
         self.admin_key = c.pwd2key(password) if password else self.key
-        self.model = c.module('model.openrouter')(model=model, **kwargs)
+        self.model = c.module('model.openrouter')(model=model)
         self.models = self.model.models()
         self.history_path = self.resolve_path(history_path)
         return {'success':True, 'msg':'set_module passed'}
@@ -62,43 +60,22 @@ class Chat(c.Module):
         return c.put(path, data)
 
 
-    def get_params(self):
-        model = st.selectbox('Model', self.models)
-        temperature = st.slider('Temperature', 0.0, 1.0, 0.5)
-        if hasattr(self.model, 'get_model_info'):
-            model_info = self.model.get_model_info(model)
-            max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
-        else:
-            model_info = {}
-            max_tokens = self.max_tokens
-        max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
-        system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
-        input  = st.text_area('Text',self.text, height=100)
-
-        params = {
-            'model': model,
-            'temperature': temperature,
-            'max_tokens': max_tokens,
-            'system_prompt': system_prompt,
-            'input': input
-        }
-
-        return params
     
     def sidebar(self, user='user', password='password', seperator='::'):
         with st.sidebar:
             st.title('Just Chat')
             # assert self.key.verify_ticket(ticket)
-      
-            user_name = st.text_input('User', user)
-            pwd = st.text_input('Password', password, type='password')
-            seed = c.hash(user_name + seperator + pwd)
-            self.key = c.pwd2key(seed)
-            self.data = c.dict2munch({  
-                            'user': user_name, 
-                            'path': self.resolve_path('history', self.key.ss58_address ),
-                            'history': self.history(self.key.ss58_address)
-                            })
+            with st.expander('l0g1n'): 
+                cols = st.columns([1,1])
+                user_name = cols[0].text_input('User', user)
+                pwd = cols[1].text_input('Password', password, type='password')
+                seed = c.hash(user_name + seperator + pwd)
+                self.key = c.pwd2key(seed)
+                self.data = c.dict2munch({  
+                                'user': user_name, 
+                                'path': self.resolve_path('history', self.key.ss58_address ),
+                                'history': self.history(self.key.ss58_address)
+                                })
     
     def search_history(self):
         search = st.text_input('Search')
@@ -121,24 +98,42 @@ class Chat(c.Module):
             self.history_page()
 
     def chat_page(self):
+        model = st.selectbox('Model', self.models)
         with st.sidebar.expander('Params', expanded=True):
-            params = self.get_params()
-        data = c.ticket(params, key=self.key)
+            temperature = st.number_input('Temperature', 0.0, 1.0, 0.5)
+            if hasattr(self.model, 'get_model_info'):
+                model_info = self.model.get_model_info(model)
+                max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
+            else:
+                model_info = {}
+                max_tokens = self.max_tokens
+            max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
+            system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
 
-        # make the buttons cover the whole page
+        input  = st.text_area('Text',self.text, height=100)
+        params = {
+            'input': input,
+            'model': model,
+            'temperature': temperature,
+            'max_tokens': max_tokens,
+            'system_prompt': system_prompt,
+        }
+
         cols = st.columns([1,1])
         send_button = cols[0].button('Send', key='send', use_container_width=True) 
         stop_button = cols[1].button('Stop', key='stop', use_container_width=True)
         if send_button and not stop_button:
-            r = self.generate(data)
+            r = self.model.generate(params['input'], 
+                                    max_tokens=params['max_tokens'], 
+                                    temperature=params['temperature'], 
+                                    model=params['model'], 
+                                    system_prompt=params['system_prompt'], 
+                                    stream=True)
             # dank emojis to give it that extra flair
             emojis = '✅🤖💻🔍🧠🔧⌨️'
             reverse_emojis = emojis[::-1]
             with st.spinner(f'{emojis} Generating {reverse_emojis}'):
                 st.write_stream(r)
-   
-            self.post_processing(data)
-
 
     def post_processing(self, data):
         lambda_string = st.text_area('fn(x={model_output})', 'x', height=100)

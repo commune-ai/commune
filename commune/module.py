@@ -2753,6 +2753,7 @@ class c:
                                       'commune/module', 
                                       'commune/modules', 
                                       'modules', 
+                                      'module',
                                       'blocks', 
                                       'agents', 
                                       'commune/agents'],
@@ -3163,13 +3164,13 @@ class c:
         return cls.module_exists(module + '.app', **kwargs)
     
     @classmethod
-    def simplify_paths(cls,  paths):
-        paths = [cls.simplify_path(p) for p in paths]
+    def simplify_object_paths(cls,  paths):
+        paths = [cls.simplify_object_path(p) for p in paths]
         paths = [p for p in paths if p]
         return paths
 
     @classmethod
-    def simplify_path(cls, p, avoid_terms=['modules', 'agents']):
+    def simplify_object_path(cls, p, avoid_terms=['modules', 'agents', 'module']):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -3202,7 +3203,7 @@ class c:
     @classmethod
     def local_modules(cls, search=None):
         object_paths = cls.find_classes(cls.pwd())
-        object_paths = cls.simplify_paths(object_paths) 
+        object_paths = cls.simplify_object_paths(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
@@ -3217,7 +3218,7 @@ class c:
     def get_tree(cls, path):
         print(path)
         class_paths = cls.find_classes(path)
-        simple_paths = cls.simplify_paths(class_paths) 
+        simple_paths = cls.simplify_object_paths(class_paths) 
         return dict(zip(simple_paths, class_paths))
     
     @classmethod
@@ -3288,7 +3289,7 @@ class c:
     @classmethod
     def lib_modules(cls, search=None):
         object_paths = cls.find_classes(cls.libpath )
-        object_paths = cls.simplify_paths(object_paths) 
+        object_paths = cls.simplify_object_paths(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
