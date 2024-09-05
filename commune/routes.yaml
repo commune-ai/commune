@@ -112,7 +112,6 @@ streamlit:
 docker:
   - dlogs
   - images
-
 server: [serve, serve_many, serve_all, kill, kill_many, kill_all, wait_for_server]
 pm2:
   - [kill_many, pm2_kill_many] # we can change the name of the function
@@ -132,7 +131,6 @@ vali:
   - run_epoch
   - setup_vali
   - from_module
-
 subspace: 
   - key2balance
   - my_keys
@@ -174,7 +172,6 @@ utils.types:
   - detailed_error
 utils.os: 
   - cmd
-
 utils.network:
   - free_port
   - port_used
@@ -182,6 +179,7 @@ utils.network:
   - port_available
   - get_port_range
   - ip
+  - ip_to_int
   - external_ip
   - port_free
   - used_port
@@ -190,16 +188,15 @@ utils.network:
   - get_available_ports
   - resolve_ip
   - is_valid_ip
-
 utils.asyncio:
   - gather
   - get_event_loop
   - new_event_loop
-
 utils.thread:
   - thread
   - threads
   - submit
+  - wait
   - as_completed
 
 

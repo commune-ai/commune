@@ -4,6 +4,7 @@ import urllib
 import requests
 from loguru import logger
 from typing import *
+import netaddr
 
 def check_used_ports(start_port = 8501, end_port = 8600, timeout=5):
     import commune as c
