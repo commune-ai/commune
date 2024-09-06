@@ -1814,17 +1814,26 @@ class c:
         except:
             return False
 
-    def file2text(self, path = './', relative=True,  **kwargs):
+    def file2text(self, path = './', 
+                  avoid_folders = ['__pycache__', 
+                                   '.git', 
+                                   '.ipynb_checkpoints', 
+                                   'package.lock',
+                                   'node_modules'],
+                  relative=True,  **kwargs):
         path = os.path.abspath(path)
         file2text = {}
         for file in c.glob(path, recursive=True):
+            if os.path.isdir(file):
+                continue
+            if any([folder in file for folder in avoid_folders]):
+                continue
             with open(file, 'r') as f:
                 content = f.read()
                 file2text[file] = content
         if relative:
             print(path)
             return {k[len(path)+1:]:v for k,v in file2text.items()}
-
         return file2text
     
     def file2lines(self, path:str='./')-> List[str]:
@@ -4095,6 +4104,10 @@ class c:
     @classmethod
     def obj2typestr(cls, obj):
         return str(type(obj)).split("'")[1]
+    
+    def explain_myself(self):
+        context = c.file2text(self.root_path)
+        return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
 
 
 
