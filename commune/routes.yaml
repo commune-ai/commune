@@ -125,8 +125,6 @@ pm2:
   - [exists, pm2_exists]
   - [servers, pm2_servers]
   - [logs, pm2_logs]
-  - launch
-  - remote_fn
 vali:
   - run_epoch
   - setup_vali
