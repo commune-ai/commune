@@ -217,7 +217,7 @@ class Server(c.Module):
         if remote:
             remote = False
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            for _ in ['extra_kwargs', 'address', 'response']:
+            for _ in ['extra_kwargs', 'address', 'response', 'namespace']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
             cls.remote_fn('serve', name=name, kwargs=remote_kwargs)
             return response
@@ -231,126 +231,11 @@ class Server(c.Module):
             key=key)
         return  response
 
-    @classmethod
-    def launch(cls, 
-                   module:str = None,  
-                   fn: str = 'serve',
-                   name:Optional[str]=None, 
-                   tag : str = None,
-                   args : list = None,
-                   kwargs: dict = None,
-                   device:str=None, 
-                   interpreter:str='python3', 
-                   autorestart: bool = True,
-                   verbose: bool = False , 
-                   force:bool = True,
-                   meta_fn: str = 'module_fn',
-                   tag_seperator:str = '::',
-                   cwd = None,
-                   refresh:bool=True ):
-        import commune as c
 
-        if hasattr(module, 'module_name'):
-            module = module.module_name()
-            
-        # avoid these references fucking shit up
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
 
-        # convert args and kwargs to json strings
-        kwargs =  {
-            'module': module ,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs 
-        }
 
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
 
-        name = name or module
-        if refresh:
-            cls.pm2_kill(name)
-        module = c.module()
-        # build command to run pm2
-        filepath = c.filepath()
-        cwd = cwd or module.dirpath()
-        command = f"pm2 start {filepath} --name {name} --interpreter {interpreter}"
 
-        if not autorestart:
-            command += ' --no-autorestart'
-        if force:
-            command += ' -f '
-        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
-        env = {}
-        if device != None:
-            if isinstance(device, int):
-                env['CUDA_VISIBLE_DEVICES']=str(device)
-            if isinstance(device, list):
-                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-        if refresh:
-            cls.pm2_kill(name)  
-        
-        cwd = cwd or module.dirpath()
-        
-        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
-
-    @classmethod
-    def remote_fn(cls, 
-                    fn: str='train', 
-                    module: str = None,
-                    args : list = None,
-                    kwargs : dict = None, 
-                    name : str =None,
-                    tag: str = None,
-                    refresh : bool =True,
-                    mode = 'pm2',
-                    tag_seperator : str = '::',
-                    cwd = None,
-                    **extra_launch_kwargs
-                    ):
-        import commune as c
-        
-        kwargs = c.locals2kwargs(kwargs)
-        if 'remote' in kwargs:
-            kwargs['remote'] = False
-        if len(fn.split('.'))>1:
-            module = '.'.join(fn.split('.')[:-1])
-            fn = fn.split('.')[-1]
-            
-        kwargs = kwargs if kwargs else {}
-        args = args if args else []
-        if 'remote' in kwargs:
-            kwargs['remote'] = False
-
-        cwd = cwd or cls.dirpath()
-        kwargs = kwargs or {}
-        args = args or []
-        module = cls.resolve_object(module)
-        # resolve the name
-        if name == None:
-            # if the module has a module_path function, use that as the name
-            if hasattr(module, 'module_path'):
-                name = module.module_name()
-            else:
-                name = module.__name__.lower() 
-        
-        c.print(f'[bold cyan]Launching --> <<[/bold cyan][bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}>>', color='green')
-
-        launch_kwargs = dict(
-                module=module, 
-                fn = fn,
-                name=name, 
-                tag=tag, 
-                args = args,
-                kwargs = kwargs,
-                refresh=refresh,
-                **extra_launch_kwargs
-        )
-        assert fn != None, 'fn must be specified for pm2 launch'
-    
-        return  cls.launch(**launch_kwargs)
-    
     sync_time = 0
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'minute': 60, 'second': 1}
         

@@ -2780,7 +2780,7 @@ class c:
         """
         # if cls.libname in simple and '/' not in simple and cls.can_import_module(simple):
         #     return simple
-        shortcuts = cls.shortcuts()
+        shortcuts = c.shortcuts()
         simple = shortcuts.get(simple, simple)
 
         if simple.endswith(extension):
@@ -3134,6 +3134,7 @@ class c:
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
         '''
+        assert key != None, key
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
         if verbose:
@@ -4110,6 +4111,56 @@ class c:
         return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
 
 
+
+    @classmethod
+    def remote_fn(cls, 
+                    fn: str='train', 
+                    module: str = None,
+                    args : list = None,
+                    kwargs : dict = None, 
+                    name : str =None,
+                    refresh : bool =True,
+                    interpreter = 'python3',
+                    autorestart : bool = True,
+                    force : bool = False,
+                    cwd = None,
+                    **extra_launch_kwargs
+                    ):
+
+        kwargs = c.locals2kwargs(kwargs)
+        kwargs = kwargs if kwargs else {}
+        args = args if args else []
+        if 'remote' in kwargs:
+            kwargs['remote'] = False
+        assert fn != None, 'fn must be specified for pm2 launch'
+        kwargs = {
+            'module': module, 
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs
+        }
+        name = name or module
+        if refresh:
+            c.pm2_kill(name)
+
+        module = c.module(module)
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+
+        # build command to run pm2
+        filepath = module.filepath()
+        cwd = os.path.dirname(filepath)
+        root_filepath = c.module('module').filepath()
+        command = f"pm2 start {root_filepath} --name {name} --interpreter {interpreter}"
+        if not autorestart:
+            command += ' --no-autorestart'
+        if force:
+            command += ' -f '
+        command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
+        return c.cmd(command, cwd=cwd)
+    
+    def fuckkkk(self):
+        return "fuckkkk"
+        
 
 c.add_routes()
 Module = c # Module is alias of c
