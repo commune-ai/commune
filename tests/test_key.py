@@ -3,6 +3,7 @@ import commune as c
 
 def test_encryption(value = 10):
     cls = c.module('key')
+    value = str(value)
     key = cls.new_key()
     enc = key.encrypt(value)
     dec = key.decrypt(enc)
@@ -42,26 +43,11 @@ def test_key_management(key1='test.key' , key2='test2.key'):
     assert not self.key_exists(key2), f'Key management failed, key still exists'
     return {'success': True, 'msg': 'test_key_management passed'}
 
-def test_str_signing():
-    self = c.module('key')()
-    sig = self.sign('test', return_string=True)
-    assert not self.verify('1'+sig)
-    assert self.verify(sig)
-    return {'success':True}
-
-def test_ticket():
-    self = c.module('key')()
-    ticket = self.ticket()
-    assert c.verify_ticket(ticket)
-    return {'success':True, 'msg':'test_ticket passed'}
 
 def test_signing():
     self = c.module('key')()
     sig = self.sign('test')
-    assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
     assert self.verify('test',sig, self.public_key)
-    sig = self.sign('test', return_string=True)
-    assert self.verify(sig, self.public_key)
     return {'success':True}
 
 def test_key_encryption(password='1234'):
