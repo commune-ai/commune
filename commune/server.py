@@ -196,6 +196,7 @@ class Server(c.Module):
               key = None,
               **extra_kwargs
               ):
+        module = module or 'module'
         kwargs = {**(params or kwargs or {}), **extra_kwargs}
         name = (name or server_name or module) or c.module_name()
         if tag_seperator in name:
@@ -210,10 +211,7 @@ class Server(c.Module):
                 port = c.free_port()
         if c.port_used(port):
             c.kill_port(port)
-        address = f'0.0.0.0:{port}'
-        # RESOLVE THE PORT FROM THE ADDRESS IF IT ALREADY EXISTS
-        # # NOTE REMOVE is FROM THE KWARGS REMOTE
-        response =  { 'module':module, 'name': name, 'address':address, 'kwargs':kwargs} 
+        response =  { 'module':module, 'name': name, 'address':f'0.0.0.0:{port}', 'kwargs':kwargs} 
         if remote:
             remote = False
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
@@ -500,5 +498,5 @@ class Server(c.Module):
         return {'success':True, 'old_n':n, 'new_n':new_n, 'servers':servers, 'namespace':namespace}
 
 
-
-Server.run(__name__)
+if __name__ == '__main__':
+    Server.run()
