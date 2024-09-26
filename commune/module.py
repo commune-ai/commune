@@ -2898,7 +2898,7 @@ class c:
 
     @classmethod
     def find_classes(cls, path='./',  working=False):
-
+        print(path)
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
@@ -3238,19 +3238,10 @@ class c:
                    verbose = False,
                    update_tree_if_fail = True,
                    init_kwargs = None,
-                   catch_error = False,
+                   **_kwargs
                    ) -> str:
         import commune as c
         path = path or 'module'
-        if catch_error:
-            try:
-                return cls.get_module(path=path, cache=cache, 
-                                      verbose=verbose, 
-                                      update_tree_if_fail=update_tree_if_fail,
-                                       init_kwargs=init_kwargs, 
-                                       catch_error=False)
-            except Exception as e:
-                return c.detailed_error(e)
         if path in ['module', 'c']:
             return c.Module
         # if the module is a valid import path 
