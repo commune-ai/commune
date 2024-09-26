@@ -1,9 +1,0 @@
-
-network:
-  module: web3.network.evm
-  kwargs:
-    network: local.main
-  actor: False
-  wrap: False
-
-client: [local]
