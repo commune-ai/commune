@@ -1,0 +1,3 @@
+
+module: ObjectServer
+# client: {block: ['ray']}

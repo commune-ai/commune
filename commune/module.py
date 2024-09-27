@@ -440,10 +440,7 @@ class c:
         module = c.module(module) if module != None else cls
         return module.dirpath() == c.pwd()
     
-    @classmethod
-    def shortcuts(cls, cache=True) -> Dict[str, str]:
-        return c.get_yaml(f'{cls.dirpath()}/shortcuts.yaml')
-    
+
     def __repr__(self) -> str:
         return f'<{self.class_name()}'
     def __str__(self) -> str:
@@ -2493,11 +2490,7 @@ class c:
         '''
         is the function a property
         '''
-        try:
-            fn = cls.get_fn(fn, ignore_module_pattern=True)
-        except :
-            return False
-
+        fn = c.get_fn(fn)
         return isinstance(fn, property)
 
     def is_fn_self(self, fn):
@@ -2579,18 +2572,18 @@ class c:
     
     @classmethod
     def classify_fn(cls, fn):
-        try:
-            if not callable(fn):
-                fn = cls.get_fn(fn)
-            if not callable(fn):
-                return 'cls'
-            args = cls.get_function_args(fn)
-            if args[0] == 'self':
-                return 'self'
-            elif args[0] == 'cls':
-                return 'class'
-        except Exception as e:
+        if not callable(fn):
+            fn = cls.get_fn(fn)
+        if not callable(fn):
+            return 'cls'
+        args = cls.get_function_args(fn)
+        if len(args) == 0:
             return 'property'
+        if args[0] == 'self':
+            return 'self'
+        elif args[0] == 'cls':
+            return 'class'
+
         return 'static'
         
     @classmethod
@@ -2780,7 +2773,7 @@ class c:
         """
         # if cls.libname in simple and '/' not in simple and cls.can_import_module(simple):
         #     return simple
-        shortcuts = c.shortcuts()
+        shortcuts = c.shortcuts
         simple = shortcuts.get(simple, simple)
 
         if simple.endswith(extension):
@@ -2898,7 +2891,6 @@ class c:
 
     @classmethod
     def find_classes(cls, path='./',  working=False):
-        print(path)
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
@@ -3245,7 +3237,7 @@ class c:
         if path in ['module', 'c']:
             return c.Module
         # if the module is a valid import path 
-        shortcuts = c.shortcuts()
+        shortcuts = c.shortcuts
         if path in shortcuts:
             path = shortcuts[path]
         module = None
@@ -4152,6 +4144,20 @@ class c:
     def fuckkkk(self):
         return "fuckkkk"
         
+
+    shortcuts =  {
+        'user': 'server.user',
+        'namespace':'server.namespace', 
+        'client': 'server.client',
+        'pm2': 'server.pm2',
+        'serializer': 'server.serializer',
+        'openai' : 'model.openai',
+        'openrouter':  'model.openrouter',
+        'or' : ' model.openrouter',
+        'r' :  'remote',
+        's' :  'subspace',
+        }
+
 
 c.add_routes()
 Module = c # Module is alias of c

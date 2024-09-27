@@ -46,18 +46,6 @@ class cli:
             for arg in c.copy(argv):
                 if arg.startswith('--'):
                     key = arg[2:].split('=')[0]
-                    # if key == 'cwd':
-                    #     new_argv = []
-                    #     for item in c.copy(argv):
-                    #         if '--cwd' in item:
-                    #             continue
-                    #         new_argv.append(item)
-                    #     new_cmd = 'c ' + ' '.join(c.copy(new_argv))
-
-                    #     cwd = c.resolve_path(arg.split('=')[1])
-                    #     v = c.cmd(f'{new_cmd}', cwd=cwd)
-                    #     c.print(v)
-                    #     return new_cmd
                     if key in self.helper_fns:
                         new_argvs = self.argv()
                         new_argvs.remove(arg)
@@ -70,10 +58,9 @@ class cli:
                     init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
-        if argv[0].endswith('.py'):
-            argv[0] = argv[0][:-3]
-        
-
+        if os.path.isdir(argv[0]):
+            argv[0] = c.path2simple(argv[0])
+    
         if ':' in argv[0]:
             # {module}:{fn} arg1 arg2 arg3 ... argn
             argv[0] = argv[0].replace(':', '/')
@@ -101,12 +88,14 @@ class cli:
         fn_path = f'{module_name}/{fn}'
         fn_obj = getattr(module, fn)
         fn_type = c.classify_fn(fn_obj)
-        if fn_type == 'self' or len(init_kwargs) > 0:
+        is_property = c.is_property(fn_obj)
+        print(fn_type)
+        if fn_type == 'self' or len(init_kwargs) > 0 or is_property:
             fn_obj = getattr(module(**init_kwargs), fn)
         # calling function buffer
         input_msg = f'[bold]fn[/bold]: {fn_path}'
 
-        if callable(fn_obj) and not c.is_property(fn_obj):
+        if callable(fn_obj):
             args, kwargs  = self.parse_args(argv)
             if len(args) > 0 or len(kwargs) > 0:
                 inputs = {"args":args, "kwargs":kwargs}
