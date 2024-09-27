@@ -1,0 +1,158 @@
+
+ethereum: 
+    main:
+      chainid: 1
+      url:
+        infura: https://mainnet.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+      explorer: https://api.etherscan.io/api
+    rospten:
+      chainid: 3
+      url: 
+        infura:  https://ropsten.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+      explorer: https://api-ropsten.etherscan.io/api
+    rinekby:
+      chainid: 4
+      url: 
+        infura: https://rinkeby.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+      explorer: https://api-rinkeby.etherscan.io/api
+      multicall2: "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696"
+    goerli:
+      chainid: 5
+      url:
+        infura: https://goerli.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+      explorer: https://api-goerli.etherscan.io/api
+      multicall2: "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696"
+      provider: infura
+    kovan:
+      chainid: 42
+      id: kovan
+      url: 
+        infura: https://kovan.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+      explorer: https://api-kovan.etherscan.io/api
+      multicall2: "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696"
+      provider: infura
+arbitrum:
+  main:
+    chainid: 42161
+    url: 
+      public: https://arb1.arbitrum.io/rpc
+    explorer: https://api.arbiscan.io/api
+    multicall2: "0x5B5CFE992AdAC0C9D48E05854B2d91C73a003858"
+avalanche:
+  main:
+    chainid: 43114
+    explorer: https://api.snowtrace.io/api
+    url: 
+      public: https://api.avax.network/ext/bc/C/rpc
+  test:
+    chainid: 43113
+    url: 
+      public: https://api.avax-test.network/ext/bc/C/rpc
+aurora:
+  main:
+    chainid: 1313161554
+    url: 
+      public: https://mainnet.aurora.dev
+    explorer: https://api.aurorascan.dev/api
+    multicall2: "0xace58a26b8Db90498eF0330fDC9C2655db0C45E2"
+  test:
+    chainid: 1313161555
+    url: 
+      public: https://testnet.aurora.dev
+    explorer: https://testnet.aurorascan.dev/api
+binance:
+  test:
+    chainid: 97
+    id: bsc-test
+    url: 
+      public: https://data-seed-prebsc-1-s1.binance.org:8545
+    explorer: https://api-testnet.bscscan.com/api
+  main:
+    chainid: 56
+    url: 
+      public: https://bsc-dataseed.binance.org
+    explorer: https://api.bscscan.com/api
+fantom:
+  test:
+      chainid: 0xfa2
+      url: 
+        public: https://rpc.testnet.fantom.network
+      explorer: https://explorer.testnet.fantom.network
+  main:
+    chainid: 250
+    url: 
+      public: https://rpc.ftm.tools
+    explorer: https://api.ftmscan.com/api
+harmony:
+  main:
+    chainid: 1666600000
+    url:
+      public: https://api.harmony.one
+    shard: 0
+    multicall2: "0x3E01dD8a5E1fb3481F0F589056b428Fc308AF0Fb"
+moonbeam:
+  main:
+    chainid: 1284
+    id: moonbeam-main
+    url: 
+      public: https://moonbeam.api.onfinality.io/public
+    explorer: https://api-moonbeam.moonscan.io/api
+    multicall2: "0x1337BedC9D22ecbe766dF105c9623922A27963EC"
+  alpha:
+    chainid: 1287 
+    url: 
+      public: https://moonbeam-alpha.api.onfinality.io/public
+    explorer: https://api-moonbase.moonscan.io/api
+    multicall2: "0x37084d0158C68128d6Bc3E5db537Be996f7B6979"
+moonriver:
+  main:
+    chainid: 1285
+    url:
+      public: https://moonriver.api.onfinality.io/public
+    explorer: https://api-moonriver.moonscan.io/api
+    multicall2: "0xaef00a0cf402d9dedd54092d9ca179be6f9e5ce3"
+optimism:
+  main:
+    chainid: 10
+    url: 
+      public: https://mainnet.optimism.io
+    explorer: https://api-optimistic.etherscan.io/api
+    multicall2: "0x2DC0E2aa608532Da689e89e237dF582B783E552C"
+  kovan: 
+    chainid: 69
+    url:
+      public: https://kovan.optimism.io
+    explorer: https://api-kovan-optimistic.etherscan.io/api
+    multicall2: "0x2DC0E2aa608532Da689e89e237dF582B783E552C"
+polygon:
+  main:
+    chainid: 137
+    url:
+      infura: https://polygon-mainnet.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+    explorer: https://api.polygonscan.com/api
+    multicall2: "0xc8E51042792d7405184DfCa245F2d27B94D013b6"
+  test:
+    chainid: 80001
+    url: 
+      public:  https://rpc-mumbai.maticvigil.com
+      infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+    explorer: https://api-testnet.polygonscan.com/api
+    multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"
+
+  zkevm:
+    chainid: 80001
+    url: 
+      infura: https://polygon-mumbai.infura.io/v3/$WEB3_INFURA_PROJECT_ID
+    explorer: https://api-testnet.polygonscan.com/api
+    multicall2: "0x6842E0412AC1c00464dc48961330156a07268d14"
+local:
+  main:
+    chainid: 1337
+    url:
+      ganache: http://0.0.0.0:8545
+    explorer: null
+    multicall2: null
+skale:
+  test:
+    url:
+      public: https://eth-sf.skalenodes.com/v1/hackathon-complex-easy-naos
