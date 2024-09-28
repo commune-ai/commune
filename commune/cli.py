@@ -45,16 +45,19 @@ class cli:
         if any([arg.startswith('--') for arg in argv]): 
             for arg in c.copy(argv):
                 if arg.startswith('--'):
-                    key = arg[2:].split('=')[0]
-                    if key in self.helper_fns:
-                        new_argvs = self.argv()
-                        new_argvs.remove(arg)
-                        new_argvs = [key , new_argvs[0]]
-                        return self.forward(new_argvs)
-                    argv.remove(arg)
-                    if '=' not in arg:
+                    if '=' in arg:
+                        key = arg[2:].split('=')[0]
+                        if key in self.helper_fns:
+                            new_argvs = self.argv()
+                            new_argvs.remove(arg)
+                            new_argvs = [key , new_argvs[0]]
+                            return self.forward(new_argvs)
+                        value = arg.split('=')[1]
+
+                    else:
+                        key  = arg[2:]  
                         value = True
-                    value = arg.split('=')[1]
+                    argv.remove(arg)
                     init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
@@ -168,12 +171,13 @@ class cli:
 
     @classmethod
     def determine_type(cls, x):
-
-        if x.startswith('py(') and x.endswith(')'):
-            try:
-                return eval(x[3:-1])
-            except:
-                return x
+        x = str(x)
+        if isinstance(x, str) :
+            if x.startswith('py(') and x.endswith(')'):
+                try:
+                    return eval(x[3:-1])
+                except:
+                    return x
         if x.lower() in ['null'] or x == 'None':  # convert 'null' or 'None' to None
             return None 
         elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool

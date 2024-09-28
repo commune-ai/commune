@@ -226,6 +226,6 @@ class Namespace(c.Module):
 
         return server_exists  
     
-Namespace.run(__name__)
+# Namespace.run(__name__)
 
 

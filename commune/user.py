@@ -10,15 +10,6 @@ class User(c.Module):
     # USER LAND
     ##################################
 
-    def role2users(self):
-        role2users = {}
-        for user,v in self.users().items():
-            role = v['role']
-            if role not in role2users:
-                role2users[role] = []
-            role2users[role].append(user)
-        return role2users
-    
     def add_user(self, address, role='user', name=None, **kwargs):
         assert c.valid_ss58_address(address), f'{address} is not a valid address'
         users = self.get('users', {})
@@ -38,8 +29,6 @@ class User(c.Module):
 
     def roles(self):
         return list(set([v['role'] for k,v in self.users().items()]))
-
-    
     
     def is_user(self, address):
         return address in self.users()
@@ -127,14 +116,12 @@ class User(c.Module):
         df = pd.DataFrame(df)
         return df 
         
-    
     def app(self):
         import streamlit as st
         st.write('### Users')
         self = self()
         users = self.users()
         
-
         with st.expander('Users', False):
             st.write(self.df())
 

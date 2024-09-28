@@ -1,6 +1,5 @@
 
 import commune as c 
-import os
 
 class Agent(c.Module):
 

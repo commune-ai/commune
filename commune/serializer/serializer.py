@@ -8,7 +8,6 @@ class Serializer(c.Module):
     json_serializable_types = [int, float, str, bool, type(None)]
 
     def serialize(self,x:dict, mode = 'dict', copy_value = True):
-        
         if copy_value:
             x = c.copy(x)
         if type(x) in self.iterable_types:
@@ -109,7 +108,7 @@ class Serializer(c.Module):
                 setattr(serializer, 'date_type', data_type)
                 serializer_map[data_type] = serializer
         else:
-            raise TypeError(f'Type Not supported for serializeation ({data_type})')
+            raise TypeError(f'Type Not supported for serializeation ({data_type}) with ')
         return serializer
 
     def dict2bytes(self, data:dict) -> bytes:
