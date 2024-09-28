@@ -23,36 +23,34 @@ class App(c.Module):
            name : Optional[str] = None,
            fn:str='app', 
            port:int=None, 
-           remote:bool = True, 
+           remote:bool = False, 
            kwargs:dict=None, 
            cmd = None,
            update:bool=False,
            process_name:str=None,
            cwd = None):
         port = self.get_free_port(module=module, port=port, update=update)
+        
+        rkwargs = c.locals2kwargs(locals())
+        rkwargs['remote'] = False
+        response = {
+                'success': True,
+                'module': module,
+                'url':  f'http://localhost:{port}',
+
+            }
         if remote:
             if self.app_exists(name):
                 self.kill_app(name)
-            rkwargs = c.locals2kwargs(locals())
-            rkwargs['remote'] = False
             self.remote_fn(
                         fn='start',
                         name=self.name_prefix + module ,
                         kwargs= rkwargs)
         
-            return {
-                'success': True,
-                'module': module,
-                'address': {
-                    'local': f'http://localhost:{port}',
-                    'public': f'http://{c.ip()}:{port}',
-                }  ,
-                'kwargs': rkwargs
-
-            }
+            return response
 
 
-        module = c.shortcuts().get(module, module)
+        module = c.shortcuts.get(module, module)
         
         kwargs = kwargs or {}
         name = name or module
@@ -79,7 +77,7 @@ class App(c.Module):
         app2info[name] = app_info
         self.put('app2info', app2info )
         c.cmd(cmd, verbose=True, cwd=c.pwd())
-        return app_info
+        return response
     
     start_app = app = start
 

@@ -5,7 +5,7 @@ import json
 import os
 import commune as c
 import requests 
-from substrateinterface import SubstrateInterface
+from commune.substrate import SubstrateInterface
 
 
 class Subspace(c.Module):
@@ -69,6 +69,8 @@ class Subspace(c.Module):
                 network: str =  'main',
                 mode: str =  'ws', 
                 subnet: str = 'commune',
+                testnet = False, 
+                test  = False,
                 url: str = None,
                 url_search: str  = 'commune',
                 url_path: str = None,
@@ -198,6 +200,7 @@ class Subspace(c.Module):
         
         if isinstance(key, str):
             address2key = c.key_exists(key)
+            key = c.get_key(key)
         assert hasattr(key, 'key'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
 
@@ -328,6 +331,8 @@ class Subspace(c.Module):
                 save = False,
                 **kwargs):
         
+        if self.config.testnet or self.config.test:
+            network = 'test'
         self.network = self.resolve_network(network)
         self.substrate = self.get_substrate( url=url, mode=mode, trials=trials , **kwargs)
         if save:

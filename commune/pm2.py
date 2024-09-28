@@ -1,6 +1,4 @@
 import commune as c
-
-
 import os
 from typing import *
 import json
@@ -18,7 +16,6 @@ class PM2(c.Module):
                 rm_list = [ p for p in list if p.startswith(name)]
             else:
                 raise Exception(f'pm2 process {name} not found')
-
         if len(rm_list) == 0:
             return []
         for n in rm_list:
@@ -26,14 +23,12 @@ class PM2(c.Module):
             c.cmd(f"pm2 restart {n}", verbose=False)
             cls.rm_logs(n)  
         return {'success':True, 'message':f'Restarted {name}'}
-       
 
     @classmethod
     def kill(cls, name:str, verbose:bool = True, **kwargs):
         if name == 'all':
             return cls.kill_all(verbose=verbose)
         c.cmd(f"pm2 delete {name}", verbose=False)
-        # remove the logs from the pm2 logs directory
         cls.rm_logs(name)
         return {'success':True, 'message':f'Killed {name}'}
     
@@ -43,7 +38,6 @@ class PM2(c.Module):
         if verbose:
             c.print(stdout,color='green')
         return stdout
-
 
     dir = os.path.expanduser('~/.pm2')
     @classmethod
@@ -105,7 +99,7 @@ class PM2(c.Module):
     @classmethod
     def kill_all(cls, verbose:bool = True, timeout=10, trials=10):
         while len(cls.servers()) > 0:
-            results = cls.kill_many(search=None, verbose=verbose, timeout=timeout)
+            print(cls.kill_many(search=None, verbose=verbose, timeout=timeout))
             trials -= 1
             assert trials > 0, 'Failed to kill all processes'
         return {'success':True, 'message':f'Killed all processes'}

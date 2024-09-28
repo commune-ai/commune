@@ -379,7 +379,8 @@ class c:
 
     @classmethod
     def get_key(cls,key:str = None , **kwargs) -> None:
-        return c.module('key').get_key(key, **kwargs)
+        from .key import Key
+        return Key.get_key(key, **kwargs)
 
     @classmethod
     def id(self):
@@ -601,10 +602,6 @@ class c:
         return schema
 
     @classmethod
-    def has_routes(cls):
-        return cls.config().get('routes') is not None
-    
-    @classmethod
     def utils_paths(cls, search=None):
         utils = c.find_functions(c.root_path + '/utils')
         if search != None:
@@ -645,7 +642,7 @@ class c:
     def routes(cls, cache=True):
         if cls.route_cache is not None and cache:
             return cls.route_cache 
-        routes_path = os.path.dirname(__file__)+ '/routes.yaml'
+        routes_path = os.path.dirname(__file__)+ '/routes.json'
         routes =  cls.get_yaml(routes_path)
         cls.route_cache = routes
         return routes
@@ -744,7 +741,7 @@ class c:
                 setattr(cls, to_fn, fn_obj)
                 c.print(f'ROUTE({m}.{fn} -> {my_path}:{fn})', verbose=verbose)
 
-        t1 = cls.time()
+        t1 = c.time()
         c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
         cls.routes_enabled = True
         return {'success': True, 'msg': 'enabled routes'}
@@ -2503,7 +2500,7 @@ class c:
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            is_object = cls.object_exists(fn)
+            is_object = c.object_exists(fn)
             if is_object:
                 return cls.get_object(fn)
             elif '/' in fn:
@@ -2973,7 +2970,7 @@ class c:
     def path2objectpath(cls, path:str, **kwargs) -> str:
         libpath = cls.libpath 
         if path.startswith(libpath):
-            path =   path.replace(libpath , '')[1:].replace('/', '.').replace('.py', '')
+            path =   path.replace(libpath , '')[1:].replace('/', '.')[:-3]
         else: 
             pwd = cls.pwd()
             if path.startswith(pwd):
@@ -2998,7 +2995,7 @@ class c:
         if os.path.isdir(path):
             path = os.path.abspath(path)
             for p in cls.glob(path+'/**/**.py', recursive=True):
-                p_fns = cls.find_functions(p)
+                p_fns = c.find_functions(p)
                 file_object_path = cls.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
                 for fn in p_fns:
@@ -3763,7 +3760,7 @@ class c:
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
-        user = cls.env('USER')
+        user = os.getenv('USER')
         cmd = f'chown -R {user}:{user} {path}'
         cls.cmd(cmd , sudo=sudo, verbose=True)
         return {'success':True, 'message':f'chown cache {path}'}
@@ -3891,7 +3888,8 @@ class c:
     
     @classmethod  
     def time( cls, t=None) -> float:
-        return c.get_util('time.time')()
+        from time import time
+        return time()
     
     @classmethod  
     def timestamp( cls, t=None) -> float:
@@ -4141,23 +4139,20 @@ class c:
         command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
         return c.cmd(command, cwd=cwd)
     
-    def fuckkkk(self):
-        return "fuckkkk"
-        
+
 
     shortcuts =  {
-        'user': 'server.user',
-        'namespace':'server.namespace', 
-        'client': 'server.client',
-        'pm2': 'server.pm2',
-        'serializer': 'server.serializer',
+        # 'user': 'server.user',
+        # 'namespace':'server.namespace', 
+        # 'client': 'server.client',
+        # 'pm2': 'server.pm2',
+        # 'serializer': 'server.serializer',
         'openai' : 'model.openai',
         'openrouter':  'model.openrouter',
         'or' : ' model.openrouter',
         'r' :  'remote',
         's' :  'subspace',
         }
-
 
 c.add_routes()
 Module = c # Module is alias of c

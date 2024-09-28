@@ -143,37 +143,6 @@ class Chat(c.Module):
         df = c.df(history)
         st.write(df)
             
-    def app(self):
-        self.sidebar()
-
-        tab_names = ['Chat', 'History']
-        tabs = st.tabs(tab_names)
-        
-        with tabs[0]:
-            self.chat_page()
-        with tabs[1]:
-            self.history_page()
-
-    def chat_page(self):
-        with st.sidebar.expander('Params', expanded=True):
-            params = self.get_params()
-        data = c.ticket(params, key=self.key)
-
-        # make the buttons cover the whole page
-        cols = st.columns([1,1])
-        send_button = cols[0].button('Send', key='send', use_container_width=True) 
-        stop_button = cols[1].button('Stop', key='stop', use_container_width=True)
-        if send_button and not stop_button:
-            r = self.generate(data)
-            # dank emojis to give it that extra flair
-            emojis = '✅🤖💻🔍🧠🔧⌨️'
-            reverse_emojis = emojis[::-1]
-            with st.spinner(f'{emojis} Generating {reverse_emojis}'):
-                st.write_stream(r)
-   
-            self.post_processing(data)
-
-
     def post_processing(self, data):
         lambda_string = st.text_area('fn(x={model_output})', 'x', height=100)
         prefix = 'lambda x: '
@@ -185,20 +154,8 @@ class Chat(c.Module):
         except Exception as e:
             st.error(e)
 
-    def history_page(self):
-        history = self.data.history
-        if len(history) == 0:
-            st.error('No History')
-            return
-        else:
-            cols = history[0].keys()
-            selected_columns = st.multiselect('Columns', cols, cols)
-            df = c.df(history)[selected_columns]
-            st.write(df)
     def user_files(self):
         return c.get(self.data['path'])
-
-
 
     def save_data(self, address, data):
         return c.put(self.history_path + '/' + address +'/data.json', data)
@@ -258,4 +215,3 @@ class Chat(c.Module):
         return self.model.models()
 
 
-Chat.run(__name__)
