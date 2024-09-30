@@ -82,7 +82,10 @@ class c:
     def key(self, key: 'Key'):
         if key == None:
             key = self.server_name
-        self._key = key if hasattr(key, 'ss58_address') else c.get_key(key, create_if_not_exists=True)
+        if isinstance(key, str):
+            key = c.get_key(key, create_if_not_exists=True)
+
+        self._key = key 
         return self._key
 
     @classmethod
@@ -1813,6 +1816,8 @@ class c:
                                    '.git', 
                                    '.ipynb_checkpoints', 
                                    'package.lock',
+                                   'Cargo.lock',
+                                   'target/debug',
                                    'node_modules'],
                   relative=True,  **kwargs):
         path = os.path.abspath(path)
@@ -1822,9 +1827,12 @@ class c:
                 continue
             if any([folder in file for folder in avoid_folders]):
                 continue
-            with open(file, 'r') as f:
-                content = f.read()
-                file2text[file] = content
+            try:
+                with open(file, 'r') as f:
+                    content = f.read()
+                    file2text[file] = content
+            except Exception as e:
+                print(file)
         if relative:
             print(path)
             return {k[len(path)+1:]:v for k,v in file2text.items()}
@@ -2797,6 +2805,7 @@ class c:
             else:
                 module_filepath = dir_path + '/' + simple.replace('.', '/') 
                 path_options += [module_filepath]
+
             for p in path_options:
                 p = cls.resolve_extension(p)
                 if os.path.exists(p):

@@ -43,8 +43,6 @@ class Task(c.Module):
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.path = self.resolve_path(path) if path != None else None
         self.status = 'pending' # pending, running, done
-        # save the task state
-
 
     @property
     def lifetime(self) -> float:
@@ -64,7 +62,6 @@ class Task(c.Module):
             'status': self.status,
             'data': self.data, 
         }
-    
     
     def run(self):
         """Run the given work item"""
@@ -90,8 +87,6 @@ class Task(c.Module):
         self.end_time = c.time()
         self.latency = self.end_time - self.start_time
         self.data = data       
-
-
 
     def result(self) -> object:
         return self.future.result()
@@ -123,7 +118,6 @@ class Task(c.Module):
             return self.priority < other
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
-
 
 NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
@@ -172,12 +166,9 @@ class ThreadPoolExecutor(c.Module):
     def is_full(self):
         return self.work_queue.full()
 
-
     def default_priority_score(self):
         # older scores are higher priority
         return 1 # abs((self.start_time - c.time()))
-
-
     
     def submit(self, 
                fn: Callable,
