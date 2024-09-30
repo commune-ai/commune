@@ -169,6 +169,7 @@
         "subnet2netuid",
         "stake_transfer",
         "is_registered",
+        "register_subnet",
         "registered_subnets",
         "registered_netuids"
     ],

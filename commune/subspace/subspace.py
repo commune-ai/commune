@@ -8,65 +8,21 @@ import requests
 from commune.substrate import SubstrateInterface
 
 
+
 class Subspace(c.Module):
+
+
+
     """
     Handles interactions with the subspace chain.
     """
     block_time = 8
     token_decimals = 9
     __ss58_format__ = 42
-    urls = {
-    "main": [
-        "commune-api-node-0.communeai.net",
-        "commune-api-node-1.communeai.net",
-        "commune-api-node-2.communeai.net",
-        "commune-api-node-3.communeai.net",
-        "commune-api-node-4.communeai.net",
-        "commune-api-node-5.communeai.net",
-        "commune-api-node-6.communeai.net",
-        "commune-api-node-7.communeai.net",
-        "commune-api-node-8.communeai.net",
-        "commune-api-node-9.communeai.net",
-        "commune-api-node-10.communeai.net",
-        "commune-api-node-11.communeai.net",
-        "commune-api-node-12.communeai.net",
-        "commune-api-node-13.communeai.net",
-        "commune-api-node-14.communeai.net",
-        "commune-api-node-15.communeai.net",
-        "commune-api-node-16.communeai.net",
-        "commune-api-node-17.communeai.net",
-        "commune-api-node-18.communeai.net",
-        "commune-api-node-19.communeai.net",
-        "commune-api-node-20.communeai.net",
-        "commune-api-node-21.communeai.net",
-        "commune-api-node-22.communeai.net",
-        "commune-api-node-23.communeai.net",
-        "commune-api-node-24.communeai.net",
-        "commune-api-node-25.communeai.net",
-        "commune-api-node-26.communeai.net",
-        "commune-api-node-27.communeai.net",
-        "commune-api-node-28.communeai.net",
-        "commune-api-node-29.communeai.net",
-        "commune-api-node-30.communeai.net",
-        "commune-api-node-31.communeai.net"
-    ],
-    "test": [
-        "testnet-commune-api-node-0.communeai.net"
-    ]
-    }
-
-    whitelist = ['query', 
-                 'score',
-                 'query_map', 
-                 'get_module', 
-                 'get_balance', 
-                 'get_stake_to', 
-                 'get_stake_from']
-
     supported_modes = ['http', 'ws']
 
     def __init__(self, 
-                network: str =  'main',
+                network: str =  'test',
                 mode: str =  'ws', 
                 subnet: str = 'commune',
                 testnet = False, 
@@ -79,9 +35,20 @@ class Subspace(c.Module):
                 sync_loop = False,
                 **kwargs,
         ):
-        self.config = self.set_config(locals())
-        self.set_network(network )
+        self.set_config(locals())
+        self.set_network(network)
         self.set_netuid(netuid)
+
+    def founders(self):
+        return self.query_map('Founder')
+
+    def my_subnets(self):
+        my_subnets = []
+        address2key = c.address2key()
+        for subnet, founder in self.founders().items():
+            if founder in address2key:
+                my_subnets += [subnet]
+        return my_subnets
 
     init_subspace = __init__    
 
@@ -169,29 +136,6 @@ class Subspace(c.Module):
                 keys_left += [key]
         return {'success': True, 'msg': 'cleaned keys', 'keys_left': len(keys_left), 'rm_keys': len(rm_keys)}
 
-    
-    def load_launcher_keys(self, amount=600, **kwargs):
-        launcher_keys = self.launcher_keys()
-        key2address = c.key2address()
-        destinations = []
-        amounts = []
-        launcher2balance = c.get_balances(launcher_keys)
-        for k in launcher_keys:
-            k_address = key2address[k]
-            amount_needed = amount - launcher2balance.get(k_address, 0)
-            if amount_needed > 0:
-                destinations.append(k_address)
-                amounts.append(amount_needed)
-            else:
-                c.print(f'{k} has enough balance --> {launcher2balance.get(k, 0)}')
-
-        return c.transfer_many(amounts=amounts, destinations=destinations, **kwargs)
-       
-    def launcher_keys(self, netuid=0, min_stake=500, **kwargs):
-        keys = c.keys()
-        key2balance =  c.key2balance(netuid=netuid,**kwargs)
-        key2balance = {k: v for k,v in key2balance.items() if v > min_stake}
-        return [k for k in keys]
 
     def resolve_key(self, key = None):
 
@@ -554,31 +498,13 @@ class Subspace(c.Module):
         return self.substrate.get_block_number(block_hash=None)
 
     def query_multi(self, params_batch , 
-                    substrate=None, 
-                    module='SubspaceModule', 
-                    feature='SubnetNames', 
-                    trials = 6):
+                    substrate=None):
         # check if the params_batch is a list of lists
+        multi_query = []
         for i,p in enumerate(params_batch):
-            if isinstance(p, dict):
-                p = [p.get('module', module), p.get('feature', feature), p.get('netuid', 0)]
-            if len(p) == 1:
-                p = [module, feature, p]
-            assert len(p) == 3, f"[module, feature, netuid] should be of length 4. Got {p}"
-            params_batch[i] = p
-            
-        assert isinstance(params_batch, list), f"params_batch should be a list of lists"
-        while True:
-            substrate = substrate or self.get_substrate()
-            try:
-                multi_query = [substrate.create_storage_key(*p) for p in params_batch]
-                results = substrate.query_multi(multi_query)
-                break
-            except Exception as e:
-                trials -= 1 
-                if trials == 0: 
-                    raise e
-        return results
+            args = [p['module'], p.get['feature'], p['netuid']]
+            multi_query.append(substrate.create_storage_key(*args))
+        return substrate.query_multi(multi_query)
 
 
     
@@ -591,7 +517,7 @@ class Subspace(c.Module):
         """
         network = network or self.config.network
         if network == 'subspace':
-            network = 'main'
+            network = self.config.network
         return network
 
     def query_vector(self, name='Trust', netuid = 0, update=False, **kwargs):
@@ -1614,7 +1540,6 @@ class Subspace(c.Module):
                 registered_keys += [s]
         return registered_keys
 
-               
     def key2balance(self, search=None, 
                     batch_size = 64,
                     timeout = 10,
@@ -1916,14 +1841,13 @@ class Subspace(c.Module):
         address : str = None,
         stake : float = None,
         netuid = 0,
-        network_name : str = None,
+        network : str = None,
         key : str  = None,
         module_key : str = None,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = True,
         max_address_characters = 32,
         metadata = None,
-        network = None,
         nonce=None,
     **kwargs
     ) -> bool:
@@ -1931,15 +1855,15 @@ class Subspace(c.Module):
         netuid2subnet = self.netuid2subnet(update=False)  
         subnet2netuid = {v:k for k,v in netuid2subnet.items()}
 
-        if network_name == None and netuid != 0:
+        if network == None and netuid != 0:
             network_name = netuid2subnet[netuid]
         else:
-            assert isinstance(network_name, str), f"Subnet must be a string"
-            if not network_name in subnet2netuid:
+            assert isinstance(network, str), f"Subnet must be a string"
+            if not network in subnet2netuid:
                 subnet2netuid = self.subnet2netuid(update=True)
-                if network_name not in subnet2netuid:
-                    subnet2netuid[network_name] = len(subnet2netuid)
-                    response = input(f"Do you want to create a new subnet ({network_name}) (yes or y or dope): ")
+                if network not in subnet2netuid:
+                    subnet2netuid[network] = len(subnet2netuid)
+                    response = input(f"Do you want to create a new subnet ({network}) (yes or y or dope): ")
                     if response.lower() not in ["yes", 'y', 'dope']:
                         return {'success': False, 'msg': 'Subnet not found and not created'}
                 
@@ -2096,8 +2020,6 @@ class Subspace(c.Module):
         format_value = lambda v:  {v_k: self.format_amount(v_v, fmt=fmt) for v_k, v_v in v.items()}
         stake_to = {k: format_value(v) for k,v in stake_to.items()}
         return stake_to
-    
-
 
     def netuid2founder(self, fmt='j',  **kwargs):
         netuid2founder = self.query_map('Founder',  **kwargs)
@@ -2277,6 +2199,39 @@ class Subspace(c.Module):
                     value_features = [],
                     **kwargs
                     ) -> list:  
+
+        
+        features = features or self.subnet_param_features
+        netuid = self.resolve_netuid(netuid)
+        path = f'query/{self.network}/SubnetParams.{netuid}'          
+        subnet_params = self.get(path, max_age=max_age, update=update)
+        if subnet_params == None:
+
+            names = [self.feature2name(f) for f in features]
+            self.put(path, subnet_params)
+            
+        subnet_params.update(subnet_params.pop('subnet_governance_config')) 
+        translation = {
+            'subnet_names': 'name', 
+            'bonds_moving_average': 'bonds_ma'
+        }
+        for k,v in translation.items():
+            if k in subnet_params:
+                subnet_params[v] = subnet_params.pop(k)
+        return subnet_params
+
+
+
+    def subnet_params(self, 
+                    netuid=0,
+                    update = False,
+                    max_age = 1000,
+                    timeout=40,
+                    fmt:str='j', 
+                    features  = None,
+                    value_features = [],
+                    **kwargs
+                    ) -> list:  
         if netuid == 'all':
             return self.all_subnet_params(update=update, 
                                           max_age=max_age, 
@@ -2310,8 +2265,11 @@ class Subspace(c.Module):
                 f = c.submit(fn, kwargs=query_kwargs, timeout=timeout)
                 future2name[f] = name
             subnet_params = {}
+            n = len(future2name)
+            progress = c.tqdm(n)
             for f in c.as_completed(future2name, timeout=timeout):
                 result = f.result()
+                progress.update(1)
                 subnet_params[future2name.pop(f)] = result
             for k in subnet_params.keys():
                 v = subnet_params[k]
@@ -2698,9 +2656,6 @@ class Subspace(c.Module):
                 
         return name2key
 
-
-
-              
     def name2uid(self, name = None, netuid: int = 0, search=None) -> int:
         netuid = self.resolve_netuid(netuid)
         uid2name = self.uid2name(netuid=netuid)
@@ -2971,20 +2926,6 @@ class Subspace(c.Module):
             
         assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
-    
-
-    def blocks_until_vote(self, netuid=None, **kwargs):
-        netuid = self.resolve_netuid(netuid)
-        tempo = self.subnet_params(netuid=netuid, **kwargs)['tempo']
-        block = self.block
-        return tempo - ((block + netuid) % tempo)
-
-    def emission_per_epoch(self, netuid=None):
-        return self.subnet(netuid=netuid)['emission']*self.epoch_time(netuid=netuid)
-
-
-
-    
 
     def get_stake_to( self, 
                      key: str = None, 
@@ -3088,7 +3029,7 @@ class Subspace(c.Module):
             'modules': modules
         }
     
-    def register_subnet(self, key: 'Keypair', name: str, metadata: str | None = None) -> 'c':
+    def register_subnet(self,  name: str, key: 'Keypair' = None,  metadata: str | None = None) -> 'c':
         """
         Registers a new subnet in the network.
 
@@ -3103,6 +3044,7 @@ class Subspace(c.Module):
         Raises:
             ChainTransactionError: If the transaction fails.
         """
+        key = self.resolve_key(key)
 
         params = {
             "name": name,
@@ -3113,5 +3055,143 @@ class Subspace(c.Module):
 
         return response
 
-Subspace.run(__name__)
+
+
+    urls = {
+        "main": [
+            "commune-api-node-0.communeai.net",
+            "commune-api-node-1.communeai.net",
+            "commune-api-node-2.communeai.net",
+            "commune-api-node-3.communeai.net",
+            "commune-api-node-4.communeai.net",
+            "commune-api-node-5.communeai.net",
+            "commune-api-node-6.communeai.net",
+            "commune-api-node-7.communeai.net",
+            "commune-api-node-8.communeai.net",
+            "commune-api-node-9.communeai.net",
+            "commune-api-node-10.communeai.net",
+            "commune-api-node-11.communeai.net",
+            "commune-api-node-12.communeai.net",
+            "commune-api-node-13.communeai.net",
+            "commune-api-node-14.communeai.net",
+            "commune-api-node-15.communeai.net",
+            "commune-api-node-16.communeai.net",
+            "commune-api-node-17.communeai.net",
+            "commune-api-node-18.communeai.net",
+            "commune-api-node-19.communeai.net",
+            "commune-api-node-20.communeai.net",
+            "commune-api-node-21.communeai.net",
+            "commune-api-node-22.communeai.net",
+            "commune-api-node-23.communeai.net",
+            "commune-api-node-24.communeai.net",
+            "commune-api-node-25.communeai.net",
+            "commune-api-node-26.communeai.net",
+            "commune-api-node-27.communeai.net",
+            "commune-api-node-28.communeai.net",
+            "commune-api-node-29.communeai.net",
+            "commune-api-node-30.communeai.net",
+            "commune-api-node-31.communeai.net"
+        ],
+        "test": [
+            "testnet-commune-api-node-0.communeai.net"
+        ]
+    }
+
+
+
+
+    def _get_storage_keys(
+        self,
+        storage: str,
+        queries: list[tuple[str, list[Any]]],
+        block_hash: str | None,
+    ):
+
+        send: list[tuple[str, list[Any]]] = []
+        prefix_list: list[Any] = []
+
+        key_idx = 0
+        with self.get_conn(init=True) as substrate:
+            for function, params in queries:
+                storage_key = StorageKey.create_from_storage_function(  # type: ignore
+                    storage, function, params, runtime_config=substrate.runtime_config, metadata=substrate.metadata  # type: ignore
+                )
+
+                prefix = storage_key.to_hex()
+                prefix_list.append(prefix)
+                send.append(("state_getKeys", [prefix, block_hash]))
+                key_idx += 1
+        return send, prefix_list
+
+    def query_batch_map(
+        self,
+        functions: dict[str, list[tuple[str, list[Any]]]],
+        block_hash: str | None = None,
+    ) -> dict[str, dict[Any, Any]]:
+        """
+        Queries multiple storage functions using a map batch approach and returns the combined result.
+
+        Args:
+            substrate: An instance of SubstrateInterface for substrate interaction.
+            functions (dict[str, list[query_call]]): A dictionary mapping module names to lists of query calls.
+
+        Returns:
+            The combined result of the map batch query.
+
+        Example:
+            >>> query_batch_map(substrate_instance, {'module_name': [('function_name', ['param1', 'param2'])]})
+            # Returns the combined result of the map batch query
+        """
+        multi_result: dict[str, dict[Any, Any]] = {}
+
+        def recursive_update(
+            d: dict[str, dict[T1, T2] | dict[str, Any]],
+            u: Mapping[str, dict[Any, Any] | str],
+        ) -> dict[str, dict[T1, T2]]:
+            for k, v in u.items():
+                if isinstance(v, dict):
+                    d[k] = recursive_update(d.get(k, {}), v)  # type: ignore
+                else:
+                    d[k] = v  # type: ignore
+            return d  # type: ignore
+
+
+        def get_page():
+            send, prefix_list = self._get_storage_keys(storage, queries, block_hash)
+            with self.get_conn(init=True) as substrate:
+                function_parameters = self._get_lists(storage, queries, substrate)
+            responses = self._rpc_request_batch(send)
+            # assumption because send is just the storage_function keys
+            # so it should always be really small regardless of the amount of queries
+            assert len(responses) == 1
+            res = responses[0]
+            built_payload: list[tuple[str, list[Any]]] = []
+            for result_keys in res:
+                built_payload.append(
+                    ("state_queryStorageAt", [result_keys, block_hash])
+                )
+            _, chunks_info = self._make_request_smaller(
+                built_payload, prefix_list, function_parameters
+            )
+            chunks_response, chunks_info = self._rpc_request_batch_chunked(chunks_info)
+            return chunks_response, chunks_info
+
+        if not block_hash:
+            with self.get_conn(init=True) as substrate:
+                block_hash = substrate.get_block_hash()
+        for storage, queries in functions.items():
+            chunks, chunks_info = get_page()
+            # if this doesn't happen something is wrong on the code
+            # and we won't be able to decode the data properly
+            assert len(chunks) == len(chunks_info)
+            for chunk_info, response in zip(chunks_info, chunks):
+                storage_result = self._decode_response(
+                    response, chunk_info.fun_params, chunk_info.prefix_list, block_hash
+                )
+                multi_result = recursive_update(multi_result, storage_result)
+
+        return multi_result
+
+
+
 

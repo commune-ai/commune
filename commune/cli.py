@@ -45,15 +45,14 @@ class cli:
         if any([arg.startswith('--') for arg in argv]): 
             for arg in c.copy(argv):
                 if arg.startswith('--'):
+                    key = arg[2:].split('=')[0]
+                    if key in self.helper_fns:
+                        new_argvs = self.argv()
+                        new_argvs.remove(arg)
+                        new_argvs = [key , new_argvs[0]]
+                        return self.forward(new_argvs)
                     if '=' in arg:
-                        key = arg[2:].split('=')[0]
-                        if key in self.helper_fns:
-                            new_argvs = self.argv()
-                            new_argvs.remove(arg)
-                            new_argvs = [key , new_argvs[0]]
-                            return self.forward(new_argvs)
                         value = arg.split('=')[1]
-
                     else:
                         key  = arg[2:]  
                         value = True
@@ -83,6 +82,8 @@ class cli:
         else:
             module = argv.pop(0)
             fn = argv.pop(0)
+
+    
 
         if isinstance(module, str):
             module = c.get_module(module)

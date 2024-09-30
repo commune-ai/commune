@@ -6,68 +6,51 @@ import json
 class PM2(c.Module):
     dir = os.path.expanduser('~/.pm2')
    
-    @classmethod
-    def restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        list = cls.servers()
-        if name in list:
-            rm_list = [name]
-        else:
-            if prefix_match:
-                rm_list = [ p for p in list if p.startswith(name)]
-            else:
-                raise Exception(f'pm2 process {name} not found')
-        if len(rm_list) == 0:
-            return []
-        for n in rm_list:
-            c.print(f'Restarting {n}', color='cyan')
-            c.cmd(f"pm2 restart {n}", verbose=False)
-            cls.rm_logs(n)  
+    def restart(self, name:str,prefix_match:bool = True):
+        assert name in self.servers()
+        c.print(f'Restarting {name}', color='cyan')
+        c.cmd(f"pm2 restart {name}", verbose=False)
+        self.rm_logs(name)  
         return {'success':True, 'message':f'Restarted {name}'}
 
-    @classmethod
-    def kill(cls, name:str, verbose:bool = True, **kwargs):
+    def kill(self, name:str, verbose:bool = True, **kwargs):
         if name == 'all':
-            return cls.kill_all(verbose=verbose)
+            return self.kill_all(verbose=verbose)
         c.cmd(f"pm2 delete {name}", verbose=False)
-        cls.rm_logs(name)
+        self.rm_logs(name)
         return {'success':True, 'message':f'Killed {name}'}
     
-    @classmethod
-    def status(cls, verbose=False):
+    
+    def status(self, verbose=False):
         stdout = c.cmd(f"pm2 status", verbose=False)
         if verbose:
             c.print(stdout,color='green')
         return stdout
 
     dir = os.path.expanduser('~/.pm2')
-    @classmethod
-    def logs_path_map(cls, name=None):
+    
+    def logs_path_map(self, name=None):
         logs_path_map = {}
-        for l in c.ls(f'{cls.dir}/logs/'):
+        for l in c.ls(f'{self.dir}/logs/'):
             key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
             logs_path_map[key] = logs_path_map.get(key, []) + [l]
-
-    
         for k in logs_path_map.keys():
             logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
-
         if name != None:
             return logs_path_map.get(name, {})
 
         return logs_path_map
    
-    @classmethod
-    def rm_logs( cls, name):
-        logs_map = cls.logs_path_map(name)
-
+    
+    def rm_logs( self, name):
+        logs_map = self.logs_path_map(name)
         for k in logs_map.keys():
             c.rm(logs_map[k])
 
-    @classmethod
-    def logs(cls, 
+    
+    def logs(self, 
                 module:str, 
                 tail: int =100, 
-                verbose: bool=True ,
                 mode: str ='cmd',
                 **kwargs):
         
@@ -75,7 +58,7 @@ class PM2(c.Module):
             text = ''
             for m in ['out','error']:
                 # I know, this is fucked 
-                path = f'{cls.dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
+                path = f'{self.dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, tail=tail)
                 except Exception as e:
@@ -88,32 +71,32 @@ class PM2(c.Module):
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
    
-    @classmethod
-    def kill_many(cls, search=None, verbose:bool = True, timeout=10):
+    
+    def kill_many(self, search=None, verbose:bool = True, timeout=10):
         futures = []
-        for name in cls.servers(search=search):
-            f = c.submit(cls.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+        for name in self.servers(search=search):
+            f = c.submit(self.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
             futures.append(f)
         return c.wait(futures)
     
-    @classmethod
-    def kill_all(cls, verbose:bool = True, timeout=10, trials=10):
-        while len(cls.servers()) > 0:
-            print(cls.kill_many(search=None, verbose=verbose, timeout=timeout))
+    
+    def kill_all(self, verbose:bool = True, timeout=10, trials=10):
+        while len(self.servers()) > 0:
+            print(self.kill_many(search=None, verbose=verbose, timeout=timeout))
             trials -= 1
             assert trials > 0, 'Failed to kill all processes'
         return {'success':True, 'message':f'Killed all processes'}
 
                 
-    @classmethod
-    def servers(cls, search=None,  verbose:bool = False) -> List[str]:
+    
+    def servers(self, search=None,  verbose:bool = False) -> List[str]:
         output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n')[3:]:
             if  line.count('│') > 2:
                 server_name = line.split('│')[2].strip()
                 if 'errored' in line:
-                    cls.kill(server_name, verbose=True)
+                    self.kill(server_name, verbose=True)
                     continue
                 module_list += [server_name]
             
@@ -129,12 +112,12 @@ class PM2(c.Module):
     
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
-    @classmethod
-    def exists(cls, name:str) -> bool:
-        return bool(name in cls.servers())
     
-    @classmethod
-    def start(cls, 
+    def exists(self, name:str) -> bool:
+        return bool(name in self.servers())
+    
+    
+    def start(self, 
                 path:str , 
                   name:str,
                   cmd_kwargs:str = None, 
@@ -145,8 +128,8 @@ class PM2(c.Module):
                   interpreter : str = None,
                   **kwargs):
         
-        if cls.exists(name) and refresh:
-            cls.kill(name, verbose=verbose)
+        if self.exists(name) and refresh:
+            self.kill(name, verbose=verbose)
             
         cmd = f'pm2 start {path} --name {name}'
 
@@ -172,10 +155,10 @@ class PM2(c.Module):
 
         return c.cmd(cmd, verbose=verbose, **kwargs)
 
-    @classmethod
-    def restart_many(cls, search:str = None, network = None, **kwargs):
+    
+    def restart_many(self, search:str = None, network = None, **kwargs):
         t1 = c.time()
-        servers = cls.servers(search)
+        servers = self.servers(search)
         futures = [c.submit(c.restart, kwargs={"name": m, **kwargs}) for m in servers]
         results = []
         for f in c.as_completed(futures):
@@ -185,8 +168,8 @@ class PM2(c.Module):
 
 
 
-    @classmethod
-    def launch(cls, 
+    
+    def launch(self, 
                    module:str = None,  
                    fn: str = 'serve',
                    name:Optional[str]=None, 
@@ -223,7 +206,7 @@ class PM2(c.Module):
 
         name = name or module
         if refresh:
-            cls.pm2_kill(name)
+            self.pm2_kill(name)
         module = c.module()
         # build command to run pm2
         filepath = c.filepath()
@@ -242,24 +225,21 @@ class PM2(c.Module):
             if isinstance(device, list):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
         if refresh:
-            cls.pm2_kill(name)  
+            self.pm2_kill(name)  
         
         cwd = cwd or module.dirpath()
         
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
 
-    @classmethod
-    def remote_fn(cls, 
+    
+    def remote_fn(self, 
                     fn: str='train', 
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
                     name : str =None,
-                    tag: str = None,
                     refresh : bool =True,
-                    mode = 'pm2',
-                    tag_seperator : str = '::',
                     cwd = None,
                     **extra_launch_kwargs
                     ):
@@ -268,7 +248,7 @@ class PM2(c.Module):
         kwargs = c.locals2kwargs(kwargs)
         if 'remote' in kwargs:
             kwargs['remote'] = False
-        if len(fn.split('.'))>1:
+        if '/' in fn:
             module = '.'.join(fn.split('.')[:-1])
             fn = fn.split('.')[-1]
             
@@ -277,31 +257,26 @@ class PM2(c.Module):
         if 'remote' in kwargs:
             kwargs['remote'] = False
 
-        cwd = cwd or cls.dirpath()
+        cwd = cwd or self.dirpath()
         kwargs = kwargs or {}
         args = args or []
-        module = cls.resolve_object(module)
+        module = self.resolve_object(module)
+        name = self.resolve_name(module)
+
         # resolve the name
         if name == None:
             # if the module has a module_path function, use that as the name
-            if hasattr(module, 'module_path'):
+            if hasattr(module, 'module_name'):
                 name = module.module_name()
             else:
                 name = module.__name__.lower() 
-        
-        c.print(f'[bold cyan]Launching --> <<[/bold cyan][bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}>>', color='green')
 
-        launch_kwargs = dict(
-                module=module, 
-                fn = fn,
-                name=name, 
-                tag=tag, 
-                args = args,
-                kwargs = kwargs,
-                refresh=refresh,
-                **extra_launch_kwargs
-        )
         assert fn != None, 'fn must be specified for pm2 launch'
     
-        return  cls.launch(**launch_kwargs)
-    
+        return  self.launch( module=module, 
+                            fn = fn,
+                            name=name, 
+                            args = args,
+                            kwargs = kwargs,
+                            refresh=refresh,
+                            **extra_launch_kwargs)
