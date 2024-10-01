@@ -46,6 +46,7 @@ class MnemonicLanguageCode:
     SPANISH = 'es'
 
 class Key(c.Module):
+    crypto_type =  'sr25519'
     def __init__(self, 
                  private_key: Union[bytes, str] = None, 
                  mnemonic: str = None,
@@ -335,19 +336,19 @@ class Key(c.Module):
     
     @classmethod
     def rm_key(cls, key=None):
-        
         key2path = cls.key2path()
         keys = list(key2path.keys())
         if key not in keys:
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
         return {'deleted':[key]}
+
     
     @property
     def key_type(self):
         return self.crypto_type2name(self.crypto_type).lower()
     
-        
+    
     @classmethod
     def rm_keys(cls, rm_keys, verbose:bool=False):
         
@@ -361,7 +362,6 @@ class Key(c.Module):
             cls.rm_key(rm_key)
         
         return {'removed_keys':rm_keys}
-
     
     crypto_types = ['ED25519', 'SR25519', 'ECDSA']
 
@@ -384,7 +384,6 @@ class Key(c.Module):
         crypto_type_map ={v:k for k,v  in cls.crypto_type_map().items()}
         return crypto_type_map[crypto_type]
          
-        
     @classmethod
     def resolve_crypto_type(cls, crypto_type):
         if isinstance(crypto_type, str):
@@ -1122,34 +1121,21 @@ class Key(c.Module):
     @classmethod
     def from_private_key(cls, private_key:str):
         return cls(private_key=private_key)
-    
+
     @classmethod
-    def valid_ss58_address(cls, address: str ) -> bool:
+    def valid_ss58_address(cls, address: str, __ss58_format__=c.__ss58_format__ ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
-
-        Args:
-            address(str): The address to check.
-
-        Returns:
-            True if the address is a valid ss58 address for Bittensor, False otherwise.
         """
         try:
-            return ss58.is_valid_ss58_address( address, valid_ss58_format=c.__ss58_format__ )
-        except (IndexError):
+            return ss58.is_valid_ss58_address( address , valid_ss58_format  =__ss58_format__ )
+        except Exception as e:
             return False
         
     @classmethod
-    def is_valid_ed25519_pubkey(cls, public_key: Union[str, bytes] ) -> bool:
+    def is_valid_ed25519_pubkey(cls, public_key: Union[str, bytes], ss58_format=c.__ss58_format__) -> bool:
         """
         Checks if the given public_key is a valid ed25519 key.
-
-        Args:
-            public_key(Union[str, bytes]): The public_key to check.
-
-        Returns:    
-            True if the public_key is a valid ed25519 key, False otherwise.
-        
         """
         try:
             if isinstance( public_key, str ):
@@ -1161,8 +1147,7 @@ class Key(c.Module):
             else:
                 raise ValueError( "public_key must be a string or bytes" )
 
-            keypair = Key(public_key=public_key,
-                              ss58_format=c.__ss58_format__)
+            keypair = Key(public_key=public_key, ss58_format=ss58_format) 
 
             ss58_addr = keypair.ss58_address
             return ss58_addr is not None
@@ -1197,7 +1182,6 @@ class Key(c.Module):
         
     def id_card(self, return_json=True,**kwargs):
         return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
-    
 
     @staticmethod
     def is_ss58(address):
@@ -1280,8 +1264,6 @@ class Key(c.Module):
         else:
             address = key
         return address
-    
-
 
 # if __name__ == "__main__":      
 #     Key.run()

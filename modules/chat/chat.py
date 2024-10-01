@@ -63,31 +63,38 @@ class Chat(c.Module):
 
     @c.endpoint()
     def generate(self,  
-            input = 'whats 2+2?' ,
+            text = 'whats 2+2?' ,
+            model= 'anthropic/claude-3.5-sonnet', 
+
             temperature= 0.5,
             max_tokens= 1000000,
-            model= 'anthropic/claude-3.5-sonnet', 
             system_prompt= 'make this shit work',
             stream=True, 
-            headers = None,
             ):
-        # c.verify_ticket(ticket)
-        text = system_prompt + '\n' + input
-        output =  self.model.generate( text,stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
-        data = {
-            'input': input, 
-            'output': '', 
-            'max_tokens': max_tokens, 
-            'temperature': temperature,
-            'system_prompt': system_prompt,
-            'headers': headers
-        }
+        text = self.process_text(system_prompt + '\n' + text)
+        output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
         for token in output:
             yield token
+
+    def count_tokens(self, text):
+        return len(text.split(' ')) * 1.6
+
+
+    def process_text(self, text):
+        new_text = ''
+        for token in text.split(' '):
+            if "./" in token:
+                if c.exists(token):
+                    token_text = str(c.file2text(token))
+                    print(f'FOUND {token} --> {len(token_text)}  ' )
+                    new_text += str(token_text)
+            else:
+                new_text += token
+        return new_text
+
     def ask(self, *text, **kwargs): 
         return self.generate(' '.join(text), **kwargs)
 
-             
         # data_saved = self.save_data(data)
         # yield data
 

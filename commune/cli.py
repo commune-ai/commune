@@ -1,10 +1,7 @@
 
 import commune as c
-import json
 import sys
 import time
-import os
-import threading
 import sys
 
 
@@ -15,121 +12,75 @@ class cli:
     # 
 
     def __init__(self, 
-                 args = None,
-                module = 'module',
-                verbose = True,
-                forget_fns = ['module.key_info', 'module.save_keys'], 
-                seperator = ' ',
-                buffer_size=4,
+                args = None,
+                base = 'module',
+                fn_splitters = [':', '/', '//', '::'],
                 helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info'],
-                save: bool = False):
+                sep = '--'):
         
         self.helper_fns = helper_fns
-        self.seperator = seperator
-        self.buffer_size = buffer_size
-        self.verbose = verbose
-        self.save = save
-        self.forget_fns = forget_fns
-        self.base_module = c.module(module) if isinstance(module, str) else module
-        self.base_module_attributes = list(set(self.base_module.functions()  + self.base_module.attributes()))
+        self.fn_splitters = fn_splitters
+        self.sep = sep
+        self.base = c.module(base)()
         self.forward(args)
 
     def forward(self, argv=None):
-
         t0 = time.time()
         argv = argv or self.argv()
         self.input_msg = 'c ' + ' '.join(argv)
         output = None
-
         init_kwargs = {}
-        if any([arg.startswith('--') for arg in argv]): 
+        if any([arg.startswith(self.sep) for arg in argv]): 
             for arg in c.copy(argv):
-                if arg.startswith('--'):
-                    key = arg[2:].split('=')[0]
+                if arg.startswith(self.sep):
+                    key = arg[len(self.sep):]
                     if key in self.helper_fns:
-                        new_argvs = self.argv()
-                        new_argvs.remove(arg)
-                        new_argvs = [key , new_argvs[0]]
-                        return self.forward(new_argvs)
-                    if '=' in arg:
-                        value = arg.split('=')[1]
+                        return self.forward([key , argv[0]])
                     else:
-                        key  = arg[2:]  
-                        value = True
-                    argv.remove(arg)
-                    init_kwargs[key] = self.determine_type(value)
+                        if '=' in arg:
+                            key, value = arg.split('=')
+                        else: 
+                            value = True
+                        argv.remove(arg)
+                        init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
-        if os.path.isdir(argv[0]):
-            argv[0] = c.path2simple(argv[0])
-    
-        if ':' in argv[0]:
-            # {module}:{fn} arg1 arg2 arg3 ... argn
-            argv[0] = argv[0].replace(':', '/')
-
-        if '/' in argv[0]:
-            # prioritize the module over the function
-            module = '.'.join(argv[0].split('/')[:-1])
-            fn = argv[0].split('/')[-1]
-            argv = [module , fn , *argv[1:]]
-            is_fn = False
+        fn = argv.pop(0)
+        fn_obj = None
+        if fn in dir(self.base):
+            print(fn, self.base)
+            fn_obj = getattr(self.base, fn)
         else:
-            is_fn = argv[0] in self.base_module_attributes 
-
-        if is_fn:
-            module = self.base_module
-            fn = argv.pop(0)
-        else:
-            module = argv.pop(0)
-            fn = argv.pop(0)
-
-    
-
-        if isinstance(module, str):
-            module = c.get_module(module)
-        # module = self.base_module.from_object(module)
-        module_name = module.module_name()
-        fn_path = f'{module_name}/{fn}'
-        fn_obj = getattr(module, fn)
-        fn_type = c.classify_fn(fn_obj)
-        is_property = c.is_property(fn_obj)
-        print(fn_type)
-        if fn_type == 'self' or len(init_kwargs) > 0 or is_property:
-            fn_obj = getattr(module(**init_kwargs), fn)
-        # calling function buffer
-        input_msg = f'[bold]fn[/bold]: {fn_path}'
-
+            for fs in self.fn_splitters:
+                if fs in fn:
+                    module, fn = fn.split(fs)
+                    module = c.get_module(module)
+                    fn_obj = getattr(module, fn)  
+                    fn_type =  c.classify_fn(fn_obj)
+                    if fn_type == 'self':
+                        fn_obj = getattr(module(**init_kwargs), fn)  
+                    print(fn_obj,fn_type)
+                    break
+  
         if callable(fn_obj):
             args, kwargs  = self.parse_args(argv)
-            if len(args) > 0 or len(kwargs) > 0:
-                inputs = {"args":args, "kwargs":kwargs}
-                input_msg += ' ' + f'[purple][bold]params:[/bold] {json.dumps(inputs)}[/purple]'
-            output = lambda: fn_obj(*args, **kwargs)
-        else: 
-            output = lambda: fn_obj 
-        self.input_msg = input_msg
+            output = fn_obj(*args, **kwargs)
+        else:
+            output = fn_obj
+
         buffer = '⚡️'*4
-        c.print(buffer+input_msg+buffer, color='yellow')
-        output =  output()
+        c.print(buffer+fn+buffer, color='yellow')
         latency = time.time() - t0
         is_error =  c.is_error(output)
-
+        
         if is_error:
             buffer = '❌'
             msg =  f'Error(latency={latency:.3f})' 
         else:
             buffer = '✅'
             msg = f'Result(latency={latency:.3f})'
-
         print(buffer + msg + buffer)
-        
-        num_spacers = max(0,  len(self.input_msg) - len(msg) )
-        left_spacers = num_spacers//2
-        right_spacers = num_spacers - left_spacers
-        msg = self.seperator*left_spacers + msg + self.seperator*right_spacers
-        buffer =  self.buffer_size * buffer
         is_generator = c.is_generator(output)
-
         if is_generator:
             # print the items side by side instead of vertically
             for item in output:
