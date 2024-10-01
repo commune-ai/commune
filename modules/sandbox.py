@@ -1,4 +1,7 @@
 
 import torch
+import commune as c
 print('fammmm')
-print(torch.ones(10) * torch.full([10], 0.5))
+cmd = 'curl https://api.github.com/repos/commune-ai/commune/contents/README.md \
+  -H "Accept: application/json"'
+print(c.cmd(cmd))

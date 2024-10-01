@@ -5,6 +5,7 @@
         "setup_vali",
         "from_module"
     ],
+    "env": ["envs", "env2cmd", "create_env", "env2path"],
     "cli": [
         "parse_args"
     ],
@@ -129,7 +130,9 @@
         "kill",
         "kill_many",
         "kill_all",
-        "wait_for_server"
+        "wait_for_server", 
+        "endpoint", 
+        "is_endpoint"
     ],
     "pm2": [
         ["kill_many", "pm2_kill_many"],
@@ -140,7 +143,7 @@
         ["stop", "pm2_stop"],
         ["restart", "pm2_restart"],
         ["restart_prefix", "pm2_restart_prefix"],
-        ["exists", "pm2_exists"],
+        ["process_exists", "pm2_exists"],
         ["servers", "pm2_servers"],
         ["logs", "pm2_logs"]
     ],
@@ -219,5 +222,6 @@
         "submit",
         "wait",
         "as_completed"
-    ]
+    ],
+    "./commune/utils": "*"
 }

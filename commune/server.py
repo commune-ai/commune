@@ -763,7 +763,49 @@ class Server(c.Module):
         return schema
 
 
-   
+    def add_endpoint(self, name, fn):
+        setattr(self, name, fn)
+        self.endpoints.append(name)
+        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
+        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
+
+    def is_endpoint(self, fn) -> bool:
+        if isinstance(fn, str):
+            fn = getattr(self, fn)
+        return hasattr(fn, '__metadata__')
+
+    @classmethod
+    def endpoint(cls, 
+                 cost=1, # cost per call 
+                 user2rate : dict = None, 
+                 rate_limit : int = 100, # calls per minute
+                 timestale : int = 60,
+                 public:bool = False,
+                 cost_keys = ['cost', 'w', 'weight'],
+                 **kwargs):
+        
+        for k in cost_keys:
+            if k in kwargs:
+                cost = kwargs[k]
+                break
+
+        def decorator_fn(fn):
+            metadata = {
+                **cls.fn_schema(fn),
+                'cost': cost,
+                'rate_limit': rate_limit,
+                'user2rate': user2rate,   
+                'timestale': timestale,
+                'public': public,            
+            }
+            import commune as c
+            fn.__dict__['__metadata__'] = metadata
+
+            return fn
+
+        return decorator_fn
+    
+
 
 
 if __name__ == '__main__':

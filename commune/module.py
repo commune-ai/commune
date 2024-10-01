@@ -30,13 +30,13 @@ nest_asyncio.apply()
 class c:
     whitelist = []
 
-    helper_functions  = ['info',
+    helper_functions  = [
+                'info',
                 'metadata',
                 'schema',
                 'server_name',
                 'is_admin',
                 'namespace',
-                'whitelist', 
                 'endpoints',
                 'forward',
                 'module_name', 
@@ -473,98 +473,13 @@ class c:
     
     def init_module(self,*args, **kwargs):
         return self.set_config(*args, **kwargs)
-  
-    def add_endpoint(self, name, fn):
-        setattr(self, name, fn)
-        self.endpoints.append(name)
-        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
-        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
 
-    def is_endpoint(self, fn) -> bool:
-        if isinstance(fn, str):
-            fn = getattr(self, fn)
-        return hasattr(fn, '__metadata__')
-
-    def get_endpoints(self, search: str =None , helper_fn_attributes = ['helper_functions', 
-                                                                        'whitelist', 
-                                                                        '_endpoints',                                                                 '__endpoints___']):
-        endpoints = []
-        for k in helper_fn_attributes:
-            if hasattr(self, k):
-                fn_obj = getattr(self, k)
-                if callable(fn_obj):
-                    endpoints += fn_obj()
-                else:
-                    endpoints += fn_obj
-        for f in dir(self):
-            try:
-                if not callable(getattr(self, f)) or  (search != None and search not in f):
-                    continue
-                fn_obj = getattr(self, f) # you need to watchout for properties
-                is_endpoint = hasattr(fn_obj, '__metadata__')
-                if is_endpoint:
-                    endpoints.append(f)
-            except Exception as e:
-                print(f'Error in get_endpoints: {e} for {f}')
-        return sorted(list(set(endpoints)))
-    
-    endpoints = get_endpoints
-
-    @classmethod
-    def endpoint(cls, 
-                 cost=1, # cost per call 
-                 user2rate : dict = None, 
-                 rate_limit : int = 100, # calls per minute
-                 timestale : int = 60,
-                 public:bool = False,
-                 cost_keys = ['cost', 'w', 'weight'],
-                 **kwargs):
-        
-        for k in cost_keys:
-            if k in kwargs:
-                cost = kwargs[k]
-                break
-
-        def decorator_fn(fn):
-            metadata = {
-                **cls.fn_schema(fn),
-                'cost': cost,
-                'rate_limit': rate_limit,
-                'user2rate': user2rate,   
-                'timestale': timestale,
-                'public': public,            
-            }
-            import commune as c
-            fn.__dict__['__metadata__'] = metadata
-
-            return fn
-
-        return decorator_fn
-    
-
-
-    def metadata(self, to_string=False):
-        if hasattr(self, '_metadata'):
-            return self._metadata
-        metadata = {}
-        metadata['schema'] = self.schema()
-        metadata['description'] = self.description
-        if to_string:
-            return self.python2str(metadata)
-        self._metadata =  metadata
-        return metadata
-
-    def info(self , 
-             module = None,
-             lite_features = ['name', 'address', 'schema', 'key', 'description'],
-             lite = True,
-             cost = False,
-             **kwargs
+    def info(self , **kwargs
              ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
         '''
-        info = self.metadata()
+        info = self.schema()
         info['name'] = self.server_name or self.module_name()
         info['address'] = self.address
         info['key'] = self.key.ss58_address
@@ -585,23 +500,13 @@ class c:
                 docs: bool = True,
                 defaults:bool = True, 
                 cache=True) -> 'Schema':
-        self.ensure_attribute(k='_schema', v=None)
-        if self.is_str_fn(search):
-            return self.fn_schema(search, docs=docs, defaults=defaults)
+        fns = self.functions(search=search)
         schema = {}
-        if cache and self._schema != None:
-            return self._schema
-        fns = self.get_endpoints()
         for fn in fns:
-            if search != None and search not in fn:
-                continue
             if callable(getattr(self, fn )):
                 schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)        
         # sort by keys
         schema = dict(sorted(schema.items()))
-        if cache:
-            self._schema = schema
-
         return schema
 
     @classmethod
@@ -642,11 +547,16 @@ class c:
 
 
     @classmethod
-    def routes(cls, cache=True):
-        if cls.route_cache is not None and cache:
-            return cls.route_cache 
-        routes_path = os.path.dirname(__file__)+ '/routes.json'
-        routes =  cls.get_yaml(routes_path)
+    def get_routes(cls, cache=True):
+        if not hasattr(cls, 'routes'):
+            if cls.route_cache is not None and cache:
+                return cls.route_cache 
+            routes_path = os.path.dirname(__file__)+ '/routes.json'
+            routes =  cls.get_yaml(routes_path)
+        else:
+            routes = getattr(cls, 'routes')
+            if callable(routes):
+                routes = routes()
         cls.route_cache = routes
         return routes
 
@@ -669,35 +579,9 @@ class c:
                 route_fns.append(fn)
         return route_fns
             
-    @staticmethod
-    def resolve_to_from_fn_routes(fn):
-        '''
-        resolve the from and to function names from the routes
-        option 1: 
-        {fn: 'fn_name', name: 'name_in_current_module'}
-        option 2:
-        {from: 'fn_name', to: 'name_in_current_module'}
-        '''
-        
-        if type(fn) in [list, set, tuple] and len(fn) == 2:
-            # option 1: ['fn_name', 'name_in_current_module']
-            from_fn = fn[0]
-            to_fn = fn[1]
-        elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
-            if 'fn' in fn and 'name' in fn:
-                to_fn = fn['name']
-                from_fn = fn['fn']
-            elif 'from' in fn and 'to' in fn:
-                from_fn = fn['from']
-                to_fn = fn['to']
-        else:
-            from_fn = fn
-            to_fn = fn
-        
-        return from_fn, to_fn
-    
+
     @classmethod
-    def add_routes(cls, routes:dict=None, verbose=False):
+    def add_routes(cls, routes:dict=None, verbose=False, add_utils=True):
         from functools import partial
         """
         This ties other modules into the current module.
@@ -705,48 +589,63 @@ class c:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        my_path = cls.class_name()
-        if not hasattr(cls, 'routes_enabled'): 
-            cls.routes_enabled = False
-
         t0 = c.time()
-
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-        def fn_generator( *args, module_ph, fn_ph, **kwargs):
-            prefix_options = [c.libname, '']
-            for prefix in prefix_options:
-                object_path =  module_ph + '.' + fn_ph
-                if len(prefix) > 0:
-                    object_path = prefix + '.' + object_path
-                if c.object_exists(object_path):
-                    return c.obj(object_path)(*args, **kwargs)
-            module_ph = c.get_module(module_ph)
-            fn_type = module_ph.classify_fn(fn_ph)
-            module_ph = module_ph() if fn_type == 'self' else module_ph
-            return getattr(module_ph, fn_ph)(*args, **kwargs)
+        def fn_generator( *args, fn_ph , **kwargs):
+            module, fn = fn_ph.split('/')
+            if module != None:
+                prefix_options = [c.libname, '']
+                for prefix in prefix_options:
+                    object_path =  module + '.' + fn
+                    if len(prefix) > 0:
+                        object_path = prefix + '.' + object_path
+                    if c.object_exists(object_path):
+                        return c.obj(object_path)(*args, **kwargs)
+                module_obj = c.get_module(module)
+                if module_obj.classify_fn(fn) == "self":
+                    module_obj = module_obj()
+                fn_obj =  getattr(module_obj, fn)
+            else:
+                fn_obj = c.obj(fn)
+            return fn_obj(*args, **kwargs)
+        routes = cls.get_routes()
+        for module, fns in routes.items():
+            if c.module_exists(module):
+                if fns in ['all', '*']:
+                    continue
+                for fn in fns: 
+                    if type(fn) in [list, set, tuple] and len(fn) == 2:
+                        # option 1: ['fn_name', 'name_in_current_module']
+                        from_fn = fn[0]
+                        to_fn = fn[1]
+                    elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
+                        if 'fn' in fn and 'name' in fn:
+                            to_fn = fn['name']
+                            from_fn = fn['fn']
+                        elif 'from' in fn and 'to' in fn:
+                            from_fn = fn['from']
+                            to_fn = fn['to']
+                    else:
+                        from_fn = fn
+                        to_fn = fn
 
-        if routes == None:
-            if not hasattr(cls, 'routes'):
-                return {'success': False, 'msg': 'routes not found'}
-            routes = cls.routes() if callable(cls.routes) else cls.routes
-        for m, fns in routes.items():
-            if fns in ['all', '*']:
-                fns = c.functions(m)
-            for fn in fns: 
-                # resolve the from and to function names
-                from_fn, to_fn = cls.resolve_to_from_fn_routes(fn)
-                # create a partial function that is bound to the module
-                fn_obj = partial(fn_generator, fn_ph=from_fn, module_ph=m )
-                # make sure the funciton is as close to the original function as possible
-                fn_obj.__name__ = to_fn
-                # set the function to the current module
-                setattr(cls, to_fn, fn_obj)
-                c.print(f'ROUTE({m}.{fn} -> {my_path}:{fn})', verbose=verbose)
+                    fn_ph = module + '/' + from_fn
+                    fn_obj = partial(fn_generator, fn_ph=fn_ph) 
+                    fn_obj.__name__ = to_fn
+                    setattr(cls, to_fn, fn_obj)
+            c.print(f'ROUTE({module}/{fn} -> {fn})', verbose=verbose)
 
-        t1 = c.time()
-        c.print(f'enabled routes in {t1-t0} seconds', verbose=verbose)
-        cls.routes_enabled = True
+        if add_utils:
+            utils = c.utils()
+            for util in utils:
+                fn_name = util.split('.')[-1]
+                if not hasattr(cls, fn_name):
+                    fn_obj = partial(fn_generator, fn_ph=util) 
+                    setattr(cls, fn_name, fn_obj)
+    
+        latency = t0 - c.time()
+        c.print(f'enabled routes in {latency} seconds', verbose=verbose)
         return {'success': True, 'msg': 'enabled routes'}
     
     @classmethod
@@ -922,6 +821,10 @@ class c:
     @staticmethod
     def get_cwd():
         return os.getcwd()
+    
+    def go(self, path=None):
+        path = c.abspath('~/'+str(path or c.libname))
+        return c.cmd(f'code {path}')
     
     @staticmethod
     def set_cwd(path:str):
@@ -1832,9 +1735,8 @@ class c:
                     content = f.read()
                     file2text[file] = content
             except Exception as e:
-                print(file)
+                continue
         if relative:
-            print(path)
             return {k[len(path)+1:]:v for k,v in file2text.items()}
         return file2text
     
@@ -1851,42 +1753,9 @@ class c:
         import commune as c
         path = self.resolve_path(path)
         files = [f[len(path)+1:] for f in  c.glob(path)]
-        print(files)
         hidden_files = [f for f in files if f.startswith('.')]
         return hidden_files
-    
-    @classmethod
-    def get_schema(cls,
-                module = None,
-                search = None,
-                whitelist = None,
-                fn = None,
-                docs: bool = True,
-                include_parents:bool = False,
-                defaults:bool = True, cache=False) -> 'Schema':
-        
-        if '/' in str(search):
-            module, fn = search.split('/')
-            cls = cls.module(module)
-        if isinstance(module, str):
-            if '/' in module:
-                module , fn = module.split('/')
-            module = cls.module(module)
-        module = module or cls
-        schema = {}
-        fns = module.get_functions()
-        for fn in fns:
-            if search != None and search not in fn:
-                continue
-            if callable(getattr(module, fn )):
-                schema[fn] = cls.fn_schema(fn, defaults=defaults,docs=docs)        
-        # sort by keys
-        schema = dict(sorted(schema.items()))
-        if whitelist != None :
-            schema = {k:v for k,v in schema.items() if k in whitelist}
-        return schema
-
-                
+            
     @classmethod
     def fn2code(cls, search=None, module=None)-> Dict[str, str]:
         module = module if module else cls
@@ -2093,36 +1962,6 @@ class c:
         elif len(found_lines) == 1:
             return found_lines[0]['idx']
         return found_lines
-    
-    @classmethod
-    def attributes(cls):
-        return list(cls.__dict__.keys())
-
-    @classmethod
-    def get_attributes(cls, search = None, obj=None):
-        if obj is None:
-            obj = cls
-        if isinstance(obj, str):
-            obj = c.module(obj)
-        # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
-        attrs =  dir(obj)
-        if search is not None:
-            attrs = [a for a in attrs if search in a and callable(a)]
-        return attrs
-    
-    def add_fn(self, fn, name=None):
-        if name == None:
-            name = fn.__name__
-        assert not hasattr(self, name), f'{name} already exists'
-
-        setattr(self, name, fn)
-
-        return {
-            'success':True ,
-            'message':f'Added {name} to {self.__class__.__name__}'
-        }
-    
-    add_attribute = add_attr = add_function = add_fn
 
     @classmethod
     def init_schema(cls):
@@ -2184,14 +2023,7 @@ class c:
         elif len(found_lines) == 1:
             return found_lines[0]['idx']
         return found_lines
-    
-    def fn_code_first_line(self, fn):
-        code = self.fn_code(fn)
-        return code.split('):')[0] + '):'
-    
-    def fn_code_first_line_idx(self, fn):
-        code = self.fn_code(fn)
-        return self.find_code_line(self.fn_code_first_line(fn), code=code)
+
     
     @classmethod
     def fn_info(cls, fn:str='test_fn') -> dict:
@@ -2271,7 +2103,6 @@ class c:
         lines = code.split('\n')
         assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
         line =  lines[max(idx, 0)]
-        print(len(line))
         return line
     
     @classmethod
@@ -2507,6 +2338,7 @@ class c:
         """
         Gets the function from a string or if its an attribute 
         """
+
         if isinstance(fn, str):
             is_object = c.object_exists(fn)
             if is_object:
@@ -3159,7 +2991,6 @@ class c:
         '''
         try:
             module_path = c.simple2path(module)
-            print(module_path)
             module_exists = c.exists(module_path)
         except:
             module_exists = False
@@ -3224,7 +3055,6 @@ class c:
     
     @classmethod
     def get_tree(cls, path):
-        print(path)
         class_paths = cls.find_classes(path)
         simple_paths = cls.simplify_object_paths(class_paths) 
         return dict(zip(simple_paths, class_paths))
@@ -3295,8 +3125,8 @@ class c:
     
     @classmethod
     def find_modules(cls, search=None, **kwargs):
-        local_modules = cls.local_modules(search=search)
         lib_modules = cls.lib_modules(search=search)
+        local_modules = cls.local_modules(search=search)
         return sorted(list(set(local_modules + lib_modules)))
 
     _modules = None
@@ -3379,7 +3209,6 @@ class c:
                 continue
             
             for line in text.split('\n'):
-                print(line)
                 if 'def ' in line and '(' in line:
                     functions.append(line.split('def ')[1].split('(')[0])
             replative_path = p[len(path)+1:]
@@ -3703,16 +3532,6 @@ class c:
     def tensor(cls, *args, **kwargs):
         return cls.import_object('torch.tensor')(*args, **kwargs)
 
-    @staticmethod
-    def random_int(start_value=100, end_value=None):
-        if end_value == None: 
-            end_value = start_value
-            start_value, end_value = 0 , start_value
-        
-        assert start_value != None, 'start_value must be provided'
-        assert end_value != None, 'end_value must be provided'
-        return random.randint(start_value, end_value)
-    
     def mean(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
         if not isinstance(x, list):
             x = list(x)

@@ -307,8 +307,6 @@ def dict_put(input_dict,keys: Union[str, list], value: Any ):
             input_dict[int(key)] = value
         elif isinstance(input_dict, tuple):
             input_dict[int(key)] = value
-            
-
     elif len(keys) > 1:
         if key not in input_dict:
             input_dict[key] = {}

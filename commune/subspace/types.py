@@ -1,37 +1,11 @@
-from typing import NewType, TypedDict
-from enum import Enum
-from typing import NewType, TypedDict
-from dataclasses import dataclass
-from typing import *
-@dataclass
-class Chunk:
-    batch_requests: list[tuple[Any, Any]]
-    prefix_list: list[list[str]]
-    fun_params: list[tuple[Any, Any, Any, Any, str]]
-
-
-Ss58Address = NewType("Ss58Address", str)
-
-class ChainTransactionError(Exception):
-    """Error for any chain transaction related errors."""
-
-
-class NetworkError(Exception):
-    """Base for any network related errors."""
-
-
-class NetworkQueryError(NetworkError):
-    """Network query related error."""
-
-
-class NetworkTimeoutError(NetworkError):
-    """Timeout error"""
-
-
 """
 Common types for the communex module.
 """
 
+from enum import Enum
+from typing import *
+
+Ss58Address = NewType("Ss58Address", str)
 """Substrate SS58 address.
 
 The `SS58 encoded address format`_ is based on the Bitcoin Base58Check format,
@@ -54,7 +28,6 @@ BurnConfig = NewType("BurnConfig", dict[MinBurn, MaxBurn])
 class VoteMode (Enum):
     authority = "Authority"
     vote = "Vote"
-
 
 class DisplayGovernanceConfiguration(TypedDict):
     proposal_cost: float
@@ -81,6 +54,14 @@ class DisplayBurnConfiguration(TypedDict):
     target_registrations_interval: int
     target_registrations_per_interval: int
     max_registrations_per_interval: int
+
+from dataclasses import dataclass
+
+@dataclass
+class Chunk:
+    batch_requests: list[tuple[Any, Any]]
+    prefix_list: list[list[str]]
+    fun_params: list[tuple[Any, Any, Any, Any, str]]
 
 
 class BurnConfiguration(TypedDict):
@@ -117,6 +98,8 @@ class NetworkParams(TypedDict):
     kappa: int
     rho: int
 
+    subnet_registration_cost: int
+
 
 class SubnetParamsMaps(TypedDict):
     netuid_to_founder: dict[int, Ss58Address]
@@ -138,7 +121,6 @@ class SubnetParamsMaps(TypedDict):
     netuid_to_max_allowed_validators: dict[int, int]
     netuid_to_module_burn_config: dict[int, BurnConfiguration]
     netuid_to_subnet_metadata: dict[int, str]
-
 
 class SubnetParams(TypedDict):
     name: str
@@ -216,13 +198,17 @@ class ModuleInfoWithOptionalBalance(ModuleInfo):
     balance: int | None
 
 
-Ss58Address = NewType("Ss58Address", str)
+class ChainTransactionError(Exception):
+    """Error for any chain transaction related errors."""
 
-def transform_stake_dmap(stake_storage: dict[tuple[Ss58Address, Ss58Address], int]) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
-    """
-    Transforms either the StakeTo or StakeFrom storage into the stake legacy data type.
-    """
-    transformed: dict[Ss58Address, list[tuple[Ss58Address, int]]] = defaultdict(list)
-    [transformed[k1].append((k2, v)) for (k1, k2), v in stake_storage.items()]
 
-    return dict(transformed)
+class NetworkError(Exception):
+    """Base for any network related errors."""
+
+
+class NetworkQueryError(NetworkError):
+    """Network query related error."""
+
+
+class NetworkTimeoutError(NetworkError):
+    """Timeout error"""
