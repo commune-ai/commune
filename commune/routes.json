@@ -86,6 +86,7 @@
         "rm_server",
         "remote_servers",
         "namespace",
+        "network",
         "rm_namespace",
         "empty_namespace",
         "add_namespace",
@@ -151,7 +152,6 @@
         "key2balance",
         "my_keys",
         "key2value",
-        "send",
         "transfer",
         "stake",
         "unstake",
@@ -184,24 +184,24 @@
     "chat": [
         "ask"
     ],
-    "utils.types": [
+    "commune.utils.types": [
         "str2bytes",
         "python2str",
         "str2python",
         "bytes2str",
         "detailed_error"
     ],
-    "utils.os": [
+    "commune.utils.os": [
         "cmd"
     ],
-    "utils.network": [
+    "commune.utils.network": [
         "free_port",
         "port_used",
         "kill_port",
         "port_available",
         "get_port_range",
-        "ip",
         "ip_to_int",
+        "ip",
         "external_ip",
         "port_free",
         "used_port",
@@ -211,17 +211,16 @@
         "resolve_ip",
         "is_valid_ip"
     ],
-    "utils.asyncio": [
+    "commune.utils.asyncio": [
         "gather",
         "get_event_loop",
         "new_event_loop"
     ],
-    "utils.thread": [
+    "commune.utils.thread": [
         "thread",
         "threads",
         "submit",
         "wait",
         "as_completed"
-    ],
-    "./commune/utils": "*"
+    ]
 }

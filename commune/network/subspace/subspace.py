@@ -21,11 +21,11 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Mapping, TypeVar, cast, List, Dict, Optional
 from collections import defaultdict
-from commune.substrate.storage import StorageKey
-from commune.substrate import (ExtrinsicReceipt, 
+from commune.network.substrate.storage import StorageKey
+from commune.network.substrate import (ExtrinsicReceipt, 
                                Keypair, 
                                SubstrateInterface)# type: ignore
-from commune.subspace.types import (ChainTransactionError,
+from commune.network.subspace.types import (ChainTransactionError,
                                     NetworkQueryError, 
                                     SubnetParamsMaps, 
                                     SubnetParamsWithEmission,
@@ -47,7 +47,7 @@ T2 = TypeVar("T2")
 class Subspace(c.Module):
 
 
-    urls = {
+    url_map = {
         "main": [ "api.communeai.net"],
         "test": [ "testnet.api.communeai.net"]
     }
@@ -59,7 +59,7 @@ class Subspace(c.Module):
 
     def __init__(
         self,
-        network='main',
+        network='test',
         url: str = None,
         mode = 'wss',
         num_connections: int = 1,
@@ -71,16 +71,14 @@ class Subspace(c.Module):
             url: The URL of the network node to connect to.
             num_connections: The number of websocket connections to be opened.
         """
-        self.set_network(network=network, 
-                         mode=mode,
-                         url=url, 
-                         num_connections=num_connections, 
+        self.set_network(network=network, mode=mode,url=url,  
+                         num_connections=num_connections,  
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
 
 
     def set_network(self, 
-                        network='main',
+                        network,
                         url: str = None,
                         mode = 'wss',
                         num_connections: int = 1,
@@ -90,12 +88,11 @@ class Subspace(c.Module):
         self.wait_for_finalization = wait_for_finalization
         self._connection_queue = queue.Queue(num_connections)
         self.network = network
-        self.url   = url or (mode + '://' + c.choice(self.urls.get(network, [])))
+        self.url   = url or (mode + '://' + c.choice(self.url_map.get(network, [])))
         ws_options: dict[str, int] = {}
-        if timeout is not None:
+        if timeout != None:
             ws_options["timeout"] = timeout
         self.ws_options = ws_options
-        print('FAMMM')
         for _ in range(num_connections):
             self._connection_queue.put(
                 SubstrateInterface(self.url, ws_options=ws_options)
@@ -104,7 +101,7 @@ class Subspace(c.Module):
     def get_url(self, 
                     mode='wss', 
                     **kwargs):
-        return f'{mode}://'+c.choice(self.urls[self.network])
+        return f'{mode}://'+c.choice(self.url_map[self.network])
     
 
     @property
@@ -651,6 +648,9 @@ class Subspace(c.Module):
         self,
         functions: dict[str, list[tuple[str, list[Any]]]],
         block_hash: str | None = None,
+        path = None,
+        max_age=None,
+        update=False,
     ) -> dict[str, dict[Any, Any]]:
         """
         Queries multiple storage functions using a map batch approach and returns the combined result.
@@ -666,6 +666,8 @@ class Subspace(c.Module):
             >>> query_batch_map(substrate_instance, {'module_name': [('function_name', ['param1', 'param2'])]})
             # Returns the combined result of the map batch query
         """
+        if path != None:
+            return self.get(path, max_age=max_age, update=update)
         multi_result: dict[str, dict[Any, Any]] = {}
 
         def recursive_update(
@@ -690,31 +692,37 @@ class Subspace(c.Module):
             res = responses[0]
             built_payload: list[tuple[str, list[Any]]] = []
             for result_keys in res:
-                built_payload.append(
-                    ("state_queryStorageAt", [result_keys, block_hash])
-                )
-            _, chunks_info = self._make_request_smaller(
-                built_payload, prefix_list, function_parameters
-            )
+                built_payload.append(("state_queryStorageAt", [result_keys, block_hash]))
+            _, chunks_info = self._make_request_smaller(built_payload, prefix_list, function_parameters)
             chunks_response, chunks_info = self.rpc_request_batch_chunked(chunks_info)
             return chunks_response, chunks_info
-
-        if not block_hash:
-            with self.get_conn(init=True) as substrate:
-                block_hash = substrate.get_block_hash()
+        
+        block_hash = block_hash or self.block_hash() 
         for storage, queries in functions.items():
             chunks, chunks_info = get_page()
             # if this doesn't happen something is wrong on the code
             # and we won't be able to decode the data properly
             assert len(chunks) == len(chunks_info)
             for chunk_info, response in zip(chunks_info, chunks):
-                storage_result = self._decode_response(
-                    response, chunk_info.fun_params, chunk_info.prefix_list, block_hash
-                )
+                storage_result = self._decode_response(response, chunk_info.fun_params, chunk_info.prefix_list, block_hash)
                 multi_result = recursive_update(multi_result, storage_result)
 
-        return multi_result
+        results =  self.process_results(multi_result)
+        if path != None:
+            print('Saving results to -->', path)
+            self.put(path, results)
+        return results
+            
 
+    def block_hash(self):
+        with self.get_conn(init=True) as substrate:
+            block_hash = substrate.get_block_hash()
+        return block_hash
+    
+    def block(self):
+        with self.get_conn(init=True) as substrate:
+            block_number = substrate.get_block_number()
+        return block_number
     def runtime_spec_version(self):
         # Get the runtime version
         return self.query(name='SpecVersionRuntimeVersion', module='System')
@@ -751,6 +759,7 @@ class Subspace(c.Module):
         module: str = "SubspaceModule",
         extract_value: bool = True,
         max_age=0,
+        update=False,
         block_hash: str | None = None,
     ) -> dict[Any, Any]:
         """
@@ -770,32 +779,45 @@ class Subspace(c.Module):
         """
 
         path =  f'{self.network}/query_map/{module}/{name}_params={params}'
-        result = self.get(path, None, max_age=max_age)
-        if result != None:
-            return result
-        
-        print(f'Updating {path}')
+        result = self.get(path, None, max_age=max_age, update=update)
+        if result == None:
+            
+            print(f'Updating {path}')
 
-        result = self.query_batch_map({module: [(name, params)]}, block_hash)
+            result = self.query_batch_map({module: [(name, params)]}, block_hash)
 
-        if extract_value:
-            if isinstance(result, dict):
-                result = result
+            if extract_value:
+                if isinstance(result, dict):
+                    result = result
+                else:
+                    result =  {k.value: v.value for k, v in result}  # type: ignore
+            result = result.get(name, {})
+            keys = result.keys()
+            if any([isinstance(k, tuple) for k in keys]):
+                new_result = {}
+                for k,v in result.items():
+                    self.dict_put(new_result, list(k), v )  
+                result = new_result
+            self.put(path, result)
+
+        return self.process_results(result)
+
+
+    def process_results(self, x:dict) -> dict:
+        new_x = {}
+        for k in list(x.keys()):
+            if type(k) in  [tuple, list]:
+                self.dict_put(new_x, k, x[k])
+            if isinstance(x[k], dict):
+                new_x[k] = self.process_results(x[k])
+            if isinstance(k, str) and c.is_int(k):
+                new_x[int(k)] = x[k]
+                del x[k]
             else:
-                result =  {k.value: v.value for k, v in result}  # type: ignore
-        
-        result = result[name]
-        keys = result.keys()
-        if any([isinstance(k, tuple) for k in keys]):
-            print('TUPLLLLEEEE ')
-            new_result = {}
-            for k,v in result.items():
-                self.dict_put(new_result, list(k), v )  
-            result = new_result
-        self.put(path, result)
-        return result
-
-    def dict_put(self, input_dict,keys, value: Any ):
+                new_x[k] = x[k]
+        return new_x
+                
+    def dict_put(self, input_dict: dict ,keys : list, value: Any ):
         """
         insert keys that are dot seperated (key1.key2.key3) recursively into a dictionary
         """
@@ -826,7 +848,7 @@ class Subspace(c.Module):
         key: Keypair | None,
         module: str = "SubspaceModule",
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool | None = None,
+        wait_for_finalization: bool | None = True,
         sudo: bool = False,
         tip = 0,
         nonce=None,
@@ -857,6 +879,7 @@ class Subspace(c.Module):
         Raises:
             ChainTransactionError: If the transaction fails.
         """
+        c.print(f'{module}::{fn} --> {params} network:{self.network} url:{self.url})')
         key = self.resolve_key(key)
 
         if key is None and not unsigned:
@@ -898,7 +921,13 @@ class Subspace(c.Module):
                 raise ChainTransactionError(
                     response.error_message, response  # type: ignore
                 )
-
+            
+        if wait_for_finalization:
+            response.process_events()
+            if response.is_success:
+                response =  {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key.ss58_address}'}
+            else:
+                response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
         return response
 
     def compose_call_multisig(
@@ -1166,6 +1195,8 @@ class Subspace(c.Module):
         """
 
         assert isinstance(delegation_fee, int)
+        key = key or name
+        
         params = {
             "netuid": netuid,
             "name": name,
@@ -1181,11 +1212,12 @@ class Subspace(c.Module):
     def register(
         self,
         name: str,
+        subnet: str = "Rootnet",
         address: str | None = None,
         module_key = None, 
         key: Keypair = None,
-        subnet: str = "Rootnet",
-        metadata: str | None = None,
+        metadata: str | None = 'NA',
+        wait_for_finalization = True,
     ) -> ExtrinsicReceipt:
         """
         Registers a new module in the network.
@@ -1198,18 +1230,15 @@ class Subspace(c.Module):
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
-
-        key = c.get_key(key)
-
+        key =  c.get_key(key)
         params = {
             "network_name": subnet,
-            "address": address,
+            "address":  address or c.namespace().get(name, '0.0.0.0:8888' ),
             "name": name,
-            "module_key": module_key or key.ss58_address,
+            "module_key":c.get_key(module_key or name, creaet_if_not_exists=True).ss58_address,
             "metadata": metadata,
         }
-
-        response = self.compose_call("register", params=params, key=key)
+        response =  self.compose_call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
         return response
 
     def deregister(self, key: Keypair, netuid: int) -> ExtrinsicReceipt:
@@ -1254,8 +1283,8 @@ class Subspace(c.Module):
             "metadata": metadata,
         }
 
-        response = self.compose_call("register_subnet", params=params, key=key)
 
+        response = self.compose_call("register_subnet", params=params, key=key)
         return response
 
     def vote(
@@ -1299,8 +1328,9 @@ class Subspace(c.Module):
     def update_subnet(
         self,
         key: Keypair,
-        params: SubnetParams,
+        params: SubnetParams = None,
         netuid: int = 0,
+        **extra_params
     ) -> ExtrinsicReceipt:
         """
         Update a subnet's configuration.
@@ -1319,17 +1349,22 @@ class Subspace(c.Module):
             AuthorizationError: If the key is not authorized.
             ChainTransactionError: If the transaction fails.
         """
+        default_params = self.subnet_params(netuid=netuid)
+        governance_config = default_params.pop('governance_configuration', None)
 
-        general_params = dict(params)
-        general_params["netuid"] = netuid
-        if general_params.get("subnet_metadata") is None:
-            general_params["metadata"] = None
-        else:
-            general_params["metadata"] = general_params["subnet_metadata"]
+        key = c.get_key(key)
+        params = params or {}
+
+        params.update(extra_params)
+        params = {**default_params, **params}
+        params["netuid"] = netuid
+        params['vote_mode'] = governance_config['vote_mode']
+        params['founder'] = key.ss58_address
+        params["metadata"] = params.get("subnet_metadata", None)
 
         response = self.compose_call(
             fn="update_subnet",
-            params=general_params,
+            params=params,
             key=key,
         )
 
@@ -1866,6 +1901,19 @@ class Subspace(c.Module):
     def pending_emission(self, extract_value: bool = False) -> int:
         return self.query_map("PendingEmission", extract_value=extract_value, module="SubnetEmissionModule")
 
+
+    def state(self, timeout=42):
+        futures = []
+        fns  = ['subnet_params', 'global_params', 'modules']
+        futures = [c.submit(getattr(self,fn), kwargs=dict(update=1), timeout=timeout) for fn in fns]
+        return dict(zip(fns, c.wait(futures, timeout=timeout)))
+    sync = state
+
+    def sync_loop(self, interval=30):
+        while True:
+            c.sleep(interval)
+            self.sync()
+        
     def subnet_emission(self, extract_value: bool = False) -> dict[int, int]:
         """
         Retrieves a map of subnet emissions for the network.
@@ -1912,7 +1960,7 @@ class Subspace(c.Module):
         return self.query_map("LastUpdate", extract_value=extract_value)
 
     def stakefrom(
-        self, extract_value: bool = False
+        self, extract_value: bool = False, fmt='j'
     ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes from various sources for keys on the network.
@@ -1920,17 +1968,15 @@ class Subspace(c.Module):
 
         result = self.query_map("StakeFrom", [], extract_value=extract_value)
 
-        return result
+        return self.format_amount(result, fmt=fmt)
 
-    def staketo(
-        self, extract_value: bool = False, **kwargs, 
-    ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
+    def staketo( self, extract_value: bool = False, fmt='j', **kwargs,  ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes to destinations for keys on the network.
         """
 
         result = self.query_map("StakeTo", [], extract_value=extract_value, **kwargs)
-        return result
+        return self.format_amount(result, fmt=fmt)
 
     def delegationfee(
         self, netuid: int = 0, extract_value: bool = False
@@ -2036,12 +2082,15 @@ class Subspace(c.Module):
         """
 
         return self.query_map( "LegitWhitelist", module="GovernanceModule", extract_value=extract_value)
-    def subnet_names(self, extract_value: bool = False) -> dict[int, str]:
+    endpoints = ['subnet_params']
+    def subnet_names(self, extract_value: bool = False, max_age=10) -> dict[int, str]:
         """
         Retrieves a mapping of subnet names within the network.
         """
 
-        return self.query_map("SubnetNames", extract_value=extract_value)
+        return self.query_map("SubnetNames", extract_value=extract_value, max_age=max_age)
+    def subnets(self):
+        return self.subnet_names()
 
     def balances(
         self, extract_value: bool = False, block_hash: str | None = None
@@ -2383,28 +2432,32 @@ class Subspace(c.Module):
     def get_stakefrom(
         self,
         key: Ss58Address,
+        fmt = 'j',
     ) -> dict[str, int]:
         """
         Retrieves the stake amounts from all stakers to a specific staked address.
         """
-
-        # Has to use query map in order to iterate through the storage prefix.
-        return self.query_map("StakeFrom", [key], extract_value=False)
-
+        key = self.resolve_key_address(key)
+        result = self.query_map("StakeFrom", [key], extract_value=False)
+        return self.format_amount(result, fmt=fmt)
+    get_stake_from = get_stakefrom
     def get_staketo(
         self,
         key: Ss58Address,
+        fmt = 'j'
     ) -> dict[str, int]:
         """
         Retrieves the stake amounts provided by a specific staker to all staked addresses.
         """
+        key = self.resolve_key_address(key)
+        result =  self.query_map("StakeTo", [key], extract_value=False)
+        return self.format_amount(result, fmt=fmt)
 
-        # Has to use query map in order to iterate through the storage prefix.
-        return self.query_map("StakeTo", [key], extract_value=False)
-
+    get_stake_to = get_staketo
     def balance(
         self,
         addr: Ss58Address,
+        fmt = 'j'
     ) -> int:
         """
         Retrieves the balance of a specific key.
@@ -2412,8 +2465,7 @@ class Subspace(c.Module):
 
         addr = self.resolve_key_address(addr)
         result = self.query("Account", module="System", params=[addr])
-
-        return result["data"]["free"]
+        return self.format_amount(result["data"]["free"], fmt=fmt)
 
     def block(self) -> dict[Any, Any] | None:
         """
@@ -2473,8 +2525,10 @@ class Subspace(c.Module):
         return value * (10 ** 9)
     
 
+    def to_joules(self, value):
+        return value / (10 ** 9)
+    to_j = to_joules
     
-
     def resolve_key_address(self, key:str ):
         if self.valid_ss58_address(key):
             return key
@@ -2487,225 +2541,229 @@ class Subspace(c.Module):
         return key
 
 
-    def subnet_params_map(self, block_hash: str | None = None, max_age=None, update=False) -> dict[int, SubnetParamsWithEmission]:
+    def subnet_params(self, netuid=None, block_hash: str | None = None, max_age=None, update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """
-        path = f'{self.network}/subnet_params_map'
-        result_subnets = self.get(path,None, max_age=max_age, update=update)
-        if result_subnets != None:
-            return {int(k): v for k,v in result_subnets.items()}
+        path = f'{self.network}/subnet_params'
+        results = self.get(path,None, max_age=max_age, update=update)
+        results = self.process_results(results)
+
+        if results == None or len(results) == 0:
+            params = []
+            bulk_query = self.query_batch_map(
+                {
+                    "SubspaceModule": [
+                        ("ImmunityPeriod", params),
+                        ("MinAllowedWeights", params),
+                        ("MaxAllowedWeights", params),
+                        ("Tempo", params),
+                        ("MaxAllowedUids", params),
+                        ("Founder", params),
+                        ("FounderShare", params),
+                        ("IncentiveRatio", params),
+                        ("TrustRatio", params),
+                        ("SubnetNames", params),
+                        ("MaxWeightAge", params),
+                        ("BondsMovingAverage", params),
+                        ("MaximumSetWeightCallsPerEpoch", params),
+                        ("MinValidatorStake", params),
+                        ("MaxAllowedValidators", params),
+                        ("ModuleBurnConfig", params),
+                        ("SubnetMetadata", params),
+                    ],
+                    "GovernanceModule": [
+                        ("SubnetGovernanceConfig", params),
+                    ],
+                    "SubnetEmissionModule": [
+                        ("SubnetEmission", params),
+                    ],
+
+                },
+                block_hash,
+            )
         
-        c.print('Refreshing Subnets')
-
-        bulk_query = self.query_batch_map(
-            {
-                "SubspaceModule": [
-                    ("ImmunityPeriod", []),
-                    ("MinAllowedWeights", []),
-                    ("MaxAllowedWeights", []),
-                    ("Tempo", []),
-                    ("MaxAllowedUids", []),
-                    ("Founder", []),
-                    ("FounderShare", []),
-                    ("IncentiveRatio", []),
-                    ("TrustRatio", []),
-                    ("SubnetNames", []),
-                    ("MaxWeightAge", []),
-                    ("BondsMovingAverage", []),
-                    ("MaximumSetWeightCallsPerEpoch", []),
-                    ("MinValidatorStake", []),
-                    ("MaxAllowedValidators", []),
-                    ("ModuleBurnConfig", []),
-                    ("SubnetMetadata", []),
-                ],
-                "GovernanceModule": [
-                    ("SubnetGovernanceConfig", []),
-                ],
-                "SubnetEmissionModule": [
-                    ("SubnetEmission", []),
-                ],
-
-            },
-            block_hash,
-        )
-        subnet_maps: SubnetParamsMaps = {
-            "emission": bulk_query["SubnetEmission"],
-            "tempo": bulk_query["Tempo"],
-            "min_allowed_weights": bulk_query["MinAllowedWeights"],
-            "max_allowed_weights": bulk_query["MaxAllowedWeights"],
-            "max_allowed_uids": bulk_query["MaxAllowedUids"],
-            "founder": bulk_query["Founder"],
-            "founder_share": bulk_query["FounderShare"],
-            "incentive_ratio": bulk_query["IncentiveRatio"],
-            "trust_ratio": bulk_query["TrustRatio"],
-            "name": bulk_query["SubnetNames"],
-            "max_weight_age": bulk_query["MaxWeightAge"],
-            "bonds_ma": bulk_query.get("BondsMovingAverage", {}),
-            "maximum_set_weight_calls_per_epoch": bulk_query.get("MaximumSetWeightCallsPerEpoch", {}),
-            "governance_configuration": bulk_query["SubnetGovernanceConfig"],
-            "immunity_period": bulk_query["ImmunityPeriod"],
-            "min_validator_stake": bulk_query.get("MinValidatorStake", {}),
-            "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
-            "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
-            "subnet_metadata": bulk_query.get("SubnetMetadata", {}),
-        }
-        result_subnets: dict[int, SubnetParamsWithEmission] = {}
-
-        for netuid, name in subnet_maps["name"].items():
-
-            subnet: SubnetParamsWithEmission = {
-                "name": name,
-                "founder": subnet_maps["founder"][netuid],
-                "founder_share": subnet_maps["founder_share"][netuid],
-                "incentive_ratio": subnet_maps["incentive_ratio"][netuid],
-                "max_allowed_uids": subnet_maps["max_allowed_uids"][netuid],
-                "max_allowed_weights": subnet_maps["max_allowed_weights"][netuid],
-                "min_allowed_weights": subnet_maps["min_allowed_weights"][netuid],
-                "tempo": subnet_maps["tempo"][netuid],
-                "trust_ratio": subnet_maps["trust_ratio"][netuid],
-                "emission": subnet_maps["emission"][netuid],
-                "max_weight_age": subnet_maps["max_weight_age"][netuid],
-                "bonds_ma": subnet_maps["bonds_ma"].get(netuid, None),
-                "maximum_set_weight_calls_per_epoch": subnet_maps["maximum_set_weight_calls_per_epoch"].get(netuid, 30),
-                "governance_config": subnet_maps["governance_configuration"][netuid],
-                "immunity_period": subnet_maps["immunity_period"][netuid],
-                "min_validator_stake": subnet_maps["min_validator_stake"].get(netuid, self.to_nano(50_000)),
-                "max_allowed_validators": subnet_maps["max_allowed_validators"].get(netuid, 50),
-                "module_burn_config": cast(BurnConfiguration, subnet_maps["module_burn_config"].get(netuid, None)),
-                "subnet_metadata": subnet_maps["subnet_metadata"].get(netuid, None),
+            subnet_maps: SubnetParamsMaps = {
+                "emission": bulk_query["SubnetEmission"],
+                "tempo": bulk_query["Tempo"],
+                "min_allowed_weights": bulk_query["MinAllowedWeights"],
+                "max_allowed_weights": bulk_query["MaxAllowedWeights"],
+                "max_allowed_uids": bulk_query["MaxAllowedUids"],
+                "founder": bulk_query["Founder"],
+                "founder_share": bulk_query["FounderShare"],
+                "incentive_ratio": bulk_query["IncentiveRatio"],
+                "trust_ratio": bulk_query["TrustRatio"],
+                "name": bulk_query["SubnetNames"],
+                "max_weight_age": bulk_query["MaxWeightAge"],
+                "governance_configuration": bulk_query["SubnetGovernanceConfig"],
+                "immunity_period": bulk_query["ImmunityPeriod"],
+                "bonds_ma": bulk_query.get("BondsMovingAverage", {}),
+                "maximum_set_weight_calls_per_epoch": bulk_query.get("MaximumSetWeightCallsPerEpoch", {}),
+                "min_validator_stake": bulk_query.get("MinValidatorStake", {}),
+                "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
+                "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
+                "subnet_metadata": bulk_query.get("SubnetMetadata", {}),
             }
 
-            result_subnets[netuid] = subnet
-        self.put(path, result_subnets)
+            results: dict[int, SubnetParamsWithEmission] = {}
 
-        return result_subnets
+            default_subnet_map = {
+                'min_validator_stake': self.to_nano(50_000),
+                'max_allowed_validators': 50,
+                'maximum_set_weight_calls_per_epoch': 30
+            }
+            subnet_map_keys = list(subnet_maps.keys())
+            netuids = list(subnet_maps["name"].keys())
+            for _netuid in netuids:
+                subnet = {k:subnet_maps[k].get(_netuid, default_subnet_map.get(k, None)) for k in subnet_map_keys}
+                subnet['module_burn_config'] = cast(BurnConfiguration, subnet["module_burn_config"])
+                results[_netuid] = subnet
+            self.put(path, results)
+        if netuid != None: 
+            return results[netuid]
+        return results
 
-
-    def subnet_params(self, netuid=0, **kwargs):
-        return self.subnet_params_map(**kwargs)[netuid]
-
-
-
-    def global_params(self) -> NetworkParams:
+    def global_params(self, max_age=None, update=False) -> NetworkParams:
         """
         Returns global parameters of the whole commune ecosystem
         """
-
-        query_all = self.query_batch(
-            {
-                "SubspaceModule": [
-                    ("MaxNameLength", []),
-                    ("MinNameLength", []),
-                    ("MaxAllowedSubnets", []),
-                    ("MaxAllowedModules", []),
-                    ("MaxRegistrationsPerBlock", []),
-                    ("MaxAllowedWeightsGlobal", []),
-                    ("FloorDelegationFee", []),
-                    ("FloorFounderShare", []),
-                    ("MinWeightStake", []),
-                    ("Kappa", []),
-                    ("Rho", []),
-                    ("SubnetImmunityPeriod", []),
-                    ("SubnetBurn", []),
-                ],
-                "GovernanceModule": [
-                    ("GlobalGovernanceConfig", []),
-                    ("GeneralSubnetApplicationCost", []),
-                    ("Curator", []),
-                ],
+        path = f'{self.network}/global_params'
+        result = self.get(path, None, max_age=max_age, update=update)
+        if result == None:
+            query_all = self.query_batch(
+                {
+                    "SubspaceModule": [
+                        ("MaxNameLength", []),
+                        ("MinNameLength", []),
+                        ("MaxAllowedSubnets", []),
+                        ("MaxAllowedModules", []),
+                        ("MaxRegistrationsPerBlock", []),
+                        ("MaxAllowedWeightsGlobal", []),
+                        ("FloorDelegationFee", []),
+                        ("FloorFounderShare", []),
+                        ("MinWeightStake", []),
+                        ("Kappa", []),
+                        ("Rho", []),
+                        ("SubnetImmunityPeriod", []),
+                        ("SubnetBurn", []),
+                    ],
+                    "GovernanceModule": [
+                        ("GlobalGovernanceConfig", []),
+                        ("GeneralSubnetApplicationCost", []),
+                        ("Curator", []),
+                    ],
+                }
+            )
+            
+            
+            global_config = cast(
+                GovernanceConfiguration,
+                query_all["GlobalGovernanceConfig"]
+            )
+            result: NetworkParams = {
+                "max_allowed_subnets": int(query_all["MaxAllowedSubnets"]),
+                "max_allowed_modules": int(query_all["MaxAllowedModules"]),
+                "max_registrations_per_block": int(query_all["MaxRegistrationsPerBlock"]),
+                "max_name_length": int(query_all["MaxNameLength"]),
+                "min_weight_stake": int(query_all["MinWeightStake"]),
+                "floor_delegation_fee": int(query_all["FloorDelegationFee"]),
+                "max_allowed_weights": int(query_all["MaxAllowedWeightsGlobal"]),
+                "curator": Ss58Address(query_all["Curator"]),
+                "min_name_length": int(query_all["MinNameLength"]),
+                "floor_founder_share": int(query_all["FloorFounderShare"]),
+                "general_subnet_application_cost": int(query_all["GeneralSubnetApplicationCost"]),
+                "kappa": int(query_all["Kappa"]),
+                "rho": int(query_all["Rho"]),
+                "subnet_immunity_period": int(query_all["SubnetImmunityPeriod"]),
+                "subnet_registration_cost": int(query_all["SubnetBurn"]),
+                "governance_config": {
+                    "proposal_cost": int(global_config["proposal_cost"]),
+                    "proposal_expiration": int(global_config["proposal_expiration"]),
+                    "vote_mode": global_config["vote_mode"],
+                    "proposal_reward_treasury_allocation": int(global_config["proposal_reward_treasury_allocation"]),
+                    "max_proposal_reward_treasury_allocation": int(global_config["max_proposal_reward_treasury_allocation"]),
+                    "proposal_reward_interval": int(global_config["proposal_reward_interval"]),
+                },
             }
-        )
-        global_config = cast(
-            GovernanceConfiguration,
-            query_all["GlobalGovernanceConfig"]
-        )
-        global_params: NetworkParams = {
-            "max_allowed_subnets": int(query_all["MaxAllowedSubnets"]),
-            "max_allowed_modules": int(query_all["MaxAllowedModules"]),
-            "max_registrations_per_block": int(query_all["MaxRegistrationsPerBlock"]),
-            "max_name_length": int(query_all["MaxNameLength"]),
-            "min_weight_stake": int(query_all["MinWeightStake"]),
-            "floor_delegation_fee": int(query_all["FloorDelegationFee"]),
-            "max_allowed_weights": int(query_all["MaxAllowedWeightsGlobal"]),
-            "curator": Ss58Address(query_all["Curator"]),
-            "min_name_length": int(query_all["MinNameLength"]),
-            "floor_founder_share": int(query_all["FloorFounderShare"]),
-            "general_subnet_application_cost": int(query_all["GeneralSubnetApplicationCost"]),
-            "kappa": int(query_all["Kappa"]),
-            "rho": int(query_all["Rho"]),
-            "subnet_immunity_period": int(query_all["SubnetImmunityPeriod"]),
-            "subnet_registration_cost": int(query_all["SubnetBurn"]),
-            "governance_config": {
-                "proposal_cost": int(global_config["proposal_cost"]),
-                "proposal_expiration": int(global_config["proposal_expiration"]),
-                "vote_mode": global_config["vote_mode"],
-                "proposal_reward_treasury_allocation": int(global_config["proposal_reward_treasury_allocation"]),
-                "max_proposal_reward_treasury_allocation": int(global_config["max_proposal_reward_treasury_allocation"]),
-                "proposal_reward_interval": int(global_config["proposal_reward_interval"]),
-            },
-        }
-        return global_params
+            self.put(path, result)
+        return result
 
+    def clean_feature_name(self, x):
+        new_x = ''
+        for i, ch in enumerate(x):
+            if ch == ch.upper():
+                ch = ch.lower() 
+                if i > 0:
+                    ch = '_' + ch
+            new_x += ch
+        return new_x
 
-
-    
-    def get_modules(self,
-                    keys : list = None,
-                    netuid=0,
+    def modules(self,
+                    netuid=None,
                     timeout=30,
-                    min_emission=0,
-                    max_age = 1000,
-                    update=True,
+                    max_age = 100,
+                    update=False,
+                    module = "SubspaceModule", 
+                    features = ['Name', 
+                            'Address', 
+                            'Keys',
+                            'Weights',
+                            'Incentive',
+                            'Dividends', 
+                            'Emission', 
+                            'DelegationFee', 
+                            'LastUpdate',
+                            'Metadata'
+                            ],
+                    default_module = {
+                        'Weights': [], 
+                        'Incentive': 0,
+                        'Emissions': 0, 
+                        'Dividends': 0,
+                        'DelegationFee': 30,
+                        'LastUpdate': -1,
+                    },
                     **kwargs):
-        modules = None
-        path = None 
-        keys = keys or self.keys(netuid=netuid)
-        n = len(keys)
-        modules = []
-        futures = [c.submit(self.get_module, kwargs=dict(module=k, netuid=netuid, **kwargs)) for k in keys]
-        progress = c.tqdm(n)
-        modules = []
 
-        should_pass = lambda x: isinstance(x, dict) and 'name' in x  and len(x['name']) > 0 and x['emission'] >= min_emission
-        
-        for future in c.as_completed(futures, timeout=timeout):
-            module = future.result()
-            if should_pass(module):
-                modules += [module]
-                progress.update(1)
-        if path != None:
-            self.put(path, modules)
-        
-                
+        path = f'{self.network}/modules'
+        results = self.get(path, None, max_age=max_age, update=update)
+        if results == None:
+            results = self.query_batch_map({module:[(f, []) for f in features]},self.block_hash())
+            results = self.process_results(results)
+            self.put(path, results)
+        netuids = list(results['Keys'].keys())
+        modules = {}
+        og_netuid = netuid
+        for netuid in netuids:
+            modules[netuid] = []
+            for uid in results['Keys'][netuid].keys():
+                module = {'uid': uid}
+                for f in features:
+                    module[f] = results[f].get(netuid, {})
+                    if isinstance(module[f], dict):
+                        module[f] = module[f].get(uid, default_module.get(f, None)) 
+                    elif isinstance(module[f], list):
+                        module[f] = module[f][uid]
+                modules[netuid].append({self.clean_feature_name(k): v for k,v in module.items()})
+        if og_netuid != None:
+            return modules[og_netuid]
         return modules
-
-    module_param_features = [
-        'key',
-        'name',
-        'address',
-        'emission',
-        'incentive',
-        'dividends',
-        'last_update',
-        'stake_from',
-        'delegation_fee'
-    ]
-
 
     def get_rate_limit(self, address):
         return self.resolve_key_address(address)
 
+    def format_amount(self, x, fmt='nano') :
+        if type(x) in [dict]:
+            for k,v in x.items():
+                x[k] = self.format_amount(v, fmt=fmt)
+            return x
 
-
-    def format_amount(self, x, fmt='nano', decimals = None, format=None, features=None, **kwargs):
-        fmt = format or fmt # format is an alias for fmt
-
-        if fmt in ['token', 'unit', 'j', 'J']:
+        if fmt in ['j', 'com', 'comai']:
             x = x / 10**9
-        
-        if decimals != None:
-            x = c.round_decimals(x, decimals=decimals)
+        elif fmt in ['nanos', 'n', 'nj']:
+            x = x 
+        else:
+            raise NotImplementedError(fmt)
 
         return x
 
@@ -2738,7 +2796,7 @@ class Subspace(c.Module):
         module['address'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)

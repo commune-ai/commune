@@ -2,9 +2,8 @@ import commune as c
 from typing import *
 import os
 
-# THIS IS WHAT THE INTERNET IS, A BUNCH OF NAMESPACES, AND A BUNCH OF SERVERS, AND A BUNCH OF MODULES.
-# THIS IS THE INTERNET OF INTERNETS.
-class Namespace(c.Module):
+# A NETWORK IS A 
+class Network(c.Module):
 
     # the default
     network : str = 'local'
@@ -19,20 +18,17 @@ class Namespace(c.Module):
     @classmethod
     def namespace(cls, search=None,
                     network:str = 'local',
-                    update:bool = False, 
                     netuid=None, 
+                    update=0,
                     max_age:int = 60,
+
                     timeout=6,
                     verbose=False) -> dict:
         network = network or 'local'
         path = cls.resolve_network_path(network)
         namespace = cls.get(path, None, max_age=max_age)
         if namespace == None:
-            
-            namespace = cls.update_namespace(network=network, 
-                                            netuid=netuid, 
-                                            timeout=timeout, 
-                                            verbose=verbose)
+            namespace = cls.update_namespace(network=network, netuid=netuid, timeout=timeout,verbose=verbose)
             cls.put(path,namespace)
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k} 
@@ -44,7 +40,7 @@ class Namespace(c.Module):
         return namespace
     
     @classmethod
-    def update_namespace(cls, network, netuid=None, timeout=1, search=None, verbose=False):
+    def update_namespace(cls, network, netuid=None, timeout=1, search=None, **kwargs):
         c.print(f'UPDATING --> NETWORK(network={network} netuid={netuid})', color='blue')
         if 'subspace' in network:
             if '.' in network:
@@ -116,7 +112,7 @@ class Namespace(c.Module):
 
     @classmethod
     def put_namespace(cls, network:str, namespace:dict) -> None:
-        assert isinstance(namespace, dict), 'Namespace must be a dict.'
+        assert isinstance(namespace, dict), 'Network must be a dict.'
         return cls.put(network, namespace)        
     
     add_namespace = put_namespace
@@ -125,9 +121,9 @@ class Namespace(c.Module):
     def rm_namespace(cls,network:str) -> None:
         if cls.namespace_exists(network):
             cls.rm(network)
-            return {'success': True, 'msg': f'Namespace {network} removed.'}
+            return {'success': True, 'msg': f'Network {network} removed.'}
         else:
-            return {'success': False, 'msg': f'Namespace {network} not found.'}
+            return {'success': False, 'msg': f'Network {network} not found.'}
         
     @classmethod
     def networks(cls) -> dict:
@@ -213,7 +209,6 @@ class Namespace(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists
-
     
     @classmethod
     def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
@@ -226,6 +221,6 @@ class Namespace(c.Module):
 
         return server_exists  
     
-# Namespace.run(__name__)
+Network.run(__name__)
 
 

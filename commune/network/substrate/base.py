@@ -40,7 +40,7 @@ from .storage import StorageKey
 from .exceptions import SubstrateRequestException, ConfigurationError, StorageFunctionNotFound, BlockNotFound, \
     ExtrinsicNotFound, ExtensionCallNotFound
 from .constants import *
-from .keypair import Keypair, KeypairType, MnemonicLanguageCode
+from .key import Keypair, KeypairType, MnemonicLanguageCode
 from .utils.ss58 import ss58_decode, ss58_encode, is_valid_ss58_address, get_ss58_format
 
 

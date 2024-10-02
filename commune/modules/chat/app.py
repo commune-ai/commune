@@ -65,7 +65,7 @@ class Chat(c.Module):
         with st.sidebar:
             st.title('Just Chat')
             # assert self.key.verify_ticket(ticket)
-            with st.expander('l0g1n'): 
+            with st.expander('LOGIN'): 
                 cols = st.columns([1,1])
                 user_name = cols[0].text_input('User', user)
                 pwd = cols[1].text_input('Password', password, type='password')
@@ -98,8 +98,9 @@ class Chat(c.Module):
             self.history_page()
 
     def chat_page(self):
-        model = st.selectbox('Model', self.models)
-        with st.sidebar.expander('Params', expanded=True):
+        with st.sidebar.expander('PARAMS', expanded=True):
+            model = st.selectbox('Model', self.models)
+
             temperature = st.number_input('Temperature', 0.0, 1.0, 0.5)
             if hasattr(self.model, 'get_model_info'):
                 model_info = self.model.get_model_info(model)
