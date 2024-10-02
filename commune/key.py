@@ -18,12 +18,12 @@ import nacl.public
 from eth_keys.datatypes import PrivateKey
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format
 from scalecodec.base import ScaleBytes
-from commune.substrate.utils import ss58
-from commune.substrate.constants import DEV_PHRASE
-from commune.substrate.exceptions import ConfigurationError
-from commune.substrate.key import extract_derive_path
-from commune.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
-from commune.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
+from commune.network.substrate.utils import ss58
+from commune.network.substrate.constants import DEV_PHRASE
+from commune.network.substrate.exceptions import ConfigurationError
+from commune.network.substrate.key import extract_derive_path
+from commune.network.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
+from commune.network.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
 
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
@@ -73,33 +73,24 @@ class Key(c.Module):
 
         # If no arguments are provided, generate a random keypair
         if  private_key == None and seed_hex == None  and mnemonic == None:
-            key = self.new_key()
-            seed_hex = key.__dict__.get('seed_hex', seed_hex)
-            private_key = key.__dict__.get('private_key', private_key)
-            crypto_type = key.__dict__.get('crypto_type', crypto_type)
-            derive_path = key.__dict__.get('derive_path', derive_path)
-            path = key.__dict__.get('path', path)
-            ss58_format = key.__dict__.get('ss58_format', ss58_format)
-            mnemonic = key.__dict__.get('mnemonic', mnemonic)
-    
+            private_key = self.new_key(crypto_type=crypto_type).private_key
         if type(private_key) == str:
             private_key = c.str2bytes(private_key)
-
+            
         if crypto_type == KeyType.SR25519:
             if len(private_key) != 64:
                 raise ValueError('Secret key should be 64 bytes long')
             public_key = sr25519.public_from_secret_key(private_key)
-
-        if crypto_type == KeyType.ECDSA:
+            ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
+        elif crypto_type == KeyType.ECDSA:
             private_key_obj = PrivateKey(private_key)
             public_key = private_key_obj.public_key.to_address()
             ss58_address = private_key_obj.public_key.to_checksum_address()
             if len(public_key) != 20:
                 raise ValueError('Public key should be 20 bytes long')
         else:
-            ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
-        if not public_key:
-            raise ValueError('No SS58 formatted address or public key provided')
+            raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
+        
         if type(public_key) is str:
             public_key = bytes.fromhex(public_key.replace('0x', ''))
 
@@ -188,9 +179,9 @@ class Key(c.Module):
 
         """"""
         mems = c.get_json(path)
-        for k,mem in mems.items():
+        for k,mnemonic in mems.items():
             try:
-                cls.add_key(k, mnemonic=mem, refresh=refresh, **kwargs)
+                cls.add_key(k, mnemonic=mnemonic, refresh=refresh, **kwargs)
             except Exception as e:
                 c.print(f'failed to load mem {k} due to {e}', color='red')
         return {'loaded_mems':list(mems.keys()), 'path':path}
@@ -211,12 +202,7 @@ class Key(c.Module):
     mnemonics = mems
     
     @classmethod
-    def get_key(cls, 
-                path:str,
-                password:str=None, 
-                json:bool=False,
-                create_if_not_exists:bool = True,
-                **kwargs):
+    def get_key(cls, path:str,password:str=None, json:bool=False,create_if_not_exists:bool = True, **kwargs):
         if hasattr(path, 'ss58_address'):
             key = path
             return key
@@ -509,15 +495,12 @@ class Key(c.Module):
         if crypto_type == KeyType.ECDSA:
             if language_code != MnemonicLanguageCode.ENGLISH:
                 raise ValueError("ECDSA mnemonic only supports english")
-
             private_key = mnemonic_to_ecdsa_private_key(mnemonic)
             keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
 
         else:
-            seed_array = bip39_to_mini_secret(mnemonic, "", language_code)
-
             keypair = cls.create_from_seed(
-                seed_hex=binascii.hexlify(bytearray(seed_array)).decode("ascii"),
+                seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", language_code))).decode("ascii"),
                 ss58_format=ss58_format,
                 crypto_type=crypto_type,
                 return_kwargs=return_kwargs
@@ -526,11 +509,8 @@ class Key(c.Module):
             if return_kwargs:
                 kwargs = keypair
                 return kwargs
-
-
+            
         keypair.mnemonic = mnemonic
-
-
 
         return keypair
 

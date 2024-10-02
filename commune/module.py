@@ -28,23 +28,24 @@ import socket
 nest_asyncio.apply()
 
 class c:
-    whitelist = []
 
-    helper_functions  = [
-                'info',
-                'metadata',
-                'schema',
-                'server_name',
-                'is_admin',
-                'namespace',
-                'endpoints',
-                'forward',
-                'module_name', 
-                'class_name',
-                'name',
-                'address',
-                'fns'] # whitelist of helper functions to load
-    
+
+    core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
+
+
+    # these are shortcuts for the module finder c.module('openai') --> c.module('modle.openai') 
+    # if openai : model.openai
+    shortcuts =  {
+        'openai' : 'model.openai',
+        'openrouter':  'model.openrouter',
+        'or' : ' model.openrouter',
+        'r' :  'remote',
+        's' :  'subspace',
+        'subspace': 'network.subspace', 
+        'namespace': 'network'
+        
+        }
+
     core_modules = ['module', 'key', 'subspace', 'web3', 'serializer', 'pm2',  
                     'executor', 'client', 'server', 
                     'namespace' ]
@@ -106,9 +107,7 @@ class c:
 
     @classmethod
     def module_name(cls, obj=None):
-        if hasattr(cls, 'name') and isinstance(cls.name, str):
-            return cls.name
-        obj = cls.resolve_object(obj)
+        obj = obj or cls
         module_file =  inspect.getfile(obj)
         return c.path2simple(module_file)
     
@@ -195,20 +194,16 @@ class c:
         
         if obj is None:
             obj = cls
-        if all([hasattr(obj, k) for k in ['info', 'schema', 'set_config', 'config']]):
+        if all([hasattr(obj, k) for k in c.core_features]):
             return True
         return False
     
     @classmethod
     def is_root(cls, obj=None) -> bool:
-        required_features = ['info', 'schema', 'root_module_class', 'module_name']
-        if obj is None:
-            obj = cls
-        if all([hasattr(obj, k) for k in required_features]):
-            module_class = obj.module_class()
-            if module_class == cls.root_module_class:
-                return True
-        return False
+        required_features = c.core_features
+        obj = obj or cls
+        return bool(c.is_module(obj) and obj.module_class() == cls.root_module_class)
+
 
     is_module_root = is_root_module = is_root
     
@@ -246,7 +241,7 @@ class c:
     @classmethod
     def argparse(cls):
         parser = argparse.ArgumentParser(description='Argparse for the module')
-        parser.add_argument('-m', '--m', '--module', '-module', dest='function', help='The function', type=str, default=cls.module_name())
+        parser.add_argument('-m', '--m', '--module', '-module', dest='module', help='The function', type=str, default=cls.module_name())
         parser.add_argument('-fn', '--fn', dest='function', help='The function', type=str, default="__init__")
         parser.add_argument('-kw',  '-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
@@ -310,18 +305,7 @@ class c:
     def info_hash(self):
         return c.commit_hash()
 
-    @classmethod
-    def module(cls,module: Any = 'module' , verbose=False, **kwargs):
-        '''
-        Wraps a python class as a module
-        '''
-        t0 = c.time()
-        module_class =  c.get_module(module,**kwargs)
-        latency = c.time() - t0
-        c.print(f'Loaded {module} in {latency} seconds', color='green', verbose=verbose)
-        return module_class
 
-    _module = m = mod = module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -474,16 +458,17 @@ class c:
     def init_module(self,*args, **kwargs):
         return self.set_config(*args, **kwargs)
 
-    def info(self , **kwargs
-             ) -> Dict[str, Any]:
-        '''
-        hey, whadup hey how is it going
-        '''
-        info = self.schema()
-        info['name'] = self.server_name or self.module_name()
-        info['address'] = self.address
-        info['key'] = self.key.ss58_address
-        return info
+    # def info(self , **kwargs
+    #          ) -> Dict[str, Any]:
+    #     '''
+    #     hey, whadup hey how is it going
+    #     '''
+    #     print(';FAMMMMM')
+    #     info = self.schema()
+    #     info['name'] = self.server_name or self.module_name()
+    #     info['address'] = self.address
+    #     info['key'] = self.key.ss58_address
+    #     return info
     
     @classmethod
     def is_public(cls, fn):
@@ -559,12 +544,11 @@ class c:
                 routes = routes()
         cls.route_cache = routes
         return routes
-
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
     @classmethod
     def route_fns(cls):
-        routes = cls.routes()
+        routes = cls.get_routes()
         route_fns = []
         for module, fns in routes.items():
             for fn in fns:
@@ -578,6 +562,23 @@ class c:
                     raise ValueError(f'Invalid route {fn}')
                 route_fns.append(fn)
         return route_fns
+    
+
+    def fn2route(self):
+        routes = self.get_routes()
+        fn2route = {}
+        for module, fns in routes.items():
+            for fn in fns:
+                if isinstance(fn, dict):
+                    fn = fn['to']
+                elif isinstance(fn, list):
+                    fn = fn[1]
+                elif isinstance(fn, str):
+                    fn
+                else:
+                    raise ValueError(f'Invalid route {fn}')
+                fn2route[fn] = module
+        return fn2route
             
 
     @classmethod
@@ -592,23 +593,22 @@ class c:
         t0 = c.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-        def fn_generator( *args, fn_ph , **kwargs):
-            module, fn = fn_ph.split('/')
-            if module != None:
-                prefix_options = [c.libname, '']
-                for prefix in prefix_options:
-                    object_path =  module + '.' + fn
-                    if len(prefix) > 0:
-                        object_path = prefix + '.' + object_path
-                    if c.object_exists(object_path):
-                        return c.obj(object_path)(*args, **kwargs)
-                module_obj = c.get_module(module)
-                if module_obj.classify_fn(fn) == "self":
-                    module_obj = module_obj()
-                fn_obj =  getattr(module_obj, fn)
-            else:
-                fn_obj = c.obj(fn)
-            return fn_obj(*args, **kwargs)
+        def fn_generator(*args, fn_ph, **kwargs):
+            def fn(*args, **kwargs):
+                try:
+                    fn_obj = c.import_object(fn_ph)
+                except: 
+                    module = '.'.join(fn_ph.split('.')[:-1])
+                    fn = fn_ph.split('.')[-1]
+
+                    module = c.get_module(module)
+                    fn_obj = getattr(module, fn)
+                    if c.classify_fn(fn_obj) == 'self':
+                        fn_obj = getattr(module(), fn)
+
+                return fn_obj(*args, **kwargs)
+            return fn(*args, **kwargs)
+        
         routes = cls.get_routes()
         for module, fns in routes.items():
             if c.module_exists(module):
@@ -630,19 +630,19 @@ class c:
                         from_fn = fn
                         to_fn = fn
 
-                    fn_ph = module + '/' + from_fn
+                    fn_ph = module + '.' + from_fn
                     fn_obj = partial(fn_generator, fn_ph=fn_ph) 
                     fn_obj.__name__ = to_fn
                     setattr(cls, to_fn, fn_obj)
             c.print(f'ROUTE({module}/{fn} -> {fn})', verbose=verbose)
 
-        if add_utils:
-            utils = c.utils()
-            for util in utils:
-                fn_name = util.split('.')[-1]
-                if not hasattr(cls, fn_name):
-                    fn_obj = partial(fn_generator, fn_ph=util) 
-                    setattr(cls, fn_name, fn_obj)
+        # if add_utils:
+        #     utils = c.utils()
+        #     for util in utils:
+        #         fn_name = util.split('.')[-1]
+        #         if not hasattr(cls, fn_name):
+        #             fn_obj = partial(fn_generator, fn_ph=util) 
+        #             setattr(cls, fn_name, fn_obj)
     
         latency = t0 - c.time()
         c.print(f'enabled routes in {latency} seconds', verbose=verbose)
@@ -664,7 +664,6 @@ class c:
 
         if c.module_exists( module + '.test'):
             module =  module + '.test'
-        print(f'testing {module}')
         module = c.module(module)()
         test_fns = module.test_fns()
 
@@ -689,9 +688,9 @@ class c:
                 fn = future2fn.pop(f)
                 fn2result[fn] = f.result()
         else:
-            for fn in self.test_fns():
+            for fn in cls.test_fns():
                 print(f'testing {fn}')
-                fn2result[fn] = trial_wrapper(getattr(self, fn))()       
+                fn2result[fn] = trial_wrapper(getattr(cls, fn))()       
         return fn2result
     
     @classmethod
@@ -1748,6 +1747,8 @@ class c:
     def num_files(self, path:str='./')-> int:
         import commune as c
         return len(c.glob(path))
+
+
     
     def hidden_files(self, path:str='./')-> List[str]:
         import commune as c
@@ -2571,7 +2572,7 @@ class c:
             return False
         if '/' in fn:
             module, fn = fn.split('/')
-            module = cls.module(module)
+            module = c.get_module(module)
         else:
             module = cls 
         
@@ -2909,19 +2910,19 @@ class c:
     def import_module(cls, 
                       import_path:str, 
                       included_pwd_in_path=True, 
-                      try_prefixes = ['commune','commune.modules', 'modules', 'commune.subspace', 'subspace']
+                      try_prefixes = ['commune','commune.modules', 'modules', 'commune.network.substrate', 'subspace']
                       ) -> 'Object':
         from importlib import import_module
+        pwd = os.getenv('PWD', c.libpath)
         if included_pwd_in_path and not cls.included_pwd_in_path:
-            import sys
-            pwd = cls.pwd()
+            import sys            
             sys.path.append(pwd)
             sys.path = list(set(sys.path))
             cls.included_pwd_in_path = True
         # if commune is in the path more than once, we want to remove the duplicates
         if cls.libname in import_path:
             import_path = cls.libname + import_path.split(cls.libname)[-1]
-        pwd = cls.pwd()
+
         try:
             return import_module(import_path)
         except Exception as _e:
@@ -2959,7 +2960,7 @@ class c:
             return False
 
     @classmethod
-    def import_object(cls, key:str, verbose: bool = 0, trials=3)-> Any:
+    def import_object(cls, key:str, **kwargs)-> Any:
         '''
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
@@ -2967,9 +2968,7 @@ class c:
         assert key != None, key
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        if verbose:
-            cls.print(f'Importing {object_name} from {module}')
-        obj =  getattr(cls.import_module(module), object_name)
+        obj =  getattr(c.import_module(module), object_name)
         return obj
     
     obj = get_obj = import_object
@@ -2977,9 +2976,10 @@ class c:
     @classmethod
     def object_exists(cls, path:str, verbose=False)-> Any:
         try:
-            cls.import_object(path, verbose=verbose)
+            c.import_object(path, verbose=verbose)
             return True
         except Exception as e:
+            print(e)
             return False
     
     imp = get_object = importobj = import_object
@@ -2990,17 +2990,19 @@ class c:
         Returns true if the module exists
         '''
         try:
-            module_path = c.simple2path(module)
-            module_exists = c.exists(module_path)
-        except:
-            module_exists = False
-        # if not module_exists:
-        #     module_exists = module in c.modules()
-        return module_exists
+            module = c.shortcuts.get(module, module)
+            return os.path.exists(c.simple2path(module))
+        except Exception as e:
+            return False
     
     @classmethod
     def has_app(cls, module:str, **kwargs) -> bool:
         return cls.module_exists(module + '.app', **kwargs)
+    
+    
+    @classmethod
+    def get_path(cls, module:str, **kwargs) -> bool:
+        return c.module(module).filepath()
     
     @classmethod
     def simplify_object_paths(cls,  paths):
@@ -3054,55 +3056,52 @@ class c:
         return cls.get_tree(cls.pwd())
     
     @classmethod
-    def get_tree(cls, path):
-        class_paths = cls.find_classes(path)
-        simple_paths = cls.simplify_object_paths(class_paths) 
-        return dict(zip(simple_paths, class_paths))
+    def get_tree(cls, path, max_age=60, update=False):
+        cache_path = 'tree/'+path.replace('/', '_')
+        tree = c.get(cache_path, None, max_age=max_age, update=update)
+        if tree == None:
+            class_paths = cls.find_classes(path)
+            simple_paths = cls.simplify_object_paths(class_paths) 
+            tree = dict(zip(simple_paths, class_paths))
+            c.put(cache_path, tree)
+        return tree
+        
     
+    
+
     @classmethod
-    def get_module(cls, 
+    def module(cls, 
                    path:str = 'module',  
                    cache=True,
-                   verbose = False,
-                   update_tree_if_fail = True,
-                   init_kwargs = None,
                    **_kwargs
                    ) -> str:
-        import commune as c
         path = path or 'module'
-        if path in ['module', 'c']:
-            return c.Module
-        # if the module is a valid import path 
-        shortcuts = c.shortcuts
-        if path in shortcuts:
-            path = shortcuts[path]
-        module = None
-        cache_key = path
         t0 = c.time()
-        if cache and cache_key in c.module_cache:
-            module = c.module_cache[cache_key]
-            return module
-        module = c.simple2object(path)
-        # ensure module
-        if verbose:
-            c.print(f'Loaded {path} in {c.time() - t0} seconds', color='green')
-        if init_kwargs != None:
-            module = module(**init_kwargs)
-        is_module = c.is_module(module)
-        if not is_module:
-            module = cls.obj2module(module)
-        if cache:
-            c.module_cache[cache_key] = module            
+        path = c.shortcuts.get(path, path)
+        if path in c.module_cache and cache:
+            module = c.module_cache[path]
+        else:
+            if path in ['module', 'c']:
+                module =  c
+            else:
+                tree = c.tree()
+                path = tree.get(path, path)
+                module = c.import_object(path)
+                if cache:
+                    c.module_cache[path] = module      
+        c.print(f'Module({path}) in {c.time() - t0} seconds', color='green')      
         return module
+
+    get_module = module
     
     
     _tree = None
     @classmethod
-    def tree(cls, search=None, cache=True):
+    def tree(cls, search=None, cache=True, **kwargs):
         if cls._tree != None and cache:
             return cls._tree
-        local_tree = cls.local_tree()
-        lib_tree = cls.lib_tree()
+        local_tree = c.local_tree()
+        lib_tree = c.lib_tree()
         tree = {**local_tree, **lib_tree}
         if cache:
             cls._tree = tree
@@ -3139,6 +3138,20 @@ class c:
             modules = [m for m in modules if search in m]            
         return modules
     get_modules = modules
+
+    def walk(self, path='./', depth=2):
+        results = []
+        if depth == 0:
+            return results
+        path = c.abspath(path)
+        # break when it gets past 3 depths from the path file
+        for subpath in c.ls(path):
+            if os.path.isdir(subpath):
+                results += self.walk(subpath, depth=depth-1)
+            else:
+                results += [subpath]
+            
+        return results
 
     @classmethod
     def has_module(cls, module):
@@ -3473,6 +3486,11 @@ class c:
     def repo_url(cls, *args, **kwargs):
         return cls.module('git').repo_url(*args, **kwargs)    
 
+
+    def repos(self, *args, **kwargs):
+        return 'fickkowuhfuoehukk'
+
+
     @classmethod
     def ps(cls, *args, **kwargs):
         return cls.get_module('docker').ps(*args, **kwargs)
@@ -3595,7 +3613,7 @@ class c:
 
     @classmethod
     def chown_cache(cls, sudo:bool = True):
-        return cls.chown(cls.cache_path, sudo=sudo)
+        return cls.chown(c.cache_path, sudo=sudo)
         
     @classmethod
     def colors(cls):
@@ -3967,21 +3985,6 @@ class c:
         command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
         return c.cmd(command, cwd=cwd)
     
-
-
-    shortcuts =  {
-        # 'user': 'server.user',
-        # 'namespace':'server.namespace', 
-        # 'client': 'server.client',
-        # 'pm2': 'server.pm2',
-        # 'serializer': 'server.serializer',
-        'openai' : 'model.openai',
-        'openrouter':  'model.openrouter',
-        'or' : ' model.openrouter',
-        'r' :  'remote',
-        's' :  'subspace',
-        }
-
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

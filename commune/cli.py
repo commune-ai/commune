@@ -21,7 +21,7 @@ class cli:
         self.helper_fns = helper_fns
         self.fn_splitters = fn_splitters
         self.sep = sep
-        self.base = c.module(base)()
+        self.base_module = c.module(base)()
         self.forward(args)
 
     def forward(self, argv=None):
@@ -33,35 +33,32 @@ class cli:
         if any([arg.startswith(self.sep) for arg in argv]): 
             for arg in c.copy(argv):
                 if arg.startswith(self.sep):
-                    key = arg[len(self.sep):]
+                    key = arg[len(self.sep):].split('=')[0]
                     if key in self.helper_fns:
                         return self.forward([key , argv[0]])
                     else:
-                        if '=' in arg:
-                            key, value = arg.split('=')
-                        else: 
-                            value = True
+                        value = arg.split('=')[-1] if '=' in arg else value
                         argv.remove(arg)
                         init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
         fn = argv.pop(0)
-        fn_obj = None
-        if fn in dir(self.base):
-            print(fn, self.base)
-            fn_obj = getattr(self.base, fn)
-        else:
-            for fs in self.fn_splitters:
-                if fs in fn:
-                    module, fn = fn.split(fs)
-                    module = c.get_module(module)
-                    fn_obj = getattr(module, fn)  
-                    fn_type =  c.classify_fn(fn_obj)
-                    if fn_type == 'self':
-                        fn_obj = getattr(module(**init_kwargs), fn)  
-                    print(fn_obj,fn_type)
-                    break
-  
+        base_attributes = dir(self.base_module)
+        if fn in base_attributes:
+            fn_obj = getattr(self.base_module, fn)
+        else: 
+            fs = [fs for fs in self.fn_splitters if fs in fn]
+            assert len(fs) == 1, f'Function splitter not found in {fn}'
+            print(fn)
+            module, fn = fn.split(fs[0])
+
+            if c.module_exists(module):
+                module = c.get_module(module)
+                fn_obj = getattr(module, fn)
+                if c.classify_fn(fn_obj) == 'self':
+                    fn_obj = getattr(module(**init_kwargs), fn)
+            else:
+                raise AttributeError(f'Function {fn} not found in {module}')
         if callable(fn_obj):
             args, kwargs  = self.parse_args(argv)
             output = fn_obj(*args, **kwargs)
@@ -72,14 +69,12 @@ class cli:
         c.print(buffer+fn+buffer, color='yellow')
         latency = time.time() - t0
         is_error =  c.is_error(output)
-        
         if is_error:
-            buffer = '❌'
-            msg =  f'Error(latency={latency:.3f})' 
+            msg =  f'❌Error({latency:.3f}sec)❌' 
         else:
             buffer = '✅'
-            msg = f'Result(latency={latency:.3f})'
-        print(buffer + msg + buffer)
+            msg = f'✅Result({latency:.3f}s)✅'
+        print( msg )
         is_generator = c.is_generator(output)
         if is_generator:
             # print the items side by side instead of vertically

@@ -6,6 +6,23 @@ from loguru import logger
 from typing import *
 import netaddr
 
+def is_valid_ip(ip:str) -> bool:
+    import netaddr
+    r""" Checks if an ip is valid.
+        Args:
+            ip  (:obj:`str` `required`):
+                The ip to check.
+
+        Returns:
+            valid  (:obj:`bool` `required`):
+                True if the ip is valid, False otherwise.
+    """
+    try:
+        netaddr.IPAddress(ip)
+        return True
+    except Exception as e:
+        return False
+
 def check_used_ports(start_port = 8501, end_port = 8600, timeout=5):
     import commune as c
     port_range = [start_port, end_port]
@@ -91,7 +108,6 @@ class ExternalIPNotFound(Exception):
     """ Raised if we cannot attain your external ip from CURL/URLLIB/IPIFY/AWS """
 
 def external_ip() -> str:
-    import commune as c
     r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
         Returns:
             external_ip  (:obj:`str` `required`):
@@ -104,7 +120,10 @@ def external_ip() -> str:
     # --- Try curl.
     ip = None
     try:
-        ip = c.cmd('curl -s ifconfig.me')
+        process = os.popen('curl -s ifconfig.me')
+        ip  = process.readline()
+        process.close()
+        assert isinstance(ip_to_int(ip), int)
     except Exception as e:
         c.print(e)
 
@@ -273,25 +292,6 @@ def ip__str__(ip_type:int, ip_str:str, port:int):
     """
     return "/ipv%i/%s:%i" % (ip_type, ip_str, port)
 
-
-def is_valid_ip(ip:str) -> bool:
-    import netaddr
-    r""" Checks if an ip is valid.
-        Args:
-            ip  (:obj:`str` `required`):
-                The ip to check.
-
-        Returns:
-            valid  (:obj:`bool` `required`):
-                True if the ip is valid, False otherwise.
-    """
-    try:
-        netaddr.IPAddress(ip)
-        return True
-    except Exception as e:
-        return False
-
-
 def external_ip( default_ip='0.0.0.0') -> str:
     import commune as c
     
@@ -315,7 +315,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
     try:
         ip = requests.get('https://api.ipify.org').text
@@ -323,7 +323,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
     # --- Try AWS
     try:
@@ -332,7 +332,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
     # --- Try myip.dnsomatic 
     try:
@@ -343,7 +343,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)  
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
     # --- Try urllib ipv6 
     try:
@@ -352,7 +352,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
     # --- Try Wikipedia 
     try:
@@ -361,7 +361,7 @@ def external_ip( default_ip='0.0.0.0') -> str:
     except Exception as e:
         print(e)
 
-    if c.is_valid_ip(ip):
+    if is_valid_ip(ip):
         return ip
 
     return default_ip
@@ -386,9 +386,7 @@ def unreserve_port(port:int,
     output['reserved'] =  c.reserved_ports()
     return output
 
-
-def unreserve_ports(cls,*ports, 
-                    var_path='reserved_ports' ):
+def unreserve_ports(*ports, var_path='reserved_ports' ):
     import commune as c
     reserved_ports =  c.get(var_path, {})
     if len(ports) == 0:
@@ -454,10 +452,8 @@ def free_ports(n=10, random_selection:bool = False, **kwargs ) -> List[int]:
             print(f'Error: {e}')
             break
         avoid_ports += [free_ports[-1]]
-    
-            
+ 
     return free_ports
-
 
 def random_port(*args, **kwargs):
     import commune as c
@@ -542,24 +538,6 @@ def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int,
             used_ports += [port]
         
     return used_ports
-
-
-def scan_ports(cls,host=None, start_port=None, end_port=None, timeout=24):
-    import commune as c
-    if start_port == None and end_port == None:
-        start_port, end_port = port_range()
-    if host == None:
-        host = external_ip()
-    import socket
-    future2port = {}
-    for port in range(start_port, end_port + 1):  # ports from start_port to end_port
-        future2port[c.submit(port_used, kwargs=dict(port=port, ip=host), timeout=timeout)] = port
-    port2open = {}
-    for future in c.as_completed(future2port, timeout=timeout):
-        port = future2port[future]
-        port2open[port] = future.result()
-    port2open = {k: v for k, v in sorted(port2open.items(), key=lambda item: item[1])}
-    return port2open
 
 def resolve_port(port:int=None, **kwargs):
     '''
@@ -650,12 +628,8 @@ def get_available_ports(port_range: List[int] = None , ip:str =None) -> int:
 available_ports = get_available_ports
 
 def ip( max_age=None, update:bool = False, **kwargs) -> str:
-    import commune as c
-    ip = c.get('ip', None, max_age=max_age, update=update)
-    if ip == None:
-        ip =  c.external_ip(**kwargs)
-        c.put('ip', ip)
-    return ip
+   
+    return  external_ip()
 
 def resolve_ip(ip=None, external:bool=True) -> str:
     if ip == None:

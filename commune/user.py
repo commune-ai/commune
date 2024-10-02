@@ -74,14 +74,9 @@ class User(c.Module):
     
     def user_exists(self, address:str):
         return address in self.get('users', {})
-
-    
-    def is_root_key(self, address:str)-> str:
-        return address == c.root_key().ss58_address
     
     def is_admin(self, address:str):
         return self.get_role(address) == 'admin'
-    
     
     def admins(self):
         return [k for k,v in self.users().items() if v['role'] == 'admin']
