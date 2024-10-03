@@ -678,7 +678,7 @@ def cmd( command:Union[str, list],
     if bash:
         command = f'bash -c "{command}"'
 
-    cwd = c.resolve_path(cwd)
+    cwd = c.pwd() if cwd == None else cwd
 
     env = {**os.environ, **env}
 

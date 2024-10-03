@@ -247,7 +247,7 @@ class Key(c.Module):
                 try:
                     keys[key] = cls.get_key(key)
                 except Exception as e:
-                    c.print(f'failed to get key {key} due to {e}', color='red')
+                    c.print(f'Failed to get {key}', color='red')
                     continue
                 if keys[key] == None:
                     if clean_failed_keys:
@@ -257,9 +257,17 @@ class Key(c.Module):
         return keys
         
     @classmethod
-    def key2address(cls, search=None, **kwargs):
-        key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
+    def key2address(cls, search=None, max_age=10, update=False, **kwargs):
+        path = 'key2address'
+        key2address = cls.get(path, None, max_age=max_age, update=update)
+        if key2address == None:
+            key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
+            cls.put(path, key2address)
         return key2address
+    
+    @classmethod
+    def n(cls, search=None, **kwargs):
+        return len(cls.key2address(search, **kwargs))
 
     @classmethod
     def address2key(cls, search:Optional[str]=None, update:bool=False):
@@ -279,7 +287,7 @@ class Key(c.Module):
     @classmethod
     def key_paths(cls):
         return cls.ls()
-    
+    address_seperator = '_address='
     @classmethod
     def key2path(cls) -> dict:
         """
