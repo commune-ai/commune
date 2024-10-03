@@ -2,14 +2,12 @@ import commune as c
 from typing import *
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
-import json
-import asyncio
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
+import uvicorn
 import os
-
+import asyncio
 
 class ServerMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, max_bytes: int):
@@ -26,120 +24,78 @@ class ServerMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-
 class Server(c.Module):
     def __init__(
-        self,
+        self, 
         module: Union[c.Module, object] = None,
         functions:Optional[List[str]] = None, # list of endpoints
         key:str = None, # key for the server (str)
         name: str = None, # the name of the server
         port: Optional[int] = None, # the port the server is running on
-        # ---- ADVANCE -----
-        network:str = 'subspace',
+        network:str = 'subspace', # the network used for incentives
+        helper_functions  = ['info', 'metadata','schema', 'server_name', 'functions', 'forward','rate_limit', 'user_info'], 
+        helper_function_attributes = ['helper_functions', 'whitelist','endpoints', 'server_functions'],
+        max_bytes:int = 10 * 1024 * 1024,  # max bytes within the request (bytes)
+        allow_origins = ["*"], # allowed origins
+        allow_credentials=True, # allow credentials
+        allow_methods=["*"], # allowed methods
+        allow_headers=["*"],  # allowed headers
+        stake2rate = 1000, # the stake to rate ratio
+        max_rate = 100, # the maximum rate
         period = 60, # the period for 
-        max_request_staleness:int = 5, # the maximum signature staleness
-        process_request:Optional[Union[callable, str]] = None,
-        network_staleness = 60, # the time it takes for the network to refresh
-        path:str = 'state', 
-        helper_functions  = ['info','metadata','schema', 'server_name','server_functions','forward'], # whitelist of helper functions to load
-        helper_function_attributes = ['helper_functions', 'whitelist', 'endpoints', 'server_functions'],
-        # ---- MIDDLEWARE ----
-        max_bytes:int = 10 * 1024 * 1024,  # 1 MB limit
-        allow_origins = ["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"], 
+        stake_multiplier = {'network': 1, 'direct': 1,'validator': 1 },
+        max_request_staleness = 5, # the time it takes for the request to be too old
+        max_network_staleness = 60, # the time it takes for the network to refresh
         **kwargs,
         ) -> 'Server':
         module = module or 'module'
         if isinstance(module, str):
             name = module
             module = c.module(module)()
-        print(module, 'FAMMMM')
-        self.helper_function_attributes = helper_function_attributes
+
+        module.schema =  module.server_schema = self.get_server_schema(module, helper_function_attributes=helper_function_attributes)
+        module.functions  = module.server_functions = list(set(helper_functions + (functions or  list(module.schema.keys()))))
         module.name = module.server_name = name
-        module.helper_functions = helper_functions
         module.port = module.server_port =  port if port not in ['None', None] else c.free_port()
         module.address  = module.server_address =  f"{c.ip()}:{module.port}"
         module.key  = module.server_key = c.get_key(key or module.name, create_if_not_exists=True)
-        module.schema =  module.server_schema = self.get_server_schema(module)
-        module.functions  = module.server_functions = functions or  list(module.schema.keys())
-        module.info  =  module.server_info =  self.get_info(module)
+        module.info  =  module.server_info =  self.get_server_info(module)
+        if hasattr(module, 'rate_limit'):
+            self.rate_limit = module.rate_limit
+        module.rate_limit = self.rate_limit
+
+        c.print('FUNCTIONS ---->', module.functions)
         
+
+        self.stake2rate = stake2rate
+        self.max_rate = max_rate
+        self.stake_multiplier = stake_multiplier
         self.max_bytes = max_bytes
         self.max_request_staleness = max_request_staleness
         self.serializer = c.module('serializer')()
         self.network = network
         self.module = module
         self.period = period
-        self.network_staleness = network_staleness
-        self.set_process_request(process_request)
-        self.state = {'sync_time': 0,  'stake': {},'stake_from': {},  'fn_info': {}}
+        self.max_network_staleness = max_network_staleness
+        self.state = {'sync_time': 0,  'stake': {},'stake_from': {},  'fn_info': {}, 'stake_to': {}}
         c.thread(self.sync_network_loop)
-
-
-
-
         self.loop = asyncio.get_event_loop()
         app = FastAPI()    
         app.add_middleware(ServerMiddleware, max_bytes=self.max_bytes)    
         app.add_middleware(CORSMiddleware,
-                                allow_origins=allow_origins, 
-                                allow_credentials=allow_credentials,
-                                allow_methods=allow_methods,
-                                allow_headers=allow_headers)
-        app.post("/{fn}")(self.forward)
-        # start the server
-        try:
-            c.print(f' Served(name={module.name}, address={module.address}, key=🔑{module.key}🔑 ) 🚀 ', color='purple')
-            c.register_server(name=module.name,address = module.address)
-            uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio' )
-        except Exception as e:
-            c.print(e, color='red')
-        finally:
-            c.deregister_server(self.module.name)
+                           allow_origins=allow_origins, 
+                           allow_credentials=allow_credentials,
+                           allow_methods=allow_methods,
+                           allow_headers=allow_headers)
+        def api_forward(fn:str, request: Request):
+            return self.forward(fn, request)
+        app.post("/{fn}")(api_forward)
+        c.print(f' Served(name={module.name}, address={module.address}, key=🔑{module.key}🔑 ) 🚀 ', color='purple')
+        c.register_server(name=module.name,address = module.address)
+        uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
 
-    def add_fn(self, name:str, fn: str):
-        assert callable(fn), 'fn not callable'
-        setattr(self.module, name, fn)
-        return {'success':True, 'message':f'Added {name} to {self.name} module'}
-    
-    def set_process_request(self, process_request:Union[callable, str]):
-        if not process_request:
-            return {'success':True, 'message':f'using default access function'}
-        if hasattr(process_request, 'forward'):
-            process_request = process_request.forward
-        assert callable(process_request), 'access_fn must be callable'
-        self.process_request = process_request
-        return {'success':True, 'message':f'Set access_fn for {self.name}'}
-    
-    def forward(self, fn:str,  request: Request):
-        try:
-            request = self.process_request(fn=fn, request=request )
-            data = request['data']
-            headers = request['headers']
-            args = data.get('args', [])
-            kwargs = data.get('kwargs', {})
-            fn_obj = getattr(self.module, fn)
-            if callable(fn_obj):
-                response = fn_obj(*args, **kwargs)
-            else:
-                response = fn_obj
-            latency = c.round(c.time() - int(headers['timestamp']), 3)
-            msg = f"<✅Response(fn={fn} from={headers['key'][:4]}... latency={latency}s)✅>"
-            c.print(msg, color='green')
-            if c.is_generator(response):
-                def generator_wrapper(generator):
-                    for item in generator:
-                        yield self.serializer.serialize(item)
-                return EventSourceResponse(generator_wrapper(response))
-            else:
-                return self.serializer.serialize(response)
-        except Exception as e:
-            output =  c.detailed_error(e)
-            c.print(output, color='red')
-        return output
+
+
 
 
     def __del__(self):
@@ -200,43 +156,28 @@ class Server(c.Module):
             public=public, 
             key=key)
         return  response
-
-
-
-
-
-
-    sync_time = 0
-    timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400, 'minute': 60, 'second': 1}
         
-    def get_rate_limit(self, fn, address):
+    def rate_limit(self, module, fn, address) -> float:
         # stake rate limit
-        stake = self.state['stake'].get(address, 0)
-        stake_from = self.state['stake_from'].get(address, 0)
-        stake = (stake_from * self.stake_from_multipler) + stake
+        key2address = c.key2address()
+        address = key2address.get(address, address)
+        if c.is_admin(address) or address == self.module.key.ss58_address or address in self.address2key:
+            return self.max_rate
+        validator_stake = self.state['stake'].get(address, 0) + self.stake_multiplier['validator']
+        network_stake = (sum(self.state['stake_to'].get(address, {}).values())) * self.stake_multiplier['network']
+        direct_stake = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(address, 0) * self.stake_multiplier['direct']
+        stake = validator_stake + network_stake + direct_stake
         fn_info = self.state.get('fn_info', {}).get(fn, {'stake2rate': self.stake2rate, 'max_rate': self.max_rate})
         rate_limit = (stake / fn_info['stake2rate']) # convert the stake to a rate
         return rate_limit
 
-    def process_request(self, fn:str, request: Request) -> dict:
-        """
-        input:
-            {
-                args: list = [] # the arguments to pass to the function
-                kwargs: dict = {} # the keyword arguments to pass to the function
-                timestamp: int = 0 # the timestamp to use
-                address: str = '' # the address to use
-            }
-
-        Rules:
-        1. Admins have unlimited access to all functions, do not share your admin keys with anyone
-            - Admins can add and remove other admins 
-            - to check admins use the is_admin function c.is_admin(address)
-            - to add an admin use the add_admin function (c.add_admin(address))
-        2. Local keys have unlimited access but only to the functions in the whitelist
-        returns : dict
-        """
-
+    def forward(self, fn:str, request: Request, catch_exception:bool=True) -> dict:
+        if catch_exception:
+            try:
+                return self.forward(fn, request, catch_exception=False)
+            except Exception as e:
+                return c.detailed_error(e)
+        color = c.random_color()
         headers = dict(request.headers.items())
         address = headers.get('key', headers.get('address', None))
         assert address, 'No key or address in headers'
@@ -244,12 +185,14 @@ class Server(c.Module):
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
-        auth={'data': headers['hash'], 'timestamp': headers['timestamp']}
         request = {'data': data, 'headers': headers}
+        headers['hash'] = c.hash(data)
+        auth={'data': headers['hash'], 'timestamp': headers['timestamp']}
         signature = headers.get('signature', None)
         assert c.verify(auth=auth,signature=signature, address=address), 'Invalid signature'
         kwargs = dict(data.get('kwargs', {}))
         args = list(data.get('args', []))
+        c.print(f'🚀User(address={address[:3]}..) ----> Request(fn={fn} args={args} kwargs={kwargs})🚀', color= color)
         if 'params' in data:
             if isinstance(data['params', dict]):
                 kwargs = {**kwargs, **data['params']}
@@ -257,26 +200,43 @@ class Server(c.Module):
                 args = [*args, *data['params']]
             else:
                 raise ValueError('params must be a list or a dictionary')
-        data = {'args': args, 'kwargs': kwargs}
-
-        if c.is_admin(address):
-            return request
-        assert fn in self.module.server_functions or fn in self.module.helper_functions , f"Function {fn} not in whitelist={self.module.server_functions}"
+        data = {'fn': fn, 'args': args, 'kwargs': kwargs}
         assert not bool(fn.startswith('__') or fn.startswith('_')), f'Function {fn} is private'
-        is_local_key = address in self.address2key
-        is_user = c.is_user(address)
-        if is_local_key or is_user:
-            return request
-        # check if the user has exceeded the rate limit
-        user_info_path = self.resolve_path(f'user_info/{address}.json') # get the user info path
-        user_info = self.get(user_info_path, {}, max_age=self.period) # get the user info, refresh if it is too old (> period)
-        user_fn_info = user_info.get(fn, {"timestamp": c.time(), 'count': 0}) # get the user info for the function
-        reset_count = bool((c.timestamp() -  user_fn_info['timestamp'])  > self.period) # reset the count if the period has passed
-        user_fn_info['count'] = (user_fn_info.get('count', 0) if reset_count else 0) + 1 # increment the count
-        rate_limit = self.get_rate_limit(fn=fn, address=address) # get the rate limit for the user
-        assert user_fn_info['count'] <= rate_limit, f'rate limit exceeded for {fn}'
-        user_info[fn] = user_fn_info
-        return request
+        assert fn in self.module.server_functions , f"Function {fn} not in endpoints={self.module.server_functions}"
+        timestamp = c.timestamp()
+        user_folder = self.resolve_path(f'users/{address}/{self.module.server_name}')
+        user_path = f'{user_folder}/{fn}_{timestamp}.json' # get the user info path
+        user = c.get(user_path, {}, max_age=self.period) # get the user info, refresh if it is too old (> period)
+        user['timestamp'] = user.get('timestamp', timestamp)
+        user['time_til_reset'] = self.period - (timestamp - user['timestamp'])
+        if bool(user['time_til_reset']  < 0):
+            c.rmdir(user_folder)
+            user['timestamp'] = timestamp
+
+        user['address'] = address
+        user['data'] = data
+        user['count'] = len(c.ls(user_folder))
+        user['count'] = user['count'] + 1 # increment the count
+        rate_limit = int(self.rate_limit(module=self.module, fn=fn, address=address)) # get the rate limit for the user
+        assert user['count'] <= rate_limit, f'rate limit exceeded for {fn} rate_limit={rate_limit} count={user["count"]}'
+        data, headers  = request['data'], request['headers']
+        fn_obj = getattr(self.module, fn)
+        if callable(fn_obj):
+            args, kwargs = data.get('args', []), data.get('kwargs', {})
+            response = fn_obj(*args, **kwargs)
+        else:
+            response = fn_obj
+        user['response'] = response
+        c.put(user_path, user)
+        latency = c.round(c.time() - int(headers['timestamp']), 3)
+        c.print(f'✅Response(fn={fn} speed={latency}s) --> User(key={headers["key"][:3]}..)✅', color=color)
+        if c.is_generator(response):
+            def generator_wrapper(generator):
+                for item in generator:
+                    yield self.serializer.serialize(item)
+            return EventSourceResponse(generator_wrapper(response))
+        else:
+            return self.serializer.serialize(response)
 
     def sync_network_loop(self):
         while True:
@@ -285,24 +245,25 @@ class Server(c.Module):
             except Exception as e:
                 r = c.detailed_error(e)
             c.print(r)
-            c.sleep(self.network_staleness)
+            c.sleep(self.max_network_staleness)
 
     def sync_network(self, update=False):
         path = self.resolve_path(f'{self.network}/state.json')
-        state = self.get(path, {}, max_age=self.network_staleness)
+        state = self.get(path, {}, max_age=self.max_network_staleness)
         network = self.network
         staleness = c.time() - state.get('sync_time', 0)
         self.address2key = c.address2key()
-        response = { 'path': path,  'network_staleness':  self.network_staleness,  'network': network,'staleness': int(staleness), }
-        if staleness < self.network_staleness:
-            response['msg'] = f'synced too earlly waiting {self.network_staleness - staleness} seconds'
+        response = { 'path': path,  'max_network_staleness':  self.max_network_staleness,  'network': network,'staleness': int(staleness), }
+        if staleness < self.max_network_staleness:
+            response['msg'] = f'synced too earlly waiting {self.max_network_staleness - staleness} seconds'
             return response
         else:
             response['msg'] =  'Synced with the network'
             response['staleness'] = 0
-        c.get_namespace(max_age=self.network_staleness)
+        c.get_namespace(max_age=self.max_network_staleness)
         self.subspace = c.module('subspace')(network=network)
-        state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=self.network_staleness)
+        state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=self.max_network_staleness)
+        state['stake_to'] = self.subspace.stake_to(fmt='j', update=update, max_age=self.max_network_staleness)
         state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
         self.state = state
         self.put(path, self.state)
@@ -411,13 +372,7 @@ class Server(c.Module):
                 c.print(c.pm2_restart(server))
 
         return {'success': True, 'msg': 'Servers checked.'}
-  
-    def add_endpoint(self, name, fn):
-        setattr(self, name, fn)
-        self.server_functions.append(name)
-        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
-        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
-
+    
     def is_endpoint(self, fn) -> bool:
         if isinstance(fn, str):
             fn = getattr(self, fn)
@@ -455,7 +410,7 @@ class Server(c.Module):
         return decorator_fn
     
 
-    def get_info(self , 
+    def get_server_info(self , 
              module,
              **kwargs
              ) -> Dict[str, Any]:
@@ -469,10 +424,10 @@ class Server(c.Module):
         info['key'] = module.key.ss58_address
         return info
 
-    def get_server_schema(self, module, functions=None ) -> 'Schema':
+    def get_server_schema(self, module,  helper_function_attributes) -> 'Schema':
         schema = {}
-        functions = functions or []
-        for k in self.helper_function_attributes:
+        functions =  []
+        for k in helper_function_attributes:
             if hasattr(module, k):
                 fn_obj = getattr(module, k)
                 if isinstance(fn_obj, list):
@@ -502,11 +457,6 @@ class Server(c.Module):
         self.endpoints.append(name)
         assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
         return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
-
-    def is_endpoint(self, fn) -> bool:
-        if isinstance(fn, str):
-            fn = getattr(self, fn)
-        return hasattr(fn, '__metadata__')
 
     @classmethod
     def endpoint(cls, 

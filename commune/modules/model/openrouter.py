@@ -5,16 +5,15 @@ import openai
 import commune as c
 
 class OpenRouter(c.Module):
-    system_prompt = r""""""
 
     def __init__(
         self,
-        model: str = 'anthropic/claude-3-sonnet:beta',
-        search = None,
         api_key = None,
         base_url: str | None = 'https://openrouter.ai/api/v1',
         timeout: float | None = None,
         max_retries: int = 10,
+        model = None,
+        **kwargs
     ):
         """
         Initialize the OpenAI with the specified model, API key, timeout, and max retries.
@@ -26,8 +25,10 @@ class OpenRouter(c.Module):
             timeout (float | None, optional): The timeout value for the client. Defaults to None.
             max_retries (int | None, optional): The maximum number of retries for the client. Defaults to None.
         """
-        super().__init__()
 
+        super().__init__()
+        self.prompt = None
+        self.model = model
         if api_key == None:
             api_key = self.get_api_key()
 
@@ -38,17 +39,15 @@ class OpenRouter(c.Module):
             max_retries=max_retries,
         )
 
-        self.model = model
-
     @c.endpoint()
     def generate(
         self,
         message: str,
         *extra_text , 
         history = None,
-        system_prompt: str =  None,
+        prompt: str =  None,
         stream: bool = False,
-        model:str = None,
+        model:str = 'anthropic/claude-3-sonnet:beta',
         max_tokens: int = 100000,
         temperature: float = 1.0,
     ) -> str | Generator[str, None, None]:
@@ -68,10 +67,11 @@ class OpenRouter(c.Module):
         if len(extra_text) > 0:
             message = message + ' '.join(extra_text)
         history = history or []
-        system_prompt = system_prompt or self.system_prompt
-        message = message + system_prompt
+        prompt = prompt or self.prompt
+        message = message + prompt if prompt else message
         model = self.resolve_model(model)
         model_info = self.get_model_info(model)
+        c.print(model_info)
         max_tokens = min(max_tokens, model_info['context_length'] - len(message))
         messages = history.copy()
         messages.append({"role": "user", "content": message})
@@ -82,9 +82,9 @@ class OpenRouter(c.Module):
                                                     max_tokens = max_tokens,
                                                     temperature= temperature, 
                                                     )
-       
-        if stream:
+    
 
+        if stream:
             def stream_generator( result):
                 for token in result:
                     yield token.choices[0].delta.content
@@ -96,13 +96,13 @@ class OpenRouter(c.Module):
 
 
     def resolve_model(self, model=None):
-        model = model or self.model
         models =  self.models()
-        if model not in models:
-            models = [m for m in models if model in m]
+        if str(model) not in models:
+            models = [m for m in models if str(model) in m]
+            if len(models) == 0:
+                return c.choice(self.models())
         return c.choice(models)
 
-        
     def authenticate(
         self,
         api_key: str,

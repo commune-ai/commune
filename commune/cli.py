@@ -5,7 +5,7 @@ import time
 import sys
 
 
-class cli:
+class cli(c.Module):
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
@@ -53,6 +53,7 @@ class cli:
             module, fn = fn.split(fs[0])
 
             if c.module_exists(module):
+                # module = c.shortcuts.get(module, module)
                 module = c.get_module(module)
                 fn_obj = getattr(module, fn)
                 if c.classify_fn(fn_obj) == 'self':

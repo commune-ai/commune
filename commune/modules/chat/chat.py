@@ -38,13 +38,6 @@ class Chat(c.Module):
         self.models = self.model.models()
         self.history_path = self.resolve_path(history_path)
         return {'success':True, 'msg':'set_module passed'}
-    
-    def add_files(self, files):
-        cwd = st.text_input('cwd', './')
-        files = c.glob(cwd)
-        files = st.multi_select(files, 'files')
-        file_options  = [f.name for f in files]
-
 
     def call(self, 
             input = 'whats 2+2?' ,
@@ -101,65 +94,6 @@ class Chat(c.Module):
     def save_data(self, data):
         path = self.data2path(data)
         return c.put(path, data)
-
-
-    def get_params(self):
-        model = st.selectbox('Model', self.models)
-        temperature = st.slider('Temperature', 0.0, 1.0, 0.5)
-        if hasattr(self.model, 'get_model_info'):
-            model_info = self.model.get_model_info(model)
-            max_tokens = min(int(model_info['context_length']*0.9), self.max_tokens)
-        else:
-            model_info = {}
-            max_tokens = self.max_tokens
-        max_tokens = st.number_input('Max Tokens', 1, max_tokens, max_tokens)
-        system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
-        input  = st.text_area('Text',self.text, height=100)
-
-        params = {
-            'model': model,
-            'temperature': temperature,
-            'max_tokens': max_tokens,
-            'system_prompt': system_prompt,
-            'input': input
-        }
-
-        return params
-    
-    def sidebar(self, user='user', password='password', seperator='::'):
-        with st.sidebar:
-            st.title('Just Chat')
-            # assert self.key.verify_ticket(ticket)
-      
-            user_name = st.text_input('User', user)
-            pwd = st.text_input('Password', password, type='password')
-            seed = c.hash(user_name + seperator + pwd)
-            self.key = c.pwd2key(seed)
-            self.data = c.dict2munch({  
-                            'user': user_name, 
-                            'path': self.resolve_path('history', self.key.ss58_address ),
-                            'history': self.history(self.key.ss58_address)
-                            })
-    
-    def search_history(self):
-        search = st.text_input('Search')
-        # if the search is in any of the columns
-        history = c.copy(self.data.history)
-
-        history = [h for h in history if search in str(h)]
-        df = c.df(history)
-        st.write(df)
-            
-    def post_processing(self, data):
-        lambda_string = st.text_area('fn(x={model_output})', 'x', height=100)
-        prefix = 'lambda x: '
-        lambda_string = prefix + lambda_string if not lambda_string.startswith(prefix) else lambda_string
-        lambda_fn = eval(lambda_string)
-        try:
-            output = data['data']['output']
-            output = lambda_fn(output)
-        except Exception as e:
-            st.error(e)
 
     def user_files(self):
         return c.get(self.data['path'])
