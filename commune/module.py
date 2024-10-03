@@ -128,8 +128,7 @@ class c:
 
     @classmethod
     def sandbox(cls):
-        c.cmd(f'python3 {c.root_path}/sandbox.py', verbose=True)
-        return 
+        return c.cmd(f'python ./sandbox.py', verbose=True)
     
     sand = sandbox
 
@@ -3581,7 +3580,7 @@ class c:
 
     @classmethod
     def pwd(cls):
-        pwd = os.getenv('PWD', cls.libpath) # the current wor king directory from the process starts 
+        pwd = os.getcwd() # the current wor king directory from the process starts 
         return pwd
     
     @classmethod
