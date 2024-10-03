@@ -40,7 +40,7 @@ class c:
         'openrouter':  'model.openrouter',
         'or' : ' model.openrouter',
         'r' :  'remote',
-        's' :  'subspace',
+        's' :  'network.subspace',
         'subspace': 'network.subspace', 
         'namespace': 'network'
         
@@ -74,15 +74,13 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            if not hasattr(self, 'server_name') or self.server_name == None:
-                self.server_name = self.module_name()
-            self._key = c.get_key(self.server_name, create_if_not_exists=True)
+            self._key = c.get_key(self.module_name(), create_if_not_exists=True)
         return self._key
     
     @key.setter
     def key(self, key: 'Key'):
         if key == None:
-            key = self.server_name
+            key = self.module_name()
         if isinstance(key, str):
             key = c.get_key(key, create_if_not_exists=True)
 
@@ -213,16 +211,6 @@ class c:
     @classmethod
     def deserialize(cls, *args, **kwargs):
         return c.module('serializer')().deserialize(*args, **kwargs)
-    
-    @property
-    def server_name(self):
-        if not hasattr(self, '_server_name'): 
-            self._server_name = self.module_name()
-        return self._server_name
-            
-    @server_name.setter
-    def server_name(self, name):
-        self._server_name = name
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
@@ -844,7 +832,7 @@ class c:
                         cls.print(line[:-1])
                     yield line
         except Exception as e:
-            print(e)
+            print('ERROR IN STREAMING OUTPUT : ',e)
             pass
 
         cls.kill_process(process)
@@ -1173,8 +1161,10 @@ class c:
         return rm_json(path )
     
     @classmethod
-    def rmdir(cls, path):
+    def rmtree(cls, path):
+        assert os.path.isdir(path), f'{path} is not a directory'
         return shutil.rmtree(path)
+    rmdir = rmtree 
 
     @classmethod
     def isdir(cls, path):
@@ -1200,7 +1190,7 @@ class c:
         if not os.path.exists(path):
             return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
-            cls.rmdir(path)
+            c.rmdir(path)
         if os.path.isfile(path):
             os.remove(path)
         assert not os.path.exists(path), f'{path} was not removed'
@@ -2745,7 +2735,7 @@ class c:
                             except Exception as e:
                                 r = cls.detailed_error(e)
                                 r['class'] = class_path
-                                cls.print(r, color='red')
+                                cls.print('ERROR IN FINDING CLASSES',r, color='red')
                                 continue
                     else:
                         classes += p_classes
@@ -2979,7 +2969,6 @@ class c:
             c.import_object(path, verbose=verbose)
             return True
         except Exception as e:
-            print(e)
             return False
     
     imp = get_object = importobj = import_object
@@ -2993,6 +2982,7 @@ class c:
             module = c.shortcuts.get(module, module)
             return os.path.exists(c.simple2path(module))
         except Exception as e:
+            print('Error in module_exists', e)
             return False
     
     @classmethod
@@ -3075,6 +3065,7 @@ class c:
                    cache=True,
                    **_kwargs
                    ) -> str:
+        og_path = path
         path = path or 'module'
         t0 = c.time()
         path = c.shortcuts.get(path, path)
@@ -3087,9 +3078,10 @@ class c:
                 tree = c.tree()
                 path = tree.get(path, path)
                 module = c.import_object(path)
-                if cache:
-                    c.module_cache[path] = module      
-        c.print(f'Module({path}) in {c.time() - t0} seconds', color='green')      
+            if cache:
+                c.module_cache[path] = module    
+        latency = c.round(c.time() - t0, 2)
+        c.print(f'Module({og_path}->{path})({latency}s)', color='green')      
         return module
 
     get_module = module
@@ -3107,6 +3099,12 @@ class c:
             cls._tree = tree
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
+        shortcuts = c.shortcuts
+        for k,v in tree.items():
+            if k in shortcuts:
+                tree[shortcuts[k]] = v
+            
+
         return tree
     
     def overlapping_modules(self, search:str=None, **kwargs):
@@ -3985,6 +3983,10 @@ class c:
         command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
         return c.cmd(command, cwd=cwd)
     
+
+    def explain(self, module, prompt='explain this fam', **kwargs):
+        return c.ask(c.code(module) + prompt, **kwargs)
+
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
