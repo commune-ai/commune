@@ -46,6 +46,8 @@ T2 = TypeVar("T2")
 
 class Subspace(c.Module):
 
+    block_time = 8
+    blocks_per_day = 24*60*60/block_time
 
     endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
 
@@ -58,7 +60,7 @@ class Subspace(c.Module):
     _num_connections: int
     _connection_queue: queue.Queue[SubstrateInterface]
     url: str
-    network : str = 'test'
+    network : str = 'main'
 
     def __init__(
         self,
@@ -726,6 +728,7 @@ class Subspace(c.Module):
             block_hash = substrate.get_block_hash()
         return block_hash
     
+    
     def block(self):
         with self.get_conn(init=True) as substrate:
             block_number = substrate.get_block_number()
@@ -815,10 +818,9 @@ class Subspace(c.Module):
         for k in list(x.keys()):
             if type(k) in  [tuple, list]:
                 self.dict_put(new_x, list(k), x[k])
+                new_x = self.process_results(new_x)
             elif isinstance(x[k], dict):
                 new_x[k] = self.process_results(x[k])
-            elif isinstance(k, str) and c.is_int(k):
-                new_x[int(k)] = x[k]
             else:
                 new_x[k] = x[k]
         return new_x
@@ -2142,19 +2144,15 @@ class Subspace(c.Module):
         return subnet
 
     def resolve_netuid(self, netuid: str) -> int:
-        subnet_map = self.subnet_map()
-        netuid2name = {v:k for k,v in subnet_map.items()}
         if isinstance(netuid, str):
-            if netuid in subnet_map:
-                netuid =  subnet_map[netuid]
-
-
-        assert isinstance(netuid, int)
-        if not netuid in netuid2name:
-            subnet_map = self.subnet_map(update=1)
-            netuid2name = {v:k for k,v in subnet_map.items()}
-        assert netuid in netuid2name, f"Netuid {netuid} not found"
+            subnet2netuid = self.subnet2netuid()
+            if netuid in subnet2netuid:
+                netuid =  subnet2netuid[netuid]
+            else:
+                subnet2netuid = self.subnet2netuid(update=1)
+                assert netuid in subnet2netuid, f"Subnet {netuid} not found"
         return netuid
+    
     def subnets(self):
         return self.subnet_names()
 
@@ -2606,6 +2604,7 @@ class Subspace(c.Module):
         key = c.get_key( key )
         return key
 
+    
 
     def subnet_params(self, netuid=None, block_hash: str | None = None, max_age=60, update=False) -> dict[int, SubnetParamsWithEmission]:
         """
@@ -2683,9 +2682,8 @@ class Subspace(c.Module):
                 subnet['module_burn_config'] = cast(BurnConfiguration, subnet["module_burn_config"])
                 results[_netuid] = subnet
             self.put(path, results)
-        results = self.process_results(results)
+        results = {int(k):v for k,v in results.items()}
         if netuid != None: 
-            assert netuid in results, f"Subnet {netuid} not found in {results.keys()}"
             return results[netuid]
         return results
 
@@ -2787,7 +2785,7 @@ class Subspace(c.Module):
                     update=False,
                     module = "SubspaceModule", 
                     features = ['Name', 'Address', 'Keys','Weights','Incentive','Dividends', 
-                                'Emission', 'DelegationFee', 'LastUpdate','Metadata'
+                                'Emission', 'DelegationFee', 'LastUpdate','Metadata', 'StakeFrom'
                             ],
                     default_module = {
                         'Weights': [], 
@@ -2798,6 +2796,8 @@ class Subspace(c.Module):
                         'LastUpdate': -1,
                     },
                     **kwargs):
+        
+        netuid = self.resolve_netuid(netuid)
         path = f'{self.network}/modules'
         modules = self.get(path, None, max_age=max_age, update=update)
         if modules == None:
@@ -2812,17 +2812,26 @@ class Subspace(c.Module):
                     module = {'uid': uid}
                     for f in features:
                         module[f] = results[f].get(_netuid, {})
-                        if isinstance(module[f], dict):
-                            module[f] = module[f].get(uid, default_module.get(f, None)) 
-                        elif isinstance(module[f], list):
-                            module[f] = module[f][uid]
+                        if f in ['StakeFrom'] :
+                            module_key = results['Keys'][_netuid][uid]
+                            module[f] = results[f].get(module_key, {})
+                        else:
+                            if isinstance(module[f], dict):
+                                module[f] = module[f].get(uid, default_module.get(f, None)) 
+                            elif isinstance(module[f], list):
+                                module[f] = module[f][uid]
                     module = {self.clean_feature_name(k):v for k,v in module.items()}
                     modules[_netuid].append(module)  
             self.put(path, modules)
-        modules= self.process_results(modules)
+        modules = {int(k):v for k,v in modules.items()}
         if netuid != None:
-            modules =  modules[netuid]
+            print(modules.keys())
+            modules =  modules.get(netuid, [])
         return modules
+    
+
+    def root_modules(self, netuid=0, **kwargs):
+        return self.modules(netuid=netuid,**kwargs)
 
     def get_rate_limit(self, address):
         return self.resolve_key_address(address)
@@ -2885,13 +2894,27 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def netuid2subnet(self ) -> Dict[str, str]:
-        subnet_names = self.query_map('SubnetNames', [])
+    def netuid2subnet(self, **kwargs ) -> Dict[str, str]:
+        subnet_names = self.query_map('SubnetNames', [], **kwargs)
         subnet_names = dict(sorted(subnet_names.items(), key=lambda x: x[0]))
         return subnet_names
     
-    def subnet2netuid(self ) -> Dict[str, str]:
-        subnet2netuid =  {v:k for k,v in self.netuid2subnet().items()}
+    def netuid2emission(self , netuid=None, fmt='j', **kwargs) -> Dict[str, int]:
+        subnet_params = self.subnet_params(**kwargs)
+        subnet2emission =  {v:params['emission'] * self.blocks_per_day for v,params in subnet_params.items()}
+        if netuid != None:
+            return subnet2emission[str(netuid)]
+        return self.format_amount(subnet2emission, fmt=fmt)
+    
+    def subnet2emission(self, **kwargs ) -> Dict[str, str]:
+        netuid2subnet = self.netuid2subnet(**kwargs)
+        netuid2emission = self.netuid2emission(**kwargs)
+        subnet2emission =  {netuid2subnet[k]:v for k,v in netuid2emission.items()}
+        return subnet2emission
+
+    
+    def subnet2netuid(self, **kwargs ) -> Dict[str, str]:
+        subnet2netuid =  {v:k for k,v in self.netuid2subnet(**kwargs).items()}
         return subnet2netuid
     name2netuid = subnet2netuid
 
