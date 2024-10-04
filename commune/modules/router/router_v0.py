@@ -322,8 +322,7 @@ class Router(c.Module):
                            extra_defaults:dict=None,
                            cols:list=None,
                            skip_keys = ['self', 'cls'],
-                           salt = None,
-                            mode = 'pm2'):
+                           salt = None):
         import streamlit as st
         
         key_prefix = f'{module}.{fn}'

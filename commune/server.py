@@ -73,7 +73,6 @@ class Server(c.Module):
         self.module = module
         self.period = period
         self.max_network_staleness = max_network_staleness
-        self.state = {'sync_time': 0,  'stake': {},'stake_from': {},  'fn_info': {}, 'stake_to': {}}
         self.loop = asyncio.get_event_loop()
         app = FastAPI()    
         app.add_middleware(ServerMiddleware, max_bytes=max_bytes)    
@@ -120,8 +119,10 @@ class Server(c.Module):
                 port = int(namespace.get(name).split(':')[-1])
             else:
                 port = c.free_port()
-        if c.server_exists(name):
+        if c.port_used(port):
+            c.kill_port(port)
             c.kill(name)
+
         response =  { 'module':module, 
                      'name': name, 
                      'address':f'0.0.0.0:{port}',
@@ -152,6 +153,9 @@ class Server(c.Module):
                     multipliers = {'network': 1, 'direct': 1,'validator': 1 },
                     rates = {'max': 10, 'stake2rate': 1000, 'admin': 1000}, # the maximum rate
                     ) -> float:
+        if not hasattr(self, 'state'):
+            self.state = {'sync_time': 0,  'stake': {},'stake_from': {},  'fn_info': {}, 'stake_to': {}}
+            c.thread(self.sync_network_loop())
         # stake rate limit
         module = module or self.module
         key2address = c.key2address()
@@ -235,8 +239,7 @@ class Server(c.Module):
         assert c.verify(auth=auth,signature=signature, address=address), 'Invalid signature'
         kwargs = dict(data.get('kwargs', {}))
         args = list(data.get('args', []))
-        
-        c.print(f'🚀User(address={address[:3]}..) ----> Request(fn={fn} args={args} kwargs={kwargs})🚀', color= color)
+        c.print(f'REQUESTING :: 🚀User(address={address[:3]}..) ----> Request(fn={fn} args={args} kwargs={kwargs})🚀', color= color)
         if 'params' in data:
             if isinstance(data['params', dict]):
                 kwargs = {**kwargs, **data['params']}
@@ -246,7 +249,7 @@ class Server(c.Module):
                 raise ValueError('params must be a list or a dictionary')
             
         data = {'args': args, 'kwargs': kwargs}
-        is_admin = bool(c.is_admin(address) or address == self.module.key.ss58_address)
+        is_admin = bool(c.is_admin(address) or address == self.module.key.ss58_address or address in self.address2key)
         if not is_admin:
             assert not bool(fn.startswith('__') or fn.startswith('_')), f'Function {fn} is private'
             assert fn in self.module.server_functions , f"Function {fn} not in endpoints={self.module.server_functions}"
@@ -297,14 +300,15 @@ class Server(c.Module):
     def save_user_data(self, user_data):
         is_user_fn = user_data['is_user_fn']
         if is_user_fn:
-            user_data['data'] = None
-            user_data['result'] = None
+            user_data['data'], user_data['result'] = None, None
         user_folder = self.user_folder(user_data['user_key'])
         fn = user_data['fn']
         timestamp = user_data['timestamp']
         user_path = user_folder + f'/timestamp={timestamp}_fn={fn}.json' # get the user info path
         return c.put(user_path, user_data)
+    sync_network_loop_running = False
     def sync_network_loop(self):
+        self.sync_network_loop_running = True
         while True:
             try:
                 r = self.sync_network()
@@ -336,36 +340,6 @@ class Server(c.Module):
         return response
 
     @classmethod
-    def kill(cls, 
-             module,
-             mode:str = 'pm2',
-             verbose:bool = False,
-             prefix_match = False,
-             network = 'local', # local, dev, test, main
-             **kwargs):
-        kill_fn = getattr(cls, f'{mode}_kill')
-        kill_fn(module, verbose=verbose,prefix_match=prefix_match, **kwargs)
-        c.deregister_server(module, network=network)
-        assert c.server_exists(module, network=network) == False, f'module {module} still exists'
-        return {'msg': f'removed {module}'}
-
-    @classmethod
-    def kill_many(cls, servers, search:str = None, network='local',  timeout=10, **kwargs):
-        servers = c.servers(network=network)
-        servers = [s for s in servers if  search in s]
-        futures = []
-        n = len(servers)
-        for i, s in enumerate(servers):
-            future = c.submit(c.kill, kwargs={'module':s, **kwargs}, timeout=timeout)
-            futures.append(future)
-        results = []
-        for r in c.as_completed(futures, timeout=timeout):
-            c.print(f'Killed {s} ({i+1})/{n})', color='red')
-            results += [r.result()]
-        c.print(f'Killed {len(results)} servers', color='red')
-        return results
-
-    @classmethod
     def wait_for_server(cls,
                           name: str ,
                           network: str = 'local',
@@ -383,27 +357,6 @@ class Server(c.Module):
             c.print(f'Waiting for {name} for {time_waiting} seconds', color='red')
             c.sleep(sleep_interval)
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
-
-    @classmethod
-    def kill_all(cls, network='local', timeout=20, verbose=True):
-        futures = []
-        servers = c.servers(network=network)
-        n = len(servers)
-        progress = c.tqdm(n)
-        for s in servers:
-            c.print(f'Killing {s}', color='red')
-            futures += [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True)]
-        results_list = []
-        for f in c.as_completed(futures, timeout=timeout):
-            result = f.result()
-            print(result)
-            progress.update(1)
-            results_list += [result]
-        namespace = c.get_namespace(network=network, update=True)
-        print(namespace)
-        new_n = len(servers)
-        c.print(f'Killed {n - new_n} servers, with {n} remaining {servers}', color='red')
-        return {'success':True, 'old_n':n, 'new_n':new_n, 'servers':servers, 'namespace':namespace}
 
  # the default
     network : str = 'local'
@@ -525,6 +478,5 @@ class Server(c.Module):
         return decorator_fn
     
     serverfn = endpoint
-
 
 Server.run(__name__)

@@ -58,10 +58,11 @@ class Subspace(c.Module):
     _num_connections: int
     _connection_queue: queue.Queue[SubstrateInterface]
     url: str
+    network : str = 'test'
 
     def __init__(
         self,
-        network='test',
+        network=network,
         url: str = None,
         mode = 'wss',
         num_connections: int = 1,
@@ -813,12 +814,11 @@ class Subspace(c.Module):
         new_x = {}
         for k in list(x.keys()):
             if type(k) in  [tuple, list]:
-                self.dict_put(new_x, k, x[k])
-            if isinstance(x[k], dict):
+                self.dict_put(new_x, list(k), x[k])
+            elif isinstance(x[k], dict):
                 new_x[k] = self.process_results(x[k])
-            if isinstance(k, str) and c.is_int(k):
+            elif isinstance(k, str) and c.is_int(k):
                 new_x[int(k)] = x[k]
-                del x[k]
             else:
                 new_x[k] = x[k]
         return new_x
@@ -1224,6 +1224,17 @@ class Subspace(c.Module):
         response = self.compose_call("update_module", params=params, key=key)
 
         return response
+    
+
+    def resolve_subnet(self, name: str) -> str:
+        if isinstance(name, str):
+            return name
+        elif isinstance(name, int):
+            netuid2subnet = self.netuid2subnet()
+            return netuid2subnet.get(name, name)
+        
+                       
+
 
     def register(
         self,
@@ -1248,6 +1259,7 @@ class Subspace(c.Module):
         """
         key =  c.get_key(key)
         address = self.resolve_module_address(name=name, address=address)
+        subnet = self.resolve_subnet(subnet)
         params = {
             "network_name": subnet,
             "address":  address,
@@ -2595,15 +2607,13 @@ class Subspace(c.Module):
         return key
 
 
-    def subnet_params(self, netuid=None, block_hash: str | None = None, max_age=None, update=False) -> dict[int, SubnetParamsWithEmission]:
+    def subnet_params(self, netuid=None, block_hash: str | None = None, max_age=60, update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """
         path = f'{self.network}/subnet_params'
         results = self.get(path,None, max_age=max_age, update=update)
-        results = self.process_results(results)
-
-        if results == None or len(results) == 0:
+        if results == None:
             params = []
             bulk_query = self.query_batch_map(
                 {
@@ -2673,7 +2683,9 @@ class Subspace(c.Module):
                 subnet['module_burn_config'] = cast(BurnConfiguration, subnet["module_burn_config"])
                 results[_netuid] = subnet
             self.put(path, results)
+        results = self.process_results(results)
         if netuid != None: 
+            assert netuid in results, f"Subnet {netuid} not found in {results.keys()}"
             return results[netuid]
         return results
 
@@ -2751,23 +2763,31 @@ class Subspace(c.Module):
                     ch = '_' + ch
             new_x += ch
         return new_x
+    
+
+    def my_keys(self, netuid = None):
+        address2key = c.address2key()
+        keys = self.keys(netuid)
+        my_keys = {}
+        if netuid == None:
+            for netuid in keys.keys():
+                my_keys[netuid] = {}
+                for k in keys[netuid]:
+                    if k in address2key:
+                        my_keys[netuid][k] = address2key[k]
+        else:
+            for k in keys:
+                if k in address2key:
+                    my_keys[k] = address2key[k]
+        return my_keys
 
     def modules(self,
                     netuid=None,
-                    timeout=30,
-                    max_age = 100,
+                    max_age = 60,
                     update=False,
                     module = "SubspaceModule", 
-                    features = ['Name', 
-                            'Address', 
-                            'Keys',
-                            'Weights',
-                            'Incentive',
-                            'Dividends', 
-                            'Emission', 
-                            'DelegationFee', 
-                            'LastUpdate',
-                            'Metadata'
+                    features = ['Name', 'Address', 'Keys','Weights','Incentive','Dividends', 
+                                'Emission', 'DelegationFee', 'LastUpdate','Metadata'
                             ],
                     default_module = {
                         'Weights': [], 
@@ -2778,29 +2798,30 @@ class Subspace(c.Module):
                         'LastUpdate': -1,
                     },
                     **kwargs):
-
         path = f'{self.network}/modules'
-        results = self.get(path, None, max_age=max_age, update=update)
-        if results == None:
+        modules = self.get(path, None, max_age=max_age, update=update)
+        if modules == None:
+
             results = self.query_batch_map({module:[(f, []) for f in features]},self.block_hash())
             results = self.process_results(results)
-            self.put(path, results)
-        netuids = list(results['Keys'].keys())
-        modules = {}
-        og_netuid = netuid
-        for netuid in netuids:
-            modules[netuid] = []
-            for uid in results['Keys'][netuid].keys():
-                module = {'uid': uid}
-                for f in features:
-                    module[f] = results[f].get(netuid, {})
-                    if isinstance(module[f], dict):
-                        module[f] = module[f].get(uid, default_module.get(f, None)) 
-                    elif isinstance(module[f], list):
-                        module[f] = module[f][uid]
-                modules[netuid].append({self.clean_feature_name(k): v for k,v in module.items()})
-        if og_netuid != None:
-            return modules[og_netuid]
+            netuids = list(results['Keys'].keys())
+            modules = {}
+            for _netuid in netuids:
+                modules[_netuid] = []
+                for uid in results['Keys'][_netuid].keys():
+                    module = {'uid': uid}
+                    for f in features:
+                        module[f] = results[f].get(_netuid, {})
+                        if isinstance(module[f], dict):
+                            module[f] = module[f].get(uid, default_module.get(f, None)) 
+                        elif isinstance(module[f], list):
+                            module[f] = module[f][uid]
+                    module = {self.clean_feature_name(k):v for k,v in module.items()}
+                    modules[_netuid].append(module)  
+            self.put(path, modules)
+        modules= self.process_results(modules)
+        if netuid != None:
+            modules =  modules[netuid]
         return modules
 
     def get_rate_limit(self, address):
@@ -2832,7 +2853,9 @@ class Subspace(c.Module):
     def vec82str(l:list):
         return ''.join([chr(x) for x in l]).strip()
 
-    def keys(self, netuid = 0 ) -> List[str]:
+    def keys(self, netuid = None ) -> List[str]:
+        if netuid == None:
+            return {netuid:list(keys.values()) for netuid, keys in self.query_map('Keys', []).items()}
         return list(self.query_map('Keys', params=[netuid]).values())
     
     def get_module(self, 

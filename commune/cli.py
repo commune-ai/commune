@@ -54,7 +54,7 @@ class cli(c.Module):
 
             if c.module_exists(module):
                 # module = c.shortcuts.get(module, module)
-                module = c.get_module(module)
+                module = c.module(module)
                 fn_obj = getattr(module, fn)
                 if c.classify_fn(fn_obj) == 'self':
                     fn_obj = getattr(module(**init_kwargs), fn)

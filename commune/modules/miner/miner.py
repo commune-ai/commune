@@ -19,7 +19,6 @@ class Miner(c.Module):
                 ):
         self.key_prefix = key_prefix 
         self.docker = c.module('docker')()
-        self.pm2 = c.module('pm2')()
         self.set_subnet(netuid=netuid, max_age=max_age, update=update)
         self.n = int(n)
         self.key = c.get_key(key)
