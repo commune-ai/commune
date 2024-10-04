@@ -46,7 +46,7 @@ class c:
         
         }
 
-    core_modules = ['module', 'key', 'subspace', 'web3', 'serializer', 'pm2',  
+    core_modules = ['module', 'key', 'subspace', 'web3', 'serializer',
                     'executor', 'client', 'server', 
                     'namespace' ]
     libname = lib_name = lib = 'commune' # the name of the library
@@ -201,7 +201,24 @@ class c:
         obj = obj or cls
         return bool(c.is_module(obj) and obj.module_class() == cls.root_module_class)
 
+    @classmethod
+    def processes(self, search=None,  **kwargs) -> List[str]:
+        output_string = c.cmd('pm2 status', verbose=False)
+        module_list = []
+        for line in output_string.split('\n')[3:]:
+            if  line.count('│') > 2:
+                server_name = line.split('│')[2].strip()
+                if 'errored' in line:
+                    self.kill(server_name, verbose=True)
+                    continue
+                module_list += [server_name]
+        if search != None:
+            module_list = [m for m in module_list if search in m]
+        module_list = sorted(list(set(module_list)))
+        return module_list
 
+    pids = procs = processes
+    
     is_module_root = is_root_module = is_root
     
     @classmethod
@@ -210,6 +227,10 @@ class c:
     @classmethod
     def deserialize(cls, *args, **kwargs):
         return c.module('serializer')().deserialize(*args, **kwargs)
+    
+    @classmethod
+    def process_exists(cls, name:str, **kwargs) -> bool:
+        return name in c.processes(**kwargs)
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
@@ -219,12 +240,7 @@ class c:
             return cls._obj
         else:
             return obj or cls
-                          
-    @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
-        refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
-        return refreshed_modules
-    
+                        
     @classmethod
     def argparse(cls):
         parser = argparse.ArgumentParser(description='Argparse for the module')
@@ -407,10 +423,6 @@ class c:
         return c.get_key(key).verify(auth, **kwargs)
 
     @classmethod
-    def verify_ticket(cls, auth, key=None, **kwargs ) -> bool:  
-        return c.get_key(key).verify_ticket(auth, **kwargs)
-
-    @classmethod
     def is_pwd(cls, module:str = None):
         module = c.module(module) if module != None else cls
         return module.dirpath() == c.pwd()
@@ -435,9 +447,6 @@ class c:
         c.namespace(update=True)
         c.ip(update=1)
         return {'ip': c.ip(), 'namespace': c.namespace()}
-    
-    def logs(self, name:str = None, verbose: bool = False):
-        return c.pm2_logs(name, verbose=verbose)
     
     def set_params(self,*args, **kwargs):
         return self.set_config(*args, **kwargs)
@@ -620,17 +629,11 @@ class c:
                     fn_ph = module + '.' + from_fn
                     fn_obj = partial(fn_generator, fn_ph=fn_ph) 
                     fn_obj.__name__ = to_fn
-                    setattr(cls, to_fn, fn_obj)
+                    if not hasattr(cls, to_fn):
+                        setattr(cls, to_fn, fn_obj)
+                    else: 
+                        c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
             c.print(f'ROUTE({module}/{fn} -> {fn})', verbose=verbose)
-
-        # if add_utils:
-        #     utils = c.utils()
-        #     for util in utils:
-        #         fn_name = util.split('.')[-1]
-        #         if not hasattr(cls, fn_name):
-        #             fn_obj = partial(fn_generator, fn_ph=util) 
-        #             setattr(cls, fn_name, fn_obj)
-    
         latency = t0 - c.time()
         c.print(f'enabled routes in {latency} seconds', verbose=verbose)
         return {'success': True, 'msg': 'enabled routes'}
@@ -2639,11 +2642,6 @@ class c:
                 break
         return path
 
-    
-    @classmethod
-    def is_repo(cls, libpath:str ):
-        # has the .git folder
-        return bool([f for f in cls.ls(libpath) if '.git' in f and os.path.isdir(f)])
 
     @classmethod
     def path2simple(cls,  
@@ -3062,6 +3060,7 @@ class c:
     def module(cls, 
                    path:str = 'module',  
                    cache=True,
+                   verbose = False,
                    **_kwargs
                    ) -> str:
         og_path = path
@@ -3080,7 +3079,7 @@ class c:
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(c.time() - t0, 2)
-        c.print(f'Module({og_path}->{path})({latency}s)', color='green')      
+        c.print(f'Module({og_path}->{path})({latency}s)', color='green', verbose=verbose)     
         return module
 
     get_module = module
@@ -3482,11 +3481,6 @@ class c:
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return cls.module('git').repo_url(*args, **kwargs)    
-
-
-    def repos(self, *args, **kwargs):
-        return 'fickkowuhfuoehukk'
-
 
     @classmethod
     def ps(cls, *args, **kwargs):
@@ -3934,8 +3928,6 @@ class c:
         context = c.file2text(self.root_path)
         return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
 
-
-
     @classmethod
     def remote_fn(cls, 
                     fn: str='train', 
@@ -3965,12 +3957,9 @@ class c:
         }
         name = name or module
         if refresh:
-            c.pm2_kill(name)
-
+            c.kill(name)
         module = c.module(module)
         kwargs_str = json.dumps(kwargs).replace('"', "'")
-
-        # build command to run pm2
         filepath = module.filepath()
         cwd = os.path.dirname(filepath)
         root_filepath = c.module('module').filepath()
@@ -3982,10 +3971,193 @@ class c:
         command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
         return c.cmd(command, cwd=cwd)
     
-
     def explain(self, module, prompt='explain this fam', **kwargs):
         return c.ask(c.code(module) + prompt, **kwargs)
 
+
+
+    pm2_dir = os.path.expanduser('~/.pm2')
+
+    @classmethod
+    def restart(cls, name:str):
+        assert name in cls.servers()
+        c.print(f'Restarting {name}', color='cyan')
+        c.cmd(f"pm2 restart {name}", verbose=False)
+        cls.rm_logs(name)  
+        return {'success':True, 'message':f'Restarted {name}'}
+
+    @classmethod
+    def kill(cls, name:str, verbose:bool = True, **kwargs):
+        if name == 'all':
+            return cls.kill_all(verbose=verbose)
+        c.cmd(f"pm2 delete {name}", verbose=False)
+        cls.rm_logs(name)
+        if c.server_exists(name):
+            c.deregister_server(name)
+        return {'message':f'Killed {name}', 'success':True}
+    
+    @classmethod
+    def kill_all_processes(cls, verbose:bool = True, timeout=20):
+        servers = c.processes()
+        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
+        return c.wait(futures, timeout=timeout)
+
+    @classmethod
+    def kill_all_servers(cls, network='local', timeout=20, verbose=True):
+        servers = c.servers(network=network)
+        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
+        return c.wait(futures, timeout=timeout)
+    
+    @classmethod
+    def kill_all(cls, mode='process', verbose:bool = True, timeout=20):
+        if mode == 'process':
+            return cls.kill_all_processes(verbose=verbose, timeout=timeout)
+        elif mode == 'server':
+            return cls.kill_all_servers(verbose=verbose, timeout=timeout)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
+
+    @classmethod
+    def logs_path_map(cls, name=None):
+        logs_path_map = {}
+        for l in c.ls(f'{cls.pm2_dir}/logs/'):
+            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
+            logs_path_map[key] = logs_path_map.get(key, []) + [l]
+        for k in logs_path_map.keys():
+            logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
+        if name != None:
+            return logs_path_map.get(name, {})
+
+        return logs_path_map
+   
+    @classmethod
+    def rm_logs( cls, name):
+        logs_map = cls.logs_path_map(name)
+        for k in logs_map.keys():
+            c.rm(logs_map[k])
+
+    def logs(self, 
+                module:str, 
+                tail: int =100, 
+                mode: str ='cmd',
+                **kwargs):
+        
+        if mode == 'local':
+            text = ''
+            for m in ['out','error']:
+                # I know, this is fucked 
+                path = f'{self.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
+                try:
+                    text +=  c.get_text(path, tail=tail)
+                except Exception as e:
+                    c.print('ERROR GETTING LOGS -->' , e)
+                    continue
+            return text
+        elif mode == 'cmd':
+            return c.cmd(f"pm2 logs {module}", verbose=True)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
+        
+    @classmethod
+    def kill_many(cls, search=None, verbose:bool = True, timeout=10):
+        futures = []
+        for name in c.servers(search=search):
+            f = c.submit(c.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            futures.append(f)
+        return c.wait(futures)
+    
+    @classmethod
+    def start(cls, 
+                path:str , 
+                  name:str,
+                  cmd_kwargs:str = None, 
+                  refresh: bool = True,
+                  verbose:bool = True,
+                  force : bool = True,
+                  current_dir: str = True,
+                  interpreter : str = None,
+                  **kwargs):
+        
+        if cls.process_exists(name) and refresh:
+            c.kill(name, verbose=verbose)
+            
+        cmd = f'pm2 start {path} --name {name}'
+
+        if force:
+            cmd += ' -f'
+            
+        if interpreter != None:
+            cmd += f' --interpreter {interpreter}'
+            
+        if cmd_kwargs != None:
+            cmd += f' -- '
+
+            if isinstance(cmd_kwargs, dict):
+                for k, v in cmd_kwargs.items():
+                    cmd += f'--{k} {v}'
+            elif isinstance(cmd_kwargs, str):
+                cmd += f'{cmd_kwargs}'
+                
+        c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
+
+        if current_dir:
+            kwargs['cwd'] = c.dirpath(path)
+
+        return c.cmd(cmd, verbose=verbose, **kwargs)
+
+    @classmethod
+    def launch(cls, 
+                  fn: str = 'serve',
+                   module:str = None,  
+                   name:Optional[str]=None, 
+                   args : list = None,
+                   kwargs: dict = None,
+                   device:str=None, 
+                   interpreter:str='python3', 
+                   autorestart: bool = True,
+                   verbose: bool = False , 
+                   force:bool = True,
+                   meta_fn: str = 'module_fn',
+                   cwd = None,
+                   env = None,
+                   refresh:bool=True ):
+        env = env or {}
+        if '/' in fn:
+            module, fn = fn.split('/')
+        module = module or cls
+        if not isinstance(module, str):
+            if hasattr(module, 'module_name'):
+                module = module.module_name()
+            else: 
+                module = module.__name__
+        # avoid these references fucking shit up
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        # convert args and kwargs to json strings
+        kwargs =  {
+            'module': module ,
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs 
+        }
+        name = name or module
+        if refresh:
+            c.kill(name)
+        cwd = cwd or c.pwd()
+        command = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
+        command = command if autorestart else ' --no-autorestart'
+        command = command + ' -f ' if force else command
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
+        if device != None:
+            if isinstance(device, int):
+                env['CUDA_VISIBLE_DEVICES']=str(device)
+            if isinstance(device, list):
+                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
+        cwd = cwd or c.dirpath()
+        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
+        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
+    remote_fn = launch
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

@@ -253,8 +253,7 @@ class Plot(c.Module):
                            fn_schema = None, 
                            extra_defaults:dict=None,
                            cols:list=None,
-                           skip_keys = ['self', 'cls'],
-                            mode = 'pm2'):
+                           skip_keys = ['self', 'cls']):
         
         key_prefix = f'{module}.{c.random_word()}'
         if module == None:

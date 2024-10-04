@@ -25,7 +25,8 @@
         "connect"
     ],
     "repo": [
-        "is_repo"
+        "is_repo",
+        "repos"
     ],
     "key": [
         "rename_key",
@@ -67,7 +68,6 @@
         "decrypt_file",
         "get_key_for_address",
         "resolve_key_address",
-        "verify_ticket",
         "ticket"
     ],
     "remote": [
@@ -99,14 +99,12 @@
         "get_address",
         "servers",
         "name2address",
-        "get_address"
     ],
     "app": [
         "start_app",
         "app",
         "apps",
         "app2info",
-        "kill",
         "kill_app"
     ],
     "user": [
@@ -126,33 +124,18 @@
     ],
     "server": [
         "serve",
-        "serve_many",
-        "serve_all",
-        "kill",
-        "kill_many",
-        "kill_all",
         "wait_for_server", 
         "endpoint", 
         "is_endpoint"
     ],
-    "pm2": [
-        ["kill_many", "pm2_kill_many"],
-        ["kill", "pm2_kill"],
-        ["pm2ls", "pm2_ls"],
-        ["kill_all","pm2_kill_all"],
-        ["start","pm2_start"],
-        ["stop", "pm2_stop"],
-        ["restart", "pm2_restart"],
-        ["restart_prefix", "pm2_restart_prefix"],
-        ["process_exists", "pm2_exists"],
-        ["servers", "pm2_servers"],
-        ["logs", "pm2_logs"]
-    ],
+    
     "subspace": [
         "key2balance",
         "my_keys",
         "key2value",
         "transfer",
+        "stake_transfer",
+        "multistake",
         "stake",
         "unstake",
         "register",
@@ -164,13 +147,8 @@
         "get_stake_to",
         "get_stake_from",
         "my_stake_to",
-        "register",
-        "unstake",
-        "stake",
-        "transfer",
         "netuid2subnet",
         "subnet2netuid",
-        "stake_transfer",
         "is_registered",
         "register_subnet",
         "registered_subnets",
@@ -178,12 +156,9 @@
     ],
     "model.openrouter": [
         "generate",
-        "ask",
         "models"
     ],
-    "chat": [
-        "ask"
-    ],
+    "chat": ["ask" ],
     "commune.utils.types": [
         "str2bytes",
         "python2str",
@@ -192,9 +167,7 @@
         "detailed_error"
     ],
     "commune.utils.os": [
-        "cmd"
-    ],
-    "commune.utils.network": [
+        "cmd",
         "free_port",
         "port_used",
         "kill_port",

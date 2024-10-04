@@ -97,13 +97,12 @@ class App(c.Module):
             self.put('app2info', app2info)
 
         return app2info
-    
 
     def kill_all(self):
-        return c.module('pm2').kill_many(self.apps())
+        return c.module('server').kill_many(self.apps())
     
     def kill_app(self, name):
-        return c.module('pm2').kill(self.name_prefix+name)
+        return c.module('server').kill(self.name_prefix+name)
     
     def filter_name(self, name:str) -> bool:
         return bool(name.startswith(self.name_prefix))
