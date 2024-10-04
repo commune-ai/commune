@@ -3999,7 +3999,7 @@ class c:
     @classmethod
     def kill_all_processes(cls, verbose:bool = True, timeout=20):
         servers = c.processes()
-        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
+        futures = [c.submit(c.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
         return c.wait(futures, timeout=timeout)
 
     @classmethod
