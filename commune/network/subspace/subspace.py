@@ -67,7 +67,7 @@ class Subspace(c.Module):
         network=network,
         url: str = None,
         mode = 'wss',
-        num_connections: int = 4,
+        num_connections: int = 2,
         wait_for_finalization: bool = False,
         test = False,
         ws_options = {},
@@ -101,18 +101,24 @@ class Subspace(c.Module):
         t0 = c.time()
         if test:
             network = 'test'
-        self.network = network or self.network
+        network = network or self.network
+
         if timeout != None:
             ws_options["timeout"] = timeout
+
         self.ws_options = ws_options
         self.url  = url or (mode + '://' + self.url_map.get(network)[0])
+        self.num_connections = num_connections
 
-        self.connections_queue = queue.Queue(num_connections)
+        self.connections_queue = queue.Queue(self.num_connections)
         for _ in range(num_connections):
-            self.connections_queue.put(SubstrateInterface(self.url, ws_options=ws_options))
-        connection_latency = c.time() - t0
+            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+                                       
+        self.connection_latency = c.time() - t0
         self.wait_for_finalization = wait_for_finalization
-        c.print(f'Network(name={self.network} url={self.url} conns={num_connections} latency={connection_latency})', color='blue') 
+        self.network = network
+
+        c.print(f'Network(name={self.network} url={self.url} conns={self.num_connections} latency={self.connection_latency})', color='blue') 
 
     def get_url(self, 
                     mode='wss', 
@@ -1903,7 +1909,7 @@ class Subspace(c.Module):
         """
         return self.query_map("Keys", [netuid], extract_value=extract_value)
 
-    def address(
+    def addresses(
         self, netuid: int = 0, extract_value: bool = False
     ) -> dict[int, str]:
         """
@@ -1920,8 +1926,10 @@ class Subspace(c.Module):
         Raises:
             QueryError: If the query to the network fails or is invalid.
         """
-
-        return self.query_map("Address", [netuid], extract_value=extract_value)
+        addresses = self.query_map("Address", [netuid], extract_value=extract_value)
+        sorted_uids = list(sorted(list(addresses.keys())))
+        return [addresses[uid] for uid in sorted_uids]
+        
 
 
     def emission(self, netuid = None, extract_value: bool = False) -> dict[int, list[int]]:
@@ -2856,6 +2864,7 @@ class Subspace(c.Module):
                                 'LastUpdate',
                                 'Metadata'],
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
+                    num_connections = 8,
                     default_module = {
                         'Weights': [], 
                         'Incentive': 0,
@@ -2865,6 +2874,8 @@ class Subspace(c.Module):
                         'LastUpdate': 0,
                     },
                     **kwargs):
+        
+        self.set_network(num_connections=num_connections)
         
         if netuid in [0]:
             features += ['StakeFrom']
@@ -2896,16 +2907,21 @@ class Subspace(c.Module):
             modules = []
             for uid in results['Keys'].keys():
                 module_key = results['Keys'][uid]
-                module = {'uid': uid, 'key': module_key}
+                module = {'uid': uid}
+            
                 for f in features:
                     if isinstance(results[f], dict):
-                        module[f] = results[f].get(uid, default_module.get(f, None)) 
+                        if f in ['Keys']:
+                            module[f[:-1]] = module_key
+                        elif f in ['StakeFrom'] :
+                            module[f] = results[f].get(module_key, {})
+                        else:
+                            module[f] = results[f].get(uid, default_module.get(f, None)) 
                     elif isinstance(results[f], list):
                         module[f] = results[f][uid]
                 module = {self.clean_feature_name(k):v for k,v in module.items()}
                 modules.append(module)  
             self.put(path, modules)
-
         return modules
     
 
