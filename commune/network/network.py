@@ -14,6 +14,23 @@ class Network(c.Module):
                 network = f'subspace'
             network = f'subspace/{netuid}'
         return cls.resolve_path(network + '.json')
+    
+    @classmethod
+    def networks(cls, module_prefix:str='network') -> List[str]:
+        networks = []
+        for m in c.modules(module_prefix):
+            if not m.startswith(module_prefix):
+                continue
+            if m.count('.') == 1:
+                network = m.split('.')[-1]
+            elif m == module_prefix:
+                network = 'local'
+            else:
+                continue
+            
+            networks.append(network)
+        networks = sorted(list(set(networks)))
+        return networks
 
     @classmethod
     def namespace(cls, search=None,
@@ -125,10 +142,7 @@ class Network(c.Module):
         else:
             return {'success': False, 'msg': f'Network {network} not found.'}
         
-    @classmethod
-    def networks(cls) -> dict:
-        return [p.split('/')[-1].split('.')[0] for p in cls.ls()]
-    
+
     @classmethod
     def namespace_exists(cls, network:str) -> bool:
         path = cls.resolve_network_path( network)

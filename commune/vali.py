@@ -467,16 +467,19 @@ class Vali(c.Module):
                 storage_path = '/tmp/commune/vali_test',
                 network='local'):
         
-        prefix = f'{miner}::{tag}_'
-        test_miners = [f'{prefix}{i}' for i in range(n)]
+        test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
+        test_vali = f'{vali}::{tag}'
         modules = test_miners
+        search = tag
         for m in modules:
             c.kill(m) 
         for m in modules:
             c.print(c.serve(m))
-        while len(c.servers(prefix)) < n:
-            c.sleep(1)
-        leaderboard = Vali.run_epoch(network=network, search=prefix, path=storage_path)
+        namespace = c.namespace(search=search)
+        while len(namespace) < n:
+            print(len(namespace))
+            namespace = c.namespace(search=search)
+        leaderboard = Vali.run_epoch(network=network, search=search, path=storage_path)
         assert len(leaderboard) == n, f'Leaderboard not updated {leaderboard}'
         for miner in modules:
             c.print(c.kill(miner))

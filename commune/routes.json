@@ -5,7 +5,12 @@
         "setup_vali",
         "from_module"
     ],
-    "env": ["envs", "env2cmd", "create_env", "env2path"],
+    "env": [
+            "envs", 
+            "env2cmd", 
+            "create_env", 
+            "env2path"
+        ],
     "cli": [
         "parse_args"
     ],
@@ -75,6 +80,7 @@
     ],
     "namespace": [
         "add_remote",
+        "networks",
         "network2namespace",
         "register_server",
         "deregister_server",
@@ -98,7 +104,7 @@
         "infos",
         "get_address",
         "servers",
-        "name2address",
+        "name2address"
     ],
     "app": [
         "start_app",
@@ -126,7 +132,8 @@
         "serve",
         "wait_for_server", 
         "endpoint", 
-        "is_endpoint"
+        "is_endpoint",
+        "fleet"
     ],
     
     "subspace": [

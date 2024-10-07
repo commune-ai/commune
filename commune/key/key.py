@@ -183,7 +183,8 @@ class Key(c.Module):
             try:
                 cls.add_key(k, mnemonic=mnemonic, refresh=refresh, **kwargs)
             except Exception as e:
-                c.print(f'failed to load mem {k} due to {e}', color='red')
+                # c.print(f'failed to load mem {k} due to {e}', color='red')
+                pass
         return {'loaded_mems':list(mems.keys()), 'path':path}
     loadkeys = loadmems = load_keys
     
@@ -247,7 +248,6 @@ class Key(c.Module):
                 try:
                     keys[key] = cls.get_key(key)
                 except Exception as e:
-                    c.print(f'Failed to get {key}', color='red')
                     continue
                 if keys[key] == None:
                     if clean_failed_keys:

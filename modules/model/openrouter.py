@@ -46,6 +46,7 @@ class OpenRouter(c.Module):
         *extra_text , 
         history = None,
         prompt: str =  None,
+        system_prompt: str = None,
         stream: bool = False,
         model:str = 'anthropic/claude-3-sonnet:beta',
         max_tokens: int = 100000,
@@ -64,6 +65,7 @@ class OpenRouter(c.Module):
         Returns:
             Generator[str] | str: A generator for streaming responses or the full streamed response.
         """
+        prompt = prompt or system_prompt
         if len(extra_text) > 0:
             message = message + ' '.join(extra_text)
         history = history or []

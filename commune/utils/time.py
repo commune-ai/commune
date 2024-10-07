@@ -62,7 +62,7 @@ def hour_rounder(t):
             + datetime.timedelta(hours=t.minute // 30))
 
 def timestamp() -> float:
-    return int(time())
+    return time()
 
 def sleep(seconds:float) -> None:
     import time
