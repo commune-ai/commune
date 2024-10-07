@@ -42,8 +42,9 @@ class c:
         'r' :  'remote',
         's' :  'network.subspace',
         'subspace': 'network.subspace', 
-        'namespace': 'network'
-        
+        'namespace': 'network', 
+        'local': 'network',
+        'network.local': 'network',
         }
 
     core_modules = ['module', 'key', 'subspace', 'web3', 'serializer',
@@ -217,12 +218,13 @@ class c:
         module_list = sorted(list(set(module_list)))
         return module_list
 
-    pids = procs = processes
+    pm2ls = pids = procs = processes
     
     is_module_root = is_root_module = is_root
     
     @classmethod
     def serialize(cls, *args, **kwargs):
+        
         return c.module('serializer')().serialize(*args, **kwargs)
     @classmethod
     def deserialize(cls, *args, **kwargs):
@@ -1539,7 +1541,7 @@ class c:
             key: 'Key' = None,
             update :bool = False,
             password : str = None,
-            verbose = True,
+            verbose = False,
             **kwargs) -> Any:
         
         '''
@@ -1555,7 +1557,7 @@ class c:
 
         if password != None:
             assert data['encrypted'] , f'{k} is not encrypted'
-            data['data'] = cls.decrypt(data['data'], password=password, key=key)
+            data['data'] = c.decrypt(data['data'], password=password)
 
         data = data or default
         
@@ -3152,10 +3154,6 @@ class c:
     @classmethod
     def has_module(cls, module):
         return module in cls.modules()
-    
-
-
-
     
     def new_modules(self, *modules, **kwargs):
         for module in modules:

@@ -150,9 +150,6 @@ class Chat(c.Module):
     def user_addresses(self, display_name=False):
         users = [u.split('/')[-1] for u in c.ls(self.history_path)]
         return users
-    
 
     def models(self):
         return self.model.models()
-
-

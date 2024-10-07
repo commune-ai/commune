@@ -1,10 +1,5 @@
 
 import commune as c
-from typing import Dict , Any, List
-import json
-import os
-
-
 class User(c.Module):
     ##################################
     # USER LAND
@@ -48,8 +43,6 @@ class User(c.Module):
 
     def blacklist(self):
         return self.get('blacklist', [])
-
-
     
     def get_user(self, address):
         users = self.users()
@@ -99,7 +92,6 @@ class User(c.Module):
         assert not self.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users', 'users': self.users()}
     
-    
     def df(self):
         df = []
         for k,v in self.users().items():
@@ -119,7 +111,6 @@ class User(c.Module):
         
         with st.expander('Users', False):
             st.write(self.df())
-
 
         with st.expander('Add Users', True):
             

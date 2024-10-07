@@ -58,7 +58,7 @@ class Subspace(c.Module):
 
     wait_for_finalization: bool
     _num_connections: int
-    _connection_queue: queue.Queue[SubstrateInterface]
+    connections_queue: queue.Queue[SubstrateInterface]
     url: str
     network : str = 'main'
 
@@ -67,8 +67,10 @@ class Subspace(c.Module):
         network=network,
         url: str = None,
         mode = 'wss',
-        num_connections: int = 1,
+        num_connections: int = 4,
         wait_for_finalization: bool = False,
+        test = False,
+        ws_options = {},
         timeout: int | None = None,
     ):
         """
@@ -76,36 +78,41 @@ class Subspace(c.Module):
             url: The URL of the network node to connect to.
             num_connections: The number of websocket connections to be opened.
         """
-        self.set_network(network=network, mode=mode,url=url,  
+        self.set_network(network=network,
+                         mode=mode,
+                         url=url,  
+                         test = test,
                          num_connections=num_connections,  
+                        ws_options=ws_options,
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
 
 
     def set_network(self, 
-                        network,
-                        url: str = None,
+                        network=None,
                         mode = 'wss',
+                        url = None,
+                        test = False,
                         num_connections: int = 1,
+                        ws_options: dict[str, int] = {},
                         wait_for_finalization: bool = False,
                         timeout: int | None = None ):
-        mode = mode or 'wss'
-        self._num_connections = num_connections
-        self.wait_for_finalization = wait_for_finalization
-        self._connection_queue = queue.Queue(num_connections)
-        if network in ['subspace']:
-            network = 'main'
-        self.network = network
-        print(f'Connecting to {network} network mode={mode}' , 'url:', url, self.url_map)
-        self.url  = mode + '://' + self.url_map.get(network)[0]
-        ws_options: dict[str, int] = {}
+
+        t0 = c.time()
+        if test:
+            network = 'test'
+        self.network = network or self.network
         if timeout != None:
             ws_options["timeout"] = timeout
         self.ws_options = ws_options
+        self.url  = url or (mode + '://' + self.url_map.get(network)[0])
+
+        self.connections_queue = queue.Queue(num_connections)
         for _ in range(num_connections):
-            self._connection_queue.put(
-                SubstrateInterface(self.url, ws_options=ws_options)
-            )
+            self.connections_queue.put(SubstrateInterface(self.url, ws_options=ws_options))
+        connection_latency = c.time() - t0
+        self.wait_for_finalization = wait_for_finalization
+        c.print(f'Network(name={self.network} url={self.url} conns={num_connections} latency={connection_latency})', color='blue') 
 
     def get_url(self, 
                     mode='wss', 
@@ -113,13 +120,6 @@ class Subspace(c.Module):
         return f'{mode}://'+c.choice(self.url_map[self.network])
     
 
-    @property
-    def connections(self) -> int:
-        """
-        Gets the maximum allowed number of simultaneous connections to the
-        network node.
-        """
-        return self._num_connections
 
     @contextmanager
     def get_conn(self, timeout: float | None = None, init: bool = False):
@@ -140,7 +140,7 @@ class Subspace(c.Module):
             QueueEmptyError: If no connection is available within the timeout
               period.
         """
-        conn = self._connection_queue.get(timeout=timeout)
+        conn = self.connections_queue.get(timeout=timeout)
         if init:
             conn.init_runtime()  # type: ignore
         try:
@@ -150,7 +150,7 @@ class Subspace(c.Module):
                 conn = SubstrateInterface(self.url, ws_options=self.ws_options)
                 yield conn
         finally:
-            self._connection_queue.put(conn)
+            self.connections_queue.put(conn)
 
     def get_storage_keys(
         self,
@@ -764,7 +764,7 @@ class Subspace(c.Module):
 
     def query_map(
         self,
-        name: str,
+        name: str='Emission',
         params: list[Any] = [],
         module: str = "SubspaceModule",
         extract_value: bool = True,
@@ -792,8 +792,6 @@ class Subspace(c.Module):
         result = self.get(path, None, max_age=max_age, update=update)
         if result == None:
             
-            print(f'Updating {path}')
-
             result = self.query_batch_map({module: [(name, params)]}, block_hash)
 
             if extract_value:
@@ -1926,8 +1924,12 @@ class Subspace(c.Module):
         return self.query_map("Address", [netuid], extract_value=extract_value)
 
 
-    def emission(self, extract_value: bool = False) -> dict[int, list[int]]:
-        return self.query_map("Emission", extract_value=extract_value)
+    def emission(self, netuid = None, extract_value: bool = False) -> dict[int, list[int]]:
+
+        if netuid is None:
+            return self.query_map("Emission", extract_value=extract_value)
+        else:
+            return self.query("Emission", [netuid])
 
     def pending_emission(self, extract_value: bool = False) -> int:
         return self.query_map("PendingEmission", extract_value=extract_value, module="SubnetEmissionModule")
@@ -1938,12 +1940,30 @@ class Subspace(c.Module):
         fns  = ['subnet_params', 'global_params', 'modules']
         futures = [c.submit(getattr(self,fn), kwargs=dict(update=1), timeout=timeout) for fn in fns]
         return dict(zip(fns, c.wait(futures, timeout=timeout)))
+
+
+    def subnet(self,netuid=0, update=False, max_age=60):
+        futures = []
+        path = f'{self.network}/subnet_state/{netuid}'
+        state = self.get(path, max_age=max_age, update=update)
+        if state == None:
+            c.log(f"subnet_state: {path} not found")
+            futures = [c.submit(self.subnet_params, kwargs=dict(netuid=netuid, max_age=max_age, update=update)), 
+                        c.submit(self.modules, kwargs=dict(netuid=netuid, max_age=max_age, update=update))]
+            params, modules = c.wait(futures)
+            state = {'params': params, 'modules': modules}
+            self.put(path, state)
+        return state
     sync = state
 
-    def sync_loop(self, interval=30):
+    def sync_loop(self, interval=30, max_futures=10):
+        futures = []
         while True:
             c.sleep(interval)
-            self.sync()
+            futures += [c.submit(self.sync)]
+            if len(futures) > max_futures:
+                c.wait(futures)
+        return futures
         
     def subnet_emission(self, extract_value: bool = False) -> dict[int, int]:
         """
@@ -2779,29 +2799,21 @@ class Subspace(c.Module):
                     my_keys[k] = address2key[k]
         return my_keys
 
-    def modules(self,
-                    netuid=None,
+    def all_modules(self,
                     max_age = 60,
                     update=False,
                     module = "SubspaceModule", 
-                    features = ['Name', 'Address', 'Keys','Weights','Incentive','Dividends', 
-                                'Emission', 'DelegationFee', 'LastUpdate','Metadata', 'StakeFrom'
-                            ],
+                    features = ['Name', 'Address', 'Keys','Weights','Incentive','Dividends',  'Emission', 'DelegationFee', 'LastUpdate','Metadata', 'StakeFrom'  ],
                     default_module = {
                         'Weights': [], 
-                        'Incentive': 0,
-                        'Emissions': 0, 
-                        'Dividends': 0,
                         'DelegationFee': 30,
                         'LastUpdate': -1,
                     },
                     **kwargs):
         
-        netuid = self.resolve_netuid(netuid)
-        path = f'{self.network}/modules'
+        path = f'{self.network}/all_modules'
         modules = self.get(path, None, max_age=max_age, update=update)
         if modules == None:
-
             results = self.query_batch_map({module:[(f, []) for f in features]},self.block_hash())
             results = self.process_results(results)
             netuids = list(results['Keys'].keys())
@@ -2824,9 +2836,76 @@ class Subspace(c.Module):
                     modules[_netuid].append(module)  
             self.put(path, modules)
         modules = {int(k):v for k,v in modules.items()}
-        if netuid != None:
-            print(modules.keys())
-            modules =  modules.get(netuid, [])
+        return modules
+
+
+    def modules(self,
+                    netuid=0,
+                    max_age = 60,
+                    update=False,
+                    timeout=30,
+                    module = "SubspaceModule", 
+                    features = ['Name', 
+                                'Address', 
+                                'Keys',
+                                'Weights',
+                                'Incentive',
+                                'Dividends', 
+                                'Emission', 
+                                'DelegationFee', 
+                                'LastUpdate',
+                                'Metadata'],
+                    vector_fetures = ['Incentive', 'Dividends', 'Emission'],
+                    default_module = {
+                        'Weights': [], 
+                        'Incentive': 0,
+                        'Emissions': 0, 
+                        'Dividends': 0,
+                        'DelegationFee': 30,
+                        'LastUpdate': 0,
+                    },
+                    **kwargs):
+        
+        if netuid in [0]:
+            features += ['StakeFrom']
+
+        if netuid == None: 
+            return self.all_modules(max_age=max_age, update=update, module=module, features=features, default_module=default_module, **kwargs)
+        netuid = self.resolve_netuid(netuid)
+        path = f'{self.network}/modules/{netuid}'
+        modules = self.get(path, None, max_age=max_age, update=update)
+
+        if modules == None:
+            future2feature = {}
+            params = [netuid] if netuid != None else []
+            for feature in features:
+                params = [netuid] if netuid != None else []
+                if feature in ['StakeFrom']:
+                    params = []
+
+                fn_obj = self.query if feature in  vector_fetures else  self.query_map 
+                f = c.submit(fn_obj, kwargs=dict(name=feature, params=params), timeout=timeout)
+                future2feature[f] = feature
+            results = {}
+            progress = c.tqdm(total=len(future2feature))
+            for f in c.as_completed(future2feature, timeout=timeout):
+                feature = future2feature.pop(f)
+                results[feature] = f.result()
+                progress.update(1)
+            results = self.process_results(results)
+            modules = []
+            for uid in results['Keys'].keys():
+                module_key = results['Keys'][uid]
+                module = {'uid': uid, 'key': module_key}
+                for f in features:
+                    if isinstance(results[f], dict):
+                        module[f] = results[f].get(uid, default_module.get(f, None)) 
+                    elif isinstance(results[f], list):
+                        module[f] = results[f][uid]
+                module = {self.clean_feature_name(k):v for k,v in module.items()}
+                modules.append(module)  
+            self.put(path, modules)
+
         return modules
     
 
@@ -2852,12 +2931,11 @@ class Subspace(c.Module):
         return x
 
     @property
-    def block_number(self) -> int:
-        return self.substrate.block_number(block_hash=None)
-
+    def substrate(self):
+        return self.get_conn()
     @property
-    def substrate(self): 
-        return SubstrateInterface(self.url, ws_options=self.ws_options)
+    def block_number(self) -> int:
+        return self.get_conn().block_number(block_hash=None)
     @staticmethod
     def vec82str(l:list):
         return ''.join([chr(x) for x in l]).strip()

@@ -37,7 +37,8 @@ class cli(c.Module):
                     if key in self.helper_fns:
                         return self.forward([key , argv[0]])
                     else:
-                        value = arg.split('=')[-1] if '=' in arg else value
+                    
+                        value = arg.split('=')[-1] if '=' in arg else True
                         argv.remove(arg)
                         init_kwargs[key] = self.determine_type(value)
         

@@ -1,7 +1,0 @@
-url: https://the-eye.eu/public/AI/pile
-shards: 29
-batch_size: 32
-seqeunce_length: 256
-tokenizer: gpt2
-url: https://the-eye.eu/public/AI/pile
-device: False

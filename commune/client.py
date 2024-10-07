@@ -17,7 +17,7 @@ class ClientVirtual:
             client = c.connect(client)
         self.client = client
     
-    def remote_call(self, remote_fn, *args, return_future= False, timeout:int=10, key=None, **kwargs):
+    def remote_call(self, *args, remote_fn, return_future= False, timeout:int=10, key=None, **kwargs):
         result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
         return result
 
@@ -44,9 +44,7 @@ class Client(c.Module):
             network: bool = 'local',
             key = None,
             stream_prefix = 'data: ',
-            fn2max_age = {'info': 60, 'name': 60},
             virtual = False,
-            loop = None, 
             **kwargs
         ):
         self.serializer = c.module('serializer')()
@@ -54,7 +52,6 @@ class Client(c.Module):
         self.loop =  c.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-        self.fn2max_age = fn2max_age
         self.stream_prefix = stream_prefix
         self.address = self.resolve_module_address(module, network=network)
         self.virtual = bool(virtual)
@@ -163,20 +160,6 @@ class Client(c.Module):
         except Exception as e:
             result = c.detailed_error(e)
         return result
-    def get_headers(self, data:Any, key=None, headers=None):
-        key = self.resolve_key(key)
-        if headers:
-            # for relayed requests
-            return headers
-        headers = {'Content-Type': 'application/json', 
-                    'key': key.ss58_address, 
-                    'hash': c.hash(data),
-                    'crypto_type': str(key.crypto_type),
-                    'timestamp': str(c.timestamp())
-                   }
-        signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
-        headers['signature'] = key.sign(signature_data).hex()
-        return headers
 
     def get_data(self, args=[], kwargs={}, params={}, **extra_kwargs):
         # derefernece
@@ -211,13 +194,21 @@ class Client(c.Module):
                 network : str = None,
                 mode: str  = 'http',
                 headers = None,
-                return_future = False,
                 data = None,
                 **extra_kwargs):
         network = network or self.network
+        key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode,  network=network)
         data = data or self.get_data(args=args,  kwargs=kwargs, params=params, **extra_kwargs)
-        headers = headers or self.get_headers(data=data, key=key)
+        headers = { 
+                    'Content-Type': 'application/json', 
+                    'key': key.ss58_address, 
+                    'hash': c.hash(data),
+                    'crypto_type': str(key.crypto_type),
+                    'timestamp': str(c.timestamp())
+                   }
+        signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
+        headers['signature'] = key.sign(signature_data).hex()
         result = self.request(url=url, 
                               data=data,
                               headers=headers,
@@ -271,7 +262,6 @@ class Client(c.Module):
                         params=None, 
                         args=None,
                         kwargs=None,
-                        timeout=10, 
                         module=None,
                         key=None,
                         headers={'Content-Type': 'application/json'},
@@ -284,13 +274,8 @@ class Client(c.Module):
             url = self.get_url(fn=fn, mode=mode, network=network)
             kwargs = {**(kwargs or {}), **extra_kwargs}
             input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
-
-            # Convert the headers to curl format
             headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
-
-            # Convert the input data to JSON string
             data_str = json.dumps(input_data).replace('"', '\\"')
-
             # Construct the curl command
             curl_command = f'curl -X POST {headers_str} -d "{data_str}" "{url}"'
 
