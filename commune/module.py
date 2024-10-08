@@ -84,7 +84,6 @@ class c:
             key = self.module_name()
         if isinstance(key, str):
             key = c.get_key(key, create_if_not_exists=True)
-
         self._key = key 
         return self._key
 
