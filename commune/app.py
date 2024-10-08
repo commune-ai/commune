@@ -6,9 +6,8 @@ from typing import *
 
 
 class App(c.Module):
-    port_range = [8501, 8600]
     name_prefix = 'app::'
-    
+
     def get_free_port(self, module, port=None, update=False):
         app2info = self.get('app2info', {})
         if update:
@@ -108,8 +107,7 @@ class App(c.Module):
         return bool(name.startswith(self.name_prefix))
         
     def apps(self, remove_prefix = True):
-
-        apps =  [n for n in c.pm2ls() if n.startswith(self.name_prefix)]
+        apps =  [n for n in c.pids() if n.startswith(self.name_prefix)]
         if remove_prefix:
             apps = [n[len(self.name_prefix):] for n in apps]
         return apps

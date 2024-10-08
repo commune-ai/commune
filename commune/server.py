@@ -57,6 +57,7 @@ class Server(c.Module):
         max_network_staleness = 60, # the time it takes for. the network to refresh
         users_path = None, # the path to store the data
         fn2cost = None, # the cost of the function
+        create_key_if_not_exists = True, # create the key if it does not exist
         **kwargs,
         ) -> 'Server':
         module = module or 'module'
@@ -74,7 +75,7 @@ class Server(c.Module):
         module.fn2cost = module.server_fn2cost = fn2cost or {}
         module.port = module.server_port =  port if port not in ['None', None] else c.free_port()
         module.address  = module.server_address =  f"{c.ip()}:{module.port}"
-        module.key  = module.server_key = c.get_key(key or module.name, create_if_not_exists=True)
+        module.key  = module.server_key = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists)
         module.schema =  module.server_schema = self.get_server_schema(module)
         module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
         module.info  =  module.server_info =  self.get_server_info(module)
@@ -182,10 +183,10 @@ class Server(c.Module):
     def rate_limit(self, 
                    address:str, 
                    fn = 'info',
-                    multipliers = {'network': 1, 'direct': 1,'validator': 1 },
+                    multipliers = {'stake': 1, 'stake_to': 1,'stake_from': 1 },
                     module=None, 
                     rates = {'max': 10, 
-                             'local': 100,
+                             'local': 1000,
                              'stake2rate': 1000, 
                              'admin': 1000}, # the maximum rate
                     ) -> float:
@@ -223,17 +224,37 @@ class Server(c.Module):
         return self.users_path + '/' + address
 
     def user_count(self, address):
+        self.check_user_data(address)
         return len(self.user_paths(address))
     
     def user_path2timestamp(self, address):
         user_paths = self.user_paths(address)
         user_path2timestamp = {user_path: self.extract_timestamp(user_path) for user_path in user_paths}
         return user_path2timestamp
+    
     def user_path2latency(self, address):
         user_paths = self.user_paths(address)
         t0 = c.time()
         user_path2timestamp = {user_path: t0 - self.extract_timestamp(user_path) for user_path in user_paths}
         return user_path2timestamp
+    
+    
+    def check_user_data(self, address):
+        path2latency = self.user_path2latency(address)
+        for path, latency  in path2latency.items():
+            if latency > self.period:
+                os.remove(path)
+        
+    
+    def check_all_users(self):
+        for user in self.users():
+            print('Checking', user)
+            self.chekcer_user_data()
+
+        
+
+    
+    
 
     def extract_timestamp(self, x):
         try:
@@ -247,7 +268,7 @@ class Server(c.Module):
         return c.rm(self.user_path(address))
 
     def users(self):
-        return os.listdir(self.module.user_dirath)
+        return os.listdir(self.module.users_path)
 
     def forward(self, fn:str, request: Request, catch_exception:bool=True) -> dict:
         if catch_exception:
@@ -288,11 +309,14 @@ class Server(c.Module):
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'
         timestamp = float(headers['timestamp'])
         fn_obj = getattr(self.module, fn)
-        user_str = f'User(key={address[:3]}.. count={count} limit={rate_limit})'
-        c.print(f'Request(fn={fn} args={args} kwargs={kwargs}) from {user_str}', color= color)
+        adress_string = self.state['address2key'].get(address, address)
+        user_str = f'User({adress_string[:8]})'
+        c.print(f'{user_str} >> Stats(count={count} limit={rate_limit})')
+        c.print(f'{user_str} >> Request(fn={fn} args={args} kwargs={kwargs})', color= color)
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.round(c.time() - timestamp, 3)
-        c.print(f'Result(fn={fn} latency={latency}) to {user_str}', color=color)
+        c.print(f'{user_str} >> Result(fn={fn} latency={latency})', color=color)
+        c.print('-'*16)
         if c.is_generator(result):
             output = []
             def generator_wrapper(generator):

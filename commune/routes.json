@@ -137,7 +137,16 @@
     ],
     
     "subspace": [
+        "update_subnet", 
+        "update_module",
+        "staketo", 
+        "get_staketo", 
+        "stakefrom",
+        "get_stakefrom",
         "key2balance",
+        "subnet",
+        "subnets",
+        "send",
         "my_keys",
         "key2value",
         "transfer",
@@ -157,6 +166,9 @@
         "netuid2subnet",
         "subnet2netuid",
         "is_registered",
+        "update_subnet",
+        "my_subnets", 
+        "my_netuids",
         "register_subnet",
         "registered_subnets",
         "registered_netuids"
