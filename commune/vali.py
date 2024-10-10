@@ -11,33 +11,42 @@ class Vali(c.Module):
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     netuid = 0, # (NOT LOCAL) the subnetwork uid or the netuid. This is a unique identifier for the subnetwork 
                     search=  None, # (OPTIONAL) the search string for the network 
-                    max_network_staleness=  10, # the maximum staleness of the network # LOGGING
+                    max_network_age=  10, # the maximum staleness of the network # LOGGING
                     verbose=  True, # the verbose mode for the worker # EPOCH
                     batch_size= 64,
                     queue_size=  128,
                     max_workers=  None ,
-                    score_fn = None, #EVAL
+                    score = None, #EVAL
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
-                    timeout= 10, # timeout per evaluation of the module
-                    max_staleness= 0, # the maximum staleness of the worker
-                    epoch_time=  3600, # the maximum age of the leaderboard befor it is refreshed
                     min_leaderboard_weight=  0, # the minimum weight of the leaderboard
-                    run_step_interval =  3, # the interval for the run loop to run
+                    period =  3, # the interval for the run loop to run
+                    tempo : int = None, # also period
                     run_loop= True, # This is the key that we need to change to false
                     vote_interval= 100, # the number of iterations to wait before voting
                     module = None,
+                    timeout= 10, # timeout per evaluation of the module
                     timeout_info= 4, # (OPTIONAL) the timeout for the info worker
                     miner= False , # converts from a validator to a miner
                     update=False,
+                    key = None,
                  **kwargs):
+        period = period or tempo 
+        if miner:
+            run_loop = False
+
         config = self.set_config(locals())
         config = c.dict2munch({**Vali.config(), **config})
         self.config = config
-        if update:
-            self.config.max_staleness = 0
-        self.sync_network()
-        # start the run loop
+        self.epochs = 0
+        self.network_time = 0
+        self.start_time = c.time() # the start time of the validator
+        self.executor = c.module('executor')(max_workers=self.config.max_workers,  maxsize=self.config.queue_size)
+        self.results = [] # the results of the evaluations
+        self.futures = [] # the futures for the executor
+        self.key = c.get_key(key or self.module_name())
+        self.set_score(score)
+        self.sync_network(update=update)
         if self.config.run_loop:
             c.thread(self.run_loop)
 
@@ -46,41 +55,26 @@ class Vali(c.Module):
 
     def score(self, module):
         return 'name' in module.info()
+    
+    def score2(self, module):
+        return float('name' in module.info())/3
 
-    def set_score_fn(self, score_fn: Union[Callable, str]):
+    def set_score(self, score: Union[Callable, str] ):
         """
         Set the score function for the validator
         """
-        module = module or self 
-        if isinstance(score_fn, str):
-            score_fn = c.get_fn(score_fn)
-        assert callable(score_fn)
-        self.score = getattr(self, score_fn)
-        return {'success': True, 'msg': 'Set score function', 'score_fn': self.score.__name__}
-
-    def init_state(self):
-        self.executor = c.module('executor')(max_workers=self.config.max_workers,  maxsize=self.config.queue_size)
-        self.requests = 0
-        self.last_start_time = 0
-        self.errors  = 0
-        self.successes = 0
-        self.epochs = 0
-        self.last_sync_time = 0
-        self.last_error = 0
-        self.last_sent = 0
-        self.last_success = 0
-        self.start_time = c.time()
-        self.results = []
-        self.futures = []
-
-    @property
-    def sent_staleness(self):
-        return c.time()  - self.last_sent
-
-    @property
-    def success_staleness(self):
-        return c.time() - self.last_success
-
+        if score == None:
+            score = self.score
+        elif c.object_exists(score):
+            pass
+        elif isinstance(score, str):
+            if hasattr(self, score):
+                score = getattr(self, score)
+            else:
+                score = c.get_fn(score)
+        assert callable(score), f'{score} is not callable'
+        setattr(self, 'score', score )
+        return {'success': True, 'msg': 'Set score function', 'score': self.score.__name__}
     @property
     def lifetime(self):
         return c.time() - self.start_time
@@ -88,15 +82,12 @@ class Vali(c.Module):
     @property
     def is_voting_network(self):
         return any([v in self.config.network for v in self.voting_networks])
-    
-    @property
-    def last_start_staleness(self):
-        return c.time() - self.last_start_time
 
     def run_step(self):
         """
         The following runs a step in the validation loop
         """
+        self.sync_network()
         self.epoch()
         if self.is_voting_network and self.vote_staleness > self.config.vote_interval:
             c.print('Voting', color='cyan')
@@ -115,7 +106,12 @@ class Vali(c.Module):
         # start the workers
 
         while True:
-            c.sleep(self.config.run_step_interval)
+            # count down the staleness of the last success
+            from tqdm import tqdm
+            # reverse the progress bar
+            desc = f'Next Epoch ({self.epochs})'
+            for i in tqdm(range(self.config.period), desc=desc, position=0, leave=True):
+                c.sleep(1)
             try:
                 self.run_step()
             except Exception as e:
@@ -199,7 +195,7 @@ class Vali(c.Module):
         """
         The staleness of the network
         """
-        return c.time() - self.last_sync_time
+        return c.time() - self.network_time
 
     def filter_module(self, module:str, search=None):
         search = search or self.config.search
@@ -213,27 +209,29 @@ class Vali(c.Module):
                      network:str=None, 
                       netuid:int=None,
                       search = None, 
-                      max_network_staleness=None):
-        self.init_state()
+                      update = False,
+                      max_age=None):
         config = self.config
         network = network or config.network
         netuid =  netuid or config.netuid
         search = search or config.search
-        max_network_staleness = max_network_staleness or config.max_network_staleness
-        if self.network_staleness < max_network_staleness:
+        max_age = max_age or config.max_network_age
+        if update:
+            max_age = 0
+        if self.network_staleness < max_age:
             return {'msg': 'Alredy Synced network Within Interval', 
                     'staleness': self.network_staleness, 
-                    'max_network_staleness': self.config.max_network_staleness,
+                    'max_network_age': self.config.max_network_age,
                     'network': network, 
                     'netuid': netuid, 
                     'n': self.n,
                     'search': search,
                     }
-        self.last_sync_time = c.time()
+        self.network_time = c.time()
         # RESOLVE THE VOTING NETWORKS
         if 'local' in network:
             # local network does not need to be updated as it is atomically updated
-            namespace = c.get_namespace(search=search, update=1, max_age=max_network_staleness)
+            namespace = c.get_namespace(search=search, update=1, max_age=max_age)
         elif 'subspace' in network:
             # the network is a voting network
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
@@ -272,7 +270,6 @@ class Vali(c.Module):
         """
         The following evaluates a module sver
         """
-        alpha = self.config.alpha
         try:
             info = {}
             # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
@@ -282,47 +279,26 @@ class Vali(c.Module):
             info = self.get_json(path, {})
             last_timestamp = info.get('timestamp', 0)
             info['staleness'] = c.time() -  last_timestamp
-            if info['staleness'] < self.config.max_staleness:
-                raise Exception({'module': info['name'], 
-                    'msg': 'Too New', 
-                    'staleness': info['staleness'], 
-                    'max_staleness': self.config.max_staleness,
-                    'timeleft': self.config.max_staleness - info['staleness'], 
-                    })
-            # is the info valid
             if not self.check_info(info):
                 info = module_client.info(timeout=self.config.timeout_info)
-            self.last_sent = c.time()
-            self.requests += 1
             info['timestamp'] = c.timestamp() # the timestamp
             previous_w = info.get('w', 0)
-
             response = self.score(module_client, **kwargs)
-            # PROCESS THE SCORE
             if type(response) in [int, float, bool]:
-                # if the response is a number, we want to convert it to a dict
                 response = {'w': response}
             response['w'] = float(response.get('w', 0))
             info.update(response)
             info['latency'] = c.round(c.time() - info['timestamp'], 3)
+            alpha = self.config.alpha
             info['w'] = info['w']  * alpha + previous_w * (1 - alpha)
-            #  have a minimum weight to save storage of stale modules
-            self.successes += 1
-            self.last_success = c.time()
-            info['staleness'] = c.round(c.time() - info.get('timestamp', 0), 3)
-
             if response['w'] > self.config.min_leaderboard_weight:
                 self.put_json(path, info)
-                
         except Exception as e:
             raise e
             response = c.detailed_error(e)
             response['w'] = 0
             response['name'] = info.get('name', module)
-            self.state['errors'] += 1
-            self.last_error  = c.time() # the last time an error occured
             info.update(response)
-        info.pop('history', None)
         return info
     
     eval_module = eval
@@ -387,7 +363,6 @@ class Vali(c.Module):
     
     def leaderboard(self,
                     keys = ['name', 'w',  'staleness', 'latency',  'address', 'staleness', 'key'],
-                    max_age = None,
                     ascending = True,
                     by = 'w',
                     to_dict = False,
@@ -395,7 +370,7 @@ class Vali(c.Module):
                     page = None,
                     **kwargs
                     ):
-        max_age = max_age or self.config.epoch_time
+        max_age = self.config.period
         paths = self.paths()
         df = []
         # chunk the jobs into batches

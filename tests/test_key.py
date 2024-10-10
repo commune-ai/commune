@@ -60,6 +60,7 @@ def test_key_encryption(password='1234'):
     cls.decrypt_key(path, password=password)
     assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
     cls.rm(path)
+    print('file deleted', path, c.exists, 'fam')
     assert not c.exists(path), f'file {path} not deleted'
     return {'success': True, 'msg': 'test_key_encryption passed'}
 

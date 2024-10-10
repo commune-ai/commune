@@ -4,26 +4,16 @@ import json
 import shutil
 import time
 import gc
-import threading
-import subprocess
-import shlex
 import sys
 import argparse
 import asyncio
 import nest_asyncio
-import urllib
-import requests
-import netaddr
 import yaml
 from functools import partial
 import random
 import os
 from copy import deepcopy
-import concurrent
 from typing import *
-
-
-import socket
 
 nest_asyncio.apply()
 
@@ -31,7 +21,6 @@ class c:
 
 
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
-
 
     # these are shortcuts for the module finder c.module('openai') --> c.module('modle.openai') 
     # if openai : model.openai
@@ -47,9 +36,6 @@ class c:
         'network.local': 'network',
         }
 
-    core_modules = ['module', 'key', 'subspace', 'web3', 'serializer',
-                    'executor', 'client', 'server', 
-                    'namespace' ]
     libname = lib_name = lib = 'commune' # the name of the library
     cost = 1
     description = """This is a module"""
@@ -71,21 +57,7 @@ class c:
 
     def __init__(self, *args, **kwargs):
         pass
-
-    @property
-    def key(self):
-        if not hasattr(self, '_key'):
-            self._key = c.get_key(self.module_name(), create_if_not_exists=True)
-        return self._key
     
-    @key.setter
-    def key(self, key: 'Key'):
-        if key == None:
-            key = self.module_name()
-        if isinstance(key, str):
-            key = c.get_key(key, create_if_not_exists=True)
-        self._key = key 
-        return self._key
 
     @classmethod
     def filepath(cls, obj=None) -> str:
@@ -97,7 +69,7 @@ class c:
             module_path =  inspect.getfile(cls)
         return module_path
 
-    file_path =  filepath
+    path = file_path =  filepath
     @classmethod
     def dirpath(cls) -> str:
         return os.path.dirname(cls.filepath())
@@ -107,7 +79,15 @@ class c:
     def module_name(cls, obj=None):
         obj = obj or cls
         module_file =  inspect.getfile(obj)
-        return c.path2simple(module_file)
+        return c.path2name(module_file)
+
+    @classmethod
+    def get_module_name(cls, obj=None):
+        obj = cls.resolve_object(obj)
+        if hasattr(obj, 'module_name'):
+            return obj.module_name
+        else:
+            return cls.__name__
     
     path  = name = module_name 
     
@@ -283,7 +263,14 @@ class c:
             else:
                 module = cls
             return getattr(module, args.function)(*args.args, **args.kwargs)     
-    
+        
+    @classmethod
+    def get_num_files(cls, directory):
+        num_files = 0
+        for root, _, files in os.walk(directory):
+            num_files += len(files)
+        return num_files
+
     @classmethod
     def commit_hash(cls, libpath:str = None):
         if libpath == None:
@@ -370,12 +357,16 @@ class c:
 
     @classmethod
     def get_key(cls,key:str = None , **kwargs) -> None:
-        from .key import Key
+        from commune.key import Key
         return Key.get_key(key, **kwargs)
+    key = get_key
 
     @classmethod
-    def id(self):
-        return self.key.ss58_address
+    def files(cls, path='./', search:str = None,  **kwargs) -> List[str]:
+        files =c.glob(path, **kwargs)
+        if search != None:
+            files = [f for f in files if search in f]
+        return files
     
     @classmethod
     def encrypt(cls,data: Union[str, bytes], key: str = None,  password: str = None, **kwargs ) -> bytes:
@@ -407,14 +398,18 @@ class c:
 
     @classmethod
     def set_key(self, key:str, **kwargs) -> None:
-        key = self.get_key(key)
-        self.key = key
-        return key
+        self.key = self.resolve_key(key)
+        return self.key
+
     
     def resolve_key(self, key: str = None) -> str:
         if key != None:
-            return c.get_key(key)
-        return self.key
+            if isinstance(key, str):
+                key =  c.get_key(key)
+        else:
+            key = c.key(self.module_name())
+        assert hasattr(key, 'ss58_address'), f'Key {key} does not have a sign method'
+        return key
     
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         return self.resolve_key(key).sign(data, **kwargs)
@@ -1491,7 +1486,8 @@ class c:
         path = cls.resolve_path(path)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
-        except FileNotFoundError:
+        except Exception as e:
+            print('Error in c.ls :', e)
             return []
         if return_full_path:
             ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
@@ -2220,8 +2216,10 @@ class c:
     parent2fns = parent2functions
 
     @classmethod
-    def get_functions(cls, obj: Any = None,
+    def get_functions(cls, 
+                      obj: Any = None,
                       search = None,
+                      splitter_options = ["   def " , "    def "] ,
                       include_parents:bool=True, 
                       include_hidden:bool = False) -> List[str]:
         '''
@@ -2234,39 +2232,19 @@ class c:
         '''
         is_root_module = cls.is_root_module()
         obj = cls.resolve_object(obj)
-        if include_parents:
-            parent_functions = cls.parent_functions(obj)
-        else:
-            parent_functions = []
-        avoid_functions = []
-        if not is_root_module:
-            import commune as c
-            avoid_functions = c.functions()
-        else:
-            avoid_functions = []
-
         functions = []
-        child_functions = dir(obj)
-        function_names = [fn_name for fn_name in child_functions + parent_functions]
+        import inspect
+        text = inspect.getsource(obj)
+        functions = []
+        for splitter in splitter_options:
+            for line in text.split('\n'):
+                if f'"{splitter}"' in line:
+                    continue
+                if line.startswith(splitter):
+                    functions += [line.split(splitter)[1].split('(')[0]]
 
-        for fn_name in function_names:
-            if fn_name in avoid_functions:
-                continue
-            if not include_hidden:
-                if ((fn_name.startswith('__') or fn_name.endswith('_'))):
-                    if fn_name != '__init__':
-                        continue
-            fn_obj = getattr(obj, fn_name)
-            # if the function is callable, include it
-            if callable(fn_obj):
-                functions.append(fn_name)
+        functions = sorted(list(set(functions)))
 
-        text_derived_fns = cls.parse_functions_from_module_text()
-    
-        functions = sorted(list(set(functions + text_derived_fns)))
-            
-        if search != None:
-            functions = [f for f in functions if search in f]
         return functions
     
     @classmethod
@@ -2292,22 +2270,7 @@ class c:
     def does_module_conflict(cls, obj):
         return len(cls.get_conflict_functions(obj)) > 0
     
-    @classmethod
-    def parse_functions_from_module_text(cls, obj=None, splitter_options = ["   def " , "    def "]):
-        # reutrn only functions in this class
-        import inspect
-        obj = obj or cls
-        text = inspect.getsource(obj)
-        functions = []
-        for splitter in splitter_options:
-            for line in text.split('\n'):
-                if f'"{splitter}"' in line:
-                    continue
-                if line.startswith(splitter):
-                    functions += [line.split(splitter)[1].split('(')[0]]
-
-        return functions
-
+ 
     def n_fns(self, search = None):
         return len(self.fns(search=search))
     
@@ -2326,6 +2289,27 @@ class c:
     def is_fn_self(self, fn):
         fn = self.resolve_fn(fn)
         return hasattr(fn, '__self__') and fn.__self__ == self
+    
+
+    @classmethod
+    def exists(cls, path:str):
+        return os.path.exists(c.resolve_path(path))
+    @classmethod
+    def is_fn(cls, fn, splitters = [':', '/', '.']):
+        try:
+            if hasattr(cls, fn):
+                fn = getattr(cls, fn)
+            elif c.object_exists(fn):
+                fn = c.obj(fn)
+            elif any([s in fn for s in splitters]):
+                splitter = [s for s in splitters if s in fn][0]
+                module = splitter.join(fn.split(splitter)[:-1])
+                fn = fn.split(splitter)[-1]
+                fn = getattr(c.get_module(module), fn)
+        except Exception as e:
+            print('Error in is_fn:', e)
+            return False
+        return callable(fn)
 
     @classmethod
     def get_fn(cls, fn:str, init_kwargs = None):
@@ -2645,7 +2629,7 @@ class c:
 
 
     @classmethod
-    def path2simple(cls,  
+    def path2name(cls,  
                     path:str, 
                     tree = None,  
                     ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules',
@@ -2716,15 +2700,21 @@ class c:
         simple_path = name_map.get(simple_path, simple_path)
         return simple_path
 
+
+
+
     @classmethod
-    def find_classes(cls, path='./',  working=False):
+    def find_classes(cls, path='./',  working=False, depth=8):
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
-            generator = cls.glob(path+'/**/**.py', recursive=True)
-            for p in generator:
-                if p.endswith('.py'):
-                    p_classes =  cls.find_classes(p )
+            if depth == 0:
+                return []
+            for p in c.ls(path):
+                if os.path.isdir(p):
+                    classes += cls.find_classes(p, depth=depth-1)
+                elif p.endswith('.py'):
+                    p_classes =  cls.find_classes(p)
                     if working:
                         for class_path in p_classes:
                             try:
@@ -2863,8 +2853,8 @@ class c:
         return [c for c in fns]
     
     @classmethod
-    def find_objects(cls, path:str = './', search=None, working=False, **kwargs):
-        classes = cls.find_classes(path, working=working)
+    def find_objects(cls, path:str = './', depth=10, search=None, working=False, **kwargs):
+        classes = cls.find_classes(path, working=working, depth=depth)
         functions = cls.find_functions(path, working=working)
 
         if search != None:
@@ -2874,7 +2864,7 @@ class c:
         return object_paths
     objs = search =  find_objects
     @classmethod
-    def simple2objectpath(cls, 
+    def name2objectpath(cls, 
                           simple_path:str,
                            cactch_exception = False, 
                            **kwargs) -> str:
@@ -2884,9 +2874,9 @@ class c:
         return classes[-1]
 
     @classmethod
-    def simple2object(cls, path:str = None, **kwargs) -> str:
+    def name2object(cls, path:str = None, **kwargs) -> str:
         path = path or 'module'
-        path =  c.simple2objectpath(path, **kwargs)
+        path =  c.name2objectpath(path, **kwargs)
         try:
             return cls.import_object(path)
         except:
@@ -3030,31 +3020,30 @@ class c:
         return path
 
     @classmethod
-    def local_modules(cls, search=None):
-        object_paths = cls.find_classes(cls.pwd())
+    def local_modules(cls, search=None, depth=2, **kwargs):
+        object_paths = cls.find_classes(cls.pwd(), depth=depth)
         object_paths = cls.simplify_object_paths(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
     @classmethod
-    def lib_tree(cls):
-        return c.get_tree(cls.libpath)
+    def lib_tree(cls, depth=10, **kwargs):
+        return c.get_tree(cls.libpath, depth=depth, **kwargs)
     @classmethod
-    def local_tree(cls ):
-        return cls.get_tree(cls.pwd())
+    def local_tree(cls , depth=4, **kwargs):
+        return c.get_tree(cls.pwd(), depth=depth, **kwargs)
     
     @classmethod
-    def get_tree(cls, path, max_age=60, update=False):
+    def get_tree(cls, path, depth = 10, max_age=60, update=False):
         cache_path = 'tree/'+path.replace('/', '_')
         tree = c.get(cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            class_paths = cls.find_classes(path)
+            c.print('Building tree', color='blue')
+            class_paths = cls.find_classes(path, depth=depth)
             simple_paths = cls.simplify_object_paths(class_paths) 
             tree = dict(zip(simple_paths, class_paths))
             c.put(cache_path, tree)
         return tree
-        
-    
     
 
     @classmethod
@@ -3064,19 +3053,25 @@ class c:
                    verbose = False,
                    **_kwargs
                    ) -> str:
+        
         og_path = path
         path = path or 'module'
         t0 = c.time()
-        path = c.shortcuts.get(path, path)
+        og_path = path
         if path in c.module_cache and cache:
             module = c.module_cache[path]
         else:
             if path in ['module', 'c']:
                 module =  c
             else:
+
                 tree = c.tree()
+                path = c.shortcuts.get(path, path)
                 path = tree.get(path, path)
-                module = c.import_object(path)
+                try:
+                    module = c.import_object(path)
+                except Exception as e:
+                    raise ValueError(f'Error in importing module {path} {e}')
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(c.time() - t0, 2)
@@ -3085,25 +3080,18 @@ class c:
 
     get_module = module
     
-    
     _tree = None
     @classmethod
-    def tree(cls, search=None, cache=True, **kwargs):
+    def tree(cls, search=None, cache=True, update=False, max_age=60, **kwargs):
         if cls._tree != None and cache:
             return cls._tree
-        local_tree = c.local_tree()
-        lib_tree = c.lib_tree()
+        local_tree = c.local_tree(max_age=max_age, update=update)
+        lib_tree = c.lib_tree(max_age=max_age, update=update)
         tree = {**local_tree, **lib_tree}
         if cache:
             cls._tree = tree
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
-        shortcuts = c.shortcuts
-        for k,v in tree.items():
-            if k in shortcuts:
-                tree[shortcuts[k]] = v
-            
-
         return tree
     
     def overlapping_modules(self, search:str=None, **kwargs):
@@ -3112,8 +3100,8 @@ class c:
         return [m for m in local_modules if m in lib_modules]
     
     @classmethod
-    def lib_modules(cls, search=None):
-        object_paths = cls.find_classes(cls.libpath )
+    def lib_modules(cls, search=None, depth=10000, **kwargs):
+        object_paths = cls.find_classes(cls.libpath, depth=depth )
         object_paths = cls.simplify_object_paths(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
@@ -3122,7 +3110,7 @@ class c:
     @classmethod
     def find_modules(cls, search=None, **kwargs):
         lib_modules = cls.lib_modules(search=search)
-        local_modules = cls.local_modules(search=search)
+        local_modules = cls.local_modules(search=search, depth=4)
         return sorted(list(set(local_modules + lib_modules)))
 
     _modules = None
@@ -3136,17 +3124,22 @@ class c:
         return modules
     get_modules = modules
 
-    def walk(self, path='./', depth=2):
+    @classmethod
+    def walk(cls, path='./', depth=2):
         results = []
         if depth == 0:
             return results
         path = c.abspath(path)
         # break when it gets past 3 depths from the path file
+    
         for subpath in c.ls(path):
-            if os.path.isdir(subpath):
-                results += self.walk(subpath, depth=depth-1)
-            else:
-                results += [subpath]
+            try:
+                if os.path.isdir(subpath):
+                    results += cls.walk(subpath, depth=depth-1)
+                else:
+                    results += [subpath]
+            except Exception as e:
+                pass
             
         return results
 

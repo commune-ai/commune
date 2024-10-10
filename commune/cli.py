@@ -15,13 +15,16 @@ class cli(c.Module):
                 args = None,
                 base = 'module',
                 fn_splitters = [':', '/', '//', '::'],
+                base_functions = ["key", "code", "schema", "fn_schema", "help", "fn_info"],
                 helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info'],
                 sep = '--'):
         
         self.helper_fns = helper_fns
         self.fn_splitters = fn_splitters
         self.sep = sep
-        self.base_module = c.module(base)()
+        self.base_class = c.module(base)
+        self.base_module = self.base_class()
+        self.base_functions = base_functions
         self.forward(args)
 
     def forward(self, argv=None):
@@ -44,15 +47,15 @@ class cli(c.Module):
         
         # any of the --flags are init kwargs
         fn = argv.pop(0)
-        base_attributes = dir(self.base_module)
-        if fn in base_attributes:
+        if fn in dir(self.base_class):
+            fn_obj = getattr(self.base_class, fn)
+        elif fn in dir(self.base_module):
             fn_obj = getattr(self.base_module, fn)
         else: 
             fs = [fs for fs in self.fn_splitters if fs in fn]
             assert len(fs) == 1, f'Function splitter not found in {fn}'
             print(fn)
             module, fn = fn.split(fs[0])
-
             if c.module_exists(module):
                 # module = c.shortcuts.get(module, module)
                 module = c.module(module)
@@ -91,14 +94,10 @@ class cli(c.Module):
         return output
     
         # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
-    
-
 
     @classmethod
     def is_property(cls, obj):
         return isinstance(obj, property)
-        
-
 
     @classmethod
     def parse_args(cls, argv = None):

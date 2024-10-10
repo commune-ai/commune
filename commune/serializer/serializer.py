@@ -93,8 +93,7 @@ class Serializer(c.Module):
     def serializer_map(self):
         type_path = self.dirpath()
         module_paths = c.find_objects(type_path)
-        return {p.split('.')[-2]: c.obj(p)() for p in module_paths}
-    
+        return {p.split('.')[-2]: c.import_object(p)() for p in module_paths}
 
     def types(self):
         return list(self.serializer_map().keys())

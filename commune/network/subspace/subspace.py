@@ -50,24 +50,22 @@ class Subspace(c.Module):
     blocks_per_day = 24*60*60/block_time
 
     endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
-
+    network : str = 'main' # og network
     url_map = {
         "main": [ "api.communeai.net"],
         "test": [ "testnet.api.communeai.net"]
     }
-
     wait_for_finalization: bool
     _num_connections: int
     connections_queue: queue.Queue[SubstrateInterface]
     url: str
-    network : str = 'main'
 
     def __init__(
         self,
         network=network,
         url: str = None,
         mode = 'wss',
-        num_connections: int = 2,
+        num_connections: int = 1,
         wait_for_finalization: bool = False,
         test = False,
         ws_options = {},
@@ -86,6 +84,12 @@ class Subspace(c.Module):
                          ws_options=ws_options,
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
+        
+
+    @classmethod
+    def switch_network(cls):
+        filepath = cls.filepath()
+        
 
 
     def set_network(self, 
@@ -117,7 +121,7 @@ class Subspace(c.Module):
         self.wait_for_finalization = wait_for_finalization
         self.network = network
 
-        c.print(f'Network(name={self.network} url={self.url} conns={self.num_connections} latency={self.connection_latency})', color='blue') 
+        c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
 
     def get_url(self, mode='wss',  **kwargs):
         prefix = mode + '://'
@@ -1068,8 +1072,6 @@ class Subspace(c.Module):
               enough balance.
             ChainTransactionError: If the transaction fails.
         """
-
-        dest = self.resolve_key_address(dest)
         params = {"dest": dest, "value": self.to_nanos(amount)}
 
         return self.compose_call( module="Balances", fn="transfer_keep_alive", params=params, key=key)
@@ -3083,3 +3085,17 @@ class Subspace(c.Module):
         [transformed[k1].append((k2, v)) for (k1, k2), v in stake_storage.items()]
 
         return dict(transformed)
+
+    def get_evm_address(self, key_address: Keypair) -> str:
+        """
+        Retrieves the EVM address associated with a specific keypair.
+        """
+        key_address = self.resolve_key_address(key_address)
+
+        evm_address = self.query(
+            name='AccountCodes',
+            module='EVM',
+            params=[]
+            )
+
+        return evm_address
