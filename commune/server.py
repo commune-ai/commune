@@ -24,6 +24,13 @@ class ServerMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
+
+
+class User(c.Module):
+    
+    def user_path(self, address):
+        return self.resolve_path(f'{self.module.user_path}/{address}')
+
 class Server(c.Module):
     network : str = 'local'
 
@@ -203,8 +210,6 @@ class Server(c.Module):
         rates['stake2rate'] = rates['stake2rate'] * module.fn2cost.get(fn, 1)
         return min((stake / rates['stake2rate']), rates['max'])
 
-    def user_path(self, address):
-        return self.resolve_path(f'{self.module.user_path}/{address}')
 
     def user2count(self):
         user2count = {}
@@ -250,11 +255,6 @@ class Server(c.Module):
         for user in self.users():
             print('Checking', user)
             self.chekcer_user_data()
-
-        
-
-    
-    
 
     def extract_timestamp(self, x):
         try:

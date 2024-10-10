@@ -227,17 +227,14 @@ class Key(c.Module):
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
 
-
         if isinstance(key_json, str):
             key_json = c.jload(key_json)
-
 
         if json:
             key_json['path'] = path
             return key_json
         else:
             return cls.from_json(key_json)
-        
         
         
     @classmethod

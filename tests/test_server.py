@@ -45,8 +45,8 @@ def test_serving_with_different_key(module = 'module', timeout=10):
 
 
 def test_namespace():
-    cls = c.module('namespace')
     network = 'test_namespace'
+    cls = c.module('namespace')()
     cls.rm_namespace(network)
     namespace = cls.namespace(network=network)
     assert cls.namespace(network=network) == {}, f'Namespace not empty., {namespace}'

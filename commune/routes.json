@@ -137,7 +137,6 @@
     ],
     
     "subspace": [
-        "update_subnet", 
         "update_module",
         "staketo", 
         "get_staketo", 

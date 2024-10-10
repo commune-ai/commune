@@ -9,3 +9,5 @@ from functools import  partial
 #     globals()[f] = getattr(Module, f)
 c = Block = Lego = M = Module  # alias c.Module as c.Block, c.Lego, c.M
 c.add_to_globals(globals())
+# override key function with file key in commune/key.py
+key = c.get_key

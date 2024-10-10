@@ -88,7 +88,7 @@ def submit(
     init_kwargs = c.copy(init_kwargs)
     init_args = c.copy(init_args)
     if module == None:
-        module = c.get_module('module')
+        module = c.Module
     else:
         module = module(module)
     if isinstance(fn, str):
