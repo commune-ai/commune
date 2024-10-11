@@ -1980,7 +1980,7 @@ class Subspace(c.Module):
         path = f'{self.network}/subnet_state/{netuid}'
         state = self.get(path, max_age=max_age, update=update)
         if state == None:
-            c.log(f"subnet_state: {path} not found")
+            c.print(f"subnet_state: {path} not found")
             futures = [c.submit(self.subnet_params, kwargs=dict(netuid=netuid, max_age=max_age, update=update)), 
                         c.submit(self.modules, kwargs=dict(netuid=netuid, max_age=max_age, update=update))]
             params, modules = c.wait(futures)
@@ -1992,7 +1992,7 @@ class Subspace(c.Module):
     def sync_loop(self, interval=30, max_futures=10):
         futures = []
         while True:
-            c.sleep(interval)
+            sleep(interval)
             futures += [c.submit(self.sync)]
             if len(futures) > max_futures:
                 c.wait(futures)
@@ -2925,7 +2925,7 @@ class Subspace(c.Module):
                                 'LastUpdate',
                                 'Metadata'],
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
-                    num_connections = 8,
+                    num_connections = 4,
                     default_module = {
                         'Weights': [], 
                         'Incentive': 0,
