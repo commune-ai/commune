@@ -11,5 +11,6 @@ class PandasSerializer:
     def deserialize(self, data: bytes) -> 'pd.DataFrame':
         import pandas as pd
         data = pd.DataFrame.from_dict(json.loads(data))
+        print(data)
         return data
     

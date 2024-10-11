@@ -9,42 +9,12 @@ import uvicorn
 import os
 import asyncio
 
-class ServerMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_bytes: int):
-        super().__init__(app)
-        self.max_bytes = max_bytes
-    async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get('content-length')
-        if content_length:
-            if int(content_length) > self.max_bytes:
-                return JSONResponse(status_code=413, content={"error": "Request too large"})
-        body = await request.body()
-        if len(body) > self.max_bytes:
-            return JSONResponse(status_code=413, content={"error": "Request too large"})
-        response = await call_next(request)
-        return response
 
 
-
-class User(c.Module):
-    
-    def user_path(self, address):
-        return self.resolve_path(f'{self.module.user_path}/{address}')
 
 class Server(c.Module):
     network : str = 'local'
 
-    user_functions = [ 'user_count',  
-                        'users_path', 
-                        'user_paths',
-                        'user_data',
-                        'user2count', 
-                        'user_path2latency',
-                        'user_path2timestamp',
-                        'remove_user_data',
-                        'add_user_rate_limit',
-                        'users'
-                        ]
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
@@ -65,19 +35,24 @@ class Server(c.Module):
         users_path = None, # the path to store the data
         fn2cost = None, # the cost of the function
         create_key_if_not_exists = True, # create the key if it does not exist
+        user_functions = [ 'user_count',  
+                            'user_paths',
+                            'user_data',
+                            'user2count', 
+                            'user_path2latency',
+                            'user_path2timestamp',
+                            'remove_user_data',
+                            'users'
+                            ],
         **kwargs,
         ) -> 'Server':
         module = module or 'module'
         if isinstance(module, str):
             name = name or module
             module = c.module(module)()
-        self.max_request_staleness = max_request_staleness
         self.network = network
         self.period = period
-        self.users_path = users_path or self.resolve_path(f'{name}/users')
         self.serializer = c.module('serializer')()
-        self.max_network_staleness = max_network_staleness
-
         module.name = module.server_name = name
         module.fn2cost = module.server_fn2cost = fn2cost or {}
         module.port = module.server_port =  port if port not in ['None', None] else c.free_port()
@@ -87,8 +62,11 @@ class Server(c.Module):
         module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
         module.info  =  module.server_info =  self.get_server_info(module)
         module.network_path = self.resolve_path(f'{self.network}/state.json')
-        module.users_path = self.users_path
-        for fn in self.user_functions:
+        module.users_path = users_path or self.resolve_path(f'{name}/users')
+        module.max_network_staleness = max_network_staleness
+        module.max_request_staleness = max_request_staleness
+        module.user_functions = user_functions
+        for fn in module.user_functions:
             setattr(module, fn, getattr(self, fn))
         self.module = module
 
@@ -96,7 +74,8 @@ class Server(c.Module):
         c.thread(self.sync_loop)
         self.loop = asyncio.get_event_loop()
         app = FastAPI()  
-        app.add_middleware(ServerMiddleware, max_bytes=max_bytes)    
+        
+        app.add_middleware(self.Middleware, max_bytes=max_bytes)    
         app.add_middleware(CORSMiddleware, 
                            allow_origins=allow_origins, 
                            allow_credentials=allow_credentials,
@@ -119,6 +98,9 @@ class Server(c.Module):
             c.print(c.serve(module=module, name = module + '::' + str(_),  **kwargs))
 
         return {'success':True, 'message':f'Served {n} servers'} 
+
+
+
 
     @classmethod
     def serve(cls, 
@@ -182,15 +164,23 @@ class Server(c.Module):
         return c.rm(self.module.user_path)
     
     user_rate_limit = {}
-    def add_user_rate_limit(self, address, rate_limit):
+    def get_rate_limit_path(self, address):
+        return self.module.users_path + f'/rate_limit.json'
+    def add_rate_limit(self, key, rate_limit):
+        
         self.user_rate_limit[address] = rate_limit
         return self.user_rate_limit[address]
-        
+    
+
         
     def rate_limit(self, 
                    address:str, 
                    fn = 'info',
-                    multipliers = {'stake': 1, 'stake_to': 1,'stake_from': 1 },
+                   multipliers = {
+                                   'stake': 1, 
+                                   'stake_to': 1,
+                                   'stake_from': 1 
+                                   },
                     module=None, 
                     rates = {'max': 10, 
                              'local': 1000,
@@ -226,7 +216,7 @@ class Server(c.Module):
             yield c.get(user_path)
         
     def user_path(self, address):
-        return self.users_path + '/' + address
+        return self.module.users_path + '/' + address
 
     def user_count(self, address):
         self.check_user_data(address)
@@ -277,11 +267,12 @@ class Server(c.Module):
             except Exception as e:
                 return c.detailed_error(e)
         color = c.random_color()
+        module = self.module
         headers = dict(request.headers.items())
         address = headers.get('key', headers.get('address', None))
         assert address, 'No key or address in headers'
         request_staleness = c.timestamp() - float(headers['timestamp'])
-        assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
+        assert  request_staleness < module.max_request_staleness, f"Request is too old ({request_staleness}s > {module.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
         request = {'data': data, 'headers': headers}
@@ -329,7 +320,7 @@ class Server(c.Module):
             output =  self.serializer.serialize(result)
 
         user_data = {
-            'module': self.module.server_name,
+            'module': module.name,
             'fn': fn,
             'input': data, # the data of the request
             'output': output, # the response
@@ -341,7 +332,6 @@ class Server(c.Module):
             'server_signature': server_signature, # the signature of the server
             'cost': self.module.fn2cost.get(fn, 1), # the cost of the function
         }
-        
         
         self.save_user_data(user_data)
         
@@ -359,7 +349,7 @@ class Server(c.Module):
             except Exception as e:
                 r = c.detailed_error(e)
                 c.print('Error in sync_loop -->', r, color='red')
-            c.sleep(self.max_network_staleness)
+            c.sleep(self.module.max_network_staleness)
 
     def sync(self, 
             update=False,
@@ -368,9 +358,9 @@ class Server(c.Module):
         t0 = c.time()
         if hasattr(self, 'state'):
             latency = c.time() - self.state['timestamp']
-            if latency < self.max_network_staleness:
+            if latency < self.module.max_network_staleness:
                 return {'msg': 'state is fresh'}
-        max_age = self.max_network_staleness
+        max_age = self.module.max_network_staleness
         network_path = self.module.network_path
         state = self.get(network_path, {}, max_age=max_age, updpate=update)
         is_valid_state = lambda x: all([k in x for k in state_keys])
@@ -533,5 +523,21 @@ class Server(c.Module):
         return decorator_fn
     
     serverfn = endpoint
+
+
+    class Middleware(BaseHTTPMiddleware):
+                def __init__(self, app, max_bytes: int):
+                    super().__init__(app)
+                    self.max_bytes = max_bytes
+                async def dispatch(self, request: Request, call_next):
+                    content_length = request.headers.get('content-length')
+                    if content_length:
+                        if int(content_length) > self.max_bytes:
+                            return JSONResponse(status_code=413, content={"error": "Request too large"})
+                    body = await request.body()
+                    if len(body) > self.max_bytes:
+                        return JSONResponse(status_code=413, content={"error": "Request too large"})
+                    response = await call_next(request)
+                    return response
 
 Server.run(__name__)
