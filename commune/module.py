@@ -524,25 +524,8 @@ class c:
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
     @classmethod
-    def route_fns(cls):
+    def fn2route(cls):
         routes = cls.get_routes()
-        route_fns = []
-        for module, fns in routes.items():
-            for fn in fns:
-                if isinstance(fn, dict):
-                    fn = fn['to']
-                elif isinstance(fn, list):
-                    fn = fn[1]
-                elif isinstance(fn, str):
-                    fn
-                else:
-                    raise ValueError(f'Invalid route {fn}')
-                route_fns.append(fn)
-        return route_fns
-    
-
-    def fn2route(self):
-        routes = self.get_routes()
         fn2route = {}
         for module, fns in routes.items():
             for fn in fns:
@@ -555,6 +538,14 @@ class c:
                 else:
                     raise ValueError(f'Invalid route {fn}')
                 fn2route[fn] = module
+        return fn2route
+            
+    @classmethod
+    def fn2routepath(cls):
+        routes = cls.get_routes()
+        fn2route = {}
+        for fn, module in cls.fn2route().items():
+            fn2route[fn] = module + '.' + fn
         return fn2route
             
 
@@ -858,6 +849,7 @@ class c:
         path = cls.resolve_path(path)
         exists =  os.path.exists(path)
         return exists
+    
     file_exists = path_exists
 
     @classmethod
@@ -1157,34 +1149,16 @@ class c:
         return fn_code_map
     
     @classmethod
-    def fn_code(cls,fn:str, 
-                detail:bool=False, 
-                seperator: str = '/'
-                ) -> str:
+    def fn_code(cls,fn:str, **kwargs) -> str:
         '''
         Returns the code of a function
         '''
         try:
             fn = cls.get_fn(fn)
             code_text = inspect.getsource(fn)
-            text_lines = code_text.split('\n')
-            if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
-                text_lines.pop(0)
-            fn_code = '\n'.join([l[len('    '):] for l in code_text.split('\n')])
-            assert 'def' in text_lines[0], 'Function not found in code'
-
-            if detail:
-                start_line = cls.find_code_line(search=text_lines[0])
-                fn_code =  {
-                    'text': fn_code,
-                    'start_line': start_line ,
-                    'end_line':  start_line + len(text_lines)
-                }
         except Exception as e:
-            print(f'Error: {e}')
-            fn_code = None
-                    
-        return fn_code
+            print(f'Error in getting fn_code: {e}')                    
+        return code_text
     
     @classmethod
     def fn_hash(cls,fn:str = 'subspace/ls', detail:bool=False,  seperator: str = '/') -> str:
@@ -1300,15 +1274,18 @@ class c:
             code = cls.code()
         return len(code.split('\n'))
 
+
+    @classmethod
+    def is_fn(cls, fn:str):
+        return '/' in str(fn) or hasattr(cls, str(fn)) or (c.object_exists(fn) and callable(c.obj(fn)))
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
-        if '/' in str(module) or module in cls.fns():
+        if cls.is_fn(module):
             return cls.fn_code(module)
         module = cls.resolve_object(module)
         text =  cls.get_text( module.filepath(), *args, **kwargs)
         if search != None:
-            find_lines = cls.find_lines(text=text, search=search)
-            return find_lines
+            return cls.find_lines(text=text, search=search)
         return text
     pycode = code
     @classmethod
@@ -1616,11 +1593,18 @@ class c:
             elif '/' in fn:
                 module, fn = fn.split('/')
                 cls = cls.get_module(module)
-            try:
-                fn =  getattr(cls, fn)
-            except:
-                init_kwargs = init_kwargs or {}
-                fn = getattr(cls(**init_kwargs), fn)
+    
+            fn2routepath = cls.fn2routepath()
+            if fn in fn2routepath:
+                fn = fn2routepath[fn]
+                fn = c.obj(fn)
+            else:
+            
+                try:
+                    fn =  getattr(cls, fn)
+                except:
+                    init_kwargs = init_kwargs or {}
+                    fn = getattr(cls(**init_kwargs), fn)
 
         if callable(fn) or isinstance(fn, property):
             pass
@@ -2043,15 +2027,13 @@ class c:
         return path.replace('__init__.', '.')
     
     @classmethod
-    def objecpath2path(cls, objectpath:str, **kwargs) -> str:
-        options  = [cls.libpath, cls.pwd()]
+    def objectpath2path(cls, objectpath:str, **kwargs) -> str:
+        options  = [c.libpath, c.pwd()]
         for option in options:
             path = option + '/' + objectpath.replace('.', '/') + '.py'
             if os.path.exists(path):
                 return path
         raise ValueError(f'Path not found for objectpath {objectpath}')
-
-        
 
     @classmethod
     def find_functions(cls, path = './', working=False):
@@ -2166,10 +2148,6 @@ class c:
         except:
             return False
         
-    def get_module_objects(self, path:str, **kwargs):
-        if self.can_import_module(path):
-            return self.find_objects(path.replace('.', '/'), **kwargs)
-        return self.find_objects(path, **kwargs)
     @classmethod
     def can_import_object(cls, module:str) -> bool:
         '''
@@ -2295,12 +2273,7 @@ class c:
         return round_sig(x, sig=sig, small_value=small_value)
 
     @classmethod
-    def module(cls, 
-                   path:str = 'module',  
-                   cache=True,
-                   verbose = False,
-                   **_kwargs
-                   ) -> str:
+    def module(cls, path:str = 'module',  cache=True,verbose = False, **_kwargs ) -> str:
         
         og_path = path
         path = path or 'module'
@@ -2423,8 +2396,6 @@ class c:
                 return True
         return False
     
-
-
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
         return [text for text in text_list if filter_text in text]
