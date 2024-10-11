@@ -1307,9 +1307,14 @@ def get_available_ports(port_range: List[int] = None , ip:str =None) -> int:
     return available_ports
 available_ports = get_available_ports
 
-def ip( max_age=None, update:bool = False, **kwargs) -> str:
-   
-    return  external_ip()
+def ip(max_age=10, update:bool = False, **kwargs) -> str:
+    import commune as c
+    path = 'ip'
+    ip = c.get(path, None, max_age=max_age, update=update)
+    if ip == None:
+        ip = external_ip()
+        c.put(path, ip)
+    return ip
 
 def resolve_ip(ip=None, external:bool=True) -> str:
     if ip == None:

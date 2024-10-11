@@ -64,9 +64,9 @@ def hour_rounder(t):
 def timestamp() -> float:
     return time()
 
-def sleep(seconds:float) -> None:
+def c.sleep(seconds:float) -> None:
     import time
-    time.sleep(seconds)
+    time.c.sleep(seconds)
     return None
 
 def datetime():

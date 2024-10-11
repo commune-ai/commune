@@ -85,7 +85,7 @@ class ThreadPoolExecutor(c.Module):
         if self.work_queue.full():
             if wait:
                 while self.work_queue.full():
-                    time.sleep(0.1)
+                    time.c.sleep(0.1)
             else:
                 return {'success': False, 'msg':"cannot schedule new futures after maxsize exceeded"}
 

@@ -90,8 +90,6 @@ class Subspace(c.Module):
     def switch_network(cls):
         filepath = cls.filepath()
         
-
-
     def set_network(self, 
                         network=None,
                         mode = 'wss',
@@ -106,7 +104,6 @@ class Subspace(c.Module):
         if test:
             network = 'test'
         network = network or self.network
-
         if timeout != None:
             ws_options["timeout"] = timeout
 
@@ -2951,6 +2948,7 @@ class Subspace(c.Module):
         modules = self.get(path, None, max_age=max_age, update=update)
 
         if modules == None:
+            self.set_network(num_connections=num_connections)
             future2feature = {}
             params = [netuid] if netuid != None else []
             for feature in features:

@@ -231,7 +231,7 @@ class Vali(c.Module):
         # RESOLVE THE VOTING NETWORKS
         if 'local' in network:
             # local network does not need to be updated as it is atomically updated
-            namespace = c.get_namespace(search=search, update=1, max_age=max_age)
+            namespace = c.get_namespace(search=search, max_age=max_age)
         elif 'subspace' in network:
             # the network is a voting network
             self.subspace = c.module('subspace')(network=network, netuid=netuid)

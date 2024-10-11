@@ -2,7 +2,7 @@ import commune as c
 import streamlit as st
 from typing import *
 import json 
-from commune.remote.remote import Remote
+Remote = c.module('remote')
 class App(c.Module):
     def __init__(self, **kwargs):
         remote = Remote()

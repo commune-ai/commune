@@ -6,10 +6,10 @@
         "from_module"
     ],
     "env": [
-            "envs", 
-            "env2cmd", 
-            "create_env", 
-            "env2path"
+        "envs", 
+        "env2cmd", 
+        "create_env", 
+        "env2path"
         ],
     "cli": [
         "parse_args"
@@ -177,13 +177,6 @@
         "models"
     ],
     "chat": ["ask" ],
-    "commune.utils.types": [
-        "str2bytes",
-        "python2str",
-        "str2python",
-        "bytes2str",
-        "detailed_error"
-    ],
     "commune.utils.os": [
         "cmd",
         "free_port",
@@ -213,5 +206,33 @@
         "submit",
         "wait",
         "as_completed"
+    ],
+
+    "commune.utils.misc": [
+        "random_float",
+        "time", 
+        "timestamp",
+        "resolve_extension", 
+        "jsonable", 
+        "sizeof", 
+        "type_str", 
+        "copy", 
+        "dict2munch", 
+        "shuffle", 
+        "locals2kwargs", 
+        "is_address",
+        "hash",
+        "str2bytes",
+        "python2str",
+        "str2python",
+        "bytes2str",
+        "detailed_error", 
+        "random_color", 
+        "round", 
+        "is_int",
+        "is_float", 
+        "df", 
+        "sleep", 
+        "choice"
     ]
 }

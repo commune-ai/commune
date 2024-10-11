@@ -157,7 +157,7 @@ class Network(c.Module):
         return {'success': True, 'msg': 'Servers checked.'}
 
     
-    def add_server(self, address:str, name=None, network:str = 'local',timeout:int=4, **kwargs):
+    def add_server(self, address:str, network:str = 'local', name=None,timeout:int=4, **kwargs):
         """
         Add a server to the namespace.
         """

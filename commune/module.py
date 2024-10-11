@@ -181,6 +181,13 @@ class c:
         obj = obj or cls
         return bool(c.is_module(obj) and obj.module_class() == cls.root_module_class)
 
+
+    def print( *text:str,  **kwargs):
+        return c.obj('commune.utils.misc.print')(*text, **kwargs)
+
+    def is_error( *text:str,  **kwargs):
+        return c.obj('commune.utils.misc.is_error')(*text, **kwargs)
+
     @classmethod
     def processes(self, search=None,  **kwargs) -> List[str]:
         output_string = c.cmd('pm2 status', verbose=False)
@@ -203,7 +210,6 @@ class c:
     
     @classmethod
     def serialize(cls, *args, **kwargs):
-        
         return c.module('serializer')().serialize(*args, **kwargs)
     @classmethod
     def deserialize(cls, *args, **kwargs):
@@ -215,13 +221,21 @@ class c:
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
-        if isinstance(obj, str):
-            obj = c.module(obj, **kwargs)
-        if cls._obj != None:
-            return cls._obj
+        if obj == None:
+            if cls._obj != None:
+                return cls._obj
+            else:
+                obj = cls
         else:
-            return obj or cls
-                        
+            if isinstance(obj, str):
+                obj =  c.module(obj, **kwargs)
+        return obj
+    
+    @classmethod
+    def pwd(cls):
+        pwd = os.getcwd() # the current wor king directory from the process starts 
+        return pwd
+                            
     @classmethod
     def argparse(cls):
         parser = argparse.ArgumentParser(description='Argparse for the module')
@@ -265,13 +279,6 @@ class c:
             return getattr(module, args.function)(*args.args, **args.kwargs)     
         
     @classmethod
-    def get_num_files(cls, directory):
-        num_files = 0
-        for root, _, files in os.walk(directory):
-            num_files += len(files)
-        return num_files
-
-    @classmethod
     def commit_hash(cls, libpath:str = None):
         if libpath == None:
             libpath = c.libpath
@@ -291,13 +298,7 @@ class c:
         return fn(*args, **kwargs)
     
     fn = module_fn
-
-    @classmethod
-    def info_hash(self):
-        return c.commit_hash()
-
-
-
+    
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
     def setattr(self, k, v):
@@ -369,18 +370,23 @@ class c:
         return files
     
     @classmethod
-    def encrypt(cls,data: Union[str, bytes], key: str = None,  password: str = None, **kwargs ) -> bytes:
+    def encrypt(cls,data: Union[str, bytes], password: str = None, key: str = None,  **kwargs ) -> bytes:
         return c.get_key(key).encrypt(data, password=password,**kwargs)
 
     @classmethod
-    def decrypt(cls, 
-                data: Union[str, bytes],
-                key: str = None, 
-                password : str = None,
-                **kwargs) -> bytes:
-        key = c.get_key(key)
-        return key.decrypt(data, password=password, **kwargs)
+    def decrypt(cls, data: Any,  password : str = None, key: str = None, **kwargs) -> bytes:
+        return c.get_key(key).decrypt(data, password=password)
     
+    
+    @classmethod
+    def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
+        return c.get_key(key).sign(data, **kwargs)
+    
+    @classmethod
+    def verify(cls, auth, key=None, **kwargs ) -> bool:  
+        return c.get_key(key).verify(auth, **kwargs)
+
+
     @classmethod
     def type_str(cls, x):
         return type(x).__name__
@@ -396,7 +402,6 @@ class c:
             keys = [c.get_key_address(k) for k in keys]
         return keys
 
-    @classmethod
     def set_key(self, key:str, **kwargs) -> None:
         self.key = self.resolve_key(key)
         return self.key
@@ -410,13 +415,6 @@ class c:
             key = c.key(self.module_name())
         assert hasattr(key, 'ss58_address'), f'Key {key} does not have a sign method'
         return key
-    
-    def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
-        return self.resolve_key(key).sign(data, **kwargs)
-    
-    @classmethod
-    def verify(cls, auth, key=None, **kwargs ) -> bool:  
-        return c.get_key(key).verify(auth, **kwargs)
 
     @classmethod
     def is_pwd(cls, module:str = None):
@@ -450,24 +448,6 @@ class c:
     def init_module(self,*args, **kwargs):
         return self.set_config(*args, **kwargs)
 
-    # def info(self , **kwargs
-    #          ) -> Dict[str, Any]:
-    #     '''
-    #     hey, whadup hey how is it going
-    #     '''
-    #     print(';FAMMMMM')
-    #     info = self.schema()
-    #     info['name'] = self.server_name or self.module_name()
-    #     info['address'] = self.address
-    #     info['key'] = self.key.ss58_address
-    #     return info
-    
-    @classmethod
-    def is_public(cls, fn):
-        if not cls.is_endpoint(fn):
-            return False
-        return getattr(fn, '__metadata__')['public']
-    
     def ensure_attribute(self, k, v=None):
         if not hasattr(self, k):
             setattr(self, k, v)
@@ -491,15 +471,15 @@ class c:
         utils = c.find_functions(c.root_path + '/utils')
         if search != None:
             utils = [u for u in utils if search in u]
-        return utils
+        return sorted(utils)
     
     def util_modules(self, search=None):
         return sorted(list(set([f.split('.')[-2] for f in self.utils_paths(search)])))
 
     utils = utils_paths
     @classmethod
-    def util2path(cls):
-        utils_paths = cls.utils_paths()
+    def util2path(cls, search=None):
+        utils_paths = cls.utils_paths(search=search)
         util2path = {}
         for f in utils_paths:
             util2path[f.split('.')[-1]] = f
@@ -522,6 +502,15 @@ class c:
         return {'success': True, 'message': 'added utils'}
     route_cache = None
 
+    def get_yaml( path:str=None, default={}, **kwargs) -> Dict:
+        '''f
+        Loads a yaml file
+        '''
+        import yaml
+        path = os.path.abspath(path)
+        with open(path, 'r') as file:
+            data = yaml.load(file, Loader=yaml.FullLoader)
+        return data
 
     @classmethod
     def get_routes(cls, cache=True):
@@ -629,9 +618,9 @@ class c:
                         setattr(cls, to_fn, fn_obj)
                     else: 
                         c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
-            c.print(f'ROUTE({module}/{fn} -> {fn})', verbose=verbose)
+            # print(f'ROUTE({module}/{fn} -> {fn})')
         latency = t0 - c.time()
-        c.print(f'enabled routes in {latency} seconds', verbose=verbose)
+        c.print(f'enabled routes in {latency} seconds')
         return {'success': True, 'msg': 'enabled routes'}
     
     @classmethod
@@ -661,7 +650,7 @@ class c:
                         return fn()
                     except Exception as e:
                         print(f'Error: {e}, Retrying {i}/{trials}')
-                        cls.sleep(1)
+                        cls.c.sleep(1)
                 return False
             return trial_fn
         fn2result = {}
@@ -700,303 +689,8 @@ class c:
             globals_input[f] = partial(wrapper_fn, f)
 
         return globals_input
-    
-    @classmethod
-    def critical(cls, *args, **kwargs):
-        console = cls.resolve_console()
-        return console.critical(*args, **kwargs)
-    
-    @classmethod
-    def resolve_console(cls, console = None, **kwargs):
-        if hasattr(cls,'console'):
-            return cls.console
-        import logging
-        from rich.logging import RichHandler
-        from rich.console import Console
-        logging.basicConfig( handlers=[RichHandler()])   
-            # print the line number
-        console = Console()
-        cls.console = console
-        return console
-    
-    @classmethod
-    def print(cls, *text:str, 
-              color:str=None, 
-              verbose:bool = True,
-              console: 'Console' = None,
-              flush:bool = False,
-              buffer:str = None,
-              **kwargs):
-              
-        if not verbose:
-            return 
-        if color == 'random':
-            color = cls.random_color()
-        if color:
-            kwargs['style'] = color
-        
-        if buffer != None:
-            text = [buffer] + list(text) + [buffer]
-
-        console = cls.resolve_console(console)
-        try:
-            if flush:
-                console.print(**kwargs, end='\r')
-            console.print(*text, **kwargs)
-        except Exception as e:
-            print(e)
 
 
-    @classmethod
-    def success(cls, *args, **kwargs):
-        logger = cls.resolve_logger()
-        return logger.success(*args, **kwargs)
-
-    @classmethod
-    def error(cls, *args, **kwargs):
-        logger = cls.resolve_logger()
-        return logger.error(*args, **kwargs)
-    
-    @classmethod
-    def debug(cls, *args, **kwargs):
-        logger = cls.resolve_logger()
-        return logger.debug(*args, **kwargs)
-    
-    @classmethod
-    def warning(cls, *args, **kwargs):
-        logger = cls.resolve_logger()
-        return logger.warning(*args, **kwargs)
-    @classmethod
-    def status(cls, *args, **kwargs):
-        console = cls.resolve_console()
-        return console.status(*args, **kwargs)
-    @classmethod
-    def log(cls, *args, **kwargs):
-        console = cls.resolve_console()
-        return console.log(*args, **kwargs)
-
-    ### LOGGER LAND ###
-    @classmethod
-    def resolve_logger(cls, logger = None):
-        if not hasattr(cls,'logger'):
-            from loguru import logger
-            cls.logger = logger.opt(colors=True)
-        if logger is not None:
-            cls.logger = logger
-        return cls.logger
-
-    @staticmethod
-    def echo(x):
-        return x
-
-    @classmethod
-    def check_pid(cls, pid):        
-        """ Check For the existence of a unix pid. """
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        else:
-            return True
-
-    @classmethod
-    def path_exists(cls, path:str):
-        return os.path.exists(path)
-    
-    @staticmethod
-    def get_cwd():
-        return os.getcwd()
-    
-    def go(self, path=None):
-        path = c.abspath('~/'+str(path or c.libname))
-        return c.cmd(f'code {path}')
-    
-    @staticmethod
-    def set_cwd(path:str):
-        return os.chdir(path)
-    
-
-    @classmethod
-    def stream_output(cls, process, verbose=False):
-        try:
-            modes = ['stdout', 'stderr']
-            for mode in modes:
-                pipe = getattr(process, mode)
-                if pipe == None:
-                    continue
-                for line in iter(pipe.readline, b''):
-                    line = line.decode('utf-8')
-                    if verbose:
-                        cls.print(line[:-1])
-                    yield line
-        except Exception as e:
-            print('ERROR IN STREAMING OUTPUT : ',e)
-            pass
-
-        cls.kill_process(process)
-
-    @staticmethod
-    def kill_process(process):
-        import signal
-        process_id = process.pid
-        process.stdout.close()
-        process.send_signal(signal.SIGINT)
-        process.wait()
-        return {'success': True, 'msg': 'process killed', 'pid': process_id}
-        # sys.exit(0)
-
-
-    @classmethod
-    def mv(cls, path1, path2):
-        
-        assert os.path.exists(path1), path1
-        if not os.path.isdir(path2):
-            path2_dirpath = os.path.dirname(path2)
-            if not os.path.isdir(path2_dirpath):
-                os.makedirs(path2_dirpath, exist_ok=True)
-        shutil.move(path1, path2)
-        assert os.path.exists(path2), path2
-        assert not os.path.exists(path1), path1
-        return path2
-
- 
-    @classmethod
-    def cp(cls, path1:str, path2:str, refresh:bool = False):
-        import shutil
-        # what if its a folder?
-        assert os.path.exists(path1), path1
-        if refresh == False:
-            assert not os.path.exists(path2), path2
-        
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
-            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
-
-        if os.path.isdir(path1):
-            shutil.copytree(path1, path2)
-
-        elif os.path.isfile(path1):
-            
-            shutil.copy(path1, path2)
-        else:
-            raise ValueError(f'path1 is not a file or a folder: {path1}')
-        return path2
-    
-    @classmethod
-    def cuda_available(cls) -> bool:
-        return c.get_util('hardware.cuda_available')
-
-    @classmethod
-    def free_gpu_memory(cls):
-        gpu_info = cls.gpu_info()
-        return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
-
-    def most_used_gpu(self):
-        most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
-        return most_used_gpu
-
-    def most_used_gpu_memory(self):
-        most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
-        return most_used_gpu
-        
-
-    def least_used_gpu(self):
-        least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
-        return least_used_gpu
-
-    def least_used_gpu_memory(self):
-        least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
-        return least_used_gpu
-            
-
-
-    @classmethod
-    def hardware(cls, fmt:str='gb'):
-        return {
-            'cpu': cls.cpu_info(),
-            'memory': cls.memory_info(fmt=fmt),
-            'disk': cls.disk_info(fmt=fmt),
-            'gpu': cls.gpu_info(fmt=fmt),
-        }
-
-    
-    @classmethod
-    def get_folder_size(cls, folder_path:str='/'):
-        folder_path = cls.resolve_path(folder_path)
-        """Calculate the total size of all files in the folder."""
-        total_size = 0
-        for root, dirs, files in os.walk(folder_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if not os.path.islink(file_path):
-                    total_size += os.path.getsize(file_path)
-        return total_size
-
-    @classmethod
-    def find_largest_folder(cls, directory: str = '~/'):
-        directory = cls.resolve_path(directory)
-        """Find the largest folder in the given directory."""
-        largest_size = 0
-        largest_folder = ""
-
-        for folder_name in os.listdir(directory):
-            folder_path = os.path.join(directory, folder_name)
-            if os.path.isdir(folder_path):
-                folder_size = cls.get_folder_size(folder_path)
-                if folder_size > largest_size:
-                    largest_size = folder_size
-                    largest_folder = folder_path
-
-        return largest_folder, largest_size
-    
-
-    @classmethod
-    def getcwd(*args,  **kwargs):
-        return os.getcwd(*args, **kwargs)
-    
-
-    @classmethod
-    def argv(cls, include_script:bool = False):
-        args = sys.argv
-        if include_script:
-            return args
-        else:
-            return args[1:]
-
-    @classmethod
-    def mv(cls, path1, path2):
-        assert os.path.exists(path1), path1
-        if not os.path.isdir(path2):
-            path2_dirpath = os.path.dirname(path2)
-            if not os.path.isdir(path2_dirpath):
-                os.makedirs(path2_dirpath, exist_ok=True)
-        shutil.move(path1, path2)
-        assert os.path.exists(path2), path2
-        assert not os.path.exists(path1), path1
-        return {'success': True, 'msg': f'Moved {path1} to {path2}'}
-    
-    @classmethod
-    def sys_path(cls):
-        return sys.path
-
-    @classmethod
-    def gc(cls):
-        gc.collect()
-        return {'success': True, 'msg': 'garbage collected'}
-    
-    @staticmethod
-    def get_pid():
-        return os.getpid()
-
-    @staticmethod
-    def memory_usage(fmt='gb'):
-        fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
-        import psutil
-        process = psutil.Process()
-        scale = fmt2scale.get(fmt)
-        return (process.memory_info().rss // 1024) / scale
-    
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
         Set the config as well as its local params
@@ -1028,7 +722,6 @@ class c:
             else:
                 config = {}
         return config
-
 
     @classmethod
     def load_config(cls, path:str=None, 
@@ -1075,40 +768,9 @@ class c:
         config = cls.save_yaml(data=config , path=path)
 
         return config
-
-    @classmethod
-    def munch(cls, x:dict, recursive:bool=True)-> 'Munch':
-        from munch import Munch
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, dict):
-            for k,v in x.items():
-                if isinstance(v, dict) and recursive:
-                    x[k] = cls.dict2munch(v)
-            x = Munch(x)
-        return x 
-
-    dict2munch = munch 
-
-    @classmethod
-    def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
-        from munch import Munch
-
-        '''
-        Turn munch object  into dictionary
-        '''
-        if isinstance(x, Munch):
-            x = dict(x)
-            for k,v in x.items():
-                if isinstance(v, Munch) and recursive:
-                    x[k] = cls.munch2dict(v)
-        return x 
-    to_dict = munch2dict
       
     @classmethod
     def has_config(cls) -> bool:
-        
         try:
             return os.path.exists(cls.config_path())
         except:
@@ -1121,16 +783,6 @@ class c:
     def update_config(self, config):
         self.config.update(config)
         return self.config
-
-    @classmethod
-    def base_config(cls, cache=True):
-        if cache and hasattr(cls, '_base_config'):
-            return cls._base_config
-        cls._base_config = cls.get_yaml(cls.config_path())
-        return cls._base_config
-
-    
-    default_port_range = [50050, 50150] # the port range between 50050 and 50150
 
     @classmethod
     def put_json(cls, 
@@ -1148,54 +800,28 @@ class c:
         cls.put_text(path, data)
         return path
     
+
     save_json = put_json
 
     @classmethod
-    def rm_json(cls, path=None):
-        from commune.utils.dict import rm_json
-        if path in ['all', '**']:
-            return [cls.rm_json(f) for f in cls.glob(files_only=False)]
-        path = cls.resolve_path(path=path, extension='json')
-        return rm_json(path )
-    
-    @classmethod
-    def rmtree(cls, path):
-        assert os.path.isdir(path), f'{path} is not a directory'
-        return shutil.rmtree(path)
-    rmdir = rmtree 
-
-    @classmethod
-    def isdir(cls, path):
-        path = cls.resolve_path(path=path)
-        return os.path.isdir(path)
-        
-    @classmethod
-    def isfile(cls, path):
-        path = cls.resolve_path(path=path)
-        return os.path.isfile(path)
-
-    @classmethod
-    def rm(cls, path, extension=None, mode = 'json'):
-        
-        assert isinstance(path, str), f'path must be a string, got {type(path)}'
+    def rm(cls, path, extension=None, possible_extensions = ['json']):
         path = cls.resolve_path(path=path, extension=extension)
-
         # incase we want to remove the json file
-        mode_suffix = f'.{mode}'
-        if not os.path.exists(path) and os.path.exists(path+mode_suffix):
-            path += mode_suffix
-
         if not os.path.exists(path):
+            for pe in possible_extensions:
+                if path.endswith(pe) and os.path.exists(path + f'.{pe}'):
+                    path = path + f'.{pe}'
+                    break
+        if not os.path.exists(path): 
             return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
-            c.rmdir(path)
+            return shutil.rmtree(path)
         if os.path.isfile(path):
             os.remove(path)
         assert not os.path.exists(path), f'{path} was not removed'
 
         return {'success':True, 'message':f'{path} removed'}
     
-
     @classmethod
     def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
         import glob
@@ -1207,26 +833,12 @@ class c:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
     
-
-    @classmethod
-    def put_cache(cls,k,v ):
-        cls.cache[k] = v
-    
-    @classmethod
-    def get_cache(cls,k, default=None, **kwargs):
-        v = cls.cache.get(k, default)
-        return v
-
-
     @classmethod
     def get_json(cls, 
                 path:str,
                 default:Any=None,
-                verbose: bool = False,**kwargs):
+                **kwargs):
         path = cls.resolve_path(path=path, extension='json')
-
-        cls.print(f'Loading json from {path}', verbose=verbose)
-
         try:
             data = cls.get_text(path, **kwargs)
         except Exception as e:
@@ -1243,24 +855,14 @@ class c:
     @classmethod
     async def async_get_json(cls,*args, **kwargs):
         return  cls.get_json(*args, **kwargs)
-
     load_json = get_json
 
-
     @classmethod
-    def file_exists(cls, path:str)-> bool:
+    def path_exists(cls, path:str)-> bool:
         path = cls.resolve_path(path)
         exists =  os.path.exists(path)
         return exists
-
- 
-    exists = exists_json = file_exists
-
-
-    @classmethod
-    def makedirs(cls, *args, **kwargs):
-        return os.makedirs(*args, **kwargs)
-
+    file_exists = path_exists
 
     @classmethod
     def mv(cls, path1, path2):
@@ -1294,28 +896,7 @@ class c:
         - If `path` is not provided, the method returns a path to a temporary directory.
         - If `path` starts with '/', it is returned as is.
         - If `path` starts with '~/', it is expanded to the user’s home directory.
-        - If `path` starts with './', it is resolved to an absolute path.
-        - If `path` does not fall under the above conditions, it is treated as a relative path. If `root` is True, it is resolved relative to the root temp directory; otherwise, relative to the class's temp directory.
-        - If `path` is a relative path and does not contain the temp directory, the method joins `path` with the appropriate temp directory.
-        - If `path` does not exist as a directory and an `extension` is provided, the extension is appended to `path`.
-        - If `path` does not exist but appending the `file_type` results in an existing path, the `file_type` is appended.
-        - The parent directory of `path` is created if it does not exist, avoiding any errors when the path is accessed later.
-        
-        #### Returns:
-        - `str`: The resolved and potentially created path, ensuring it is ready for further file operations. 
-        
-        #### Example Usage:
-        ```python
-        # Resolve a path in relation to the class's temporary directory
-        file_path = MyClassName.resolve_path('data/subfolder/file', extension='txt')
-        
-        # Resolve a path in relation to the root temporary directory
-        root_file_path = MyClassName.resolve_path('configs/settings'
-        ```
-        
-        #### Notes:
-        - This method relies on the `os` module to perform path manipulations and checks.
-        - This method is versatile and can handle various input path formats, simplifying file path resolution in the class's context.
+
         '''
     
         if path == None:
@@ -1333,116 +914,21 @@ class c:
             storage_dir = cls.storage_dir()
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
-
         if extension != None and not path.endswith(extension):
             path = path + '.' + extension
 
         return path
-
-    @staticmethod
-    def ensure_path( path):
-        """
-        ensures a dir_path exists, otherwise, it will create it 
-        """
-
-        dir_path = os.path.dirname(path)
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path, exist_ok=True)
-
-        return path
-
-    @staticmethod
-    async def async_write(path, data,  mode ='w'):
-        import aiofiles
-        async with aiofiles.open(path, mode=mode) as f:
-            await f.write(data)
-            
-    @classmethod
-    def put_yaml(cls, path:str,  data: dict) -> Dict:
-        from munch import Munch
-        from copy import deepcopy
-        import pandas as pd
-        '''
-        Loads a yaml file
-        '''
-        # Directly from dictionary
-        data_type = type(data)
-        if data_type in [pd.DataFrame]:
-            data = data.to_dict()
-        if data_type in [Munch]:
-            data = cls.munch2dict(deepcopy(data))
-        if data_type in [dict, list, tuple, set, float, str, int]:
-            yaml_str = yaml.dump(data)
-        else:
-            raise NotImplementedError(f"{data_type}, is not supported")
-        with open(path, 'w') as file:
-            file.write(yaml_str)
-        return {'success': True, 'msg': f'Wrote yaml to {path}'}
-
-    @classmethod
-    def get_yaml(cls, path:str=None, default={}, **kwargs) -> Dict:
-        '''f
-        Loads a yaml file
-        '''
-        path = cls.resolve_path(path)
-        with open(path, 'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
-
-        return data
-    
-        
-    load_yaml = get_yaml
-    save_yaml = put_yaml 
-    
-    @classmethod
-    def filesize(cls, filepath:str):
-        filepath = cls.resolve_path(filepath)
-        return os.path.getsize(filepath)
-    
-    def search_files(self, path:str='./', search:str='__pycache__') -> List[str]:
-        path = self.resolve_path(path)
-        files = self.glob(path)
-        return list(filter(lambda x: search in x, files))
-    
-    def rm_pycache(self, path:str='./') -> List[str]:
-        files = self.search_files(path, search='__pycache__')
-        for file in files:
-            self.print(self.rm(file))
-        return files
-    
+     
     def file2size(self, path='./', fmt='mb') -> int:
-        files = self.glob(path)
+        files = c.glob(path)
         file2size = {}
-        pwd = self.pwd()
+        pwd = c.pwd()
         for file in files:
             file2size[file.replace(pwd+'/','')] = self.format_data_size(self.filesize(file), fmt)
 
         # sort by size
         file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
         return file2size
-
-    @classmethod
-    def cp(cls, path1:str, path2:str, refresh:bool = False):
-        # what if its a folder?
-        assert os.path.exists(path1), path1
-        if refresh == False:
-            assert not os.path.exists(path2), path2
-        
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
-            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
-
-        if os.path.isdir(path1):
-            shutil.copytree(path1, path2)
-
-
-        elif os.path.isfile(path1):
-            
-            shutil.copy(path1, path2)
-        else:
-            raise ValueError(f'path1 is not a file or a folder: {path1}')
-        return {'success': True, 'msg': f'Copied {path1} to {path2}'}
 
     @classmethod
     def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
@@ -1464,15 +950,6 @@ class c:
         return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
     
     @classmethod
-    def lsdir(cls, path:str) -> List[str]:
-        path = os.path.abspath(path)
-        return os.listdir(path)
-
-    @classmethod
-    def abspath(cls, path:str) -> str:
-        return os.path.abspath(path)
-
-    @classmethod
     def ls(cls, path:str = '', 
            recursive:bool = False,
            search = None,
@@ -1485,7 +962,7 @@ class c:
         """
         path = cls.resolve_path(path)
         try:
-            ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+            ls_files = os.listdir(path) if not recursive else cls.walk(path)
         except Exception as e:
             print('Error in c.ls :', e)
             return []
@@ -1503,7 +980,6 @@ class c:
             v: Any,  
             mode: bool = 'json',
             encrypt: bool = False, 
-            verbose: bool = False, 
             password: str = None, **kwargs) -> Any:
         '''
         Puts a value in the config
@@ -1513,8 +989,8 @@ class c:
         if encrypt or password != None:
             v = cls.encrypt(v, password=password)
 
-        if not cls.jsonable(v):
-            v = cls.serialize(v)    
+        if not c.jsonable(v):
+            v = c.serialize(v)    
         
         data = {'data': v, 'encrypted': encrypt, 'timestamp': cls.timestamp()}            
         
@@ -1533,7 +1009,6 @@ class c:
             max_age:str = None,
             cache :bool = False,
             full :bool = False,
-            key: 'Key' = None,
             update :bool = False,
             password : str = None,
             verbose = False,
@@ -1661,90 +1136,17 @@ class c:
     
     tmp_dir = cache_dir   = storage_dir
 
-    @classmethod
-    def rm_lines(cls, path:str, start_line:int, end_line:int) -> None:
-        # Get the absolute path of the file
-        text = cls.get_text(path)
-        text = text.split('\n')
-        text = text[:start_line-1] + text[end_line:]
-        text = '\n'.join(text)
-        cls.put_text(path, text)
-        return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
-    @classmethod
-    def rm_line(cls, path:str, line:int, text=None) -> None:
-        # Get the absolute path of the file
-        text =  cls.get_text(path)
-        text = text.split('\n')
-        text = text[:line-1] + text[line:]
-        text = '\n'.join(text)
-        cls.put_text(path, text)
-        return {'success': True, 'msg': f'Removed line {line} from {path}'}
-        # Write the text to the file
-            
-    @classmethod
-    def tilde_path(cls):
-        return os.path.expanduser('~')
-
     def is_dir_empty(self, path:str):
         return len(self.ls(path)) == 0
     
-    @classmethod
-    def get_file_size(cls, path:str):
-        path = cls.resolve_path(path)
-        return os.path.getsize(path)
-
     @staticmethod
-    def jsonable( value):
-        import json
-        try:
-            json.dumps(value)
-            return True
-        except:
-            return False
+    def sleep(period):
+        time.sleep(period) 
+    
 
-    def file2text(self, path = './', 
-                  avoid_folders = ['__pycache__', 
-                                   '.git', 
-                                   '.ipynb_checkpoints', 
-                                   'package.lock',
-                                   'Cargo.lock',
-                                   'target/debug',
-                                   'node_modules'],
-                  relative=True,  **kwargs):
-        path = os.path.abspath(path)
-        file2text = {}
-        for file in c.glob(path, recursive=True):
-            if os.path.isdir(file):
-                continue
-            if any([folder in file for folder in avoid_folders]):
-                continue
-            try:
-                with open(file, 'r') as f:
-                    content = f.read()
-                    file2text[file] = content
-            except Exception as e:
-                continue
-        if relative:
-            return {k[len(path)+1:]:v for k,v in file2text.items()}
-        return file2text
-    
-    def file2lines(self, path:str='./')-> List[str]:
-        file2text = self.file2text(path)
-        file2lines = {f: text.split('\n') for f, text in file2text.items()}
-        return file2lines
-    
     def num_files(self, path:str='./')-> int:
         import commune as c
         return len(c.glob(path))
-
-
-    
-    def hidden_files(self, path:str='./')-> List[str]:
-        import commune as c
-        path = self.resolve_path(path)
-        files = [f[len(path)+1:] for f in  c.glob(path)]
-        hidden_files = [f for f in files if f.startswith('.')]
-        return hidden_files
             
     @classmethod
     def fn2code(cls, search=None, module=None)-> Dict[str, str]:
@@ -1827,22 +1229,6 @@ class c:
         if not cls.is_class(obj):
             obj = type(obj)
         return obj.__name__
-    
-    @classmethod
-    def fn_signature_map(cls, obj=None, include_parents:bool = False):
-        obj = cls.resolve_object(obj)
-        function_signature_map = {}
-        for f in cls.get_functions(obj = obj, include_parents=include_parents):
-            if f.startswith('__') and f.endswith('__'):
-                if f in ['__init__']:
-                    pass
-                else:
-                    continue
-            if not hasattr(cls, f):
-                continue
-            if callable(getattr(cls, f )):
-                function_signature_map[f] = {k:str(v) for k,v in cls.get_function_signature(getattr(cls, f )).items()}        
-        return function_signature_map
 
     @classmethod
     def fn_schema(cls, fn:str,
@@ -1890,68 +1276,6 @@ class c:
         fn_schema['input'] = {k: {'type':v, 'default':fn_defaults.get(k)} for k,v in fn_schema['input'].items()}
 
         return fn_schema
-    
-    @classmethod
-    def fn_info(cls, fn:str='test_fn') -> dict:
-        r = {}
-        code = cls.fn_code(fn)
-        lines = code.split('\n')
-        mode = 'self'
-        if '@classmethod' in lines[0]:
-            mode = 'class'
-        elif '@staticmethod' in lines[0]:
-            mode = 'static'
-    
-        start_line_text = 0
-        lines_before_fn_def = 0
-        for l in lines:
-            
-            if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
-                start_line_text = l
-                break
-            else:
-                lines_before_fn_def += 1
-            
-        assert start_line_text != None, f'Could not find function {fn} in {cls.pypath()}'
-        module_code = cls.code()
-        start_line = cls.find_code_line(start_line_text, code=module_code) - 1
-
-        end_line = start_line + len(lines)   # find the endline
-        has_docs = bool('"""' in code or "'''" in code)
-        filepath = cls.filepath()
-
-        # start code line
-        for i, line in enumerate(lines):
-            
-            is_end = bool(')' in line and ':' in line)
-            if is_end:
-                start_code_line = i
-                break 
-
-        return {
-            'start_line': start_line,
-            'end_line': end_line,
-            'has_docs': has_docs,
-            'code': code,
-            'n_lines': len(lines),
-            'hash': cls.hash(code),
-            'path': filepath,
-            'start_code_line': start_code_line + start_line ,
-            'mode': mode    
-        }
-    @classmethod
-    def find_code_line(cls, search:str=None, code:str = None):
-        if code == None:
-            code = cls.code() # get the code
-        found_lines = [] # list of found lines
-        for i, line in enumerate(code.split('\n')):
-            if str(search) in line:
-                found_lines.append({'idx': i+1, 'text': line})
-        if len(found_lines) == 0:
-            return None
-        elif len(found_lines) == 1:
-            return found_lines[0]['idx']
-        return found_lines
 
     @classmethod
     def init_schema(cls):
@@ -2057,35 +1381,7 @@ class c:
             'start_code_line': start_code_line + start_line ,
             'mode': mode
         }
-    
-    @classmethod
-    def set_line(cls, idx:int, text:str):
-        code = cls.code()
-        lines = code.split('\n')
-        if '\n' in text:
-            front_lines = lines[:idx]
-            back_lines = lines[idx:]
-            new_lines = text.split('\n')
-            lines = front_lines + new_lines + back_lines
-        else:
-            lines[idx-1] = text
-        new_code = '\n'.join(lines)
-        cls.put_text(cls.filepath(), new_code)
-        return {'success': True, 'msg': f'Set line {idx} to {text}'}
 
-    @classmethod
-    def add_line(cls, idx=0, text:str = '',  module=None  ):
-        """
-        add line to an index of the module code
-        """
-
-        code = cls.code() if module == None else c.module(module).code()
-        lines = code.split('\n')
-        new_lines = text.split('\n') if '\n' in text else [text]
-        lines = lines[:idx] + new_lines + lines[idx:]
-        new_code = '\n'.join(lines)
-        cls.put_text(cls.filepath(), new_code)
-        return {'success': True, 'msg': f'Added line {idx} to {text}'}
 
     @classmethod
     def get_line(cls, idx):
@@ -2145,10 +1441,10 @@ class c:
             fn = getattr(cls, fn)
         return dict(inspect.signature(fn)._parameters)
     
-    get_function_signature = fn_signature
+    get_function_signature = function_signature = fn_signature
     @classmethod
     def is_arg_key_valid(cls, key='config', fn='__init__'):
-        fn_signature = cls.fn_signature(fn)
+        fn_signature = cls.function_signature(fn)
         if key in fn_signature: 
             return True
         else:
@@ -2404,24 +1700,14 @@ class c:
     @classmethod
     def python2types(cls, d:dict)-> dict:
         return {k:str(type(v)).split("'")[1] for k,v in d.items()}
-    
-    @classmethod
-    def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
-        fns = cls.fns(search=search)
-        fn2str = {}
-        for fn in fns:
-            fn2str[fn] = cls.fn_code(fn)
-            
-        return fn2str
     @classmethod
     def fn2hash(cls, fn=None , mode='sha256', **kwargs):
         fn2hash = {}
-        for k,v in cls.fn2str(**kwargs).items():
+        for k,v in cls.fn2code(**kwargs).items():
             fn2hash[k] = c.hash(v,mode=mode)
         if fn:
             return fn2hash[fn]
         return fn2hash
-
     # TAG CITY     
     @classmethod
     def parent_functions(cls, obj = None, include_root = True):
@@ -2441,25 +1727,11 @@ class c:
     @classmethod
     def child_functions(cls, obj=None):
         obj = cls.resolve_object(obj)
-        
         methods = []
         for name, member in obj.__dict__.items():
             if inspect.isfunction(member) and not name.startswith('__'):
                 methods.append(name)
-        
         return methods
-
-    @classmethod
-    def locals2kwargs(cls,locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['cls','self']) -> dict:
-        locals_dict = locals_dict or {}
-        kwargs = locals_dict or {}
-        for k in remove_arguments:
-            kwargs.pop(k, None)
-        assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
-        # These lines are needed to remove the self and cls from the locals_dict
-        for k in kwargs_keys:
-            kwargs.update( locals_dict.pop(k, {}) or {})
-        return kwargs
 
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
         for k,v in kwargs.items():
@@ -2480,7 +1752,6 @@ class c:
                 fn2type[f] = self.classify_fn(getattr(self, f))
         return fn2type
     
-
     @classmethod
     def is_dir_module(cls, path:str) -> bool:
         """
@@ -2492,23 +1763,6 @@ class c:
         if ('modules/' + path.replace('.', '/')) in filepath:
             return True
         return False
-    
-    @classmethod
-    def add_line(cls, path:str, text:str, line=None) -> None:
-        # Get the absolute path of the file
-        path = cls.resolve_path(path)
-        text = str(text)
-        # Write the text to the file
-        if line != None:
-            line=int(line)
-            lines = cls.get_text(path).split('\n')
-            lines = lines[:line] + [text] + lines[line:]
-
-            text = '\n'.join(lines)
-        with open(path, 'w') as file:
-            file.write(text)
-
-        return {'success': True, 'msg': f'Added line to {path}'}
     
     @staticmethod
     def is_imported(package:str) :
@@ -2556,16 +1810,11 @@ class c:
         return hasattr(module, fn)
     
     @classmethod
-    def resolve_extension(cls, filename:str, extension = '.py') -> str:
-        if filename.endswith(extension):
-             return filename
-        return filename + extension
-
-    @classmethod
     def simple2path(cls, 
                     simple:str,
                     extension = '.py',
-                    avoid_dirnames = ['', 'src', 
+                    ignore_prefixes = ['', 
+                                       'src', 
                                       'commune', 
                                       'commune/module', 
                                       'commune/modules', 
@@ -2595,13 +1844,13 @@ class c:
             simple = simple[:-len(extension)]
 
         path = None
-        pwd = cls.pwd()
+        pwd = c.pwd()
         path_options = []
         simple = simple.replace('/', '.')
 
-        # create all of the possible paths by combining the avoid_dirnames with the simple path
-        dir_paths = list([pwd+ '/' + x for x in avoid_dirnames]) # local first
-        dir_paths += list([cls.libpath + '/' + x for x in avoid_dirnames]) # add libpath stuff
+        # create all of the possible paths by combining the ignore_prefixes with the simple path
+        dir_paths = list([pwd+ '/' + x for x in ignore_prefixes]) # local first
+        dir_paths += list([c.libpath + '/' + x for x in ignore_prefixes]) # add libpath stuff
 
         for dir_path in dir_paths:
             if dir_path.endswith('/'):
@@ -2621,7 +1870,7 @@ class c:
                 if os.path.exists(p):
                     p_text = cls.get_text(p)
                     path =  p
-                    if 'commune' in p_text and 'class ' in p_text or '  def ' in p_text:
+                    if c.libname in p_text and 'class ' in p_text or '  def ' in p_text:
                         return p   
             if path != None:
                 break
@@ -2735,7 +1984,7 @@ class c:
         file_path = cls.path2objectpath(path)
             
         for line in code.split('\n'):
-            if all([s in line for s in ['class ', ':']]):
+            if line.startswith('class ') and line.strip().endswith(':'):
                 new_class = line.split('class ')[-1].split('(')[0].strip()
                 if new_class.endswith(':'):
                     new_class = new_class[:-1]
@@ -2743,8 +1992,7 @@ class c:
                     continue
                 classes += [new_class]
         classes = [file_path + '.' + c for c in classes]
-
-        libpath_objpath_prefix = cls.libpath.replace('/', '.')[1:] + '.'
+        libpath_objpath_prefix = c.libpath.replace('/', '.')[1:] + '.'
         classes = [c.replace(libpath_objpath_prefix, '') for c in classes]
         return classes
 
@@ -3045,6 +2293,10 @@ class c:
             c.put(cache_path, tree)
         return tree
     
+    @staticmethod
+    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
+        from commune.utils.math import round_sig
+        return round_sig(x, sig=sig, small_value=small_value)
 
     @classmethod
     def module(cls, 
@@ -3074,8 +2326,8 @@ class c:
                     raise ValueError(f'Error in importing module {path} {e}')
             if cache:
                 c.module_cache[path] = module    
-        latency = c.round(c.time() - t0, 2)
-        c.print(f'Module({og_path}->{path})({latency}s)', color='green', verbose=verbose)     
+        latency = c.round(c.time() - t0, 3)
+        print(f'Module({og_path}->{path})({latency}s)')     
         return module
 
     get_module = module
@@ -3123,25 +2375,6 @@ class c:
             modules = [m for m in modules if search in m]            
         return modules
     get_modules = modules
-
-    @classmethod
-    def walk(cls, path='./', depth=2):
-        results = []
-        if depth == 0:
-            return results
-        path = c.abspath(path)
-        # break when it gets past 3 depths from the path file
-    
-        for subpath in c.ls(path):
-            try:
-                if os.path.isdir(subpath):
-                    results += cls.walk(subpath, depth=depth-1)
-                else:
-                    results += [subpath]
-            except Exception as e:
-                pass
-            
-        return results
 
     @classmethod
     def has_module(cls, module):
@@ -3194,114 +2427,11 @@ class c:
                 return True
         return False
     
-    def path2functions(self, path=None):
-        path = path or (self.root_path + '/utils')
-        paths = self.ls(path)
-        path2functions = {}        
-        for p in paths:
 
-            functions = []
-            if os.path.isfile(p) == False:
-                continue
-            text = self.get_text(p)
-            if len(text) == 0:
-                continue
-            
-            for line in text.split('\n'):
-                if 'def ' in line and '(' in line:
-                    functions.append(line.split('def ')[1].split('(')[0])
-            replative_path = p[len(path)+1:]
-            path2functions[replative_path] = functions
-        return path2functions
-
-    @staticmethod
-    def chunk(sequence:list = [0,2,3,4,5,6,6,7],
-            chunk_size:int=4,
-            num_chunks:int= None):
-        assert chunk_size != None or num_chunks != None, 'must specify chunk_size or num_chunks'
-        if chunk_size == None:
-            chunk_size = len(sequence) / num_chunks
-        if chunk_size > len(sequence):
-            return [sequence]
-        if num_chunks == None:
-            num_chunks = int(len(sequence) / chunk_size)
-        if num_chunks == 0:
-            num_chunks = 1
-        chunks = [[] for i in range(num_chunks)]
-        for i, element in enumerate(sequence):
-            idx = i % num_chunks
-            chunks[idx].append(element)
-        return chunks
-    
-    def cancel(self, futures):
-        for f in futures:
-            f.cancel()
-        return {'success': True, 'msg': 'cancelled futures'}
-
-    @staticmethod
-    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
-        from commune.utils.math import round_sig
-        return round_sig(x, sig=sig, small_value=small_value)
-    
-    @classmethod
-    def round_decimals(cls, x:Union[float, int], decimals: int=6, small_value: float=1.0e-9):
-       
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        x = float(x)
-        return round(x, decimals)
-    
-    @staticmethod
-    def num_words( text):
-        return len(text.split(' '))
-    
-    @classmethod
-    def random_word(cls, *args, n=1, seperator='_', **kwargs):
-        import commune as c
-        random_words = cls.module('key').generate_mnemonic(*args, **kwargs).split(' ')[0]
-        random_words = random_words.split(' ')[:n]
-        if n == 1:
-            return random_words[0]
-        else:
-            return seperator.join(random_words.split(' ')[:n])
 
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
         return [text for text in text_list if filter_text in text]
-
-    @staticmethod
-    def tqdm(*args, **kwargs):
-        from tqdm import tqdm
-        return tqdm(*args, **kwargs)
-
-    progress = tqdm
-
-    emojis = {
-        'smile': '😊',
-        'sad': '😞',
-        'heart': '❤️',
-        'star': '⭐',
-        'fire': '🔥',
-        'check': '✅',
-        'cross': '❌',
-        'warning': '⚠️',
-        'info': 'ℹ️',
-        'question': '❓',
-        'exclamation': '❗',
-        'plus': '➕',
-        'minus': '➖',
-
-    }
-
-    @classmethod
-    def emoji(cls, name:str):
-        return cls.emojis.get(name, '❓')
 
     @staticmethod
     def tqdm(*args, **kwargs):
@@ -3317,157 +2447,11 @@ class c:
     @classmethod
     def partial(cls, fn, *args, **kwargs):
         return partial(fn, *args, **kwargs)
-        
-    @classmethod
-    def sizeof(cls, obj):
-        import sys
-        sizeof = 0
-        if isinstance(obj, dict):
-            for k,v in obj.items():
-                sizeof +=  cls.sizeof(k) + cls.sizeof(v)
-        elif isinstance(obj, list):
-            for v in obj:
-                sizeof += cls.sizeof(v)
-        elif any([k.lower() in cls.type_str(obj).lower() for k in ['torch', 'Tensor'] ]):
-
-            sizeof += cls.get_tensor_size(obj)
-        else:
-            sizeof += sys.getsizeof(obj)
-                
-        return sizeof
-
+    
     def init_nn(self):
         import torch
         torch.nn.Module.__init__(self)
 
-    @classmethod
-    def check_word(cls, word:str)-> str:
-        import commune as c
-        files = c.glob('./')
-        progress = c.tqdm(len(files))
-        for f in files:
-            try:
-                text = c.get_text(f)
-            except Exception as e:
-                continue
-            if word in text:
-                return True
-            progress.update(1)
-        return False
-    
-    @classmethod
-    def wordinfolder(cls, word:str, path:str='./')-> bool:
-        import commune as c
-        path = c.resolve_path(path)
-        files = c.glob(path)
-        progress = c.tqdm(len(files))
-        for f in files:
-            try:
-                text = c.get_text(f)
-            except Exception as e:
-                continue
-            if word in text:
-                return True
-            progress.update(1)
-        return False
-
-    def locals2hash(self, kwargs:dict = {'a': 1}, keys=['kwargs']) -> str:
-        kwargs.pop('cls', None)
-        kwargs.pop('self', None)
-        return self.dict2hash(kwargs)
-
-    @classmethod
-    def dict2hash(cls, d:dict) -> str:
-        for k in d.keys():
-            assert cls.jsonable(d[k]), f'{k} is not jsonable'
-        return cls.hash(d)
-    
-    @classmethod
-    def dict_put(cls, *args, **kwargs):
-        from commune.utils.dict import dict_put
-        return dict_put(*args, **kwargs)
-    
-    @classmethod
-    def dict_get(cls, *args, **kwargs):
-        from commune.utils.dict import dict_get
-        return dict_get(*args, **kwargs)
-    
-    @classmethod
-    def is_address(cls, address:str) -> bool:
-        if not isinstance(address, str):
-            return False
-        if '://' in address:
-            return True
-        conds = []
-        conds.append(len(address.split('.')) >= 3)
-        conds.append(isinstance(address, str))
-        conds.append(':' in address)
-        conds.append(cls.is_int(address.split(':')[-1]))
-        return all(conds)
- 
-
-    @classmethod
-    def merge(cls,  from_obj= None, 
-                        to_obj = None,
-                        include_hidden:bool=True, 
-                        allow_conflicts:bool=True, 
-                        verbose: bool = False):
-        
-        '''
-        Merge the functions of a python object into the current object (a)
-        '''
-        from_obj = from_obj or cls
-        to_obj = to_obj or cls
-        
-        for fn in dir(from_obj):
-            if fn.startswith('_') and not include_hidden:
-                continue
-            if hasattr(to_obj, fn) and not allow_conflicts:
-                continue
-            if verbose:
-                cls.print(f'Adding {fn}')
-            setattr(to_obj, fn, getattr(from_obj, fn))
-            
-        return to_obj
-    
-    @classmethod
-    def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
-        if mode == 'queue':
-            return cls.import_object('queue.Queue')(size, *args, **kwargs)
-        elif mode in ['multiprocessing', 'mp', 'process']:
-            return cls.module('process')(size, *args, **kwargs)
-        elif mode == 'ray':
-            return cls.import_object('ray.util.queue.Queue')(size, *args, **kwargs)
-        elif mode == 'redis':
-            return cls.import_object('redis.Queue')(size, *args, **kwargs)
-        elif mode == 'rabbitmq':
-            return cls.import_object('pika.Queue')(size, *args, **kwargs)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-    
-    @staticmethod
-    def is_class(module: Any) -> bool:
-        return type(module).__name__ == 'type' 
-
-    @classmethod
-    def param_keys(cls, model:'nn.Module' = None)->List[str]:
-        model = cls.resolve_model(model)
-        return list(model.state_dict().keys())
-    
-    @classmethod
-    def params_map(cls, model, fmt='b'):
-        params_map = {}
-        state_dict = cls.resolve_model(model).state_dict()
-        for k,v in state_dict.items():
-            params_map[k] = {'shape': list(v.shape) ,
-                             'size': cls.get_tensor_size(v, fmt=fmt),
-                             'dtype': str(v.dtype),
-                             'requires_grad': v.requires_grad,
-                             'device': v.device,
-                             'numel': v.numel(),  
-                             }
-        return params_map
-    
     @classmethod
     def repo_url(cls, *args, **kwargs):
         return cls.module('git').repo_url(*args, **kwargs)    
@@ -3480,110 +2464,7 @@ class c:
     def addresses(cls, *args, **kwargs) -> List[str]:
         return list(cls.namespace(*args,**kwargs).values())
     
-    @classmethod
-    def task(cls, fn, timeout=1, mode='asyncio'):
-        
-        if mode == 'asyncio':
-            assert callable(fn)
-            future = asyncio.wait_for(fn, timeout=timeout)
-            return future
-        else:
-            raise NotImplemented
-        
-    @classmethod
-    def shuffle(cls, x:list)->list:
-        if len(x) == 0:
-            return x
-        random.shuffle(x)
-        return x
-    
-    @staticmethod
-    def retry(fn, trials:int = 3, verbose:bool = True):
-        # if fn is a self method, then it will be a bound method, and we need to get the function
-        if hasattr(fn, '__self__'):
-            fn = fn.__func__
-        def wrapper(*args, **kwargs):
-            for i in range(trials):
-                try:
-                    return fn(*args, **kwargs)
-                except Exception as e:
-                    if verbose:
-                        print(f'Retrying {fn.__name__} {i+1}/{trials}')
 
-        return wrapper
-    
-    @staticmethod
-    def reverse_map(x:dict)->dict:
-        '''
-        reverse a dictionary
-        '''
-        return {v:k for k,v in x.items()}
-
-    @classmethod
-    def df(cls, x, **kwargs):
-        return cls.import_object('pandas.DataFrame')(x, **kwargs)
-
-    @classmethod
-    def torch(cls):
-        return cls.import_module('torch')
-
-    @classmethod
-    def tensor(cls, *args, **kwargs):
-        return cls.import_object('torch.tensor')(*args, **kwargs)
-
-    def mean(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
-        if not isinstance(x, list):
-            x = list(x)
-        return sum(x) / len(x)
-    
-    def median(self, x:list=[0,1,2,3,4,5,6,7,8,9,10]):
-        if not isinstance(x, list):
-            x = list(x)
-        x = sorted(x)
-        n = len(x)
-        if n % 2 == 0:
-            return (x[n//2] + x[n//2 - 1]) / 2
-        else:
-            return x[n//2]
-    
-    @classmethod
-    def stdev(cls, x:list= [0,1,2,3,4,5,6,7,8,9,10], p=2):
-        if not isinstance(x, list):
-            x = list(x)
-        mean = cls.mean(x)
-        return (sum([(i - mean)**p for i in x]) / len(x))**(1/p)
-    std = stdev
-
-    @classmethod
-    def set_env(cls, key:str, value:str)-> None:
-        '''
-        Pay attention to this function. It sets the environment variable
-        '''
-        os.environ[key] = value
-        return value 
-
-    @classmethod
-    def pwd(cls):
-        pwd = os.getcwd() # the current wor king directory from the process starts 
-        return pwd
-    
-    @classmethod
-    def choice(cls, options:Union[list, dict])->list:
-        options = deepcopy(options) # copy to avoid changing the original
-        if len(options) == 0:
-            return None
-        if isinstance(options, dict):
-            options = list(options.values())
-        assert isinstance(options, list),'options must be a list'
-        return random.choice(options)
-
-    @classmethod
-    def sample(cls, options:list, n=2):
-        if isinstance(options, int):
-            options = list(range(options))
-        options = cls.shuffle(options)
-        return options[:n]
-        
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
@@ -3595,16 +2476,7 @@ class c:
     @classmethod
     def chown_cache(cls, sudo:bool = True):
         return cls.chown(c.cache_path, sudo=sudo)
-        
-    @classmethod
-    def colors(cls):
-        return ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'bright_black', 'bright_red', 'bright_green', 'bright_yellow', 'bright_blue', 'bright_magenta', 'bright_cyan', 'bright_white']
-    colours = colors
-    @classmethod
-    def random_color(cls):
-        return random.choice(cls.colors())
-    randcolor = randcolour = colour = color = random_colour = random_color
-
+    
     @classmethod
     def get_util(cls, util:str, prefix='commune.utils'):
         path = prefix+'.' + util
@@ -3612,165 +2484,6 @@ class c:
             return c.import_object(path)
         else:
             return c.util2path().get(path)
-            
-
-    @classmethod
-    def random_float(cls, min=0, max=1):
-        return random.uniform(min, max)
-
-    @classmethod
-    def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
-        if type(x) in [float, int]:
-            x = list(range(int(x)))
-        assert len(x)>0
-        if ratio == 1:
-            return x
-        assert ratio > 0 and ratio <= 1
-        random.shuffle(x)
-        k = max(int(len(x) * ratio),1)
-        return x[:k]
-
-    @classmethod
-    def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
-        return [text for text in text_list if filter_text in text]
-    
-    @classmethod
-    def is_success(cls, x):
-        # assume that if the result is a dictionary, and it has an error key, then it is an error
-        if isinstance(x, dict):
-            if 'error' in x:
-                return False
-            if 'success' in x and x['success'] == False:
-                return False
-        return True
-    
-    @classmethod
-    def is_error(cls, x:Any):
-        """
-        The function checks if the result is an error
-        The error is a dictionary with an error key set to True
-        """
-        if isinstance(x, dict):
-            if 'error' in x and x['error'] == True:
-                return True
-            if 'success' in x and x['success'] == False:
-                return True
-        return False
-    
-    @classmethod
-    def is_int(cls, value) -> bool:
-        o = False
-        try :
-            int(value)
-            if '.' not in str(value):
-                o =  True
-        except:
-            pass
-        return o
-     
-    @classmethod
-    def is_float(cls, value) -> bool:
-        o =  False
-        try :
-            float(value)
-            if '.' in str(value):
-                o = True
-        except:
-            pass
-
-        return o 
-
-    @classmethod
-    def dict2munch(cls, x:dict, recursive:bool=True)-> 'Munch':
-        from munch import Munch
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, dict):
-            for k,v in x.items():
-                if isinstance(v, dict) and recursive:
-                    x[k] = cls.dict2munch(v)
-            x = Munch(x)
-        return x 
-
-    @classmethod
-    def munch2dict(cls, x:'Munch', recursive:bool=True)-> dict:
-        from munch import Munch
-        '''
-        Turn munch object  into dictionary
-        '''
-        if isinstance(x, Munch):
-            x = dict(x)
-            for k,v in x.items():
-                if isinstance(v, Munch) and recursive:
-                    x[k] = cls.munch2dict(v)
-        return x 
-
-    @classmethod
-    def munch(cls, x:Dict) -> 'Munch':
-        '''
-        Converts a dict to a munch
-        '''
-        return cls.dict2munch(x)
-    
-    @classmethod  
-    def time( cls, t=None) -> float:
-        from time import time
-        return time()
-    
-    @classmethod  
-    def timestamp( cls, t=None) -> float:
-        return int(c.time())
-
-    @classmethod
-    def datetime(cls):
-         return c.get_util('time.datetime')()
-
-    @classmethod
-    def time2datetime(cls, t:float):
-        return c.get_util('time.time2datetime')(t)
-    
-    time2date = time2datetime
-
-    @classmethod
-    def datetime2time(cls, x:str):
-        import datetime
-        return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
-    
-    date2time =  datetime2time
-
-    @classmethod
-    def sleep(cls, seconds:float) -> None:
-        return c.get_util('time.sleep')(seconds)
-
-    def search_dict(self, d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
-        search = search.split(',')
-        new_d = {}
-        for k,v in d.items():
-            if search in k.lower():
-                new_d[k] = v
-        return new_d
-
-    @classmethod
-    def path2text(cls, path:str, relative=False):
-
-        path = cls.resolve_path(path)
-        assert os.path.exists(path), f'path {path} does not exist'
-        if os.path.isdir(path):
-            filepath_list = cls.glob(path + '/**')
-        else:
-            assert os.path.exists(path), f'path {path} does not exist'
-            filepath_list = [path] 
-        path2text = {}
-        for filepath in filepath_list:
-            try:
-                path2text[filepath] = cls.get_text(filepath)
-            except Exception as e:
-                pass
-        if relative:
-            pwd = cls.pwd()
-            path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
-        return path2text
 
     @classmethod
     def root_key(cls):
@@ -3795,60 +2508,8 @@ class c:
             else:
                 if search in file:
                     results.append(file)
-
         return results
-    @classmethod
-    def copy(cls, data: Any) -> Any:
-        import copy
-        return copy.deepcopy(data)
-    
-    @classmethod
-    def find_word(cls, word:str, path='./')-> str:
-        import commune as c
-        path = c.resolve_path(path)
-        files = c.glob(path)
-        progress = c.tqdm(len(files))
-        found_files = {}
-        for f in files:
-            try:
-                text = c.get_text(f)
-                if word not in text:
-                    continue
-                lines = text.split('\n')
-            except Exception as e:
-                continue
-            
-            line2text = {i:line for i, line in enumerate(lines) if word in line}
-            found_files[f[len(path)+1:]]  = line2text
-            progress.update(1)
-        return found_files
-      
 
-    @classmethod
-    def hash(cls, x, mode: str='sha256',*args,**kwargs) -> str:
-        import hashlib
-        x = cls.python2str(x)
-        if mode == 'keccak':
-            return cls.import_object('web3.main.Web3').keccak(text=x, *args, **kwargs).hex()
-        elif mode == 'ss58':
-            return cls.import_object('scalecodec.utils.ss58.ss58_encode')(x, *args,**kwargs) 
-        elif mode == 'python':
-            return hash(x)
-        elif mode == 'md5':
-            return hashlib.md5(x.encode()).hexdigest()
-        elif mode == 'sha256':
-            return hashlib.sha256(x.encode()).hexdigest()
-        elif mode == 'sha512':
-            return hashlib.sha512(x.encode()).hexdigest()
-        elif mode =='sha3_512':
-            return hashlib.sha3_512(x.encode()).hexdigest()
-        else:
-            raise ValueError(f'unknown mode {mode}')
-    
-    @classmethod
-    def hash_modes(cls):
-        return ['keccak', 'ss58', 'python', 'md5', 'sha256', 'sha512', 'sha3_512']
-    
     str2hash = hash
 
     def set_api_key(self, api_key:str, cache:bool = True):
@@ -3860,7 +2521,6 @@ class c:
             self.add_api_key(api_key)
         assert isinstance(api_key, str)
 
-    
     def add_api_key(self, api_key:str, path=None):
         assert isinstance(api_key, str)
         path = self.resolve_path(path or 'api_keys')
@@ -3898,22 +2558,14 @@ class c:
     def api_keys(self):
         return self.get(self.resolve_path('api_keys'), [])
     
-
     def rm_api_keys(self):
         self.put(self.resolve_path('api_keys'), [])
         return {'api_keys': []}
-
-    thread_map = {}
-
-    executor_cache = {}
+    
     @classmethod
     def executor(cls, max_workers:int=None, mode:str="thread", maxsize=200, **kwargs):
         return c.module(f'executor')(max_workers=max_workers, maxsize=maxsize ,mode=mode, **kwargs)
 
-    @classmethod
-    def obj2typestr(cls, obj):
-        return str(type(obj)).split("'")[1]
-    
     def explain_myself(self):
         context = c.file2text(self.root_path)
         return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
@@ -3964,13 +2616,11 @@ class c:
     def explain(self, module, prompt='explain this fam', **kwargs):
         return c.ask(c.code(module) + prompt, **kwargs)
 
-
-
     pm2_dir = os.path.expanduser('~/.pm2')
 
     @classmethod
     def restart(cls, name:str):
-        assert name in cls.servers()
+        assert name in c.processes()
         c.print(f'Restarting {name}', color='cyan')
         c.cmd(f"pm2 restart {name}", verbose=False)
         cls.rm_logs(name)  
@@ -4056,44 +2706,11 @@ class c:
             futures.append(f)
         return c.wait(futures)
     
-    @classmethod
-    def start(cls, 
-                path:str , 
-                  name:str,
-                  cmd_kwargs:str = None, 
-                  refresh: bool = True,
-                  verbose:bool = True,
-                  force : bool = True,
-                  current_dir: str = True,
-                  interpreter : str = None,
-                  **kwargs):
-        
-        if cls.process_exists(name) and refresh:
-            c.kill(name, verbose=verbose)
-            
-        cmd = f'pm2 start {path} --name {name}'
-
-        if force:
-            cmd += ' -f'
-            
-        if interpreter != None:
-            cmd += f' --interpreter {interpreter}'
-            
-        if cmd_kwargs != None:
-            cmd += f' -- '
-
-            if isinstance(cmd_kwargs, dict):
-                for k, v in cmd_kwargs.items():
-                    cmd += f'--{k} {v}'
-            elif isinstance(cmd_kwargs, str):
-                cmd += f'{cmd_kwargs}'
-                
-        c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
-
-        if current_dir:
-            kwargs['cwd'] = c.dirpath(path)
-
-        return c.cmd(cmd, verbose=verbose, **kwargs)
+    @staticmethod
+    def resolve_extension( filename:str, extension = '.py') -> str:
+        if filename.endswith(extension):
+                return filename
+        return filename + extension
 
     @classmethod
     def launch(cls, 
@@ -4148,6 +2765,11 @@ class c:
         stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
     remote_fn = launch
+
+    def time(  t=None) -> float:
+        from time import time
+        return time()
+
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)

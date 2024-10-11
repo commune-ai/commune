@@ -1,5 +1,4 @@
 import commune as c
-import streamlit as st
 
 
 class Chat(c.Module):
@@ -86,7 +85,7 @@ class Chat(c.Module):
         return new_text
 
     def ask(self, *text, **kwargs): 
-        return self.generate(' '.join(text), **kwargs)
+        return self.generate(' '.join(list(map(str, text))), **kwargs)
 
         # data_saved = self.save_data(data)
         # yield data
