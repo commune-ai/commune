@@ -387,10 +387,6 @@ class c:
         return c.get_key(key).verify(auth, **kwargs)
 
 
-    @classmethod
-    def type_str(cls, x):
-        return type(x).__name__
-                
     @classmethod  
     def keys(cls, search = None, ss58=False,*args, **kwargs):
         if search == None:
@@ -619,7 +615,7 @@ class c:
                     else: 
                         c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
             # print(f'ROUTE({module}/{fn} -> {fn})')
-        latency = t0 - c.time()
+        latency = c.time() - t0
         c.print(f'enabled routes in {latency} seconds')
         return {'success': True, 'msg': 'enabled routes'}
     
@@ -2327,7 +2323,7 @@ class c:
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(c.time() - t0, 3)
-        print(f'Module({og_path}->{path})({latency}s)')     
+        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
 
     get_module = module
