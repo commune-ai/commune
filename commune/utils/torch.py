@@ -163,3 +163,18 @@ def tensor_dict_info(x:Dict[str, 'torch.Tensor']) -> Dict[str, int]:
     return output_dict
        
     
+def param_keys(model:'nn.Module' = None)->List[str]:
+    return list(model.state_dict().keys())
+
+def params_map( model, fmt='b'):
+    params_map = {}
+    state_dict = model.state_dict()
+    for k,v in state_dict.items():
+        params_map[k] = {'shape': list(v.shape) ,
+                            'size': cls.get_tensor_size(v, fmt=fmt),
+                            'dtype': str(v.dtype),
+                            'requires_grad': v.requires_grad,
+                            'device': v.device,
+                            'numel': v.numel(),  
+                            }
+    return params_map

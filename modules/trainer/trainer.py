@@ -46,7 +46,7 @@ class Trainer(c.Module):
         # if not self.server_exists(metrics_server):
         wait_time = 0
         while not self.server_exists(model) and wait_time <= timeout:
-            self.sleep(check_step)
+            self.c.sleep(check_step)
             wait_time += check_step
             
         if wait_time >= timeout:

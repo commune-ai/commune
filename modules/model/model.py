@@ -159,7 +159,7 @@ class Model(nn.Module, c.Module):
     def refresh(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         tag = tag if tag != None else self.tag
         path = self.resolve_path(tag)
-        self.rm_json(path)
+        self.rm(path)
         return path
     
     @classmethod

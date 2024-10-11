@@ -764,6 +764,8 @@ class Key(c.Module):
     def sign(self, 
              data: Union[ScaleBytes, bytes, str], 
              return_json:bool=False,
+             to_dict = False,
+             to_json = False,
              seperator : str = seperator
              ) -> bytes:
         """
@@ -778,6 +780,7 @@ class Key(c.Module):
         signature in bytes
 
         """
+        return_json = return_json or to_dict or to_json
         if not isinstance(data, str):
             data = c.python2str(data)
         if type(data) is ScaleBytes:
