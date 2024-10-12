@@ -66,9 +66,9 @@ class ThreadPoolExecutor(c.Module):
     
     def submit(self, 
                fn: Callable,
-               params = None,
                 args:dict=None, 
                 kwargs:dict=None, 
+                params = None,
                 priority:int=1,
                 timeout=200, 
                 return_future:bool=True,
@@ -81,6 +81,9 @@ class ThreadPoolExecutor(c.Module):
                 args = params
             else:
                 raise ValueError("params must be a list or a dict")
+        if isinstance(args, dict):
+            kwargs = args
+            args = []
         # check if the queue is full and if so, raise an exception
         if self.work_queue.full():
             if wait:

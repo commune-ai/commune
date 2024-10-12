@@ -8,34 +8,6 @@ import requests
 
 # from .pool import ClientPool
 
-
-class ClientVirtual:
-    protected_attributes = [ 'client', 'remote_call']
-    
-    def __init__(self, client: str ='ReactAgentModule'):
-        if isinstance(client, str):
-            client = c.connect(client)
-        self.client = client
-    
-    def remote_call(self, *args, remote_fn, return_future= False, timeout:int=10, key=None, **kwargs):
-        result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
-        return result
-
-    def __str__(self):
-        return str(self.client)
-
-    def __repr__(self):
-        return self.__str__()
-        
-    def __getattr__(self, key):
-
-        if key in self.protected_attributes :
-            return getattr(self, key)
-        else:
-            return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
-        
-
-
 class Client(c.Module):
     network2namespace = {}
     def __init__( 
@@ -100,7 +72,7 @@ class Client(c.Module):
                     virtual=virtual,
                     **kwargs)
         if virtual:
-            return ClientVirtual(client=client)
+            return Client.Virtual(client=client)
         return client
     
     def test(self, module='module::test_client'):
@@ -132,7 +104,7 @@ class Client(c.Module):
         return url
 
     def get_url(self, fn, mode='http', network=None):
-        
+
         if '://' in str(fn):
             mode ,fn = fn.split('://')
         if '/' in str(fn):  
@@ -140,6 +112,9 @@ class Client(c.Module):
         else:
             module = self.module
         module_address = self.resolve_module_address(module, mode=mode, network=network)
+        ip = c.ip()
+        if ip in module_address:
+            module_address = module_address.replace(ip, '0.0.0.0')
         url = f"{module_address}/{fn}/"
         return url        
     def request(self, url: str, data: dict, headers: dict, timeout: int = 10, stream: bool = True):
@@ -205,9 +180,9 @@ class Client(c.Module):
                     'key': key.ss58_address, 
                     'hash': c.hash(data),
                     'crypto_type': str(key.crypto_type),
-                    'timestamp': str(c.timestamp())
+                    'time': str(c.time())
                    }
-        signature_data = {'data': headers['hash'], 'timestamp': headers['timestamp']}
+        signature_data = {'data': headers['hash'], 'time': headers['time']}
         headers['signature'] = key.sign(signature_data).hex()
         result = self.request(url=url, 
                               data=data,
@@ -272,6 +247,7 @@ class Client(c.Module):
             key = self.resolve_key(key)
             network = network or self.network
             url = self.get_url(fn=fn, mode=mode, network=network)
+        
             kwargs = {**(kwargs or {}), **extra_kwargs}
             input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
             headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
@@ -289,3 +265,28 @@ class Client(c.Module):
         output = subprocess.check_output(curl_command, shell=True)
         return output.decode('utf-8')
 
+    class Virtual:
+        protected_attributes = [ 'client', 'remote_call']
+        
+        def __init__(self, client: str ='ReactAgentModule'):
+            if isinstance(client, str):
+                client = c.connect(client)
+            self.client = client
+        
+        def remote_call(self, *args, remote_fn, return_future= False, timeout:int=10, key=None, **kwargs):
+            result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
+            return result
+
+        def __str__(self):
+            return str(self.client)
+
+        def __repr__(self):
+            return self.__str__()
+            
+        def __getattr__(self, key):
+
+            if key in self.protected_attributes :
+                return getattr(self, key)
+            else:
+                return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
+            

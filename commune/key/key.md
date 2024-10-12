@@ -205,6 +205,10 @@ By abstracting the complexities of key generation and management, this system em
 
 Below are essential code snippets from the `Key` class illustrating key functionalities.
 
+
+
+### **
+
 ### **Mnemonic Generation**
 
 ```python

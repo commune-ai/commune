@@ -144,7 +144,6 @@
     "stakefrom",
     "get_stakefrom",
     "key2balance",
-    "subnet",
     "subnets",
     "send",
     "my_keys",
@@ -231,6 +230,7 @@
     "is_float", 
     "df", 
     "choice", 
-    "obj2typestr"
+    "obj2typestr",
+    "determine_type"
 ]
 }

@@ -40,6 +40,14 @@ class User(c.Module):
         blacklist.remove(address)
         self.put('blacklist', blacklist)
         return {'success': True, 'msg': f'whitelisted {address}'}
+    
+    def add_rate_limit(self, address, rate_limit):
+        assert c.valid_ss58_address(address), f'{address} is not a valid address'
+        assert isinstance(rate_limit, int), f'{rate_limit} is not an int'
+        rate_limits = self.get('rate_limits', {})
+        rate_limits[address] = rate_limit
+        self.put('rate_limits', rate_limits)
+        return {'success': True, 'msg': f'added rate limit {rate_limit} to {address}'}
 
     def blacklist(self):
         return self.get('blacklist', [])
@@ -79,9 +87,6 @@ class User(c.Module):
     
     def rm_admin(self, address):
         return  self.rm_user(address)
-    
-    def num_roles(self, role:str):
-        return len([k for k,v in self.users().items() if v['role'] == role])
     
     
     def rm_user(self, address):

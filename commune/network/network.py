@@ -4,16 +4,24 @@ import os
 
 # A NETWORK IS A 
 class Network(c.Module):
-
     # the default
     network : str = 'local'
+    endpoints = ['namespace']
+    def __init__(self, network:str=None, tempo=60, n=100, **kwargs):
+        self.set_network(network=network, tempo=tempo, n=n)
 
-    def __init__(self, network:str=None, **kwargs):
-        self.set_network(network)
-
-    def set_network(self, network:str):
+    def set_network(self, network:str, tempo:int=60, n:str=100):
         self.network = network or self.network
+        self.tempo = tempo
+        self.n = n
         return self.network
+    
+    def params(self):
+        return { 
+            'network': self.network, 
+            'tempo' : self.tempo,
+            'n': self.n
+        }
     
     def networks(self, module_prefix:str='network') -> List[str]:
         networks = []
@@ -42,7 +50,7 @@ class Network(c.Module):
         if namespace == None:
             self.put(path,namespace)
             if 'local' == network: 
-                namespace = self.update_local_namespace(timeout=timeout)
+                namespace = self.update_namespace(timeout=timeout)
             elif c.module_exists(network):
                 network_module = c.module(network)()
                 namespace =  network_module.namespace(search=search, update=True)
@@ -56,7 +64,7 @@ class Network(c.Module):
             namespace = {k: loopback + ':' + v.split(':')[-1] for k,v in namespace.items() }
         return namespace
     
-    def update_local_namespace(self, timeout=2):
+    def update_namespace(self, timeout=2):
         namespace = {}
         addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
         future2address = {}
@@ -81,13 +89,14 @@ class Network(c.Module):
     
     get_namespace = _namespace = namespace
 
-    
-    def register_server(self, name:str, address:str, network=network) -> None:
+    def register_server(self, name:str, address:str, network=network, signature=None) -> None:
+        if signature != None:
+            signature['data'] = {'name': name, 'address': address}
+            c.verify(signature)
         namespace = self.namespace(network=network)
         namespace[name] = address
         self.put_namespace(network, namespace)
         return {'success': True, 'msg': f'Block {name} registered to {network}.'}
-    
     
     def deregister_server(self, name:str, network=network) -> Dict:
         namespace = self.namespace(network=network)
@@ -101,10 +110,8 @@ class Network(c.Module):
         else:
             return {'success': False, 'msg': f'Block {name} not found.'}
     
-    
     def rm_server(self,  name:str, network=network):
         return self.deregister_server(name, network=network)
-    
     
     def get_address(self, name:str, network:str=network, external:bool = True) -> dict:
         namespace = self.namespace(network=network)
@@ -113,13 +120,11 @@ class Network(c.Module):
             address = address.replace(c.default_ip, c.ip()) 
         return address
 
-    
     def put_namespace(self, network:str, namespace:dict) -> None:
         assert isinstance(namespace, dict), 'Network must be a dict.'
         return self.put(network, namespace)        
     
     add_namespace = put_namespace
-    
     
     def rm_namespace(self,network:str) -> None:
         if self.namespace_exists(network):
@@ -133,29 +138,16 @@ class Network(c.Module):
     
     def resolve_network_path(self, network:str) -> str:
         return self.resolve_path(self.resolve_network(network))
+    
     def namespace_exists(self, network:str) -> bool:
         path = self.resolve_network_path( network)
         return os.path.exists(path)
     
-    
-    def modules(self, network:List=network) -> List[str]:
+    def names(self, network:List=network) -> List[str]:
         return list(self.namespace(network=network).keys())
-    
-    
+
     def addresses(self, network:str=network, **kwargs) -> List[str]:
         return list(self.namespace(network=network, **kwargs).values())
-    
-    
-    def check_servers(self, *args, **kwargs):
-        servers = c.pm2ls()
-        namespace = c.get_namespace(*args, **kwargs)
-        c.print('Checking servers', color='blue')
-        for server in servers:
-            if server in namespace:
-                c.print(c.pm2_restart(server))
-
-        return {'success': True, 'msg': 'Servers checked.'}
-
     
     def add_server(self, address:str, network:str = 'local', name=None,timeout:int=4, **kwargs):
         """
@@ -179,8 +171,7 @@ class Network(c.Module):
 
         return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': self.servers(network=network), 'network': network}
     
-    
-    def rm_server(self,  name, network:str = 'local', **kwargs):
+    def rm_server(self,  name, network:str = 'local'):
         namespace = self.namespace(network=network)
         if name in namespace.values():
             for k, v in c.copy(list(namespace.items())):
@@ -202,18 +193,6 @@ class Network(c.Module):
         namespace = self.namespace(search=search, network=network, **kwargs)
         return list(namespace.keys())
     
-    
-    def server_exists(self, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
-        servers = self.servers(network=network, **kwargs)
-        if prefix_match:
-            server_exists =  any([s for s in servers if s.startswith(name)])
-            
-        else:
-            server_exists =  bool(name in servers)
-
-        return server_exists
-    
-    
     def server_exists(self, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
         servers = self.servers(network=network, **kwargs)
         if prefix_match:
@@ -224,6 +203,18 @@ class Network(c.Module):
 
         return server_exists  
     
+
+    def registration_signature(self, name='agi', address='0.0.0.0:8888', key=None):
+        key = c.get_key(key)
+        data = {'name': name, 'address': address}
+        signature =  c.sign(data, key=key, to_json=True)
+        assert c.verify(signature)
+        return signature
+    
+
+    regsig = registration_signature
+    
+
 Network.run(__name__)
 
 
