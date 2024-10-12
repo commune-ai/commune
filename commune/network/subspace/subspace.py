@@ -638,6 +638,7 @@ class Subspace(c.Module):
             {'function_name': 'query_result', ...}
         """
 
+        c.print(f'QueryBatch({functions})')
         result: dict[str, str] = {}
         if not functions:
             raise Exception("No result")
@@ -685,6 +686,7 @@ class Subspace(c.Module):
             >>> query_batch_map(substrate_instance, {'module_name': [('function_name', ['param1', 'param2'])]})
             # Returns the combined result of the map batch query
         """
+        c.print(f'QueryBatchMap({functions})')
         if path != None:
             return self.get(path, max_age=max_age, update=update)
         multi_result: dict[str, dict[Any, Any]] = {}
@@ -801,7 +803,6 @@ class Subspace(c.Module):
         path =  f'{self.network}/query_map/{module}/{name}_params={params}'
         result = self.get(path, None, max_age=max_age, update=update)
         if result == None:
-            
             result = self.query_batch_map({module: [(name, params)]}, block_hash)
 
             if extract_value:
@@ -1193,12 +1194,15 @@ class Subspace(c.Module):
         params = {"amount": amount, "module_key": dest}
         return self.compose_call(fn="remove_stake", params=params, key=key)
     
-    def resolve_module_address(self, name: str, address: str | None = None) -> str:
-        if not c.server_exists(name):
-            address = c.serve(name)["address"]
-        else:
-            address = c.namespace().get(name)
-        address = f'{c.ip()}:{address.split(":")[-1]}'
+    def resolve_module_address(self, name: str, address: str | None = None, private=False) -> str:
+        if address is None:
+            if not c.server_exists(name):
+                address = c.serve(name)["address"]
+            else:
+                address = c.namespace().get(name)
+            address = f'{c.ip()}:{address.split(":")[-1]}'
+        if private:
+            address = '0.0.0.0' +':'+ address.split(':')[-1]
         return address
 
     def update_module(
@@ -1272,6 +1276,7 @@ class Subspace(c.Module):
         key: Keypair = None,
         metadata: str | None = 'NA',
         wait_for_finalization = True,
+        private = False,
     ) -> ExtrinsicReceipt:
         """
         Registers a new module in the network.
@@ -1287,6 +1292,8 @@ class Subspace(c.Module):
         key =  c.get_key(key)
         address = self.resolve_module_address(name=name, address=address)
         subnet = self.resolve_subnet(netuid or subnet)
+        if private:
+            address = '0.0.0.0' +':'+ address.split(':')[-1]
         params = {
             "network_name": subnet,
             "address":  address,
@@ -1939,7 +1946,7 @@ class Subspace(c.Module):
         return self.query_map("Keys", [netuid], extract_value=extract_value)
 
     def addresses(
-        self, netuid: int = 0, extract_value: bool = False
+        self, netuid: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False
     ) -> dict[int, str]:
         """
         Retrieves a map of key addresses from the network.
@@ -1955,7 +1962,7 @@ class Subspace(c.Module):
         Raises:
             QueryError: If the query to the network fails or is invalid.
         """
-        addresses = self.query_map("Address", [netuid], extract_value=extract_value)
+        addresses = self.query_map("Address", [netuid], extract_value=extract_value, max_age=max_age, update=update)
         sorted_uids = list(sorted(list(addresses.keys())))
         return [addresses[uid] for uid in sorted_uids]
         
@@ -2174,7 +2181,7 @@ class Subspace(c.Module):
         """
 
         return self.query_map( "LegitWhitelist", module="GovernanceModule", extract_value=extract_value)
-    def subnet_names(self, extract_value: bool = False, max_age=10, update=False) -> dict[int, str]:
+    def subnet_names(self, extract_value: bool = False, max_age=60, update=False) -> dict[int, str]:
         """
         Retrieves a mapping of subnet names within the network.
         """
@@ -2237,13 +2244,14 @@ class Subspace(c.Module):
         )
 
     def names(
-        self, netuid: int = 0, extract_value: bool = False
+        self, netuid: int = 0, extract_value: bool = False, max_age=60, update=False
     ) -> dict[int, str]:
         """
         Retrieves a mapping of names for keys on the network.
         """
 
-        names =  self.query_map("Name", [netuid], extract_value=extract_value)
+        names =  self.query_map("Name", [netuid], extract_value=extract_value, max_age=max_age, update=update)
+        names = {int(k):v for k,v in names.items()}
         names = dict(sorted(names.items(), key=lambda x: x[0]))
         return names
 
@@ -2313,13 +2321,17 @@ class Subspace(c.Module):
     def global_dao_treasury(self):
         return self.query("GlobalDaoTreasury", module="GovernanceModule")
 
-    def n(self, netuid: int = 0) -> int:
+    def n(self, netuid: int = 0, max_age=60, update=False ) -> int:
         """
         Queries the network for the 'N' hyperparameter, which represents how
         many modules are on the network.
         """
-
-        return self.query("N", params=[netuid])
+        netuid = self.resolve_netuid(netuid)
+        n =  self.query_map("N", params=[], max_age=max_age, update=update)
+        if str(netuid) in n:
+            netuid = str(netuid)
+        return n[netuid]
+        
 
     def tempo(self, netuid: int = 0) -> int:
         """
@@ -3055,8 +3067,8 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def netuid2subnet(self, **kwargs ) -> Dict[str, str]:
-        subnet_names = self.query_map('SubnetNames', [], **kwargs)
+    def netuid2subnet(self, max_age=60, update=False ) -> Dict[str, str]:
+        subnet_names = self.query_map('SubnetNames', [], max_age=max_age, update=update)
         subnet_names = dict(sorted(subnet_names.items(), key=lambda x: x[0]))
         return {int(k):v for k,v in subnet_names.items()}
     
