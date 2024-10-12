@@ -9,9 +9,6 @@ import uvicorn
 import os
 import asyncio
 
-
-
-
 class Server(c.Module):
     network : str = 'local'
 
@@ -97,10 +94,14 @@ class Server(c.Module):
 
     @classmethod
     def fleet(cls, module, n:int = 1, **kwargs):
+        futures = []
         for _ in range(n):
-            c.print(c.serve(module=module, name = module + '::' + str(_),  **kwargs))
 
-        return {'success':True, 'message':f'Served {n} servers'} 
+            future = c.submit(c.serve, dict(module=module, name = module + '::' + str(_),  **kwargs))
+            futures.append(future)
+        for future in c.as_completed(futures):
+            c.print(future.result())
+        return {'success':True, 'message':f'Served {n} servers', 'namespace': c.namespace()} 
 
 
 
@@ -478,8 +479,7 @@ class Server(c.Module):
         info['key'] = module.key.ss58_address
         return info
 
-    def get_server_schema(self,
-                           module) -> 'Schema':
+    def get_server_schema(self, module) -> 'Schema':
         schema = {}
         functions =  []
         for k in self.functions_attributes:
