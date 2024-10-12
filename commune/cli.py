@@ -95,14 +95,13 @@ class cli(c.Module):
     
         # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
 
-    @classmethod
-    def is_property(cls, obj):
+
+    def is_property(self, obj):
         return isinstance(obj, property)
 
-    @classmethod
-    def parse_args(cls, argv = None):
+    def parse_args(self, argv = None):
         if argv is None:
-            argv = cls.argv()
+            argv = self.argv()
         args = []
         kwargs = {}
         parsing_kwargs = False
@@ -110,15 +109,14 @@ class cli(c.Module):
             if '=' in arg:
                 parsing_kwargs = True
                 key, value = arg.split('=')
-                kwargs[key] = cls.determine_type(value)
+                kwargs[key] = self.determine_type(value)
 
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                args.append(cls.determine_type(arg))
+                args.append(self.determine_type(arg))
         return args, kwargs
 
-    @classmethod
-    def determine_type(cls, x):
+    def determine_type(self, x):
         x = str(x)
         if isinstance(x, str) :
             if x.startswith('py(') and x.endswith(')'):
@@ -134,7 +132,7 @@ class cli(c.Module):
             try:
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
-                x =  [cls.determine_type(item.strip()) for item in list_items]
+                x =  [self.determine_type(item.strip()) for item in list_items]
                 if len(x) == 1 and x[0] == '':
                     x = []
                 return x
@@ -149,7 +147,7 @@ class cli(c.Module):
             try:
                 dict_items = x[1:-1].split(',')
                 # try to convert each item to a key-value pair
-                return {key.strip(): cls.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+                return {key.strip(): self.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
             except:
                 # if conversion fails, return as string
                 return x

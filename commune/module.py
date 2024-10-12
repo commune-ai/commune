@@ -607,7 +607,6 @@ class c:
                         c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
             # print(f'ROUTE({module}/{fn} -> {fn})')
         latency = c.time() - t0
-        c.print(f'enabled routes in {latency} seconds')
         return {'success': True, 'msg': 'enabled routes'}
     
     @classmethod
@@ -1513,6 +1512,9 @@ class c:
                     functions += [line.split(splitter)[1].split('(')[0]]
 
         functions = sorted(list(set(functions)))
+        if search != None:
+            functions = [f for f in functions if search in f]
+
 
         return functions
     
@@ -2643,7 +2645,8 @@ class c:
         for k in logs_map.keys():
             c.rm(logs_map[k])
 
-    def logs(self, 
+    @classmethod
+    def logs(cls, 
                 module:str, 
                 tail: int =100, 
                 mode: str ='cmd',
@@ -2653,7 +2656,7 @@ class c:
             text = ''
             for m in ['out','error']:
                 # I know, this is fucked 
-                path = f'{self.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
+                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, tail=tail)
                 except Exception as e:

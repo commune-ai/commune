@@ -99,6 +99,8 @@ class Subspace(c.Module):
                         ws_options: dict[str, int] = {},
                         wait_for_finalization: bool = False,
                         timeout: int | None = None ):
+        if network in ['subspace']:
+            network = 'main'
 
         t0 = c.time()
         if test:
@@ -109,11 +111,7 @@ class Subspace(c.Module):
 
         self.ws_options = ws_options
         self.url  = url or (mode + '://' + self.url_map.get(network)[0])
-        self.num_connections = num_connections
-        self.connections_queue = queue.Queue(self.num_connections)
-        for _ in range(num_connections):
-            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-                                       
+        self.num_connections = num_connections                  
         self.connection_latency = c.time() - t0
         self.wait_for_finalization = wait_for_finalization
         self.network = network
@@ -146,6 +144,12 @@ class Subspace(c.Module):
             QueueEmptyError: If no connection is available within the timeout
               period.
         """
+        if not hasattr(self, 'connections_queue'):
+            self.connections_queue = queue.Queue(self.num_connections)
+            for _ in range(self.num_connections):
+                self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+                        
+
         conn = self.connections_queue.get(timeout=timeout)
         if init:
             conn.init_runtime()  # type: ignore
@@ -2197,7 +2201,9 @@ class Subspace(c.Module):
         assert subnet in subnet_map, f"Subnet {subnet} not found"
         return subnet
 
-    def resolve_netuid(self, netuid: str) -> int:
+    def resolve_netuid(self, netuid: str, subnet=None) -> int:
+        if subnet != None:
+            netuid = subnet
         if isinstance(netuid, str):
             subnet2netuid = self.subnet2netuid()
             if netuid in subnet2netuid:
@@ -2230,14 +2236,16 @@ class Subspace(c.Module):
             "RegistrationBlock", [netuid], extract_value=extract_value
         )
 
-    def name(
+    def names(
         self, netuid: int = 0, extract_value: bool = False
     ) -> dict[int, str]:
         """
         Retrieves a mapping of names for keys on the network.
         """
 
-        return self.query_map("Name", [netuid], extract_value=extract_value)
+        names =  self.query_map("Name", [netuid], extract_value=extract_value)
+        names = dict(sorted(names.items(), key=lambda x: x[0]))
+        return names
 
     #  == QUERY FUNCTIONS == #
 
@@ -2281,15 +2289,8 @@ class Subspace(c.Module):
 
         return self.query("MaxAllowedUids", params=[netuid])
 
-    def name(self, netuid: int = 0) -> str:
-        """
-        Queries the network for the name of a specific subnet.
-        """
-
-        return self.query("Name", params=[netuid])
-    
-
-    def namespace(self, netuid: int = 0, search=None, update=False, max_age=60) -> Dict[str, str]:
+    def namespace(self, netuid: int = 0, subnet=None, search=None, update=False, max_age=60) -> Dict[str, str]:
+        netuid = self.resolve_netuid(netuid, subnet=subnet)
         path = f'{self.network}/namespace/{netuid}'
         namespace = self.get(path,None, max_age=max_age, update=update)
         if namespace == None:
@@ -2668,10 +2669,17 @@ class Subspace(c.Module):
 
     
 
-    def subnet_params(self, netuid=None, block_hash: str | None = None, max_age=60, update=False) -> dict[int, SubnetParamsWithEmission]:
+    def subnet_params(self, 
+                      netuid = None,
+                      subnet = None,
+                      block_hash: str | None = None, 
+                      max_age=60, 
+                      update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """
+        netuid = self.resolve_netuid(netuid, subnet=subnet)
+            
         path = f'{self.network}/subnet_params'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
@@ -2829,7 +2837,7 @@ class Subspace(c.Module):
     def founders(self):
         return self.query_map("Founder", module="SubspaceModule")
     
-    def my_subnet_netuids(self):
+    def my_netuids(self):
         founders = self.founders()
         address2key = c.address2key()
         my_subnets = {}
@@ -2852,12 +2860,13 @@ class Subspace(c.Module):
 
     
 
-    def my_keys(self, netuid = None):
+    def my_keys(self, netuid, subnet=None):
+        netuid = self.resolve_netuid(netuid=netuid, subnet=subnet)
         address2key = c.address2key()
         keys = self.keys(netuid)
         my_keys = {}
-        if netuid == None:
-            for netuid in keys.keys():
+        if subnet == None:
+            for subnet in keys.keys():
                 my_keys[netuid] = {}
                 for k in keys[netuid]:
                     if k in address2key:
@@ -2909,7 +2918,8 @@ class Subspace(c.Module):
 
 
     def modules(self,
-                    netuid=0,
+                    netuid = 0,
+                    subnet=None,
                     max_age = 60,
                     update=False,
                     timeout=30,
@@ -2935,15 +2945,12 @@ class Subspace(c.Module):
                         'LastUpdate': 0,
                     },
                     **kwargs):
-        
-        
-        if netuid in [0]:
-            features += ['StakeFrom']
-
         if netuid == None: 
             return self.all_modules(max_age=max_age, update=update, module=module, features=features, default_module=default_module, **kwargs)
     
-        netuid = self.resolve_netuid(netuid)
+        netuid = self.resolve_netuid(netuid=netuid, subnet=subnet)
+        if netuid in [0]:
+            features += ['StakeFrom']
         path = f'{self.network}/modules/{netuid}'
         modules = self.get(path, None, max_age=max_age, update=update)
 
@@ -2970,7 +2977,6 @@ class Subspace(c.Module):
             for uid in results['Keys'].keys():
                 module_key = results['Keys'][uid]
                 module = {'uid': uid}
-            
                 for f in features:
                     if isinstance(results[f], dict):
                         if f in ['Keys']:
@@ -2986,7 +2992,6 @@ class Subspace(c.Module):
             self.put(path, modules)
         return modules
     
-
     def root_modules(self, netuid=0, **kwargs):
         return self.modules(netuid=netuid,**kwargs)
 
@@ -3046,7 +3051,6 @@ class Subspace(c.Module):
         module['metadata'] = module.pop('metadata', {})
         module['vote_staleness'] = (block or self.block()) - module['last_update']
         return module
-
 
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())

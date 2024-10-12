@@ -24,6 +24,7 @@ class Server(c.Module):
         port: Optional[int] = None, # the port the server is running on
         network:str = 'subspace', # the network used for incentives
         helper_functions  = ['info',  'metadata',  'schema', 'server_name', 'functions', 'forward', 'rate_limit'], 
+        functions_attributes =['helper_functions', 'whitelist','endpoints','server_functions'],
         max_bytes:int = 10 * 1024 * 1024,  # max bytes within the request (bytes)
         allow_origins = ["*"], # allowed origins
         allow_credentials=True, # allow credentials
@@ -40,9 +41,10 @@ class Server(c.Module):
                             'user_data',
                             'user2count', 
                             'user_path2latency',
-                            'user_path2timestamp',
+                            'user_path2time',
                             'remove_user_data',
-                            'users'
+                            'users', 
+                            'fn2count'
                             ],
         **kwargs,
         ) -> 'Server':
@@ -51,6 +53,7 @@ class Server(c.Module):
             name = name or module
             module = c.module(module)()
         self.network = network
+        self.functions_attributes = functions_attributes
         self.period = period
         self.serializer = c.module('serializer')()
         module.name = module.server_name = name
@@ -208,8 +211,8 @@ class Server(c.Module):
         return user2count
 
     def user_paths(self, address ):
-        user_paths = c.ls(self.user_path(address))
-        return sorted(user_paths, key=self.extract_timestamp)
+        user_paths = c.glob(self.user_path(address))
+        return sorted(user_paths, key=self.extract_time)
     
     def user_data(self, address):
         for i, user_path in enumerate(self.user_paths(address)):
@@ -222,16 +225,16 @@ class Server(c.Module):
         self.check_user_data(address)
         return len(self.user_paths(address))
     
-    def user_path2timestamp(self, address):
+    def user_path2time(self, address):
         user_paths = self.user_paths(address)
-        user_path2timestamp = {user_path: self.extract_timestamp(user_path) for user_path in user_paths}
-        return user_path2timestamp
+        user_path2time = {user_path: self.extract_time(user_path) for user_path in user_paths}
+        return user_path2time
     
     def user_path2latency(self, address):
         user_paths = self.user_paths(address)
         t0 = c.time()
-        user_path2timestamp = {user_path: t0 - self.extract_timestamp(user_path) for user_path in user_paths}
-        return user_path2timestamp
+        user_path2time = {user_path: t0 - self.extract_time(user_path) for user_path in user_paths}
+        return user_path2time
     
     
     def check_user_data(self, address):
@@ -246,9 +249,9 @@ class Server(c.Module):
             print('Checking', user)
             self.chekcer_user_data()
 
-    def extract_timestamp(self, x):
+    def extract_time(self, x):
         try:
-            x = float(x.split('timestamp=')[-1].split('_')[0])
+            x = float(x.split('/')[-1].split('.')[0])
         except Exception as e:
             print(e)
             x = 0
@@ -271,12 +274,12 @@ class Server(c.Module):
         headers = dict(request.headers.items())
         address = headers.get('key', headers.get('address', None))
         assert address, 'No key or address in headers'
-        request_staleness = c.timestamp() - float(headers['timestamp'])
+        request_staleness = c.time() - float(headers['time'])
         assert  request_staleness < module.max_request_staleness, f"Request is too old ({request_staleness}s > {module.max_request_staleness}s (MAX)" 
         data = self.loop.run_until_complete(request.json())
         data = self.serializer.deserialize(data) 
         request = {'data': data, 'headers': headers}
-        auth={'data': c.hash(data), 'timestamp': headers['timestamp']}
+        auth={'data': c.hash(data), 'time': headers['time']}
         signature = headers.get('signature', None)
         assert c.verify(auth=auth,signature=signature, address=address), 'Invalid signature'
         server_signature = self.module.key.sign(signature)
@@ -298,16 +301,34 @@ class Server(c.Module):
         count = self.user_count(address)
         rate_limit = self.rate_limit(fn=fn, address=address)
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'
-        timestamp = float(headers['timestamp'])
+        time = float(headers['time'])
         fn_obj = getattr(self.module, fn)
-        adress_string = self.state['address2key'].get(address, address)
-        user_str = f'User({adress_string[:8]})'
-        c.print(f'{user_str} >> Stats(count={count} limit={rate_limit})')
-        c.print(f'{user_str} >> Request(fn={fn} args={args} kwargs={kwargs})', color= color)
+        is_local  = address in self.state['address2key']
+        buffer_length = 64
+        
+        tx_str = f'CALL<FN={fn} TIME={time}>'
+        left_buffer = ':'*((buffer_length - len(tx_str))//2)
+        right_buffer = ':'*((buffer_length - len(tx_str))//2)
+        tx_str = left_buffer + tx_str + right_buffer
+        if len(tx_str) < buffer_length:
+            tx_str += (buffer_length - len(tx_str)) * ':'
+        c.print(tx_str, color=color)
+        c.print('-'*buffer_length, color=color)
+        if is_admin:
+            RANK = 'ADMIN'
+        elif is_local:
+            RANK = 'LOCAL'
+        else:
+            RANK = 'NA'
+
+        c.print(f'USER(KEY={address[:4]}.. COUNT={count} LIMIT={rate_limit} PERIOD={self.period}s ROLE={RANK})', color=color)
+        c.print('-'*buffer_length, color=color)
+        c.print(f'INPUT(ARGS={args} KWARGS={kwargs})', color=color)
+        c.print('-'*buffer_length, color=color)
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-        latency = c.round(c.time() - timestamp, 3)
-        c.print(f'{user_str} >> Result(fn={fn} latency={latency})', color=color)
-        c.print('-'*16)
+        latency = c.round(c.time() - time, 3)
+        c.print(f'OUTPUT(LATENCY={latency} TYPE={c.determine_type(result)}))')
+        c.print(':'*buffer_length, color=color)
         if c.is_generator(result):
             output = []
             def generator_wrapper(generator):
@@ -325,7 +346,7 @@ class Server(c.Module):
             'input': data, # the data of the request
             'output': output, # the response
             'latency':  latency, # the latency
-            'timestamp': timestamp, # the timestamp of the request
+            'time': time, # the time of the request
             'user_key': address, # the key of the user
             'server_key': self.module.key.ss58_address, # the key of the server
             'user_signature': signature, # the signature of the user
@@ -336,9 +357,12 @@ class Server(c.Module):
         self.save_user_data(user_data)
         
         return result
+    
+    def fn2count(self, fn):
+        return {k: self.user_count(k) for k in self.users()}
 
     def save_user_data(self, user_data):
-        user_path = self.user_path(user_data["user_key"]) + f'/timestamp={user_data["timestamp"]}_fn={user_data["fn"]}.json' # get the user info path
+        user_path = self.user_path(user_data["user_key"]) + f'/{user_data["fn"]}/{c.time()}.json' # get the user info path
         c.put(user_path, user_data)
 
     def sync_loop(self, sync_loop_initial_sleep=4):
@@ -354,10 +378,10 @@ class Server(c.Module):
     def sync(self, 
             update=False,
             state_keys = ['stake_from', 'stake_to', 'address2key', 
-                           'stake', 'key2address', 'timestamp', 'latency']):
+                           'stake', 'key2address', 'time', 'latency']):
         t0 = c.time()
         if hasattr(self, 'state'):
-            latency = c.time() - self.state['timestamp']
+            latency = c.time() - self.state['time']
             if latency < self.module.max_network_staleness:
                 return {'msg': 'state is fresh'}
         max_age = self.module.max_network_staleness
@@ -381,8 +405,8 @@ class Server(c.Module):
             except Exception as e:
                 print(f'Error {e} while syncing network--> {network}')
         
-        state['timestamp'] = c.time()
-        state['latency'] = state['timestamp'] - t0
+        state['time'] = c.time()
+        state['latency'] = state['time'] - t0
         assert is_valid_state(state), f'Format for network state is {[k for k in state_keys if k not in state]}'
         self.put(network_path, state)
         self.state = state
@@ -455,12 +479,10 @@ class Server(c.Module):
         return info
 
     def get_server_schema(self,
-                           module,  
-                          functions_attributes=['helper_functions', 'whitelist','endpoints',
-                                                'server_functions'],) -> 'Schema':
+                           module) -> 'Schema':
         schema = {}
         functions =  []
-        for k in functions_attributes:
+        for k in self.functions_attributes:
             if hasattr(module, k):
                 fn_obj = getattr(module, k)
                 if isinstance(fn_obj, list):
