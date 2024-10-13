@@ -19,6 +19,7 @@ nest_asyncio.apply()
 
 class c:
 
+    endpoints = ['ask', 'generate', 'forward']
 
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
 
@@ -32,6 +33,7 @@ class c:
         's' :  'network.subspace',
         'subspace': 'network.subspace', 
         'namespace': 'network', 
+        'client': 'server.client',
         'local': 'network',
         'network.local': 'network',
         }
@@ -221,6 +223,8 @@ class c:
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
+        if c.object_exists(obj):
+            return c.obj(obj)
         if obj == None:
             if cls._obj != None:
                 return cls._obj
@@ -408,6 +412,8 @@ class c:
             if isinstance(key, str):
                 key =  c.get_key(key)
         else:
+            if hasattr(self, 'key'):
+                key = self.key
             key = c.key(self.module_name())
         assert hasattr(key, 'ss58_address'), f'Key {key} does not have a sign method'
         return key
@@ -469,6 +475,27 @@ class c:
             utils = [u for u in utils if search in u]
         return sorted(utils)
     
+    @classmethod
+    def util2code(cls, search=None):
+        utils = cls.utils()
+        util2code = {}
+        for f in utils:
+            if search != None:
+                if search in f:
+                    util2code[f] = c.fn_code(f)
+        return util2code
+    
+    @classmethod
+    def best(cls, *args, functions=None, **kwargs):
+        functions = functions or c.utils()
+        prompt = f''''
+         INCLUDE <OUTPUT> AND </OUTPUT> TAGS IN YOUR PROMPT SO I CAN PARSE IT FOR OTHER USECASES 
+         return the top scores with dict(util:str --> score:int[0,10]) RESPOND IN JSON OMNLY
+         {functions}
+        '''
+        return c.ask(prompt, *args, model='sonnet', **kwargs)
+    
+
     def util_modules(self, search=None):
         return sorted(list(set([f.split('.')[-2] for f in self.utils_paths(search)])))
 
@@ -790,9 +817,10 @@ class c:
     save_json = put_json
 
     @classmethod
-    def rm(cls, path, extension=None, possible_extensions = ['json']):
+    def rm(cls, path, extension=None, possible_extensions = ['json'], avoid_paths = ['~', '/']):
         path = cls.resolve_path(path=path, extension=extension)
-        # incase we want to remove the json file
+        avoid_paths = [cls.resolve_path(p) for p in avoid_paths]
+        assert path not in avoid_paths, f'Cannot remove {path}'
         if not os.path.exists(path):
             for pe in possible_extensions:
                 if path.endswith(pe) and os.path.exists(path + f'.{pe}'):
@@ -845,6 +873,8 @@ class c:
 
     @classmethod
     def path_exists(cls, path:str)-> bool:
+        if os.path.exists(path):
+            return True
         path = cls.resolve_path(path)
         exists =  os.path.exists(path)
         return exists
@@ -949,13 +979,11 @@ class c:
         """
         path = cls.resolve_path(path)
         try:
-            ls_files = os.listdir(path) if not recursive else cls.walk(path)
+            ls_files = os.listdir(path)
         except Exception as e:
-            print('Error in c.ls :', e)
             return []
         if return_full_path:
             ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
-
         ls_files = sorted(ls_files)
         if search != None:
             ls_files = list(filter(lambda x: search in x, ls_files))
@@ -1156,6 +1184,7 @@ class c:
             fn = cls.get_fn(fn)
             code_text = inspect.getsource(fn)
         except Exception as e:
+            code_text = None
             print(f'Error in getting fn_code: {e}')                    
         return code_text
     
@@ -1282,7 +1311,7 @@ class c:
         if cls.is_fn(module):
             return cls.fn_code(module)
         module = cls.resolve_object(module)
-        text =  cls.get_text( module.filepath(), *args, **kwargs)
+        text =  c.get_text( module.filepath(), *args, **kwargs)
         if search != None:
             return cls.find_lines(text=text, search=search)
         return text
@@ -1564,7 +1593,7 @@ class c:
 
     @classmethod
     def exists(cls, path:str):
-        return os.path.exists(c.resolve_path(path))
+        return os.path.exists(path) or os.path.exists(cls.resolve_path(path))
     @classmethod
     def is_fn(cls, fn, splitters = [':', '/', '.']):
         try:
@@ -2167,6 +2196,9 @@ class c:
         Import an object from a string with the format of {module_path}.{object}
         Examples: import_object("torch.nn"): imports nn from torch
         '''
+        pwd = c.pwd()
+        sys.path.append(pwd)
+        sys.path = list(set(sys.path))
         assert key != None, key
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
@@ -2275,7 +2307,7 @@ class c:
         return round_sig(x, sig=sig, small_value=small_value)
 
     @classmethod
-    def module(cls, path:str = 'module',  cache=True,verbose = False, **_kwargs ) -> str:
+    def module(cls, path:str = 'module',  cache=True,verbose = False, trials=3, **_kwargs ) -> str:
         
         og_path = path
         path = path or 'module'
@@ -2294,6 +2326,11 @@ class c:
                 try:
                     module = c.import_object(path)
                 except Exception as e:
+                    if trials > 0:
+                        trials -= 1
+                        print('Error in importing module, refreshing tree', path, e)
+                        tree = c.tree(update=True)
+                        return c.module(path, cache=cache, verbose=verbose, trials=trials)
                     raise ValueError(f'Error in importing module {path} {e}')
             if cache:
                 c.module_cache[path] = module    
@@ -2310,7 +2347,7 @@ class c:
             return cls._tree
         local_tree = c.local_tree(max_age=max_age, update=update)
         lib_tree = c.lib_tree(max_age=max_age, update=update)
-        tree = {**local_tree, **lib_tree}
+        tree = {**lib_tree, **local_tree}
         if cache:
             cls._tree = tree
         if search != None:
@@ -2348,8 +2385,9 @@ class c:
     get_modules = modules
 
     @classmethod
-    def has_module(cls, module):
-        return module in cls.modules()
+    def has_module(cls, module, path=None):
+        path = path or c.libpath
+        return module in c.modules()
     
     def new_modules(self, *modules, **kwargs):
         for module in modules:
@@ -2433,12 +2471,12 @@ class c:
     def addresses(cls, *args, **kwargs) -> List[str]:
         return list(cls.namespace(*args,**kwargs).values())
     
-
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
         user = os.getenv('USER')
         cmd = f'chown -R {user}:{user} {path}'
+        print(cmd)
         cls.cmd(cmd , sudo=sudo, verbose=True)
         return {'success':True, 'message':f'chown cache {path}'}
 

@@ -6,13 +6,13 @@ from typing import *
 
 class Vali(c.Module):
     whitelist = ['eval_module', 'score', 'eval', 'leaderboard']
-    voting_networks = ['bittensor', 'commune']
+    voting_networks = ['bittensor', 'commune', 'subspace']
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     subnet = None,
                     search=  None, # (OPTIONAL) the search string for the network 
                     verbose=  True, # the verbose mode for the worker # EPOCH
-                    batch_size= 16,
+                    batch_size= 64,
                     max_workers=  None ,
                     score = None, #EVAL
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
@@ -20,8 +20,10 @@ class Vali(c.Module):
                     min_score=  0, # the minimum weight of the leaderboard
                     tempo =  10, # the interval for the run loop to run
                     run_loop= True, # This is the key that we need to change to false
+                    test= False, # the test mode for the validator
                     module = None,
-                    timeout= 0.2, # timeout per evaluation of the module
+                    max_age= 80, # the maximum age of the network
+                    timeout= 2, # timeout per evaluation of the module
                     update=False,
                     key = None,
                  **kwargs):
@@ -31,7 +33,7 @@ class Vali(c.Module):
         self.epochs = 0
         self.start_time = c.time() # the start time of the validator
         self.futures = [] # the futures for the executor
-        self.key = c.get_key(key or self.module_name())
+        self.set_key(key)
         self.set_score(score)
         self.set_network(update=update)
         if self.config.run_loop:
@@ -39,9 +41,6 @@ class Vali(c.Module):
     init_vali = __init__
     def score(self, module):
         return 'name' in module.info()
-    
-    def score2(self, module):
-        return float('name' in module.info())/3
 
     def set_score(self, score: Union[Callable, str] ):
         """
@@ -106,7 +105,7 @@ class Vali(c.Module):
                 result = future.result()
                 result['score'] = result.get('score', 0)
                 did_score_bool = bool(result['score'] > 0)
-                emoji =  '🟢' if did_score_bool else '🔴'
+                emoji =  '🟢' if did_score_bool  else '🔴'
                 if did_score_bool:
                     keys = ['score', 'name', 'address', 'latency']
                 else:
@@ -114,16 +113,15 @@ class Vali(c.Module):
                 result = {k: result.get(k, None) for k in keys if k in result}
                 msg = ' '.join([f'{k}={result[k]}' for k in result])
                 msg = f'RESULT({msg})'
-                c.print(emoji + msg + emoji, color='cyan', verbose=self.config.verbose)
                 break
-
         except Exception as e:
             emoji = '🔴'
             result = c.detailed_error(e)
-            msg = f'Error({result})'
-            
-            
+            msg = f'ERROR({result})'
         
+        c.print(f'{emoji}RESULT({msg}){emoji}', color='cyan', verbose=self.config.verbose)
+
+            
         return result
 
 
@@ -134,8 +132,8 @@ class Vali(c.Module):
     epoch2results = {}
 
     @classmethod
-    def run_epoch(cls, network='local', run_loop=False, **kwargs):
-        self = cls(network=network, run_loop=run_loop, **kwargs)
+    def run_epoch(cls, search=None, run_loop=False, **kwargs):
+        self = cls(search=search, run_loop=run_loop, **kwargs)
         return self.epoch(df=1)
 
     def epoch(self, network=None,  df=True, **kwargs):
@@ -148,6 +146,7 @@ class Vali(c.Module):
         results = []
         progress = c.tqdm(total=len(module_addresses), desc='Evaluating Modules')
         for module_address in module_addresses:
+            c.print(f'🟡Evaluating-->{module_address}🟡', color='cyan', verbose=self.config.verbose)
             if self.executor.is_full:
                 results.append(self.get_next_result(self.futures))
             else:
@@ -187,7 +186,6 @@ class Vali(c.Module):
                       subnet:int=None,
                       search = None, 
                       update = False,
-                      tempo = None,
                       max_age=None):
         if not hasattr(self, 'network_time'):
             self.network_time = 0
@@ -196,18 +194,18 @@ class Vali(c.Module):
         if '.' in network:
             network, subnet = network.split('.')
         subnet = subnet or config.subnet
-        self.network_path = self.path + '/network_state'
+        self.network_path = self.get_storage_path() + '/network_state'
         if subnet != None:
             network = 'subspace'
         search = search or config.search
-        max_age = max_age if max_age != None else config.tempo
+        max_age = max_age if max_age != None else config.max_age
         if update:
             max_age = 0
         
         if self.network_staleness < max_age:
             return {'msg': 'Alredy Synced network Within Interval', }
         # RESOLVE THE VOTING NETWORKS
-        has_network_module = hasattr(self, 'network_module')
+        has_network_module = bool(hasattr(self, 'network_module') and network == self.config.network)
         network_module = c.module(network)() if not has_network_module else self.network_module
         if 'local' in network:
             # local network does not need to be updated as it is atomically updated
@@ -219,9 +217,8 @@ class Vali(c.Module):
             config.netuid = subnet2netuid.get(subnet, None)
             config.subnet = subnet
             namespace = network_module.namespace(subnet=subnet, max_age=max_age)
-            params = network_module.subnet_params(subnet=subnet)
+            params = network_module.subnet_params(subnet=subnet, max_age=max_age)
             config.tempo = params.get('tempo', self.config.tempo)
-
         else:
             raise ValueError(f'Network {network} is not a valid network')
         
@@ -257,14 +254,14 @@ class Vali(c.Module):
         """
         info = {}
         # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
-        path = self.resolve_path(self.path +'/'+ module)
         address = self.namespace.get(module, module)
+        path = self.get_storage_path() +'/'+ address
         module_client = c.connect(address, key=self.key)
         info = self.get_json(path, {})
         last_timestamp = info.get('timestamp', 0)
         info['staleness'] = c.time() -  last_timestamp
         if not self.check_info(info):
-            info = module_client.info()
+            info = module_client.info(timeout=self.config.timeout)
         info['timestamp'] = c.timestamp() # the timestamp
         last_score = info.get('score', 0)
         response = self.score(module_client, **kwargs)
@@ -279,8 +276,7 @@ class Vali(c.Module):
     
     eval = eval_module
       
-    @property
-    def path(self):
+    def get_storage_path(self):
         # the set storage path in config.path is set, then the modules are saved in that directory
         if self.config.path == None:
             path = f'{self.config.network}/{self.config.subnet}' if self.config.subnet != None else self.config.network
@@ -297,7 +293,7 @@ class Vali(c.Module):
     
     @property
     def votes_path(self):
-        return self.path + f'/votes'
+        return self.get_storage_path() + f'/votes'
 
     def vote(self, update=False, **kwargs):
         if not self.is_voting_network :
@@ -310,11 +306,10 @@ class Vali(c.Module):
             if vote_staleness < self.config.tempo:
                 return {'success': False, 'msg': f'Vote is too soon {vote_staleness}'}
         votes =self.votes() 
-        return self.network_module.set_weights(modules=votes['modules'], # passing names as uids, to avoid slot conflicts
+        return self.network_module.vote(modules=votes['modules'], # passing names as uids, to avoid slot conflicts
                             weights=votes['weights'], 
                             key=self.key, 
-                            network=self.config.network, 
-                            netuid=self.config.netuid,
+                            subnet=self.config.subnet,
                             )
     
     set_weights = vote 
@@ -351,16 +346,15 @@ class Vali(c.Module):
 
         df = c.df(df) 
         
-        if len(df) == 0:
-            return c.df(df)
-        if isinstance(by, str):
-            by = [by]
-        df = df.sort_values(by=by, ascending=ascending)
-        if n != None:
-            if page != None:
-                df = df[page*n:(page+1)*n]
-            else:
-                df = df[:n]
+        if len(df) > 0:
+            if isinstance(by, str):
+                by = [by]
+            df = df.sort_values(by=by, ascending=ascending)
+            if n != None:
+                if page != None:
+                    df = df[page*n:(page+1)*n]
+                else:
+                    df = df[:n]
 
         # if to_dict is true, we return the dataframe as a list of dictionaries
         if to_dict:
@@ -369,12 +363,12 @@ class Vali(c.Module):
         return df
 
     def paths(self):
-        paths = self.ls(self.path)
+        paths = self.ls(self.get_storage_path())
         return paths
     
     def refresh_leaderboard(self):
-        path = self.path
-        r = self.rm(path)
+        path = self.get_storage_path()
+        c.rm(path)
         df = self.leaderboard()
         assert len(df) == 0, f'Leaderboard not removed {df}'
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}

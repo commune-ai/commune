@@ -48,13 +48,17 @@ class Subspace(c.Module):
 
     block_time = 8
     blocks_per_day = 24*60*60/block_time
-
-    endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
-    network : str = 'main' # og network
     url_map = {
-        "main": [ "api.communeai.net"],
-        "test": [ "testnet.api.communeai.net"]
+        "main": [ 
+            "api.communeai.net"
+            ],
+        "test": [
+            "testnet.api.communeai.net"
+            ]
     }
+    endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
+    network : str = 'test' # og network
+    networks = list(url_map.keys())
     wait_for_finalization: bool
     _num_connections: int
     connections_queue: queue.Queue[SubstrateInterface]
@@ -85,10 +89,17 @@ class Subspace(c.Module):
                          wait_for_finalization=wait_for_finalization, 
                          timeout=timeout)
         
-
     @classmethod
-    def switch_network(cls):
+    def switch_network(cls, network):
         filepath = cls.filepath()
+        code = c.get_text(filepath)
+        replace_str = f"network : str = '{cls.network}' # og network"
+        new_str = f"network : str = '{network}' # og network"
+        code =  code.replace(replace_str, new_str)
+        c.put_text(filepath, code)
+        return {'success': True, 'msg': f'Switched network: {cls.network} to {network}'}
+        
+        
         
     def set_network(self, 
                         network=None,
@@ -112,9 +123,14 @@ class Subspace(c.Module):
         self.ws_options = ws_options
         self.url  = url or (mode + '://' + self.url_map.get(network)[0])
         self.num_connections = num_connections                  
-        self.connection_latency = c.time() - t0
         self.wait_for_finalization = wait_for_finalization
         self.network = network
+
+        self.connections_queue = queue.Queue(self.num_connections)
+        for _ in range(self.num_connections):
+            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+    
+        self.connection_latency = c.time() - t0
 
         c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
 
@@ -144,11 +160,6 @@ class Subspace(c.Module):
             QueueEmptyError: If no connection is available within the timeout
               period.
         """
-        if not hasattr(self, 'connections_queue'):
-            self.connections_queue = queue.Queue(self.num_connections)
-            for _ in range(self.num_connections):
-                self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-                        
 
         conn = self.connections_queue.get(timeout=timeout)
         if init:
@@ -618,7 +629,8 @@ class Subspace(c.Module):
         return result_dict
 
     def query_batch(
-        self, functions: dict[str, list[tuple[str, list[Any]]]]
+        self, functions: dict[str, list[tuple[str, list[Any]]]],
+        block_hash: str | None = None,
     ) -> dict[str, str]:
         """
         Executes batch queries on a substrate and returns results in a dictionary format.
@@ -1253,18 +1265,7 @@ class Subspace(c.Module):
 
         response = self.compose_call("update_module", params=params, key=key)
 
-        return response
-    
-
-    def resolve_subnet(self, name: str) -> str:
-        if isinstance(name, str):
-            return name
-        elif isinstance(name, int):
-            netuid2subnet = self.netuid2subnet()
-            return netuid2subnet.get(name, name)
-        
-                       
-
+        return response 
 
     def register(
         self,
@@ -1276,6 +1277,7 @@ class Subspace(c.Module):
         key: Keypair = None,
         metadata: str | None = 'NA',
         wait_for_finalization = True,
+        suffixes = ['miner', 'validator', 'vali'],
         private = False,
     ) -> ExtrinsicReceipt:
         """
@@ -1289,8 +1291,13 @@ class Subspace(c.Module):
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
+    
         key =  c.get_key(key)
         address = self.resolve_module_address(name=name, address=address)
+        for suffix in suffixes:
+            if name.endswith(suffix):
+                subnet = name.split('.')[0]
+                break
         subnet = self.resolve_subnet(netuid or subnet)
         if private:
             address = '0.0.0.0' +':'+ address.split(':')[-1]
@@ -1350,12 +1357,13 @@ class Subspace(c.Module):
         response = self.compose_call("register_subnet", params=params, key=key)
         return response
 
-    def vote(
+    def set_weights(
         self,
         key: Keypair,
-        uids: list[int],
+        modules: list[int],
         weights: list[int],
         netuid: int = 0,
+        subnet = None,
     ) -> ExtrinsicReceipt:
         """
         Casts votes on a list of module UIDs with corresponding weights.
@@ -1377,9 +1385,10 @@ class Subspace(c.Module):
                 do not match.
             ChainTransactionError: If the transaction fails.
         """
-
-        assert len(uids) == len(weights)
-
+        netuid = self.resolve_netuid(netuid, subnet=subnet)
+        assert len(modules) == len(weights)
+        key2uid = self.key2uid(netuid=netuid)
+        uids = [key2uid.get(m, m) for m in modules]
         params = {
             "uids": uids,
             "weights": weights,
@@ -1387,6 +1396,8 @@ class Subspace(c.Module):
         }
         response = self.compose_call("set_weights", params=params, key=key)
         return response
+    
+    vote = set_weights
 
     def update_subnet(
         self,
@@ -2204,6 +2215,7 @@ class Subspace(c.Module):
             assert subnet in netuid2name, f"Subnet {subnet} not found"
             subnet = netuid2name[subnet]
         if not subnet in subnet_map:
+            print(f"Subnet {subnet} not found, updating subnet map")
             subnet_map = self.subnet_map(update=1)
         assert subnet in subnet_map, f"Subnet {subnet} not found"
         return subnet
@@ -2679,20 +2691,19 @@ class Subspace(c.Module):
         key = c.get_key( key )
         return key
 
-    
 
     def subnet_params(self, 
                       netuid = None,
                       subnet = None,
                       block_hash: str | None = None, 
-                      max_age=60, 
+                      max_age=120, 
                       update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """
         netuid = self.resolve_netuid(netuid, subnet=subnet)
             
-        path = f'{self.network}/subnet_params'
+        path = f'{self.network}/subnet_params_map'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
             print("subnet_params not found")
@@ -2859,11 +2870,11 @@ class Subspace(c.Module):
         return my_subnets
             
     def my_subnets(self):
-        my_subnet_netuids = self.my_subnet_netuids()
+        my_netuids = self.my_netuids()
         netuid2subnet = self.netuid2subnet()
         my_subnets = {}
 
-        for netuid, founder in my_subnet_netuids.items():
+        for netuid, founder in my_netuids.items():
             subnet = netuid2subnet[netuid]
             my_subnets[subnet] = founder
         return my_subnets
@@ -2878,7 +2889,7 @@ class Subspace(c.Module):
         keys = self.keys(netuid)
         my_keys = {}
         if subnet == None:
-            for subnet in keys.keys():
+            for subnet in keys:
                 my_keys[netuid] = {}
                 for k in keys[netuid]:
                     if k in address2key:
@@ -3040,6 +3051,13 @@ class Subspace(c.Module):
             return {netuid:list(keys.values()) for netuid, keys in self.query_map('Keys', []).items()}
         return list(self.query_map('Keys', params=[netuid]).values())
     
+    def key2uid(self, netuid = 0, subnet=None) -> int:
+        netuid = self.resolve_netuid(netuid, subnet=subnet)
+        return {v:k for k,v in self.query_map('Keys', params=[netuid]).items()}
+    def uid2key(self, netuid = 0, subnet=None) -> int:
+        key2uid = self.key2uid(netuid, subnet=subnet)
+        return {v:k for k,v in key2uid.items()}
+    
     def get_module(self, 
                     module,
                     netuid=0,
@@ -3067,7 +3085,7 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def netuid2subnet(self, max_age=60, update=False ) -> Dict[str, str]:
+    def netuid2subnet(self, max_age=None, update=False ) -> Dict[str, str]:
         subnet_names = self.query_map('SubnetNames', [], max_age=max_age, update=update)
         subnet_names = dict(sorted(subnet_names.items(), key=lambda x: x[0]))
         return {int(k):v for k,v in subnet_names.items()}
@@ -3109,7 +3127,7 @@ class Subspace(c.Module):
         evm_address = self.query(
             name='AccountCodes',
             module='EVM',
-            params=[]
+            params=[key_address]
             )
 
         return evm_address

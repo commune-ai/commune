@@ -29,7 +29,7 @@ setup(
     install_requires=install_requires,
     entry_points={
         'console_scripts': [
-            'c=commune.cli:main'
+            'c=commune.cli.cli:main'
         ],
     },
     classifiers=[

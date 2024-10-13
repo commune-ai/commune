@@ -29,8 +29,8 @@ def random_ratio_selection( x:list, ratio:float = 0.5)->list:
 
 
 
-def filter( text_list: List[str], filter_text: str) -> List[str]:
-    return [text for text in text_list if filter_text in text]
+# def filter( text_list: List[str], filter_text: str) -> List[str]:
+#     return [text for text in text_list if filter_text in text]
 
 
 def is_success( x):
@@ -283,7 +283,7 @@ def detailed_error(e) -> dict:
     response = {
         'success': False,
         'error': str(e),
-        'file_name': file_name,
+        'file_name': file_name.replace(os.path.expanduser('~'), '~'),
         'line_no': line_no,
         'line_text': line_text
     }   
@@ -1003,8 +1003,6 @@ def find_code_line( search:str=None, code:str = None):
 def obj2typestr( obj):
     return str(type(obj)).split("'")[1]
 
-
-
 def check_pid( pid):        
     """ Check For the existence of a unix pid. """
     try:
@@ -1029,7 +1027,6 @@ def check_word( word:str)-> str:
         progress.update(1)
     return False
 
-
 def wordinfolder( word:str, path:str='./')-> bool:
     import commune as c
     path = c.os.path.abspath(path)
@@ -1045,9 +1042,6 @@ def wordinfolder( word:str, path:str='./')-> bool:
         progress.update(1)
     return False
 
-
-
-
 def is_address( address:str) -> bool:
     if not isinstance(address, str):
         return False
@@ -1059,8 +1053,6 @@ def is_address( address:str) -> bool:
     conds.append(':' in address)
     conds.append(is_int(address.split(':')[-1]))
     return all(conds)
-
-    
 
 def merge(  from_obj, 
                     to_obj ,

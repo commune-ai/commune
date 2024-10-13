@@ -112,7 +112,6 @@ class Server(c.Module):
               kwargs:Optional[dict] = None,  # kwargs for the module
               params: Optional[dict] = None, # kwargs for the module
               tag:Optional[str]=None,
-              network: Optional[str] = 'subspace', # network to run the server
               port :Optional[int] = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
@@ -157,7 +156,6 @@ class Server(c.Module):
         cls(module=c.module(module)(**kwargs), 
             name=name, 
             port=port, 
-            network=network,   
             max_workers=max_workers, 
             mnemonic = mnemonic,
             public=public, 
