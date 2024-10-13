@@ -569,7 +569,6 @@ class c:
             
     @classmethod
     def fn2routepath(cls):
-        routes = cls.get_routes()
         fn2route = {}
         for fn, module in cls.fn2route().items():
             fn2route[fn] = module + '.' + fn
@@ -1185,6 +1184,7 @@ class c:
             code_text = inspect.getsource(fn)
         except Exception as e:
             code_text = None
+            raise e
             print(f'Error in getting fn_code: {e}')                    
         return code_text
     
@@ -1600,6 +1600,7 @@ class c:
             if hasattr(cls, fn):
                 fn = getattr(cls, fn)
             elif c.object_exists(fn):
+
                 fn = c.obj(fn)
             elif any([s in fn for s in splitters]):
                 splitter = [s for s in splitters if s in fn][0]
@@ -1620,7 +1621,7 @@ class c:
         if isinstance(fn, str):
             is_object = c.object_exists(fn)
             if is_object:
-                return cls.get_object(fn)
+                return c.obj(fn)
             elif '/' in fn:
                 module, fn = fn.split('/')
                 cls = cls.get_module(module)
@@ -1628,7 +1629,11 @@ class c:
             fn2routepath = cls.fn2routepath()
             if fn in fn2routepath:
                 fn = fn2routepath[fn]
-                fn = c.obj(fn)
+                module = '.'.join(fn.split('.')[:-1])
+                if c.module_exists(module):
+                    fn = getattr(c.get_module(module), fn.split('.')[-1])
+                else:
+                    fn = c.obj(fn)
             else:
             
                 try:
