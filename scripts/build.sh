@@ -1,1 +1,1 @@
-docker build -t commune .
+docker build -t commune .x

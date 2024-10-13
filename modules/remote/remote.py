@@ -178,7 +178,7 @@ class Remote(c.Module):
     def load_hosts(self, path = None):
         if path == None:
             path = self.host_data_path
-        return self.get_yaml(path, {})
+        return c.get_yaml(path)
     
     def switch_hosts(self, path):
         hosts = c.get_json(path)

@@ -7,14 +7,14 @@ class Network(c.Module):
     # the default
     network : str = 'local'
     endpoints = ['namespace']
-    def __init__(self, network:str=None, tempo=60, n=100, **kwargs):
+    def __init__(self, network:str=network, tempo=60, n=100, **kwargs):
         self.set_network(network=network, tempo=tempo, n=n)
 
     def set_network(self, network:str, tempo:int=60, n:str=100):
         self.network = network or self.network
         self.tempo = tempo
         self.n = n
-        return self.network
+        return {'network': self.network, 'tempo': self.tempo, 'n': self.n}
     
     def params(self):
         return { 
@@ -39,8 +39,9 @@ class Network(c.Module):
         return networks
     
     def namespace(self, 
-                  network:str = 'local', 
                   search=None, 
+                  network:str = None, 
+
                   max_age:int = 60,
                   update:bool = False,
                   timeout=6) -> dict:
@@ -92,11 +93,18 @@ class Network(c.Module):
     def register_server(self, name:str, address:str, network=network, signature=None) -> None:
         if signature != None:
             signature['data'] = {'name': name, 'address': address}
-            c.verify(signature)
+            assert c.verify(signature)
         namespace = self.namespace(network=network)
         namespace[name] = address
         self.put_namespace(network, namespace)
         return {'success': True, 'msg': f'Block {name} registered to {network}.'}
+    
+    def register_from_signature(self, signature=None):
+        import json
+        assert c.verify(signature), 'Signature is not valid.'
+        data = json.loads(signature['data'])
+        return self.register_server(data['name'], data['address'])
+        
     
     def deregister_server(self, name:str, network=network) -> Dict:
         namespace = self.namespace(network=network)
@@ -188,7 +196,6 @@ class Network(c.Module):
         else:
             return {'success': False, 'msg': f'{name} does not exist'}
 
-    
     def servers(self, search=None, network:str = 'local',  **kwargs):
         namespace = self.namespace(search=search, network=network, **kwargs)
         return list(namespace.keys())

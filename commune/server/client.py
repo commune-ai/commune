@@ -117,7 +117,11 @@ class Client(c.Module):
             module_address = module_address.replace(ip, '0.0.0.0')
         url = f"{module_address}/{fn}/"
         return url        
-    def request(self, url: str, data: dict, headers: dict, timeout: int = 10, stream: bool = True):
+    def request(self, url: str,
+                 data: dict, 
+                headers: dict, 
+                timeout: int = 10, 
+                stream: bool = True):
         try:             
             response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
 
@@ -164,7 +168,7 @@ class Client(c.Module):
                 args : str = [],
                 kwargs : str = {},
                 params : dict = {}, 
-                timeout:int=10, 
+                timeout:int=2, 
                 key : str = None,
                 network : str = None,
                 mode: str  = 'http',
@@ -273,8 +277,8 @@ class Client(c.Module):
                 client = c.connect(client)
             self.client = client
         
-        def remote_call(self, *args, remote_fn, return_future= False, timeout:int=10, key=None, **kwargs):
-            result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key, return_future=return_future)
+        def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
+            result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
             return result
 
         def __str__(self):
@@ -288,5 +292,5 @@ class Client(c.Module):
             if key in self.protected_attributes :
                 return getattr(self, key)
             else:
-                return lambda *args, **kwargs : self.remote_call( remote_fn=key, *args, **kwargs)
+                return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
             

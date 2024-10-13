@@ -138,11 +138,14 @@
 
 "subspace": [
     "subnet",
+    "network",
     "update_module",
+    "subnet_params_map",
     "staketo", 
     "get_staketo", 
     "stakefrom",
     "get_stakefrom",
+    "switch_network",
     "key2balance",
     "subnets",
     "send",
@@ -231,6 +234,8 @@
     "df", 
     "choice", 
     "obj2typestr",
-    "determine_type"
+    "determine_type",
+    "file2text", 
+    "emoji"
 ]
 }

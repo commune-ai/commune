@@ -1,251 +1,285 @@
-# **Unified Multi-Chain Identity with a Single Cryptographic Key**
 
----
+# KEY
 
-## **Abstract**
+The key is a sr25519 key that is used to sign, encrypt, decrypt and verify any string or messege. 
+We can also replicate the key to other chains through using the same seed to generate the other keys. This means you can have one key instead of multiple keys for each chain, which is more convient and secure.
 
-In the burgeoning landscape of decentralized technologies, managing multiple identities across various blockchain networks has become increasingly complex. This paper introduces a unified approach to generate and manage multiple identities on different blockchain networks using a single cryptographic key. By leveraging the provided Python code, we demonstrate how one can securely and efficiently handle multiple blockchain identities, ensuring interoperability and ease of use. The paper includes detailed explanations, retro-styled diagrams, and code snippets to illustrate the concepts.
+c.add_key("alice")
 
----
+or 
 
-## **Table of Contents**
+c add_key alice
 
-1. [Introduction](#introduction)
-2. [Background](#background)
-   - 2.1 [Cryptographic Key Types](#cryptographic-key-types)
-   - 2.2 [Mnemonic and Seed Generation](#mnemonic-and-seed-generation)
-3. [Unified Key Management System](#unified-key-management-system)
-   - 3.1 [Key Generation Process](#key-generation-process)
-   - 3.2 [Deriving Multiple Identities](#deriving-multiple-identities)
-4. [Implementation Details](#implementation-details)
-   - 4.1 [Key Class Structure](#key-class-structure)
-   - 4.2 [Core Functions Explained](#core-functions-explained)
-5. [Use Cases](#use-cases)
-   - 5.1 [Signing and Verification](#signing-and-verification)
-   - 5.2 [Encryption and Decryption](#encryption-and-decryption)
-6. [Security Considerations](#security-considerations)
-7. [Conclusion](#conclusion)
-8. [References](#references)
+key already exists at alice
+{
+    'crypto_type': 1,
+    'seed_hex': '518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
+    'derive_path': None,
+    'path': 'alice',
+    'ss58_format': 42,
+    'public_key': '7cd0e327f4f6649719158892dafe766a5efd0185cb5fe17548d294f00f12661b',
+    'private_key': 
+'943fb89150a67192919a43004f87685faba470e754fe4ff0af6a93e7fc54dc0a6cceb6fbc29d610d5486ba78969f609ea83753fb9e32d58df0c67f13
+dfcbbd68',
+    'mnemonic': 'quantum belt rival casual benefit obscure sight wool pupil jaguar guide mango',
+    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
+}
+Now this generates a random key and if you want to save it to a file you can do so like this.
 
----
+c.add_key("alice")
 
-## **Introduction**
+or 
 
-The proliferation of blockchain networks, each with its unique protocols and identity management systems, has led to complexities in handling multiple identities. Users are often required to maintain separate keys and wallets for different networks, leading to increased security risks and user inconvenience.
+c add_key alice
 
-This paper presents a solution that allows users to generate and manage multiple blockchain identities using a single cryptographic key. By utilizing a unified key management system, users can seamlessly interact with various blockchain networks, simplifying identity management and enhancing security.
 
----
+{
+    'crypto_type': 1,
+    'seed_hex': 
+'518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
+    'derive_path': None,
+    'path': 'alice',
+    'ss58_format': 42,
+    'public_key': 
+'7cd0e327f4f6649719158892dafe766a5efd0185cb5fe17548d294f00f12661b',
+    'private_key': 
+'943fb89150a67192919a43004f87685faba470e754fe4ff0af6a93e7fc54dc0a6cceb6fb
+c29d610d5486ba78969f609ea83753fb9e32d58df0c67f13dfcbbd68',
+    'mnemonic': 'quantum belt rival casual benefit obscure sight wool 
+pupil jaguar guide mango',
+    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
+}
 
-## **Background**
 
-### **Cryptographic Key Types**
+# Refreshing existing key
 
-The security of blockchain networks relies heavily on cryptographic algorithms. The primary key types discussed in this paper are:
+c add_key alice refresh=True
 
-- **ED25519**: A public-key signature system with fast signing and verification, commonly used in various blockchain networks.
-- **SR25519**: An evolution of ED25519, offering enhanced security features and used extensively in the Substrate framework.
-- **ECDSA**: The Elliptic Curve Digital Signature Algorithm, widely adopted in cryptocurrencies like Bitcoin and Ethereum.
 
-### **Mnemonic and Seed Generation**
 
-A mnemonic phrase, also known as a seed phrase, is a group of words that can be used to generate a cryptographic seed. This seed serves as the root for generating private and public keys.
+To list all the keys you can do so like this.
 
-- **Mnemonic Generation**: The process of creating a human-readable seed phrase, typically using the BIP39 standard.
-- **Seed Hex**: A hexadecimal representation of the cryptographic seed derived from the mnemonic.
+c.keys("alice")
 
----
+or
 
-## **Unified Key Management System**
+c keys alice
 
-### **Key Generation Process**
+[
+    'alice',
+]
 
-The key generation process involves creating a cryptographic key pair (private and public keys) from a mnemonic or seed. The provided code offers flexibility in generating keys using different methods:
+To search for your keys you can do so like this. The search term finds all of the keys that contain the search term.
 
-1. **From Mnemonic**: Generating keys directly from a mnemonic phrase.
-2. **From Seed Hex**: Using a seed in hexadecimal form to generate keys.
-3. **From Private Key**: Creating a key object using an existing private key.
-4. **From URI**: Generating keys using a Uniform Resource Identifier (URI) that may include derivation paths.
+c keys ali 
+[
+    'alice',
+    'alice2',
+    'alice3',
+]
+
+
+# Save Keys
+
+To save the keys to a file you can do so like this.
+
+c save_keys
+
+This saves the keys to a specific path in the config file. You can also specify the path like this.
+
+To sign a message you can do so like this.
+
+key = c.get_key("alice")
+
+
+
+Original (Substrate) signature output :
+
+key.sign("hello")
+
+hexadecimal (bytes):
+
+b'\xd6RV\xf4)\x88\x9aC\x99$\xe5E\xa5N=\xcf\xf4\x7f\xc7\\\xfe\xa1V\xdd\xc0
+\xfc\x1bz:\x17\xa1$[\x84Al\xb0\xee\x0b\xedg\xc2\xe7\x93\x00\xf1~}\xd2r;\x
+f2\xb4.\x90\xf2k\xd1\x10\xd9\xd5\x8f\x9d\x85'
+
+dictionary
+
+{"data":"hello",
+"signature":"0x7e7","public_key":"0x7cd0e327f4f6649719158892dafe766a5efd0185cb5fe17548d294f00f12661b"}
+
+
+String Output 
+
+This is a string that cotainers the data and signature. The seperator is used to mainly distinguish the data from the signature.
+
+{DATA}{SEPERATOR}{SIGNATURE}
+
+
+
+Signature Tickets for Temporary Tokens
+
+In the ticket the timestamp is taken, and the seperator is "::ticket::".
+
+such that the format is 
+timestamp::ticket::signature
+
+by calling 
+
+c.ticket("alice")
+
+the alice key signs the current timestamp and returns the ticket.
+
+1713500654.659339::ticket::e0559b535129037a62947c65af35f17c50d29b4a5c31df86b069d8ada5bcbb230f4c1e996393e6721f78d88f9b512b
+6493b5ca743d027091585366875c6bea8e
+
+now to verify the ticket you can do so like this.
+
+c.verify_ticket("1713500654.659339::ticket::e0559b535129037a62947c65af35f17c50d29b4a5c31df86b069d8ada5bcbb230f4c1e996393e6721f78d88f9b512b6493b5ca743d027091585366875c6bea8e")
+
+to get the signer
+
+c.ticket2signer("1713500654.659339::ticket::e0559b535129037a62947c65af35f17c50d29b4a5c31df86b069d8ada5bcbb230f4c1e996393e6721f78d88f9b512b6493b5ca743d027091585366875c6bea8e")
+
+To create a temperary token you can do so like this.
+
+Temporary Tokens using Time Stampted Signaturs: Verification Without Your Keys
+
+This allows for anyone to sign a timestamp, and vendors can verify the signature. This does not require the seed to be exposed, and can be used to identify key likley to be the same person. The only issue is if the staleness of the timestamp is too old. This can be adjusted by the vendor.
+
+
+
+```markdown
+# Key Management
+
+In this tutorial, we'll explore the usage of the `commune` Python package for managing keys, balances, stakes, and key statistics.
+
+## Listing Keys
+
+To start, let's list all the available keys using the `keys()` function:
+
+
+```bash
+c keys
+```
+or
+```python
+c.keys()
+```
+
+```
+[
+   'model.openrouter::replica.1',
+    'model.openrouter::replica.2',
+    'model.openrouter::replica.3',
+    'model.openrouter::replica.4',
+    'model.openrouter::replica.5',
+    'model.openrouter::replica.6',
+    'model.openrouter::replica.7',
+    'model.openrouter::replica.8',
+    'model.openrouter::replica.9'
+]
+```
+
+## Adding and Removing Keys
+
+You can add and remove keys with the following steps:
+
+### Adding a New Key
+
+To add a new key, use the `add_key()` function:
 
 ```python
-# Example: Generating a new key from a mnemonic
-key = Key.create_from_mnemonic(mnemonic="your mnemonic here", crypto_type=KeyType.SR25519)
+c.add_key('fam')
+```
+or 
+    
+```bash
+c add_key fam
 ```
 
-### **Deriving Multiple Identities**
+## Getting Key Info
 
-By utilizing different cryptographic algorithms and formats, the same seed or private key can generate multiple identities across various blockchain networks.
-
-**Diagram 1: Multi-Chain Identity Derivation**
-
-```plaintext
-          +--------------------+
-          |  Cryptographic Seed|
-          +--------------------+
-                    |
-        +-----------+-----------+
-        |                       |
-+-------v-------+       +-------v-------+
-|  SR25519 Key  |       |  ECDSA Key    |
-+---------------+       +---------------+
-        |                       |
-        |                       |
-+-------v-------+       +-------v-------+
-| Substrate-based|       | Ethereum-based|
-|   Networks     |       |   Networks    |
-+---------------+       +---------------+
-```
-
----
-
-## **Implementation Details**
-
-### **Key Class Structure**
-
-The `Key` class is the core component that facilitates key generation, management, signing, and verification. It supports multiple cryptographic types and provides methods to handle keys securely.
-
-**Key Attributes:**
-
-- `private_key`: The private key in bytes.
-- `public_key`: The corresponding public key in bytes.
-- `ss58_address`: The public address formatted according to the SS58 standard.
-- `mnemonic`: The seed phrase used for key generation.
-- `crypto_type`: The cryptographic algorithm used (ED25519, SR25519, ECDSA).
-- `seed_hex`: The hexadecimal seed derived from the mnemonic.
-
-### **Core Functions Explained**
-
-#### **Key Generation Methods**
-
-1. **`new_key`**: Generates a new key using a mnemonic, seed, private key, or URI.
-2. **`create_from_mnemonic`**: Creates a key from a mnemonic phrase.
-3. **`create_from_seed`**: Generates a key using a seed in hexadecimal form.
-4. **`create_from_private_key`**: Initializes a key object using an existing private key.
-5. **`from_uri`**: Parses a URI to generate a key, supporting derivation paths.
-
-#### **Signing and Verification**
-
-- **`sign`**: Signs data using the private key.
-- **`verify`**: Verifies the signature using the public key.
-
-#### **Encryption and Decryption**
-
-- **`encrypt`**: Encrypts data using AES encryption with a password derived from the private key.
-- **`decrypt`**: Decrypts data encrypted by the `encrypt` method.
-
----
-
-## **Use Cases**
-
-### **Signing and Verification**
-
-Users can sign transactions or messages using their private key and verify signatures using the public key. This ensures data integrity and authenticity across different blockchain networks.
+You can also retrieve key info using the `key_info()` function:
 
 ```python
-# Signing data
-signature = key.sign(data="Hello, Blockchain!")
+c.key_info('fam')  # Replace 'fam' with the key name
 
-# Verifying signature
-is_valid = key.verify(data="Hello, Blockchain!", signature=signature)
+```
+{
+    'crypto_type': 1,
+    'seed_hex': '6a363df4c2b7eaeb0b13efedbd37308d2bda3be8bc8aa758ecc00eb3089f7b97',
+    'derive_path': None,
+    'path': 'fam',
+    'ss58_format': 42,
+    'public_key': '38199493328ca2224364c77204ee61008a9cab5a8246906201357ef056b82142',
+    'key': '5DLG8wM2beoHcveKEXxuh2NRgh55vRRx8b1PE4Ch3ZE8fndL',
+    'private_key': 
+'d8e1c3d46f813eafac0d44481737e87b06241ba9cb5d6f760f8d62df48be450d2a84dcdfe506f218bc6646fe8
+9daa1c1d1fd7af3a64ea0f3e8a73cc766743aa1',
+    'mnemonic': 'typical piece chair oven lift trap case current tomorrow wrap motor 
+light'
+}
 ```
 
-**Diagram 2: Signing and Verification Process**
 
-```plaintext
-+---------------+            +---------------+
-|   Private Key |            |   Public Key  |
-+-------+-------+            +-------+-------+
-        |                            |
-        |                            |
-+-------v-------+            +-------v-------+
-|  Sign Message |            | Verify Signature|
-+---------------+            +---------------+
-```
 
-### **Encryption and Decryption**
+### Removing a Key
 
-The `Key` class allows users to encrypt and decrypt messages securely. This is particularly useful for sharing sensitive information or interacting with privacy-focused blockchain features.
+To remove a key, use the `rm_key()` function:
 
 ```python
-# Encrypting a message
-encrypted_data = key.encrypt(data="Secret Message")
-
-# Decrypting the message
-decrypted_data = key.decrypt(data=encrypted_data)
+c.rm_key('demo')  # Replace 'demo' with the key you want to remove
 ```
 
----
+## Saving and Loading Keys
 
-## **Security Considerations**
+You can save and load keys for future use:
 
-- **Private Key Protection**: The security of all derived identities depends on the private key's confidentiality. Users must ensure it is stored securely and not exposed.
-- **Password Management**: When encrypting keys or data, choosing strong, unique passwords is essential to prevent unauthorized access.
-- **Algorithm Selection**: Users should be aware of the cryptographic algorithms' security properties and choose the one that best fits their security requirements.
+### Saving Keys
 
----
-
-## **Conclusion**
-
-The unified key management system presented in this paper simplifies multi-chain identity management by allowing users to generate and control multiple blockchain identities using a single cryptographic key. The provided Python code serves as a practical implementation, demonstrating how developers and users can adopt this approach to enhance security and usability in decentralized applications.
-
-By abstracting the complexities of key generation and management, this system empowers users to interact seamlessly across different blockchain networks, paving the way for more integrated and user-friendly decentralized ecosystems.
-
----
-
-## **References**
-
-1. **BIP39**: Mnemonic code for generating deterministic keys. [Link](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki)
-2. **Substrate Key Derivation**: Understanding key derivation in Substrate. [Link](https://docs.substrate.io/v3/key-derivation/)
-3. **ED25519 and SR25519**: A deep dive into cryptographic algorithms. [Link](https://medium.com/polkadot-network/ed25519-vs-sr25519-123614169521)
-4. **ECDSA Explained**: Elliptic Curve Digital Signature Algorithm overview. [Link](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm)
-
----
-
-**Appendix: Code Snippets**
-
-Below are essential code snippets from the `Key` class illustrating key functionalities.
-
-
-
-### **
-
-### **Mnemonic Generation**
+To save the keys, use the `save_keys()` function:
 
 ```python
-@classmethod
-def generate_mnemonic(cls, words: int = 24, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
-    return bip39_generate(words, language_code)
+c.save_keys(path='./keys.json') # save the key mnemonics to this file
 ```
 
-### **Key Creation from Mnemonic**
+### Loading Keys
+
+To load the saved keys, use the `load_keys()` function:
 
 ```python
-@classmethod
-def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=42, crypto_type=KeyType.SR25519, language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Key':
-    # Key creation logic
-    return keypair
+c.load_keys('./keys.json')
 ```
 
-### **Signing Data**
+
+# SUBSPACE #
+
+
+## Retrieving Balances and Stakes
+
+You can retrieve balance and stake information for a specific key:
+
+### Balance
+
+To get the balance for a key, use the `get_balance()` function:
 
 ```python
-def sign(self, data: Union[ScaleBytes, bytes, str]) -> bytes:
-    # Data signing logic
-    return signature
+c.get_balance('fam')  # Replace 'fam' with the key name
+```
+or 
+```bash
+c balance fam
 ```
 
-### **Verifying Signature**
+### Get stake of the Key
+
+To get the stake for a key, use the `get_stake()` function:
+
+```bash
+c get_stake fam # Replace 'fam' with the key name or the address
+```
 
 ```python
-def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str]) -> bool:
-    # Signature verification logic
-    return verified
+c.get_stake('fam', netuid='text')  # Replace 'fam' with the key name
 ```
-
----
-
-**Retro-Styled Diagrams**
-
-*Note: In a markdown file, you can represent diagrams using ASCII art or include images linked from external sources. For a retro style, consider using pixel art or monochromatic schematics.*
-
----
