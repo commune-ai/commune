@@ -221,6 +221,13 @@ class Network(c.Module):
 
     regsig = registration_signature
     
+                
+
+    def infos(self, timeout=10):
+        return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
+
+    def keys(self, timeout=10):
+        return c.wait([c.submit(c.call, [s + '/key_address']) for s in c.servers()], timeout=timeout)
 
 Network.run(__name__)
 

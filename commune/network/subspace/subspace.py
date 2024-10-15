@@ -57,7 +57,7 @@ class Subspace(c.Module):
             ]
     }
     endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
-    network : str = 'test' # og network
+    network : str = 'main' # og network
     networks = list(url_map.keys())
     wait_for_finalization: bool
     _num_connections: int
@@ -1086,8 +1086,8 @@ class Subspace(c.Module):
               enough balance.
             ChainTransactionError: If the transaction fails.
         """
+        dest = self.resolve_key_address(dest)
         params = {"dest": dest, "value": self.to_nanos(amount)}
-
         return self.compose_call( module="Balances", fn="transfer_keep_alive", params=params, key=key)
     send = transfer
     def to_nanos(self, amount):
@@ -1452,6 +1452,14 @@ class Subspace(c.Module):
 
         return response
 
+
+    def subnet_metadata(self) -> str:
+        netuids = self.netuids()
+        subnet_metadata = self.query_map('SubnetMetadata')
+        subnet_metadata =  {i : subnet_metadata.get(i, None) for i in netuids}
+        subnet_metadata = sorted(subnet_metadata.items(), key=lambda x: x[0])
+        return {k: v for k, v in subnet_metadata}
+    
     def transfer_stake(
         self,
         key: Keypair,
@@ -2888,7 +2896,7 @@ class Subspace(c.Module):
         address2key = c.address2key()
         keys = self.keys(netuid)
         my_keys = {}
-        if subnet == None:
+        if netuid == None:
             for subnet in keys:
                 my_keys[netuid] = {}
                 for k in keys[netuid]:
@@ -3085,7 +3093,7 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def netuid2subnet(self, max_age=None, update=False ) -> Dict[str, str]:
+    def netuid2subnet(self, max_age=None, update=False, **kwargs ) -> Dict[str, str]:
         subnet_names = self.query_map('SubnetNames', [], max_age=max_age, update=update)
         subnet_names = dict(sorted(subnet_names.items(), key=lambda x: x[0]))
         return {int(k):v for k,v in subnet_names.items()}

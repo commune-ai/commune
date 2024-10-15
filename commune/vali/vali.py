@@ -7,13 +7,17 @@ from typing import *
 class Vali(c.Module):
     whitelist = ['eval_module', 'score', 'eval', 'leaderboard']
     voting_networks = ['bittensor', 'commune', 'subspace']
+    networks = ['local'] + voting_networks
+
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     subnet = None,
                     search=  None, # (OPTIONAL) the search string for the network 
                     verbose=  True, # the verbose mode for the worker # EPOCH
-                    batch_size= 64,
+                    batch_size= 16,
                     max_workers=  None ,
+                    info_function = 'info', # the function to get the info of the module
+                    info_timeout =  2, # the timeout for the info function
                     score = None, #EVAL
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
@@ -22,7 +26,8 @@ class Vali(c.Module):
                     run_loop= True, # This is the key that we need to change to false
                     test= False, # the test mode for the validator
                     module = None,
-                    max_age= 80, # the maximum age of the network
+                    max_age= 120, # the maximum age of the network
+                    max_sample_age= 120, # the maximum age of the sample
                     timeout= 2, # timeout per evaluation of the module
                     update=False,
                     key = None,
@@ -31,6 +36,7 @@ class Vali(c.Module):
         config = c.dict2munch({**Vali.config(), **config})
         self.config = config
         self.epochs = 0
+        self.epoch_start_time = 0
         self.start_time = c.time() # the start time of the validator
         self.futures = [] # the futures for the executor
         self.set_key(key)
@@ -66,11 +72,6 @@ class Vali(c.Module):
     def is_voting_network(self):
         return any([v in self.config.network for v in self.voting_networks])
 
-    def run_step(self):
-        self.epoch()
-        c.print(self.vote())
-        c.print(f'Epoch {self.epochs} with {self.n} modules', color='yellow')
-        c.print(self.leaderboard())
 
     def run_loop(self):
         """
@@ -78,21 +79,20 @@ class Vali(c.Module):
         - network: check the staleness of the network to resync it 
         - workers: check the staleness of the last success to restart the workers 
         - voting: check the staleness of the last vote to vote (if it is a voting network)
-        
         """
         # start the workers
 
         while True:
-            # count down the staleness of the last success
             from tqdm import tqdm
-            # reverse the progress bar
+            time_to_wait = max(0,self.epoch_start_time - c.time() + self.config.tempo)
             desc = f'Waiting Next Epoch ({self.epochs}) with Tempo {self.config.tempo}'
-            for i in tqdm(range(self.config.tempo), desc=desc, position=0, leave=True):
-                c.sleep(1)
+            [ c.sleep(1) for _ in tqdm(range(time_to_wait), desc=desc)]
             try:
-                self.run_step()
+                self.epoch()
+                c.print(self.vote())
+                c.print(self.leaderboard())
             except Exception as e:
-                c.print(c.detailed_error(e))
+                c.print('ERROR IN THE self.epoch',c.detailed_error(e))
 
     def age(self):
         return c.time() - self.start_time
@@ -112,13 +112,11 @@ class Vali(c.Module):
                     keys = list(result.keys())
                 result = {k: result.get(k, None) for k in keys if k in result}
                 msg = ' '.join([f'{k}={result[k]}' for k in result])
-                msg = f'RESULT({msg})'
                 break
         except Exception as e:
             emoji = '🔴'
             result = c.detailed_error(e)
-            msg = f'ERROR({result})'
-        
+            msg = f'ERROR IN BATCH({result})'
         c.print(f'{emoji}RESULT({msg}){emoji}', color='cyan', verbose=self.config.verbose)
 
             
@@ -132,37 +130,36 @@ class Vali(c.Module):
     epoch2results = {}
 
     @classmethod
-    def run_epoch(cls, search=None, run_loop=False, **kwargs):
-        self = cls(search=search, run_loop=run_loop, **kwargs)
+    def run_epoch(cls, network=None, search=None, run_loop=False, **kwargs):
+        network = network or 'local'
+        self = cls(search=search, run_loop=run_loop, network=network, **kwargs)
         return self.epoch(df=1)
 
     def epoch(self, network=None,  df=True, **kwargs):
+        self.epoch_start_time = c.time()
         self.set_network(network=network, **kwargs)
-
-        self.executor = c.module('executor')(max_workers=self.config.max_workers, 
-                                             maxsize=self.config.batch_size)
-        module_addresses = c.shuffle(list(self.namespace.values()))
+        self.executor = c.module('executor')(max_workers=self.config.max_workers, maxsize=self.config.batch_size)
         c.print(f'Epoch {self.epochs} with {self.n} modules', color='yellow')
         results = []
-        progress = c.tqdm(total=len(module_addresses), desc='Evaluating Modules')
-        for module_address in module_addresses:
-            c.print(f'🟡Evaluating-->{module_address}🟡', color='cyan', verbose=self.config.verbose)
+        progress = c.tqdm(total=self.n, desc='Evaluating Modules')
+        for module_address in c.shuffle(list(self.namespace.values())):
+            c.print(f'🟡EVAL({module_address})🟡', color='cyan', verbose=self.config.verbose)
             if self.executor.is_full:
                 results.append(self.get_next_result(self.futures))
             else:
                 self.futures.append(self.executor.submit(self.eval_module, 
                                                          [module_address], 
                                                          timeout=self.config.timeout))
-                
             progress.update(1)
         while len(self.futures) > 0:
             results.append(self.get_next_result())
+        # cancel the futures
+        self.cancel_futures()
         results = [r for r in results if r.get('score', 0) > 0]
         if df:
             if len(results) > 0 and 'score' in results[0]:
                 results =  c.df(results)
                 results = results.sort_values(by='score', ascending=False)
-    
         self.epochs += 1
         return results
 
@@ -186,16 +183,18 @@ class Vali(c.Module):
                       subnet:int=None,
                       search = None, 
                       update = False,
-                      max_age=None):
+                      max_age=None, 
+                      tempo=None):
         if not hasattr(self, 'network_time'):
             self.network_time = 0
         config = self.config
+        tempo = tempo or config.tempo
         network = network or config.network
         if '.' in network:
             network, subnet = network.split('.')
         subnet = subnet or config.subnet
         self.network_path = self.get_storage_path() + '/network_state'
-        if subnet != None:
+        if subnet != None or network not in self.networks:
             network = 'subspace'
         search = search or config.search
         max_age = max_age if max_age != None else config.max_age
@@ -258,10 +257,8 @@ class Vali(c.Module):
         path = self.get_storage_path() +'/'+ address
         module_client = c.connect(address, key=self.key)
         info = self.get_json(path, {})
-        last_timestamp = info.get('timestamp', 0)
-        info['staleness'] = c.time() -  last_timestamp
         if not self.check_info(info):
-            info = module_client.info(timeout=self.config.timeout)
+            info = getattr(module_client, self.config.info_function)(timeout=self.config.info_timeout)
         info['timestamp'] = c.timestamp() # the timestamp
         last_score = info.get('score', 0)
         response = self.score(module_client, **kwargs)
@@ -321,7 +318,7 @@ class Vali(c.Module):
             return {}
     
     def leaderboard(self,
-                    keys = ['name', 'score',  'staleness', 'latency',  'address', 'staleness', 'key'],
+                    keys = ['name', 'score', 'latency',  'address', 'key'],
                     ascending = True,
                     by = 'score',
                     to_dict = False,
@@ -412,6 +409,11 @@ class Vali(c.Module):
         for miner in modules:
             c.print(c.kill(miner))
         return {'success': True, 'msg': 'subnet test passed'}
+    
+    def __del__(self):
+        self.cancel_futures()
+        c.print('Cancelling futures')
+        return {'success': True, 'msg': 'Cancelling futures'}
 
 if __name__ == '__main__':
     Vali.run()

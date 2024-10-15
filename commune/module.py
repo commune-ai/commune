@@ -1613,37 +1613,34 @@ class c:
         return callable(fn)
 
     @classmethod
-    def get_fn(cls, fn:str, init_kwargs = None):
+    def get_fn(cls, fn:str, module=None, init_kwargs = None):
         """
         Gets the function from a string or if its an attribute 
         """
-
+        module = module or cls
         if isinstance(fn, str):
-            is_object = c.object_exists(fn)
-            if is_object:
+            if c.object_exists(fn):
                 return c.obj(fn)
-            elif '/' in fn:
-                module, fn = fn.split('/')
-                cls = cls.get_module(module)
-    
-            fn2routepath = cls.fn2routepath()
-            if fn in fn2routepath:
-                fn = fn2routepath[fn]
-                module = '.'.join(fn.split('.')[:-1])
-                if c.module_exists(module):
-                    fn = getattr(c.get_module(module), fn.split('.')[-1])
-                else:
-                    fn = c.obj(fn)
-            else:
+            if hasattr(module, fn):
+                # step 3, if the function is routed
+                fn2routepath = cls.fn2routepath()
+                if fn in fn2routepath:
+                    fn = fn2routepath[fn]
+                    if c.module_exists(module):
+                        module = c.get_module(module)
+                        fn 
+                        fn = getattr(c.get_module(module), fn.split('.')[-1])
+                        return fn
+                return getattr(module, fn)
             
-                try:
-                    fn =  getattr(cls, fn)
-                except:
-                    init_kwargs = init_kwargs or {}
-                    fn = getattr(cls(**init_kwargs), fn)
-
-        if callable(fn) or isinstance(fn, property):
-            pass
+            for splitter in ['.', '/']:
+                if splitter in fn:
+                    module_name= splitter.join(fn.split(splitter)[:-1])
+                    fn_name = fn.split(splitter)[-1]
+                    if c.module_exists(module_name):
+                        module = c.get_module(module_name)
+                        fn = getattr(module, fn_name)
+                        break
 
         return fn
         
@@ -2231,7 +2228,6 @@ class c:
             module = c.shortcuts.get(module, module)
             return os.path.exists(c.simple2path(module))
         except Exception as e:
-            print('Error in module_exists', e)
             return False
     
     @classmethod
@@ -2504,6 +2500,9 @@ class c:
     @classmethod
     def root_key_address(cls) -> str:
         return cls.root_key().ss58_address
+    
+
+
     
     @classmethod
     def is_root_key(cls, address:str)-> str:
