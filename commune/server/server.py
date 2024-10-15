@@ -54,13 +54,13 @@ class Server(c.Module):
         self.period = period
         self.serializer = c.module('serializer')()
         module.name = module.server_name = name
-        module.fn2cost = module.server_fn2cost = fn2cost or {}
-        module.port = module.server_port =  port if port not in ['None', None] else c.free_port()
+        module.port =  port if port not in ['None', None] else c.free_port()
         module.address  = module.server_address =  f"{c.ip()}:{module.port}"
-        module.key  = module.server_key = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists)
-        module.schema =  module.server_schema = self.get_server_schema(module)
+        module.key  = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists)
+        module.fn2cost = fn2cost or {}
+        module.schema = self.get_schema(module)
         module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
-        module.info  =  module.server_info =  self.get_server_info(module)
+        module.info  =  module.server_info =  self.get_info(module)
         module.network_path = self.resolve_path(f'{self.network}/state.json')
         module.users_path = users_path or self.resolve_path(f'{name}/users')
         module.max_network_staleness = max_network_staleness
@@ -170,8 +170,8 @@ class Server(c.Module):
         return self.module.users_path + f'/rate_limit.json'
     def add_rate_limit(self, key, rate_limit):
         
-        self.user_rate_limit[address] = rate_limit
-        return self.user_rate_limit[address]
+        self.user_rate_limit[key] = rate_limit
+        return self.user_rate_limit[key]
     
 
         
@@ -466,7 +466,7 @@ class Server(c.Module):
 
         return decorator_fn
     
-    def get_server_info(self , module,**kwargs ) -> Dict[str, Any]:
+    def get_info(self , module,**kwargs ) -> Dict[str, Any]:
         '''
         hey, whadup hey how is it going
         '''
@@ -477,7 +477,7 @@ class Server(c.Module):
         info['key'] = module.key.ss58_address
         return info
 
-    def get_server_schema(self, module) -> 'Schema':
+    def get_schema(self, module) -> 'Schema':
         schema = {}
         functions =  []
         for k in self.functions_attributes:
@@ -559,5 +559,6 @@ class Server(c.Module):
                         return JSONResponse(status_code=413, content={"error": "Request too large"})
                     response = await call_next(request)
                     return response
+
 
 Server.run(__name__)
