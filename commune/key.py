@@ -126,7 +126,12 @@ class Key(c.Module):
     @classmethod
     def rename_key(self, new_path):
         return self.mv_key(self.path, new_path)
-            
+    
+    def ticket(self, data=None, **kwargs):
+        data = {'data':data, 'time': c.time()}
+        return self.sign(data , return_json=True, **kwargs)
+
+
     @classmethod
     def mv_key(cls, path, new_path):
         assert cls.key_exists(path), f'key does not exist at {path}'
@@ -936,6 +941,9 @@ class Key(c.Module):
 
     def decrypt(self, data, password=None):    
         password = self.resolve_encryption_password(password)
+        if isinstance(data, str):
+            if not data.endswith('='):
+                data = data + '='
         data = base64.b64decode(data)
         iv = data[:AES.block_size]
         cipher = AES.new(password, AES.MODE_CBC, iv)
