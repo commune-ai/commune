@@ -662,7 +662,7 @@ def cmd( command:Union[str, list],
                 password: bool = None,
                 bash : bool = False,
                 return_process: bool = False,
-                generator: bool =  False,
+                stream: bool =  False,
                 color : str = 'white',
                 cwd : str = None,
                 **kwargs) -> 'subprocess.Popen':
@@ -690,7 +690,7 @@ def cmd( command:Union[str, list],
     if return_process:
         return process
     streamer = stream_output(process, verbose=verbose)
-    if generator:
+    if stream:
         return streamer
     else:
         text = ''

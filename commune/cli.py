@@ -16,7 +16,7 @@ class cli(c.Module):
                 base = 'module',
                 fn_splitters = [':', '/', '//', '::'],
                 base_functions = ["key", "code", "schema", "fn_schema", "help", "fn_info"],
-                helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info'],
+                helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'],
                 sep = '--'):
         
         self.helper_fns = helper_fns
