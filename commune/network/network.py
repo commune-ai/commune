@@ -81,9 +81,9 @@ class Network(c.Module):
                     if isinstance(name, str):
                         namespace[name] = address
                 except Exception as e:
-                    print('Error in ', e)
+                    print('NETWORK Error in ', e)
         except Exception as e:
-            print('Error in ', e)
+            print('NETWORK Error in ', e)
         namespace = {k:v for k,v in namespace.items() if 'Error' not in k} 
         namespace = {k: '0.0.0.0:' + str(v.split(':')[-1]) for k,v in namespace.items() }
         return namespace 

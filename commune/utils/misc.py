@@ -749,6 +749,16 @@ def jsonable( value):
         return False
 
 
+
+
+def get_line(module, idx):
+    import commune as c
+    code = c.code(module)
+    lines = code.split('\n')
+    assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
+    line =  lines[max(idx, 0)]
+    return line
+    
 def get_glob( path =None, recursive:bool = True, files_only:bool = True):
     import glob
     path = os.path.abspath(path)

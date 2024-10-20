@@ -105,7 +105,7 @@ class c:
 
     @classmethod
     def config_path(cls) -> str:
-        return cls.filepath().replace('.py', '.yaml')
+        return cls.filepath()[:-3] + '.yaml'
 
     @classmethod
     def sandbox(cls):
@@ -208,13 +208,6 @@ class c:
     pm2ls = pids = procs = processes
     
     is_module_root = is_root_module = is_root
-    
-    @classmethod
-    def serialize(cls, *args, **kwargs):
-        return c.module('serializer')().serialize(*args, **kwargs)
-    @classmethod
-    def deserialize(cls, *args, **kwargs):
-        return c.module('serializer')().deserialize(*args, **kwargs)
     
     @classmethod
     def process_exists(cls, name:str, **kwargs) -> bool:
@@ -333,6 +326,10 @@ class c:
     @classmethod
     def test_fns(cls, *args, **kwargs):
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
+    
+    @classmethod
+    def pytest(cls, *args, **kwargs):
+        return c.cmd(f'pytest {c.libpath}/tests',  stream=1, *args, **kwargs)
     
     @classmethod
     def argv(cls, include_script:bool = False):
@@ -804,7 +801,9 @@ class c:
                  **kwargs) -> str:
         if meta != None:
             data = {'data':data, 'meta':meta}
-        path = cls.resolve_path(path=path, extension='json')
+        if not path.endswith('.json'):
+            path = path + '.json'
+        path = cls.resolve_path(path=path)
         # cls.lock_file(path)
         if isinstance(data, dict):
             data = json.dumps(data)
@@ -815,8 +814,8 @@ class c:
     save_json = put_json
 
     @classmethod
-    def rm(cls, path, extension=None, possible_extensions = ['json'], avoid_paths = ['~', '/']):
-        path = cls.resolve_path(path=path, extension=extension)
+    def rm(cls, path,possible_extensions = ['json'], avoid_paths = ['~', '/']):
+        path = cls.resolve_path(path=path)
         avoid_paths = [cls.resolve_path(p) for p in avoid_paths]
         assert path not in avoid_paths, f'Cannot remove {path}'
         if not os.path.exists(path):
@@ -837,7 +836,7 @@ class c:
     @classmethod
     def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
         import glob
-        path = cls.resolve_path(path, extension=None)
+        path = cls.resolve_path(path)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
         paths = glob.glob(path, recursive=recursive)
@@ -894,45 +893,28 @@ class c:
         return path2
 
     @classmethod
-    def resolve_path(cls, path:str = None, extension=None):
+    def resolve_path(cls, path:str = None, extension:Optional[str]=None):
         '''
-        ### Documentation for `resolve_path` class method
-        
-        #### Purpose:
-        The `resolve_path` method is a class method designed to process and resolve file and directory paths based on various inputs and conditions. This method is useful for preparing file paths for operations such as reading, writing, and manipulation.
-        
-        #### Parameters:
-        - `path` (str, optional): The initial path to be resolved. If not provided, a temporary directory path will be returned.
-        - `extension` (Optional[str], optional): The file extension to append to the path if necessary. Defaults to None.
-        - `root` (bool, optional): A flag to determine whether the path should be resolved in relation to the root directory. Defaults to False.
-        - `file_type` (str, optional): The default file type/extension to append if the `path` does not exist but appending the file type results in a valid path. Defaults to 'json'.
-        
-        #### Behavior:
-        - If `path` is not provided, the method returns a path to a temporary directory.
-        - If `path` starts with '/', it is returned as is.
-        - If `path` starts with '~/', it is expanded to the user’s home directory.
-
+        Abspath except for when the path does not have a
+        leading / or ~ or . in which case it is appended to the storage dir
         '''
-    
         if path == None:
             return cls.storage_dir()
-        
         if path.startswith('/'):
             path = path
-        elif path.startswith('~'):
-            path =  os.path.expanduser(path)
-        elif path.startswith('.'):
+        elif path.startswith('~') or path.startswith('.'):
             path = os.path.abspath(path)
         else:
-            # if it is a relative path, then it is relative to the module path
-            # ex: 'data' -> '.commune/path_module/data'
             storage_dir = cls.storage_dir()
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
         if extension != None and not path.endswith(extension):
             path = path + '.' + extension
-
         return path
+    
+    @classmethod
+    def abspath(cls, path:str):
+        return os.path.abspath(path)
      
     def file2size(self, path='./', fmt='mb') -> int:
         files = c.glob(path)
@@ -1382,15 +1364,6 @@ class c:
             'mode': mode
         }
 
-
-    @classmethod
-    def get_line(cls, idx):
-        code = cls.code()
-        lines = code.split('\n')
-        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
-        line =  lines[max(idx, 0)]
-        return line
-    
     @classmethod
     def fn_defaults(cls, fn):
         """
@@ -1403,7 +1376,6 @@ class c:
                 function_defaults[k] = v._default
             else:
                 function_defaults[k] = None
-
         return function_defaults
  
     @staticmethod
@@ -1542,8 +1514,6 @@ class c:
         functions = sorted(list(set(functions)))
         if search != None:
             functions = [f for f in functions if search in f]
-
-
         return functions
     
     @classmethod
@@ -1589,7 +1559,6 @@ class c:
         fn = self.resolve_fn(fn)
         return hasattr(fn, '__self__') and fn.__self__ == self
     
-
     @classmethod
     def exists(cls, path:str):
         return os.path.exists(path) or os.path.exists(cls.resolve_path(path))
@@ -1976,18 +1945,7 @@ class c:
                     classes += cls.find_classes(p, depth=depth-1)
                 elif p.endswith('.py'):
                     p_classes =  cls.find_classes(p)
-                    if working:
-                        for class_path in p_classes:
-                            try:
-                                cls.import_object(class_path)
-                                classes += [class_path]
-                            except Exception as e:
-                                r = cls.detailed_error(e)
-                                r['class'] = class_path
-                                cls.print('ERROR IN FINDING CLASSES',r, color='red')
-                                continue
-                    else:
-                        classes += p_classes
+                    classes += p_classes
                         
             return classes
         
@@ -2048,14 +2006,15 @@ class c:
     
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
-        libpath = cls.libpath 
-        if path.startswith(libpath):
-            path =   path.replace(libpath , '')[1:].replace('/', '.')[:-3]
-        else: 
-            pwd = cls.pwd()
-            if path.startswith(pwd):
-                path =  path.replace(pwd, '')[1:].replace('/', '.').replace('.py', '')
-            
+        
+        path = os.path.abspath(path)
+        dir_prefixes  = [c.libpath , c.pwd()]
+        for dir_prefix in dir_prefixes:
+            if path.startswith(dir_prefix):
+                path =   path.replace(dir_prefix , '')[1:].replace('/', '.')
+                break
+        if path.endswith('.py'):
+            path = path[:-3]
         return path.replace('__init__.', '.')
     
     @classmethod
@@ -2307,7 +2266,7 @@ class c:
         return round_sig(x, sig=sig, small_value=small_value)
 
     @classmethod
-    def module(cls, path:str = 'module',  cache=True,verbose = False, trials=3, **_kwargs ) -> str:
+    def module(cls, path:str = 'module',  cache=True,verbose = False, trials=1, **_kwargs ) -> str:
         
         og_path = path
         path = path or 'module'
@@ -2328,7 +2287,6 @@ class c:
                 except Exception as e:
                     if trials > 0:
                         trials -= 1
-                        print('Error in importing module, refreshing tree', path, e)
                         tree = c.tree(update=True)
                         return c.module(path, cache=cache, verbose=verbose, trials=trials)
                     raise ValueError(f'Error in importing module {path} {e}')
@@ -2467,10 +2425,6 @@ class c:
     def ps(cls, *args, **kwargs):
         return cls.get_module('docker').ps(*args, **kwargs)
  
-    @classmethod
-    def addresses(cls, *args, **kwargs) -> List[str]:
-        return list(cls.namespace(*args,**kwargs).values())
-    
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
@@ -2780,8 +2734,7 @@ class c:
     def time(  t=None) -> float:
         from time import time
         return time()
-
-
+    
     routes = {
     "vali": [
         "run_epoch",
@@ -2815,6 +2768,11 @@ class c:
     "repo": [
         "is_repo",
         "repos"
+    ],
+    "serializer": [
+        "serialize",
+        "deserialize",
+        "serializer_map",
     ],
     "key": [
         "rename_key",
@@ -2993,7 +2951,6 @@ class c:
         "wait",
         "as_completed"
     ],
-
     "commune.utils.misc": [
         "random_float",
         "timestamp",
