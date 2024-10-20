@@ -2741,7 +2741,7 @@ class c:
         "setup_vali",
         "from_module"
     ],
-    "env": [
+    "py": [
         "envs", 
         "env2cmd", 
         "create_env", 

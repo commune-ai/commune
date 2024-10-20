@@ -14,9 +14,11 @@ RUN apt-get install curl nano build-essential cargo libstd-rust-dev -y
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2 
 
+
 #PYTHON
 RUN apt-get install python3 python3-pip python3-venv -y
-RUN git clone -b main https://github.com/commune-ai/commune.git /commune 
+COPY ./ /commune
+# RUN git clone -b main https://github.com/commune-ai/commune.git /commune 
 RUN pip install -e /commune
 
 WORKDIR /app
