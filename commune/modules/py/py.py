@@ -10,33 +10,33 @@ class PythonEnvManager(c.Module):
         self.venv_path = os.path.join(self.base_path, '.envs')
         os.makedirs(self.venv_path, exist_ok=True)
 
-    def create_env(self, env_name):
-        env_path = os.path.join(self.venv_path, env_name)
+    def create_env(self, env):
+        env_path = os.path.join(self.venv_path, env)
         if os.path.exists(env_path):
-            print(f"Environment {env_name} already exists.")
+            print(f"Environment {env} already exists.")
             return
         subprocess.check_call([sys.executable, '-m', 'venv', env_path])
-        return {'msg': f"Created environment {env_name} at {env_path}"}
+        return {'msg': f"Created environment {env} at {env_path}"}
     create = create_env
 
-    def delete(self, env_name):
-        env_path = os.path.join(self.venv_path, env_name)
+    def remove_env(self, env):
+        env_path = os.path.join(self.venv_path, env)
         if not os.path.exists(env_path):
-            print(f"Environment {env_name} does not exist.")
+            print(f"Environment {env} does not exist.")
             return
         shutil.rmtree(env_path)
-        return dict(msg=f"Deleted environment {env_name}")
+        return dict(msg=f"Deleted environment {env}")
 
-    def install(self, env_name, package_name):
-        env_path = os.path.join(self.venv_path, env_name, 'bin' if os.name == 'posix' else 'Scripts', 'python')
+    def install(self, env, package_name):
+        env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts', 'python')
         initial_args = [env_path, '-m', 'pip', 'install']
         if os.path.exists(package_name):
             initial_args += ['-e']
         if not os.path.exists(env_path):
-            print(f"Environment {env_name} does not exist.")
+            print(f"Environment {env} does not exist.")
             return
         subprocess.check_call([*initial_args, package_name])
-        return dict(msg=f"Installed {package_name} in environment {env_name}")
+        return dict(msg=f"Installed {package_name} in environment {env}")
 
 
 
@@ -49,11 +49,11 @@ class PythonEnvManager(c.Module):
     def envs_paths(self):
         return list(self.env2path().values())
 
-    def packages(self, env_name, search=None):
+    def packages(self, env, search=None):
         '''Available environments:'''
-        env_path = os.path.join(self.venv_path, env_name, 'bin' if os.name == 'posix' else 'Scripts', 'python')
+        env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts', 'python')
         if not os.path.exists(env_path):
-            print(f"Environment {env_name} does not exist.")
+            print(f"Environment {env} does not exist.")
             return
         output = subprocess.check_output([env_path, '-m', 'pip', 'list']).decode('utf-8')
         output =  {line.split(' ')[0]:line.split(' ')[-1] for line in output.split('\n')[2:-1]}
@@ -63,10 +63,12 @@ class PythonEnvManager(c.Module):
         
         return output
     
-    def run(self, env_name, script_path):
-        env_path = os.path.join(self.venv_path, env_name, 'bin' if os.name == 'posix' else 'Scripts')
+    def run(self, script_path, env=None):
+        if not env:
+            env = list(self.envs())[0]
+        env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts')
         if not os.path.exists(env_path):
-            print(f"Environment {env_name} does not exist.")
+            print(f"Environment {env} does not exist.")
             return
         activation_script = os.path.join(env_path, 'activate') if os.name == 'posix' else os.path.join(env_path, 'Scripts', 'activate.bat')
         python_executable = os.path.join(env_path, 'python') if os.name == 'posix' else os.path.join(env_path, 'python.exe')
@@ -77,7 +79,6 @@ class PythonEnvManager(c.Module):
             os.system("deactivate")
         else:
             os.system(f"{'cd..' if os.path.dirname(env_path) != os.path.dirname(os.getcwd()) else ''}")
-
 
     def env2cmd(self):
         env2cmd = {}
