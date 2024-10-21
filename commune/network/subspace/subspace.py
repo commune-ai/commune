@@ -119,17 +119,18 @@ class Subspace(c.Module):
         network = network or self.network
         if timeout != None:
             ws_options["timeout"] = timeout
-
+        
         self.ws_options = ws_options
         self.url  = url or (mode + '://' + self.url_map.get(network)[0])
         self.num_connections = num_connections                  
         self.wait_for_finalization = wait_for_finalization
         self.network = network
-
         self.connections_queue = queue.Queue(self.num_connections)
-        for _ in range(self.num_connections):
-            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-    
+        try:
+            for _ in range(self.num_connections):
+                self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+        except Exception as e: 
+            c.print('ERROR IN CONNECTIONS QUEUE:', e)
         self.connection_latency = c.time() - t0
 
         c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
@@ -2687,9 +2688,9 @@ class Subspace(c.Module):
     def to_joules(self, value):
         return value / (10 ** 9)
     to_j = to_joules
-    
+
     def resolve_key_address(self, key:str ):
-        if self.valid_ss58_address(key):
+        if self.valid_h160_address(key) or self.valid_ss58_address(key):
             return key
         else:
             key = c.get_key( key )

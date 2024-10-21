@@ -53,18 +53,19 @@ class Chat(c.Module):
         return signature
     
 
-    @c.endpoint()
     def generate(self,  
             text = 'whats 2+2?' ,
             model= 'anthropic/claude-3.5-sonnet', 
-
             temperature= 0.5,
             max_tokens= 1000000,
             system_prompt= 'make this shit work',
             stream=True, 
             ):
         text = self.process_text(system_prompt + '\n' + text)
-        output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
+        output =  self.model.generate(text, stream=stream, 
+                                      model=model, 
+                                      max_tokens=max_tokens,
+                                        temperature=temperature )
         for token in output:
             yield token
 
