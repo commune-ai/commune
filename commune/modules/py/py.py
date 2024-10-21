@@ -38,8 +38,6 @@ class PythonEnvManager(c.Module):
         subprocess.check_call([*initial_args, package_name])
         return dict(msg=f"Installed {package_name} in environment {env}")
 
-
-
     def env2path(self):
         env_paths =  c.ls(self.venv_path)
         return {v.split('/')[-1] : v for v in env_paths}

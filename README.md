@@ -8,9 +8,8 @@
 [![Twitter Follow](https://img.shields.io/twitter/follow/communeaidotorg.svg?style=social&label=Follow)](https://twitter.com/communeaidotorg)
 
 ![Alt text](image.png)
-PLEASE REFER TO THE DOCS FOLDER FOR MORE INFO
 
-[DOCS](./commune/docs)
+FOR MORE INFO, GO TO [DOCS](./commune/docs) FOR MORE INFORMATION
 
 Introduction to Commune
 
@@ -22,77 +21,68 @@ Key Features:
 - Flexible key management
 - Pythonic CLI
 
-To get started, you can install Commune either locally or using Docker.
+A module is a class. The name of the module can be determined by the filepath with respect to the current working directory (c.pwd()/c pwd). 
 
-Installation
+make a class in a file
 
-Local Installation:
-```bash
-apt-get install python3.10 python3-pip npm
-npm install -g pm2
-pip install -r requirements.txt
-pip install -e .
-```
 
-Docker Installation:
-```bash
-git clone https://github.com/commune-ai/commune.git
-cd commune
-make build
-make start
-make enter
-```
+c new_module agi
 
-After installation, sync with the network:
-```bash
-c ls
-```
-
-Page 3: Module Filesystem
-
-Commune organizes modules in a filesystem-like structure. You can create local modules that integrate seamlessly with Commune's core modules.
-
-Example:
+Example (agi.py):
 ```python
-import commune as c
+class Agi(c.Module):
+    def __init__(self, a=1, b=2):
+        self.set_config(locals())
 
-class Example(c.Module):
-    def __init__(self):
-        pass
-
-    def predict(self, x):
-        return x + 1
+    def generate(self, x:int = 1, y:int = 2) -> int:
+        c.print(self.config)
+        c.print(self.config, 'This is the config, it is a Munch object')
+        return x + y
+    
+    forward = generate
 ```
 
 You can call this module using:
+Input
+```bash 
+c example/predict 10 # c {module}/{method} *args **kwargs
+```
+Result
 ```bash
-c model/predict x=1
+⚡️⚡️⚡️⚡️predict⚡️⚡️⚡️⚡️
+✅Result(0.001s)✅
+11
 ```
 
-Page 4: Subspace Integration
 
-Commune uses the Subspace blockchain for:
-- Decentralized Name Service (DNS) for deployed objects
-- Stake-weighted voting system for performance evaluation
+# 1 Key Per Module
 
-To register a module on the blockchain:
-```bash
-c register my_module_path name=my_module tag=1
-```
-
-Page 5: Key Management
+When you create a module, commune will see if the key name exists, and if it doesnt, it will generate a new one randomly. Dont worry, its not encrypted by default. 
 
 Commune uses sr25519 keys for signing, encryption, and verification.
 
 To add a new key:
 ```bash
-c add_key alice
+c add_key alice 
+```
+
+```bash
+c key alice
+```
+
+```bash
+<Key(address=5CmA5vVC9s8uXE8htaigNicNokSouwLsSPPWMN3Z3V8uNEWw, path=alice, crypto_type=sr25519)>
 ```
 
 To list keys:
 ```bash
-c keys
+c keys alice
 ```
+
+```bash
+[alice]
+```
+
 
 To sign a message:
 ```python
@@ -100,42 +90,24 @@ key = c.get_key("alice")
 signature = key.sign("hello world")
 ```
 
-Page 6: Pythonic CLI
-
-Commune provides a Pythonic CLI for easy interaction:
-
-```bash
-c {module_name}/{function_name} *args **kwargs
-```
-
-Example:
-```bash
-c ls ./
-```
-
-This is equivalent to:
-```python
-import commune as c
-c.ls('./')
-```
-
-Page 7: Serving Modules
+## Serving
 
 To serve a module:
 ```bash
-c serve model.openai::tag
+c serve model.openai
 ```
 
 To call a served module:
 ```python
-c.call("model.openai::tag/forward", "sup")
+c.call("model.openai/forward", "sup")
 ```
 
-Page 8: Testing
+
+### Testing
 
 To run tests:
 ```bash
-pytest commune/tests
+pytest tests
 ```
 
 Page 9: Contributing

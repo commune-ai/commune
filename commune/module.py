@@ -3,18 +3,14 @@ import inspect
 import json
 import shutil
 import time
-import gc
 import sys
 import argparse
-import asyncio
-import nest_asyncio
-import yaml
 from functools import partial
-import random
 import os
 from copy import deepcopy
 from typing import *
-
+import nest_asyncio
+import asyncio
 nest_asyncio.apply()
 
 class c:
@@ -37,23 +33,26 @@ class c:
         'network.local': 'network',
         }
 
-    libname = lib_name = lib = 'commune' # the name of the library
+    libname = lib_name = lib = __file__.split('/')[-3]# the name of the library
+    organization = org = orgname = 'commune-ai' # the organization
+    git_host  = 'https://github.com'
     cost = 1
     description = """This is a module"""
     base_module = 'module' # the base module
-    giturl = 'https://github.com/commune-ai/commune.git' # tge gutg
+    giturl = f'{git_host}/{org}/{libname}.git' # tge gutg
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
-    rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1])  # the path to the root of the library
+     # the path to the root of the library
+    src_path = source_path = rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1]) 
     homepath = home_path = os.path.expanduser('~') # the home path
     libpath = lib_path = os.path.dirname(root_path) # the path to the library
     repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
-    cache_path = os.path.expanduser(f'~/.{libname}')
+    storage_path = os.path.expanduser(f'~/.{libname}')
     default_tag = 'base'
 
     def __init__(self, *args, **kwargs):
@@ -125,21 +124,21 @@ class c:
                 return obj.__name__
             def __class__(self):
                 return obj.__class__
-            @classmethod
-            def filepath(cls) -> str:
-                return super().filepath(cls._obj)  
-
-        for fn in dir(WrapperModule):
+            
+        for k in dir(obj):
             try:
-                setattr(obj, fn, getattr(WrapperModule, fn))
+                setattr(WrapperModule, k, getattr(obj, k))
             except:
-                pass 
- 
-        return obj
+                pass
+        
+        return WrapperModule
+    
+    def syspath(self):
+        return sys.path
     
     @classmethod
     def storage_dir(cls):
-        return f'{c.cache_path}/{cls.module_name()}'
+        return f'{c.storage_path}/{cls.module_name()}'
 
     @classmethod
     def __str__(cls):
@@ -215,16 +214,16 @@ class c:
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
-        if c.object_exists(obj):
-            return c.obj(obj)
+        if isinstance(obj, str):
+            if c.object_exists(obj):
+                return c.obj(obj)
+            if c.module_exists(obj):
+                return c.module(obj)
         if obj == None:
             if cls._obj != None:
                 return cls._obj
             else:
                 obj = cls
-        else:
-            if isinstance(obj, str):
-                obj =  c.module(obj, **kwargs)
         return obj
     
     @classmethod
@@ -329,7 +328,7 @@ class c:
     
     @classmethod
     def pytest(cls, *args, **kwargs):
-        return c.cmd(f'pytest {c.libpath}/tests',  stream=1, *args, **kwargs)
+        return c.cmd(f'pytest {c.root_path}/tests',  stream=1, *args, **kwargs)
     
     @classmethod
     def argv(cls, include_script:bool = False):
@@ -491,7 +490,6 @@ class c:
         '''
         return c.ask(prompt, *args, model='sonnet', **kwargs)
     
-
     def util_modules(self, search=None):
         return sorted(list(set([f.split('.')[-2] for f in self.utils_paths(search)])))
 
@@ -522,9 +520,7 @@ class c:
     route_cache = None
 
     def get_yaml( path:str=None, default={}, **kwargs) -> Dict:
-        '''f
-        Loads a yaml file
-        '''
+        '''fLoads a yaml file'''
         import yaml
         path = os.path.abspath(path)
         with open(path, 'r') as file:
@@ -570,7 +566,6 @@ class c:
             fn2route[fn] = module + '.' + fn
         return fn2route
             
-
     @classmethod
     def add_routes(cls, routes:dict=None, verbose=False, add_utils=True):
         from functools import partial
@@ -627,9 +622,8 @@ class c:
                         setattr(cls, to_fn, fn_obj)
                     else: 
                         c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
-            # print(f'ROUTE({module}/{fn} -> {fn})')
         latency = c.time() - t0
-        return {'success': True, 'msg': 'enabled routes'}
+        return {'success': True, 'msg': 'enabled routes', 'latency': latency}
     
     @classmethod
     def has_test_module(cls, module=None):
@@ -682,7 +676,6 @@ class c:
         globals_input = globals_input or {}
         for k,v in c.__dict__.items():
             globals_input[k] = v     
-            
         for f in c.class_functions() + c.static_functions():
             globals_input[f] = getattr(c, f)
 
@@ -1034,7 +1027,7 @@ class c:
                 if timestamp != None:
                     age = int(time.time() - timestamp)
                     if age > max_age: # if the age is greater than the max age
-                        cls.print(f'{k} is too old ({age} > {max_age})', verbose=verbose)
+                        c.print(f'{k} is too old ({age} > {max_age})', verbose=verbose)
                         return default
         else:
             data = default
@@ -1127,7 +1120,7 @@ class c:
 
     @classmethod
     def storage_dir(cls):
-        return f'{cls.cache_path}/{cls.module_name()}'
+        return f'{c.storage_path}/{cls.module_name()}'
     
     tmp_dir = cache_dir   = storage_dir
 
@@ -1202,12 +1195,6 @@ class c:
                             parents += [pp]
         return parents
 
-    @classmethod
-    def get_class_name(cls, obj = None) -> str:
-        obj = cls or obj
-        if not cls.is_class(obj):
-            obj = type(obj)
-        return obj.__name__
 
     @classmethod
     def fn_schema(cls, fn:str,
@@ -1292,7 +1279,7 @@ class c:
         if cls.is_fn(module):
             return cls.fn_code(module)
         module = cls.resolve_object(module)
-        text =  c.get_text( module.filepath(), *args, **kwargs)
+        text =  c.get_text( c.filepath(module), *args, **kwargs)
         if search != None:
             return cls.find_lines(text=text, search=search)
         return text
@@ -1498,12 +1485,12 @@ class c:
             include_parents: whether to include the parent functions
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
-        is_root_module = cls.is_root_module()
+
         obj = cls.resolve_object(obj)
         functions = []
-        import inspect
         text = inspect.getsource(obj)
         functions = []
+        # just
         for splitter in splitter_options:
             for line in text.split('\n'):
                 if f'"{splitter}"' in line:
@@ -1576,7 +1563,7 @@ class c:
                 fn = fn.split(splitter)[-1]
                 fn = getattr(c.get_module(module), fn)
         except Exception as e:
-            print('Error in is_fn:', e)
+            print('Error in is_fn:', e, fn)
             return False
         return callable(fn)
 
@@ -1861,17 +1848,14 @@ class c:
     @classmethod
     def path2name(cls,  
                     path:str, 
-                    tree = None,  
-                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules',
-                                       'commune.commune',
-                                        'commune.module', 'module', 'router'],
+                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules', 'module'],
                     module_folder_filnames = ['__init__', 'main', 'module'],
                     module_extension = 'py',
                     ignore_suffixes = ['module'],
                     name_map = {'commune': 'module'},
                     compress_path = True,
                     verbose = False,
-                    num_lines_to_read = 100,
+                    **kwargs
                     ) -> str:
         
         path  = os.path.abspath(path)
@@ -1882,12 +1866,14 @@ class c:
         path_filename_chunks = path_filename.split('_')
         path_chunks = path.split('/')
 
-        if path.startswith(cls.libpath):
-            path = path[len(cls.libpath):]
+        if path.startswith(c.libpath):
+            path = path[len(c.libpath):]
         else:
-            # if the tree path is not in the path, we want to remove the root path
-            pwd = cls.pwd()
-            path = path[len(pwd):] 
+            pwd = c.pwd()
+            if path.startswith(pwd):
+                path = path[len(pwd):]
+            else:
+                raise ValueError(f'Path {path} is not in libpath {c.libpath} or pwd {pwd}') 
         dir_chunks = path.split('/')[:-1] if '/' in path else []
         is_module_folder = all([bool(chunk in dir_chunks) for chunk in path_filename_chunks])
         is_module_folder = is_module_folder or (path_filename in module_folder_filnames)
@@ -1899,8 +1885,6 @@ class c:
         if path.endswith(module_extension):
             path = path[:-len(module_extension)]
         if compress_path:
-            # we want to remove redundant chunks 
-            # for example if the path is 'module/module' we want to remove the redundant module
             path_chunks = path.split('.')
             simple_path = []
             for chunk in path_chunks:
@@ -1909,19 +1893,17 @@ class c:
             simple_path = '.'.join(simple_path)
         else:
             simple_path = path
-        # FILTER PREFIXES  
         for prefix in ignore_prefixes:
             prefix += '.'
             if simple_path.startswith(prefix) and simple_path != prefix:
                 simple_path = simple_path[len(prefix):]
-                cls.print(f'Prefix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
+                c.print(f'Prefix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
         # FILTER SUFFIXES
         for suffix in ignore_suffixes:
             suffix = '.' + suffix
             if simple_path.endswith(suffix) and simple_path != suffix:
                 simple_path = simple_path[:-len(suffix)]
-                cls.print(f'Suffix {suffix} in path {simple_path}', color='yellow', verbose=verbose)
-
+                c.print(f'Suffix {suffix} in path {simple_path}', color='yellow', verbose=verbose)
         # remove leading and trailing dots
         if simple_path.startswith('.'):
             simple_path = simple_path[1:]
@@ -1929,9 +1911,6 @@ class c:
             simple_path = simple_path[:-1]
         simple_path = name_map.get(simple_path, simple_path)
         return simple_path
-
-
-
 
     @classmethod
     def find_classes(cls, path='./',  working=False, depth=8):
@@ -1946,13 +1925,11 @@ class c:
                 elif p.endswith('.py'):
                     p_classes =  cls.find_classes(p)
                     classes += p_classes
-                        
             return classes
-        
         code = cls.get_text(path)
         classes = []
         file_path = cls.path2objectpath(path)
-            
+        
         for line in code.split('\n'):
             if line.startswith('class ') and line.strip().endswith(':'):
                 new_class = line.split('class ')[-1].split('(')[0].strip()
@@ -1962,8 +1939,6 @@ class c:
                     continue
                 classes += [new_class]
         classes = [file_path + '.' + c for c in classes]
-        libpath_objpath_prefix = c.libpath.replace('/', '.')[1:] + '.'
-        classes = [c.replace(libpath_objpath_prefix, '') for c in classes]
         return classes
 
     @classmethod
@@ -2011,7 +1986,7 @@ class c:
         dir_prefixes  = [c.libpath , c.pwd()]
         for dir_prefix in dir_prefixes:
             if path.startswith(dir_prefix):
-                path =   path.replace(dir_prefix , '')[1:].replace('/', '.')
+                path =   path[len(dir_prefix) + 1:].replace('/', '.')
                 break
         if path.endswith('.py'):
             path = path[:-3]
@@ -2042,7 +2017,7 @@ class c:
                         except Exception as e:
                             r = cls.detailed_error(e)
                             r['fn'] = fn
-                            cls.print(r, color='red')
+                            c.print(r, color='red')
                             continue
                     fns += [fn]
 
@@ -2149,23 +2124,24 @@ class c:
             return True
         except:
             return False
+    
+
+    @classmethod
+    def ensure_syspath(cls, path:str, **kwargs):
+        if path not in sys.path:
+            sys.path.append(path)
+            sys.path = list(set(sys.path))
+        return {'path': path, 'sys.path': sys.path}
 
     @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
-        '''
-        Import an object from a string with the format of {module_path}.{object}
-        Examples: import_object("torch.nn"): imports nn from torch
-        '''
-        pwd = c.pwd()
-        sys.path.append(pwd)
-        sys.path = list(set(sys.path))
+        ''' Import an object from a string with the format of {module_path}.{object}'''
+        # c.ensure_syspath(c.pwd())
         assert key != None, key
-        module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
-        obj =  getattr(c.import_module(module), object_name)
-        return obj
+        module_obj = c.import_module('.'.join(key.split('.')[:-1]))
+        return  getattr(module_obj, key.split('.')[-1])
     
-    obj = get_obj = import_object
+    o = obj = get_obj = import_object
 
     @classmethod
     def object_exists(cls, path:str, verbose=False)-> Any:
@@ -2198,13 +2174,13 @@ class c:
         return c.module(module).filepath()
     
     @classmethod
-    def simplify_object_paths(cls,  paths):
-        paths = [cls.simplify_object_path(p) for p in paths]
+    def objectpaths2names(cls,  paths):
+        paths = [cls.objectpath2name(p) for p in paths]
         paths = [p for p in paths if p]
         return paths
 
     @classmethod
-    def simplify_object_path(cls, p, avoid_terms=['modules', 'agents', 'module']):
+    def objectpath2name(cls, p, avoid_terms=['modules', 'agents', 'module']):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -2237,27 +2213,31 @@ class c:
     @classmethod
     def local_modules(cls, search=None, depth=2, **kwargs):
         object_paths = cls.find_classes(cls.pwd(), depth=depth)
-        object_paths = cls.simplify_object_paths(object_paths) 
+        object_paths = cls.objectpaths2names(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
-        return c.get_tree(cls.libpath, depth=depth, **kwargs)
+        return c.get_tree(c.libpath, depth=depth, **kwargs)
+    @classmethod
+    def core_tree(cls, depth=10, **kwargs):
+        tree =  c.get_tree(c.libpath, depth=depth, **kwargs)
+        return {k:v for k,v in tree.items() if '.modules.' not in v}
     @classmethod
     def local_tree(cls , depth=4, **kwargs):
-        return c.get_tree(cls.pwd(), depth=depth, **kwargs)
+        return c.get_tree(c.pwd(), depth=depth, **kwargs)
     
     @classmethod
     def get_tree(cls, path, depth = 10, max_age=60, update=False):
-        cache_path = 'tree/'+path.replace('/', '_')
-        tree = c.get(cache_path, None, max_age=max_age, update=update)
+        tree_cache_path = 'tree/'+path.replace('/', '_')
+        tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print('Building tree', color='blue')
+            c.print(f'Building tree {path}', color='blue')
             class_paths = cls.find_classes(path, depth=depth)
-            simple_paths = cls.simplify_object_paths(class_paths) 
+            simple_paths = cls.objectpaths2names(class_paths) 
             tree = dict(zip(simple_paths, class_paths))
-            c.put(cache_path, tree)
+            c.put(tree_cache_path, tree)
         return tree
     
     @staticmethod
@@ -2289,10 +2269,14 @@ class c:
                         trials -= 1
                         tree = c.tree(update=True)
                         return c.module(path, cache=cache, verbose=verbose, trials=trials)
-                    raise ValueError(f'Error in importing module {path} {e}')
+                    else:
+                        raise e
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(c.time() - t0, 3)
+        # if 
+        if not hasattr(module, 'module_name'):
+            module = c.obj2module(module)
         c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
 
@@ -2300,11 +2284,11 @@ class c:
     
     _tree = None
     @classmethod
-    def tree(cls, search=None, cache=True, update=False, max_age=60, **kwargs):
+    def tree(cls, search=None, cache=True, update_lib=False, update_local=True,**kwargs):
         if cls._tree != None and cache:
             return cls._tree
-        local_tree = c.local_tree(max_age=max_age, update=update)
-        lib_tree = c.lib_tree(max_age=max_age, update=update)
+        local_tree = c.local_tree(update=update_local)
+        lib_tree = c.lib_tree(update=update_lib)
         tree = {**lib_tree, **local_tree}
         if cache:
             cls._tree = tree
@@ -2320,7 +2304,7 @@ class c:
     @classmethod
     def lib_modules(cls, search=None, depth=10000, **kwargs):
         object_paths = cls.find_classes(cls.libpath, depth=depth )
-        object_paths = cls.simplify_object_paths(object_paths) 
+        object_paths = cls.objectpaths2names(object_paths) 
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
@@ -2353,34 +2337,24 @@ class c:
 
     @classmethod
     def new_module( cls,
-                   module : str ,
-                   base_module : str = 'demo', 
-                   folder_module : bool = False,
+                   path : str ,
+                   name= None, 
+                   base_module : str = 'base', 
                    update=1
                    ):
-        
-        import commune as c
+        path = os.path.abspath(path)
+        path = path + '.py' if not path.endswith('.py') else path
+        name = name or c.path2name(path)
         base_module = c.module(base_module)
-        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in module.split('.')])
-        base_module_class_name = base_module.class_name()
-        base_module_code = base_module.code().replace(base_module_class_name, module_class_name)
-        pwd = c.pwd()
-        path = os.path.join(pwd, module.replace('.', '/'))
-        if folder_module:
-            dirpath = path
-            filename = module.replace('.', '_')
-            path = os.path.join(path, filename)
-        
-        path = path + '.py'
+        module_class_name = ''.join([m[0].capitalize() + m[1:] for m in name.split('.')])
+        code = base_module.code()
+        code = code.replace(base_module.__name__,module_class_name)
         dirpath = os.path.dirname(path)
-        if os.path.exists(path) and not update:
-            return {'success': True, 'msg': f'Module {module} already exists', 'path': path}
+        assert os.path.exists(path) or update
         if not os.path.exists(dirpath):
             os.makedirs(dirpath, exist_ok=True)
-
-        c.put_text(path, base_module_code)
-        
-        return {'success': True, 'msg': f'Created module {module}', 'path': path}
+        c.put_text(path, code)
+        return {'name': name, 'path': path, 'msg': 'Module Created'}
     
     add_module = new_module
 
@@ -2430,13 +2404,12 @@ class c:
         path = cls.resolve_path(path)
         user = os.getenv('USER')
         cmd = f'chown -R {user}:{user} {path}'
-        print(cmd)
         cls.cmd(cmd , sudo=sudo, verbose=True)
         return {'success':True, 'message':f'chown cache {path}'}
 
     @classmethod
     def chown_cache(cls, sudo:bool = True):
-        return cls.chown(c.cache_path, sudo=sudo)
+        return cls.chown(c.storage_path, sudo=sudo)
     
     @classmethod
     def get_util(cls, util:str, prefix='commune.utils'):
@@ -2778,10 +2751,12 @@ class c:
         "rename_key",
         "ss58_encode",
         "ss58_decode",
+        "valid_h160_address",
         "key2mem",
         "key_info_map",
         "key_info",
         "valid_ss58_address",
+        "valid_h160_address",
         "add_key",
         "from_password",
         "str2key",

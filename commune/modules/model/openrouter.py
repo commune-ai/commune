@@ -12,7 +12,6 @@ class OpenRouter(c.Module):
         base_url: str | None = 'https://openrouter.ai/api/v1',
         timeout: float | None = None,
         max_retries: int = 10,
-        model = None,
         **kwargs
     ):
         """
@@ -28,7 +27,6 @@ class OpenRouter(c.Module):
 
         super().__init__()
         self.prompt = None
-        self.model = model
         if api_key == None:
             api_key = self.get_api_key()
 
@@ -39,7 +37,6 @@ class OpenRouter(c.Module):
             max_retries=max_retries,
         )
 
-    @c.endpoint()
     def generate(
         self,
         message: str,
@@ -48,7 +45,7 @@ class OpenRouter(c.Module):
         prompt: str =  None,
         system_prompt: str = None,
         stream: bool = False,
-        model:str = 'anthropic/claude-3-sonnet:beta',
+        model:str = 'claude-3-sonnet',
         max_tokens: int = 100000,
         temperature: float = 1.0,
     ) -> str | Generator[str, None, None]:
@@ -72,9 +69,11 @@ class OpenRouter(c.Module):
         prompt = prompt or self.prompt
         message = message + prompt if prompt else message
         model = self.resolve_model(model)
+        print(f'Generating with model: {model}')
         model_info = self.get_model_info(model)
-        c.print(model_info)
-        max_tokens = min(max_tokens, model_info['context_length'] - len(message))
+        num_tokens = len(message)
+        print(f'Sending {num_tokens} tokens -> {model}')
+        max_tokens = min(max_tokens, model_info['context_length'] - num_tokens)
         messages = history.copy()
         messages.append({"role": "user", "content": message})
         result = self.client.chat.completions.create(
@@ -101,9 +100,10 @@ class OpenRouter(c.Module):
         models =  self.models()
         if str(model) not in models:
             models = [m for m in models if str(model) in m]
-            if len(models) == 0:
-                return c.choice(self.models())
-        return c.choice(models)
+            print(f"Model {model} not found. Using {models} instead.")
+            assert len(models) > 0
+
+        return model
 
     def authenticate(
         self,

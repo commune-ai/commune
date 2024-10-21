@@ -11,17 +11,27 @@ import asyncio
 
 class Server(c.Module):
     network : str = 'local'
-
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
         functions:Optional[List[str]] = None, # list of endpoints
         key:str = None, # key for the server (str)
+        crypto_type: int = 1,
         name: str = None, # the name of the server
         port: Optional[int] = None, # the port the server is running on
         network:str = 'subspace', # the network used for incentives
-        helper_functions  = ['info',  'metadata',  'schema', 'server_name', 'functions', 'forward', 'rate_limit'], 
-        functions_attributes =['helper_functions', 'whitelist','endpoints','server_functions'],
+        helper_functions  = ['info',  
+                            'metadata', 
+                            'schema', 
+                            'server_name', 
+                            'functions',
+                            'fns', 
+                            'forward', 
+                            'rate_limit'], 
+        functions_attributes =['helper_functions', 
+                               'whitelist',
+                               'endpoints',
+                               'server_functions'],
         max_bytes:int = 10 * 1024 * 1024,  # max bytes within the request (bytes)
         allow_origins = ["*"], # allowed origins
         allow_credentials=True, # allow credentials
@@ -47,16 +57,29 @@ class Server(c.Module):
         ) -> 'Server':
         module = module or 'module'
         if isinstance(module, str):
-            name = name or module
+            if name == None:
+                name = c.objectpath2name(module) if c.object_exists(module) else module
             module = c.module(module)()
         self.network = network
         self.functions_attributes = functions_attributes
         self.period = period
         self.serializer = c.module('serializer')()
         module.name = module.server_name = name
+
+        if port == None:
+            namespace = c.get_namespace()
+            if name in namespace:
+                port = int(namespace.get(name).split(':')[-1])
+            else:
+                port = c.free_port()
+        if c.port_used(port):
+            c.kill_port(port)
+            if c.server_exists(name):
+                c.kill(name)
         module.port =  port if port not in ['None', None] else c.free_port()
         module.address  = module.server_address =  f"{c.ip()}:{module.port}"
-        module.key  = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists)
+        module.crypto_type =  crypto_type
+        module.key  = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists, crypto_type=crypto_type)
         module.fn2cost = fn2cost or {}
         module.schema = self.get_schema(module)
         module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
@@ -69,12 +92,10 @@ class Server(c.Module):
         for fn in module.user_functions:
             setattr(module, fn, getattr(self, fn))
         self.module = module
-
         self.sync(update=False)  
         c.thread(self.sync_loop)
         self.loop = asyncio.get_event_loop()
         app = FastAPI()  
-        
         app.add_middleware(self.Middleware, max_bytes=max_bytes)    
         app.add_middleware(CORSMiddleware, 
                            allow_origins=allow_origins, 
@@ -85,7 +106,7 @@ class Server(c.Module):
         def api_forward(fn:str, request: Request):
             return self.forward(fn, request)
         app.post("/{fn}")(api_forward)
-        c.print(f'Served(name={module.name}, address={module.address}, key=🔑{module.key}🔑 ) 🚀 ', color='purple')
+        c.print(f'Served(name={module.name}, address={module.address}, key={module.key.ss58_address} crypto_type={module.key.crypto_type}) 🚀 ', color='purple')
         c.register_server(name=module.name,address=module.address)
         uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
 
@@ -102,9 +123,6 @@ class Server(c.Module):
         for future in c.as_completed(futures):
             c.print(future.result())
         return {'success':True, 'message':f'Served {n} servers', 'namespace': c.namespace()} 
-
-
-
 
     @classmethod
     def serve(cls, 
@@ -128,30 +146,17 @@ class Server(c.Module):
         name = (name or server_name or module) or c.module_name()
         if tag_seperator in name:
             module, tag = name.split(tag_seperator)
-        if tag != None:
-            name = f'{module}{tag_seperator}{tag}'
-        if port == None:
-            namespace = c.get_namespace()
-            if name in namespace:
-                port = int(namespace.get(name).split(':')[-1])
-            else:
-                port = c.free_port()
-        if c.port_used(port):
-            c.kill_port(port)
-            c.kill(name)
-
-        response =  { 'module':module, 
+        response =  { 'module':module,  
                      'name': name, 
-                     'address':f'0.0.0.0:{port}',
-                       'kwargs':kwargs, 
-                       'port': port} 
+                     'address':f'0.0.0.0:{port}', 
+                     'kwargs':kwargs, 
+                     'port': port} 
         if remote:
-            remote = False
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
             for _ in ['extra_kwargs', 'address', 'response', 'namespace']:
                 remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
+            remote_kwargs['remote'] = False
             c.remote_fn('serve', name=name, kwargs=remote_kwargs)
-            print(f'Serving {name} remotely')
             return response
         cls(module=c.module(module)(**kwargs), 
             name=name, 
@@ -160,7 +165,6 @@ class Server(c.Module):
             mnemonic = mnemonic,
             public=public, 
             key=key)
-        return  response
     
     def remove_all_history(self):
         return c.rm(self.module.user_path)
@@ -173,8 +177,6 @@ class Server(c.Module):
         self.user_rate_limit[key] = rate_limit
         return self.user_rate_limit[key]
     
-
-        
     def rate_limit(self, 
                    address:str, 
                    fn = 'info',
@@ -235,14 +237,12 @@ class Server(c.Module):
         user_path2time = {user_path: t0 - self.extract_time(user_path) for user_path in user_paths}
         return user_path2time
     
-    
     def check_user_data(self, address):
         path2latency = self.user_path2latency(address)
         for path, latency  in path2latency.items():
             if latency > self.period:
                 os.remove(path)
         
-    
     def check_all_users(self):
         for user in self.users():
             print('Checking', user)
@@ -300,12 +300,12 @@ class Server(c.Module):
         count = self.user_count(address)
         rate_limit = self.rate_limit(fn=fn, address=address)
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'
-        time = float(headers['time'])
+        t = float(headers['time'])
         fn_obj = getattr(self.module, fn)
         is_local  = address in self.state['address2key']
         buffer_length = 64
         
-        tx_str = f'CALL<FN={fn} TIME={time}>'
+        tx_str = f'CALL<FN={fn} TIME={t}>'
         left_buffer = ':'*((buffer_length - len(tx_str))//2)
         right_buffer = ':'*((buffer_length - len(tx_str))//2)
         tx_str = left_buffer + tx_str + right_buffer
@@ -325,8 +325,9 @@ class Server(c.Module):
         c.print(f'INPUT(ARGS={args} KWARGS={kwargs})', color=color)
         c.print('-'*buffer_length, color=color)
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-        latency = c.round(c.time() - time, 3)
-        c.print(f'OUTPUT(LATENCY={latency} TYPE={c.determine_type(result)}))')
+        endtime = c.time()
+        latency = c.round(c.time() - t, 3)
+        c.print(f'OUTPUT(LATENCY={latency} TYPE={c.determine_type(result)} TIME={endtime})')
         c.print(':'*buffer_length, color=color)
         if c.is_generator(result):
             output = []
@@ -345,7 +346,7 @@ class Server(c.Module):
             'input': data, # the data of the request
             'output': output, # the response
             'latency':  latency, # the latency
-            'time': time, # the time of the request
+            'time': t, # the time of the request
             'user_key': address, # the key of the user
             'server_key': self.module.key.ss58_address, # the key of the server
             'user_signature': signature, # the signature of the user
@@ -475,6 +476,7 @@ class Server(c.Module):
         info['name'] = module.name 
         info['address'] = module.address
         info['key'] = module.key.ss58_address
+        info['crypto_type'] = module.crypto_type
         return info
 
     def get_schema(self, module) -> 'Schema':

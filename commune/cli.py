@@ -1,16 +1,12 @@
-
 import commune as c
 import sys
 import time
 import sys
 
-
 class cli(c.Module):
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
-    # 
-
     def __init__(self, 
                 args = None,
                 base = 'module',
@@ -47,9 +43,7 @@ class cli(c.Module):
         
         # any of the --flags are init kwargs
         fn = argv.pop(0)
-        if fn in dir(self.base_class):
-            fn_obj = getattr(self.base_class, fn)
-        elif fn in dir(self.base_module):
+        if fn in dir(self.base_module):
             fn_obj = getattr(self.base_module, fn)
         else: 
             fs = [fs for fs in self.fn_splitters if fs in fn]
@@ -69,7 +63,6 @@ class cli(c.Module):
             output = fn_obj(*args, **kwargs)
         else:
             output = fn_obj
-
         buffer = '⚡️'*4
         c.print(buffer+fn+buffer, color='yellow')
         latency = time.time() - t0
@@ -77,9 +70,8 @@ class cli(c.Module):
         if is_error:
             msg =  f'❌Error({latency:.3f}sec)❌' 
         else:
-            buffer = '✅'
             msg = f'✅Result({latency:.3f}s)✅'
-        print( msg )
+        c.print(msg)
         is_generator = c.is_generator(output)
         if is_generator:
             # print the items side by side instead of vertically
@@ -90,12 +82,8 @@ class cli(c.Module):
                     c.print(item, end='')
         else:
             c.print(output)
-
         return output
     
-        # c.print( f'Result ✅ (latency={self.latency:.2f}) seconds ✅')
-
-
     def is_property(self, obj):
         return isinstance(obj, property)
 
