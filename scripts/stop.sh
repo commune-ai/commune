@@ -2,7 +2,6 @@
 PWD=$(pwd)
 NAME=$(basename $PWD)
 CONTAINER_NAME=$NAME
-SHM_SIZE=4g
 # RESOLVE PORT RANGE
 
 CONTAINER_EXISTS=$(docker ps -q -f name=$NAME)  
