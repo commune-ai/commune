@@ -8,7 +8,7 @@ RUN apt-get update
 #RUST
 RUN apt-get install curl nano build-essential cargo libstd-rust-dev -y
 
-#JS 
+#NPM/JS 
 RUN apt-get install -y nodejs npm
 RUN npm install -g pm2 
 

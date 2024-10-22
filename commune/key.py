@@ -288,11 +288,7 @@ class Key(c.Module):
     @classmethod
     def get_address(cls, key):
         return cls.get_key(key).ss58_address
-    
     get_addy = get_address
-
-    key_storage_path = c.repo_path
-
     @classmethod
     def key_paths(cls):
         return cls.ls()
@@ -1090,17 +1086,17 @@ class Key(c.Module):
         return cls(private_key=private_key)
 
     @classmethod
-    def valid_ss58_address(cls, address: str, __ss58_format__=c.__ss58_format__ ) -> bool:
+    def valid_ss58_address(cls, address: str, ss58_format=ss58_format ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
         """
         try:
-            return ss58.is_valid_ss58_address( address , valid_ss58_format  =__ss58_format__ )
+            return ss58.is_valid_ss58_address( address , valid_ss58_format  =ss58_format )
         except Exception as e:
             return False
         
     @classmethod
-    def is_valid_ed25519_pubkey(cls, public_key: Union[str, bytes], ss58_format=c.__ss58_format__) -> bool:
+    def is_valid_ed25519_pubkey(cls, public_key: Union[str, bytes], ss58_format=ss58_format) -> bool:
         """
         Checks if the given public_key is a valid ed25519 key.
         """
