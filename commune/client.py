@@ -39,7 +39,6 @@ class Client(c.Module):
                 fn:str = 'info',
                 *args,
                 kwargs = None,
-                params = None,
                 module : str = 'module',
                 network:str = 'local',
                 key:str = None,
@@ -55,7 +54,6 @@ class Client(c.Module):
         response =  client.forward(fn=fn, 
                                 args=args,
                                 kwargs=kwargs, 
-                                params=params,
                                 timeout=timeout, 
                                 **extra_kwargs)
 
@@ -140,25 +138,16 @@ class Client(c.Module):
             result = c.detailed_error(e)
         return result
 
-    def get_data(self, args=[], kwargs={}, params={}, **extra_kwargs):
+    def get_data(self, args=[], kwargs={}, **extra_kwargs):
         # derefernece
         args = c.copy(args or [])
         kwargs = c.copy(kwargs or {})
-        params = c.copy(params or {})
         if isinstance(args, dict):
             kwargs = {**kwargs, **args}
-        if isinstance(params, dict):
-            kwargs = {**kwargs, **params}
-        elif isinstance(params, list):
-            args = args + params
-        if params:
-            kwargs = {**kwargs, **params}
+            args = []
         if extra_kwargs:
             kwargs = {**kwargs, **extra_kwargs}
-        data =  { 
-                    "args": args,
-                    "kwargs": kwargs,
-                    }
+        data =  {  "args": args, "kwargs": kwargs}
         data = self.serializer.serialize(data)
 
         return data
@@ -167,7 +156,6 @@ class Client(c.Module):
                 fn  = 'info', 
                 args : str = [],
                 kwargs : str = {},
-                params : dict = {}, 
                 timeout:int=2, 
                 key : str = None,
                 network : str = None,
@@ -178,7 +166,7 @@ class Client(c.Module):
         network = network or self.network
         key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode,  network=network)
-        data = data or self.get_data(args=args,  kwargs=kwargs, params=params, **extra_kwargs)
+        data = data or self.get_data(args=args,  kwargs=kwargs,**extra_kwargs)
         headers = { 
                     'Content-Type': 'application/json', 
                     'key': key.ss58_address, 
@@ -235,39 +223,6 @@ class Client(c.Module):
             return False
         else:
             return True
-        
-    def get_curl(self, 
-                        fn='info', 
-                        params=None, 
-                        args=None,
-                        kwargs=None,
-                        module=None,
-                        key=None,
-                        headers={'Content-Type': 'application/json'},
-                        network=None,
-                        version=1,
-                        mode='http',
-                        **extra_kwargs):
-            key = self.resolve_key(key)
-            network = network or self.network
-            url = self.get_url(fn=fn, mode=mode, network=network)
-        
-            kwargs = {**(kwargs or {}), **extra_kwargs}
-            input_data = self.get_params(args=args, kwargs=kwargs, params=params, version=version)
-            headers_str = ' '.join([f'-H "{k}: {v}"' for k, v in headers.items()])
-            data_str = json.dumps(input_data).replace('"', '\\"')
-            # Construct the curl command
-            curl_command = f'curl -X POST {headers_str} -d "{data_str}" "{url}"'
-
-            return curl_command
-    
-
-    def run_curl(self, *args, **kwargs):
-        curl_command = self.get_curl(*args, **kwargs)
-        # get the output of the curl command
-        import subprocess
-        output = subprocess.check_output(curl_command, shell=True)
-        return output.decode('utf-8')
 
     class Virtual:
         protected_attributes = [ 'client', 'remote_call']

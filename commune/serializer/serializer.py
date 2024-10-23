@@ -48,7 +48,7 @@ class Serializer(c.Module):
 
     def process_output(self, result, mode = 'str'):
         """
-    
+        process the output
         
         """
         if mode == 'str':

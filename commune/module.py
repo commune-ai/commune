@@ -80,6 +80,13 @@ class c:
         obj = obj or cls
         module_file =  inspect.getfile(obj)
         return c.path2name(module_file)
+    
+
+    def vs(self, path = None):
+        path = path or c.libpath
+        if c.module_exists(path):
+            path = c.filepath(path)
+        return c.cmd(f'code {c.libpath}')
 
     @classmethod
     def get_module_name(cls, obj=None):
@@ -188,29 +195,8 @@ class c:
     def is_error( *text:str,  **kwargs):
         return c.obj('commune.utils.misc.is_error')(*text, **kwargs)
 
-    @classmethod
-    def processes(self, search=None,  **kwargs) -> List[str]:
-        output_string = c.cmd('pm2 status', verbose=False)
-        module_list = []
-        for line in output_string.split('\n')[3:]:
-            if  line.count('│') > 2:
-                server_name = line.split('│')[2].strip()
-                if 'errored' in line:
-                    self.kill(server_name, verbose=True)
-                    continue
-                module_list += [server_name]
-        if search != None:
-            module_list = [m for m in module_list if search in m]
-        module_list = sorted(list(set(module_list)))
-        return module_list
-
-    pm2ls = pids = procs = processes
     
     is_module_root = is_root_module = is_root
-    
-    @classmethod
-    def process_exists(cls, name:str, **kwargs) -> bool:
-        return name in c.processes(**kwargs)
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
@@ -450,15 +436,19 @@ class c:
             setattr(self, k, v)
 
     def schema(self,
-                search = None,
+                obj = None,
                 docs: bool = True,
-                defaults:bool = True, 
-                cache=True) -> 'Schema':
-        fns = self.functions(search=search)
+                defaults:bool = True, **kwargs) -> 'Schema':
+        if c.is_fn(obj):
+            return c.fn_schema(obj, docs=docs, defaults=defaults)
+
+        fns = self.get_functions(obj)
         schema = {}
         for fn in fns:
-            if callable(getattr(self, fn )):
-                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)        
+            try:
+                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)    
+            except Exception as e:
+                print(f'Error: {e}')    
         # sort by keys
         schema = dict(sorted(schema.items()))
         return schema
@@ -479,16 +469,6 @@ class c:
                 if search in f:
                     util2code[f] = c.fn_code(f)
         return util2code
-    
-    @classmethod
-    def best(cls, *args, functions=None, **kwargs):
-        functions = functions or c.utils()
-        prompt = f''''
-         INCLUDE <OUTPUT> AND </OUTPUT> TAGS IN YOUR PROMPT SO I CAN PARSE IT FOR OTHER USECASES 
-         return the top scores with dict(util:str --> score:int[0,10]) RESPOND IN JSON OMNLY
-         {functions}
-        '''
-        return c.ask(prompt, *args, model='sonnet', **kwargs)
     
     def util_modules(self, search=None):
         return sorted(list(set([f.split('.')[-2] for f in self.utils_paths(search)])))
@@ -575,7 +555,7 @@ class c:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        t0 = c.time()
+        t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
         def fn_generator(*args, fn_ph, **kwargs):
@@ -590,8 +570,11 @@ class c:
                     fn_obj = getattr(module, fn)
                     if c.classify_fn(fn_obj) == 'self':
                         fn_obj = getattr(module(), fn)
-
-                return fn_obj(*args, **kwargs)
+                if callable(fn_obj):
+                    return fn_obj(*args, **kwargs)
+                else:
+                    return fn_obj
+        
             return fn(*args, **kwargs)
         
         routes = cls.get_routes()
@@ -622,7 +605,7 @@ class c:
                         setattr(cls, to_fn, fn_obj)
                     else: 
                         c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
-        latency = c.time() - t0
+        latency = time.time() - t0
         return {'success': True, 'msg': 'enabled routes', 'latency': latency}
     
     @classmethod
@@ -2124,7 +2107,6 @@ class c:
             return True
         except:
             return False
-    
 
     @classmethod
     def ensure_syspath(cls, path:str, **kwargs):
@@ -2250,7 +2232,7 @@ class c:
         
         og_path = path
         path = path or 'module'
-        t0 = c.time()
+        t0 = time.time()
         og_path = path
         if path in c.module_cache and cache:
             module = c.module_cache[path]
@@ -2273,7 +2255,7 @@ class c:
                         raise e
             if cache:
                 c.module_cache[path] = module    
-        latency = c.round(c.time() - t0, 3)
+        latency = c.round(time.time() - t0, 3)
         # if 
         if not hasattr(module, 'module_name'):
             module = c.obj2module(module)
@@ -2553,408 +2535,24 @@ class c:
     def explain(self, module, prompt='explain this fam', **kwargs):
         return c.ask(c.code(module) + prompt, **kwargs)
 
-    pm2_dir = os.path.expanduser('~/.pm2')
-
-    @classmethod
-    def restart(cls, name:str):
-        assert name in c.processes()
-        c.print(f'Restarting {name}', color='cyan')
-        c.cmd(f"pm2 restart {name}", verbose=False)
-        cls.rm_logs(name)  
-        return {'success':True, 'message':f'Restarted {name}'}
-
-    @classmethod
-    def kill(cls, name:str, verbose:bool = True, **kwargs):
-        if name == 'all':
-            return cls.kill_all(verbose=verbose)
-        c.cmd(f"pm2 delete {name}", verbose=False)
-        cls.rm_logs(name)
-        if c.server_exists(name):
-            c.deregister_server(name)
-        return {'message':f'Killed {name}', 'success':True}
-    
-    @classmethod
-    def kill_all_processes(cls, verbose:bool = True, timeout=20):
-        servers = c.processes()
-        futures = [c.submit(c.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
-        return c.wait(futures, timeout=timeout)
-
-    @classmethod
-    def kill_all_servers(cls, network='local', timeout=20, verbose=True):
-        servers = c.servers(network=network)
-        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
-        return c.wait(futures, timeout=timeout)
-    
-    @classmethod
-    def kill_all(cls, mode='process', verbose:bool = True, timeout=20):
-        if mode == 'process':
-            return cls.kill_all_processes(verbose=verbose, timeout=timeout)
-        elif mode == 'server':
-            return cls.kill_all_servers(verbose=verbose, timeout=timeout)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-
-    @classmethod
-    def logs_path_map(cls, name=None):
-        logs_path_map = {}
-        for l in c.ls(f'{cls.pm2_dir}/logs/'):
-            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
-            logs_path_map[key] = logs_path_map.get(key, []) + [l]
-        for k in logs_path_map.keys():
-            logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
-        if name != None:
-            return logs_path_map.get(name, {})
-
-        return logs_path_map
-   
-    @classmethod
-    def rm_logs( cls, name):
-        logs_map = cls.logs_path_map(name)
-        for k in logs_map.keys():
-            c.rm(logs_map[k])
-
-    @classmethod
-    def logs(cls, 
-                module:str, 
-                tail: int =100, 
-                mode: str ='cmd',
-                **kwargs):
-        
-        if mode == 'local':
-            text = ''
-            for m in ['out','error']:
-                # I know, this is fucked 
-                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
-                try:
-                    text +=  c.get_text(path, tail=tail)
-                except Exception as e:
-                    c.print('ERROR GETTING LOGS -->' , e)
-                    continue
-            return text
-        elif mode == 'cmd':
-            return c.cmd(f"pm2 logs {module}", verbose=True)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-        
-    @classmethod
-    def kill_many(cls, search=None, verbose:bool = True, timeout=10):
-        futures = []
-        for name in c.servers(search=search):
-            f = c.submit(c.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
-            futures.append(f)
-        return c.wait(futures)
-    
     @staticmethod
     def resolve_extension( filename:str, extension = '.py') -> str:
         if filename.endswith(extension):
                 return filename
         return filename + extension
-
-    @classmethod
-    def launch(cls, 
-                  fn: str = 'serve',
-                   module:str = None,  
-                   name:Optional[str]=None, 
-                   args : list = None,
-                   kwargs: dict = None,
-                   device:str=None, 
-                   interpreter:str='python3', 
-                   autorestart: bool = True,
-                   verbose: bool = False , 
-                   force:bool = True,
-                   meta_fn: str = 'module_fn',
-                   cwd = None,
-                   env = None,
-                   refresh:bool=True ):
-        env = env or {}
-        if '/' in fn:
-            module, fn = fn.split('/')
-        module = module or cls
-        if not isinstance(module, str):
-            if hasattr(module, 'module_name'):
-                module = module.module_name()
-            else: 
-                module = module.__name__
-        # avoid these references fucking shit up
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-        # convert args and kwargs to json strings
-        kwargs =  {
-            'module': module ,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs 
-        }
-        name = name or module
-        if refresh:
-            c.kill(name)
-        cwd = cwd or c.pwd()
-        command = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
-        command = command if autorestart else ' --no-autorestart'
-        command = command + ' -f ' if force else command
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
-        if device != None:
-            if isinstance(device, int):
-                env['CUDA_VISIBLE_DEVICES']=str(device)
-            if isinstance(device, list):
-                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-        cwd = cwd or c.dirpath()
-        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
-    remote_fn = launch
-
-    def time(  t=None) -> float:
-        from time import time
-        return time()
     
-    routes = {
-    "vali": [
-        "run_epoch",
-        "setup_vali",
-        "from_module"
-    ],
-    "py": [
-        "envs", 
-        "env2cmd", 
-        "create_env", 
-        "env2path"
-        ],
-    "cli": [
-        "parse_args"
-    ],
-    "streamlit": [
-        "set_page_config",
-        "load_style",
-        "st_load_css"
-    ],
-    "docker": [
-        "containers",
-        "dlogs",
-        "images"
-    ],
-    "client": [
-        "call",
-        "call_search",
-        "connect"
-    ],
-    "repo": [
-        "is_repo",
-        "repos"
-    ],
-    "serializer": [
-        "serialize",
-        "deserialize",
-        "serializer_map",
-    ],
-    "key": [
-        "rename_key",
-        "ss58_encode",
-        "ss58_decode",
-        "valid_h160_address",
-        "key2mem",
-        "key_info_map",
-        "key_info",
-        "valid_ss58_address",
-        "valid_h160_address",
-        "add_key",
-        "from_password",
-        "str2key",
-        "pwd2key",
-        "getmem",
-        "mem",
-        "mems",
-        "switch_key",
-        "module_info",
-        "rename_kefy",
-        "mv_key",
-        "add_keys",
-        "key_exists",
-        "ls_keys",
-        "rm_key",
-        "key_encrypted",
-        "encrypt_key",
-        "get_keys",
-        "rm_keys",
-        "key2address",
-        "key_addresses",
-        "address2key",
-        "is_key",
-        "new_key",
-        "save_keys",
-        "load_key",
-        "load_keys",
-        "get_signer",
-        "encrypt_file",
-        "decrypt_file",
-        "get_key_for_address",
-        "resolve_key_address",
-        "ticket"
-    ],
-    "remote": [
-        "host2ssh"
-    ],
-    "namespace": [
-        "add_remote",
-        "networks",
-        "network2namespace",
-        "register_server",
-        "deregister_server",
-        "server_exists",
-        "add_server",
-        "has_server",
-        "add_servers",
-        "rm_servers",
-        "rm_server",
-        "remote_servers",
-        "namespace",
-        "network",
-        "rm_namespace",
-        "empty_namespace",
-        "add_namespace",
-        "update_namespace",
-        "build_namespace",
-        "put_namespace",
-        "get_namespace",
-        "server2info",
-        "infos",
-        "get_address",
-        "servers",
-        "name2address"
-    ],
-    "app": [
-        "start_app",
-        "app",
-        "apps",
-        "app2info",
-        "kill_app"
-    ],
-    "user": [
-        "role2users",
-        "is_user",
-        "get_user",
-        "update_user",
-        "get_role",
-        "refresh_users",
-        "user_exists",
-        "is_admin",
-        "admins",
-        "add_admin",
-        "rm_admin",
-        "num_roles",
-        "rm_user"
-    ],
-    "server": [
-        "serve",
-        "wait_for_server", 
-        "endpoint", 
-        "is_endpoint",
-        "fleet"
-    ],
-
-    "subspace": [
-        "subnet",
-        "network",
-        "update_module",
-        "subnet_params_map",
-        "staketo", 
-        "get_staketo", 
-        "stakefrom",
-        "get_stakefrom",
-        "switch_network",
-        "key2balance",
-        "subnets",
-        "send",
-        "my_keys",
-        "key2value",
-        "transfer",
-        "stake_transfer",
-        "multistake",
-        "stake",
-        "unstake",
-        "register",
-        "subnet_params",
-        "global_params",
-        "balance",
-        "get_balance",
-        "get_stak",
-        "get_stake_to",
-        "get_stake_from",
-        "my_stake_to",
-        "netuid2subnet",
-        "subnet2netuid",
-        "is_registered",
-        "update_subnet",
-        "my_subnets", 
-        "my_netuids",
-        "register_subnet",
-        "registered_subnets",
-        "registered_netuids"
-    ],
-    "model.openrouter": [
-        "generate",
-        "models"
-    ],
-    "chat": ["ask" ],
-    "commune.utils.os": [
-        "cmd",
-        "free_port",
-        "port_used",
-        "kill_port",
-        "port_available",
-        "get_port_range",
-        "ip_to_int",
-        "ip",
-        "external_ip",
-        "port_free",
-        "used_port",
-        "used_ports",
-        "free_ports",
-        "get_available_ports",
-        "resolve_ip",
-        "is_valid_ip"
-    ],
-    "commune.utils.asyncio": [
-        "gather",
-        "get_event_loop",
-        "new_event_loop"
-    ],
-    "commune.utils.thread": [
-        "thread",
-        "threads",
-        "submit",
-        "wait",
-        "as_completed"
-    ],
-    "commune.utils.misc": [
-        "random_float",
-        "timestamp",
-        "jsonable", 
-        "sizeof", 
-        "type_str", 
-        "copy", 
-        "dict2munch", 
-        "shuffle", 
-        "locals2kwargs", 
-        "is_address",
-        "hash",
-        "str2bytes",
-        "python2str",
-        "str2python",
-        "bytes2str",
-        "detailed_error", 
-        "random_color", 
-        "is_int",
-        "is_float", 
-        "df", 
-        "choice", 
-        "obj2typestr",
-        "determine_type",
-        "file2text", 
-        "emoji"
-    ]
-    }
-
+    def help(self, *text, module=None, global_context=f'{rootpath}/docs', **kwargs):
+        text = ' '.join(map(str, text))
+        if global_context != None:
+            print(c.file2text(global_context))
+            text = text + str(c.file2text(global_context))
+        module = module or self.module_name()
+        context = c.code(module)
+        return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
+    
+    def time(self):
+        return time.time()
+c.routes = c.get_routes()
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
