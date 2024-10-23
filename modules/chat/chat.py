@@ -1,5 +1,5 @@
 import commune as c
-
+import os
 
 class Chat(c.Module):
 
@@ -63,9 +63,8 @@ class Chat(c.Module):
         for token in output:
             yield token
 
-    def count_tokens(self, text):
-        return len(text.split(' ')) * 1.6
-
+    def ask(self, *text, **kwargs): 
+        return self.generate(' '.join(list(map(str, text))), **kwargs)
 
     def process_text(self, text, context=None):
         text = self.prompt + text
@@ -80,15 +79,31 @@ class Chat(c.Module):
         
         return text
 
-    def ask(self, *text, **kwargs): 
-        return self.generate(' '.join(list(map(str, text))), **kwargs)
-
-        # data_saved = self.save_data(data)
-        # yield data
-
     def save_data(self, data):
         path = self.data2path(data)
         return c.put(path, data)
+    
+    def summarize(self, path='./', max_chars=10000): 
+        if c.module_exists(path):
+            c.print(f'Summarizing Module: {path}')
+            text = c.code(path)
+        elif os.path.isdir(path):
+            c.print(f'Summarizing DIRECTORY: {path}')
+            paths = c.ls(path) 
+            for p in paths:
+                return self.summarize(p)
+        elif os.path.isfile(path):
+            c.print(f'Summarizing File: {path}')
+            text = c.file2text(path)
+
+        prompt = f'''
+        GOAL
+        summarize the following into tupples 
+        CONTEXT
+        {text}
+        OUTPUT
+        '''
+        return c.ask(prompt)
 
     def user_files(self):
         return c.get(self.data['path'])

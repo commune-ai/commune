@@ -1,11 +1,28 @@
 ## Installation
+
+**Environment Requirements**
+python 3.10>=
+nodejs 14>=
+npm 6>=
+
 1. **Clone the Commune Repository**: Open your terminal or command prompt and clone the Commune repository from GitHub:
 
 ```
 git clone https://github.com/commune-ai/commune.git
 ```
+Then pip install it 
 
-##  With Docker
+```bash
+pip install -e ./
+```
+
+To make sure it is working Run the tests, and they should all pass
+```
+c pytest
+```
+
+
+## Running a Docker Container with Commune
 
 Ensure that you have Docker installed on your machine. If you don't, you can follow the official Docker installation guide for your operating system.
 
