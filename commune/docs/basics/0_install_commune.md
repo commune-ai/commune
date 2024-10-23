@@ -86,37 +86,3 @@ c set_port_range 8000 9000 # set the port range to 8000-9000
 ```
 
 ```
-
-Testing on Commune 
-
-Requirements
-- pytest
-
-Install pytest
-
-```
-pip install pytest
-```
-
-Here is the testing suite. Look at the modules that are being tested in the core repo, each has their own testing sweet or even a module that is suffixed with test.
-
-For instance
-
-```
-c server.test/test is the same as c server/test
-```
-
-To test it 
-
-```
-pytest test
-```
-
-
-add your own tests to your repo
-
-
-```
-c server/test/test.py
-```
-

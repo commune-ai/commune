@@ -4,7 +4,7 @@ import subprocess
 import shutil
 import commune as c
 
-class PythonEnvManager(c.Module):
+class Py(c.Module):
     def __init__(self, base_path=None):
         self.base_path = base_path or os.path.expanduser('~')
         self.venv_path = os.path.join(self.base_path, '.envs')
@@ -41,13 +41,15 @@ class PythonEnvManager(c.Module):
     def env2path(self):
         env_paths =  c.ls(self.venv_path)
         return {v.split('/')[-1] : v for v in env_paths}
+    
+
     def envs(self):
         return list(self.env2path().keys())
     
     def envs_paths(self):
         return list(self.env2path().values())
 
-    def packages(self, env, search=None):
+    def packages(self, env=None, search=None):
         '''Available environments:'''
         env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts', 'python')
         if not os.path.exists(env_path):
@@ -61,9 +63,16 @@ class PythonEnvManager(c.Module):
         
         return output
     
-    def run(self, script_path, env=None):
+
+    def resolve_env(self, env):
+        envs = self.envs()
         if not env:
-            env = list(self.envs())[0]
+            env = envs[0]
+        assert env in envs, f"Environment {env} does not exist, create one using `create_env`"
+        return env
+    
+    def run(self, script_path, env=None):
+        env = self.resolve_env(env)
         env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts')
         if not os.path.exists(env_path):
             print(f"Environment {env} does not exist.")
@@ -75,9 +84,7 @@ class PythonEnvManager(c.Module):
         os.system(python_executable + ' ' + script_path)
         if os.name == 'posix':
             os.system("deactivate")
-        else:
-            os.system(f"{'cd..' if os.path.dirname(env_path) != os.path.dirname(os.getcwd()) else ''}")
-
+        
     def env2cmd(self):
         env2cmd = {}
         for env, path in self.env2path().items():
@@ -92,3 +99,6 @@ class PythonEnvManager(c.Module):
         print(cmd)
         # Execute the command
         return os.system(cmd)
+    
+
+    

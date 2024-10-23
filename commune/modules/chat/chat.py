@@ -6,21 +6,19 @@ class Chat(c.Module):
     def __init__(self, 
                  max_tokens=420000, 
                  password = None,
-                 text = 'Hello whaduop fam',
-                 system_prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
+                 prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
                  name='chat',
                  model = None,
                  history_path='history',
                 **kwargs):
 
         self.max_tokens = max_tokens
-        self.text = text
        
         self.set_module(model, 
                         password = password,
                         name = name,
                         history_path=history_path, 
-                        system_prompt=system_prompt,
+                        prompt=prompt,
                         **kwargs)
         
     def set_module(self,
@@ -28,10 +26,10 @@ class Chat(c.Module):
                    history_path='history', 
                    name='chat',
                    password=None,
-                   system_prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
+                   prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
                    key=None,
                     **kwargs):
-        self.system_prompt = system_prompt
+        self.prompt = prompt
         self.admin_key = c.pwd2key(password) if password else self.key
         self.model = c.module('model.openrouter')(model=model, **kwargs)
         self.models = self.model.models()
@@ -43,7 +41,6 @@ class Chat(c.Module):
             temperature= 0.5,
             max_tokens= 1000000,
             model= 'anthropic/claude-3.5-sonnet', 
-            system_prompt= 'make this shit work',
             key = None,
             stream=True, 
             ):
@@ -58,14 +55,11 @@ class Chat(c.Module):
             model= 'anthropic/claude-3.5-sonnet', 
             temperature= 0.5,
             max_tokens= 1000000,
-            system_prompt= 'make this shit work',
+            context = None,
             stream=True, 
             ):
-        text = self.process_text(system_prompt + '\n' + text)
-        output =  self.model.generate(text, stream=stream, 
-                                      model=model, 
-                                      max_tokens=max_tokens,
-                                        temperature=temperature )
+        text = self.process_text(text, context=context)
+        output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
             yield token
 
@@ -73,17 +67,18 @@ class Chat(c.Module):
         return len(text.split(' ')) * 1.6
 
 
-    def process_text(self, text):
-        new_text = ''
-        for token in text.split(' '):
-            if "./" in token:
-                if c.exists(token):
-                    token_text = str(c.file2text(token))
-                    print(f'FOUND {token} --> {len(token_text)}  ' )
-                    new_text += str(token_text)
+    def process_text(self, text, context=None):
+        text = self.prompt + text
+        if context != None:
+            if c.file_exists(context):
+                context =  c.file2text(context)
+            elif c.module_exists(context):
+                context =  c.code(context)
             else:
-                new_text += token
-        return new_text
+                raise Exception('Your context {context} is fucked g')
+            text = context + text
+        
+        return text
 
     def ask(self, *text, **kwargs): 
         return self.generate(' '.join(list(map(str, text))), **kwargs)
@@ -124,7 +119,7 @@ class Chat(c.Module):
     def history(self, address:str=None, columns=['datetime', 
                                                  'input', 
                                                  'output', 
-                                                 'system_prompt',
+                                                 'prompt',
                                                  'model', 
                                                  'temperature',
                                                    'max_tokens'], df=False):

@@ -10,10 +10,12 @@ import os
 import asyncio
 
 class Server(c.Module):
-    network : str = 'local'
+    tag_seperator:str='::'
+    pm2_dir = os.path.expanduser('~/.pm2')
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
+        kwargs = None, # the kwaargs to init hte module
         functions:Optional[List[str]] = None, # list of endpoints
         key:str = None, # key for the server (str)
         crypto_type: int = 1,
@@ -23,7 +25,7 @@ class Server(c.Module):
         helper_functions  = ['info',  
                             'metadata', 
                             'schema', 
-                            'server_name', 
+                            'name', 
                             'functions',
                             'fns', 
                             'forward', 
@@ -52,19 +54,24 @@ class Server(c.Module):
                             'remove_user_data',
                             'users', 
                             'fn2count'
-                            ],
-        **kwargs,
+                            ]
+        
         ) -> 'Server':
-        module = module or 'module'
+
+        if module == None:
+            module = 'module'
         if isinstance(module, str):
+            module = module or 'module'
             if name == None:
                 name = c.objectpath2name(module) if c.object_exists(module) else module
-            module = c.module(module)()
+            module_class = c.module(module)
+            kwargs = kwargs or {}
+            module =  module_class(**kwargs)
         self.network = network
         self.functions_attributes = functions_attributes
         self.period = period
         self.serializer = c.module('serializer')()
-        module.name = module.server_name = name
+        module.name = name
 
         if port == None:
             namespace = c.get_namespace()
@@ -128,29 +135,21 @@ class Server(c.Module):
     def serve(cls, 
               module: Any = None,
               kwargs:Optional[dict] = None,  # kwargs for the module
-              params: Optional[dict] = None, # kwargs for the module
-              tag:Optional[str]=None,
               port :Optional[int] = None, # name of the server if None, it will be the module name
-              server_name:str=None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
               remote:bool = True, # runs the server remotely (pm2, ray)
-              tag_seperator:str='::',
-              max_workers:int = None,
-              public: bool = False,
-              mnemonic = None, # mnemonic for the server
               key = None,
               **extra_kwargs
               ):
         module = module or 'module'
-        kwargs = {**(params or kwargs or {}), **extra_kwargs}
-        name = (name or server_name or module) or c.module_name()
-        if tag_seperator in name:
-            module, tag = name.split(tag_seperator)
-        response =  { 'module':module,  
+        name = name or module
+        kwargs = {**(kwargs or {}), **extra_kwargs}
+        if cls.tag_seperator in name:
+            module, tag = name.split(cls.tag_seperator)
+        response =  { 'module':module, 
                      'name': name, 
-                     'address':f'0.0.0.0:{port}', 
-                     'kwargs':kwargs, 
-                     'port': port} 
+                     'port': port,
+                     'kwargs':kwargs } 
         if remote:
             remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
             for _ in ['extra_kwargs', 'address', 'response', 'namespace']:
@@ -158,13 +157,8 @@ class Server(c.Module):
             remote_kwargs['remote'] = False
             c.remote_fn('serve', name=name, kwargs=remote_kwargs)
             return response
-        cls(module=c.module(module)(**kwargs), 
-            name=name, 
-            port=port, 
-            max_workers=max_workers, 
-            mnemonic = mnemonic,
-            public=public, 
-            key=key)
+        
+        Server(module=module, name=name, port=port, key=key)
     
     def remove_all_history(self):
         return c.rm(self.module.user_path)
@@ -284,14 +278,6 @@ class Server(c.Module):
         server_signature = self.module.key.sign(signature)
         kwargs = dict(data.get('kwargs', {}))
         args = list(data.get('args', []))
-        if 'params' in data:
-            if isinstance(data['params', dict]):
-                kwargs = {**kwargs, **data['params']}
-            elif isinstance(data['params'], list):
-                args = [*args, *data['params']]
-            else:
-                raise ValueError('params must be a list or a dictionary')
-            
         data = {'args': args, 'kwargs': kwargs}
         is_admin = bool(c.is_admin(address) or  address == self.module.key.ss58_address)
         if not is_admin:
@@ -304,7 +290,6 @@ class Server(c.Module):
         fn_obj = getattr(self.module, fn)
         is_local  = address in self.state['address2key']
         buffer_length = 64
-        
         tx_str = f'CALL<FN={fn} TIME={t}>'
         left_buffer = ':'*((buffer_length - len(tx_str))//2)
         right_buffer = ':'*((buffer_length - len(tx_str))//2)
@@ -319,7 +304,6 @@ class Server(c.Module):
             RANK = 'LOCAL'
         else:
             RANK = 'NA'
-
         c.print(f'USER(KEY={address[:4]}.. COUNT={count} LIMIT={rate_limit} PERIOD={self.period}s ROLE={RANK})', color=color)
         c.print('-'*buffer_length, color=color)
         c.print(f'INPUT(ARGS={args} KWARGS={kwargs})', color=color)
@@ -387,7 +371,6 @@ class Server(c.Module):
         max_age = self.module.max_network_staleness
         network_path = self.module.network_path
         state = self.get(network_path, {}, max_age=max_age, updpate=update)
-        is_valid_state = lambda x: all([k in x for k in state_keys])
         network = self.network
         state = {}
         state['address2key'] =  c.address2key()
@@ -407,6 +390,8 @@ class Server(c.Module):
         
         state['time'] = c.time()
         state['latency'] = state['time'] - t0
+
+        is_valid_state = lambda x: all([k in x for k in state_keys])
         assert is_valid_state(state), f'Format for network state is {[k for k in state_keys if k not in state]}'
         self.put(network_path, state)
         self.state = state
@@ -562,5 +547,177 @@ class Server(c.Module):
                     response = await call_next(request)
                     return response
 
+
+
+    @classmethod
+    def kill(cls, name:str, verbose:bool = True, **kwargs):
+        if name == 'all':
+            return cls.kill_all(verbose=verbose)
+        c.cmd(f"pm2 delete {name}", verbose=False)
+        cls.rm_logs(name)
+        if c.server_exists(name):
+            c.deregister_server(name)
+        return {'message':f'Killed {name}', 'success':True}
+    
+    @classmethod
+    def kill_all_processes(cls, verbose:bool = True, timeout=20):
+        servers = c.processes()
+        futures = [c.submit(c.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
+        return c.wait(futures, timeout=timeout)
+
+    @classmethod
+    def kill_all_servers(cls, network='local', timeout=20, verbose=True):
+        servers = c.servers(network=network)
+        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
+        return c.wait(futures, timeout=timeout)
+    
+    @classmethod
+    def kill_all(cls, mode='process', verbose:bool = True, timeout=20):
+        if mode == 'process':
+            return cls.kill_all_processes(verbose=verbose, timeout=timeout)
+        elif mode == 'server':
+            return cls.kill_all_servers(verbose=verbose, timeout=timeout)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
+
+
+    @classmethod
+    def logs_path_map(cls, name=None):
+        logs_path_map = {}
+        for l in c.ls(f'{cls.pm2_dir}/logs/'):
+            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
+            logs_path_map[key] = logs_path_map.get(key, []) + [l]
+        for k in logs_path_map.keys():
+            logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
+        if name != None:
+            return logs_path_map.get(name, {})
+
+        return logs_path_map
+    
+   
+    @classmethod
+    def rm_logs( cls, name):
+        logs_map = cls.logs_path_map(name)
+        for k in logs_map.keys():
+            c.rm(logs_map[k])
+
+    @classmethod
+    def logs(cls, 
+                module:str, 
+                tail: int =100, 
+                mode: str ='cmd',
+                **kwargs):
+        
+        if mode == 'local':
+            text = ''
+            for m in ['out','error']:
+                # I know, this is fucked 
+                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
+                try:
+                    text +=  c.get_text(path, tail=tail)
+                except Exception as e:
+                    c.print('ERROR GETTING LOGS -->' , e)
+                    continue
+            return text
+        elif mode == 'cmd':
+            return c.cmd(f"pm2 logs {module}", verbose=True)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
+        
+    @classmethod
+    def kill_many(cls, search=None, verbose:bool = True, timeout=10):
+        futures = []
+        for name in c.servers(search=search):
+            f = c.submit(c.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            futures.append(f)
+        return c.wait(futures)
+
+
+    @classmethod
+    def launch(cls, 
+                  fn: str = 'serve',
+                   module:str = None,  
+                   name:Optional[str]=None, 
+                   args : list = None,
+                   kwargs: dict = None,
+                   device:str=None, 
+                   interpreter:str='python3', 
+                   autorestart: bool = True,
+                   verbose: bool = False , 
+                   force:bool = True,
+                   meta_fn: str = 'module_fn',
+                   cwd = None,
+                   env = None,
+                   refresh:bool=True ):
+        env = env or {}
+        if '/' in fn:
+            module, fn = fn.split('/')
+        module = module or cls
+        if not isinstance(module, str):
+            if hasattr(module, 'module_name'):
+                module = module.module_name()
+            else: 
+                module = module.__name__
+        # avoid these references fucking shit up
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        # convert args and kwargs to json strings
+        kwargs =  {
+            'module': module ,
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs 
+        }
+        name = name or module
+        if refresh:
+            c.kill(name)
+        cwd = cwd or c.pwd()
+        command = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
+        command = command if autorestart else ' --no-autorestart'
+        command = command + ' -f ' if force else command
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
+        if device != None:
+            if isinstance(device, int):
+                env['CUDA_VISIBLE_DEVICES']=str(device)
+            if isinstance(device, list):
+                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
+        cwd = cwd or c.dirpath()
+        stdout = c.cmd(command, env=env, verbose=verbose, cwd=cwd)
+        return {'success':True, 'message':f'Launched {module}', 'command': command, 'stdout':stdout}
+    remote_fn = launch
+
+
+    @classmethod
+    def restart(cls, name:str):
+        assert name in c.processes()
+        c.print(f'Restarting {name}', color='cyan')
+        c.cmd(f"pm2 restart {name}", verbose=False)
+        cls.rm_logs(name)  
+        return {'success':True, 'message':f'Restarted {name}'}
+
+
+
+    @classmethod
+    def processes(self, search=None,  **kwargs) -> List[str]:
+        output_string = c.cmd('pm2 status', verbose=False)
+        module_list = []
+        for line in output_string.split('\n')[3:]:
+            if  line.count('│') > 2:
+                name = line.split('│')[2].strip()
+                if 'errored' in line:
+                    self.kill(name, verbose=True)
+                    continue
+                module_list += [name]
+        if search != None:
+            module_list = [m for m in module_list if search in m]
+        module_list = sorted(list(set(module_list)))
+        return module_list
+
+    pm2ls = pids = procs = processes 
+
+    @classmethod
+    def process_exists(cls, name:str, **kwargs) -> bool:
+        return name in c.processes(**kwargs)
 
 Server.run(__name__)

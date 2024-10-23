@@ -70,7 +70,7 @@ class Network(c.Module):
         addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
         future2address = {}
         for address in addresses:
-            f = c.submit(c.call, [address+'/server_name'], timeout=timeout)
+            f = c.submit(c.call, [address+'/name'], timeout=timeout)
             future2address[f] = address
         futures = list(future2address.keys())
         try:

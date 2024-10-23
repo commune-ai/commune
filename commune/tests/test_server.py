@@ -14,16 +14,16 @@ def test_basics() -> dict:
     return {'success': True, 'msg': 'server test passed'}
 
 
-def test_serving(server_name = 'module::test'):
-    if server_name in c.servers():
-        c.kill(server_name)
-    module = c.serve(server_name)
-    c.wait_for_server(server_name)
-    module = c.connect(server_name)
+def test_serving(name = 'module::test'):
+    if name in c.servers():
+        c.kill(name)
+    module = c.serve(name)
+    c.wait_for_server(name)
+    module = c.connect(name)
     r = module.info()
     assert 'name' in r, f"get failed {r}"
-    c.kill(server_name)
-    assert server_name not in c.servers()
+    c.kill(name)
+    assert name not in c.servers()
     return {'success': True, 'msg': 'server test passed'}
 
 def test_serving_with_different_key(module = 'module', timeout=10):
