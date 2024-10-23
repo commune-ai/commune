@@ -6,52 +6,11 @@ We can also replicate the key to other chains through using the same seed to gen
 
 ![Alt text](./images/image_key.png)
 
-c.add_key("alice")
+c add_key alice # c.add_key("alice")
 
-or 
-
-c add_key alice
-
-key already exists at alice
-{
-    'crypto_type': 1,
-    'seed_hex': '518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
-    'derive_path': None,
-    'path': 'alice',
-    'ss58_format': 42,
-    'public_key': '7cd0e327f4f6649719158892dafe766a5efd0185cb5fe17548d294f00f12661b',
-    'private_key': 
-'943fb89150a67192919a43004f87685faba470e754fe4ff0af6a93e7fc54dc0a6cceb6fbc29d610d5486ba78969f609ea83753fb9e32d58df0c67f13
-dfcbbd68',
-    'mnemonic': 'quantum belt rival casual benefit obscure sight wool pupil jaguar guide mango',
-    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
-}
-Now this generates a random key and if you want to save it to a file you can do so like this.
-
-c.add_key("alice")
-
-or 
-
-c add_key alice
-
-
-{
-    'crypto_type': 1,
-    'seed_hex': 
-'518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
-    'derive_path': None,
-    'path': 'alice',
-    'ss58_format': 42,
-    'public_key': 
-'7cd0e327f4f6649719158892dafe766a5efd0185cb5fe17548d294f00f12661b',
-    'private_key': 
-'943fb89150a67192919a43004f87685faba470e754fe4ff0af6a93e7fc54dc0a6cceb6fb
-c29d610d5486ba78969f609ea83753fb9e32d58df0c67f13dfcbbd68',
-    'mnemonic': 'quantum belt rival casual benefit obscure sight wool 
-pupil jaguar guide mango',
-    'key': '5EtMr6n6APFay8FFdhhP9sMPwvv1Nfcm5yxiRTxviHH4WVZg'
-}
-
+# Crypto Types 
+The crypto type is the type of key that is used. The default is 1, which is sr25519. The other type is 2, which is ed25519.
+Key
 
 # Refreshing existing key
 

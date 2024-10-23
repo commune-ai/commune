@@ -10,7 +10,7 @@ class Miner(c.Module):
                 n = 10, 
                 key : str =None, 
                 name_prefix = None,
-                key_prefix = 'miner_', 
+                key_prefix = 'miner', 
                 max_age=100600, 
                 update=False,
                 use_subnet_prefix=True,
@@ -27,8 +27,7 @@ class Miner(c.Module):
         self.use_subnet_prefix = use_subnet_prefix
         self.prefix_seperator = prefix_seperator
         self.name_prefix = (self.subnet["name"].lower() if self.use_subnet_prefix else name_prefix) 
-        if self.name_prefix != None:
-            self.name_prefix = self.name_prefix + self.prefix_seperator
+        self.name_prefix = self.name_prefix + self.prefix_seperator
         self.resolve_keys()
 
     def set_subnet(self, netuid=None,  max_age=10000,  update=False,  **kwargs):
@@ -36,8 +35,8 @@ class Miner(c.Module):
             self.subspace = c.module('subspace')()
         if netuid == None:
             netuid = self.netuid
-        params = self.subspace.subnet_params(netuid=netuid, max_age=max_age, update=update)
-        keys = self.subspace.keys(netuid=netuid, max_age=max_age, update=update)
+        params = self.subspace.subnet_params(netuid=netuid)
+        keys = self.subspace.keys(netuid=netuid)
         uids = list(range(len(keys)))
         self.subnet = {
             'name': params['name'],
@@ -56,20 +55,6 @@ class Miner(c.Module):
             if not key2exist[key]:
                 c.print(c.add_key(key))
         return self.key2exist()
-    
-
-    def key2registered(self):
-        key2registered = {}
-        for k in self.keys():
-            key2registered[k] = self.is_registered(k)
-        return key2registered
-    key2reg = key2registered
-    
-    def unregistered_keys(self):
-        key2registered = self.key2registered()
-        return [k for k in key2registered if not key2registered[k]]
-    unreged = unregistered_keys
-
 
     def keys(self, names = False):
         keys =  c.keys()
@@ -254,31 +239,6 @@ class Miner(c.Module):
         df = c.df(modules)
         return df
 
-    def update(self, timeout=60, **kwargs):
-        modules = self.modules(**kwargs)
-        futures = []
-        ip = c.ip(update=1)
-        free_ports = c.free_ports(n=len(modules))
-        port_range = c.port_range() # if its in the port range
-
-        for i, module in enumerate(modules):
-            key = module['key']
-            module_ip = module['address'].split(':')[0]
-            module_port = int(module['address'].split(':')[-1])
-            within_port_range = bool(module_port >= port_range[0] and module_port <= port_range[1])
-            if within_port_range:
-                if module_ip == ip:
-                    emoji = '👍'
-                    c.print(f"{emoji} {key} {emoji}", color='yellow')
-                    continue
-            address =  f'{ip}:{free_ports[i]}'
-            c.print(f"Updating {key} ({module['address']} --> {address})", color='yellow')
-            future = c.submit(self.subspace.update_module, kwargs={'module': key, 'address': address, 'netuid': self.netuid})
-            futures += [future]
-
-        for f in c.as_completed(futures, timeout=timeout):
-            print(f.result())
-
     def unstake_and_transfer_back(self, key, amount=20):
         assert self.subspace.is_registered(key, netuid=self.netuid), f'{key} is not registered'
         self.subspace.unstake(key, netuid=self.netuid, amount=amount, key=key)
@@ -294,7 +254,8 @@ class Miner(c.Module):
             print(f.result())
 
     def leaderboard(self, 
-                avoid_keys=['stake_from', 'key', 
+                avoid_keys=['stake_from', 
+                            'key', 
                             'vote_staleness', 
                             'last_update', 
                             'dividends',
@@ -322,7 +283,6 @@ class Miner(c.Module):
             mnemonic = c.get_key(key).mnemonic
             key2mnemonic[key] = mnemonic
         return key2mnemonic
-
 
     def load_keys(self):
         key2mnemonic = c.get_json(self.key_path)

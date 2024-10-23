@@ -45,12 +45,16 @@ class Py(c.Module):
 
     def envs(self):
         return list(self.env2path().keys())
+    def env2packages(self):
+        return {env:self.packages(env) for env in self.envs()}
+    
     
     def envs_paths(self):
         return list(self.env2path().values())
 
     def packages(self, env=None, search=None):
         '''Available environments:'''
+        env = self.resolve_env(env)
         env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts', 'python')
         if not os.path.exists(env_path):
             print(f"Environment {env} does not exist.")
@@ -63,12 +67,12 @@ class Py(c.Module):
         
         return output
     
-
     def resolve_env(self, env):
         envs = self.envs()
         if not env:
             env = envs[0]
         assert env in envs, f"Environment {env} does not exist, create one using `create_env`"
+        print('Selecting environment')
         return env
     
     def run(self, script_path, env=None):
