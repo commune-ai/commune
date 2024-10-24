@@ -13,3 +13,5 @@ chmod:
 	chmod +x ${SCRIPTS_PATH}/*
 up: 
 	make start
+down:
+	make stop

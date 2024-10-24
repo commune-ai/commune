@@ -33,6 +33,20 @@ Ensure that you have Docker installed on your machine. If you don't, you can fol
 make build
 ```
 
+To ensure the container is running, you can run the following command:
+
+```bash
+make test
+```
+
+This will leave the container running and you can kill it by doing the following
+
+```bash
+make down
+```
+
+
+
 4. **Start Container**: Start a Docker container with the Commune image:
 
 ```
