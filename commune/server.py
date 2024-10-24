@@ -561,14 +561,14 @@ class Server(c.Module):
     
     @classmethod
     def kill_all_processes(cls, verbose:bool = True, timeout=20):
-        servers = c.processes()
-        futures = [c.submit(c.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
+        servers = cls.processes()
+        futures = [c.submit(cls.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
         return c.wait(futures, timeout=timeout)
 
     @classmethod
     def kill_all_servers(cls, network='local', timeout=20, verbose=True):
         servers = c.servers(network=network)
-        futures = [c.submit(c.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
+        futures = [c.submit(cls.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
         return c.wait(futures, timeout=timeout)
     
     @classmethod
@@ -690,7 +690,7 @@ class Server(c.Module):
 
     @classmethod
     def restart(cls, name:str):
-        assert name in c.processes()
+        assert name in cls.processes()
         c.print(f'Restarting {name}', color='cyan')
         c.cmd(f"pm2 restart {name}", verbose=False)
         cls.rm_logs(name)  
@@ -699,7 +699,7 @@ class Server(c.Module):
 
 
     @classmethod
-    def processes(self, search=None,  **kwargs) -> List[str]:
+    def processes(cls, search=None,  **kwargs) -> List[str]:
         output_string = c.cmd('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n')[3:]:
@@ -718,6 +718,6 @@ class Server(c.Module):
 
     @classmethod
     def process_exists(cls, name:str, **kwargs) -> bool:
-        return name in c.processes(**kwargs)
+        return name in cls.processes(**kwargs)
 
 Server.run(__name__)

@@ -246,15 +246,6 @@
         "determine_type",
         "file2text", 
         "emoji"
-    ],
-    "process": [ 
-        "processes", 
-        "process_exi sts",
-        "kill_process",
-        "kill", 
-        "remote_fn"
-
-
     ]
     }
 
