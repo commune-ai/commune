@@ -57,7 +57,7 @@ class Subspace(c.Module):
             ]
     }
     endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
-    network : str = 'main' # og network
+    network : str = 'test' # og network
     networks = list(url_map.keys())
     wait_for_finalization: bool
     _num_connections: int
@@ -90,16 +90,23 @@ class Subspace(c.Module):
                          timeout=timeout)
         
     @classmethod
-    def switch_network(cls, network):
+    def switch(cls, network=None):
+        og_network = cls.network
+        if network == None:
+            if og_network == 'main':
+                network = 'test'
+            else:
+                network = 'main'
         filepath = cls.filepath()
         code = c.get_text(filepath)
         replace_str = f"network : str = '{cls.network}' # og network"
         new_str = f"network : str = '{network}' # og network"
         code =  code.replace(replace_str, new_str)
         c.put_text(filepath, code)
-        return {'success': True, 'msg': f'Switched network: {cls.network} to {network}'}
+        cls.network = network
+        return {'network': network, 'og_network': og_network}
         
-        
+    switch_network = switch
         
     def set_network(self, 
                         network=None,
@@ -2179,12 +2186,6 @@ class Subspace(c.Module):
         """
 
         return self.query_map("IncentiveRatio", extract_value=extract_value)
-    def trust_ratio(self, extract_value: bool = False) -> dict[int, int]:
-        """
-        Retrieves a mapping of trust ratios for the network.
-        """
-
-        return self.query_map("TrustRatio", extract_value=extract_value)
 
     def vote_mode_subnet(self, extract_value: bool = False) -> dict[int, str]:
         """
@@ -2728,7 +2729,6 @@ class Subspace(c.Module):
                         ("Founder", params),
                         ("FounderShare", params),
                         ("IncentiveRatio", params),
-                        ("TrustRatio", params),
                         ("SubnetNames", params),
                         ("MaxWeightAge", params),
                         ("BondsMovingAverage", params),
@@ -2758,7 +2758,6 @@ class Subspace(c.Module):
                 "founder": bulk_query["Founder"],
                 "founder_share": bulk_query["FounderShare"],
                 "incentive_ratio": bulk_query["IncentiveRatio"],
-                "trust_ratio": bulk_query["TrustRatio"],
                 "name": bulk_query["SubnetNames"],
                 "max_weight_age": bulk_query["MaxWeightAge"],
                 "governance_configuration": bulk_query["SubnetGovernanceConfig"],
@@ -3083,7 +3082,7 @@ class Subspace(c.Module):
         module['address'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
