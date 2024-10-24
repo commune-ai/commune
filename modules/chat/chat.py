@@ -69,8 +69,8 @@ class Chat(c.Module):
     def process_text(self, text, context=None):
         text = self.prompt + text
         if context != None:
-            if c.file_exists(context):
-                context =  c.file2text(context)
+            if c.exists(context):
+                context =  str(c.file2text(context))
             elif c.module_exists(context):
                 context =  c.code(context)
             else:
