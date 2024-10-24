@@ -86,7 +86,9 @@ class c:
         path = path or c.libpath
         if c.module_exists(path):
             path = c.filepath(path)
-        return c.cmd(f'code {c.libpath}')
+        path = c.abspath(path)
+        
+        return c.cmd(f'code {path}')
 
     @classmethod
     def get_module_name(cls, obj=None):
@@ -122,23 +124,7 @@ class c:
     module_cache = {}
     _obj = None
 
-    @classmethod
-    def obj2module(cls,obj):
-        import commune as c
-        class WrapperModule(c.Module):
-            _obj = obj
-            def __name__(self):
-                return obj.__name__
-            def __class__(self):
-                return obj.__class__
-            
-        for k in dir(obj):
-            try:
-                setattr(WrapperModule, k, getattr(obj, k))
-            except:
-                pass
-        
-        return WrapperModule
+
     
     def syspath(self):
         return sys.path
@@ -314,7 +300,7 @@ class c:
     
     @classmethod
     def pytest(cls, *args, **kwargs):
-        return c.cmd(f'pytest {c.root_path}/tests',  stream=1, *args, **kwargs)
+        return c.cmd(f'pytest {c.libpath}/tests',  stream=1, *args, **kwargs)
     
     @classmethod
     def argv(cls, include_script:bool = False):
@@ -371,7 +357,6 @@ class c:
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
         return c.get_key(key).verify(auth, **kwargs)
 
-
     @classmethod  
     def keys(cls, search = None, ss58=False,*args, **kwargs):
         if search == None:
@@ -404,7 +389,6 @@ class c:
         module = c.module(module) if module != None else cls
         return module.dirpath() == c.pwd()
     
-
     def __repr__(self) -> str:
         return f'<{self.class_name()}'
     def __str__(self) -> str:
@@ -1708,7 +1692,7 @@ class c:
         """
         determine if the path is a module
         """
-        filepath = cls.simple2path(path)
+        filepath = cls.name2path(path)
         if path.replace('.', '/') + '/' in filepath:
             return True
         if ('modules/' + path.replace('.', '/')) in filepath:
@@ -1749,19 +1733,7 @@ class c:
         return params
 
     @classmethod
-    def is_str_fn(cls, fn):
-        if fn == None:
-            return False
-        if '/' in fn:
-            module, fn = fn.split('/')
-            module = c.get_module(module)
-        else:
-            module = cls 
-        
-        return hasattr(module, fn)
-    
-    @classmethod
-    def simple2path(cls, 
+    def name2path(cls, 
                     simple:str,
                     extension = '.py',
                     ignore_prefixes = ['', 
@@ -2044,7 +2016,7 @@ class c:
                            cactch_exception = False, 
                            **kwargs) -> str:
 
-        object_path = cls.simple2path(simple_path, **kwargs)
+        object_path = cls.name2path(simple_path, **kwargs)
         classes =  cls.find_classes(object_path)
         return classes[-1]
 
@@ -2142,7 +2114,7 @@ class c:
         '''
         try:
             module = c.shortcuts.get(module, module)
-            return os.path.exists(c.simple2path(module))
+            return os.path.exists(c.name2path(module))
         except Exception as e:
             return False
     
@@ -2162,7 +2134,8 @@ class c:
         return paths
 
     @classmethod
-    def objectpath2name(cls, p, avoid_terms=['modules', 'agents', 'module']):
+    def objectpath2name(cls, p, 
+                        avoid_terms=['modules', 'agents', 'module']):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -2190,6 +2163,9 @@ class c:
             avoid = f'{avoid}.' 
             if avoid in path:
                 path = path.replace(avoid, '')
+        for avoid_suffix in ['module', 'agent']:
+            if path.endswith('.' + avoid_suffix):
+                path = path[:-len(avoid_suffix)-1]
         return path
 
     @classmethod
@@ -2258,7 +2234,24 @@ class c:
         latency = c.round(time.time() - t0, 3)
         # if 
         if not hasattr(module, 'module_name'):
-            module = c.obj2module(module)
+            core_functions = ['filepath',  
+                          'dirpath',
+                          'code', 
+                          'schema',
+                           'module_name', 
+                          'module_class',
+                          'resolve_object' ]
+            
+            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
+            module.module_class = lambda *args, **kwargs : c.module_class(module)
+            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
+            module.filepath = lambda *args, **kwargs : c.filepath(module)
+            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
+            module.code = lambda *args, **kwargs : c.code(module)
+            module.schema = lambda *args, **kwargs : c.schema(module)
+            module.functions = lambda *args, **kwargs : c.functions(module)
+
+            
         c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
 
@@ -2408,9 +2401,6 @@ class c:
     @classmethod
     def root_key_address(cls) -> str:
         return cls.root_key().ss58_address
-    
-
-
     
     @classmethod
     def is_root_key(cls, address:str)-> str:

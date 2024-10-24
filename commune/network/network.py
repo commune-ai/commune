@@ -209,7 +209,7 @@ class Network(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists  
-    
+
 
     def registration_signature(self, name='agi', address='0.0.0.0:8888', key=None):
         key = c.get_key(key)

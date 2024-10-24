@@ -50,7 +50,7 @@ class Chat(c.Module):
         return signature
     
 
-    def generate(self,  
+    def forward(self,  
             text = 'whats 2+2?' ,
             model= 'anthropic/claude-3.5-sonnet', 
             temperature= 0.5,

@@ -146,6 +146,7 @@
     ],
 
     "subspace": [
+        "switch",
         "switchnet",
         "subnet",
         "update_module",
