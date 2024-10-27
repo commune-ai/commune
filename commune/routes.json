@@ -146,6 +146,8 @@
     ],
 
     "subspace": [
+        "transfer_stake",
+        "stake_trnsfer",
         "switch",
         "switchnet",
         "subnet",
@@ -163,7 +165,6 @@
         "my_keys",
         "key2value",
         "transfer",
-        "stake_transfer",
         "multistake",
         "stake",
         "unstake",

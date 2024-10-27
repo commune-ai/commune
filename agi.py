@@ -2,7 +2,8 @@ import commune as c
 
 class Agi:
     def __init__(self, a=1, b=2):
-        self.set_config(locals())
+        self.a = a
+        self.b = b
 
     def generate(self, x:int = 1, y:int = 2) -> int:
         c.print(self.config)

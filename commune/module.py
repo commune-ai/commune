@@ -71,8 +71,8 @@ class c:
 
     path = file_path =  filepath
     @classmethod
-    def dirpath(cls) -> str:
-        return os.path.dirname(cls.filepath())
+    def dirpath(cls, obj=None) -> str:
+        return os.path.dirname(cls.filepath(obj))
     dir_path =  dirpath
 
     @classmethod
@@ -588,7 +588,7 @@ class c:
                     if not hasattr(cls, to_fn):
                         setattr(cls, to_fn, fn_obj)
                     else: 
-                        c.print(f'WARNING: {to_fn} already exists in {cls.module_name()}', color='yellow')
+                        c.print(f'WARNING ROUTERS: {to_fn} already exists in {cls.module_name()}', color='yellow')
         latency = time.time() - t0
         return {'success': True, 'msg': 'enabled routes', 'latency': latency}
     
@@ -862,7 +862,9 @@ class c:
             return cls.storage_dir()
         if path.startswith('/'):
             path = path
-        elif path.startswith('~') or path.startswith('.'):
+        elif path.startswith('~') :
+            path = os.path.expanduser(path)
+        elif path.startswith('.'):
             path = os.path.abspath(path)
         else:
             storage_dir = cls.storage_dir()
@@ -1201,7 +1203,7 @@ class c:
                 fn_schema['input'].pop(arg)
 
         if defaults:
-            fn_defaults = cls.fn_defaults(fn=fn) 
+            fn_defaults = c.fn_defaults(fn=fn) 
             for k,v in fn_defaults.items(): 
                 if k not in fn_schema['input'] and v != None:
                     fn_schema['input'][k] = type(v).__name__ if v != None else None
@@ -1727,8 +1729,9 @@ class c:
         return found_lines
 
     @classmethod
-    def params(cls, fn='__init__'):
-        params =  cls.fn_defaults(fn)
+    def params(cls, module=None, fn='__init__'):
+        module = c.module(module) if  module else cls
+        params =  c.fn_defaults(getattr(module, fn))
         params.pop('self', None)
         return params
 
@@ -1868,7 +1871,7 @@ class c:
         return simple_path
 
     @classmethod
-    def find_classes(cls, path='./',  working=False, depth=8):
+    def find_classes(cls, path='./', depth=8, **kwargs):
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
@@ -1897,7 +1900,7 @@ class c:
         return classes
 
     @classmethod
-    def find_class2functions(cls, path,  working=False):
+    def find_class2functions(cls, path):
 
         path = os.path.abspath(path)
         if os.path.isdir(path):
@@ -1957,7 +1960,7 @@ class c:
         raise ValueError(f'Path not found for objectpath {objectpath}')
 
     @classmethod
-    def find_functions(cls, path = './', working=False):
+    def find_functions(cls, path = './', **kwargs):
         fns = []
         if os.path.isdir(path):
             path = os.path.abspath(path)
@@ -1966,14 +1969,6 @@ class c:
                 file_object_path = cls.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
                 for fn in p_fns:
-                    if working:
-                        try:
-                            cls.import_object(fn)
-                        except Exception as e:
-                            r = cls.detailed_error(e)
-                            r['fn'] = fn
-                            c.print(r, color='red')
-                            continue
                     fns += [fn]
 
         else:
@@ -2000,9 +1995,9 @@ class c:
         return [c for c in fns]
     
     @classmethod
-    def find_objects(cls, path:str = './', depth=10, search=None, working=False, **kwargs):
-        classes = cls.find_classes(path, working=working, depth=depth)
-        functions = cls.find_functions(path, working=working)
+    def find_objects(cls, path:str = './', depth=10, search=None, **kwargs):
+        classes = cls.find_classes(path,depth=depth)
+        functions = cls.find_functions(path)
 
         if search != None:
             classes = [c for c in classes if search in c]
@@ -2090,8 +2085,8 @@ class c:
     @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
-        # c.ensure_syspath(c.pwd())
-        assert key != None, key
+
+        key = key.replace('/', '.')
         module_obj = c.import_module('.'.join(key.split('.')[:-1]))
         return  getattr(module_obj, key.split('.')[-1])
     
@@ -2191,7 +2186,7 @@ class c:
         tree_cache_path = 'tree/'+path.replace('/', '_')
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print(f'Building tree {path}', color='blue')
+            c.print(f'BUIDLING TREE --> {path}', color='green')
             class_paths = cls.find_classes(path, depth=depth)
             simple_paths = cls.objectpaths2names(class_paths) 
             tree = dict(zip(simple_paths, class_paths))
@@ -2234,13 +2229,6 @@ class c:
         latency = c.round(time.time() - t0, 3)
         # if 
         if not hasattr(module, 'module_name'):
-            core_functions = ['filepath',  
-                          'dirpath',
-                          'code', 
-                          'schema',
-                           'module_name', 
-                          'module_class',
-                          'resolve_object' ]
             
             module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
             module.module_class = lambda *args, **kwargs : c.module_class(module)
@@ -2249,8 +2237,9 @@ class c:
             module.dirpath = lambda *args, **kwargs : c.dirpath(module)
             module.code = lambda *args, **kwargs : c.code(module)
             module.schema = lambda *args, **kwargs : c.schema(module)
-            module.functions = lambda *args, **kwargs : c.functions(module)
-
+            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
+            module.params = lambda *args, **kwargs : c.params(module)
+            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
             
         c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
@@ -2542,6 +2531,12 @@ class c:
     
     def time(self):
         return time.time()
+    
+    def has_module(self, path:str):
+        for path in c.files(path): 
+            if path.endswith('.py'):
+                return True
+
 c.routes = c.get_routes()
 c.add_routes()
 Module = c # Module is alias of c

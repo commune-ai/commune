@@ -50,8 +50,6 @@ class Key(c.Module):
     crypto_type =  'sr25519'
     def __init__(self, 
                  private_key: Union[bytes, str] = None, 
-                 mnemonic: str = None,
-                 seed_hex: Union[str, bytes] = None,
                  ss58_format: int = ss58_format, 
                  crypto_type: int = KeyType.SR25519,
                  derive_path: str = None,
@@ -73,7 +71,7 @@ class Key(c.Module):
         """
         crypto_type = self.resolve_crypto_type(crypto_type)
         # If no arguments are provided, generate a random keypair
-        if  private_key == None and seed_hex == None  and mnemonic == None:
+        if  private_key == None:
             private_key = self.new_key(crypto_type=crypto_type).private_key
         if type(private_key) == str:
             private_key = c.str2bytes(private_key)
@@ -105,9 +103,7 @@ class Key(c.Module):
         self.public_key = public_key
         self.key_address =  self.ss58_address = key_address
         self.private_key = private_key
-        self.mnemonic = mnemonic
         self.crypto_type = crypto_type
-        self.seed_hex = seed_hex
         self.derive_path = derive_path
         self.path = path 
         self.ss58_format = ss58_format
@@ -565,7 +561,6 @@ class Key(c.Module):
             private_key=private_key,
             ss58_format=ss58_format,
               crypto_type=crypto_type, 
-              seed_hex=seed_hex
         )
         
         if return_kwargs:
@@ -934,9 +929,6 @@ class Key(c.Module):
 
     def decrypt(self, data, password=None):    
         password = self.resolve_encryption_password(password)
-        if isinstance(data, str):
-            if not data.endswith('='):
-                data = data + '='
         data = base64.b64decode(data)
         iv = data[:AES.block_size]
         cipher = AES.new(password, AES.MODE_CBC, iv)
@@ -1142,37 +1134,7 @@ class Key(c.Module):
         else:
             # Invalid address type
             return False
-        
-    def id_card(self, return_json=True,**kwargs):
-        return self.sign(str(c.timestamp()), return_json=return_json, **kwargs)
 
-    @staticmethod
-    def is_ss58(address):
-        # Check address length
-        if len(address) != 47:
-            return False
-        # Check prefix
-        network_prefixes = ['1', '2', '5', '7']  # Add more prefixes as needed
-        if address[0] not in network_prefixes:
-            return False
-        
-        # Verify checksum
-        encoded = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-        address_without_checksum = address[:-1]
-        checksum = address[-1]
-        address_hash = 0
-        for char in address_without_checksum:
-            address_hash = address_hash * 58 + encoded.index(char)
-        
-        # Calculate the expected checksum
-        expected_checksum = encoded[address_hash % 58]
-        
-        # Compare the expected checksum with the provided checksum
-        if expected_checksum != checksum:
-            return False
-        
-        return True
- 
     @classmethod
     def is_encrypted(cls, data):
         if isinstance(data, str):
