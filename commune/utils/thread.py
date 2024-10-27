@@ -108,23 +108,15 @@ def submit(
     else:
         return wait(future, timeout=timeout)
 
-
-
-
 def as_completed(futures:list, timeout:int=10, **kwargs):
     import concurrent
     return concurrent.futures.as_completed(futures, timeout=timeout)
 
-
 def is_coroutine(future):
-    import commune as c
     """
-    returns True if future is a coroutine
+    is this a thread coroutine?
     """
-    return c.obj2typestr(future) == 'coroutine'
-
-
-
+    return hasattr(future, '__await__')
 
 def thread(fn: Union['callable', str],  
                 args:list = None, 

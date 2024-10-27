@@ -617,7 +617,7 @@ class c:
         if parallel:
             future2fn = {}
             for fn in test_fns:
-                f = cls.submit(trial_wrapper(getattr(module, fn)), timeout=timeout)
+                f = c.submit(trial_wrapper(getattr(module, fn)), timeout=timeout)
                 future2fn[f] = fn
             for f in cls.as_completed(future2fn, timeout=timeout):
                 fn = future2fn.pop(f)
@@ -627,6 +627,10 @@ class c:
                 print(f'testing {fn}')
                 fn2result[fn] = trial_wrapper(getattr(cls, fn))()       
         return fn2result
+    
+    @classmethod
+    def is_class(cls, obj):
+        return inspect.isclass(obj)
     
     @classmethod
     def add_to_globals(cls, globals_input:dict = None):
@@ -874,8 +878,6 @@ class c:
         pwd = c.pwd()
         for file in files:
             file2size[file.replace(pwd+'/','')] = self.format_data_size(self.filesize(file), fmt)
-
-        # sort by size
         file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
         return file2size
 
@@ -1090,7 +1092,6 @@ class c:
     def sleep(period):
         time.sleep(period) 
     
-
     def num_files(self, path:str='./')-> int:
         import commune as c
         return len(c.glob(path))
@@ -1153,7 +1154,6 @@ class c:
                         
                             parents += [pp]
         return parents
-
 
     @classmethod
     def fn_schema(cls, fn:str,
@@ -1224,7 +1224,6 @@ class c:
             code = cls.code()
         return len(code.split('\n'))
 
-
     @classmethod
     def is_fn(cls, fn:str):
         return '/' in str(fn) or hasattr(cls, str(fn)) or (c.object_exists(fn) and callable(c.obj(fn)))
@@ -1260,8 +1259,7 @@ class c:
         elif len(found_lines) == 1:
             return found_lines[0]['idx']
         return found_lines
-
-    
+ 
     @classmethod
     def fn_info(cls, fn:str='test_fn') -> dict:
         r = {}
@@ -2371,14 +2369,6 @@ class c:
         self.put(self.resolve_path('api_keys'), [])
         return {'api_keys': []}
     
-    @classmethod
-    def executor(cls, max_workers:int=None, mode:str="thread", maxsize=200, **kwargs):
-        return c.module(f'executor')(max_workers=max_workers, maxsize=maxsize ,mode=mode, **kwargs)
-
-    def explain_myself(self):
-        context = c.file2text(self.root_path)
-        return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
-
     @classmethod
     def remote_fn(cls, 
                     fn: str='train', 

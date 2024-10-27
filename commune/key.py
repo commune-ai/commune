@@ -93,7 +93,6 @@ class Key(c.Module):
             public_key = private_key_obj.public_key.to_address()
             key_address = private_key_obj.public_key.to_checksum_address()
             hash_type = 'h160'
-            
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
@@ -107,6 +106,7 @@ class Key(c.Module):
         self.derive_path = derive_path
         self.path = path 
         self.ss58_format = ss58_format
+        self.key_address = self.ss58_address
 
     @property
     def address(self):
@@ -1153,6 +1153,7 @@ class Key(c.Module):
     @staticmethod
     def ss58_encode(*args, **kwargs):
         return ss58_encode(*args, **kwargs)
+    
     
     @staticmethod
     def ss58_decode(*args, **kwargs):

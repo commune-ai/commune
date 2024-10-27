@@ -8,24 +8,24 @@ class cli(c.Module):
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
     def __init__(self, 
-                args = None,
+                argv = None,
                 base = 'module',
                 fn_splitters = [':', '/', '//', '::'],
-                base_functions = ["key", "code", "schema", "fn_schema", "help", "fn_info"],
                 helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'],
-                sep = '--'):
+                sep = '--'
+                ):
         
+        self.argv = self.resolve_argv(argv)
         self.helper_fns = helper_fns
         self.fn_splitters = fn_splitters
         self.sep = sep
         self.base_class = c.module(base)
         self.base_module = self.base_class()
-        self.base_functions = base_functions
-        self.forward(args)
+        self.forward(self.argv)
 
     def forward(self, argv=None):
         t0 = time.time()
-        argv = argv or self.argv()
+        argv = argv or self.argv
         self.input_msg = 'c ' + ' '.join(argv)
         output = None
         init_kwargs = {}
@@ -88,8 +88,7 @@ class cli(c.Module):
         return isinstance(obj, property)
 
     def parse_args(self, argv = None):
-        if argv is None:
-            argv = self.argv()
+        argv = argv or self.argv
         args = []
         kwargs = {}
         parsing_kwargs = False
@@ -98,7 +97,6 @@ class cli(c.Module):
                 parsing_kwargs = True
                 key, value = arg.split('=')
                 kwargs[key] = self.determine_type(value)
-
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
                 args.append(self.determine_type(arg))
@@ -148,10 +146,11 @@ class cli(c.Module):
                     return float(x)
                 except ValueError:
                     return x
-    
 
-    def argv(self):
-        return sys.argv[1:]
+    def resolve_argv(self, argv):
+        argv = argv or sys.argv[1:]
+        return argv
+
           
 def main():
     cli()
