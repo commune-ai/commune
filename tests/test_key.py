@@ -10,6 +10,15 @@ def test_encryption(value = 10):
     assert dec == value, f'encryption failed, {dec} != {value}'
     return {'encrypted':enc, 'decrypted': dec}
 
+def test_encryption_with_password(value = 10, password = 'fam'):
+    cls = c.module('key')
+    value = str(value)
+    key = cls.new_key()
+    enc = key.encrypt(value, password=password)
+    dec = key.decrypt(enc, password=password)
+    assert dec == value, f'encryption failed, {dec} != {value}'
+    return {'encrypted':enc, 'decrypted': dec}
+
 def test_key_encryption(test_key='test.key'):
     self = c.module('key')
     key = self.add_key(test_key, refresh=True)

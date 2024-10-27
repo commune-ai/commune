@@ -18,7 +18,7 @@ class Vali(c.Module):
                     max_workers=  None ,
                     info_function = 'info', # the function to get the info of the module
                     info_timeout =  2, # the timeout for the info function
-                    score = None, #EVAL
+                    score = None, # score function
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
                     min_score=  0, # the minimum weight of the leaderboard
@@ -37,13 +37,12 @@ class Vali(c.Module):
         self.config = config
         self.epochs = 0
         self.epoch_start_time = 0
-        self.start_time = c.time() # the start time of the validator
-        self.futures = [] # the futures for the executor
         self.set_key(key)
         self.set_score(score)
         self.set_network(update=update)
-        if self.config.run_loop:
+        if config.run_loop:
             c.thread(self.run_loop)
+
     init_vali = __init__
     def score(self, module):
         return 'name' in module.info()
@@ -54,13 +53,12 @@ class Vali(c.Module):
         """
         if score == None:
             score = self.score
-        elif c.object_exists(score):
-            pass
         elif isinstance(score, str):
             if hasattr(self, score):
                 score = getattr(self, score)
             else:
-                score = c.get_fn(score)
+                assert c.object_exists(score), f'{score} does not exist'
+                score = c.obj(score)
         assert callable(score), f'{score} is not callable'
         setattr(self, 'score', score )
         return {'success': True, 'msg': 'Set score function', 'score': self.score.__name__}
@@ -84,8 +82,10 @@ class Vali(c.Module):
 
         while True:
             from tqdm import tqdm
-            time_to_wait = max(0,self.epoch_start_time - c.time() + self.config.tempo)
+            print('RUNNING LOOP')
+            time_to_wait = int(max(0,self.epoch_start_time - c.time() + self.config.tempo))
             desc = f'Waiting Next Epoch ({self.epochs}) with Tempo {self.config.tempo}'
+            print(f'WAITING FOR {time_to_wait} SECONDS')
             [ c.sleep(1) for _ in tqdm(range(time_to_wait), desc=desc)]
             try:
                 self.epoch()
@@ -94,11 +94,7 @@ class Vali(c.Module):
             except Exception as e:
                 c.print('ERROR IN THE self.epoch',c.detailed_error(e))
 
-    def age(self):
-        return c.time() - self.start_time
-
-    def get_next_result(self, futures=None):
-        futures = futures or self.futures
+    def get_next_result(self, futures):
         try:
             for future in c.as_completed(futures, timeout=self.config.timeout):
                 futures.remove(future) 
@@ -122,20 +118,14 @@ class Vali(c.Module):
             
         return result
 
-
-    def cancel_futures(self):
-        for f in self.futures:
-            f.cancel()
-
     epoch2results = {}
 
     @classmethod
-    def run_epoch(cls, network=None, search=None, run_loop=False, **kwargs):
-        network = network or 'local'
-        self = cls(search=search, run_loop=run_loop, network=network, **kwargs)
-        return self.epoch(df=1)
+    def run_epoch(cls, run_loop=False, **kwargs):
+        return  cls( run_loop=run_loop, **kwargs).epoch(df=1)
 
     def epoch(self, network=None,  df=True, **kwargs):
+        futures = []
         self.epoch_start_time = c.time()
         self.set_network(network=network, **kwargs)
         self.executor = c.module('executor')(max_workers=self.config.max_workers, maxsize=self.config.batch_size)
@@ -145,21 +135,16 @@ class Vali(c.Module):
         for module_address in c.shuffle(list(self.namespace.values())):
             c.print(f'🟡EVAL({module_address})🟡', color='cyan', verbose=self.config.verbose)
             if self.executor.is_full:
-                results.append(self.get_next_result(self.futures))
+                results.append(self.get_next_result(futures))
             else:
-                self.futures.append(self.executor.submit(self.eval_module, 
-                                                         [module_address], 
-                                                         timeout=self.config.timeout))
+                futures.append(self.executor.submit(self.eval_module, [module_address], timeout=self.config.timeout))
             progress.update(1)
-        while len(self.futures) > 0:
-            results.append(self.get_next_result())
-        # cancel the futures
-        self.cancel_futures()
+        while len(futures) > 0:
+            results.append(self.get_next_result(futures))
         results = [r for r in results if r.get('score', 0) > 0]
         if df:
             if len(results) > 0 and 'score' in results[0]:
-                results =  c.df(results)
-                results = results.sort_values(by='score', ascending=False)
+                results = c.df(results).sort_values(by='score', ascending=False)
         self.epochs += 1
         return results
 
@@ -200,7 +185,6 @@ class Vali(c.Module):
         max_age = max_age if max_age != None else config.max_age
         if update:
             max_age = 0
-        
         if self.network_staleness < max_age:
             return {'msg': 'Alredy Synced network Within Interval', }
         # RESOLVE THE VOTING NETWORKS
@@ -258,11 +242,12 @@ class Vali(c.Module):
         module_client = c.connect(address, key=self.key)
         info = self.get_json(path, {})
         if not self.check_info(info):
-            info = getattr(module_client, self.config.info_function)(timeout=self.config.info_timeout)
+            info = module_client.info(timeout=self.config.info_timeout)
         info['timestamp'] = c.timestamp() # the timestamp
         last_score = info.get('score', 0)
         response = self.score(module_client, **kwargs)
         response = {'score': float(response)} if type(response) in [int, float, bool] else response
+
         info['latency'] = c.round(c.time() - info['timestamp'], 3)
         info.update(response)
         alpha = self.config.alpha
@@ -383,18 +368,14 @@ class Vali(c.Module):
     
         
     @staticmethod
-    def test( 
-            n=2, 
-                sleep_time=2, 
-                timeout = 20,
-                tag = 'vali_test_net',
-                miner='module', 
-                vali='vali', 
-                storage_path = '/tmp/commune/vali_test',
+    def test(  n=2, 
+             tag = 'vali_test_net', 
+              miner='module', 
+             vali='vali',  
+             storage_path = '/tmp/commune/vali_test',
                 network='local'):
         
         test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
-        test_vali = f'{vali}::{tag}'
         modules = test_miners
         search = tag
         for m in modules:
@@ -411,7 +392,6 @@ class Vali(c.Module):
         return {'success': True, 'msg': 'subnet test passed'}
     
     def __del__(self):
-        self.cancel_futures()
         c.print('Cancelling futures')
         return {'success': True, 'msg': 'Cancelling futures'}
 

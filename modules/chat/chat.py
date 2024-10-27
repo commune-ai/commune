@@ -62,13 +62,16 @@ class Chat(c.Module):
         output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
             yield token
+    generate = forward
 
     def ask(self, *text, **kwargs): 
         return self.generate(' '.join(list(map(str, text))), **kwargs)
 
     def process_text(self, text, context=None):
         text = self.prompt + text
+ 
         if context != None:
+            context = c.resolve_path(context) 
             if c.exists(context):
                 context =  str(c.file2text(context))
             elif c.module_exists(context):

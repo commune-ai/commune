@@ -2,7 +2,6 @@ import commune as c
 from typing import *
 import os
 
-# A NETWORK IS A 
 class Network(c.Module):
     # the default
     network : str = 'local'
@@ -41,15 +40,13 @@ class Network(c.Module):
     def namespace(self, 
                   search=None, 
                   network:str = None, 
-
                   max_age:int = 60,
                   update:bool = False,
-                  timeout=6) -> dict:
+                  timeout=2) -> dict:
         network = self.resolve_network(network)
         path = self.resolve_network_path(network)
         namespace = self.get(path, None, max_age=max_age, update=update)
         if namespace == None:
-            self.put(path,namespace)
             if 'local' == network: 
                 namespace = self.update_namespace(timeout=timeout)
             elif c.module_exists(network):
@@ -57,6 +54,8 @@ class Network(c.Module):
                 namespace =  network_module.namespace(search=search, update=True)
             else: 
                 namespace = {}
+            self.put(path,namespace)
+
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k} 
         namespace = dict(sorted(namespace.items(), key=lambda x: x[0]))
@@ -209,8 +208,7 @@ class Network(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists  
-
-
+    
     def registration_signature(self, name='agi', address='0.0.0.0:8888', key=None):
         key = c.get_key(key)
         data = {'name': name, 'address': address}
@@ -218,11 +216,8 @@ class Network(c.Module):
         assert c.verify(signature)
         return signature
     
-
     regsig = registration_signature
     
-                
-
     def infos(self, timeout=10):
         return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
 

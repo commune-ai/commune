@@ -747,10 +747,7 @@ def jsonable( value):
         return True
     except:
         return False
-
-
-
-
+    
 def get_line(module, idx):
     import commune as c
     code = c.code(module)
@@ -784,7 +781,8 @@ def file2text(path = './',
     for file in get_glob(path, recursive=True):
         if os.path.isdir(file):
             continue
-        if any([folder in file for folder in avoid_folders]):
+        print(file, avoid_folders)
+        if any([af in file for af in avoid_folders]):
             continue
         try:
             with open(file, 'r') as f:

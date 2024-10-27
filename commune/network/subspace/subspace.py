@@ -57,7 +57,7 @@ class Subspace(c.Module):
             ]
     }
     endpoints = ['subnet_params', 'netuid2name', 'resolve_netuid']
-    network : str = 'test' # og network
+    network : str = 'main' # og network
     networks = list(url_map.keys())
     wait_for_finalization: bool
     _num_connections: int
@@ -1214,25 +1214,18 @@ class Subspace(c.Module):
         params = {"amount": amount, "module_key": dest}
         return self.compose_call(fn="remove_stake", params=params, key=key)
     
-    def resolve_module_address(self, name: str, address: str | None = None, private=False) -> str:
-        if address is None:
-            if not c.server_exists(name):
-                address = c.serve(name)["address"]
-            else:
-                address = c.namespace().get(name)
-            address = f'{c.ip()}:{address.split(":")[-1]}'
-        if private:
-            address = '0.0.0.0' +':'+ address.split(':')[-1]
-        return address
+    
+
 
     def update_module(
         self,
         name: str,
-        address: str = None,
+        address: str = '0.0.0.0:8888',
         metadata: str | None = None,
         delegation_fee: int = 20,
         netuid: int = 0,
         subnet = None,
+        public = False,
         key: Keypair = None,
 
     ) -> ExtrinsicReceipt:
@@ -1257,12 +1250,16 @@ class Subspace(c.Module):
             InvalidParameterError: If the provided parameters are invalid.
             ChainTransactionError: If the transaction fails.
         """
-
+        key = self.resolve_key(key or name)
         assert isinstance(delegation_fee, int)
         netuid = self.resolve_netuid(subnet or netuid)
-        address = self.resolve_module_address(name=name, address=address)
-        key = key or name
 
+        namespace = c.namespace()
+        address = namespace.get(name, address)
+        if public:
+            address = c.ip() +':'+ address.split(':')[-1]
+        else:
+            address = '0.0.0.0' +':'+ address.split(':')[-1]
         params = {
             "netuid": netuid,
             "name": name,
@@ -1299,6 +1296,7 @@ class Subspace(c.Module):
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
+    
     
         key =  c.get_key(key)
         address = self.resolve_module_address(name=name, address=address)
@@ -1409,10 +1407,8 @@ class Subspace(c.Module):
 
     def update_subnet(
         self,
+        subnet,
         params: SubnetParams = None,
-        netuid: int = 0,
-        subnet = None,
-        key: Keypair=None,
         **extra_params
     ) -> ExtrinsicReceipt:
         """
@@ -1432,15 +1428,13 @@ class Subspace(c.Module):
             AuthorizationError: If the key is not authorized.
             ChainTransactionError: If the transaction fails.
         """
-        netuid = self.resolve_netuid(subnet or netuid)
+        netuid = self.resolve_netuid(subnet)
         subnet_params = self.subnet_params(netuid=netuid)
         address2key = c.address2key()
-        
         assert subnet_params['founder'] in address2key, f'No key found for {subnet_params["founder"]}'
         key = c.get_key(address2key[subnet_params['founder']])
         params = params or {}
         params.update(extra_params)
-
         if 'founder' in params:
             params['founder'] = self.resolve_key_address(params['founder'])
         params = {**subnet_params, **params}
@@ -1448,25 +1442,17 @@ class Subspace(c.Module):
         params["netuid"] = netuid
         governance_config = params.pop('governance_configuration', None)
         params['vote_mode'] = governance_config['vote_mode']
-        params["metadata"] = params.pop("subnet_metadata", None)
-
-        print('Updating subnet with params', params)
-
-        response = self.compose_call(
-            fn="update_subnet",
-            params=params,
-            key=key,
-        )
-
+        params["metadata"] = params.pop("metadata", None)
+        response = self.compose_call(fn="update_subnet",params=params,key=key)
         return response
 
 
-    def subnet_metadata(self) -> str:
+    def metadata(self) -> str:
         netuids = self.netuids()
-        subnet_metadata = self.query_map('SubnetMetadata')
-        subnet_metadata =  {i : subnet_metadata.get(i, None) for i in netuids}
-        subnet_metadata = sorted(subnet_metadata.items(), key=lambda x: x[0])
-        return {k: v for k, v in subnet_metadata}
+        metadata = self.query_map('SubnetMetadata')
+        metadata =  {i : metadata.get(i, None) for i in netuids}
+        metadata = sorted(metadata.items(), key=lambda x: x[0])
+        return {k: v for k, v in metadata}
     
     def transfer_stake(
         self,
@@ -1497,7 +1483,7 @@ class Subspace(c.Module):
         amount = amount - self.existential_deposit()
 
         params = {
-            "amount": amount,
+            "amount": self.format_amount(amount, fmt='nano'),
             "module_key": from_module_key,
             "new_module_key": dest_module_address,
         }
@@ -1505,6 +1491,8 @@ class Subspace(c.Module):
         response = self.compose_call("transfer_stake", key=key, params=params)
 
         return response
+    
+    stake_transfer = transfer_stake 
 
     def multiunstake(
         self,
@@ -2646,12 +2634,12 @@ class Subspace(c.Module):
         Retrieves the existential deposit value for the network.
         """
 
-        with self.get_conn() as substrate:
-            result: int = substrate.constant(  #  type: ignore
-                "Balances", "ExistentialDeposit", block_hash
-            ).value  #  type: ignore
+        # with self.get_conn() as substrate:
+        #     result: int = substrate.constant(  #  type: ignore
+        #         "Balances", "ExistentialDeposit", block_hash
+        #     ).value  #  type: ignore
 
-        return result
+        return 0
 
     def voting_power_delegators(self) -> list[Ss58Address]:
         result = self.query("NotDelegatingVotingPower", [], module="GovernanceModule")
@@ -2689,8 +2677,11 @@ class Subspace(c.Module):
     def to_joules(self, value):
         return value / (10 ** 9)
     to_j = to_joules
+        
 
     def resolve_key_address(self, key:str ):
+        if key == None:
+            key = 'module'
         if self.valid_h160_address(key) or self.valid_ss58_address(key):
             return key
         else:
@@ -2767,7 +2758,7 @@ class Subspace(c.Module):
                 "min_validator_stake": bulk_query.get("MinValidatorStake", {}),
                 "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
                 "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
-                "subnet_metadata": bulk_query.get("SubnetMetadata", {}),
+                "metadata": bulk_query.get("SubnetMetadata", {}),
             }
 
             results: dict[int, SubnetParamsWithEmission] = {}
@@ -2871,23 +2862,31 @@ class Subspace(c.Module):
     def my_netuids(self):
         founders = self.founders()
         address2key = c.address2key()
+    
         my_subnets = {}
         for k,v in founders.items():
             if v in address2key:
-                my_subnets[k] = v
+                my_subnets[k] = address2key[v]
         return my_subnets
             
-    def my_subnets(self):
+    def my_subnets(self, key=None):
         my_netuids = self.my_netuids()
         netuid2subnet = self.netuid2subnet()
-        my_subnets = {}
-
+        my_subnets = []
         for netuid, founder in my_netuids.items():
             subnet = netuid2subnet[netuid]
-            my_subnets[subnet] = founder
-        return my_subnets
-            
+            row =  {'subnet': subnet, 'netuid': netuid,  'founder': founder }
 
+            if key != None:
+                if key in [row['founder'], founder]:
+                    my_subnets += [row]
+            else:
+                my_subnets += [row]
+
+
+        # group by founder
+        return c.df(my_subnets).sort_values('subnet')
+            
 
     
 
@@ -3037,8 +3036,8 @@ class Subspace(c.Module):
 
         if fmt in ['j', 'com', 'comai']:
             x = x / 10**9
-        elif fmt in ['nanos', 'n', 'nj']:
-            x = x 
+        elif fmt in ['nano', 'n', 'nj', 'nanos', 'ncom']:
+            x = x * 10**9
         else:
             raise NotImplementedError(fmt)
 
@@ -3082,7 +3081,7 @@ class Subspace(c.Module):
         module['address'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
         module['stake'] = sum([v for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
