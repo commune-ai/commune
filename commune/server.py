@@ -27,6 +27,8 @@ class Server(c.Module):
                             'schema', 
                             'name', 
                             'functions',
+                            'key_address', 
+                            'crypto_type',
                             'fns', 
                             'forward', 
                             'rate_limit'], 
@@ -86,7 +88,9 @@ class Server(c.Module):
         module.port =  port if port not in ['None', None] else c.free_port()
         module.address  = module.server_address =  f"{c.ip()}:{module.port}"
         module.crypto_type =  crypto_type
-        module.key  = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists, crypto_type=crypto_type)
+        module.key = c.get_key(key or module.name, create_if_not_exists=create_key_if_not_exists, crypto_type=crypto_type)
+        module.crypto_type = module.key.crypto_type
+        module.key_address = module.key.ss58_address
         module.fn2cost = fn2cost or {}
         module.schema = self.get_schema(module)
         module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
