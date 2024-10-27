@@ -63,79 +63,20 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
             fn_list.append(fn_name)
     return fn_list
 
+@classmethod
+def fn_defaults(fn):
 
-
-def get_class_methods(cls: Union[str, type])-> List[str]:
-    '''
-    Gets the class methods in a class
-    '''
-    functions =  get_functions(cls)
-    signature_map = {}
-    for f in functions:
-        if f.startswith('__'):
-            continue
-        # print(f)
-        signature_map[f] = get_function_signature(getattr(cls, f)) 
-
-    return [k for k, v in signature_map.items() if 'self' not in v]
-
-def get_self_functions(cls: Union[str, type]):
-    '''
-    Gets the self methods in a class
-    '''
-    functions =  get_functions(cls)
-    signature_map = {f:get_function_signature(getattr(cls, f)) for f in functions}
-    return [k for k, v in signature_map.items() if 'self' in v]
-
-
-def get_function_signature(fn) -> dict: 
-    '''
-    get the signature of a function
-    '''
+    """
+    Gets the function defaults
+    """
     import inspect
-    return dict(inspect.signature(fn)._parameters)
-
-def get_function_input_variables(fn)-> dict:
-    return get_function_signature(fn).keys()
-
-def fn_defaults(fn, include_null = False, mode=['input','output'],output_example_key='output_example'):
-    import inspect
-    
-    if  not callable(fn):
-        return None
-    param_dict = dict(inspect.signature(fn)._parameters)
-    function_defaults = {}
-    assert isinstance(mode, list)
-
-    if ( 'output' in mode): 
-        function_defaults['output'] = {}
-
-        output_example = param_dict.pop(output_example_key, {})
-
-        if isinstance(output_example,inspect.Parameter):
-            output_example = output_example._default
-
-            if isinstance(output_example, dict):
-                for k,v in output_example.items():
-                    function_defaults['output'][k] = v
-            elif type(output_example) in  [set,list, tuple]:
-                function_defaults['output'] =  list(output_example)
-            
-    if ( 'input' in mode): 
-        function_defaults['input'] = {}
-        for k,v in param_dict.items():
-            if v._default != inspect._empty and  v._default != None:
-                function_defaults['input'][k] = v._default
-            else:
-                function_defaults['input'][k] = None
-
-    assert isinstance(function_defaults, dict)
-    assert 'output' in function_defaults
-    assert 'input' in function_defaults
-
+    function_defaults = dict(inspect.signature(fn)._parameters)
+    for k,v in function_defaults.items():
+        if v._default != inspect._empty and  v._default != None:
+            function_defaults[k] = v._default
+        else:
+            function_defaults[k] = None
     return function_defaults
-
-
 
 def get_function_schema(fn=None, include_self=True, defaults_dict=None,*args, **kwargs):
 
