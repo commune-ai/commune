@@ -83,7 +83,7 @@
     "remote": [
         "host2ssh"
     ],
-    "namespace": [
+    "network": [
         "add_remote",
         "networks",
         "network2namespace",

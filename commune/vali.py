@@ -9,6 +9,7 @@ class Vali(c.Module):
     voting_networks = ['bittensor', 'commune', 'subspace']
     networks = ['local'] + voting_networks
 
+
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     subnet = None,
@@ -62,9 +63,6 @@ class Vali(c.Module):
         assert callable(score), f'{score} is not callable'
         setattr(self, 'score', score )
         return {'success': True, 'msg': 'Set score function', 'score': self.score.__name__}
-    @property
-    def lifetime(self):
-        return c.time() - self.start_time
     
     @property
     def is_voting_network(self):
@@ -210,7 +208,7 @@ class Vali(c.Module):
         c.print(f'Network(network={config.network}, subnet={config.subnet} n={self.n})')
         self.namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
         self.namespace = namespace
-        config.network = network
+        self.network = config.network = network
         self.network_time = c.time()
         self.network_state = {
             'network': network,
@@ -318,9 +316,6 @@ class Vali(c.Module):
         for path in paths:
             r = self.get(path, {},  max_age=max_age)
             if isinstance(r, dict) and 'key' and  r.get('score', 0) > self.config.min_score  :
-                r['staleness'] = c.time() - r.get('timestamp', 0)
-                if not self.filter_module(r.get('name', None)):
-                    continue
                 df += [{k: r.get(k, None) for k in keys}]
             else :
                 # removing the path as it is not a valid module and is too old
