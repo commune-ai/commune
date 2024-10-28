@@ -14,6 +14,7 @@ import asyncio
 nest_asyncio.apply()
 
 class c:
+    splitters = [':', '/', '.']
 
     endpoints = ['ask', 'generate', 'forward']
 
@@ -284,7 +285,7 @@ class c:
     def to_json(self) -> str:
         state_dict = self.to_dict()
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
-        assert self.jsonable(state_dict), 'State dict must be jsonable'
+        assert c.jsonable(state_dict), 'State dict must be jsonable'
         return json.dumps(state_dict)
     
     @classmethod
@@ -428,7 +429,7 @@ class c:
         return schema
 
     @classmethod
-    def utils_paths(cls, search=None):
+    def utils(cls, search=None):
         utils = c.find_functions(c.root_path + '/utils')
         if search != None:
             utils = [u for u in utils if search in u]
@@ -444,10 +445,6 @@ class c:
                     util2code[f] = c.fn_code(f)
         return util2code
     
-    def util_modules(self, search=None):
-        return sorted(list(set([f.split('.')[-2] for f in self.utils_paths(search)])))
-
-    utils = utils_paths
     @classmethod
     def util2path(cls, search=None):
         utils_paths = cls.utils_paths(search=search)
@@ -493,7 +490,16 @@ class c:
             routes = getattr(cls, 'routes')
             if callable(routes):
                 routes = routes()
+        utils = c.utils()
+        for util in utils:
+            k = '.'.join(util.split('.')[:-1])
+            v = util.split('.')[-1]
+            routes[k] = routes.get(k , [])
+            routes[k].append(v)
+            # routes['.'.join(util.split('.')[:-1])] = util.split('.')[-1]
+
         cls.route_cache = routes
+
         return routes
     #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
 
@@ -518,7 +524,7 @@ class c:
     def fn2routepath(cls):
         fn2route = {}
         for fn, module in cls.fn2route().items():
-            fn2route[fn] = module + '.' + fn
+            fn2route[fn] = module + ':' + fn
         return fn2route
             
     @classmethod
@@ -533,14 +539,13 @@ class c:
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-        def fn_generator(*args, fn_ph, **kwargs):
+        def fn_generator(*args, route, **kwargs):
             def fn(*args, **kwargs):
                 try:
-                    fn_obj = c.import_object(fn_ph)
+                    fn_obj = c.import_object(route)
                 except: 
-                    module = '.'.join(fn_ph.split('.')[:-1])
-                    fn = fn_ph.split('.')[-1]
-
+                    module = '.'.join(route.split('.')[:-1])
+                    fn = route.split('.')[-1]
                     module = c.get_module(module)
                     fn_obj = getattr(module, fn)
                     if c.classify_fn(fn_obj) == 'self':
@@ -549,37 +554,14 @@ class c:
                     return fn_obj(*args, **kwargs)
                 else:
                     return fn_obj
-        
             return fn(*args, **kwargs)
         
-        routes = cls.get_routes()
-        for module, fns in routes.items():
-            if c.module_exists(module):
-                if fns in ['all', '*']:
-                    continue
-                for fn in fns: 
-                    if type(fn) in [list, set, tuple] and len(fn) == 2:
-                        # option 1: ['fn_name', 'name_in_current_module']
-                        from_fn = fn[0]
-                        to_fn = fn[1]
-                    elif isinstance(fn, dict) and all([k in fn for k in ['fn', 'name']]):
-                        if 'fn' in fn and 'name' in fn:
-                            to_fn = fn['name']
-                            from_fn = fn['fn']
-                        elif 'from' in fn and 'to' in fn:
-                            from_fn = fn['from']
-                            to_fn = fn['to']
-                    else:
-                        from_fn = fn
-                        to_fn = fn
-
-                    fn_ph = module + '.' + from_fn
-                    fn_obj = partial(fn_generator, fn_ph=fn_ph) 
-                    fn_obj.__name__ = to_fn
-                    if not hasattr(cls, to_fn):
-                        setattr(cls, to_fn, fn_obj)
-                    else: 
-                        c.print(f'WARNING ROUTERS: {to_fn} already exists in {cls.module_name()}', color='yellow')
+        for module, fns in cls.get_routes().items():
+            for fn in fns: 
+                if not hasattr(cls, fn):
+                    fn_obj = partial(fn_generator, route=module + '.' + fn) 
+                    fn_obj.__name__ = fn
+                    setattr(cls, fn, fn_obj)
         latency = time.time() - t0
         return {'success': True, 'msg': 'enabled routes', 'latency': latency}
     
@@ -1490,36 +1472,27 @@ class c:
         return callable(fn)
 
     @classmethod
-    def get_fn(cls, fn:str, module=None, init_kwargs = None):
+    def get_fn(cls, fn:str, init_kwargs = None, splitters=splitters):
         """
         Gets the function from a string or if its an attribute 
         """
-        module = module or cls
         if isinstance(fn, str):
             if c.object_exists(fn):
                 return c.obj(fn)
-            if hasattr(module, fn):
+            elif hasattr(cls, fn):
                 # step 3, if the function is routed
-                fn2routepath = cls.fn2routepath()
-                if fn in fn2routepath:
-                    fn = fn2routepath[fn]
-                    if c.module_exists(module):
-                        module = c.get_module(module)
-                        fn 
-                        fn = getattr(c.get_module(module), fn.split('.')[-1])
-                        return fn
-                return getattr(module, fn)
-            
-            for splitter in ['.', '/']:
+                return getattr(cls, fn)
+
+            for splitter in splitters:
                 if splitter in fn:
                     module_name= splitter.join(fn.split(splitter)[:-1])
                     fn_name = fn.split(splitter)[-1]
                     if c.module_exists(module_name):
                         module = c.get_module(module_name)
-                        fn = getattr(module, fn_name)
-                        break
-
-        return fn
+                        return getattr(module, fn_name)
+        if callable(fn):
+            return fn
+        raise ValueError(f'{fn} is not a function')
         
     @classmethod
     def self_functions(cls, search = None):
@@ -2101,11 +2074,6 @@ class c:
             tree = dict(zip(simple_paths, class_paths))
             c.put(tree_cache_path, tree)
         return tree
-    
-    @staticmethod
-    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
-        from commune.utils.math import round_sig
-        return round_sig(x, sig=sig, small_value=small_value)
 
     @classmethod
     def module(cls, path:str = 'module',  cache=True,verbose = False, trials=1, **_kwargs ) -> str:
@@ -2299,6 +2267,21 @@ class c:
     @classmethod
     def root_key_address(cls) -> str:
         return cls.root_key().ss58_address
+    
+
+    @staticmethod
+    def round(x, sig=6, small_value=1.0e-9):
+        import math
+        """
+        Rounds x to the number of {sig} digits
+        :param x:
+        :param sig: signifant digit
+        :param small_value: smallest possible value
+        :return:
+        """
+        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
+
+
     
     @classmethod
     def is_root_key(cls, address:str)-> str:

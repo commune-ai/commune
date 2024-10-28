@@ -33,9 +33,6 @@ def sync_wrapper(fn):
         return loop.run_until_complete(fn(*args, **kwargs))
     return  wrapper_fn
 
-
-
-
 def new_event_loop(nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
     import asyncio
     loop = asyncio.new_event_loop()

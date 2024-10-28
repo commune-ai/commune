@@ -133,7 +133,7 @@ class Vali(c.Module):
         results = []
         progress = c.tqdm(total=self.n, desc='Evaluating Modules')
         for module_address in c.shuffle(list(self.namespace.values())):
-            c.print(f'🟡EVAL({module_address})🟡', color='cyan', verbose=self.config.verbose)
+            c.print(f'EVALUATING({module_address})🟡', color='cyan', verbose=self.config.verbose)
             if self.executor.is_full:
                 results.append(self.get_next_result(futures))
             else:

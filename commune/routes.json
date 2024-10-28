@@ -142,7 +142,8 @@
         "kill", 
         "kill_many", 
         "kill_all", 
-        "kill_all_processes"
+        "kill_all_processes", 
+        "logs"
     ],
 
     "subspace": [
@@ -191,63 +192,5 @@
         "generate",
         "models"
     ],
-    "chat": ["ask" ],
-    "commune.utils.os": [
-        "cmd",
-        "free_port",
-        "port_used",
-        "kill_port",
-        "port_available",
-        "get_port_range",
-        "ip_to_int",
-        "ip",
-        "external_ip",
-        "port_free",
-        "used_port",
-        "used_ports",
-        "free_ports",
-        "get_available_ports",
-        "resolve_ip",
-        "is_valid_ip"
-    ],
-    "commune.utils.asyncio": [
-        "gather",
-        "get_event_loop",
-        "new_event_loop"
-    ],
-    "commune.utils.thread": [
-        "thread",
-        "threads",
-        "submit",
-        "wait",
-        "as_completed"
-    ],
-    "commune.utils.misc": [
-        "random_float",
-        "timestamp",
-        "jsonable", 
-        "sizeof", 
-        "type_str", 
-        "copy", 
-        "dict2munch", 
-        "shuffle", 
-        "locals2kwargs", 
-        "is_address",
-        "hash",
-        "str2bytes",
-        "python2str",
-        "str2python",
-        "bytes2str",
-        "detailed_error", 
-        "random_color", 
-        "is_int",
-        "is_float", 
-        "df", 
-        "choice", 
-        "obj2typestr",
-        "determine_type",
-        "file2text", 
-        "emoji"
-    ]
-    }
-
+    "chat": ["ask" ]
+}
