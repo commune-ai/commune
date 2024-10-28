@@ -6,6 +6,40 @@ import shlex
 import sys
 from typing import *
 
+
+def jsonable( value):
+    import json
+    try:
+        json.dumps(value)
+        return True
+    except:
+        return False
+
+
+def check_pid( pid):        
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
+
+def gc():
+    import gc
+    gc.collect()
+    return {'success': True, 'msg': 'garbage collected'}
+
+
+def get_pid():
+    return os.getpid()
+
+
+def get_file_size( path:str):
+    path = os.path.abspath(path)
+    return os.path.getsize(path)
+
+
 def resolve_path(path):
     path = os.path.expanduser(path)
     path = os.path.abspath(path)
@@ -559,7 +593,6 @@ def cpu_info():
         'cpu_count': cpu_count(),
         'cpu_type': cpu_type(),
     }
-
 
 def cpu_usage():
     import psutil

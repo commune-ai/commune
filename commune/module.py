@@ -115,8 +115,11 @@ class c:
         return cls.filepath()[:-3] + '.yaml'
 
     @classmethod
-    def sandbox(cls):
-        return c.cmd(f'python ./sandbox.py', verbose=True)
+    def sandbox(cls, path='./', filename='sandbox.py'):
+        for file in  c.files(path):
+            if file.endswith(filename):
+                return c.cmd(f'python {file}', verbose=True)
+        return {'success': False, 'message': 'sandbox not found'}
     
     sand = sandbox
 
@@ -175,7 +178,13 @@ class c:
 
 
     def print( *text:str,  **kwargs):
-        return c.obj('commune.utils.misc.print')(*text, **kwargs)
+        if len(text) == 0:
+            return
+        if c.is_generator(text[0]):
+            for t in text[0]:
+                c.print(t, end='')
+        else:
+            return c.obj('commune.utils.misc.print')(*text, **kwargs)
 
     def is_error( *text:str,  **kwargs):
         return c.obj('commune.utils.misc.is_error')(*text, **kwargs)
@@ -1911,33 +1920,26 @@ class c:
         return object_paths
     objs = search =  get_objects
             
-    included_pwd_in_path = False
-    @classmethod
-    def import_module(cls, 
-                      import_path:str, 
-                      included_pwd_in_path=True, 
-                      try_prefixes = ['commune','commune.modules', 'modules', 'commune.network.substrate', 'subspace']
-                      ) -> 'Object':
-        from importlib import import_module
-        pwd = os.getenv('PWD', c.libpath)
-        if included_pwd_in_path and not cls.included_pwd_in_path:
+
+    @staticmethod
+    def ensure_sys_path():
+        if not hasattr(c, 'included_pwd_in_path'):
+            c.included_pwd_in_path = False
+        pwd = c.pwd()
+        if  not c.included_pwd_in_path:
             import sys            
             sys.path.append(pwd)
             sys.path = list(set(sys.path))
-            cls.included_pwd_in_path = True
-        # if commune is in the path more than once, we want to remove the duplicates
-        if cls.libname in import_path:
-            import_path = cls.libname + import_path.split(cls.libname)[-1]
+            c.included_pwd_in_path = True
 
-        try:
-            return import_module(import_path)
-        except Exception as _e:
-            for prefix in try_prefixes:
-                try:
-                    return import_module(f'{prefix}.{import_path}')
-                except Exception as e:
-                    pass
-            raise _e
+    @classmethod
+    def import_module(cls, 
+                      import_path:str, 
+                      ) -> 'Object':
+        from importlib import import_module
+        c.ensure_sys_path()
+        return import_module(import_path)
+
     
     @classmethod
     def can_import_module(cls, module:str) -> bool:
@@ -1961,17 +1963,10 @@ class c:
         except:
             return False
 
-    @classmethod
-    def ensure_syspath(cls, path:str, **kwargs):
-        if path not in sys.path:
-            sys.path.append(path)
-            sys.path = list(set(sys.path))
-        return {'path': path, 'sys.path': sys.path}
 
     @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
-
         key = key.replace('/', '.')
         module_obj = c.import_module('.'.join(key.split('.')[:-1]))
         return  getattr(module_obj, key.split('.')[-1])
@@ -2038,7 +2033,7 @@ class c:
             avoid = f'{avoid}.' 
             if avoid in path:
                 path = path.replace(avoid, '')
-        for avoid_suffix in ['module', 'agent']:
+        for avoid_suffix in ['module']:
             if path.endswith('.' + avoid_suffix):
                 path = path[:-len(avoid_suffix)-1]
         return path
@@ -2060,8 +2055,8 @@ class c:
         return c.get_tree(c.pwd(), depth=depth, **kwargs)
     
     @classmethod
-    def get_tree(cls, path, depth = 10, max_age=60, update=False):
-        tree_cache_path = 'tree/'+path.replace('/', '_')
+    def get_tree(cls, path, depth = 10, max_age=60, update=False, **kwargs):
+        tree_cache_path = 'tree/'+os.path.abspath(path).replace('/', '_')
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
             c.print(f'BUIDLING TREE --> {path}', color='green')
@@ -2072,7 +2067,11 @@ class c:
         return tree
 
     @classmethod
-    def module(cls, path:str = 'module',  cache=True,verbose = False, trials=1, **_kwargs ) -> str:
+    def module(cls, path:str = 'module',  
+               cache=True,
+               verbose = False, 
+               tree = None,
+               trials=1, **_kwargs ) -> str:
         
         og_path = path
         path = path or 'module'
@@ -2085,18 +2084,17 @@ class c:
                 module =  c
             else:
 
-                tree = c.tree()
+                tree = tree or c.tree()
                 path = c.shortcuts.get(path, path)
                 path = tree.get(path, path)
                 try:
                     module = c.import_object(path)
                 except Exception as e:
-                    if trials > 0:
-                        trials -= 1
-                        tree = c.tree(update=True)
-                        return c.module(path, cache=cache, verbose=verbose, trials=trials)
-                    else:
-                        raise e
+                    tree = c.tree(update=1)
+                    if trials == 0:
+                        raise ValueError(f'Error in module {og_path} {e}')
+                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
+
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(time.time() - t0, 3)
@@ -2122,18 +2120,10 @@ class c:
     
     _tree = None
     @classmethod
-    def tree(cls, search=None, 
-             cache=True,
-             max_age=60,
-             update=False,
-             **kwargs):
-        if cls._tree != None and cache:
-            return cls._tree
+    def tree(cls, search=None,  max_age=60,update=False, **kwargs):
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
         tree = {**lib_tree, **local_tree}
-        if cache:
-            cls._tree = tree
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
@@ -2429,6 +2419,11 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True
+            
+
+
+
+            
             
     
 

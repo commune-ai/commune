@@ -48,8 +48,6 @@ def is_error( x:Any):
             return True
     return False
 
-
-
 def is_int( value) -> bool:
     o = False
     try :
@@ -85,9 +83,6 @@ def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
                 x[k] = dict2munch(v)
         x = Munch(x)
     return x 
-
-
-
 
 def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     from munch import Munch
@@ -132,9 +127,6 @@ def datetime2time( x:str):
     import datetime
     return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
 
-
-
-
 def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
     search = search.split(',')
     new_d = {}
@@ -142,7 +134,6 @@ def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
         if search in k.lower():
             new_d[k] = v
     return new_d
-
 
 def path2text( path:str, relative=False):
 
@@ -163,8 +154,6 @@ def path2text( path:str, relative=False):
         pwd = pwd()
         path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
     return path2text
-
-
 
 
 def copy( data: Any) -> Any:
@@ -195,10 +184,6 @@ def find_word( word:str, path='./')-> str:
         found_files[f[len(path)+1:]]  = line2text
         progress.update(1)
     return found_files
-    
-
-
-
 
 def bytes2str( data: bytes, mode: str = 'utf-8') -> str:
     
@@ -282,7 +267,6 @@ def detailed_error(e) -> dict:
     return response
     
 
-   
 def hash( x, mode: str='sha256',*args,**kwargs) -> str:
     import hashlib
     x = python2str(x)
@@ -324,8 +308,6 @@ def resolve_console( console = None, **kwargs):
     console = console
     return console
 
-
-
 def print( *text:str, 
             color:str=None, 
             verbose:bool = True,
@@ -352,12 +334,9 @@ def print( *text:str,
     except Exception as e:
         print(e)
 
-
-
 def success( *args, **kwargs):
     logger = resolve_logger()
     return logger.success(*args, **kwargs)
-
 
 def error( *args, **kwargs):
     logger = resolve_logger()
@@ -549,17 +528,12 @@ def mv( path1, path2):
 def sys_path():
     return sys.path
 
-
-
-
 def memory_usage(fmt='gb'):
     fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
     import psutil
     process = psutil.Process()
     scale = fmt2scale.get(fmt)
     return (process.memory_info().rss // 1024) / scale
-
-
 
 def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     from munch import Munch
@@ -575,28 +549,22 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     return x 
 to_dict = munch2dict
 
-
-
 def rmtree( path):
+    import shutil
     assert os.path.isdir(path), f'{path} is not a directory'
     return shutil.rmtree(path)
 rmdir = rmtree 
-
-
 
 def isdir( path):
     path = os.path.abspath(path=path)
     return os.path.isdir(path)
     
-
 def isfile( path):
     path = os.path.abspath(path=path)
     return os.path.isfile(path)
     
-
 def makedirs( *args, **kwargs):
     return os.makedirs(*args, **kwargs)
-
 
 def ensure_path( path):
     """
@@ -671,9 +639,6 @@ def set_env( key:str, value:str)-> None:
     os.environ[key] = value
     return value 
 
-
-
-
 def choice( options:Union[list, dict])->list:
     from copy import deepcopy
     options = deepcopy(options) # copy to avoid changing the original
@@ -684,19 +649,20 @@ def choice( options:Union[list, dict])->list:
     assert isinstance(options, list),'options must be a list'
     return random.choice(options)
 
-
-
 def sample( options:list, n=2):
     if isinstance(options, int):
         options = list(range(options))
     options = shuffle(options)
     return options[:n]
-    
-
 
 def colors():
-    return ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'bright_black', 'bright_red', 'bright_green', 'bright_yellow', 'bright_blue', 'bright_magenta', 'bright_cyan', 'bright_white']
-
+    return ['black', 'red', 'green', 
+            'yellow', 'blue', 'magenta', 
+            'cyan', 'white', 'bright_black', 
+            'bright_red', 'bright_green', 
+            'bright_yellow', 'bright_blue', 
+            'bright_magenta', 'bright_cyan', 
+            'bright_white']
 
 colours = colors
 
@@ -704,29 +670,6 @@ def random_color():
     return random.choice(colors())
 randcolor = randcolour = colour = color = random_colour = random_color
 
-
-def gc():
-    gc.collect()
-    return {'success': True, 'msg': 'garbage collected'}
-
-
-def get_pid():
-    return os.getpid()
-
-
-def get_file_size( path:str):
-    path = os.path.abspath(path)
-    return os.path.getsize(path)
-
-
-def jsonable( value):
-    import json
-    try:
-        json.dumps(value)
-        return True
-    except:
-        return False
-    
 def get_line(module, idx):
     import commune as c
     code = c.code(module)
@@ -792,14 +735,12 @@ def munch( x:dict, recursive:bool=True)-> 'Munch':
 
 dict2munch = munch
 
-
 def filesize( filepath:str):
     filepath = os.path.abspath(filepath)
     return os.path.getsize(filepath)
 
-
-
 def put_yaml( path:str,  data: dict) -> Dict:
+    import yaml
     from munch import Munch
     from copy import deepcopy
     import pandas as pd
@@ -853,26 +794,6 @@ def tilde_path():
     return os.path.expanduser('~')
 
 
-
-def rm_lines( path:str, start_line:int, end_line:int) -> None:
-    # Get the absolute path of the file
-    text = c.get_text(path)
-    text = text.split('\n')
-    text = text[:start_line-1] + text[end_line:]
-    text = '\n'.join(text)
-    put_text(path, text)
-    return {'success': True, 'msg': f'Removed lines {start_line} to {end_line} from {path}'}
-
-def rm_line( path:str, line:int, text=None) -> None:
-    # Get the absolute path of the file
-    text =  c.get_text(path)
-    text = text.split('\n')
-    text = text[:line-1] + text[line:]
-    text = '\n'.join(text)
-    put_text(path, text)
-    return {'success': True, 'msg': f'Removed line {line} from {path}'}
-    # Write the text to the file
-
 def hidden_files(path:str='./')-> List[str]:
     import commune as c
     path = os.path.abspath(path)
@@ -880,100 +801,10 @@ def hidden_files(path:str='./')-> List[str]:
     hidden_files = [f for f in files if f.startswith('.')]
     return hidden_files
 
-
-def fn_signature_map( obj=None, include_parents:bool = False):
-    obj = resolve_object(obj)
-    function_signature_map = {}
-    for f in get_functions(obj = obj, include_parents=include_parents):
-        if f.startswith('__') and f.endswith('__'):
-            if f in ['__init__']:
-                pass
-            else:
-                continue
-        if not hasattr( f):
-            continue
-        if callable(getattr( f )):
-            function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr( f )).items()}        
-    return function_signature_map
-
-
-
-def fn_info( fn:str='test_fn') -> dict:
-    r = {}
-    code = fn_code(fn)
-    lines = code.split('\n')
-    mode = 'self'
-    if '' in lines[0]:
-        mode = 'class'
-    elif '' in lines[0]:
-        mode = 'static'
-
-    start_line_text = 0
-    lines_before_fn_def = 0
-    for l in lines:
-        
-        if f'def {fn}('.replace(' ', '') in l.replace(' ', ''):
-            start_line_text = l
-            break
-        else:
-            lines_before_fn_def += 1
-        
-    assert start_line_text != None, f'Could not find function {fn} in {pypath()}'
-    module_code = code()
-    start_line = find_code_line(start_line_text, code=module_code) - 1
-
-    end_line = start_line + len(lines)   # find the endline
-    has_docs = bool('"""' in code or "'''" in code)
-    filepath = filepath()
-
-    # start code line
-    for i, line in enumerate(lines):
-        
-        is_end = bool(')' in line and ':' in line)
-        if is_end:
-            start_code_line = i
-            break 
-
-    return {
-        'start_line': start_line,
-        'end_line': end_line,
-        'has_docs': has_docs,
-        'code': code,
-        'n_lines': len(lines),
-        'hash': hash(code),
-        'path': filepath,
-        'start_code_line': start_code_line + start_line ,
-        'mode': mode    
-    }
-
-def find_code_line( search:str=None, code:str = None):
-    if code == None:
-        code = code() # get the code
-    found_lines = [] # list of found lines
-    for i, line in enumerate(code.split('\n')):
-        if str(search) in line:
-            found_lines.append({'idx': i+1, 'text': line})
-    if len(found_lines) == 0:
-        return None
-    elif len(found_lines) == 1:
-        return found_lines[0]['idx']
-    return found_lines
-
-
-
 def obj2typestr( obj):
     return str(type(obj)).split("'")[1]
 
-def check_pid( pid):        
-    """ Check For the existence of a unix pid. """
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
     
-
 def check_word( word:str)-> str:
     import commune as c
     files = c.glob('./')
@@ -1037,28 +868,11 @@ def merge(  from_obj,
     return to_obj
 
 
-def queue( size:str=-1, *args,  mode='queue', **kwargs):
-    if mode == 'queue':
-        return import_object('queue.Queue')(size, *args, **kwargs)
-    elif mode in ['multiprocessing', 'mp', 'process']:
-        return module('process')(size, *args, **kwargs)
-    elif mode == 'ray':
-        return import_object('ray.util.queue.Queue')(size, *args, **kwargs)
-    elif mode == 'redis':
-        return import_object('redis.Queue')(size, *args, **kwargs)
-    elif mode == 'rabbitmq':
-        return import_object('pika.Queue')(size, *args, **kwargs)
-    else:
-        raise NotImplementedError(f'mode {mode} not implemented')
-
-
-
 def shuffle( x:list)->list:
     if len(x) == 0:
         return x
     random.shuffle(x)
     return x
-
 
 def retry(fn, trials:int = 3, verbose:bool = True):
     # if fn is a self method, then it will be a bound method, and we need to get the function
@@ -1108,9 +922,6 @@ def get_num_files( directory):
     for root, _, files in os.walk(directory):
         num_files += len(files)
     return num_files
-
-
-
     
 def sizeof( obj):
     import sys
@@ -1242,43 +1053,6 @@ def locals2kwargs(locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['c
         kwargs.update( locals_dict.pop(k, {}) or {})
     return kwargs
 
-
-
-def set_line(module,  idx:int, text:str):
-    import commune as c
-    filepath = c.filepath(module)
-    code = c.code(module)
-    lines = code.split('\n')
-    if '\n' in text:
-        front_lines = lines[:idx]
-        back_lines = lines[idx:]
-        new_lines = text.split('\n')
-        lines = front_lines + new_lines + back_lines
-    else:
-        lines[idx-1] = text
-    new_code = '\n'.join(lines)
-    c.put_text(filepath, new_code)
-    return {'success': True, 'msg': f'Set line {idx} to {text}'}
-
-
-def add_line(module,  idx=0, text:str = ''  ):
-    """
-    add line to an index of the module code
-    """
-    import commune as c
-    code = c.code(module) if module == None else c.module(module).code()
-    lines = code.split('\n')
-    new_lines = text.split('\n') if '\n' in text else [text]
-    lines = lines[:idx] + new_lines + lines[idx:]
-    new_code = '\n'.join(lines)
-    c.put_text(c.filepath(module), new_code)
-    return {'success': True, 'msg': f'Added line {idx} to {text}'}
-
-
-
-    
-from typing import *
-
 def pip_libs(cls):
     return list(cls.lib2version().values())
 
@@ -1308,7 +1082,6 @@ def version(cls, lib:str=None):
     else:
         return f'No Library Found {lib}'
     
-
 def pip_exists(lib:str):
     return bool(lib in pip_libs())
 
