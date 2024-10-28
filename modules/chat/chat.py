@@ -71,12 +71,11 @@ class Chat(c.Module):
         text = self.prompt + text
  
         if context != None:
-            if c.exists(str(context)):
+            context = str(context)
+            if c.exists(context):
                 context =  str(c.file2text(context))
             elif c.module_exists(context):
                 context =  c.code(context)
-            else:
-                context = str(context)
             text = context + text
         
         return text

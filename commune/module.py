@@ -342,10 +342,12 @@ class c:
     key = get_key
 
     @classmethod
-    def files(cls, path='./', search:str = None,  **kwargs) -> List[str]:
+    def files(cls, path='./', search:str = None, 
+              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules'], **kwargs) -> List[str]:
         files =c.glob(path, **kwargs)
+        files = [f for f in files if not any([at in f for at in avoid_terms])]
         if search != None:
-            files = [f for f in files if search in f]
+            files = [f for f in files if search in files]
         return files
     
     @classmethod
