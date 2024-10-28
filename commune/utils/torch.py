@@ -1,31 +1,6 @@
 from typing import Dict, List, Tuple, Union, Any, Optional
 
 import torch
-def torch_batchdictlist2dict(batch_dict_list: List, dim:int=0) -> Dict[str, torch.Tensor]:
-    import torch
-    """
-    converts
-        batch_dict_list: dictionary (str, tensor)
-        to
-        out_batch_dict : dictionary (str,tensor)
-
-    along dimension (dim)
-
-    """
-    out_batch_dict = {}
-    for batch_dict in batch_dict_list:
-
-        for k, v in batch_dict.items():
-            if not isinstance(v, torch.Tensor):
-                v = torch.tensor(v)
-            if k in out_batch_dict:
-                out_batch_dict[k].append(v)
-            else:
-                out_batch_dict[k] = [v]
-
-    # stack
-    return {k: torch.cat(v, dim=dim) for k, v in out_batch_dict.items()}
-
 
 
 def tensor_info_dict(input_dict: Dict[str, torch.Tensor]) -> Dict[str, Dict[str, Any]]:

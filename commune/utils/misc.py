@@ -27,12 +27,6 @@ def random_ratio_selection( x:list, ratio:float = 0.5)->list:
     k = max(int(len(x) * ratio),1)
     return x[:k]
 
-
-
-# def filter( text_list: List[str], filter_text: str) -> List[str]:
-#     return [text for text in text_list if filter_text in text]
-
-
 def is_success( x):
     # assume that if the result is a dictionary, and it has an error key, then it is an error
     if isinstance(x, dict):
@@ -41,8 +35,6 @@ def is_success( x):
         if 'success' in x and x['success'] == False:
             return False
     return True
-
-
 
 def is_error( x:Any):
     """
@@ -428,19 +420,6 @@ def stream_output( process, verbose=False):
         pass
 
     kill_process(process)
-
-
-
-def mv( path1, path2):
-    assert os.path.exists(path1), path1
-    if not os.path.isdir(path2):
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
-    shutil.move(path1, path2)
-    assert os.path.exists(path2), path2
-    assert not os.path.exists(path1), path1
-    return path2
 
 
 
@@ -862,30 +841,6 @@ def search_files(path:str='./', search:str='__pycache__') -> List[str]:
     return list(filter(lambda x: search in x, files))
 
 
-
-
-def cp( path1:str, path2:str, refresh:bool = False):
-    # what if its a folder?
-    assert os.path.exists(path1), path1
-    if refresh == False:
-        assert not os.path.exists(path2), path2
-    
-    path2_dirpath = os.path.dirname(path2)
-    if not os.path.isdir(path2_dirpath):
-        os.makedirs(path2_dirpath, exist_ok=True)
-        assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
-
-    if os.path.isdir(path1):
-        shutil.copytree(path1, path2)
-
-    elif os.path.isfile(path1):
-        
-        shutil.copy(path1, path2)
-    else:
-        raise ValueError(f'path1 is not a file or a folder: {path1}')
-    return {'success': True, 'msg': f'Copied {path1} to {path2}'}
-
-
 def lsdir( path:str) -> List[str]:
     path = os.path.abspath(path)
     return os.listdir(path)
@@ -893,8 +848,6 @@ def lsdir( path:str) -> List[str]:
 
 def abspath( path:str) -> str:
     return os.path.abspath(path)
-
-        
 
 def tilde_path():
     return os.path.expanduser('~')
@@ -1320,3 +1273,95 @@ def add_line(module,  idx=0, text:str = ''  ):
     new_code = '\n'.join(lines)
     c.put_text(c.filepath(module), new_code)
     return {'success': True, 'msg': f'Added line {idx} to {text}'}
+
+
+
+    
+from typing import *
+
+def pip_libs(cls):
+    return list(cls.lib2version().values())
+
+required_libs = []
+
+def ensure_libs(libs: List[str] = None, verbose:bool=False):
+    results = []
+    for lib in libs:
+        results.append(ensure_lib(lib, verbose=verbose))
+    return results
+
+def install(cls, libs: List[str] = None, verbose:bool=False):
+    return cls.ensure_libs(libs, verbose=verbose)
+
+def ensure_env(cls):
+    cls.ensure_libs(cls.libs)
+
+def pip_exists(cls, lib:str, verbose:str=True):
+    return bool(lib in cls.pip_libs())
+
+def version(cls, lib:str=None):
+    import commune as c
+    lib = lib or c.libname
+    lines = [l for l in cls.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
+    if len(lines)>0:
+        return lines[0].split(' ')[-1].strip()
+    else:
+        return f'No Library Found {lib}'
+    
+
+def pip_exists(lib:str):
+    return bool(lib in pip_libs())
+
+def ensure_lib( lib:str, verbose:bool=False):
+    if  pip_exists(lib):
+        return {'lib':lib, 'version':version(lib), 'status':'exists'}
+    elif pip_exists(lib) == False:
+        pip_install(lib, verbose=verbose)
+    return {'lib':lib, 'version':version(lib), 'status':'installed'}
+
+def pip_install(lib:str= None,
+                upgrade:bool=True ,
+                verbose:str=True,
+                ):
+    import commune as c
+    if lib in c.modules():
+        c.print(f'Installing {lib} Module from local directory')
+        lib = c.resolve_object(lib).dirpath()
+    if lib == None:
+        lib = c.libpath
+
+    if c.exists(lib):
+        cmd = f'pip install -e'
+    else:
+        cmd = f'pip install'
+        if upgrade:
+            cmd += ' --upgrade'
+    return c.cmd(cmd, verbose=verbose)
+
+
+# JUPYTER NOTEBOOKS
+def enable_jupyter():
+    import commune as c
+    c.nest_asyncio()
+
+jupyter = enable_jupyter
+
+def pip_list(lib=None):
+    import commune as c
+    lib = lib or c.libname
+    pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
+    if lib != None:
+        pip_list = [l for l in pip_list if l.startswith(lib)]
+    return pip_list
+
+def is_mnemonic(s: str) -> bool:
+    import re
+    # Match 12 or 24 words separated by spaces
+    return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
+
+def is_private_key(s: str) -> bool:
+    import re
+    # Match a 64-character hexadecimal string
+    pattern = r'^[0-9a-fA-F]{64}$'
+    return bool(re.match(pattern, s))
+

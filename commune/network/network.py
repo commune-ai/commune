@@ -150,8 +150,8 @@ class Network(c.Module):
         path = self.resolve_network_path( network)
         return os.path.exists(path)
     
-    def names(self, network:List=network) -> List[str]:
-        return list(self.namespace(network=network).keys())
+    def names(self, network:List=network, **kwargs) -> List[str]:
+        return list(self.namespace(network=network, **kwargs).keys())
 
     def addresses(self, network:str=network, **kwargs) -> List[str]:
         return list(self.namespace(network=network, **kwargs).values())
@@ -223,6 +223,8 @@ class Network(c.Module):
 
     def keys(self, timeout=10):
         return c.wait([c.submit(c.call, [s + '/key_address']) for s in c.servers()], timeout=timeout)
+    def infos(self, timeout=10):
+        return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
 
 Network.run(__name__)
 
