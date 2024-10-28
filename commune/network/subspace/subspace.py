@@ -3065,6 +3065,28 @@ class Subspace(c.Module):
         key2uid = self.key2uid(netuid, subnet=subnet)
         return {v:k for k,v in key2uid.items()}
     
+    def daily_rewards(self, module=None, fmt='j', **kwargs) -> Dict[str, int]:
+        key_address = self.resolve_key_address(module)
+        netuid2subnet = self.netuid2subnet()
+        future2netuid = {}
+        for netuid, subnet in netuid2subnet.items():
+            future = c.submit(self.get_module, dict(module=key_address, netuid=netuid))
+            future2netuid[future] = netuid
+        netuid2emission = {}
+        for future in c.as_completed(future2netuid):
+            netuid = future2netuid.pop(future)
+            netuid2emission[netuid] = future.result()['emission']
+        netuid2emission = dict(sorted(netuid2emission.items(), key=lambda x: x[0]))
+        netuid2epochs = self.netuid2epochs()
+        netuid2emission = {k:v*netuid2epochs[k] for k,v in netuid2emission.items()}
+        return netuid2emission    
+    
+    def netuid2tempo(self, module=None, fmt='j', **kwargs) -> Dict[str, int]:
+        return self.query_map('Tempo', **kwargs)  
+    
+    def netuid2epochs(self, module=None, fmt='j', **kwargs) -> Dict[str, int]:
+        blocks_per_day = 24*60*60 / 8
+        return {k:blocks_per_day/v for k,v in self.query_map('Tempo', **kwargs).items()}
     def get_module(self, 
                     module,
                     netuid=0,

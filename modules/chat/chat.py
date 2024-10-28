@@ -50,7 +50,7 @@ class Chat(c.Module):
         return signature
     
 
-    def forward(self,  
+    def generate(self,  
             text = 'whats 2+2?' ,
             model= 'anthropic/claude-3.5-sonnet', 
             temperature= 0.5,
@@ -62,7 +62,7 @@ class Chat(c.Module):
         output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
             yield token
-    generate = forward
+    forward = generate
 
     def ask(self, *text, **kwargs): 
         return self.generate(' '.join(list(map(str, text))), **kwargs)
@@ -71,13 +71,12 @@ class Chat(c.Module):
         text = self.prompt + text
  
         if context != None:
-            context = c.resolve_path(context) 
-            if c.exists(context):
+            if c.exists(str(context)):
                 context =  str(c.file2text(context))
             elif c.module_exists(context):
                 context =  c.code(context)
             else:
-                raise Exception('Your context {context} is fucked g')
+                context = str(context)
             text = context + text
         
         return text
