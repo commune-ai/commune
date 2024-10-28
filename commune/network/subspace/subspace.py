@@ -1283,7 +1283,7 @@ class Subspace(c.Module):
         metadata: str | None = 'NA',
         wait_for_finalization = True,
         suffixes = ['miner', 'validator', 'vali'],
-        private = False,
+        public = False,
     ) -> ExtrinsicReceipt:
         """
         Registers a new module in the network.
@@ -1305,7 +1305,9 @@ class Subspace(c.Module):
                 subnet = name.split('.')[0]
                 break
         subnet = self.resolve_subnet(netuid or subnet)
-        if private:
+        if public:
+            c.print('WARNING: Your Module is Publically Accessible')
+        else:
             address = '0.0.0.0' +':'+ address.split(':')[-1]
         params = {
             "network_name": subnet,
@@ -1358,8 +1360,6 @@ class Subspace(c.Module):
             "name": name,
             "metadata": metadata,
         }
-
-
         response = self.compose_call("register_subnet", params=params, key=key)
         return response
 

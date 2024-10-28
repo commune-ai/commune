@@ -507,24 +507,12 @@ class c:
     def fn2route(cls):
         routes = cls.get_routes()
         fn2route = {}
+        tree = c.tree()
         for module, fns in routes.items():
+            is_module = bool( module in tree)
+            splitter = '/' if  is_module else '.'
             for fn in fns:
-                if isinstance(fn, dict):
-                    fn = fn['to']
-                elif isinstance(fn, list):
-                    fn = fn[1]
-                elif isinstance(fn, str):
-                    fn
-                else:
-                    raise ValueError(f'Invalid route {fn}')
-                fn2route[fn] = module
-        return fn2route
-            
-    @classmethod
-    def fn2routepath(cls):
-        fn2route = {}
-        for fn, module in cls.fn2route().items():
-            fn2route[fn] = module + ':' + fn
+                fn2route[fn] =  module + splitter + fn
         return fn2route
             
     @classmethod
@@ -1480,6 +1468,10 @@ class c:
             if c.object_exists(fn):
                 return c.obj(fn)
             elif hasattr(cls, fn):
+                fn2route = cls.fn2route() 
+                if fn in fn2route:
+                    return c.obj(fn2route[fn])
+
                 # step 3, if the function is routed
                 return getattr(cls, fn)
 
