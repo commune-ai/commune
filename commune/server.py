@@ -41,7 +41,7 @@ class Server(c.Module):
         allow_credentials=True, # allow credentials
         allow_methods=["*"], # allowed methods
         allow_headers=["*"],  # allowed headers
-        period = 60, # the period for 
+        period = 3600, # the period for 
         max_request_staleness = 4, # the time it takes for the request to be too old
         max_network_staleness = 60, # the time it takes for. the network to refresh
         users_path = None, # the path to store the data
@@ -100,6 +100,7 @@ class Server(c.Module):
         module.max_network_staleness = max_network_staleness
         module.max_request_staleness = max_request_staleness
         module.user_functions = user_functions
+
         for fn in module.user_functions:
             setattr(module, fn, getattr(self, fn))
         self.module = module
@@ -121,6 +122,31 @@ class Server(c.Module):
         c.register_server(name=module.name,address=module.address)
         uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
 
+
+    @classmethod
+    def serve(cls, 
+              module: Any = None,
+              kwargs:Optional[dict] = None,  # kwargs for the module
+              port :Optional[int] = None, # name of the server if None, it will be the module name
+              name = None, # name of the server if None, it will be the module name
+              remote:bool = True, # runs the server remotely (pm2, ray)
+              key = None,
+              **extra_kwargs
+              ):
+        module = module or 'module'
+        name = name or module
+        if cls.tag_seperator in name:
+            module, tag = name.split(cls.tag_seperator)
+        kwargs = {**(kwargs or {}), **extra_kwargs}
+        response =  { 'module':module, 'name': name, 'port': port, 'kwargs':kwargs } 
+        if remote:
+            remote_kwargs = c.locals2kwargs(locals()) 
+            [remote_kwargs.pop(_, None) for _ in ['extra_kwargs', 'response', 'namespace'] ]
+            remote_kwargs['remote'] = False
+            c.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            return response
+        return Server(module=module, name=name, port=port, key=key, kwargs=kwargs)
+    
     def __del__(self):
         c.deregister_server(self.name)
 
@@ -135,35 +161,7 @@ class Server(c.Module):
             c.print(future.result())
         return {'success':True, 'message':f'Served {n} servers', 'namespace': c.namespace()} 
 
-    @classmethod
-    def serve(cls, 
-              module: Any = None,
-              kwargs:Optional[dict] = None,  # kwargs for the module
-              port :Optional[int] = None, # name of the server if None, it will be the module name
-              name = None, # name of the server if None, it will be the module name
-              remote:bool = True, # runs the server remotely (pm2, ray)
-              key = None,
-              **extra_kwargs
-              ):
-        module = module or 'module'
-        name = name or module
-        kwargs = {**(kwargs or {}), **extra_kwargs}
-        if cls.tag_seperator in name:
-            module, tag = name.split(cls.tag_seperator)
-        response =  { 'module':module, 
-                     'name': name, 
-                     'port': port,
-                     'kwargs':kwargs } 
-        if remote:
-            remote_kwargs = c.locals2kwargs(locals())  # GET THE LOCAL KWARGS FOR SENDING TO THE REMOTE
-            for _ in ['extra_kwargs', 'address', 'response', 'namespace']:
-                remote_kwargs.pop(_, None) # WE INTRODUCED THE ADDRES
-            remote_kwargs['remote'] = False
-            c.remote_fn('serve', name=name, kwargs=remote_kwargs)
-            return response
-        
-        Server(module=module, name=name, port=port, key=key)
-    
+
     def remove_all_history(self):
         return c.rm(self.module.user_path)
     

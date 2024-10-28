@@ -119,3 +119,4 @@ Page 10: License
 Commune is licensed under MIT, but with a "Do What You Want" philosophy. The project encourages open-source usage without strict legal restrictions.
 
 This documentation provides a high-level overview of Commune. For more detailed information on specific features, please refer to the individual module documentation or the project's GitHub repository.
+

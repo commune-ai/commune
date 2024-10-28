@@ -490,14 +490,18 @@ class c:
             routes = getattr(cls, 'routes')
             if callable(routes):
                 routes = routes()
-        utils = c.utils()
-        for util in utils:
-            k = '.'.join(util.split('.')[:-1])
-            v = util.split('.')[-1]
-            routes[k] = routes.get(k , [])
-            routes[k].append(v)
-            # routes['.'.join(util.split('.')[:-1])] = util.split('.')[-1]
 
+
+        def add_utils():
+            utils = c.utils()
+            for util in utils:
+                k = '.'.join(util.split('.')[:-1])
+                v = util.split('.')[-1]
+                routes[k] = routes.get(k , [])
+                routes[k].append(v)
+            return routes
+
+        add_utils()
         cls.route_cache = routes
 
         return routes
@@ -2396,7 +2400,6 @@ class c:
     def help(self, *text, module=None, global_context=f'{rootpath}/docs', **kwargs):
         text = ' '.join(map(str, text))
         if global_context != None:
-            print(c.file2text(global_context))
             text = text + str(c.file2text(global_context))
         module = module or self.module_name()
         context = c.code(module)
@@ -2426,6 +2429,8 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True
+            
+    
 
 c.routes = c.get_routes()
 c.add_routes()
