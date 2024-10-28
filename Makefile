@@ -1,10 +1,10 @@
 SCRIPTS_PATH=./scripts
 build:
 	${SCRIPTS_PATH}/build.sh 
-start:
-	${SCRIPTS_PATH}/start.sh 
+run:
+	${SCRIPTS_PATH}/run.sh 
 stop:
-	${SCRIPTS_PATH}/start.sh 
+	${SCRIPTS_PATH}/stop.sh 
 enter:
 	${SCRIPTS_PATH}/enter.sh
 test:
@@ -12,6 +12,9 @@ test:
 chmod:
 	chmod +x ${SCRIPTS_PATH}/*
 up: 
-	make start
+	make run
 down:
 	make stop
+start:
+	make run
+

@@ -192,5 +192,5 @@
         "generate",
         "models"
     ],
-    "chat": ["ask" ]
+    "chat": ["ask"]
 }
