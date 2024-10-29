@@ -164,3 +164,6 @@ class Chat(c.Module):
 
     def models(self):
         return self.model.models()
+
+    def pricing(self, *args, **kwargs):
+        return self.model.pricing(*args,  **kwargs)

@@ -694,6 +694,7 @@ def file2text(path = './',
                                 '.git', 
                                 '.ipynb_checkpoints', 
                                 'package.lock',
+                                'egg-info',
                                 'Cargo.lock',
                                 'target/debug',
                                 'node_modules'],
@@ -703,7 +704,6 @@ def file2text(path = './',
     for file in get_glob(path, recursive=True):
         if os.path.isdir(file):
             continue
-        print(file, avoid_folders)
         if any([af in file for af in avoid_folders]):
             continue
         try:

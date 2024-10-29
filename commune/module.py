@@ -349,6 +349,10 @@ class c:
         if search != None:
             files = [f for f in files if search in files]
         return files
+
+    @classmethod
+    def num_files(cls, path='./',  **kwargs) -> List[str]: 
+        return len(cls.files(path))
     
     @classmethod
     def encrypt(cls,data: Union[str, bytes], password: str = None, key: str = None,  **kwargs ) -> bytes:

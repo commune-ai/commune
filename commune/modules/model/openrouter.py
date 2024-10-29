@@ -166,3 +166,7 @@ class OpenRouter(c.Module):
         models = [m for m in models if any([s in m['id'] for s in search])]
         return [m for m in models]
     
+
+    def pricing(self, search: str = None , **kwargs):
+        pricing =  [{'name': k , **v['pricing']} for k,v in self.model2info(search=search, **kwargs).items()]
+        return c.df(pricing).sort_values('completion', ascending=False)
