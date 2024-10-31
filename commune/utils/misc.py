@@ -1138,3 +1138,4 @@ def is_private_key(s: str) -> bool:
     pattern = r'^[0-9a-fA-F]{64}$'
     return bool(re.match(pattern, s))
 
+

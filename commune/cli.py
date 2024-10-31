@@ -43,21 +43,32 @@ class cli(c.Module):
         
         # any of the --flags are init kwargs
         fn = argv.pop(0)
-        if fn in dir(self.base_module):
-            fn_obj = getattr(self.base_module, fn)
-        else: 
-            fs = [fs for fs in self.fn_splitters if fs in fn]
-            assert len(fs) == 1, f'Function splitter not found in {fn}'
-            print(fn)
+        module = self.base_class
+        fs = [fs for fs in self.fn_splitters if fs in fn]
+        if len(fs) == 1: 
             module, fn = fn.split(fs[0])
-            if c.module_exists(module):
-                # module = c.shortcuts.get(module, module)
+            modules = c.modules()
+            module_options = []
+            for m in modules:
+                if module == m:
+                    module_options = [m]
+                    break
+                if module in m:
+                    module_options.append(m)
+            if len(module_options)>0:
+                module = module_options[0]
                 module = c.module(module)
-                fn_obj = getattr(module, fn)
-                if c.classify_fn(fn_obj) == 'self':
-                    fn_obj = getattr(module(**init_kwargs), fn)
             else:
                 raise AttributeError(f'Function {fn} not found in {module}')
+        if hasattr(module, 'fn2module') and not hasattr(module, fn):
+            c.print(f'FN2MODULE ACTIVATED :{fn}')
+            fn2module = module.fn2module()
+            module = c.module(fn2module[fn])
+
+
+        fn_obj = getattr(module, fn)
+        if c.classify_fn(fn_obj) == 'self':
+            fn_obj = getattr(module(**init_kwargs), fn)
         if callable(fn_obj):
             args, kwargs  = self.parse_args(argv)
             output = fn_obj(*args, **kwargs)
