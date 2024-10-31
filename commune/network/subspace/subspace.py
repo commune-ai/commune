@@ -2780,13 +2780,14 @@ class Subspace(c.Module):
             return results[netuid]
         return results
 
-    def global_params(self, max_age=None, update=False) -> NetworkParams:
+    def global_params(self, max_age=60, update=False) -> NetworkParams:
         """
         Returns global parameters of the whole commune ecosystem
         """
         path = f'{self.network}/global_params'
         result = self.get(path, None, max_age=max_age, update=update)
         if result == None:
+
             query_all = self.query_batch(
                 {
                     "SubspaceModule": [
@@ -2813,10 +2814,7 @@ class Subspace(c.Module):
             )
             
             
-            global_config = cast(
-                GovernanceConfiguration,
-                query_all["GlobalGovernanceConfig"]
-            )
+            global_config = cast(GovernanceConfiguration,query_all["GlobalGovernanceConfig"])
             result: NetworkParams = {
                 "max_allowed_subnets": int(query_all["MaxAllowedSubnets"]),
                 "max_allowed_modules": int(query_all["MaxAllowedModules"]),

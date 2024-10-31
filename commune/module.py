@@ -34,7 +34,7 @@ class c:
         'network.local': 'network',
         }
 
-    libname = lib_name = lib = __file__.split('/')[-3]# the name of the library
+    lib_name = libname  = lib = __file__.split('/')[-3]# the name of the library
     organization = org = orgname = 'commune-ai' # the organization
     git_host  = 'https://github.com'
     cost = 1
@@ -43,13 +43,14 @@ class c:
     giturl = f'{git_host}/{org}/{libname}.git' # tge gutg
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
-    default_ip = local_ip = loopback = '0.0.0.0'
-    address = '0.0.0.0:8888' # the address of the server (default)
-     # the path to the root of the library
+    default_ip = local_ip = loopback = '0.0.0.0'   
     src_path = source_path = rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1]) 
-    homepath = home_path = os.path.expanduser('~') # the home path
-    libpath = lib_path = os.path.dirname(root_path) # the path to the library
-    repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
+    home_path = homepath  = os.path.expanduser('~') # the home path
+    lib_path = libpath  = os.path.dirname(root_path) # the path to the library
+    repo_path = repopath  = os.path.dirname(root_path) # the path to the repo
+    modules_path = os.path.dirname(__file__) + '/modules'
+    tests_path = f'{root_path}/tests'
+
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
@@ -308,7 +309,7 @@ class c:
     
     @classmethod
     def pytest(cls, *args, **kwargs):
-        return c.cmd(f'pytest {c.libpath}/tests',  stream=1, *args, **kwargs)
+        return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
     
     @classmethod
     def argv(cls, include_script:bool = False):
@@ -1060,8 +1061,7 @@ class c:
             else:
                 content = content_bytes.decode()
         return content
-
-
+    
     def is_encrypted(self, path:str) -> bool:
         try:
             return self.get_json(path).get('encrypted', False)
@@ -1071,12 +1071,7 @@ class c:
     @classmethod
     def storage_dir(cls):
         return f'{c.storage_path}/{cls.module_name()}'
-    
-    tmp_dir = cache_dir   = storage_dir
 
-    def is_dir_empty(self, path:str):
-        return len(self.ls(path)) == 0
-    
     @staticmethod
     def sleep(period):
         time.sleep(period) 
@@ -1234,63 +1229,6 @@ class c:
         """
         code = cls.code(*args, **kwargs)
         return c.hash(code)
-    
-    @classmethod
-    def find_code_line(cls, search:str, code:str = None):
-        if code == None:
-            code = cls.code() # get the code
-        found_lines = [] # list of found lines
-        for i, line in enumerate(code.split('\n')):
-            if search in line:
-                found_lines.append({'idx': i+1, 'text': line})
-        if len(found_lines) == 0:
-            return None
-        elif len(found_lines) == 1:
-            return found_lines[0]['idx']
-        return found_lines
- 
-    @classmethod
-    def fn_info(cls, fn:str='test_fn') -> dict:
-        r = {}
-        code = cls.fn_code(fn)
-        lines = code.split('\n')
-        mode = 'self'
-        if '@classmethod' in lines[0]:
-            mode = 'class'
-        elif '@staticmethod' in lines[0]:
-            mode = 'static'
-        module_code = cls.code()
-        in_fn = False
-        start_line = 0
-        end_line = 0
-        fn_code_lines = []
-        for i, line in enumerate(module_code.split('\n')):
-            if f'def {fn}('.replace(' ', '') in line.replace(' ', ''):
-                in_fn = True
-                start_line = i + 1
-            if in_fn:
-                fn_code_lines.append(line)
-                if ('def ' in line or '' == line) and len(fn_code_lines) > 1:
-                    end_line = i - 1
-                    break
-
-        if not in_fn:
-            end_line = start_line + len(fn_code_lines)   # find the endline
-
-        for i, line in enumerate(lines):
-            is_end = bool(')' in line and ':' in line)
-            if is_end:
-                start_code_line = i
-                break 
-        return {
-            'start_line': start_line,
-            'end_line': end_line,
-            'code': code,
-            'n_lines': len(lines),
-            'hash': cls.hash(code),
-            'start_code_line': start_code_line + start_line ,
-            'mode': mode
-        }
 
     @classmethod
     def fn_defaults(cls, fn):
@@ -1313,25 +1251,7 @@ class c:
         '''
         return type(obj).__name__ == 'type'
 
-    @classmethod
-    def resolve_class(cls, obj):
-        '''
-        resolve class of object or return class if it is a class
-        '''
-        if cls.is_class(obj):
-            return obj
-        else:
-            return obj.__class__
 
-    @classmethod
-    def has_var_keyword(cls, fn='__init__', fn_signature=None):
-        if fn_signature == None:
-            fn_signature = cls.resolve_fn(fn)
-        for param_info in fn_signature.values():
-            if param_info.kind._name_ == 'VAR_KEYWORD':
-                return True
-        return False
-    
     @classmethod
     def fn_signature(cls, fn) -> dict: 
         '''
@@ -1342,16 +1262,6 @@ class c:
         return dict(inspect.signature(fn)._parameters)
     
     function_signature = fn_signature
-    @classmethod
-    def is_arg_key_valid(cls, key='config', fn='__init__'):
-        fn_signature = cls.function_signature(fn)
-        if key in fn_signature: 
-            return True
-        else:
-            for param_info in fn_signature.values():
-                if param_info.kind._name_ == 'VAR_KEYWORD':
-                    return True
-        return False
 
     @classmethod
     def class_functions(cls: Union[str, type], obj=None):
@@ -1390,8 +1300,8 @@ class c:
                       obj: Any = None,
                       search = None,
                       splitter_options = ["   def " , "    def "] ,
-                      include_parents:bool=True, 
-                      include_hidden:bool = False) -> List[str]:
+                      include_hidden = False,
+                      **kwargs) -> List[str]:
         '''
         Get a list of functions in a class
         
@@ -1416,6 +1326,8 @@ class c:
         functions = sorted(list(set(functions)))
         if search != None:
             functions = [f for f in functions if search in f]
+        if not include_hidden: 
+            functions = [f for f in functions if not f.startswith('__') or not f.startswith('_')]
         return functions
     
     @classmethod
@@ -1562,52 +1474,8 @@ class c:
 
         return 'static'
         
-    @classmethod
-    def python2types(cls, d:dict)-> dict:
-        return {k:str(type(v)).split("'")[1] for k,v in d.items()}
-    @classmethod
-    def fn2hash(cls, fn=None , mode='sha256', **kwargs):
-        fn2hash = {}
-        for k,v in cls.fn2code(**kwargs).items():
-            fn2hash[k] = c.hash(v,mode=mode)
-        if fn:
-            return fn2hash[fn]
-        return fn2hash
-    # TAG CITY     
-    @classmethod
-    def parent_functions(cls, obj = None, include_root = True):
-        functions = []
-        obj = obj or cls
-        parents = cls.get_parents(obj)
-        for parent in parents:
-            is_parent_root = cls.is_root_module(parent)
-            if is_parent_root:
-                continue
-            
-            for name, member in parent.__dict__.items():
-                if not name.startswith('__'):
-                    functions.append(name)
-        return functions
-
-    @classmethod
-    def child_functions(cls, obj=None):
-        obj = cls.resolve_object(obj)
-        methods = []
-        for name, member in obj.__dict__.items():
-            if inspect.isfunction(member) and not name.startswith('__'):
-                methods.append(name)
-        return methods
-
     def num_fns(self):
         return len(self.fns())
-
-    def fn2type(self):
-        fn2type = {}
-        fns = self.fns()
-        for f in fns:
-            if callable(getattr(self, f)):
-                fn2type[f] = self.classify_fn(getattr(self, f))
-        return fn2type
     
     @classmethod
     def is_dir_module(cls, path:str) -> bool:
@@ -1681,8 +1549,6 @@ class c:
         Parameters:
             path (str): The module path
         """
-        # if cls.libname in simple and '/' not in simple and cls.can_import_module(simple):
-        #     return simple
         shortcuts = c.shortcuts
         simple = shortcuts.get(simple, simple)
 
@@ -1900,21 +1766,6 @@ class c:
         return fns
     
     @classmethod
-    def find_async_functions(cls, path):
-        if os.path.isdir(path):
-            path2classes = {}
-            for p in cls.glob(path+'/**/**.py', recursive=True):
-                path2classes[p] = cls.find_functions(p)
-            return path2classes
-        code = cls.get_text(path)
-        fns = []
-        for line in code.split('\n'):
-            if line.startswith('async def '):
-                fn = line.split('def ')[-1].split('(')[0].strip()
-                fns += [fn]
-        return [c for c in fns]
-    
-    @classmethod
     def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
         classes = cls.find_classes(path,depth=depth)
         functions = cls.find_functions(path)
@@ -1945,31 +1796,7 @@ class c:
         from importlib import import_module
         c.ensure_sys_path()
         return import_module(import_path)
-
     
-    @classmethod
-    def can_import_module(cls, module:str) -> bool:
-        '''
-        Returns true if the module is valid
-        '''
-        try:
-            cls.import_module(module)
-            return True
-        except:
-            return False
-        
-    @classmethod
-    def can_import_object(cls, module:str) -> bool:
-        '''
-        Returns true if the module is valid
-        '''
-        try:
-            cls.import_object(module)
-            return True
-        except:
-            return False
-
-
     @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
@@ -2194,16 +2021,6 @@ class c:
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
     add_module = new_module
-
-    @classmethod
-    def has_local_module(cls, path=None):
-        import commune as c 
-        path = '.' if path == None else path
-        if os.path.exists(f'{path}/module.py'):
-            text = c.get_text(f'{path}/module.py')
-            if 'class ' in text:
-                return True
-        return False
     
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
@@ -2425,13 +2242,37 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True
-            
-
-
-
-            
-            
     
+
+
+    
+    @classmethod
+    def my_modules(cls, path=None):
+        path = path or cls.dirpath()
+        return c.get_tree(path)
+    
+    @classmethod
+    def module2fns(cls, path=None):
+        path = path or cls.dirpath()
+        tree = c.get_tree(path)
+        module2fns = {}
+        for m,m_path in tree.items():
+            if '.modules.' in m_path:
+                continue
+            try:
+                module2fns[m] = c.module(m).fns()
+            except Exception as e:
+                print(f'Error in module2fns {m}', e)
+        return module2fns
+    
+    @classmethod
+    def fn2module(cls, path=None):
+        module2fns = cls.module2fns(path)
+        fn2module = {}
+        for m in module2fns:
+            for f in module2fns[m]:
+                fn2module[f] = m
+        return fn2module
 
 c.routes = c.get_routes()
 c.add_routes()
