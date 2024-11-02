@@ -47,9 +47,11 @@ class cli(c.Module):
         fs = [fs for fs in self.fn_splitters if fs in fn]
         if len(fs) == 1: 
             module, fn = fn.split(fs[0])
+            module = c.shortcuts.get(module, module)
             modules = c.modules()
             module_options = []
             for m in modules:
+
                 if module == m:
                     module_options = [m]
                     break
@@ -63,6 +65,9 @@ class cli(c.Module):
         if hasattr(module, 'fn2module') and not hasattr(module, fn):
             c.print(f'FN2MODULE ACTIVATED :{fn}')
             fn2module = module.fn2module()
+            if not fn in fn2module:
+                functions = c.get_functions(module)
+                return c.print(f'Function {fn} not found in {module}. Available functions are {functions}')
             module = c.module(fn2module[fn])
 
 

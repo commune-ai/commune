@@ -1321,13 +1321,15 @@ class c:
                 if f'"{splitter}"' in line:
                     continue
                 if line.startswith(splitter):
-                    functions += [line.split(splitter)[1].split('(')[0]]
+                    functions += [line.split(splitter)[1].split('(')[0].strip()]
 
         functions = sorted(list(set(functions)))
+        
         if search != None:
             functions = [f for f in functions if search in f]
         if not include_hidden: 
-            functions = [f for f in functions if not f.startswith('__') or not f.startswith('_')]
+            functions = [f for f in functions if not f.startswith('__') and not f.startswith('_')]
+        
         return functions
     
     @classmethod

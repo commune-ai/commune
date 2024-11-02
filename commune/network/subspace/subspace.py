@@ -2015,15 +2015,6 @@ class Subspace(c.Module):
         return state
     sync = state
 
-    def sync_loop(self, interval=30, max_futures=10):
-        futures = []
-        while True:
-            sleep(interval)
-            futures += [c.submit(self.sync)]
-            if len(futures) > max_futures:
-                c.wait(futures)
-        return futures
-        
     def subnet_emission(self, extract_value: bool = False) -> dict[int, int]:
         """
         Retrieves a map of subnet emissions for the network.
@@ -2678,10 +2669,10 @@ class Subspace(c.Module):
         return value / (10 ** 9)
     to_j = to_joules
         
-
     def resolve_key_address(self, key:str ):
         if key == None:
             key = 'module'
+
         if self.valid_h160_address(key) or self.valid_ss58_address(key):
             return key
         else:

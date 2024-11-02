@@ -442,10 +442,7 @@ class Key(c.Module):
             obj['crypto_type'] = crypto_type
         return  cls(**obj)
     
-    @classmethod
-    def valid_h160_address(cls, address: str) -> bool:
-        return re.match(r"^[0-9a-fA-F]{40}$", address) is not None
-    
+
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
         """
@@ -1196,6 +1193,25 @@ class Key(c.Module):
         else:
             address = key
         return address
+    
+    @classmethod
+    def valid_h160_address(cls, address):
+        # Check if it starts with '0x'
+        if not address.startswith('0x'):
+            return False
+        
+        # Remove '0x' prefix
+        address = address[2:]
+        
+        # Check length
+        if len(address) != 40:
+            return False
+        
+        # Check if it contains only valid hex characters
+        if not re.match('^[0-9a-fA-F]{40}$', address):
+            return False
+        
+        return True
 
 # if __name__ == "__main__":      
 #     Key.run()
