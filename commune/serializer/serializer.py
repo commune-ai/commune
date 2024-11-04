@@ -3,23 +3,21 @@ import json
 
 class Serializer(c.Module):
 
-    list_types = [list, set, tuple] # shit that you can turn into lists for json
-    iterable_types = [list, set, tuple, dict] # 
     json_serializable_types = [int, float, str, bool, type(None)]
 
     def serialize(self,x:dict, mode = 'dict', copy_value = True):
         if copy_value:
             x = c.copy(x)
-        if type(x) in self.iterable_types:
+        if type(x) in [list, set, tuple, dict]:
             k_list = []
             if isinstance(x, dict):
                 k_list = list(x.keys())
             else:
-                assert type(x) in self.list_types, f'{type(x)} not supported'
+                assert type(x) in [list, set, tuple], f'{type(x)} not supported'
                 k_list = list(range(len(x)))
                 x = list(x) 
             for k in k_list:
-                x[k] = self.serialize(x[k],mode=None)
+                x[k] = self.serialize(x[k])
             return x
                 
         if type(x) in self.json_serializable_types:
@@ -30,7 +28,7 @@ class Serializer(c.Module):
             result = {'data':  serializer.serialize(x), 
                             'data_type': serializer.date_type,  
                             'serialized': True}
-        return self.process_output(result, mode=mode)
+        return result
 
     def get_data_type_string(self, x):
         # GET THE TYPE OF THE VALUE
@@ -46,24 +44,7 @@ class Serializer(c.Module):
 
         return data_type
 
-    def process_output(self, result, mode = 'str'):
-        """
-        process the output
-        
-        """
-        if mode == 'str':
-            if isinstance(result, dict):
-                result = json.dumps(result)
-        elif mode == 'bytes':
-            if isinstance(result, dict):
-                result = self.dict2bytes(result)    
-            elif isinstance(result, str):
-                result = self.str2bytes(result)
-        elif mode in ['dict' , 'nothing', None]:
-            pass
-        else:
-            raise Exception(f'{mode} not supported')
-        return result
+ 
     
     def is_serialized(self, data):
         if isinstance(data, dict) and data.get('serialized', False) and \

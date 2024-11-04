@@ -23,9 +23,5 @@ def test():
         ser_data = self.serialize(data)
         des_data = self.deserialize(ser_data)
         des_ser_data = self.serialize(des_data)
-        t2 = time.time()
-
-        latency = t2 - t1
-        emoji = '✅' if str(des_ser_data) == str(ser_data) else '❌'
-        print(type(data),emoji)
+        assert str(des_ser_data) == str(ser_data) 
     return {'msg': 'PASSED test_serialize_deserialize'}

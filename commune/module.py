@@ -18,7 +18,6 @@ class c:
 
     endpoints = ['ask', 'generate', 'forward']
 
-    core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
 
     # these are shortcuts for the module finder c.module('openai') --> c.module('modle.openai') 
     # if openai : model.openai
@@ -33,7 +32,6 @@ class c:
         'local': 'network',
         'network.local': 'network',
         }
-
     lib_name = libname  = lib = __file__.split('/')[-3]# the name of the library
     organization = org = orgname = 'commune-ai' # the organization
     git_host  = 'https://github.com'
@@ -50,15 +48,81 @@ class c:
     repo_path = repopath  = os.path.dirname(root_path) # the path to the repo
     modules_path = os.path.dirname(__file__) + '/modules'
     tests_path = f'{root_path}/tests'
-
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
     storage_path = os.path.expanduser(f'~/.{libname}')
     default_tag = 'base'
 
-    def __init__(self, *args, **kwargs):
-        pass
+
+
+
+    core_features = [
+                    'module_name', 
+                    'module_class', 
+                    'resolve_object', 
+                    'filepath', 
+                    'dirpath',
+                    'code',
+                    'schema', 
+                    'functions', 
+                    'fn2code',
+                    'key',
+                    ]
+    
+            
+            
+    @classmethod
+    def module(cls, path:str = 'module',  
+               cache=True,
+               verbose = False, 
+               tree = None,
+               trials=1, **_kwargs ) -> str:
+        
+        og_path = path
+        path = path or 'module'
+        t0 = time.time()
+        og_path = path
+        if path in c.module_cache and cache:
+            module = c.module_cache[path]
+        else:
+            if path in ['module', 'c']:
+                module =  c
+            else:
+
+                tree = tree or c.tree()
+                path = c.shortcuts.get(path, path)
+                path = tree.get(path, path)
+                try:
+                    module = c.import_object(path)
+                except Exception as e:
+                    tree = c.tree(max_age=4)
+                    if trials == 0:
+                        raise ValueError(f'Error in module {og_path} {e}')
+                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
+
+            if cache:
+                c.module_cache[path] = module    
+        latency = c.round(time.time() - t0, 3)
+        # if 
+        if not hasattr(module, 'module_name'):
+
+            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
+            module.module_class = lambda *args, **kwargs : c.module_class(module)
+            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
+            module.filepath = lambda *args, **kwargs : c.filepath(module)
+            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
+            module.code = lambda *args, **kwargs : c.code(module)
+            module.schema = lambda *args, **kwargs : c.schema(module)
+            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
+            module.params = lambda *args, **kwargs : c.params(module)
+            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
+            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
+            
+        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
+        return module
+
+    get_module = module
     
 
     @classmethod
@@ -90,14 +154,6 @@ class c:
         
         return c.cmd(f'code {path}')
 
-    @classmethod
-    def get_module_name(cls, obj=None):
-        obj = cls.resolve_object(obj)
-        if hasattr(obj, 'module_name'):
-            return obj.module_name
-        else:
-            return cls.__name__
-    
     path  = name = module_name 
     
     @classmethod
@@ -173,7 +229,6 @@ class c:
     
     @classmethod
     def is_root(cls, obj=None) -> bool:
-        required_features = c.core_features
         obj = obj or cls
         return bool(c.is_module(obj) and obj.module_class() == cls.root_module_class)
 
@@ -1404,10 +1459,8 @@ class c:
                 fn2route = cls.fn2route() 
                 if fn in fn2route:
                     return c.obj(fn2route[fn])
-
                 # step 3, if the function is routed
                 return getattr(cls, fn)
-
             for splitter in splitters:
                 if splitter in fn:
                     module_name= splitter.join(fn.split(splitter)[:-1])
@@ -1417,7 +1470,8 @@ class c:
                         return getattr(module, fn_name)
         if callable(fn):
             return fn
-        raise ValueError(f'{fn} is not a function')
+        else: 
+            return fn
         
     @classmethod
     def self_functions(cls, search = None):
@@ -1890,69 +1944,20 @@ class c:
         return c.get_tree(c.pwd(), depth=depth, **kwargs)
     
     @classmethod
-    def get_tree(cls, path, depth = 10, max_age=60, update=False, **kwargs):
-        tree_cache_path = 'tree/'+os.path.abspath(path).replace('/', '_')
-        tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
+    def get_tree(cls, path, depth = 10, max_age=60, update=False, search=None, **kwargs):
+        tree_hash = c.hash(os.path.abspath(path))
+        tree_path = c.resolve_path('tree/'+tree_hash)
+        tree = c.get(tree_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print(f'BUIDLING TREE --> {path}', color='green')
             class_paths = cls.find_classes(path, depth=depth)
             simple_paths = [cls.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
-            c.put(tree_cache_path, tree)
+            c.print(f"TREE({path.replace(os.path.abspath('~'), '~/')} n={len(tree)})", color='green')
+            c.put(tree_path, tree)
+        if search != None:
+            tree = {k:v for k,v in tree.items() if search in k}
         return tree
 
-    @classmethod
-    def module(cls, path:str = 'module',  
-               cache=True,
-               verbose = False, 
-               tree = None,
-               trials=1, **_kwargs ) -> str:
-        
-        og_path = path
-        path = path or 'module'
-        t0 = time.time()
-        og_path = path
-        if path in c.module_cache and cache:
-            module = c.module_cache[path]
-        else:
-            if path in ['module', 'c']:
-                module =  c
-            else:
-
-                tree = tree or c.tree()
-                path = c.shortcuts.get(path, path)
-                path = tree.get(path, path)
-                try:
-                    module = c.import_object(path)
-                except Exception as e:
-                    tree = c.tree(update=1)
-                    if trials == 0:
-                        raise ValueError(f'Error in module {og_path} {e}')
-                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
-
-            if cache:
-                c.module_cache[path] = module    
-        latency = c.round(time.time() - t0, 3)
-        # if 
-        if not hasattr(module, 'module_name'):
-            
-            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
-            module.module_class = lambda *args, **kwargs : c.module_class(module)
-            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
-            module.filepath = lambda *args, **kwargs : c.filepath(module)
-            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
-            module.code = lambda *args, **kwargs : c.code(module)
-            module.schema = lambda *args, **kwargs : c.schema(module)
-            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
-            module.params = lambda *args, **kwargs : c.params(module)
-            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
-            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-            
-        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
-        return module
-
-    get_module = module
-    
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):

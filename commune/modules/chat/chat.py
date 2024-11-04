@@ -79,10 +79,6 @@ class Chat(c.Module):
             text = context + text
         
         return text
-
-    def save_data(self, data):
-        path = self.data2path(data)
-        return c.put(path, data)
     
     def summarize(self, path='./', max_chars=10000): 
         if c.module_exists(path):

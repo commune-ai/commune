@@ -42,26 +42,15 @@ class cli(c.Module):
                         init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
+        if len(argv) == 0:
+            argv = ['vs']
         fn = argv.pop(0)
         module = self.base_class
         fs = [fs for fs in self.fn_splitters if fs in fn]
         if len(fs) == 1: 
             module, fn = fn.split(fs[0])
-            module = c.shortcuts.get(module, module)
-            modules = c.modules()
-            module_options = []
-            for m in modules:
-
-                if module == m:
-                    module_options = [m]
-                    break
-                if module in m:
-                    module_options.append(m)
-            if len(module_options)>0:
-                module = module_options[0]
-                module = c.module(module)
-            else:
-                raise AttributeError(f'Function {fn} not found in {module}')
+            module = c.module(module)
+            
         if hasattr(module, 'fn2module') and not hasattr(module, fn):
             c.print(f'FN2MODULE ACTIVATED :{fn}')
             fn2module = module.fn2module()

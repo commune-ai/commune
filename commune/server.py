@@ -144,7 +144,9 @@ class Server(c.Module):
             [remote_kwargs.pop(_, None) for _ in ['extra_kwargs', 'response', 'namespace'] ]
             remote_kwargs['remote'] = False
             c.remote_fn('serve', name=name, kwargs=remote_kwargs)
+            c.wait_for_server(name)
             return response
+        
         return Server(module=module, name=name, port=port, key=key, kwargs=kwargs)
     
     def __del__(self):
@@ -153,9 +155,9 @@ class Server(c.Module):
     @classmethod
     def fleet(cls, module, n:int = 1, **kwargs):
         futures = []
-        for _ in range(n):
-
-            future = c.submit(c.serve, dict(module=module, name = module + '::' + str(_),  **kwargs))
+        for i in range(n):
+            params = dict(module=module, name = module + '::' + str(i),  **kwargs)
+            future = c.submit(c.serve, params)
             futures.append(future)
         for future in c.as_completed(futures):
             c.print(future.result())
