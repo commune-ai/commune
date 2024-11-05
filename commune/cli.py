@@ -71,20 +71,12 @@ class cli(c.Module):
         buffer = '⚡️'*4
         c.print(buffer+fn+buffer, color='yellow')
         latency = time.time() - t0
-        is_error =  c.is_error(output)
-        if is_error:
-            msg =  f'❌Error({latency:.3f}sec)❌' 
-        else:
-            msg = f'✅Result({latency:.3f}s)✅'
+        msg =  f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅'
         c.print(msg)
-        is_generator = c.is_generator(output)
-        if is_generator:
-            # print the items side by side instead of vertically
+        if c.is_generator(output):
             for item in output:
-                if isinstance(item, dict):
-                    c.print(item)
-                else:
-                    c.print(item, end='')
+                end = ' ' if isinstance(item, dict) else ''
+                c.print(item, end=end)
         else:
             c.print(output)
         return output

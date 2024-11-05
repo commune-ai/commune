@@ -9,13 +9,20 @@ c {module_name}/{function_name} *args **kwargs
 c module/ls ./
 ```
 
+
+Enter a repo via vscode 
+
+c vs ./ is hte same as code ./
+
+
+
 if you specifiy a root function in module, then you can call the module directly. 
 ```bash
 c {function_name} *args **kwargs
 ```
 
 ```bash
-To get the code of the module
+To get the code funciton of the module
 
 c {module_name}/code
 ```bash
@@ -23,6 +30,11 @@ c module/code
 ```
 or you can call the code function on the root module
 ```bash
+
+
+If you are uncertain of the funciton, you can get the code by doing the following
+
+c module/code --code -> gets the code of the code 
 
 ## Pythonic 
 You do not need to specify the module when calling the root (name=module) module.

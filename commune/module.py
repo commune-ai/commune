@@ -13,6 +13,7 @@ import nest_asyncio
 import asyncio
 nest_asyncio.apply()
 
+
 class c:
     splitters = [':', '/', '.']
 
@@ -73,23 +74,22 @@ class c:
             
             
     @classmethod
-    def module(cls, path:str = 'module',  
+    def module(cls, 
+               path = 'module',  
                cache=True,
                verbose = False, 
                tree = None,
-               trials=1, **_kwargs ) -> str:
-        
-        og_path = path
-        path = path or 'module'
+               trials=1, 
+               **_kwargs ) -> str:
         t0 = time.time()
         og_path = path
+        path = path or 'module'
         if path in c.module_cache and cache:
             module = c.module_cache[path]
         else:
             if path in ['module', 'c']:
                 module =  c
             else:
-
                 tree = tree or c.tree()
                 path = c.shortcuts.get(path, path)
                 path = tree.get(path, path)
@@ -100,13 +100,18 @@ class c:
                     if trials == 0:
                         raise ValueError(f'Error in module {og_path} {e}')
                     return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
-
             if cache:
                 c.module_cache[path] = module    
         latency = c.round(time.time() - t0, 3)
-        # if 
-        if not hasattr(module, 'module_name'):
+        module  = c.resolve_module_properties(module)
+        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
+        return module
 
+    get_module = module
+
+    @staticmethod
+    def resolve_module_properties(module):
+        if not hasattr(module, 'module_name'):
             module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
             module.module_class = lambda *args, **kwargs : c.module_class(module)
             module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
@@ -118,11 +123,7 @@ class c:
             module.params = lambda *args, **kwargs : c.params(module)
             module.key = c.get_key(module.module_name(), create_if_not_exists=True)
             module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-            
-        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
-
-    get_module = module
     
 
     @classmethod
