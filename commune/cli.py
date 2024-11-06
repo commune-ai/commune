@@ -11,7 +11,12 @@ class cli(c.Module):
                 argv = None,
                 base = 'module',
                 fn_splitters = [':', '/', '//', '::'],
-                helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'],
+                helper_fns = ['code', 
+                              'schema', 
+                              'fn_schema', 
+                              'help', 
+                              'fn_info', 
+                              'fn_hash'],
                 sep = '--'
                 ):
         
@@ -34,9 +39,9 @@ class cli(c.Module):
                 if arg.startswith(self.sep):
                     key = arg[len(self.sep):].split('=')[0]
                     if key in self.helper_fns:
+                        # is it a helper function
                         return self.forward([key , argv[0]])
                     else:
-                    
                         value = arg.split('=')[-1] if '=' in arg else True
                         argv.remove(arg)
                         init_kwargs[key] = self.determine_type(value)
@@ -67,7 +72,7 @@ class cli(c.Module):
             fn2module = module.fn2module()
             if not fn in fn2module:
                 functions = c.get_functions(module)
-                return c.print(f'Function {fn} not found in {module}. Available functions are {functions}')
+                return c.print(f'FN({fn}) not found {module}', color='red')
             module = c.module(fn2module[fn])
 
 

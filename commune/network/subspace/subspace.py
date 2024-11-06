@@ -1429,23 +1429,21 @@ class Subspace(c.Module):
             ChainTransactionError: If the transaction fails.
         """
         netuid = self.resolve_netuid(subnet)
-        subnet_params = self.subnet_params(netuid=netuid)
+        subnet_params = self.subnet_params(netuid=netuid, update=True)
+        # get subnet_key
         address2key = c.address2key()
         assert subnet_params['founder'] in address2key, f'No key found for {subnet_params["founder"]}'
         key = c.get_key(address2key[subnet_params['founder']])
-        params = params or {}
-        params.update(extra_params)
+        params = {**(params or {}), **extra_params} 
         if 'founder' in params:
             params['founder'] = self.resolve_key_address(params['founder'])
+
         params = {**subnet_params, **params}
         assert any([k in subnet_params for k in params.keys()]), f'Invalid params {params.keys()}'
         params["netuid"] = netuid
-        governance_config = params.pop('governance_configuration', None)
-        params['vote_mode'] = governance_config['vote_mode']
+        params['vote_mode'] = params.pop('governance_configuration')['vote_mode']
         params["metadata"] = params.pop("metadata", None)
-        response = self.compose_call(fn="update_subnet",params=params,key=key)
-        return response
-
+        return self.compose_call(fn="update_subnet",params=params,key=key)
 
     def metadata(self) -> str:
         netuids = self.netuids()
@@ -2719,6 +2717,7 @@ class Subspace(c.Module):
                         ("MaxAllowedValidators", params),
                         ("ModuleBurnConfig", params),
                         ("SubnetMetadata", params),
+                        ("TrustRatio", params)
                     ],
                     "GovernanceModule": [
                         ("SubnetGovernanceConfig", params),
@@ -2749,6 +2748,7 @@ class Subspace(c.Module):
                 "min_validator_stake": bulk_query.get("MinValidatorStake", {}),
                 "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
                 "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
+                'trust_ratio': bulk_query.get("TrustRatio", {}),
                 "metadata": bulk_query.get("SubnetMetadata", {}),
             }
 
@@ -2833,6 +2833,8 @@ class Subspace(c.Module):
             }
             self.put(path, result)
         return result
+
+    params = subnet_params
 
     def clean_feature_name(self, x):
         new_x = ''
