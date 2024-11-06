@@ -221,8 +221,13 @@ class Network(c.Module):
     def infos(self, timeout=10):
         return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
 
-    def keys(self, timeout=10):
-        return c.wait([c.submit(c.call, [s + '/key_address']) for s in c.servers()], timeout=timeout)
+    def keys(self, max_age=60, update=False,  timeout=10):
+        path = 'network_keys'
+        keys  = c.get(path, max_age=max_age, update=update)
+        if keys == None:
+            keys =  c.wait([c.submit(c.call, [s + '/key_address']) for s in c.servers()], timeout=timeout)
+            c.put(path, keys)
+        return keys
     def infos(self, timeout=10):
         return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
 

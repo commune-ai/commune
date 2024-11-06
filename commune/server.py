@@ -93,7 +93,7 @@ class Server(c.Module):
         module.key_address = module.key.ss58_address
         module.fn2cost = fn2cost or {}
         module.schema = self.get_schema(module)
-        module.functions  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
+        module.functions = module.fns  = module.server_functions = functions or list(set(helper_functions + list(module.schema.keys())))
         module.info  =  module.server_info =  self.get_info(module)
         module.network_path = self.resolve_path(f'{self.network}/state.json')
         module.users_path = users_path or self.resolve_path(f'{name}/users')
@@ -707,9 +707,6 @@ class Server(c.Module):
         for line in output_string.split('\n')[3:]:
             if  line.count('│') > 2:
                 name = line.split('│')[2].strip()
-                if 'errored' in line:
-                    self.kill(name, verbose=True)
-                    continue
                 module_list += [name]
         if search != None:
             module_list = [m for m in module_list if search in m]

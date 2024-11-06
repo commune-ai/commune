@@ -5,10 +5,10 @@ import pandas as pd
 from typing import *
 
 class Vali(c.Module):
-    whitelist = ['eval_module', 'score', 'eval', 'leaderboard']
+    endpoints = ['eval_module', 'score', 'eval', 'leaderboard']
     voting_networks = ['bittensor', 'commune', 'subspace']
     networks = ['local'] + voting_networks
-
+    subnet_splitters = ['.', '/', ':']
 
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
@@ -17,18 +17,15 @@ class Vali(c.Module):
                     verbose=  True, # the verbose mode for the worker # EPOCH
                     batch_size= 16,
                     max_workers=  None ,
-                    info_function = 'info', # the function to get the info of the module
-                    info_timeout =  2, # the timeout for the info function
                     score = None, # score function
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
                     min_score=  0, # the minimum weight of the leaderboard
-                    tempo =  10, # the interval for the run loop to run
                     run_loop= True, # This is the key that we need to change to false
                     test= False, # the test mode for the validator
                     module = None,
+                    info_fn = 'info', 
                     max_age= 120, # the maximum age of the network
-                    max_sample_age= 120, # the maximum age of the sample
                     timeout= 2, # timeout per evaluation of the module
                     update=False,
                     key = None,
@@ -49,16 +46,11 @@ class Vali(c.Module):
         return 'name' in module.info()
 
     def set_score(self, score: Union[Callable, str] ):
-        """
-        Set the score function for the validator
-        """
-        if score == None:
-            score = self.score
-        elif isinstance(score, str):
+        score = score or  self.score
+        if isinstance(score, str):
             if hasattr(self, score):
                 score = getattr(self, score)
             else:
-                assert c.object_exists(score), f'{score} does not exist'
                 score = c.obj(score)
         assert callable(score), f'{score} is not callable'
         setattr(self, 'score', score )
@@ -67,23 +59,13 @@ class Vali(c.Module):
     @property
     def is_voting_network(self):
         return any([v in self.config.network for v in self.voting_networks])
-
-
+    
     def run_loop(self):
-        """
-        The run loop is a backgroun loop that runs to do two checks
-        - network: check the staleness of the network to resync it 
-        - workers: check the staleness of the last success to restart the workers 
-        - voting: check the staleness of the last vote to vote (if it is a voting network)
-        """
-        # start the workers
-
         while True:
             from tqdm import tqdm
-            print('RUNNING LOOP')
             time_to_wait = int(max(0,self.epoch_start_time - c.time() + self.config.tempo))
             desc = f'Waiting Next Epoch ({self.epochs}) with Tempo {self.config.tempo}'
-            print(f'WAITING FOR {time_to_wait} SECONDS')
+            print(f'Time Until Next Epoch --> {time_to_wait}')
             [ c.sleep(1) for _ in tqdm(range(time_to_wait), desc=desc)]
             try:
                 self.epoch()
@@ -118,10 +100,6 @@ class Vali(c.Module):
 
     epoch2results = {}
 
-    @classmethod
-    def run_epoch(cls, run_loop=False, **kwargs):
-        return  cls( run_loop=run_loop, **kwargs).epoch(df=1)
-
     def epoch(self, network=None,  df=True, **kwargs):
         futures = []
         self.epoch_start_time = c.time()
@@ -152,77 +130,70 @@ class Vali(c.Module):
         The staleness of the network
         """
         return c.time() - self.network_time
+    
 
-    def filter_module(self, module:str, search=None):
-        search = search or self.config.search
+    def filter_module(self, module:str):
+        search = self.config.search
         if ',' in str(search):
             search_list = search.split(',')
         else:
             search_list = [search]
         return all([s == None or s in module  for s in search_list ])
 
-    def set_network(self,  
-                     network:str=None, 
-                      subnet:int=None,
-                      search = None, 
-                      update = False,
-                      max_age=None, 
-                      tempo=None):
-        if not hasattr(self, 'network_time'):
-            self.network_time = 0
+    def set_network(self, network:str=None, update = False,tempo=None):
         config = self.config
-        tempo = tempo or config.tempo
         network = network or config.network
-        if '.' in network:
-            network, subnet = network.split('.')
-        subnet = subnet or config.subnet
-        self.network_path = self.get_storage_path() + '/network_state'
-        if subnet != None or network not in self.networks:
-            network = 'subspace'
-        search = search or config.search
-        max_age = max_age if max_age != None else config.max_age
-        if update:
-            max_age = 0
-        if self.network_staleness < max_age:
-            return {'msg': 'Alredy Synced network Within Interval', }
+        for subnet_splitter in self.subnet_splitters:
+            if subnet_splitter in network:
+                network, subnet = network.split(subnet_splitter)
+                break
+        subnet = config.subnet
+        path = self.config.path
+        if path == None:
+            path = network if subnet == None else f'{network}/{subnet}' 
+        path = self.resolve_path(path)
+        network_path = path + '/network_state'
+        max_age = config.max_age
+        network_state = c.get(network_path, max_age=max_age, update=update)
+        self.path = path
+
         # RESOLVE THE VOTING NETWORKS
         has_network_module = bool(hasattr(self, 'network_module') and network == self.config.network)
         network_module = c.module(network)() if not has_network_module else self.network_module
         if 'local' in network:
             # local network does not need to be updated as it is atomically updated
-            namespace = network_module.namespace(max_age=max_age, search=search)
+            namespace = network_module.namespace(max_age=max_age)
             params = network_module.params()
         elif 'subspace' in network:
             # the network is a voting network
             subnet2netuid = network_module.subnet2netuid()
-            config.netuid = subnet2netuid.get(subnet, None)
-            config.subnet = subnet
             namespace = network_module.namespace(subnet=subnet, max_age=max_age)
             params = network_module.subnet_params(subnet=subnet, max_age=max_age)
+            config.netuid = subnet2netuid.get(subnet, None)
+            config.subnet = subnet
             config.tempo = params.get('tempo', self.config.tempo)
         else:
             raise ValueError(f'Network {network} is not a valid network')
-        
-        self.network_module = network_module
-        self.n  = len(namespace)  
-        c.print(f'Network(network={config.network}, subnet={config.subnet} n={self.n})')
-        self.namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
-        self.namespace = namespace
-        self.network = config.network = network
-        self.network_time = c.time()
-        self.network_state = {
+        n = len(namespace)
+        network_state = {
             'network': network,
             'subnet': subnet,
-            'n': self.n,
-            'search': search,
+            'n': n,
+            'time': c.time(),
             'params': params,
             'namespace': namespace,
-            
         }
-        self.config = config
-        self.put_json(self.network_path, self.network_state)
 
-        return 
+        self.network_module = network_module
+        self.n  = len(namespace)  
+        self.namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
+        self.network = config.network = network
+        self.config = config
+
+        c.put(network_path, network_state)
+        c.print(f'Network(network={config.network}, subnet={config.subnet} n={self.n})')
+
+        return network_state
 
     module2last_update = {}
 
@@ -230,39 +201,25 @@ class Vali(c.Module):
         return bool(isinstance(info, dict) and all([k in info for k in  ['score', 'address', 'name', 'key']]))
 
     def eval_module(self,  module:str, **kwargs):
-        """
-        The following evaluates a module sver
-        """
-        info = {}
-        # RESOLVE THE NAME OF THE ADDRESS IF IT IS NOT A NAME
         address = self.namespace.get(module, module)
-        path = self.get_storage_path() +'/'+ address
+        path = self.path +'/'+ address
         module_client = c.connect(address, key=self.key)
         info = self.get_json(path, {})
         if not self.check_info(info):
-            info = module_client.info(timeout=self.config.info_timeout)
-        info['timestamp'] = c.timestamp() # the timestamp
+            info =  getattr(module_client, self.config.info_fn)()
+        info['timestamp'] = c.time() # the timestamp
         last_score = info.get('score', 0)
         response = self.score(module_client, **kwargs)
         response = {'score': float(response)} if type(response) in [int, float, bool] else response
-
         info['latency'] = c.round(c.time() - info['timestamp'], 3)
         info.update(response)
-        alpha = self.config.alpha
-        info['score'] = info['score']  * alpha + last_score * (1 - alpha)
+        info['score'] = info['score']  * self.config.alpha + last_score * (1 - self.config.alpha)
         if response['score'] > self.config.min_score:
             self.put_json(path, info)
         return info
     
     eval = eval_module
-      
-    def get_storage_path(self):
-        # the set storage path in config.path is set, then the modules are saved in that directory
-        if self.config.path == None:
-            path = f'{self.config.network}/{self.config.subnet}' if self.config.subnet != None else self.config.network
-            self.config.path =  self.resolve_path(path)
-        return self.config.path
-    
+
     def votes(self, **kwargs):
         votes = {'modules': [], 'weights': []}
         for module in self.leaderboard().to_records():
@@ -273,7 +230,7 @@ class Vali(c.Module):
     
     @property
     def votes_path(self):
-        return self.get_storage_path() + f'/votes'
+        return self.path + f'/votes'
 
     def vote(self, update=False, **kwargs):
         if not self.is_voting_network :
@@ -322,7 +279,6 @@ class Vali(c.Module):
                 self.rm(path)
 
         df = c.df(df) 
-        
         if len(df) > 0:
             if isinstance(by, str):
                 by = [by]
@@ -332,7 +288,6 @@ class Vali(c.Module):
                     df = df[page*n:(page+1)*n]
                 else:
                     df = df[:n]
-
         # if to_dict is true, we return the dataframe as a list of dictionaries
         if to_dict:
             return df.to_dict(orient='records')
@@ -340,35 +295,20 @@ class Vali(c.Module):
         return df
 
     def paths(self):
-        paths = self.ls(self.get_storage_path())
+        paths = self.ls(self.path)
         return paths
     
     def refresh_leaderboard(self):
-        path = self.get_storage_path()
+        path = self.path
         c.rm(path)
         df = self.leaderboard()
         assert len(df) == 0, f'Leaderboard not removed {df}'
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
     
-    refresh = refresh_leaderboard 
+    refresh = refresh_leaderboard
 
-    @property
-    def vote_staleness(self):
-        try:
-            if 'subspace' in self.config.network:
-                return self.network_module.block - self.module_info()['last_update']
-        except Exception as e:
-            pass
-        return 0
-    
-        
     @staticmethod
-    def test(  n=2, 
-             tag = 'vali_test_net', 
-              miner='module', 
-             vali='vali',  
-             storage_path = '/tmp/commune/vali_test',
-                network='local'):
+    def test(  n=2, tag = 'vali_test_net',  miner='module', vali='vali',  path = '/tmp/commune/vali_test',network='local'):
         
         test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
         modules = test_miners
@@ -380,7 +320,7 @@ class Vali(c.Module):
         namespace = c.namespace(search=search)
         while len(namespace) < n:
             namespace = c.namespace(search=search)
-        leaderboard = Vali.run_epoch(network=network, search=search, path=storage_path)
+        leaderboard = Vali.run_epoch(network=network, search=search, path=path)
         assert len(leaderboard) == n, f'Leaderboard not updated {leaderboard}'
         for miner in modules:
             c.print(c.kill(miner))
@@ -390,5 +330,6 @@ class Vali(c.Module):
         c.print('Cancelling futures')
         return {'success': True, 'msg': 'Cancelling futures'}
 
-if __name__ == '__main__':
-    Vali.run()
+    @classmethod
+    def run_epoch(cls, run_loop=False, **kwargs):
+        return  cls( run_loop=run_loop, **kwargs).epoch(df=1)

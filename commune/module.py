@@ -49,7 +49,7 @@ class c:
     lib_path = libpath  = os.path.dirname(root_path) # the path to the library
     repo_path = repopath  = os.path.dirname(root_path) # the path to the repo
     modules_path = os.path.dirname(__file__) + '/modules'
-    tests_path = f'{root_path}/tests'
+
 
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
@@ -306,9 +306,10 @@ class c:
     @classmethod
     def test_fns(cls, *args, **kwargs):
         return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
-    
+    tests_path = f'{libpath}/tests'
     @classmethod
     def pytest(cls, *args, **kwargs):
+    
         return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
     
     @classmethod
@@ -451,6 +452,11 @@ class c:
             utils = [u for u in utils if search in u]
         return sorted(utils)
     
+    @classmethod
+    def num_utils(cls, search=None):
+        return len(cls.utils(search))
+
+    cache = {}
     @classmethod
     def util2code(cls, search=None):
         utils = cls.utils()
@@ -1417,7 +1423,7 @@ class c:
                         return getattr(module, fn_name)
         if callable(fn):
             return fn
-        raise ValueError(f'{fn} is not a function')
+        return fn
         
     @classmethod
     def self_functions(cls, search = None):
@@ -1882,9 +1888,9 @@ class c:
         return c.get_tree(c.libpath, depth=depth, **kwargs)
     
     @classmethod
-    def core_tree(cls, depth=10, **kwargs):
-        tree =  c.get_tree(c.libpath, depth=depth, **kwargs)
-        return {k:v for k,v in tree.items() if '.modules.' not in v}
+    def core_tree(cls, **kwargs):
+        tree =  c.get_tree(c.libpath, **kwargs)
+        return {k:v for k,v in tree.items() if 'modules.' not in v}
     @classmethod
     def local_tree(cls , depth=4, **kwargs):
         return c.get_tree(c.pwd(), depth=depth, **kwargs)
