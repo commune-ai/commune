@@ -1,4 +1,5 @@
 
 import commune as c
 
-c.print(c.ask('what is the vibe'))
+docs = c.file2text("./docs")
+c.print(c.ask(f"whats is commune? {docs}"))

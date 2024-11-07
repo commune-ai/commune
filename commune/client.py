@@ -2,9 +2,9 @@
 
 from typing import *
 import asyncio
-import commune as c
 import json
 import requests
+import commune as c
 
 # from .pool import ClientPool
 
