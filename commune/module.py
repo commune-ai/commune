@@ -15,13 +15,8 @@ nest_asyncio.apply()
 
 class c:
     splitters = [':', '/', '.']
-
     endpoints = ['ask', 'generate', 'forward']
-
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
-
-    # these are shortcuts for the module finder c.module('openai') --> c.module('modle.openai') 
-    # if openai : model.openai
     shortcuts =  {
         'openai' : 'model.openai',
         'openrouter':  'model.openrouter',
@@ -33,7 +28,7 @@ class c:
         'local': 'network',
         'network.local': 'network',
         }
-
+    
     lib_name = libname  = lib = __file__.split('/')[-3]# the name of the library
     organization = org = orgname = 'commune-ai' # the organization
     git_host  = 'https://github.com'
@@ -49,8 +44,6 @@ class c:
     lib_path = libpath  = os.path.dirname(root_path) # the path to the library
     repo_path = repopath  = os.path.dirname(root_path) # the path to the repo
     modules_path = os.path.dirname(__file__) + '/modules'
-
-
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
@@ -500,7 +493,7 @@ class c:
         with open(path, 'r') as file:
             data = yaml.load(file, Loader=yaml.FullLoader)
         return data
-
+    
     @classmethod
     def get_routes(cls, cache=True):
         if not hasattr(cls, 'routes'):
@@ -1410,7 +1403,6 @@ class c:
                 fn2route = cls.fn2route() 
                 if fn in fn2route:
                     return c.obj(fn2route[fn])
-
                 # step 3, if the function is routed
                 return getattr(cls, fn)
 
@@ -1913,7 +1905,10 @@ class c:
                verbose = False, 
                tree = None,
                trials=1, **_kwargs ) -> str:
-        
+        if path == None:
+            path = 'module'
+        if path.endswith('.py'):
+            path = c.path2name(path)
         og_path = path
         path = path or 'module'
         t0 = time.time()
@@ -2098,8 +2093,6 @@ class c:
         """
         return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
-
-    
     @classmethod
     def is_root_key(cls, address:str)-> str:
         return address == cls.root_key().ss58_address

@@ -1220,7 +1220,7 @@ class Subspace(c.Module):
     def update_module(
         self,
         name: str,
-        address: str = '0.0.0.0:8888',
+        address: str = None ,
         metadata: str | None = None,
         delegation_fee: int = 20,
         netuid: int = 0,
@@ -1253,13 +1253,13 @@ class Subspace(c.Module):
         key = self.resolve_key(key or name)
         assert isinstance(delegation_fee, int)
         netuid = self.resolve_netuid(subnet or netuid)
-
-        namespace = c.namespace()
-        address = namespace.get(name, address)
-        if public:
-            address = c.ip() +':'+ address.split(':')[-1]
-        else:
-            address = '0.0.0.0' +':'+ address.split(':')[-1]
+        if address==None:
+            namespace = c.namespace()
+            address = namespace.get(name, address)
+            if public:
+                address = c.ip() +':'+ address.split(':')[-1]
+            else:
+                address = '0.0.0.0' +':'+ address.split(':')[-1]
         params = {
             "netuid": netuid,
             "name": name,
@@ -1282,7 +1282,6 @@ class Subspace(c.Module):
         key: Keypair = None,
         metadata: str | None = 'NA',
         wait_for_finalization = True,
-        suffixes = ['miner', 'validator', 'vali'],
         public = False,
     ) -> ExtrinsicReceipt:
         """
@@ -1299,21 +1298,22 @@ class Subspace(c.Module):
     
     
         key =  c.get_key(key)
-        address = self.resolve_module_address(name=name, address=address)
-        for suffix in suffixes:
-            if name.endswith(suffix):
-                subnet = name.split('.')[0]
-                break
         subnet = self.resolve_subnet(netuid or subnet)
-        if public:
-            c.print('WARNING: Your Module is Publically Accessible')
-        else:
-            address = '0.0.0.0' +':'+ address.split(':')[-1]
+
+        if address == None:
+            namespace = c.namespace()
+            address = namespace.get(name, '0.0.0.0:8888')
+            if public:
+                ip = c.ip()
+                c.print(f'WARNING: Your Module is Publically Accessible ip:{ip}')
+            else:
+                address = '0.0.0.0' +':'+ address.split(':')[-1]
+        module_key_address = c.get_key(module_key or name, creaet_if_not_exists=True).ss58_address
         params = {
             "network_name": subnet,
             "address":  address,
             "name": name,
-            "module_key":c.get_key(module_key or name, creaet_if_not_exists=True).ss58_address,
+            "module_key":module_key_address,
             "metadata": metadata,
         }
         response =  self.compose_call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
@@ -2948,13 +2948,16 @@ class Subspace(c.Module):
                     features = ['Name', 
                                 'Address', 
                                 'Keys',
+                                'Metadata'
+                                ],
+                    extra_features = [
                                 'Weights',
                                 'Incentive',
                                 'Dividends', 
                                 'Emission', 
                                 'DelegationFee', 
-                                'LastUpdate',
-                                'Metadata'],
+                                'LastUpdate'],
+                    lite = True,
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
                     num_connections = 4,
                     default_module = {
@@ -2970,6 +2973,9 @@ class Subspace(c.Module):
             return self.all_modules(max_age=max_age, update=update, module=module, features=features, default_module=default_module, **kwargs)
     
         netuid = self.resolve_netuid(netuid=netuid, subnet=subnet)
+        if lite:
+            features += extra_features
+
         if netuid in [0]:
             features += ['StakeFrom']
         path = f'{self.network}/modules/{netuid}'

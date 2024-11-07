@@ -200,7 +200,6 @@ class Server(c.Module):
         rates['stake2rate'] = rates['stake2rate'] * module.fn2cost.get(fn, 1)
         return min((stake / rates['stake2rate']), rates['max'])
 
-
     def user2count(self):
         user2count = {}
         for user in self.users():

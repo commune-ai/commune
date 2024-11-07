@@ -83,7 +83,7 @@ class Vali(c.Module):
                 did_score_bool = bool(result['score'] > 0)
                 emoji =  '🟢' if did_score_bool  else '🔴'
                 if did_score_bool:
-                    keys = ['score', 'name', 'address', 'latency']
+                    keys = ['score', 'name', 'address', 'latency', 'key', 'crypto_type']
                 else:
                     keys = list(result.keys())
                 result = {k: result.get(k, None) for k in keys if k in result}
