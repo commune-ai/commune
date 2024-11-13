@@ -12,29 +12,28 @@ class Vali(c.Module):
 
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
-                    subnet = None,
+                    subnet = None, # (OPTIONAL) the name of the subnetwork 
                     search=  None, # (OPTIONAL) the search string for the network 
                     verbose=  True, # the verbose mode for the worker # EPOCH
-                    batch_size= 16,
-                    max_workers=  None ,
+                    batch_size= 16, # the batch size of the most parallel tasks
+                    max_workers=  None , # the number of parallel workers in the executor
                     score = None, # score function
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     alpha= 1.0, # alpha for score
                     min_score=  0, # the minimum weight of the leaderboard
                     run_loop= True, # This is the key that we need to change to false
                     test= False, # the test mode for the validator
-                    module = None,
-                    info_fn = 'info', 
+                    module = None, #
+                    info_fn = 'info', # the information function for each modules
+                    tempo = 5, 
                     max_age= 120, # the maximum age of the network
                     timeout= 2, # timeout per evaluation of the module
                     update=False,
                     key = None,
                  **kwargs):
         config = self.set_config(locals())
-        config = c.dict2munch({**Vali.config(), **config})
         self.config = config
         self.epochs = 0
-        self.epoch_start_time = 0
         self.set_key(key)
         self.set_score(score)
         self.set_network(update=update)
@@ -42,6 +41,7 @@ class Vali(c.Module):
             c.thread(self.run_loop)
 
     init_vali = __init__
+    
     def score(self, module):
         return 'name' in module.info()
 
@@ -62,19 +62,12 @@ class Vali(c.Module):
     
     def run_loop(self):
         while True:
-            from tqdm import tqdm
-            time_to_wait = int(max(0,self.epoch_start_time - c.time() + self.config.tempo))
-            desc = f'Waiting Next Epoch ({self.epochs}) with Tempo {self.config.tempo}'
-            print(f'Time Until Next Epoch --> {time_to_wait}')
-            [ c.sleep(1) for _ in tqdm(range(time_to_wait), desc=desc)]
             try:
                 self.epoch()
-                c.print(self.vote())
-                c.print(self.leaderboard())
             except Exception as e:
-                c.print('ERROR IN THE self.epoch',c.detailed_error(e))
+                c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
 
-    def get_next_result(self, futures):
+    def get_next_result(self, futures, keys=['score', 'name', 'address', 'latency', 'key', 'crypto_type']):
         try:
             for future in c.as_completed(futures, timeout=self.config.timeout):
                 futures.remove(future) 
@@ -82,12 +75,8 @@ class Vali(c.Module):
                 result['score'] = result.get('score', 0)
                 did_score_bool = bool(result['score'] > 0)
                 emoji =  '🟢' if did_score_bool  else '🔴'
-                if did_score_bool:
-                    keys = ['score', 'name', 'address', 'latency', 'key', 'crypto_type']
-                else:
-                    keys = list(result.keys())
                 result = {k: result.get(k, None) for k in keys if k in result}
-                msg = ' '.join([f'{k}={result[k]}' for k in result])
+                msg = ' '.join([f'{k}={str(result[k])}' for k in result])
                 break
         except Exception as e:
             emoji = '🔴'
@@ -100,7 +89,19 @@ class Vali(c.Module):
 
     epoch2results = {}
 
-    def epoch(self, network=None,  df=True, **kwargs):
+    def epoch(self, network=None, 
+               df=True,
+    
+               **kwargs):
+        
+        c.print(f"\n<NETWORK({self.network})>", self.state, '\n',  color='blue')
+        if not hasattr(self, 'epoch_start_time'):
+            self.epoch_start_time = 0
+        time_to_wait = int(max(0,self.epoch_start_time - c.time() + self.config.tempo))
+        for i in c.tqdm(range(time_to_wait), f"WAITING FOR EPOCH={self.epochs + 1}"):
+            # c.print(f'Time Until Next Epoch --> {time_to_wait - i}')
+            c.sleep(1)
+
         futures = []
         self.epoch_start_time = c.time()
         self.set_network(network=network, **kwargs)
@@ -121,15 +122,13 @@ class Vali(c.Module):
         if df:
             if len(results) > 0 and 'score' in results[0]:
                 results = c.df(results).sort_values(by='score', ascending=False)
+        self.state['votes'] = self.vote()
+        leaderboard = self.leaderboard()
+
+        c.print(f'\n<LEADERBOARD(network={self.network}, epoch={self.epochs})>',  color='yellow')
+        c.print(leaderboard)
         self.epochs += 1
         return results
-
-    @property
-    def network_staleness(self) -> int:
-        """
-        The staleness of the network
-        """
-        return c.time() - self.network_time
     
 
     def filter_module(self, module:str):
@@ -152,9 +151,9 @@ class Vali(c.Module):
         if path == None:
             path = network if subnet == None else f'{network}/{subnet}' 
         path = self.resolve_path(path)
-        network_path = path + '/network_state'
+        network_path = path + '/state'
         max_age = config.max_age
-        network_state = c.get(network_path, max_age=max_age, update=update)
+        state = c.get(network_path, max_age=max_age, update=update)
         self.path = path
 
         # RESOLVE THE VOTING NETWORKS
@@ -168,32 +167,24 @@ class Vali(c.Module):
             # the network is a voting network
             subnet2netuid = network_module.subnet2netuid()
             namespace = network_module.namespace(subnet=subnet, max_age=max_age)
-            params = network_module.subnet_params(subnet=subnet, max_age=max_age)
-            config.netuid = subnet2netuid.get(subnet, None)
+            params = network_module.params(subnet=subnet, max_age=max_age)
             config.subnet = subnet
             config.tempo = params.get('tempo', self.config.tempo)
         else:
             raise ValueError(f'Network {network} is not a valid network')
         n = len(namespace)
-        network_state = {
-            'network': network,
-            'subnet': subnet,
-            'n': n,
-            'time': c.time(),
-            'params': params,
-            'namespace': namespace,
-        }
+        state = {'network': network,'subnet': subnet,'n': n,'time': c.time(),'namespace': namespace, **params}
 
         self.network_module = network_module
         self.n  = len(namespace)  
         self.namespace = {k: v for k, v in namespace.items() if self.filter_module(k)}
         self.network = config.network = network
         self.config = config
+        self.state = state
 
-        c.put(network_path, network_state)
-        c.print(f'Network(network={config.network}, subnet={config.subnet} n={self.n})')
-
-        return network_state
+        c.put(network_path, state)
+        c.print(f'<Network(network={config.network}, subnet={config.subnet} n={self.n})')
+        return state
 
     module2last_update = {}
 
@@ -221,10 +212,10 @@ class Vali(c.Module):
     eval = eval_module
 
     def votes(self, **kwargs):
-        votes = {'modules': [], 'weights': []}
+        votes = {'keys': [], 'weights': []}
         for module in self.leaderboard().to_records():
             if module['score'] > 0:
-                votes['modules'] += [module['key']]
+                votes['keys'] += [module['key']]
                 votes['weights'] += [module['score'].item()]
         return votes
     
@@ -234,8 +225,7 @@ class Vali(c.Module):
 
     def vote(self, update=False, **kwargs):
         if not self.is_voting_network :
-            return {'success': False, 'msg': f'{self.network} is not a voting network ({self.voting_networks})'}
-            
+            return {'msg': f'NETWORK NOT VOTING NETWORK ({self.network}) out of ({self.voting_networks})', 'success': False,}
         if not hasattr(self, 'vote_time'):
             self.vote_time = 0
         vote_staleness = c.time() - self.vote_time
@@ -243,11 +233,10 @@ class Vali(c.Module):
             if vote_staleness < self.config.tempo:
                 return {'success': False, 'msg': f'Vote is too soon {vote_staleness}'}
         votes =self.votes() 
-        return self.network_module.vote(modules=votes['modules'], # passing names as uids, to avoid slot conflicts
-                            weights=votes['weights'], 
-                            key=self.key, 
-                            subnet=self.config.subnet,
-                            )
+        return self.network_module.vote(modules=votes['keys'], 
+                                        weights=votes['weights'], 
+                                        key=self.key, 
+                                        subnet=self.config.subnet )
     
     set_weights = vote 
 

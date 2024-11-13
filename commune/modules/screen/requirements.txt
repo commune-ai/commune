@@ -1,0 +1,5 @@
+opencv-python
+numpy
+pyautogui
+SpeechRecognition
+pyaudio

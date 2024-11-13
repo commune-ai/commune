@@ -56,8 +56,10 @@ class Chat(c.Module):
             temperature= 0.5,
             max_tokens= 1000000,
             context = None,
+            path = None,
             stream=True, 
             ):
+        context = context or path
         text = self.process_text(text, context=context)
         output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
@@ -68,8 +70,6 @@ class Chat(c.Module):
         return self.generate(' '.join(list(map(str, text))), **kwargs)
 
     def process_text(self, text, context=None):
-        text = self.prompt + text
- 
         if context != None:
             context = str(context)
             if c.exists(context):

@@ -3,10 +3,9 @@ import json
 import os
 class Agent:
     anchor="OUTPUT"
-
-    def ask(self, *args, path='./'):
+    def build(self, *args, path=c.docs_path):
         text = self.args2text(args)
-        context = self.summarize(query=text, path=path)
+        context = self.summary(query=text, path=path)
         prompt = f"""
         {context}
         AD START FINISH THE OUTPUT WITH THE ANCHOR TAGS
@@ -14,45 +13,45 @@ class Agent:
         <{self.anchor}(path=filepath)></{self.anchor}(path=wherethefilepathwillbe)> 
         you are totally fine using ./ if you are refering to the pwd for brevity
         """
-        return c.ask(prompt)
+        output = ''
+
+        front_anchor = '<OUTPUT(' 
+        for ch in c.ask(prompt):
+            output += output
+            if front_anchor in output:
+                output.split(front_anchor)[1]
+            yield ch
+
+
+
 
     def args2text(self, args):
         return ' '.join(list(map(str, args)))
 
-    def get_context(self,
-                        path='./', 
-                        query='what are the required packages', 
-                        instruction= "Which files are relevant to you?",
-                        output_format="DICT(files:list[str])"):
-    
-        c.print('FINDING RELEVANT FILES IN THE PATH {}'.format(path), color='green')
+    def relevent_files(self,  path='./', output_format="DICT(data:list[str])" , query='',):
+        front_anchor = f"<{self.anchor}>"
+        back_anchor = f"</{self.anchor}>"
+        instruction = "Which files are relevant to you? do not incldue the full link and use ~ if possible"
         files = c.files(path)
         prompt = f"""
-        QUERY \n {query} \n INSTRUCTION \n {instruction} \n CONTEXT {files}  {query }
-        OUTPUT FORMAT
-        USE THE FOLLOWING FORMAT FOR OUTPUT WITH A JSON STRING IN THE CENTER
-        <{self.anchor}>{output_format})</{self.anchor}>
-
+        QUERY \n {query} 
+        INSTRUCTION \n {instruction}
+        CONTEXT \n {files}
+        OUTPUT FORMAT \n (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS) 
+        {front_anchor}{output_format}{back_anchor}
         """
-    
+
         output = ''
         for ch in c.ask(prompt): 
             print(ch, end='')
             output += ch
-            if ch == f'</{self.anchor}>':
+            if ch == front_anchor:
                 break
-        
-        files =  json.loads(output.split('<' +self.anchor + '>')[1].split('</'+self.anchor + '>')[0])['files']
-        file2text = {c.get_text(f) for f in files}
-        return file2text
+        files =  json.loads(output.split(front_anchor)[1].split(back_anchor)[0])['data']
+        return files
 
-    def score(self, *args, path='./'):
-        text = self.args2text(args)
-        context = self.get_context(text, path=path)
-        return c.ask(self.prompt.format(context=context, text=text))
-
-
-    def summary(self, path='./', 
+    def summary(self, 
+                path='./', 
                 query = "get all of the important objects and a description",
                  anchor = 'OUTPUT', 
                  max_ = 100000,
@@ -106,4 +105,6 @@ class Agent:
             files_batch[f]  = c.get_text(path + f )
         return batch_list
 
+    def tools(self):
+        return c.fns("fn")
     

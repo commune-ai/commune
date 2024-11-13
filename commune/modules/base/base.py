@@ -5,7 +5,6 @@ class Demo(c.Module):
         self.set_config(locals())
 
     def generate(self, x:int = 1, y:int = 2) -> int:
-        c.print(self.config)
         c.print(self.config, 'This is the config, it is a Munch object')
         return x + y
     

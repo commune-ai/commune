@@ -44,6 +44,7 @@ class c:
     lib_path = libpath  = os.path.dirname(root_path) # the path to the library
     repo_path = repopath  = os.path.dirname(root_path) # the path to the repo
     modules_path = os.path.dirname(__file__) + '/modules'
+    docs_path = libname + '/docs'
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
@@ -77,10 +78,7 @@ class c:
     
     def vs(self, path = None):
         path = path or c.libpath
-        if c.module_exists(path):
-            path = c.filepath(path)
         path = c.abspath(path)
-        
         return c.cmd(f'code {path}')
 
     @classmethod
@@ -121,6 +119,8 @@ class c:
     _obj = None
 
 
+    def sync(self):
+        return {'tree': c.tree(update=1), 'namespace':c.namespace(update=1), 'ip': c.ip()}
     
     def syspath(self):
         return sys.path
@@ -420,24 +420,6 @@ class c:
     def init_module(self,*args, **kwargs):
         return self.set_config(*args, **kwargs)
 
-    def schema(self,
-                obj = None,
-                docs: bool = True,
-                defaults:bool = True, **kwargs) -> 'Schema':
-        if c.is_fn(obj):
-            return c.fn_schema(obj, docs=docs, defaults=defaults)
-
-        fns = self.get_functions(obj)
-        schema = {}
-        for fn in fns:
-            try:
-                schema[fn] = self.fn_schema(fn, defaults=defaults,docs=docs)    
-            except Exception as e:
-                print(f'Error: {e}')    
-        # sort by keys
-        schema = dict(sorted(schema.items()))
-        return schema
-
     @classmethod
     def utils(cls, search=None):
         utils = c.find_functions(c.root_path + '/utils')
@@ -584,6 +566,8 @@ class c:
               trials=3, 
               parallel=True,
               ):
+        if module == None:
+            return c.cmd(f'pytest {c.tests_path}')
         module = module or cls.module_name()
 
         if c.module_exists( module + '.test'):
@@ -859,7 +843,7 @@ class c:
     
     @classmethod
     def abspath(cls, path:str):
-        return os.path.abspath(path)
+        return os.path.abspath(os.path.expanduser(path))
      
     def file2size(self, path='./', fmt='mb') -> int:
         files = c.glob(path)
@@ -1147,7 +1131,7 @@ class c:
         '''
         fn_schema = {}
         fn = cls.get_fn(fn)
-        input_schema  = cls.fn_signature(fn)
+        input_schema  = c.fn_signature(fn)
         for k,v in input_schema.items():
             v = str(v)
             if v.startswith('<class'):
@@ -1179,10 +1163,6 @@ class c:
         fn_schema['input'] = {k: {'type':v, 'default':fn_defaults.get(k)} for k,v in fn_schema['input'].items()}
 
         return fn_schema
-
-    @classmethod
-    def init_schema(cls):
-        return cls.fn_schema('__init__')
     
     @classmethod
     def init_kwargs(cls):
@@ -1268,7 +1248,7 @@ class c:
         Gets the self methods in a class
         '''
         obj = cls.resolve_object(obj)
-        functions =  cls.get_functions(obj)
+        functions =  c.get_functions(obj)
         signature_map = {f:cls.get_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
     
@@ -1279,7 +1259,7 @@ class c:
         Gets the self methods in a class
         '''
         obj = obj or cls
-        functions =  cls.get_functions(obj)
+        functions =  c.get_functions(obj)
         signature_map = {f:cls.get_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
     
@@ -1333,7 +1313,7 @@ class c:
     
     @classmethod
     def functions(cls, search = None, include_parents = True):
-        return cls.get_functions(search=search, include_parents=include_parents)
+        return c.get_functions(obj=cls, search=search, include_parents=include_parents)
 
     @classmethod
     def get_conflict_functions(cls, obj = None):
@@ -1515,14 +1495,7 @@ class c:
                 found_lines += [line]
         
         return found_lines
-
-    @classmethod
-    def params(cls, module=None, fn='__init__'):
-        module = c.module(module) if  module else cls
-        params =  c.fn_defaults(getattr(module, fn))
-        params.pop('self', None)
-        return params
-
+    
     @classmethod
     def name2path(cls, 
                     simple:str,
@@ -1657,7 +1630,10 @@ class c:
         return simple_path
 
     @classmethod
-    def find_classes(cls, path='./', depth=8, **kwargs):
+    def find_classes(cls, path='./', depth=8, 
+                     class_prefix = 'class ', 
+                     file_extension = '.py',
+                     class_suffix = ':', **kwargs):
         path = os.path.abspath(path)
         if os.path.isdir(path):
             classes = []
@@ -1666,18 +1642,18 @@ class c:
             for p in c.ls(path):
                 if os.path.isdir(p):
                     classes += cls.find_classes(p, depth=depth-1)
-                elif p.endswith('.py'):
+                elif p.endswith(file_extension):
                     p_classes =  cls.find_classes(p)
                     classes += p_classes
             return classes
         code = cls.get_text(path)
         classes = []
         file_path = cls.path2objectpath(path)
-        
+
         for line in code.split('\n'):
-            if line.startswith('class ') and line.strip().endswith(':'):
-                new_class = line.split('class ')[-1].split('(')[0].strip()
-                if new_class.endswith(':'):
+            if line.startswith(class_prefix) and line.strip().endswith(class_suffix):
+                new_class = line.split(class_prefix)[-1].split('(')[0].strip()
+                if new_class.endswith(class_suffix):
                     new_class = new_class[:-1]
                 if ' ' in new_class:
                     continue
@@ -1892,7 +1868,7 @@ class c:
         tree_cache_path = 'tree/'+os.path.abspath(path).replace('/', '_')
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print(f'BUIDLING TREE --> {path}', color='green')
+            c.print(f'TREE(max_age={max_age}, depth={depth}, pat={path})', color='green')
             class_paths = cls.find_classes(path, depth=depth)
             simple_paths = [cls.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
@@ -2274,6 +2250,15 @@ class c:
             for f in module2fns[m]:
                 fn2module[f] = m
         return fn2module
+    
+    
+
+    def install(self, path  ):
+        path = path + '/requirements.txt'
+        print(path)
+        assert os.path.exists(path)
+        return c.cmd(f'pip install -r {path}')
+
 
 c.routes = c.get_routes()
 c.add_routes()

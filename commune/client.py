@@ -10,12 +10,13 @@ import commune as c
 
 class Client(c.Module):
     network2namespace = {}
+    stream_prefix = 'data: '
+
     def __init__( 
             self,
             module : str = 'module',
-            network: bool = 'local',
-            key = None,
-            stream_prefix = 'data: ',
+            network: Optional[bool] = 'local',
+            key : Optional[str]= None,
             virtual = False,
             **kwargs
         ):
@@ -24,15 +25,11 @@ class Client(c.Module):
         self.loop =  c.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-        self.stream_prefix = stream_prefix
-        self.address = self.resolve_module_address(module, network=network)
+
+        self.address = self.resolve_module_address(module)
         self.virtual = bool(virtual)
         self.session = requests.Session()
 
-    def resolve_namespace(self, network):
-        if not network in self.network2namespace:
-            self.network2namespace[network] = c.get_namespace(network=self.network)
-        return self.network2namespace[network]
 
     @classmethod
     def call(cls, 
@@ -44,20 +41,18 @@ class Client(c.Module):
                 key:str = None,
                 timeout=40,
                 **extra_kwargs) -> None:
-        if '/' in str(fn):
-            module = '.'.join(fn.split('/')[:-1])
-            fn = fn.split('/')[-1]
-        else:
-            module = fn
-            fn = 'info'
-        client = cls.connect(module, virtual=False, key=key, network=network)
-        response =  client.forward(fn=fn, 
-                                args=args,
-                                kwargs=kwargs, 
-                                timeout=timeout, 
-                                **extra_kwargs)
+        
+        module = module or 'module'
+        for splitter in ['/',':']:
+            if splitter in str(fn):
+                module = '.'.join(fn.split(splitter)[:-1])
+                fn = fn.split(splitter)[-1]
+                break
+            else:
+                fn = 'info'
 
-        return response
+        client =  cls(module=module, network=network)
+        return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, **extra_kwargs)
 
     @classmethod
     def connect(cls,
@@ -89,12 +84,13 @@ class Client(c.Module):
     def __repr__(self) -> str:
         return super().__repr__()
 
-    def resolve_module_address(self, module, mode='http', network=None):
-        network = network or self.network
+    def resolve_module_address(self, module, mode='http'):
+        network = self.network
         if not c.is_address(module):
-            namespace = self.resolve_namespace(network)
+            namespace = c.get_namespace(network=self.network)
             if not module in namespace:
                 namespace = c.get_namespace(network=network, update=1)
+            print(namespace)
             url = namespace[module]
         else:
             url = module
@@ -109,7 +105,7 @@ class Client(c.Module):
             module, fn = module.split('/')
         else:
             module = self.module
-        module_address = self.resolve_module_address(module, mode=mode, network=network)
+        module_address = self.resolve_module_address(module, mode=mode)
         ip = c.ip()
         if ip in module_address:
             module_address = module_address.replace(ip, '0.0.0.0')
@@ -205,11 +201,10 @@ class Client(c.Module):
             print(f'Error in stream: {e}')
             yield None
 
-    def process_stream_line(self, line , stream_prefix=None):
-        stream_prefix = stream_prefix or self.stream_prefix
+    def process_stream_line(self, line):
         event_data = line.decode('utf-8')
-        if event_data.startswith(stream_prefix):
-            event_data = event_data[len(stream_prefix):] 
+        if event_data.startswith(self.stream_prefix):
+            event_data = event_data[len(self.stream_prefix):] 
         if event_data == "": # skip empty lines if the event data is empty
             return ''
         if isinstance(event_data, str):

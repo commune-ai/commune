@@ -3,35 +3,78 @@ import sys
 import time
 import sys
 
-class cli(c.Module):
+print = c.print
+def determine_type(x):
+    x = str(x)
+    if isinstance(x, str) :
+        if x.startswith('py(') and x.endswith(')'):
+            try:
+                return eval(x[3:-1])
+            except:
+                return x
+    if x.lower() in ['null'] or x == 'None':  # convert 'null' or 'None' to None
+        return None 
+    elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool
+        return bool(x.lower() == 'true')
+    elif x.startswith('[') and x.endswith(']'): # this is a list
+        try:
+            list_items = x[1:-1].split(',')
+            # try to convert each item to its actual type
+            x =  [determine_type(item.strip()) for item in list_items]
+            if len(x) == 1 and x[0] == '':
+                x = []
+            return x
+    
+        except:
+            # if conversion fails, return as string
+            return x
+    elif x.startswith('{') and x.endswith('}'):
+        # this is a dictionary
+        if len(x) == 2:
+            return {}
+        try:
+            dict_items = x[1:-1].split(',')
+            # try to convert each item to a key-value pair
+            return {key.strip(): determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+        except:
+            # if conversion fails, return as string
+            return x
+    else:
+        # try to convert to int or float, otherwise return as string
+        try:
+            return int(x)
+        except ValueError:
+            try:
+                return float(x)
+            except ValueError:
+                return x
+
+class cli:
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
     def __init__(self, 
-                argv = None,
                 base = 'module',
                 fn_splitters = [':', '/', '//', '::'],
-                helper_fns = ['code', 
-                              'schema', 
-                              'fn_schema', 
-                              'help', 
-                              'fn_info', 
-                              'fn_hash'],
-                sep = '--'
+                helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'],
+                sep = '--',
+                ai_catch = True,
                 ):
-        
-        self.argv = self.resolve_argv(argv)
-        self.helper_fns = helper_fns
-        self.fn_splitters = fn_splitters
-        self.sep = sep
-        self.base_class = c.module(base)
-        self.base_module = self.base_class()
-        self.forward(self.argv)
+        self.set_kwargs(locals())
 
-    def forward(self, argv=None):
+    def set_kwargs(self, kwargs, avoid=['self']):
+         # remove self from kwargs
+        for key, value in kwargs.items():
+            if key in avoid:
+                continue
+            setattr(self, key, value)
+        
+
+    def forward(self, *argv):
         t0 = time.time()
-        argv = argv or self.argv
-        self.input_msg = 'c ' + ' '.join(argv)
+        argv = list(*argv)
+        if len(argv) == 0:
+            argv = sys.argv[1:]
         output = None
         init_kwargs = {}
         if any([arg.startswith(self.sep) for arg in argv]): 
@@ -47,8 +90,8 @@ class cli(c.Module):
                         init_kwargs[key] = self.determine_type(value)
         
         # any of the --flags are init kwargs
-        fn = argv.pop(0)
-        module = self.base_class
+        fn = argv.pop(0).replace('-', '_')
+        module = c.module(self.base)
         fs = [fs for fs in self.fn_splitters if fs in fn]
         if len(fs) == 1: 
             module, fn = fn.split(fs[0])
@@ -56,7 +99,6 @@ class cli(c.Module):
             modules = c.modules()
             module_options = []
             for m in modules:
-
                 if module == m:
                     module_options = [m]
                     break
@@ -75,12 +117,24 @@ class cli(c.Module):
                 return c.print(f'FN({fn}) not found {module}', color='red')
             module = c.module(fn2module[fn])
 
-
         fn_obj = getattr(module, fn)
-        if c.classify_fn(fn_obj) == 'self':
+
+        if c.is_property(fn_obj) or c.classify_fn(fn_obj) == 'self':
             fn_obj = getattr(module(**init_kwargs), fn)
+
+
         if callable(fn_obj):
-            args, kwargs  = self.parse_args(argv)
+            args = []
+            kwargs = {}
+            parsing_kwargs = False
+            for arg in argv:
+                if '=' in arg:
+                    parsing_kwargs = True
+                    key, value = arg.split('=')
+                    kwargs[key] = determine_type(value)
+                else:
+                    assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                    args.append(determine_type(arg))
             output = fn_obj(*args, **kwargs)
         else:
             output = fn_obj
@@ -88,14 +142,10 @@ class cli(c.Module):
         c.print(buffer+fn+buffer, color='yellow')
         latency = time.time() - t0
         is_error =  c.is_error(output)
-        if is_error:
-            msg =  f'❌Error({latency:.3f}sec)❌' 
-        else:
-            msg = f'✅Result({latency:.3f}s)✅'
+        msg =  f'❌Error({latency:.3f}sec)❌' if is_error else f'✅Result({latency:.3f}s)✅'
         c.print(msg)
         is_generator = c.is_generator(output)
         if is_generator:
-            # print the items side by side instead of vertically
             for item in output:
                 if isinstance(item, dict):
                     c.print(item)
@@ -108,70 +158,7 @@ class cli(c.Module):
     def is_property(self, obj):
         return isinstance(obj, property)
 
-    def parse_args(self, argv = None):
-        argv = argv or self.argv
-        args = []
-        kwargs = {}
-        parsing_kwargs = False
-        for arg in argv:
-            if '=' in arg:
-                parsing_kwargs = True
-                key, value = arg.split('=')
-                kwargs[key] = self.determine_type(value)
-            else:
-                assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                args.append(self.determine_type(arg))
-        return args, kwargs
 
-    def determine_type(self, x):
-        x = str(x)
-        if isinstance(x, str) :
-            if x.startswith('py(') and x.endswith(')'):
-                try:
-                    return eval(x[3:-1])
-                except:
-                    return x
-        if x.lower() in ['null'] or x == 'None':  # convert 'null' or 'None' to None
-            return None 
-        elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool
-            return bool(x.lower() == 'true')
-        elif x.startswith('[') and x.endswith(']'): # this is a list
-            try:
-                list_items = x[1:-1].split(',')
-                # try to convert each item to its actual type
-                x =  [self.determine_type(item.strip()) for item in list_items]
-                if len(x) == 1 and x[0] == '':
-                    x = []
-                return x
-       
-            except:
-                # if conversion fails, return as string
-                return x
-        elif x.startswith('{') and x.endswith('}'):
-            # this is a dictionary
-            if len(x) == 2:
-                return {}
-            try:
-                dict_items = x[1:-1].split(',')
-                # try to convert each item to a key-value pair
-                return {key.strip(): self.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
-            except:
-                # if conversion fails, return as string
-                return x
-        else:
-            # try to convert to int or float, otherwise return as string
-            try:
-                return int(x)
-            except ValueError:
-                try:
-                    return float(x)
-                except ValueError:
-                    return x
 
-    def resolve_argv(self, argv):
-        argv = argv or sys.argv[1:]
-        return argv
-
-          
 def main():
-    cli()
+    cli().forward()

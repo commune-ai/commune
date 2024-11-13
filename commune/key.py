@@ -1051,25 +1051,13 @@ class Key(c.Module):
             buttons[key_name] = {}
             buttons[key_name]['sign'] = st.button('Sign', key_name) 
         st.write(self.keys())
-
-    @classmethod
-    def key2type(cls):
-        keys = cls.keys(object=True)
-        return {k.path: k.crypto_type_name for k in keys}
+        
     @classmethod
     def key2mem(cls, search=None):
         keys = cls.keys(search, object=True)
         key2mem =  {k.path: k.mnemonic for k in keys}
         return key2mem
         
-    @classmethod
-    def type2keys(cls):
-        type2keys = {}
-        key2type = cls.key2type()
-        for k,t in key2type.items():
-            type2keys[t] = type2keys.get(t, []) + [k]
-        return type2keys
-    
     @classmethod
     def from_private_key(cls, private_key:str):
         return cls(private_key=private_key)
@@ -1212,6 +1200,32 @@ class Key(c.Module):
             return False
         
         return True
+
+    # @staticmethod
+    # def convert_h160_to_ss58( eth_address):
+    #     from eth_utils import to_bytes
+    #     # Ensure the eth_address starts with '0x'
+    #     if not eth_address.startswith('0x'):
+    #         eth_address = '0x' + eth_address
+    
+    #     # Convert the prefix to bytes
+    #     prefix = b'evm:'
+    
+    #     # Convert the Ethereum address to bytes
+    #     address_bytes = to_bytes(hexstr=eth_address)
+    
+    #     # Combine prefix and address
+    #     combined = prefix + address_bytes
+    
+    #     # Hash the combined data using Blake2 256-bit
+    #     blake2_hash = hashlib.blake2b(combined, digest_size=32).digest()
+    
+    #     # Convert the public key to SS58 format
+    #     ss58_address = ss58_encode(blake2_hash, ss58_format=42)  # Using 42 as the network ID, adjust as needed
+    
+    #     return ss58_address
+
+
 
 # if __name__ == "__main__":      
 #     Key.run()

@@ -3,7 +3,11 @@ import random
 import os
 import sys
 from typing import *
+import glob 
 
+def abspath( path:str):
+    return os.path.abspath(os.path.expanduser(path))
+     
 def random_int(start_value=100, end_value=None):
     if end_value == None: 
         end_value = start_value
@@ -136,11 +140,11 @@ def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
     return new_d
 
 def path2text( path:str, relative=False):
-
+    import glob
     path = os.path.abspath(path)
     assert os.path.exists(path), f'path {path} does not exist'
     if os.path.isdir(path):
-        filepath_list = glob(path + '/**')
+        filepath_list = glob.glob(path + '/**')
     else:
         assert os.path.exists(path), f'path {path} does not exist'
         filepath_list = [path] 
@@ -688,7 +692,6 @@ def get_glob( path =None, recursive:bool = True, files_only:bool = True):
         paths =  list(filter(lambda f:os.path.isfile(f), paths))
     return paths
 
-
 def file2text(path = './', 
                 avoid_folders = ['__pycache__', 
                                 '.git', 
@@ -699,7 +702,8 @@ def file2text(path = './',
                                 'target/debug',
                                 'node_modules'],
                 relative=True,  **kwargs):
-    path = os.path.abspath(path)
+    path = os.path.abspath(os.path.expanduser(path))
+    print(path, 'FAMMM')
     file2text = {}
     for file in get_glob(path, recursive=True):
         if os.path.isdir(file):
@@ -786,9 +790,6 @@ def lsdir( path:str) -> List[str]:
     path = os.path.abspath(path)
     return os.listdir(path)
 
-
-def abspath( path:str) -> str:
-    return os.path.abspath(path)
 
 def tilde_path():
     return os.path.expanduser('~')
