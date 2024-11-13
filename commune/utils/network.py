@@ -418,8 +418,6 @@ def resolve_ip(ip=None, external:bool=True) -> str:
     assert isinstance(ip, str)
     return ip
 
-
-
 def port_free( *args, **kwargs) -> bool:
     return not port_used(*args, **kwargs)
 

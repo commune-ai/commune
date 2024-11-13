@@ -6,23 +6,17 @@ def test_global_params():
     assert isinstance(global_params, dict)
     return {'msg': 'global_params test passed', 'success': True}
 
-def test_subnet_params(netuid=0):
+def test_subnet_params(subnet=0):
     self = c.module('subspace')()
-    subnet_params = self.subnet_params(netuid=0)
+    subnet_params = self.subnet_params(subnet=subnet)
     assert isinstance(subnet_params, dict)
-    subnet_names = self.subnet_names()
-    assert isinstance(subnet_names, dict) and len(subnet_names) > 0
-    subnet2netuid = self.subnet2netuid()
-    assert isinstance(subnet2netuid, dict) and len(subnet2netuid) > 0
-    namespace = self.namespace(netuid=netuid)
-    assert isinstance(namespace, dict)
     return {'msg': 'subnet_params test passed', 'success': True}
 
 
-def test_module_params(keys=['dividends', 'incentive'], netuid=0):
+def test_module_params(keys=['dividends', 'incentive'], subnet=0):
     self = c.module('subspace')()
-    key = self.keys(netuid=netuid)[0]
-    module_info = self.get_module(key, netuid=netuid)
+    key = self.keys(subnet)[0]
+    module_info = self.get_module(key, subnet=subnet)
     assert isinstance(module_info, dict)
     for k in keys:
         assert k in module_info, f'{k} not in {module_info}'

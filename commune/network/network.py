@@ -228,8 +228,9 @@ class Network(c.Module):
             keys =  c.wait([c.submit(c.call, [s + '/key_address']) for s in c.servers()], timeout=timeout)
             c.put(path, keys)
         return keys
-    def infos(self, timeout=10):
+    def modules(self, timeout=10):
         return c.wait([c.submit(c.call, [s + '/info']) for s in c.servers()], timeout=timeout)
+    
 
 Network.run(__name__)
 
