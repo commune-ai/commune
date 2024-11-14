@@ -739,10 +739,6 @@ def munch( x:dict, recursive:bool=True)-> 'Munch':
 
 dict2munch = munch
 
-def filesize( filepath:str):
-    filepath = os.path.abspath(filepath)
-    return os.path.getsize(filepath)
-
 def put_yaml( path:str,  data: dict) -> Dict:
     import yaml
     from munch import Munch

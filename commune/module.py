@@ -53,7 +53,6 @@ class c:
 
     def __init__(self, *args, **kwargs):
         pass
-    
 
     @classmethod
     def filepath(cls, obj=None) -> str:
@@ -199,6 +198,8 @@ class c:
             else:
                 obj = cls
         return obj
+    
+    ## 
     
     @classmethod
     def pwd(cls):
@@ -844,16 +845,7 @@ class c:
     @classmethod
     def abspath(cls, path:str):
         return os.path.abspath(os.path.expanduser(path))
-     
-    def file2size(self, path='./', fmt='mb') -> int:
-        files = c.glob(path)
-        file2size = {}
-        pwd = c.pwd()
-        for file in files:
-            file2size[file.replace(pwd+'/','')] = self.format_data_size(self.filesize(file), fmt)
-        file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
-        return file2size
-
+    
     @classmethod
     def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
         # Get the absolute path of the file
@@ -1959,14 +1951,18 @@ class c:
         return list(cls.tree(search=search, **kwargs).keys())
     _modules = None
     @classmethod
-    def modules(cls, search=None, cache=True, max_age=60, update=False, **kwargs)-> List[str]:
+    def modules(cls, 
+                search=None, 
+                cache=True,
+                 max_age=60,
+                update=False, **kwargs)-> List[str]:
         modules = cls._modules
         modules = cls.get('modules', max_age=max_age, update=update)
         if not cache or modules == None:
             modules =  cls.get_modules(search=None, **kwargs)
             cls.put('modules', modules)
         if search != None:
-            modules = [m for m in modules if search in m]            
+            modules = [m for m in modules if search in m]     
         return modules
 
     @classmethod
@@ -2220,14 +2216,6 @@ class c:
             if path.endswith('.py'):
                 return True
     
-
-
-    
-    @classmethod
-    def my_modules(cls, path=None):
-        path = path or cls.dirpath()
-        return c.get_tree(path)
-    
     @classmethod
     def module2fns(cls, path=None):
         path = path or cls.dirpath()
@@ -2258,6 +2246,9 @@ class c:
         print(path)
         assert os.path.exists(path)
         return c.cmd(f'pip install -r {path}')
+    
+    def epoch(self, *args, **kwargs):
+        return c.run_epoch(*args, **kwargs)
 
 
 c.routes = c.get_routes()

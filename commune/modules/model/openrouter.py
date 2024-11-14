@@ -99,9 +99,13 @@ class OpenRouter(c.Module):
     def resolve_model(self, model=None):
         models =  self.models()
         if str(model) not in models:
-            models = [m for m in models if str(model) in m]
+            if ',' in model:
+                models = [m for m in models if any([s in m for s in model.split(',')])]
+            else:
+                models = [m for m in models if str(model) in m]
             print(f"Model {model} not found. Using {models} instead.")
             assert len(models) > 0
+            model = models[0]
 
         return model
 
@@ -150,6 +154,7 @@ class OpenRouter(c.Module):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).values())
     
     def get_model_info(self, model):
+        model = self.resolve_model(model)
         model2info = self.model2info()
         return model2info[model]
     
