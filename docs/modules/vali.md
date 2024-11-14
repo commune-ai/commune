@@ -80,15 +80,15 @@ Run the validator on the subspace network
 
 ```python
 import commune as c
-c.serve('vali.text.realfake::tang', network='subspace', netuid=0)
+c.serve('vali::tang', network='subspace', netuid=0)
 # or 
-c.serve('vali.text.realfake::tang', network='subspace.0')
+c.serve('vali::tang', network='subspace.0')
 ```
 
 Ensure you have the module registered on the network
 ```python
-c.register('vali.text.realfake::tang', netuid=0, stake=10000)
-assert c.is_registered('vali.text.realfake::tang', netuid=0) == True
+c.register('vali::tang', netuid=0, stake=10000)
+assert c.is_registered('vali::tang', netuid=0) == True
 ```
 
 
@@ -97,9 +97,9 @@ assert c.is_registered('vali.text.realfake::tang', netuid=0) == True
 Once your validator is running, you need to make sure you have a leaderboard
 
 ```python
-c.connect('vali.text.realfake::tang').leaderboard()
+c.connect('vali::tang').leaderboard()
 # or
-c.call('vali.text.realfake::tang/leaderboard')
+c.call('vali::tang/leaderboard')
 ```
 
 ```python
@@ -174,13 +174,13 @@ c.module_info('KEYORNAME', netuid=0)
 To check the status of the validator, use the following command:
 
 ```python
-c.call("vali.text.realfake::sup/module_info")
+c.call("vali::tang::sup/module_info")
 ```
 
 ```bash
 {
     'key': '5GN545yeaTEuzDEoD6EXPi4qFqQCABKNnsUyJfDHFYWzfmQi', # key of the validator
-    'name': 'vali.text.realfake::sup', # name of the module
+    'name': 'vali::tang::sup', # name of the module
     'address': '135.180.26.167:50141', # address of the validator
     'emission': 6.440794074, # emission to the validator
     'incentive': 0.0, # incentives to the validator
@@ -281,7 +281,7 @@ c.update_modules(search='vali', delegation_fee=10)
 
 If you fucked up, then you should enable debug mode to see the errors
 
-c.serve('vali.text.realfake::tang', debug=1)
+c.serve('vali::tang', debug=1)
 
 - Make sure the leaderboard is not empty
 

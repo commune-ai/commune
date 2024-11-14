@@ -87,7 +87,7 @@ class cli:
                     else:
                         value = arg.split('=')[-1] if '=' in arg else True
                         argv.remove(arg)
-                        init_kwargs[key] = self.determine_type(value)
+                        init_kwargs[key] = determine_type(value)
         
         # any of the --flags are init kwargs
         fn = argv.pop(0).replace('-', '_')

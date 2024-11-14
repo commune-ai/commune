@@ -234,15 +234,11 @@ class Key(c.Module):
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
-
-        if isinstance(key_json, str):
-            key_json = c.jload(key_json)
-
-        if json:
-            key_json['path'] = path
-            return key_json
-        else:
-            return cls.from_json(key_json, crypto_type=crypto_type)
+        
+        key_json = c.jload(key_json) if isinstance(key_json, str) else key_json
+        key =  cls.from_json(key_json, crypto_type=crypto_type)
+        key.path = path
+        return key
         
         
     @classmethod
@@ -385,7 +381,6 @@ class Key(c.Module):
             suri:str = None, 
             private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
-            json: bool = False,
             verbose:bool=False,
             **kwargs):
         '''
@@ -405,8 +400,6 @@ class Key(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-        if json:
-            return key.to_json()
         
         return key
     

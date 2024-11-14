@@ -17,7 +17,6 @@ class Client(c.Module):
             module : str = 'module',
             network: Optional[bool] = 'local',
             key : Optional[str]= None,
-            virtual = False,
             **kwargs
         ):
         self.serializer = c.module('serializer')()
@@ -25,9 +24,7 @@ class Client(c.Module):
         self.loop =  c.get_event_loop()
         self.key  = c.get_key(key, create_if_not_exists=True)
         self.module = module
-
         self.address = self.resolve_module_address(module)
-        self.virtual = bool(virtual)
         self.session = requests.Session()
 
 
@@ -42,16 +39,15 @@ class Client(c.Module):
                 timeout=40,
                 **extra_kwargs) -> None:
         
-        module = module or 'module'
-        for splitter in ['/',':']:
-            if splitter in str(fn):
-                module = '.'.join(fn.split(splitter)[:-1])
-                fn = fn.split(splitter)[-1]
-                break
-            else:
-                fn = 'info'
-
+        
+        if '/' in str(fn):
+            module = '.'.join(fn.split('/')[:-1])
+            fn = fn.split('/')[-1]
+        else:
+            module = fn
+            fn = 'info'
         client =  cls(module=module, network=network)
+        # c.print(f'Client({module}/{fn}, key={key.key_address})') 
         return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, **extra_kwargs)
 
     @classmethod
@@ -60,13 +56,11 @@ class Client(c.Module):
                 network : str = 'local',
                 virtual:bool = True, 
                 **kwargs):
-        client =  cls(module=module, 
-                    network=network,
-                    virtual=virtual,
-                    **kwargs)
+        client =  cls(module=module, network=network,**kwargs)
         if virtual:
             return Client.Virtual(client=client)
-        return client
+        else:
+            return client
     
     def test(self, module='module::test_client'):
         c.serve(module)
@@ -77,7 +71,7 @@ class Client(c.Module):
         return {'info': info, 'key': str(key)}
 
     def __str__ ( self ):
-        return "Client(address={}, virtual={})".format(self.address, self.virtual) 
+        return "Client(address={})".format(self.address) 
     def __repr__ ( self ):
         return self.__str__()
 
@@ -85,27 +79,23 @@ class Client(c.Module):
         return super().__repr__()
 
     def resolve_module_address(self, module, mode='http'):
-        network = self.network
-        if not c.is_address(module):
-            namespace = c.get_namespace(network=self.network)
-            if not module in namespace:
-                namespace = c.get_namespace(network=network, update=1)
-            print(namespace)
-            url = namespace[module]
-        else:
+        if  c.is_address(module):
             url = module
+        else:
+            namespace = c.namespace(network=self.network)
+            if module in namespace:
+                url = namespace[module]
+            else:
+                raise Exception(f'Module {module} not found in namespace {namespace}')
         url = f'{mode}://' + url if not url.startswith(f'{mode}://') else url
         return url
 
-    def get_url(self, fn, mode='http', network=None):
-
-        if '://' in str(fn):
-            mode ,fn = fn.split('://')
+    def get_url(self, fn, mode='http'):
         if '/' in str(fn):  
             module, fn = module.split('/')
         else:
             module = self.module
-        module_address = self.resolve_module_address(module, mode=mode)
+        module_address = self.address
         ip = c.ip()
         if ip in module_address:
             module_address = module_address.replace(ip, '0.0.0.0')
@@ -154,14 +144,12 @@ class Client(c.Module):
                 kwargs : str = {},
                 timeout:int=2, 
                 key : str = None,
-                network : str = None,
                 mode: str  = 'http',
                 headers = None,
                 data = None,
                 **extra_kwargs):
-        network = network or self.network
         key = self.resolve_key(key)
-        url = self.get_url(fn=fn, mode=mode,  network=network)
+        url = self.get_url(fn=fn, mode=mode)
         data = data or self.get_data(args=args,  kwargs=kwargs,**extra_kwargs)
         headers = { 
                     'Content-Type': 'application/json', 
@@ -170,13 +158,8 @@ class Client(c.Module):
                     'crypto_type': str(key.crypto_type),
                     'time': str(c.time())
                    }
-        signature_data = {'data': headers['hash'], 'time': headers['time']}
-        headers['signature'] = key.sign(signature_data).hex()
-        result = self.request(url=url, 
-                              data=data,
-                              headers=headers,
-                              timeout=timeout)
-        return result
+        headers['signature'] = key.sign({'data': headers['hash'], 'time': headers['time']}).hex()
+        return self.request(url=url, data=data,headers=headers, timeout=timeout)
     
     def __del__(self):
         try:
@@ -184,7 +167,7 @@ class Client(c.Module):
                 asyncio.run(self.session.close())
         except:
             pass
-
+        
     def resolve_key(self,key=None):
         if key == None:
             key = self.key

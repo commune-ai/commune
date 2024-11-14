@@ -1,11 +1,12 @@
 import commune as c
 import json
 import os
+
 class Agent:
     anchor="OUTPUT"
     def build(self, *args, path=c.docs_path):
         text = self.args2text(args)
-        context = self.summary(query=text, path=path)
+        context = self.find_text(query=text, path=path)
         prompt = f"""
         {context}
         AD START FINISH THE OUTPUT WITH THE ANCHOR TAGS
@@ -14,7 +15,6 @@ class Agent:
         you are totally fine using ./ if you are refering to the pwd for brevity
         """
         output = ''
-
         front_anchor = '<OUTPUT(' 
         for ch in c.ask(prompt):
             output += output
@@ -27,67 +27,53 @@ class Agent:
 
     def args2text(self, args):
         return ' '.join(list(map(str, args)))
+    
+    def find_text(self, *args, **kwargs):
+        text =  [c.get_text(f) for f in self.find_files(*args, **kwargs)]
+    
+        size = self.get_size(text)
+        return size
 
-    def relevent_files(self,  path='./', output_format="DICT(data:list[str])" , query='',):
+    def get_size(self, x):
+        return len(str(x))
+        
+
+    def find_files(self, 
+                   query='', 
+                   output_format="DICT(data:list[str])" , 
+                   path='./', 
+                   n=5, 
+                   model='sonnet'):
         front_anchor = f"<{self.anchor}>"
         back_anchor = f"</{self.anchor}>"
-        instruction = "Which files are relevant to you? do not incldue the full link and use ~ if possible"
-        files = c.files(path)
+        context = c.files(path)
         prompt = f"""
-        QUERY \n {query} 
-        INSTRUCTION \n {instruction}
-        CONTEXT \n {files}
-        OUTPUT FORMAT \n (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS) 
+        QUERY 
+        {query} 
+        INSTRUCTION 
+        get the top {n} files that match the query
+        instead of using the full {os.path.expanduser('~')}, use ~
+        CONTEXT
+        {context}
+        OUTPUT
+        (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
         {front_anchor}{output_format}{back_anchor}
         """
-
         output = ''
-        for ch in c.ask(prompt): 
+        for ch in c.ask(prompt, model=model): 
             print(ch, end='')
             output += ch
             if ch == front_anchor:
                 break
-        files =  json.loads(output.split(front_anchor)[1].split(back_anchor)[0])['data']
-        return files
-
-    def summary(self, 
-                path='./', 
-                query = "get all of the important objects and a description",
-                 anchor = 'OUTPUT', 
-                 max_ = 100000,
-                ):
-
-        self.batch_context(path=path)
-        context = c.file2text(path)
-                     
-        prompt = f"""
-        INSTRUCTION
-        SUMMARIZE the info as a black hole condenses info 
-        ensure to include all necessary info and discard 
-        useless info. do it as such. use the query to condition
-        the tuples listed.
-
-        [head, relation, tail]
-
-        QUERY
-        {query}
-        OUTPUT FORMAT
-        USE THE FOLLOWING FORMAT FOR OUTPUT WITH A JSON STRING IN THE CENTER
-        store it in a relations
-        <{anchor}>
-        DICT(relations:list[str])
-        </{anchor}>
-        CONTEXT
-        {context}
-        """
-        output = ''
-        for ch in c.ask(prompt): 
-            print(ch, end='')
-            output += ch
-            if ch == f'</{self.anchor}>':
-                break
-        return json.loads(output.split('<' +self.anchor + '>')[1].split('</'+self.anchor + '>')[0])
-
+        if '```json' in output:
+            output = output.split('```json')[1].split('```')[0]
+        elif front_anchor in output:
+            output = output.split(front_anchor)[1].split(back_anchor)[0]
+        else:
+            output = output
+        output = json.loads(output)['data']
+        assert len(output) > 0
+        return output
 
     def batch_context(self, path='./', batch_size=20000):
 

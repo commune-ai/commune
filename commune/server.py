@@ -10,7 +10,6 @@ import os
 import json
 import asyncio
 
-
 class Server(c.Module):
     tag_seperator:str='::'
     pm2_dir = os.path.expanduser('~/.pm2')
@@ -34,15 +33,16 @@ class Server(c.Module):
         name: str = None, # the name of the server
         port: Optional[int] = None, # the port the server is running on
         network:str = 'subspace', # the network used for incentives
-        kwargs: Optional[str]=None,
         fn2cost : Dict[str, float] = None, # the cost of the function
-        serializer = 'serializer'
+        serializer = 'serializer',
+        kwargs : dict = None, # the kwargs for the module
         ) -> 'Server':
 
         functions = functions or []
         module = module or 'module'
         if self.tag_seperator in name:
-            module, tag = name.split(self.tag_seperator)
+            # module::fam -> module=module, name=module::fam key=module::fam (default)
+            module, tag = name.split(self.tag_seperator) 
         if isinstance(module, str):
             name = name or module
             module_class = c.module(module)
@@ -68,33 +68,27 @@ class Server(c.Module):
                 if hasattr(getattr(module, f), '__metadata__'):
                     functions.append(f)
             except Exception as e:
-                print(f'Error in get_endpoints: {e} for {f}')
+                c.print(f'Error in get_endpoints: {e} for {f}')
         for fn in functions :
             if hasattr(module, fn):
                 fn_obj = getattr(module, fn )
                 if callable(fn_obj):
                     schema[fn] = c.fn_schema(fn_obj)['input']
                 else: 
-                    schema[fn] = {'type': str(type(fn_obj)).split("'")[1]}    
-
+                    schema[fn] = {'type': str(type(fn_obj)).split("'")[1]}
         for fn in self.user_functions:
             setattr(module, fn, getattr(self, fn))
-
-
-
         if port in [None, 'None']:
-            namespace = c.get_namespace()
+            namespace = c.namespace()
             if name in namespace:
                 try:
                     port =  int(namespace.get(module.name).split(':')[-1])
                 except:
                     port = c.free_port()
             else:
-                c.free_port()
+                port = c.free_port()
         if c.port_used(port):
-            c.kill_port(port)
-            if c.server_exists(module.name):
-                c.kill(module.name)
+            port = c.free_port()
         module.ip = c.ip()
         module.port =  port or c.free_port()
         module.address =  f"{module.ip}:{module.port}"
@@ -119,7 +113,7 @@ class Server(c.Module):
             return self.forward(fn, request)
         app.post("/{fn}")(api_forward)
         c.print(f'Served(name={module.name}, address={module.address}, key={module.key}) 🚀 ', color='purple')
-        c.register_server(name=module.name,address=module.address)
+        c.register_server(name=module.name,address=module.address, key=module.key.ss58_address)
         self.module = module 
 
         uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
@@ -129,7 +123,7 @@ class Server(c.Module):
                    address:str,  
                     fn: str= 'info', 
                     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1},
-                    rates : Dict[str, int]= {'max': 10,  'local': 1000, 'stake2rate': 1000, 'admin': 1000}, # the maximum rate 
+                    rates : Dict[str, int]= {'max': 10,  'local': 10000, 'stake2rate': 1000, 'admin': 10000}, # the maximum rate 
                     ) -> float:
         # stake rate limit
         module = self.module
@@ -241,13 +235,13 @@ class Server(c.Module):
         state['stake_from'] = {}
         if update:
             try  : 
-                c.get_namespace(max_age=max_age)
+                c.namespace(max_age=max_age)
                 self.subspace = c.module('subspace')(network=network)
                 state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=max_age)
                 state['stake_to'] = self.subspace.stake_to(fmt='j', update=update, max_age=max_age)
                 state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
             except Exception as e:
-                print(f'Error {e} while syncing network--> {network}')
+                c.print(f'Error {e} while syncing network--> {network}')
         state['time'] = c.time()
         state['latency'] = state['time'] - t0
         state_keys = ['stake_from', 'stake_to', 'address2key', 'stake', 'key2address', 'time', 'latency']
@@ -262,22 +256,25 @@ class Server(c.Module):
                           name: str ,
                           network: str = 'local',
                           timeout:int = 600,
-                          sleep_interval: int = 1, 
-                          verbose:bool = False) -> bool :
+                          max_age = 1,
+                          sleep_interval: int = 1) -> bool :
         
         time_waiting = 0
-        try:
-            while time_waiting < timeout:
-                namespace = c.get_namespace(network=network)
+        # rotating status thing
+        c.print(f'Waiting for {name} to start', color='cyan')
+        
+        while time_waiting < timeout:
+                namespace = c.namespace(network=network, max_age=max_age)
                 if name in namespace:
-                    c.print(f'{name} is ready', color='green')
-                    return c.call(namespace[name]+'/info')
-                # c.logs(name, mode='cmd')
-                time_waiting += sleep_interval
-                c.print(f'Waiting for {name} for {time_waiting} seconds', color='red')
+                    try:
+                        result = c.call(namespace[name]+'/info')
+                        if 'key' in result:
+                            c.print(f'{name} is running', color='green')
+                            return result
+                    except Exception as e:
+                        c.print(f'Error getting info for {name} --> {e}', color='red')
                 c.sleep(sleep_interval)
-        except Exception as e:
-            c.print('ERROR ON WAIT UNTIL SERVER', c.detailed_error(e))
+                time_waiting += sleep_interval
             # c.logs(name)
             # c.kill(name)
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
@@ -349,13 +346,17 @@ class Server(c.Module):
 
     @classmethod
     def kill(cls, name:str, verbose:bool = True, **kwargs):
-        if name == 'all':
-            return cls.kill_all(verbose=verbose)
-        c.cmd(f"pm2 delete {name}", verbose=False)
-        cls.rm_logs(name)
-        if c.server_exists(name):
-            c.deregister_server(name)
-        return {'message':f'Killed {name}', 'success':True}
+        try:
+            if name == 'all':
+                return cls.kill_all(verbose=verbose)
+            c.cmd(f"pm2 delete {name}", verbose=False)
+            cls.rm_logs(name)
+            result =  {'message':f'Killed {name}', 'success':True}
+        except Exception as e:
+            result =  {'message':f'Error killing {name}', 'success':False, 'error':e}
+
+        c.deregister_server(name)
+        return result
     
     @classmethod
     def kill_all_processes(cls, verbose:bool = True, timeout=20):
@@ -414,7 +415,7 @@ class Server(c.Module):
                 try:
                     text +=  c.get_text(path, tail=tail)
                 except Exception as e:
-                    c.print('ERROR GETTING LOGS -->' , e)
+                    c.c.print('ERROR GETTING LOGS -->' , e)
                     continue
             return text
         elif mode == 'cmd':
@@ -464,20 +465,20 @@ class Server(c.Module):
             cmd += cmd + ' --no-autorestart'
         if force:
             cmd = cmd + ' -f '
-        kwargs =  {'module': module ,
-                   'fn': fn,
-                   'args': args if args else [],
-                   'kwargs': kwargs if kwargs else {} }
+        kwargs =  {'module': module , 'fn': fn, 'args': args if args else [], 'kwargs': kwargs if kwargs else {} }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         cmd = cmd +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 'message':f'Launched {module}', 'cmd': cmd, 'stdout':stdout}
+        return {'success':True, 
+                'msg':f'Launched {module}', 
+                'cmd': cmd, 
+                'stdout':stdout}
     remote_fn = launch
 
     @classmethod
     def restart(cls, name:str):
         assert name in cls.processes()
-        c.print(f'Restarting {name}', color='cyan')
+        c.c.print(f'Restarting {name}', color='cyan')
         c.cmd(f"pm2 restart {name}", verbose=False)
         cls.rm_logs(name)  
         return {'success':True, 'message':f'Restarted {name}'}
@@ -536,19 +537,19 @@ class Server(c.Module):
             future = c.submit(c.serve, dict(module=module, name = module + '::' + str(_),  **kwargs))
             futures.append(future)
         for future in c.as_completed(futures):
-            c.print(future.result())
+            c.c.print(future.result())
         return {'success':True, 'message':f'Served {n} servers', 'namespace': c.namespace()} 
 
     def check_all_users(self):
         for user in self.users():
-            print('Checking', user)
+            c.print('Checking', user)
             self.chekcer_user_data()
 
     def extract_time(self, x):
         try:
             x = float(x.split('/')[-1].split('.')[0])
         except Exception as e:
-            print(e)
+            c.print(e)
             x = 0
         return x
 
@@ -594,7 +595,7 @@ class Server(c.Module):
         path2latency = self.user_path2latency(address)
         for path, latency  in path2latency.items():
             if latency > self.period:
-                print(f'Removing stale path {path} ({latency}/{self.period})')
+                c.print(f'Removing stale path {path} ({latency}/{self.period})')
                 os.remove(path)
 
 
