@@ -29,7 +29,8 @@ T2 = TypeVar("T2")
 
 class Subspace(c.Module):
 
-    block_time = 8
+    tempo = 60
+    blocktime =block_time = 8
     blocks_per_day = 24*60*60/block_time
     url_map = {
         "main": [ 
@@ -2280,11 +2281,10 @@ class Subspace(c.Module):
         key = c.get_key( key )
         return key
 
-    def params(self, subnet = None, block_hash: str | None = None, max_age=120,  update=False) -> dict[int, SubnetParamsWithEmission]:
+    def params(self, subnet = None, block_hash: str | None = None, max_age=tempo,  update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
-        """
-            
+        """            
         path = f'{self.network}/subnet_params_map'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
@@ -2352,15 +2352,17 @@ class Subspace(c.Module):
             subnet_map_keys = list(subnet_maps.keys())
             netuids = list(subnet_maps["name"].keys())
             for _netuid in netuids:
-                subnet = {k:subnet_maps[k].get(_netuid, default_subnet_map.get(k, None)) for k in subnet_map_keys}
-                subnet['module_burn_config'] = cast(BurnConfiguration, subnet["module_burn_config"])
-                results[_netuid] = subnet
+                subnet_result = {k:subnet_maps[k].get(_netuid, default_subnet_map.get(k, None)) for k in subnet_map_keys}
+                subnet_result['module_burn_config'] = cast(BurnConfiguration, subnet_result["module_burn_config"])
+                results[_netuid] = subnet_result
             self.put(path, results)
         results = {int(k):v for k,v in results.items()}
-        # if subnet != None: 
-        #     subnet = self.resolve_subnet(subnet)
-        #     print(subnet)
-        #     return results[subnet]
+
+    
+        if subnet != None: 
+            subnet = self.resolve_subnet(subnet)
+            print(subnet, results)
+            return results[subnet]
         return results
 
     def global_params(self, max_age=60, update=False) -> NetworkParams:
@@ -2489,7 +2491,7 @@ class Subspace(c.Module):
     
 
     def all_modules(self,
-                    max_age = 60,
+                    max_age = tempo,
                     update=False,
                     module = "SubspaceModule", 
                     features = ['Name', 'Address', 'Keys',
@@ -2537,7 +2539,7 @@ class Subspace(c.Module):
 
     def modules(self,
                     subnet=None,
-                    max_age = 60,
+                    max_age = tempo,
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 

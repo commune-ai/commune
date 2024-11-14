@@ -3,24 +3,27 @@ from typing import *
 import os
 
 class Network(c.Module):
+    blocktime =  block_time = 8 
+    n = 100
+    tempo = 60
+    blocks_per_day = 24*60*60/block_time
     # the default
     endpoints = ['namespace']
-    def __init__(self, network:str='local', tempo=60, n=100, path=None, **kwargs):
-        self.set_network(network=network, tempo=tempo, n=n)
+    def __init__(self, network:str='local', tempo=tempo,  path=None, **kwargs):
         self.module_path = self.resolve_path(path or f'modules_{self.network}')
+        self.set_network(network=network, tempo=tempo)
 
-    def set_network(self, network:str, tempo:int=60, n:str=100):
+    def set_network(self, network:str, tempo:int=60):
         self.network = network 
         self.tempo = tempo
-        self.n = n
-        return {'network': self.network, 'tempo': self.tempo, 'n': self.n}
+        return {'network': self.network, 'tempo': self.tempo}
     
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
 
     def modules(self, 
                 search=None, 
-                max_age=60, 
+                max_age=tempo, 
                 update=False, 
                 features=['name', 'address', 'key'], 
                 timeout=8, 
@@ -43,9 +46,8 @@ class Network(c.Module):
             modules = [m for m in modules if search in m['name']]
         return modules
 
-    def namespace(self, search=None,  max_age:int = 60, update:bool = False, **kwargs) -> dict:
+    def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
         return {m['name']: m['address'] for m in self.modules(search=search, max_age=max_age, update=update)}
-
 
     def register_server(self, name:str, address:str, key:str) -> None:
         data = {'name': name, 'address': address, 'key': key}
