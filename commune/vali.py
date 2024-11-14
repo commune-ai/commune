@@ -18,13 +18,10 @@ class Vali(c.Module):
                     max_workers : Optional[int]=  None , # the number of parallel workers in the executor
                     score : Union['callable', int]= None, # score function
                     path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
-                    alpha= 1.0, # alpha for score
                     min_score=  0, # the minimum weight of the scoreboard
                     run_loop= True, # This is the key that we need to change to false
                     test= False, # the test mode for the validator
-                    info_fn = 'info', # the information function for each modules
-                    tempo = 5, 
-                    max_age= 120, # the maximum age of the network
+                    tempo = None , 
                     timeout= 10, # timeout per evaluation of the module
                     update=False, # update during the first epoch
                     key = None,
@@ -34,22 +31,18 @@ class Vali(c.Module):
         self.epochs = 0
         self.max_workers = max_workers or c.cpu_count() * 5
         self.batch_size = batch_size
-        self.alpha = alpha
         self.min_score = min_score
-        self.tempo = tempo
-        self.max_age = max_age
         self.timeout = timeout
         self.test = test
         self.verbose = verbose
-        self.info_fn = info_fn
-        self.tempo = tempo
+        self.search = search
         if callable(score):
             setattr(self, 'score', score )
         self.set_key(key)
         network, subnet = network.split('/') if '/' in network else [network, subnet]
-        self.search = search
         self.subnet = subnet 
         self.network = network
+        self.tempo = tempo
         self.path = self.resolve_path( path or f'{network}/{subnet}')
         self.sync(update=update)
         if run_loop:
@@ -73,8 +66,17 @@ class Vali(c.Module):
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
 
     epoch2results = {}
+    epoch_time = 0
+    @property
+    def nex_epoch(self):
+        return int(self.epoch_time + self.tempo - c.time())
 
     def epoch(self):
+        next_epoch = self.nex_epoch
+        progress = c.tqdm(total=next_epoch, desc='Next Epoch')
+        for _ in  range(next_epoch):
+            progress.update(1)
+            c.sleep(1)
         self.sync()
         executor = c.module('executor')(max_workers=self.max_workers, maxsize=self.batch_size)
         c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
@@ -83,7 +85,7 @@ class Vali(c.Module):
         progress = c.tqdm(total=self.n, desc='Evaluating Modules')
         # return self.modules
         for module in self.modules:
-            c.print(f'EVA({module})')
+            c.print(f'EVAL --> {module})')
             if len(futures) < self.batch_size:
                 futures.append(executor.submit(self.score_module, [module], timeout=self.timeout))
             else: 
@@ -93,24 +95,29 @@ class Vali(c.Module):
             results.append(self.get_next_result(futures))
         results = [r for r in results if r.get('score', 0) > self.min_score]
         self.epochs += 1
+        self.epoch_time = c.time()
+        c.print(self.vote())
         return results
     
-    def sync(self,  update = False):
+    def sync(self, update = False):
+
         network_path = self.path + '/state'
-        max_age = 0  if update else self.max_age 
+        max_age =  self.tempo or 60
         state = c.get(network_path, max_age=max_age, update=update)
         # RESOLVE THE VOTING NETWORKS
         network_module = c.module(self.network)() 
         modules = network_module.modules(subnet=self.subnet, max_age=max_age)
         params = network_module.params(subnet=self.subnet, max_age=max_age)
+        self.tempo =  self.tempo or (params['tempo'] * network_module.block_time)//2
+        self.params =  params
         state = {'time': c.time(), "params": params, 'modules': modules}
-        # FILTER MODULES
         if self.search != None:
             modules = [m for m in modules if self.search in m['name']]
         self.network_module = network_module
         self.n  = len(modules)  
         self.modules = modules
-        c.print(f'<Network(network={self.network}, subnet={self.subnet} n={self.n})')
+        self.network_info = {'n': self.n, 'network': self.network + '/' + str(self.subnet) if  self.network != 'local' else self.network, 'params': params}
+        c.print(f'<Network({self.network_info})')
         return state
 
     module2last_update = {}
@@ -143,7 +150,7 @@ class Vali(c.Module):
     def votes_path(self):
         return self.path + f'/votes'
 
-    def vote(self, update=False, **kwargs):
+    def vote(self, update=False, submit_async=True, **kwargs):
         if not self.is_voting_network :
             return {'msg': f'NETWORK NOT VOTING NETWORK ({self.network}) out of ({self.voting_networks})', 'success': False,}
         if not hasattr(self, 'vote_time'):
@@ -156,15 +163,15 @@ class Vali(c.Module):
         return self.network_module.vote(modules=votes['keys'], 
                                         weights=votes['weights'], 
                                         key=self.key, 
-                                        subnet=self.subnet )
+                                        subnet=self.subnet)
     
     set_weights = vote 
 
     def module_info(self, **kwargs):
         if hasattr(self, 'network_module'):
-            return self.network_module.module_info(self.key.ss58_address, netuid=self.netuid, **kwargs)
+            return self.network_module.module_info(self.key.ss58_address, subnet=self.subnet, **kwargs)
         else:
-            return {}
+            return self.info()
     
     def scoreboard(self,
                     keys = ['name', 'score', 'latency',  'address', 'key'],
@@ -176,10 +183,9 @@ class Vali(c.Module):
                     **kwargs
                     ):
         max_age = self.tempo
-        paths = self.paths()
         df = []
         # chunk the jobs into batches
-        for path in paths:
+        for path in self.module_paths():
             r = self.get(path, {},  max_age=max_age)
             if isinstance(r, dict) and 'key' and  r.get('score', 0) > self.min_score  :
                 df += [{k: r.get(k, None) for k in keys}]
@@ -202,7 +208,7 @@ class Vali(c.Module):
 
         return df
 
-    def paths(self):
+    def module_paths(self):
         paths = self.ls(self.path)
         return paths
     
