@@ -2189,7 +2189,7 @@ class c:
             text = text + str(c.file2text(global_context))
         module = module or self.module_name()
         context = c.code(module)
-        return c.ask(f'{context} write full multipage docuemntation aobut this, be as simple as possible with examples \n')
+        return c.ask(f'{context} {text} \n')
     
     def time(self):
         return time.time()

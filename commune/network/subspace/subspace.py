@@ -1300,7 +1300,7 @@ class Subspace(c.Module):
             ChainTransactionError: If the transaction fails.
         """
         subnet = self.resolve_subnet(subnet)
-
+        
         params = {"netuid": subnet}
 
         response = self.compose_call("deregister", params=params, key=key)
@@ -1988,23 +1988,23 @@ class Subspace(c.Module):
         """
         Retrieves a mapping of subnet names within the network.
         """
-        return {v.lower():k for k,v in self.subnet_names(max_age=max_age, update=update).items()}
+        return {v:k for k,v in self.subnet_names(max_age=max_age, update=update).items()}
 
     def netuid2subnet(self, *args, **kwargs):
         return {v:k for k,v in self.subnet_map(*args, **kwargs).items()}
 
     def resolve_subnet(self, subnet: str) -> int:
         subnet_map = self.subnet_map()
+        subnet_map_lower = {k.lower():v for k,v in subnet_map.items()}
         netuid2name = {v:k for k,v in subnet_map.items()}
-        if isinstance(subnet, int):
-            assert subnet in netuid2name, f"Subnet {subnet} not found"
-            subnet = netuid2name[subnet]
-        if not subnet in subnet_map:
-            print(f"Subnet {subnet} not found, updating subnet map")
-            subnet_map = self.subnet_map(update=1)
-        assert subnet in subnet_map, f"Subnet {subnet} not found"
+        if subnet in subnet_map:
+            subnet = subnet_map[subnet]
+        if subnet in subnet_map_lower:
+            subnet = subnet_map_lower[subnet]
+        assert subnet in netuid2name, f"Subnet {subnet} not found"
         return subnet
     def resolve_subnet_name(self, subnet: str) -> int:
+        subnet = self.resolve_subnet(subnet)
         subnet_map = self.subnet_map()
         netuid2name = {v:k for k,v in subnet_map.items()}
         if subnet in netuid2name:
@@ -2288,7 +2288,7 @@ class Subspace(c.Module):
         path = f'{self.network}/subnet_params_map'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
-            print("subnet_params not found")
+            print("Updating Subnet Params")
             params = []
             bulk_query = self.query_batch_map(
                 {

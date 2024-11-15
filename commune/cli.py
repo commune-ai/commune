@@ -110,7 +110,7 @@ class cli:
             else:
                 raise AttributeError(f'Function {fn} not found in {module}')
         if hasattr(module, 'fn2module') and not hasattr(module, fn):
-            c.print(f'FN2MODULE ACTIVATED :{fn}')
+            c.print(f'ROUTE_ACTIVATED({fn} from {module})')
             fn2module = module.fn2module()
             if not fn in fn2module:
                 functions = c.get_functions(module)

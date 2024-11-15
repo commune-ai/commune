@@ -837,7 +837,6 @@ def is_address( address:str) -> bool:
     if '://' in address:
         return True
     conds = []
-    conds.append(len(address.split('.')) >= 3)
     conds.append(isinstance(address, str))
     conds.append(':' in address)
     conds.append(is_int(address.split(':')[-1]))

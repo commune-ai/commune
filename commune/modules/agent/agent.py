@@ -2,7 +2,7 @@ import commune as c
 import json
 import os
 
-class Agent:
+class Agent(c.Module):
     anchor="OUTPUT"
     def build(self, *args, path=c.docs_path):
         text = self.args2text(args)

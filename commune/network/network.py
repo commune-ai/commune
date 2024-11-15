@@ -10,7 +10,7 @@ class Network(c.Module):
     # the default
     endpoints = ['namespace']
     def __init__(self, network:str='local', tempo=tempo,  path=None, **kwargs):
-        self.module_path = self.resolve_path(path or f'modules_{self.network}')
+        self.modules_path = self.resolve_path(path or f'modules_{self.network}')
         self.set_network(network=network, tempo=tempo)
 
     def set_network(self, network:str, tempo:int=60):
