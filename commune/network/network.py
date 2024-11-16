@@ -3,6 +3,7 @@ from typing import *
 import os
 
 class Network(c.Module):
+    min_stake = 0
     blocktime =  block_time = 8 
     n = 100
     tempo = 60

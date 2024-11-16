@@ -526,6 +526,7 @@ class c:
         This allows you to call the function as if it were a method of the current module.
         for example
         """
+        routes = routes or cls.get_routes()
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
@@ -545,8 +546,7 @@ class c:
                 else:
                     return fn_obj
             return fn(*args, **kwargs)
-        
-        for module, fns in cls.get_routes().items():
+        for module, fns in routes.items():
             for fn in fns: 
                 if not hasattr(cls, fn):
                     fn_obj = partial(fn_generator, route=module + '.' + fn) 
@@ -846,8 +846,9 @@ class c:
     def abspath(cls, path:str):
         return os.path.abspath(os.path.expanduser(path))
     
+
     @classmethod
-    def put_text(cls, path:str, text:str, key=None, bits_per_character=8) -> None:
+    def put_text(cls, path:str, text:str, key=None) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
         dirpath = os.path.dirname(path)
@@ -861,13 +862,10 @@ class c:
         with open(path, 'w') as file:
             file.write(text)
         # get size
-        text_size = len(text)*bits_per_character
-    
-        return {'success': True, 'path': f'{path}', 'size': text_size}
+        return {'success': True, 'path': f'{path}', 'size': len(text)*8}
     
     @classmethod
     def ls(cls, path:str = '', 
-           recursive:bool = False,
            search = None,
            return_full_path:bool = True):
         """
@@ -1860,7 +1858,7 @@ class c:
         tree_cache_path = 'tree/'+os.path.abspath(path).replace('/', '_')
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print(f'TREE(max_age={max_age}, depth={depth}, pat={path})', color='green')
+            c.print(f'TREE(max_age={max_age}, depth={depth}, path={path})', color='green')
             class_paths = cls.find_classes(path, depth=depth)
             simple_paths = [cls.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
@@ -1894,7 +1892,6 @@ class c:
                 try:
                     module = c.import_object(path)
                 except Exception as e:
-                    tree = c.tree(update=1)
                     if trials == 0:
                         raise ValueError(f'Error in module {og_path} {e}')
                     return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
@@ -1916,6 +1913,7 @@ class c:
             module.params = lambda *args, **kwargs : c.params(module)
             module.key = c.get_key(module.module_name(), create_if_not_exists=True)
             module.fn2code = lambda *args, **kwargs : c.fn2code(module)
+            module.help = lambda *args, **kwargs : c.help(*args, module=module, **kwargs)
             
         c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
         return module
@@ -2093,9 +2091,9 @@ class c:
             self.add_api_key(api_key)
         assert isinstance(api_key, str)
 
-    def add_api_key(self, api_key:str, path=None):
+    def add_api_key(self, api_key:str):
         assert isinstance(api_key, str)
-        path = self.resolve_path(path or 'api_keys')
+        path = self.resolve_path('api_keys')
         api_keys = self.get(path, [])
         api_keys.append(api_key)
         api_keys = list(set(api_keys))
@@ -2104,8 +2102,7 @@ class c:
     
     def set_api_keys(self, api_keys:str):
         api_keys = list(set(api_keys))
-        self.put('api_keys', api_keys)
-        return {'api_keys': api_keys}
+        return self.put('api_keys', api_keys)
     
     def rm_api_key(self, api_key:str):
         assert isinstance(api_key, str)
@@ -2115,12 +2112,11 @@ class c:
                 api_keys.pop(i)
                 break   
         path = self.resolve_path('api_keys')
-        self.put(path, api_keys)
-        return {'api_keys': api_keys}
+        return self.put(path, api_keys)
 
     def get_api_key(self, module=None):
         if module != None:
-            self = self.module(module)
+            self = c.module(module)
         api_keys = self.api_keys()
         if len(api_keys) == 0:
             raise 
@@ -2155,12 +2151,7 @@ class c:
         if 'remote' in kwargs:
             kwargs['remote'] = False
         assert fn != None, 'fn must be specified for pm2 launch'
-        kwargs = {
-            'module': module, 
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs
-        }
+        kwargs = {'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}
         name = name or module
         if refresh:
             c.kill(name)
@@ -2184,6 +2175,8 @@ class c:
         return filename + extension
     
     def help(self, *text, module=None, global_context=f'{rootpath}/docs', **kwargs):
+        if self.module_name() == 'module':
+            return c.module('docs')().help(*text)
         text = ' '.join(map(str, text))
         if global_context != None:
             text = text + str(c.file2text(global_context))
@@ -2239,7 +2232,6 @@ class c:
                 fn2module[f] = m
         return fn2module
     
-    
 
     def install(self, path  ):
         path = path + '/requirements.txt'
@@ -2251,9 +2243,195 @@ class c:
         return c.run_epoch(*args, **kwargs)
 
 
-c.routes = c.get_routes()
+c.routes = {
+    "vali": [
+        "run_epoch",
+        "setup_vali",
+        "from_module"
+    ],
+    "py": [
+        "envs", 
+        "env2cmd", 
+        "create_env", 
+        "env2path"
+        ],
+    "cli": [
+        "parse_args"
+    ],
+    "streamlit": [
+        "set_page_config",
+        "load_style",
+        "st_load_css"
+    ],
+    "docker": [
+        "containers",
+        "dlogs",
+        "images"
+    ],
+    "client": [
+        "call",
+        "call_search",
+        "connect"
+    ],
+    "repo": [
+        "is_repo",
+        "repos"
+    ],
+    "serializer": [
+        "serialize",
+        "deserialize",
+        "serializer_map",
+    ],
+    "key": [
+        "rename_key",
+        "ss58_encode",
+        "ss58_decode",
+        "key2mem",
+        "key_info_map",
+        "key_info",
+        "valid_ss58_address",
+        "valid_h160_address",
+        "add_key",
+        "from_password",
+        "str2key",
+        "pwd2key",
+        "getmem",
+        "mem",
+        "mems",
+        "switch_key",
+        "module_info",
+        "rename_kefy",
+        "mv_key",
+        "add_keys",
+        "key_exists",
+        "ls_keys",
+        "rm_key",
+        "key_encrypted",
+        "encrypt_key",
+        "get_keys",
+        "rm_keys",
+        "key2address",
+        "key_addresses",
+        "address2key",
+        "is_key",
+        "new_key",
+        "save_keys",
+        "load_key",
+        "load_keys",
+        "get_signer",
+        "encrypt_file",
+        "decrypt_file",
+        "get_key_for_address",
+        "resolve_key_address",
+        "ticket"
+    ],
+    "remote": [
+        "host2ssh"
+    ],
+    "network": [
+        "networks",
+        "register_server",
+        "deregister_server",
+        "server_exists",
+        "add_server",
+        "has_server",
+        "add_servers",
+        "rm_servers",
+        "rm_server",
+        "namespace",
+        "namespace",
+        "infos",
+        "get_address",
+        "servers",
+        "name2address"
+    ],
+    "app": [
+        "start_app",
+        "app",
+        "apps",
+        "app2info",
+        "kill_app"
+    ],
+    "user": [
+        "role2users",
+        "is_user",
+        "get_user",
+        "update_user",
+        "get_role",
+        "refresh_users",
+        "user_exists",
+        "is_admin",
+        "admins",
+        "add_admin",
+        "rm_admin",
+        "num_roles",
+        "rm_user"
+    ],
+    "server": [
+        "serve",
+        "wait_for_server", 
+        "endpoint", 
+        "is_endpoint",
+        "fleet", 
+        "processes", 
+        "kill", 
+        "kill_many", 
+        "kill_all", 
+        "kill_all_processes", 
+        "logs"
+    ],
+
+    "subspace": [
+        "transfer_stake",
+        "stake_trnsfer",
+        "switch",
+        "switchnet",
+        "subnet",
+        "update_module",
+        "subnet_params_map",
+        "staketo", 
+        "network",
+        "get_staketo", 
+        "stakefrom",
+        "get_stakefrom",
+        "switch_network",
+        "key2balance",
+        "subnets",
+        "send",
+        "my_keys",
+        "key2value",
+        "transfer",
+        "multistake",
+        "stake",
+        "unstake",
+        "register",
+        "subnet_params",
+        "global_params",
+        "balance",
+        "get_balance",
+        "get_stak",
+        "get_stake_to",
+        "get_stake_from",
+        "my_stake_to",
+        "netuid2subnet",
+        "subnet2netuid",
+        "is_registered",
+        "update_subnet",
+        "my_subnets", 
+        "my_netuids",
+        "register_subnet",
+        "registered_subnets",
+        "registered_netuids"
+    ],
+    "model.openrouter": [
+        "generate",
+        "models"
+    ],
+    "chat": ["ask", "models", "pricing",  "model2info"]
+}
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
+
 
 

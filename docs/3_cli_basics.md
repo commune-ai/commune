@@ -1,13 +1,21 @@
-# The Pythonic CLI
+# CLI BASICS
 
 We have a pythonic cli for commune, which is a wrapper around the `c.Module` library. This is a simple way to interact with the commune library. This does not need to be formated like argparse, and is more like a pythonic cli, where you can test out the functions and modules.
 
+```bash
+c {module_name}/{function_name} *args **kwargs 
+# positional arguments and keyword arguments are accepted as if you were calling a function in python
+```
 
+so 
+
+module = c.module("module")
+module.ls("./")
+
+is the same as 
 
 ```bash
-c {module_name}/{function_name} *args **kwargs
-
-
+c module/ls ./
 ```
 
 ## Pythoni
@@ -24,8 +32,9 @@ c ls ./ #
 ```
 is the same as
 ```bash
-c module/ls ./
+c module/ls ./ # calls the ls fn=ls module=module
 ```
+
 and
 ```python
 import commune as c
@@ -158,3 +167,13 @@ c.module("demo").serve(tag="latest")
 
 
 c run-epoch  is c run_epoch # all - is _
+
+
+to serve a module 
+
+
+c serve "model.openai"
+
+is the same as
+c.serve("model.openai")
+
