@@ -30,13 +30,50 @@ class Agent(c.Module):
     
     def find_text(self, *args, **kwargs):
         text =  [c.get_text(f) for f in self.find_files(*args, **kwargs)]
-    
         size = self.get_size(text)
         return size
 
     def get_size(self, x):
         return len(str(x))
-        
+
+
+    def modules(self, 
+                   query='', 
+                   output_format="DICT(data:list[str])" , 
+                   path='./', 
+                   n=5, 
+                   model='sonnet'):
+        front_anchor = f"<{self.anchor}>"
+        back_anchor = f"</{self.anchor}>"
+        context = c.modules()
+        prompt = f"""
+        QUERY 
+        {query} 
+        INSTRUCTION 
+        get the top {n} files that match the query
+        instead of using the full {os.path.expanduser('~')}, use ~
+        CONTEXT
+        {context}
+        OUTPUT
+        (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
+        {front_anchor}{output_format}{back_anchor}
+        """
+        output = ''
+        for ch in c.ask(prompt, model=model): 
+            print(ch, end='')
+            output += ch
+            if ch == front_anchor:
+                break
+        if '```json' in output:
+            output = output.split('```json')[1].split('```')[0]
+        elif front_anchor in output:
+            output = output.split(front_anchor)[1].split(back_anchor)[0]
+        else:
+            output = output
+        output = json.loads(output)
+        assert len(output) > 0
+        return output
+
 
     def find_files(self, 
                    query='', 
@@ -94,3 +131,4 @@ class Agent(c.Module):
     def tools(self):
         return c.fns("fn")
     
+

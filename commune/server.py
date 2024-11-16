@@ -181,10 +181,13 @@ class Server(c.Module):
         if c.is_generator(result):
             output = []
             def generator_wrapper(generator):
-                for item in generator:
-                    output_item = self.serializer.serialize(item)
-                    output += [output_item]
-                    yield output_item
+                try:
+                    for item in generator:
+                        output_item = self.serializer.serialize(item)
+                        yield output_item
+                except Exception as e:
+                    c.print(e)
+                    yield str(c.detailed_error(e))
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)

@@ -703,7 +703,6 @@ def file2text(path = './',
                                 'node_modules'],
                 relative=True,  **kwargs):
     path = os.path.abspath(os.path.expanduser(path))
-    print(path, 'FAMMM')
     file2text = {}
     for file in get_glob(path, recursive=True):
         if os.path.isdir(file):

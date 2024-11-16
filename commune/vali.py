@@ -6,52 +6,71 @@ from typing import *
 
 class Vali(c.Module):
     endpoints = ['score', 'scoreboard']
-    voting_networks = ['bittensor', 'commune', 'subspace']
+    voting_networks = ['bittensor', 'subspace']
     networks = ['local'] + voting_networks
+    epoch_time = 0
+    vote_time = 0
+    vote_staleness = 0
+    epochs = 0
 
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     subnet : Optional[Union[str, int]] = None, # (OPTIONAL) the name of the subnetwork 
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
-                    verbose : bool =  True, # the verbose mode for the worker # EPOCH
                     batch_size : int = 128, # the batch size of the most parallel tasks
                     max_workers : Optional[int]=  None , # the number of parallel workers in the executor
                     score : Union['callable', int]= None, # score function
-                    path= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
-                    min_score=  0, # the minimum weight of the scoreboard
-                    run_loop= True, # This is the key that we need to change to false
-                    test= False, # the test mode for the validator
-                    tempo = None , 
-                    timeout= 3, # timeout per evaluation of the module
-                    update=False, # update during the first epoch
-                    key = None,
+                    key : str = None,
+                    path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
+                    tempo : int = None , 
+                    timeout : int = 3, # timeout per evaluation of the module
+                    update : bool =False, # update during the first epoch
+                    run_loop : bool = True, # This is the key that we need to change to false
                  **kwargs):
+        self.set_executor(max_workers=max_workers, batch_size=batch_size, timeout=timeout)
+        self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
+        self.set_key(key)
+        if run_loop:
+            c.thread(self.run_loop)
+    init_vali = __init__
+
+    def set_executor(self, max_workers:int, batch_size:int, timeout:int):
+        self.timeout = timeout or 3
+        self.max_workers = max_workers or c.cpu_count() * 5
+        self.batch_size = batch_size or 128
+        self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
+        return {'success': True, 'msg': 'Executor set', 'max_workers': self.max_workers, 'batch_size': self.batch_size, 'timeout': self.timeout}
+    
+    def set_network(self, network:str, 
+                    subnet:str=None, 
+                    tempo:int=60, 
+                    search:str=None, 
+                    path:str=None, 
+                    score = None,
+                    update=False):
+    
+
         if not network in self.networks and '/' not in network:
             network = f'subspace/{network}'
-        self.epochs = 0
-        self.max_workers = max_workers or c.cpu_count() * 5
-        self.batch_size = batch_size
-        self.min_score = min_score
-        self.timeout = timeout
-        self.test = test
-        self.verbose = verbose
-        self.search = search
-        if callable(score):
-            setattr(self, 'score', score )
-        self.set_key(key)
         [network, subnet] = network.split('/') if '/' in network else [network, subnet]
         self.subnet = subnet 
         self.network = network
+        self.network_module = c.module(self.network)() 
         self.tempo = tempo
-        self.path = self.resolve_path( path or f'{network}/{subnet}')
+        self.search = search
+        self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}'))
+        self.set_score(score)
         self.sync(update=update)
-        if run_loop:
-            c.thread(self.run_loop)
 
-    init_vali = __init__
-    
+
     def score(self, module):
         return int('name' in module.info())
+    
+    def set_score(self, score):
+        if callable(score):
+            setattr(self, 'score', score )
+        assert callable(self.score), f'SCORE NOT SET {self.score}'
+        return {'success': True, 'msg': 'Score function set'}
 
     @property
     def is_voting_network(self):
@@ -63,101 +82,88 @@ class Vali(c.Module):
                 self.epoch()
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
-
-    epoch2results = {}
-    epoch_time = 0
     @property
     def nex_epoch(self):
         return int(self.epoch_time + self.tempo - c.time())
+    
+    futures = []
+    results = []
 
     def epoch(self):
+        if len(self.futures) > 0:
+            print('Cancelling futures from previous epoch')
+            [f.cancel() for f in self.futures]
+        self.futures = []
+        self.results = []
         next_epoch = self.nex_epoch
         progress = c.tqdm(total=next_epoch, desc='Next Epoch')
         for _ in  range(next_epoch):
             progress.update(1)
             c.sleep(1)
         self.sync()
-        executor = c.module('executor')(max_workers=self.max_workers, maxsize=self.batch_size)
-        c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
-        futures = []
-        results = []
+        c.print(f'EPOCH(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
         progress = c.tqdm(total=self.n, desc='Evaluating Modules')
         # return self.modules
         n = len(self.modules)
         for i, module in enumerate(self.modules):
             module["i"] = i
-            c.print(f'EVAL(i={i}/{n}, name={module["name"]} key={module["key"]})', color='yellow')
-            if len(futures) < self.batch_size:
-                futures.append(executor.submit(self.score_module, [module], timeout=self.timeout))
+            c.print(f'EVAL(i={i}/{n} key={module["key"]} name={module["name"]})', color='yellow')
+            if len(self.futures) < self.batch_size:
+                self.futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
             else: 
-                results.append(self.next_result(futures))
+                self.results.append(self.next_result())
             progress.update(1)
-        while len(futures) > 0:
-            results.append(self.next_result(futures))
-        results = [r for r in results if r.get('score', 0) > self.min_score]
+        while len(self.futures) > 0:
+            self.results.append(self.next_result())
+        self.results = [r for r in self.results if r.get('score', 0) > 0]
         self.epochs += 1
         self.epoch_time = c.time()
         c.print(self.vote())
-        return results
+        return self.results
     
     def sync(self, update = False):
-
-        network_path = self.path + '/state'
-        max_age =  self.tempo or 60
-        state = c.get(network_path, max_age=max_age, update=update)
-        # RESOLVE THE VOTING NETWORKS
-        network_module = c.module(self.network)() 
-        modules = network_module.modules(subnet=self.subnet, max_age=max_age)
-        params = network_module.params(subnet=self.subnet, max_age=max_age)
-        self.tempo =  self.tempo or (params['tempo'] * network_module.block_time)//2
-        self.params =  params
-        state = {'time': c.time(), "params": params, 'modules': modules}
+        max_age =  0 if update else (self.tempo or 60)
+        self.modules = self.network_module.modules(subnet=self.subnet, max_age=max_age)
+        self.params = self.network_module.params(subnet=self.subnet, max_age=max_age)
+        self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
         if self.search != None:
-            modules = [m for m in modules if self.search in m['name']]
-        self.network_module = network_module
-        self.n  = len(modules)  
-        self.modules = modules
-        self.network_info = {'n': self.n, 'network': self.network + '/' + str(self.subnet) if  self.network != 'local' else self.network, 'params': params}
+            self.modules = [m for m in self.modules if self.search in m['name']]
+        self.n  = len(self.modules)  
+        self.network_info = {'n': self.n, 'network': self.network ,  'subnet': self.subnet, 'params': self.params}
         c.print(f'<Network({self.network_info})')
-        return state
-
-    module2last_update = {}
+        return self.network_info
 
     def score_module(self,  module:dict, **kwargs):
         module['time'] = c.time() # the timestamp
         module['score'] = self.score(c.connect(module['address'], key=self.key), **kwargs)
         module['latency'] = c.time() - module['time']
-        if module['score'] > self.min_score:
+        if module['score'] > 0:
             module_path = self.path +'/'+ module['key']
             c.put_json(module_path, module)
         return module
-
-    def votes(self, **kwargs):
-        votes = {'keys': [], 'weights': []}
-        for module in self.scoreboard().to_records():
-            if module['score'] > 0:
-                votes['keys'] += [module['key']]
-                votes['weights'] += [module['score'].item()]
-        return votes
     
     @property
     def votes_path(self):
         return self.path + f'/votes'
 
-    def vote(self, update=False, submit_async=True, **kwargs):
+    def vote(self, submit_async=True, **kwargs):
+
         if not self.is_voting_network :
-            return {'msg': f'NETWORK NOT VOTING NETWORK ({self.network}) out of ({self.voting_networks})', 'success': False,}
-        if not hasattr(self, 'vote_time'):
-            self.vote_time = 0
-        vote_staleness = c.time() - self.vote_time
-        if not update:
-            if vote_staleness < self.tempo:
-                return {'success': False, 'msg': f'Vote is too soon {vote_staleness}'}
-        votes =self.votes() 
-        return self.network_module.vote(modules=votes['keys'], 
-                                        weights=votes['weights'], 
-                                        key=self.key, 
-                                        subnet=self.subnet)
+            return {'success': False, 'msg': f'NOT VOTING NETWORK({self.network})'}
+        self.vote_staleness = c.time() - self.vote_time
+        if self.vote_staleness < self.tempo:
+            return {'success': False, 'msg': f'Vote is too soon {self.vote_staleness}'}
+        fn_obj = self.network_module.vote
+        params = dict(modules=[], weights=[], key=self.key, subnet=self.subnet)
+        if len(self.results) == 0:
+            return {'success': False, 'msg': 'No results to vote on'}
+        for m in self.results:
+            params['modules'].append(m['key'])
+            params['weights'].append(m['score'])
+        if submit_async:
+            return c.submit(fn_obj, params)
+        else:
+            return self.network_module.vote(**params)
     
     set_weights = vote 
 
@@ -181,7 +187,7 @@ class Vali(c.Module):
         # chunk the jobs into batches
         for path in self.module_paths():
             r = self.get(path, {},  max_age=max_age)
-            if isinstance(r, dict) and 'key' and  r.get('score', 0) > self.min_score  :
+            if isinstance(r, dict) and 'key' and  r.get('score', 0) > 0  :
                 df += [{k: r.get(k, None) for k in keys}]
             else :
                 self.rm(path)
@@ -206,31 +212,23 @@ class Vali(c.Module):
         paths = self.ls(self.path)
         return paths
     
-    def refresh_scoreboard(self):
-        path = self.path
-        c.rm(path)
-        return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
-    
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, **kwargs).epoch()
-    
 
-                
-
-    def next_result(self, futures, features=['score', 'name', 'key', 'i']):
+    def next_result(self,  features=['score', 'name', 'key', 'i']):
         try:
-            for future in c.as_completed(futures, timeout=self.timeout):
-                futures.remove(future) 
+            for future in c.as_completed(self.futures, timeout=self.timeout):
+                self.futures.remove(future) 
                 result = future.result()
                 if all([f in result for f in features]):
-                    c.print(f'RESULT(score={result["score"]}, name={result["name"]} key={result["key"]})', color='green')
+                    c.print(f'RESULT(score={result["score"]} key={result["key"]} name={result["name"]} )', color='green')
                     return result
         except Exception as e:
             result = c.detailed_error(e)
-        c.print(f'ERROR({result})', color='red')
-
+            c.print(f'ERROR({result})', color='red')
         return result
+    
     @staticmethod
     def test(  n=1, tag = 'vali_test_net',  miner='module', vali='vali',  path = '/tmp/commune/vali_test',network='local'):
         test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
@@ -247,4 +245,7 @@ class Vali(c.Module):
             c.print(c.kill(miner))
         return {'success': True, 'msg': 'subnet test passed'}
     
-
+    def refresh_scoreboard(self):
+        path = self.path
+        c.rm(path)
+        return {'success': True, 'msg': 'Leaderboard removed', 'path': path}

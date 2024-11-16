@@ -29,9 +29,11 @@ T2 = TypeVar("T2")
 
 class Subspace(c.Module):
 
+    min_stake = 50000
     tempo = 60
-    blocktime =block_time = 8
+    blocktime = block_time = 8
     blocks_per_day = 24*60*60/block_time
+
     url_map = {
         "main": [ 
             "api.communeai.net"
@@ -898,9 +900,9 @@ class Subspace(c.Module):
         Raises:
             ChainTransactionError: If the transaction fails.
         """
-        c.print(f'Calling module={module} fn={fn} network={self.network} url={self.url})')
-        c.print(f'params: {params}')
-        
+        c.print(f'SUBSPACE({module}/{fn} network={self.network} url={self.url})')
+        c.print('PARAMS --> ',params)
+
         key = self.resolve_key(key)
 
         if key is None and not unsigned:
@@ -1084,7 +1086,7 @@ class Subspace(c.Module):
         return amount * 10**9
     
 
-    def top_miners( self, subnet,  amount=4, key='module'):
+    def send_my_modules( self,  amount=1, subnet=0, key='module'):
         destinations = self.my_keys(subnet)
         amounts = [amount] * len(destinations)
         return self.transfer_multiple(key=key, destinations=destinations,amounts=amounts)
@@ -1182,7 +1184,7 @@ class Subspace(c.Module):
         modules = self.my_modules(subnet)
         futures = []
         for m in modules:
-            if m['ready']:
+            if m['serving']:
                 continue
             print(f'Updating {m["name"]}')
             futures += [c.submit(self.update_module, dict(name=m['name'], subnet=subnet), timeout=timeout)]
@@ -1264,8 +1266,6 @@ class Subspace(c.Module):
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
-    
-    
         key =  c.get_key(key)
         if address == None:
             namespace = c.namespace()
@@ -1285,7 +1285,16 @@ class Subspace(c.Module):
         response =  self.compose_call("register", params=params, key=key, wait_for_finalization=wait_for_finalization)
         return response
 
-    def deregister(self, key: Keypair, subnet: int) -> ExtrinsicReceipt:
+    def dereg(self, key: Keypair, subnet: int=0):
+        return self.deregister(key=key, subnet=subnet)
+    
+    def dereg_many(self, *key: Keypair, subnet: int = 0):
+        futures = [c.submit(self.deregister, dict(key=k, subnet=subnet)) for k in key ]
+        results = []
+        for f in c.as_completed(futures):
+            results += [f.result()]
+        return results
+    def deregister(self, key: Keypair, subnet: int=0) -> ExtrinsicReceipt:
         """
         Deregisters a module from the network.
 
@@ -1307,6 +1316,9 @@ class Subspace(c.Module):
 
         return response
 
+    def reg(self, key: Keypair, subnet: int=0):
+        return self.register(key=key, subnet=subnet)
+    
     def register_subnet(self, name: str, metadata: str | None = None,  key: Keypair=None) -> ExtrinsicReceipt:
         """
         Registers a new subnet in the network.
@@ -1329,6 +1341,8 @@ class Subspace(c.Module):
         }
         response = self.compose_call("register_subnet", params=params, key=key)
         return response
+    
+    regnet = register_subnet
 
     def set_weights(
         self,
@@ -1962,10 +1976,8 @@ class Subspace(c.Module):
         """
         Retrieves a mapping of maximum allowed weights for the network.
         """
-
         return self.query_map("MaxAllowedWeights", extract_value=extract_value)
     
-
     def legit_whitelist(
         self, extract_value: bool = False
     ) -> dict[Ss58Address, int]:
@@ -1974,7 +1986,6 @@ class Subspace(c.Module):
         """
         return self.query_map( "LegitWhitelist", module="GovernanceModule", extract_value=extract_value)
     
-
     def subnet_names(self, extract_value: bool = False, max_age=60, update=False) -> dict[int, str]:
         """
         Retrieves a mapping of subnet names within the network.
@@ -1982,7 +1993,6 @@ class Subspace(c.Module):
         subnet_names =  self.query_map("SubnetNames", extract_value=extract_value, max_age=max_age, update=update)
     
         return {int(k):v for k,v in subnet_names.items()}
-
 
     def subnet_map(self, max_age=10, update=False) -> dict[int, str]:
         """
@@ -2029,21 +2039,16 @@ class Subspace(c.Module):
         return self.subnet_names()
 
     def get_balances(
-        self, addresses=None, extract_value: bool = False, block_hash: str | None = None
+        self, key_addresses=None, extract_value: bool = False, block_hash: str | None = None
     ) -> dict[str, dict[str, int | dict[str, int | float]]]:
         """
         Retrieves a mapping of account balances within the network.
         """
         key2address = c.key2address()
-        addresses = addresses or list(key2address.values())
-        addresses = [key2address.get(a, a) for a in addresses]
+        key_addresses = key_addresses or list(key2address.values())
+        key_addresses = [key2address.get(a, a) for a in key_addresses]
         with self.get_conn(init=True) as substrate:
-            balances =  substrate.query_multi(
-                [
-                    substrate.create_storage_key(pallet='System', storage_function='Account', params=[address]) for address in addresses if not address.startswith('0x')
-                ]
-            )
-
+            balances =  substrate.query_multi( [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in key_addresses if not ka.startswith('0x')])
         return len(balances)
     
     def names(
@@ -2474,20 +2479,19 @@ class Subspace(c.Module):
                     my_keys += [k]
             modules = self.get_modules(my_keys, subnet=subnet)
             for i,m in enumerate(modules):
-                ready = m['name'] in namespace
-                m['ready'] = ready
-                local_key_alias = address2key[m['key']]
+                serving = m['name'] in namespace
+                m['serving'] = serving
                 m['name'] = address2key[m['key']]
                 modules[i] = m
-
-        features += ['ready']
-        
+        features += ['serving']
         modules = [{f:m[f] for f in features} for m in modules]
         return modules
+    
+    def my_valis(self, subnet=0):
+        return [m for m in self.my_modules(subnet) if m['stake'] > self.min_stake]
 
     def my_keys(self, subnet=0):
-        key2address = c.key2address()
-        return [key2address[k] for k in self.my_modules(subnet)]
+        return [m['key'] for m in self.my_modules(subnet)]
     
 
     def all_modules(self,
