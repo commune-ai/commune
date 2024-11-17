@@ -9,7 +9,7 @@ def test_global_params():
 def test_subnet_params(subnet=0):
     self = c.module('subspace')()
     subnet_params = self.subnet_params(subnet=subnet)
-    assert isinstance(subnet_params, dict)
+    assert isinstance(subnet_params, dict), f'{subnet_params} is not a dict'
     return {'msg': 'subnet_params test passed', 'success': True}
 
 

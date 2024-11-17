@@ -13,8 +13,6 @@ from Crypto import Random
 from Crypto.Cipher import AES
 import nacl.bindings
 import nacl.public
-
-
 from eth_keys.datatypes import PrivateKey
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format
 from scalecodec.base import ScaleBytes

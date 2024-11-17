@@ -34,6 +34,11 @@ class Vali(c.Module):
             c.thread(self.run_loop)
     init_vali = __init__
 
+
+    def set_key(self, key):
+        self.key = key or c.get_key()
+        return {'success': True, 'msg': 'Key set', 'key': self.key}
+
     def set_executor(self, max_workers:int, batch_size:int, timeout:int):
         self.timeout = timeout or 3
         self.max_workers = max_workers or c.cpu_count() * 5

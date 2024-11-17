@@ -19,12 +19,8 @@ class Agent(c.Module):
         for ch in c.ask(prompt):
             output += output
             if front_anchor in output:
-                output.split(front_anchor)[1]
-            yield ch
-
-
-
-
+                content = output.split(front_anchor)[1]
+            
     def args2text(self, args):
         return ' '.join(list(map(str, args)))
     

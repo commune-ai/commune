@@ -13,14 +13,13 @@ import asyncio
 class Server(c.Module):
     tag_seperator:str='::'
     pm2_dir = os.path.expanduser('~/.pm2')
-    functions_attributes : List[str] =['helper_functions', 'whitelist','endpoints','functions', 'fns', 'server_functions', 'public']
-    user_functions = ['user_count', 'user_paths','user_data','user2count', 'user_path2latency','user_path2time', 'remove_user_data', 'users']
-    helper_functions : List[str]  = ['info', 'metadata', 'schema', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit']
+    functions_attributes =['helper_functions', 'whitelist','endpoints','functions', 'fns', 'server_functions', 'public']
+    helper_functions  = ['info', 'metadata', 'schema', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit']
     max_bytes:int = 10 * 1024 * 1024  # max bytes within the request (bytes)
-    allow_origins: List[str] = ["*"] # allowed origins
-    allow_credentials: bool =True # allow credentials
-    allow_methods: List[str] = ["*"] # allowed methods
-    allow_headers: List[str] = ["*"]  # allowed headers
+    allow_origins  = ["*"] # allowed origins
+    allow_credentials  =True # allow credentials
+    allow_methods  = ["*"] # allowed methods
+    allow_headers = ["*"]  # allowed headers
     period : int = 3600 # the period for 
     max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
@@ -76,8 +75,6 @@ class Server(c.Module):
                     schema[fn] = c.fn_schema(fn_obj)['input']
                 else: 
                     schema[fn] = {'type': str(type(fn_obj)).split("'")[1]}
-        for fn in self.user_functions:
-            setattr(module, fn, getattr(self, fn))
         if port in [None, 'None']:
             namespace = c.namespace()
             if name in namespace:
@@ -94,7 +91,7 @@ class Server(c.Module):
         module.address =  f"{module.ip}:{module.port}"
         module.functions = functions
         module.schema = dict(sorted(schema.items()))
-        module.info = self.get_info(module)
+        module.info = self.info
         self.network = network
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
         self.users_path = self.resolve_path(f'users/{name}')
@@ -145,6 +142,7 @@ class Server(c.Module):
             except Exception as e:
                 return c.detailed_error(e)
         module = self.module
+    
         headers = dict(request.headers.items())
         address = headers.get('key', headers.get('address', None))
         assert address, 'No key or address in headers'
@@ -156,14 +154,14 @@ class Server(c.Module):
         auth={'data': c.hash(data), 'time': headers['time']}
         signature = headers.get('signature', None)
         assert c.verify(auth=auth,signature=signature, address=address), 'Invalid signature'
-        server_signature = self.module.key.sign(headers)
+        server_signature = module.key.sign(headers)
         kwargs = dict(data.get('kwargs', {}))
         args = list(data.get('args', []))
         data = {'args': args, 'kwargs': kwargs}
         is_admin = bool(c.is_admin(address) or  address == self.module.key.ss58_address)
         if not is_admin:
             assert not bool(fn.startswith('__') or fn.startswith('_')), f'Function {fn} is private'
-            assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
+            assert fn in module.functions , f"Function {fn} not in endpoints={module.functions}"
         count = self.user_count(address)
         rate_limit = self.rate_limit(fn=fn, address=address)
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'
@@ -200,12 +198,11 @@ class Server(c.Module):
             'latency':  latency, # the latency
             'time': start_time, # the time of the request
             'user_key': address, # the key of the user
-            'server_key': self.module.key.ss58_address, # the key of the server
+            'server_key': module.key.ss58_address, # the key of the server
             'user_signature': signature, # the signature of the user
             'server_signature': server_signature, # the signature of the server
-            'cost': self.module.fn2cost.get(fn, 1), # the cost of the function
+            'cost': module.fn2cost.get(fn, 1), # the cost of the function
         }
-        
         user_path = self.user_path(user_data["user_key"]) + f'/{user_data["fn"]}/{c.time()}.json' # get the user info path
         c.put(user_path, user_data)
         return result
@@ -264,7 +261,7 @@ class Server(c.Module):
         
         time_waiting = 0
         # rotating status thing
-        c.print(f'Waiting for {name} to start', color='cyan')
+        c.print(f'WAITING_FOR_SERVER(module{name})', color='cyan')
         
         while time_waiting < timeout:
                 namespace = c.namespace(network=network, max_age=max_age)
@@ -282,8 +279,9 @@ class Server(c.Module):
             # c.kill(name)
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
 
-    def get_info(self, module):
+    def info(self):
         info = {}
+        module = self.module
         info['schema'] = module.schema
         info['name'] = module.name 
         info['address'] = module.address
@@ -498,12 +496,14 @@ class Server(c.Module):
             module_list = [m for m in module_list if search in m]
         module_list = sorted(list(set(module_list)))
         return module_list
-
+    
     pm2ls = pids = procs = processes 
 
     @classmethod
     def process_exists(cls, name:str, **kwargs) -> bool:
         return name in cls.processes(**kwargs)
+
+
 
     @classmethod
     def serve(cls, 
@@ -512,13 +512,18 @@ class Server(c.Module):
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
               remote:bool = True, # runs the server remotely (pm2, ray)
-              functions = None,
-              key = None,
+              functions = None, # list of functions to serve, if none, it will be the endpoints of the module
+              key = None, # the key for the server
               **extra_kwargs
               ):
         module = module or 'module'
         name = name or module
         kwargs = {**(kwargs or {}), **extra_kwargs}
+
+        c.print(f'Serving(module={module} params={kwargs} name={name} function={functions})')
+
+        if not isinstance(module, str):
+            remote = False
         if remote:
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_kwargs', 'response', 'namespace']}
             rkwargs['remote'] = False
