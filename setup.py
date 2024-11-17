@@ -3,19 +3,16 @@ from setuptools import setup, find_packages
 from os import path
 from io import open
 from pkg_resources import parse_requirements
-libname = 'commune'
 here = path.abspath(path.dirname(__file__))
-
+libname = here.split('/')[-1] # name of the package is assumed to be the name of the directory
 with open(f'{here}/README.md', encoding='utf-8') as f:
     long_description = f.read()
-
 with open(f'{here}/requirements.txt') as requirements_file:
     install_requires = [str(requirement) for requirement in parse_requirements(requirements_file)]
-
 setup(
     name=libname,
-    version='0.0.1',
-    description='A package for building and deploying modules',
+    version='1.0.0',
+    description='a way for connecting and verifying tools for the global toolbox',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/commune-ai/commune',
@@ -23,22 +20,8 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     author_email='',
-    license='AGIDOESNTCAREABOUTYOURLISCENCES',
+    license='IDGAF License, Do What You Want, I wont sue you',
     install_requires=install_requires,
-    entry_points={
-        'console_scripts': [
-            f'{libname[0]}={libname}.cli:main'
-        ],
-    },
-    classifiers=[
-        'Intended Audience :: Developers',
-        'Topic :: Software Development :: Build Tools',
-        "AGIDOESNTCAREABOUTYOURLISCENCES"
-        # Pick your license as you wish
-        'License :: IDGAF License, Do What You Want, I wont sue you',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.8',
-    ], 
+    entry_points={'console_scripts': [f'{libname[0]}={libname}.cli:main']},
+    classifiers=['FUCK SHIT UP'], 
     python_requires='>=3.8')

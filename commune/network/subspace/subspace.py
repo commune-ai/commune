@@ -33,7 +33,6 @@ class Subspace(c.Module):
     tempo = 60
     blocktime = block_time = 8
     blocks_per_day = 24*60*60/block_time
-
     url_map = {
         "main": [ 
             "api.communeai.net"
@@ -786,6 +785,7 @@ class Subspace(c.Module):
         extract_value: bool = True,
         max_age=0,
         update=False,
+        block = None,
         block_hash: str | None = None,
     ) -> dict[Any, Any]:
         """
@@ -1054,7 +1054,7 @@ class Subspace(c.Module):
                 )
 
         return response
-
+    
     def transfer(
         self,
         key: Keypair,
@@ -1434,6 +1434,14 @@ class Subspace(c.Module):
         metadata = sorted(metadata.items(), key=lambda x: x[0])
         return {k: v for k, v in metadata}
     
+    def subnet2metadata(self) -> str:
+        netuids = self.netuids()
+        metadata = self.query_map('SubnetMetadata')
+        metadata =  {i : metadata.get(i, None) for i in netuids}
+        metadata = sorted(metadata.items(), key=lambda x: x[0])
+        netuid2subnet = self.netuid2subnet()
+        return {netuid2subnet.get(k): v for k, v in metadata}
+    
     # def topup_miners(self, subnet):
     
     def transfer_stake(
@@ -1620,7 +1628,7 @@ class Subspace(c.Module):
 
         # general_params["burn_config"] = json.dumps(general_params["burn_config"])
         response = self.compose_call(
-            fn="add_subnet_params_proposal",
+            fn="add_params_proposal",
             params=general_params,
             key=key,
             module="GovernanceModule",
@@ -1870,27 +1878,6 @@ class Subspace(c.Module):
         )
         return applications
 
-    def proposals(
-        self, extract_value: bool = False
-    ) -> dict[int, dict[str, Any]]:
-        """
-        Retrieves a mappping of proposals from the network.
-
-        Queries the network and returns a mapping of proposal IDs to
-        their respective parameters.
-
-        Returns:
-            A dictionary mapping proposal IDs
-            to dictionaries of their parameters.
-
-        Raises:
-            QueryError: If the query to the network fails or is invalid.
-        """
-
-        return self.query_map(
-            "Proposals", extract_value=extract_value, module="GovernanceModule"
-        )
-
     def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]] | None:
         """
         Retrieves a mapping of weights for keys on the network.
@@ -1926,7 +1913,7 @@ class Subspace(c.Module):
     
     def state(self, timeout=42):
         futures = []
-        fns  = ['subnet_params', 'global_params', 'modules']
+        fns  = ['params', 'global_params', 'modules']
         futures = [c.submit(getattr(self,fn), kwargs=dict(update=1), timeout=timeout) for fn in fns]
         return dict(zip(fns, c.wait(futures, timeout=timeout)))
 
@@ -1937,7 +1924,7 @@ class Subspace(c.Module):
         state = self.get(path, max_age=max_age, update=update)
         if state == None:
             c.print(f"subnet_state: {path} not found")
-            futures = [c.submit(self.subnet_params, kwargs=dict(subnet=subnet, max_age=max_age, update=update)), 
+            futures = [c.submit(self.params, kwargs=dict(subnet=subnet, max_age=max_age, update=update)), 
                         c.submit(self.modules, kwargs=dict(subnet=subnet, max_age=max_age, update=update))]
             params, modules = c.wait(futures)
             state = {'params': params, 'modules': modules}
@@ -1986,19 +1973,19 @@ class Subspace(c.Module):
         """
         return self.query_map( "LegitWhitelist", module="GovernanceModule", extract_value=extract_value)
     
-    def subnet_names(self, extract_value: bool = False, max_age=60, update=False) -> dict[int, str]:
+    def subnet_names(self, extract_value: bool = False, max_age=60, update=False, block=None) -> dict[int, str]:
         """
         Retrieves a mapping of subnet names within the network.
         """
-        subnet_names =  self.query_map("SubnetNames", extract_value=extract_value, max_age=max_age, update=update)
+        subnet_names =  self.query_map("SubnetNames", extract_value=extract_value, max_age=max_age, update=update, block=block)
     
         return {int(k):v for k,v in subnet_names.items()}
 
-    def subnet_map(self, max_age=10, update=False) -> dict[int, str]:
+    def subnet_map(self, max_age=10, update=False, **kwargs) -> dict[int, str]:
         """
         Retrieves a mapping of subnet names within the network.
         """
-        return {v:k for k,v in self.subnet_names(max_age=max_age, update=update).items()}
+        return {v:k for k,v in self.subnet_names(max_age=max_age, update=update, **kwargs).items()}
 
     def netuid2subnet(self, *args, **kwargs):
         return {v:k for k,v in self.subnet_map(*args, **kwargs).items()}
@@ -2063,7 +2050,32 @@ class Subspace(c.Module):
         names = dict(sorted(names.items(), key=lambda x: x[0]))
         return names
 
-    #  == QUERY FUNCTIONS == #
+
+    def proposal(self, proposal_id: int = 0):
+        """
+        Queries the network for a specific proposal.
+        """
+
+        return self.query(
+            "Proposals",
+            params=[proposal_id],
+        )
+
+    def proposals(
+        self, extract_value: bool = False
+    ) -> dict[int, dict[str, Any]]:
+        """
+        Retrieves a mappping of proposals from the network.
+        
+        Returns:
+            A dictionary mapping proposal IDs
+            to dictionaries of their parameters.
+
+        Raises:
+            QueryError: If the query to the network fails or is invalid.
+        """
+
+        return self.query_map( "Proposals", extract_value=extract_value, module="GovernanceModule")
 
     def dao_treasury_address(self) -> Ss58Address:
         return self.query("DaoTreasuryAddress", module="GovernanceModule")
@@ -2097,13 +2109,6 @@ class Subspace(c.Module):
             subnet = str(subnet)
         return n[subnet]
     
-    def total_free_issuance(self, block_hash: str | None = None) -> int:
-        """
-        Queries the network for the total free issuance.
-        """
-
-        return self.query("TotalIssuance", module="Balances", block_hash=block_hash)
-
     def total_stake(self, block_hash: str | None = None) -> int:
         """
         Retrieves a mapping of total stakes for keys on the network.
@@ -2120,15 +2125,6 @@ class Subspace(c.Module):
             "RegistrationsPerBlock",
         )
 
-    def proposal(self, proposal_id: int = 0):
-        """
-        Queries the network for a specific proposal.
-        """
-
-        return self.query(
-            "Proposals",
-            params=[proposal_id],
-        )
 
     def unit_emission(self) -> int:
         """
@@ -2290,7 +2286,7 @@ class Subspace(c.Module):
         """
         Gets all subnets info on the network
         """            
-        path = f'{self.network}/subnet_params_map'
+        path = f'{self.network}/params_map'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
             print("Updating Subnet Params")
@@ -2362,13 +2358,12 @@ class Subspace(c.Module):
                 results[_netuid] = subnet_result
             self.put(path, results)
         results = {int(k):v for k,v in results.items()}
-
-    
         if subnet != None: 
             subnet = self.resolve_subnet(subnet)
-            print(subnet, results)
-            return results[subnet]
+            results =  results[subnet]
         return results
+
+    subnet_params = params 
 
     def global_params(self, max_age=60, update=False) -> NetworkParams:
         """
@@ -2433,7 +2428,6 @@ class Subspace(c.Module):
             self.put(path, result)
         return result
 
-    subnet_params = params 
 
     def clean_feature_name(self, x):
         new_x = ''
@@ -2465,14 +2459,22 @@ class Subspace(c.Module):
         # group by founder
         return c.df(results).sort_values('subnet')
         
-    def my_modules(self, subnet=0, max_age=60, features=['name', 'key', 'address', 'emission', 'weights', 'stake'], update=False):
+    
+    def my_modules(self, subnet="all", 
+                   max_age=60, 
+                   keys=None, 
+                   features=['name', 'key', 'address', 'emission', 'weights', 'stake'],
+                   df = False, 
+                   update=False):
+        if subnet == "all":
+            return {sn: self.my_modules(subnet=sn, keys=ks, df=df)  for sn, ks in self.keys_map().items()}
         subnet = self.resolve_subnet(subnet)
-        path = f'my_modules/{subnet}'
+        path = f'my_modules/{self.network}/{subnet}'
         modules = self.get(path, None, max_age=max_age, update=update)
         namespace = c.namespace()
         if modules == None:
             address2key = c.address2key()
-            keys = self.keys(subnet)
+            keys = keys or self.keys(subnet)
             my_keys = []
             for k in keys:
                 if k in address2key:
@@ -2485,6 +2487,8 @@ class Subspace(c.Module):
                 modules[i] = m
         features += ['serving']
         modules = [{f:m[f] for f in features} for m in modules]
+        if df:
+            modules =  c.df(modules)
         return modules
     
     def my_valis(self, subnet=0):
@@ -2639,7 +2643,11 @@ class Subspace(c.Module):
     
     def keys(self, subnet=0, max_age=60) -> List[str]:
         subnet = self.resolve_subnet(subnet)
-        return list(self.query_map('Keys', params=[subnet], max_age=max_age).values())
+        return self.keys_map(max_age=max_age)[int(subnet)]
+    
+    def keys_map(self, max_age=60):
+        return {int(k):list(v.values()) for k,v in self.query_map('Keys', params=[], max_age=max_age).items()}
+
     def key2uid(self, subnet=0) -> int:
         subnet = self.resolve_subnet(subnet)
         return {v:k for k,v in self.query_map('Keys', params=[subnet]).items()}
@@ -2685,8 +2693,8 @@ class Subspace(c.Module):
         return list(self.netuid2subnet( update=update, block=block).keys())
 
     def netuid2emission(self , fmt='j', **kwargs) -> Dict[str, int]:
-        subnet_params = self.subnet_params(**kwargs)
-        subnet2emission =  {v:params['emission'] * self.blocks_per_day for v,params in subnet_params.items()}
+        params = self.params(**kwargs)
+        subnet2emission =  {v:params['emission'] * self.blocks_per_day for v,params in params.items()}
         return self.format_amount(subnet2emission, fmt=fmt)
     
     def subnet2emission(self, **kwargs ) -> Dict[str, str]:

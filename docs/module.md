@@ -1,4 +1,4 @@
-A module is a colleciton of functions as well as data or state 
+xA module is a colleciton of functions as well as data or state 
 variables. The functions can be called from the command line interface or through the API. The data or state variables can be accessed and modified through the API. There is no blockchain or database in the module. The module is a simple way to organize code and data. To define a module, just define a class
 
 To make a module create a name

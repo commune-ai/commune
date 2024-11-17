@@ -11,9 +11,8 @@ class Chat(c.Module):
                  model = None,
                  history_path='history',
                 **kwargs):
-
+        
         self.max_tokens = max_tokens
-       
         self.set_module(model, 
                         password = password,
                         name = name,
@@ -60,14 +59,16 @@ class Chat(c.Module):
             stream=True, 
             ):
         context = context or path
-        text = self.process_text(text, context=context)
+        # text = self.process_text(text, context=context)
+        print(text)
         output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
             yield token
     forward = generate
 
     def ask(self, *text, **kwargs): 
-        return self.generate(' '.join(list(map(str, text))), **kwargs)
+        text = ' '.join(list(map(str, text)))
+        return self.generate(text, **kwargs)
 
     def process_text(self, text, context=None):
         if context != None:

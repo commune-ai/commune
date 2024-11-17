@@ -17,18 +17,6 @@ class c:
     splitters = [':', '/', '.']
     endpoints = ['ask', 'generate', 'forward']
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
-    shortcuts =  {
-        'openai' : 'model.openai',
-        'openrouter':  'model.openrouter',
-        'or' : ' model.openrouter',
-        'r' :  'remote',
-        's' :  'network.subspace',
-        'subspace': 'network.subspace', 
-        'namespace': 'network', 
-        'local': 'network',
-        'network.local': 'network',
-        }
-    
     lib_name = libname  = lib = __file__.split('/')[-3]# the name of the library
     organization = org = orgname = 'commune-ai' # the organization
     git_host  = 'https://github.com'
@@ -50,7 +38,64 @@ class c:
     __ss58_format__ = 42 # the ss58 format for the substrate address
     storage_path = os.path.expanduser(f'~/.{libname}')
     default_tag = 'base'
+    shortcuts =  {
+        'openai' : 'model.openai',
+        'openrouter':  'model.openrouter',
+        'or' : ' model.openrouter',
+        'r' :  'remote',
+        's' :  'network.subspace',
+        'subspace': 'network.subspace', 
+        'namespace': 'network', 
+        'local': 'network',
+        'network.local': 'network',
+        }
+    @classmethod
+    def module(cls, path:str = 'module',  cache=True, verbose = False,  tree = None, trials=1, **_kwargs ) -> str:
+        if path == None:
+            path = 'module'
+        if path.endswith('.py'):
+            path = c.path2name(path)
+        og_path = path
+        path = path or 'module'
+        t0 = time.time()
+        og_path = path
+        if path in c.module_cache and cache:
+            module = c.module_cache[path]
+        else:
+            if path in ['module', 'c']:
+                module =  c
+            else:
 
+                tree = tree or c.tree()
+                path = c.shortcuts.get(path, path)
+                path = tree.get(path, path)
+                try:
+                    module = c.import_object(path)
+                except Exception as e:
+                    if trials == 0:
+                        raise ValueError(f'Error in module {og_path} {e}')
+                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
+            if cache:
+                c.module_cache[path] = module    
+        latency = c.round(time.time() - t0, 3)
+        if not hasattr(module, 'module_name'):
+            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
+            module.module_class = lambda *args, **kwargs : c.module_class(module)
+            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
+            module.filepath = lambda *args, **kwargs : c.filepath(module)
+            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
+            module.code = lambda *args, **kwargs : c.code(module)
+            module.schema = lambda *args, **kwargs : c.schema(module)
+            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
+            module.params = lambda *args, **kwargs : c.params(module)
+            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
+            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
+            module.help = lambda *args, **kwargs : c.help(*args, module=module, **kwargs)
+        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
+        return module
+
+    get_module = module
+    
     def __init__(self, *args, **kwargs):
         pass
 
@@ -199,8 +244,6 @@ class c:
                 obj = cls
         return obj
     
-    ## 
-    
     @classmethod
     def pwd(cls):
         pwd = os.getcwd() # the current wor king directory from the process starts 
@@ -322,7 +365,10 @@ class c:
         dirpath = cls.dirpath()
         filepath = cls.filepath()
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
+
+
     is_file_module = is_module_file
+
     @classmethod
     def is_module_folder(cls,  module = None) -> bool:
         if module != None:
@@ -479,6 +525,7 @@ class c:
     
     @classmethod
     def get_routes(cls, cache=True):
+
         if not hasattr(cls, 'routes'):
             if cls.route_cache is not None and cache:
                 return cls.route_cache 
@@ -489,7 +536,6 @@ class c:
             if callable(routes):
                 routes = routes()
 
-
         def add_utils():
             utils = c.utils()
             for util in utils:
@@ -498,13 +544,12 @@ class c:
                 routes[k] = routes.get(k , [])
                 routes[k].append(v)
             return routes
-
+        
         add_utils()
         cls.route_cache = routes
 
         return routes
-    #### THE FINAL TOUCH , ROUTE ALL OF THE MODULES TO THE CURRENT MODULE BASED ON THE routes CONFIG
-
+    
     @classmethod
     def fn2route(cls):
         routes = cls.get_routes()
@@ -1865,61 +1910,7 @@ class c:
             c.put(tree_cache_path, tree)
         return tree
 
-    @classmethod
-    def module(cls, path:str = 'module',  
-               cache=True,
-               verbose = False, 
-               tree = None,
-               trials=1, **_kwargs ) -> str:
-        if path == None:
-            path = 'module'
-        if path.endswith('.py'):
-            path = c.path2name(path)
-        og_path = path
-        path = path or 'module'
-        t0 = time.time()
-        og_path = path
-        if path in c.module_cache and cache:
-            module = c.module_cache[path]
-        else:
-            if path in ['module', 'c']:
-                module =  c
-            else:
 
-                tree = tree or c.tree()
-                path = c.shortcuts.get(path, path)
-                path = tree.get(path, path)
-                try:
-                    module = c.import_object(path)
-                except Exception as e:
-                    if trials == 0:
-                        raise ValueError(f'Error in module {og_path} {e}')
-                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
-
-            if cache:
-                c.module_cache[path] = module    
-        latency = c.round(time.time() - t0, 3)
-        # if 
-        if not hasattr(module, 'module_name'):
-            
-            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
-            module.module_class = lambda *args, **kwargs : c.module_class(module)
-            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
-            module.filepath = lambda *args, **kwargs : c.filepath(module)
-            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
-            module.code = lambda *args, **kwargs : c.code(module)
-            module.schema = lambda *args, **kwargs : c.schema(module)
-            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
-            module.params = lambda *args, **kwargs : c.params(module)
-            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
-            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-            module.help = lambda *args, **kwargs : c.help(*args, module=module, **kwargs)
-            
-        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
-        return module
-
-    get_module = module
-    
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
@@ -2091,6 +2082,10 @@ class c:
             self.add_api_key(api_key)
         assert isinstance(api_key, str)
 
+
+    def add_repo(self, repo:str, path:str=None, **kwargs):
+        return c.cmd(f'git clone {repo} {path}', **kwargs)
+
     def add_api_key(self, api_key:str):
         assert isinstance(api_key, str)
         path = self.resolve_path('api_keys')
@@ -2174,13 +2169,14 @@ class c:
                 return filename
         return filename + extension
     
-    def help(self, *text, module=None, global_context=f'{rootpath}/docs', **kwargs):
-        if self.module_name() == 'module':
+    @classmethod
+    def help(cls, *text, module=None, global_context=f'{rootpath}/docs', **kwargs):
+        if cls.module_name() == 'module':
             return c.module('docs')().help(*text)
         text = ' '.join(map(str, text))
         if global_context != None:
             text = text + str(c.file2text(global_context))
-        module = module or self.module_name()
+        module = module or cls.module_name()
         context = c.code(module)
         return c.ask(f'{context} {text} \n')
     
@@ -2241,7 +2237,7 @@ class c:
     
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
-
+    
 
 c.routes = {
     "vali": [
@@ -2409,7 +2405,7 @@ c.routes = {
         "global_params",
         "balance",
         "get_balance",
-        "get_stak",
+        "get_stake",
         "get_stake_to",
         "get_stake_from",
         "my_stake_to",
