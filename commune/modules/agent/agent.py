@@ -123,8 +123,6 @@ class Agent(c.Module):
             current_size += s
             files_batch[f]  = c.get_text(path + f )
         return batch_list
-
-    def tools(self):
-        return c.fns("fn")
+    
     
 

@@ -53,7 +53,7 @@ class Subspace(c.Module):
         network=network,
         url: str = None,
         mode = 'wss',
-        num_connections: int = 1,
+        num_connections: int = 5,
         wait_for_finalization: bool = False,
         test = False,
         ws_options = {},
@@ -110,21 +110,25 @@ class Subspace(c.Module):
         network = network or self.network
         if timeout != None:
             ws_options["timeout"] = timeout
-        
         self.ws_options = ws_options
         self.url  = url or (mode + '://' + self.url_map.get(network)[0])
         self.num_connections = num_connections                  
         self.wait_for_finalization = wait_for_finalization
         self.network = network
-        self.connections_queue = queue.Queue(self.num_connections)
+        self.set_connections(num_connections)
+        self.connection_latency = c.time() - t0
+        c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
+        
+    def set_connections(self, num_connections: int):
+        self.connections_queue = queue.Queue(num_connections)
+        self.num_connections = num_connections
         try:
             for _ in range(self.num_connections):
                 self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
         except Exception as e: 
             c.print('ERROR IN CONNECTIONS QUEUE:', e)
-        self.connection_latency = c.time() - t0
-        c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
-
+            
+        return {'connections': self.num_connections, 'url': self.url}
     def get_url(self, mode='wss',  **kwargs):
         prefix = mode + '://'
         url = c.choice(self.url_map[self.network])
@@ -622,6 +626,7 @@ class Subspace(c.Module):
     def query_batch(
         self, functions: dict[str, list[tuple[str, list[Any]]]],
         block_hash: str | None = None,
+        verbose=False,
     ) -> dict[str, str]:
         """
         Executes batch queries on a substrate and returns results in a dictionary format.
@@ -641,7 +646,7 @@ class Subspace(c.Module):
             {'function_name': 'query_result', ...}
         """
 
-        c.print(f'QueryBatch({functions})')
+        c.print(f'QueryBatch({functions})', verbose=verbose)
         result: dict[str, str] = {}
         if not functions:
             raise Exception("No result")
@@ -674,6 +679,7 @@ class Subspace(c.Module):
         path = None,
         max_age=None,
         update=False,
+        verbose = False,
     ) -> dict[str, dict[Any, Any]]:
         """
         Queries multiple storage functions using a map batch approach and returns the combined result.
@@ -689,7 +695,7 @@ class Subspace(c.Module):
             >>> query_batch_map(substrate_instance, {'module_name': [('function_name', ['param1', 'param2'])]})
             # Returns the combined result of the map batch query
         """
-        c.print(f'QueryBatchMap({functions})')
+        c.print(f'QueryBatchMap({functions})', verbose=verbose)
         if path != None:
             return self.get(path, max_age=max_age, update=update)
         multi_result: dict[str, dict[Any, Any]] = {}
@@ -1126,6 +1132,15 @@ class Subspace(c.Module):
     def get_stake(self, key=None):
         return sum(list(self.get_stake_from(key).values()))
     
+    def my_tokens(self, min_value=0):
+        my_stake = self.my_stake()
+        my_balance = self.my_balance()
+        my_tokens =  {k:my_stake.get(k,0) + my_balance.get(k,0) for k in set(my_stake) | set(my_balance)}
+        return dict(sorted({k:v for k,v in my_tokens.items() if v > min_value}.items(), key=lambda x: x[1], reverse=True))
+        
+    def my_total(self):
+        return sum(self.my_tokens().values())
+    
     def my_stakefrom(self):
         stakefrom = self.stakefrom()
         key2address = c.key2address()
@@ -1143,7 +1158,11 @@ class Subspace(c.Module):
             if address in staketo:
                 my_stakefrom[key] = staketo[address]
         return my_stakefrom
-            
+
+    def my_stake(self, update=False, max_age=60):
+        my_stake =  {k:sum(v.values()) for k,v in self.my_staketo(update=update, max_age=max_age).items()}
+        my_stake =  dict(sorted(my_stake.items(), key=lambda x: x[1], reverse=True))
+        return {k:v for k,v in my_stake.items() if v > 0}
 
     def stake(
         self,
@@ -1346,9 +1365,9 @@ class Subspace(c.Module):
 
     def set_weights(
         self,
-        key: Keypair,
         modules: list[int], # uids, keys or names
         weights: list[int], # any value, relative is takens
+        key: Keypair,
         subnet = 0,
     ) -> ExtrinsicReceipt:
         """
@@ -1375,11 +1394,7 @@ class Subspace(c.Module):
         assert len(modules) == len(weights)
         key2uid = self.key2uid(subnet)
         uids = [key2uid.get(m, m) for m in modules]
-        params = {
-            "uids": uids,
-            "weights": weights,
-            "netuid": subnet,
-        }
+        params = {"uids": uids,"weights": weights,"netuid": subnet}
         response = self.compose_call("set_weights", params=params, key=key)
         return response
     
@@ -2036,8 +2051,43 @@ class Subspace(c.Module):
         key_addresses = [key2address.get(a, a) for a in key_addresses]
         with self.get_conn(init=True) as substrate:
             balances =  substrate.query_multi( [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in key_addresses if not ka.startswith('0x')])
-        return len(balances)
+        return balances
     
+    def my_balance(self, batch_size=128, timeout=60, max_age=6000, update=False):
+        path = f'{self.network}/balances'
+
+        balances = self.get(path, None, update=update, max_age=max_age)
+        if balances == None:
+
+            key2address = c.key2address()
+            addresses = list(key2address.values())
+            batched_addresses = [addresses[i:i + batch_size] for i in range(0, len(addresses), batch_size)]
+            hash2batch = {}
+            future2hash = {}
+            n = len(addresses)
+            print(f'Getting baances for {n } addresses in {len(batched_addresses)} batches')
+            for batch in batched_addresses:
+                batch_hash : str = c.hash(batch)
+                hash2batch[batch_hash] = batch
+                f =  c.submit(self.get_balances, dict(key_addresses=batch), timeout=timeout)
+                future2hash[f] = batch_hash
+            balances = {}
+            progress_bar = c.tqdm(total=n, desc='Getting Balances')
+            for f in c.as_completed(future2hash.keys(), timeout=timeout):
+                batch_hash = future2hash[f]
+                balances_batch = f.result()
+                addresses_batch = hash2batch[batch_hash]
+                for address, balance in zip(addresses_batch, balances_batch):
+                    balances[address] = balance[1].value['data']['free']
+                    progress_bar.update(1)
+                    # c.print(f'Balance for {address}: {balance} ({counter}/{len(addresses)})')
+                # self.put(f'balances/{batch_hash}', balances)
+            address2key = c.address2key()
+            balances = {address2key.get(k, k):v for k,v in balances.items()}
+            self.put(path, balances)    
+        balances = {k: v for k, v in balances.items() if v > 0}
+        balances = dict(sorted(balances.items(), key=lambda x: x[1], reverse=True))
+        return self.format_amount(balances, fmt='j')
     def names(
         self, subnet: int = 0, extract_value: bool = False, max_age=60, update=False
     ) -> dict[int, str]:
@@ -2289,7 +2339,7 @@ class Subspace(c.Module):
         path = f'{self.network}/params_map'
         results = self.get(path,None, max_age=max_age, update=update)
         if results == None:
-            print("Updating Subnet Params")
+            print(f"PARAMS(subnet=all update=True)")
             params = []
             bulk_query = self.query_batch_map(
                 {
@@ -2310,6 +2360,7 @@ class Subspace(c.Module):
                         ("MaxAllowedValidators", params),
                         ("ModuleBurnConfig", params),
                         ("SubnetMetadata", params),
+                        ("TrustRatio", params),
                     ],
                     "GovernanceModule": [
                         ("SubnetGovernanceConfig", params),
@@ -2341,6 +2392,7 @@ class Subspace(c.Module):
                 "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
                 "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
                 "metadata": bulk_query.get("SubnetMetadata", {}),
+                "trust_ratio": bulk_query.get("TrustRatio", {}),
             }
 
             results: dict[int, SubnetParamsWithEmission] = {}
@@ -2360,6 +2412,7 @@ class Subspace(c.Module):
         results = {int(k):v for k,v in results.items()}
         if subnet != None: 
             subnet = self.resolve_subnet(subnet)
+            print(f"PARAMS(subnet={subnet})")
             results =  results[subnet]
         return results
 
@@ -2428,37 +2481,33 @@ class Subspace(c.Module):
             self.put(path, result)
         return result
 
-
-    def clean_feature_name(self, x):
-        new_x = ''
-        for i, ch in enumerate(x):
-            if ch == ch.upper():
-                ch = ch.lower() 
-                if i > 0:
-                    ch = '_' + ch
-            new_x += ch
-        return new_x
     
 
     def founders(self):
         return self.query_map("Founder", module="SubspaceModule")
     
     
-    def my_subnets(self, key=None):
-        founders = self.founders()
+    def my_subnets(self, update=False):
+        c.print("===========MY SUBNETS=========")
+        subnet2params = self.params(update=update)
         address2key = c.address2key()
-        netuid2subnet = self.netuid2subnet()
         results = []
-        for netuid,v in founders.items():
-            if v in address2key:
-                row =  {'subnet': netuid2subnet[netuid], 
+        for netuid,params in subnet2params.items():
+            if params['founder'] in address2key:
+                row =  {'name': params['name'], 
                         'netuid': netuid,  
-                        'founder': address2key[v]
+                        'founder': address2key[params['founder']],
+                        'tempo': params['tempo'],
+                        'incentive_ratio': params['incentive_ratio'],
+                        'immunity_period': params['immunity_period'],
+                        'emission': params['emission'],
                         }
                 results += [row]
         # group by founder
-        return c.df(results).sort_values('subnet')
+        return c.df(results).sort_values('name')
         
+    def mynets(self, update=False):
+        return self.my_subnets(update=update)
     
     def my_modules(self, subnet="all", 
                    max_age=60, 
@@ -2514,7 +2563,7 @@ class Subspace(c.Module):
                     },
                     **kwargs):
         
-        path = f'{self.network}/all_modules'
+        path = f'{self.network}/modules/all'
         modules = self.get(path, None, max_age=max_age, update=update)
         if modules == None:
             results = self.query_batch_map({module:[(f, []) for f in features]},self.block_hash())
@@ -2535,7 +2584,7 @@ class Subspace(c.Module):
                                 module[f] = module[f].get(uid, default_module.get(f, None)) 
                             elif isinstance(module[f], list):
                                 module[f] = module[f][uid]
-                    module = {self.clean_feature_name(k):v for k,v in module.items()}
+                    module = {self.storage2name(k):v for k,v in module.items()}
                     modules[_netuid].append(module)  
             self.put(path, modules)
         modules = {int(k):v for k,v in modules.items()}
@@ -2543,10 +2592,45 @@ class Subspace(c.Module):
 
 
     def validators(self, subnet=0):
-        return self.modules(subnet=subnet ) 
+        return self.modules(subnet=subnet )
+
+
+
+    name2storage_exceptions = {'key': 'Keys'}
+    storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
+    def storage2name(self, name):
+        new_name = ''
+        if name in self.storage2name_exceptions:
+            return self.storage2name_exceptions[name]
+        for i, ch in enumerate(name):
+            if ch == ch.upper():
+                ch = ch.lower() 
+                if i > 0:
+                    ch = '_' + ch
+            new_name += ch
+        return new_name
+    
+    def name2storage(self, name):
+        new_name = ''
+        next_char_upper = False
+        if name in self.name2storage_exceptions:
+            return self.name2storage_exceptions[name]
+        for i, ch in enumerate(name):
+            if next_char_upper:
+                ch = ch.upper()
+                next_char_upper = False
+            if ch == '_':
+                next_char_upper = True
+                ch = ''
+            if i == 0:
+                ch = ch.upper()
+            new_name += ch
+        return new_name
+                
+
 
     def modules(self,
-                    subnet=None,
+                    subnet=0,
                     max_age = tempo,
                     update=False,
                     timeout=30,
@@ -2556,27 +2640,21 @@ class Subspace(c.Module):
                     lite = True,
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
                     num_connections = 4,
-                    default_module = {
-                        'Weights': [], 
-                        'Incentive': 0,
-                        'Emissions': 0, 
-                        'Dividends': 0,
-                        'DelegationFee': 30,
-                        'LastUpdate': 0,
+                    default_module = {'Weights': [], 'Incentive': 0, 'Emissions': 0,  'Dividends': 0, 'DelegationFee': 30, 'LastUpdate': 0,
                     },
                     **kwargs):
-        if subnet == None: 
+        if subnet == 'all': 
             return self.all_modules(max_age=max_age, update=update, module=module, features=features, default_module=default_module, **kwargs)
     
         subnet = self.resolve_subnet(subnet)
         if not lite:
             features += extra_features
-
-        if subnet in [0] and lite == False:
-            features += ['StakeFrom', 'DelegationFee']
         path = f'{self.network}/modules/{subnet}'
         modules = self.get(path, None, max_age=max_age, update=update)
-        if modules == None:
+        update = bool(modules == None)
+        c.print(f'MODULES(subnet={subnet} update={update})')
+
+        if update:
             self.set_network(num_connections=num_connections)
             future2feature = {}
             params = [subnet] if subnet != None else []
@@ -2608,7 +2686,7 @@ class Subspace(c.Module):
                             module[f] = results[f].get(uid, default_module.get(f, None)) 
                     elif isinstance(results[f], list):
                         module[f] = results[f][uid]
-                module = {self.clean_feature_name(k):v for k,v in module.items()}
+                module = {self.storage2name(k):v for k,v in module.items()}
                 modules.append(module)  
             self.put(path, modules)
         # modules = sorted(modules)
@@ -2663,6 +2741,7 @@ class Subspace(c.Module):
     def get_modules(self, keys, subnet=0, max_age=60):
         futures = [ c.submit(self.get_module, kwargs=dict(module=k, subnet=subnet, max_age=max_age)) for k in keys]
         return c.wait(futures, timeout=30)
+
     def get_module(self, 
                     module,
                     subnet=0,
@@ -2714,5 +2793,6 @@ class Subspace(c.Module):
         [transformed[k1].append((k2, v)) for (k1, k2), v in stake_storage.items()]
 
         return dict(transformed)
+
 
 

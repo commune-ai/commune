@@ -48,12 +48,16 @@ def determine_type(x):
             except ValueError:
                 pass
     return x
-def forward(sep = '--', 
+def forward(argv = None,
+            sep = '--', 
             fn_splitters = [':', '/', '//', '::'],
             base = 'module', 
-            helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash']):
+            helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'], 
+            default_fn = 'vs'):
     t0 = time.time()
-    argv = sys.argv[1:]
+    argv = argv or sys.argv[1:]
+    if len(argv) == 0:
+        argv = [default_fn]
     output = None
     init_kwargs = {}
     if any([arg.startswith(sep) for arg in argv]): 
@@ -67,7 +71,6 @@ def forward(sep = '--',
                     value = arg.split('=')[-1] if '=' in arg else True
                     argv.remove(arg)
                     init_kwargs[key] = determine_type(value)
-    
     # any of the --flags are init kwargs
     fn = argv.pop(0).replace('-', '_')
     module = c.module(base)
@@ -75,7 +78,7 @@ def forward(sep = '--',
     if len(fs) == 1: 
         module, fn = fn.split(fs[0])
         module = c.shortcuts.get(module, module)
-        modules = c.modules()
+        modules = c.get_modules()
         module_options = []
         for m in modules:
             if module == m:

@@ -10,4 +10,5 @@ from .key import Key # the key module
 M = IDONTGIVEAFUCKWHATYOUCALLTHIS = c = Block = Lego = M  = Agent  = Module # alias c.Module as c.Block, c.Lego, c.M
 c.add_to_globals(globals())
 key = c.get_key # override key function with file key in commune/key.py TODO: remove this line with a better solution
+utils = c.utils # set utils as a global
 

@@ -50,7 +50,11 @@ class c:
         'network.local': 'network',
         }
     @classmethod
-    def module(cls, path:str = 'module',  cache=True, verbose = False,  tree = None, trials=1, **_kwargs ) -> str:
+    def module(cls, 
+               path:str = 'module',  
+               cache=True, 
+               trials=1, 
+               **_kwargs ) -> str:
         if path == None:
             path = 'module'
         if path.endswith('.py'):
@@ -60,23 +64,23 @@ class c:
         t0 = time.time()
         og_path = path
         if path in c.module_cache and cache:
-            module = c.module_cache[path]
-        else:
-            if path in ['module', 'c']:
-                module =  c
-            else:
+            return c.module_cache[path]
 
-                tree = tree or c.tree()
-                path = c.shortcuts.get(path, path)
-                path = tree.get(path, path)
-                try:
-                    module = c.import_object(path)
-                except Exception as e:
-                    if trials == 0:
-                        raise ValueError(f'Error in module {og_path} {e}')
-                    return c.module(path, cache=cache, verbose=verbose, tree=tree, trials=trials-1)
-            if cache:
-                c.module_cache[path] = module    
+        if path in ['module', 'c']:
+            return c
+
+        tree = c.tree()
+        path = c.shortcuts.get(path, path)
+        path = tree.get(path, path)
+        try:
+            module = c.import_object(path)
+        except Exception as e:
+            if trials == 0:
+                raise ValueError(f'Error in module {og_path} {e}')
+            return c.module(path, 
+                            cache=cache, 
+                            tree=tree, 
+                            trials=trials-1)
         latency = c.round(time.time() - t0, 3)
         if not hasattr(module, 'module_name'):
             module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
@@ -91,7 +95,8 @@ class c:
             module.key = c.get_key(module.module_name(), create_if_not_exists=True)
             module.fn2code = lambda *args, **kwargs : c.fn2code(module)
             module.help = lambda *args, **kwargs : c.help(*args, module=module, **kwargs)
-        c.print(f'Module({og_path}->{path})({latency}s)', verbose=verbose)     
+        if cache:
+            c.module_cache[path] = module      
         return module
 
     get_module = module
@@ -109,7 +114,7 @@ class c:
             module_path =  inspect.getfile(cls)
         return module_path
 
-    path = file_path =  filepath
+    file_path =  filepath
     @classmethod
     def dirpath(cls, obj=None) -> str:
         return os.path.dirname(cls.filepath(obj))
@@ -474,6 +479,7 @@ class c:
             utils = [u for u in utils if search in u]
         return sorted(utils)
     
+    
     @classmethod
     def num_utils(cls, search=None):
         return len(cls.utils(search))
@@ -491,7 +497,7 @@ class c:
     
     @classmethod
     def util2path(cls, search=None):
-        utils_paths = cls.utils_paths(search=search)
+        utils_paths = cls.utils(search=search)
         util2path = {}
         for f in utils_paths:
             util2path[f.split('.')[-1]] = f
@@ -524,11 +530,9 @@ class c:
         return data
     
     @classmethod
-    def get_routes(cls, cache=True):
+    def get_routes(cls):
 
         if not hasattr(cls, 'routes'):
-            if cls.route_cache is not None and cache:
-                return cls.route_cache 
             routes_path = os.path.dirname(__file__)+ '/routes.json'
             routes =  cls.get_yaml(routes_path)
         else:
@@ -546,8 +550,6 @@ class c:
             return routes
         
         add_utils()
-        cls.route_cache = routes
-
         return routes
     
     @classmethod
@@ -1225,8 +1227,12 @@ class c:
     @classmethod
     def is_fn(cls, fn:str):
         return '/' in str(fn) or hasattr(cls, str(fn)) or (c.object_exists(fn) and callable(c.obj(fn)))
+    
+
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
+        if module in c.core_modules():
+            return c.get_text(c.filepath(module), *args, **kwargs)
         if cls.is_fn(module):
             return cls.fn_code(module)
         module = cls.resolve_object(module)
@@ -1924,11 +1930,11 @@ class c:
     @classmethod
     def overlapping_modules(cls, search:str=None, **kwargs):
         local_modules = cls.local_modules(search=search)
-        lib_modules = cls.lib_modules(search=search)
-        return [m for m in local_modules if m in lib_modules]
+        core_modules = cls.core_modules(search=search)
+        return [m for m in local_modules if m in core_modules]
     
     @classmethod
-    def lib_modules(cls, search=None, depth=10000, **kwargs):
+    def core_modules(cls, search=None, depth=10000, **kwargs):
         object_paths = cls.find_classes(cls.libpath, depth=depth )
         object_paths = [cls.objectpath2name(p) for p in object_paths]
         if search != None:
@@ -2216,7 +2222,7 @@ class c:
             try:
                 module2fns[m] = c.module(m).fns()
             except Exception as e:
-                print(f'Error in module2fns {m}', e)
+                pass
         return module2fns
     
     @classmethod

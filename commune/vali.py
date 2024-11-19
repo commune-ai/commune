@@ -231,6 +231,7 @@ class Vali(c.Module):
                     return result
         except Exception as e:
             result = c.detailed_error(e)
+            result.pop('success')
             c.print(f'ERROR({result})', color='red')
         return result
     

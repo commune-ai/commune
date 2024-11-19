@@ -4,6 +4,48 @@ import os
 import sys
 from typing import *
 import glob 
+import requests
+import json
+
+
+
+def get_glob( path =None, recursive:bool = True, files_only:bool = True):
+    import glob
+    path = os.path.abspath(path)
+    if os.path.isdir(path):
+        path = os.path.join(path, '**')
+    paths = glob.glob(path, recursive=recursive)
+    if files_only:
+        paths =  list(filter(lambda f:os.path.isfile(f), paths))
+    return paths
+
+def file2text(path = './', 
+                avoid_folders = ['__pycache__', 
+                                '.git', 
+                                '.ipynb_checkpoints', 
+                                'package.lock',
+                                'egg-info',
+                                'Cargo.lock',
+                                'target/debug',
+                                'node_modules'],
+                relative=True,  **kwargs):
+    path = os.path.abspath(os.path.expanduser(path))
+    file2text = {}
+    for file in get_glob(path, recursive=True):
+        if os.path.isdir(file):
+            continue
+        if any([af in file for af in avoid_folders]):
+            continue
+        try:
+            with open(file, 'r') as f:
+                content = f.read()
+                file2text[file] = content
+        except Exception as e:
+            continue
+    if relative:
+        return {k[len(path)+1:]:v for k,v in file2text.items()}
+    return file2text
+
 
 def abspath( path:str):
     return os.path.abspath(os.path.expanduser(path))
@@ -682,47 +724,14 @@ def get_line(module, idx):
     line =  lines[max(idx, 0)]
     return line
     
-def get_glob( path =None, recursive:bool = True, files_only:bool = True):
-    import glob
-    path = os.path.abspath(path)
-    if os.path.isdir(path):
-        path = os.path.join(path, '**')
-    paths = glob.glob(path, recursive=recursive)
-    if files_only:
-        paths =  list(filter(lambda f:os.path.isfile(f), paths))
-    return paths
-
-def file2text(path = './', 
-                avoid_folders = ['__pycache__', 
-                                '.git', 
-                                '.ipynb_checkpoints', 
-                                'package.lock',
-                                'egg-info',
-                                'Cargo.lock',
-                                'target/debug',
-                                'node_modules'],
-                relative=True,  **kwargs):
-    path = os.path.abspath(os.path.expanduser(path))
-    file2text = {}
-    for file in get_glob(path, recursive=True):
-        if os.path.isdir(file):
-            continue
-        if any([af in file for af in avoid_folders]):
-            continue
-        try:
-            with open(file, 'r') as f:
-                content = f.read()
-                file2text[file] = content
-        except Exception as e:
-            continue
-    if relative:
-        return {k[len(path)+1:]:v for k,v in file2text.items()}
-    return file2text
 
 def file2lines(path:str='./')-> List[str]:
-    file2text = file2text(path)
-    file2lines = {f: text.split('\n') for f, text in file2text.items()}
-    return file2lines
+    result = file2text(path)
+    return {f: text.split('\n') for f, text in result.items()}
+
+def file2n(path:str='./')-> List[str]:
+    result = file2text(path)
+    return {f: len(text.split('\n')) for f, text in result.items()}
 
 def munch( x:dict, recursive:bool=True)-> 'Munch':
     from munch import Munch
@@ -1127,6 +1136,12 @@ def is_mnemonic(s: str) -> bool:
     # Match 12 or 24 words separated by spaces
     return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
 
+
+def file2functions(self, path):
+    path = os.path.abspath(path)
+    
+    return functions
+
 def is_private_key(s: str) -> bool:
     import re
     # Match a 64-character hexadecimal string
@@ -1134,3 +1149,32 @@ def is_private_key(s: str) -> bool:
     return bool(re.match(pattern, s))
 
 
+def get_folder_contents_advanced(url='commune-ai/commune.git', 
+                                 host_url = 'https://github.com/',
+                                 auth_token=None):
+    try:
+        headers = {
+            'Accept': 'application/json',
+            'User-Agent': 'Python Script'
+        }
+        if not url.startswith(host_url):
+            url = host_url + url
+        
+        if auth_token:
+            headers['Authorization'] = f'token {auth_token}'
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        
+        # Parse JSON response
+        content = response.json()
+        
+        # If it's a GitHub API response, it will be a list of files/folders
+        if isinstance(content, list):
+            return json.dumps(content, indent=2)
+        return response.text
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+    

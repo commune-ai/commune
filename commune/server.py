@@ -261,8 +261,8 @@ class Server(c.Module):
         
         time_waiting = 0
         # rotating status thing
-        c.print(f'WAITING_FOR_SERVER(module{name})', color='cyan')
-        
+        c.print(f'waiting for {name} to start...', color='cyan')
+    
         while time_waiting < timeout:
                 namespace = c.namespace(network=network, max_age=max_age)
                 if name in namespace:
@@ -275,11 +275,9 @@ class Server(c.Module):
                         c.print(f'Error getting info for {name} --> {e}', color='red')
                 c.sleep(sleep_interval)
                 time_waiting += sleep_interval
-            # c.logs(name)
-            # c.kill(name)
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
 
-    def info(self):
+    def info(self, crypto_type: str = 'sr25519', **kwargs) -> dict:
         info = {}
         module = self.module
         info['schema'] = module.schema
@@ -288,7 +286,6 @@ class Server(c.Module):
         info['key'] = module.key.ss58_address
         info['crypto_type'] = module.key.crypto_type
         return info
-
     
     def add_endpoint(self, name, fn):
         setattr(self, name, fn)
