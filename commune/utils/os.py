@@ -1149,9 +1149,6 @@ def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int,
         
     return used_ports
 
-
-
-
 def resolve_port(port:int=None, **kwargs):
     '''
     Resolves the port and finds one that is available
@@ -1164,10 +1161,8 @@ def resolve_port(port:int=None, **kwargs):
 
 get_used_ports = used_ports
 
-
 def has_free_ports(n:int = 1, **kwargs):
     return len(free_ports(n=n, **kwargs)) > 0
-
 
 def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
     import commune as c

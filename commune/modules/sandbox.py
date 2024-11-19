@@ -1,3 +1,3 @@
 import commune as c 
 
-c.print(c.modules())
+c.print(c.get_key('subspace'))

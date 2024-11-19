@@ -60,7 +60,6 @@ class Chat(c.Module):
             ):
         context = context or path
         # text = self.process_text(text, context=context)
-        print(text)
         output =  self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
         for token in output:
             yield token

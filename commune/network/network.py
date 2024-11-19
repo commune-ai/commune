@@ -11,13 +11,13 @@ class Network(c.Module):
     # the default
     endpoints = ['namespace']
     def __init__(self, network:str='local', tempo=tempo,  path=None, **kwargs):
-        self.modules_path = self.resolve_path(path or f'modules_{self.network}')
-        self.set_network(network=network, tempo=tempo)
+        self.set_network(network=network, tempo=tempo, path=path)
 
-    def set_network(self, network:str, tempo:int=60):
+    def set_network(self, network:str, tempo:int=60, path=None, **kwargs):
         self.network = network 
         self.tempo = tempo
-        return {'network': self.network, 'tempo': self.tempo}
+        self.modules_path = self.resolve_path(path or f'{self.network}/modules')
+        return {'network': self.network, 'tempo': self.tempo, 'modules_path': self.modules_path}
     
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
@@ -70,13 +70,6 @@ class Network(c.Module):
 
     def resolve_network(self, network:str) -> str:
         return network or self.network
-    
-    def resolve_network_path(self, network:str) -> str:
-        return self.resolve_path(self.resolve_network(network))
-    
-    def namespace_exists(self, network:str) -> bool:
-        path = self.resolve_network_path( network)
-        return os.path.exists(path)
     
     def names(self, *args, **kwargs) -> List[str]:
         return list(self.namespace(*args, **kwargs).keys())
