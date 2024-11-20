@@ -411,8 +411,6 @@ def file2chars( path='./', fmt='b') -> int:
     import commune as c
     files = c.glob(path)
     file2size = {}
-    for file in files:
-        file2size[file] = format_data_size(len(c.get_text(file), fmt))
     file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
     return file2size
 

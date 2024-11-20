@@ -9,7 +9,26 @@ import json
 
 
 
-def get_glob( path =None, recursive:bool = True, files_only:bool = True):
+
+def type2files( path:str='./', **kwargs):
+    files = get_files(path, **kwargs)
+    type2files = {}
+    for f in files:
+        if '.' in f:
+            f_type = f.split('.')[-1]
+            if f_type not in type2files:
+                type2files[f_type] = []
+            type2files[f_type].append(f)
+    return type2files
+
+def type2filecount( path:str='./', **kwargs):
+    return {k: len(v) for k,v in type2files(path, **kwargs).items()}
+
+def get_files( path ='./', 
+              search=None,
+              avoid_terms = None,
+              include_terms = None,
+               recursive:bool = True, files_only:bool = True):
     import glob
     path = os.path.abspath(path)
     if os.path.isdir(path):
@@ -17,24 +36,31 @@ def get_glob( path =None, recursive:bool = True, files_only:bool = True):
     paths = glob.glob(path, recursive=recursive)
     if files_only:
         paths =  list(filter(lambda f:os.path.isfile(f), paths))
+    if avoid_terms != None:
+        paths = [p for p in paths if not any([term in p for term in avoid_terms])]
+    if include_terms != None:
+        paths = [p for p in paths if any([term in p for term in include_terms])]
+    if search != None:
+        paths = [p for p in paths if search in p]
     return paths
 
 def file2text(path = './', 
-                avoid_folders = ['__pycache__', 
+                avoid_terms = ['__pycache__', 
                                 '.git', 
                                 '.ipynb_checkpoints', 
                                 'package.lock',
                                 'egg-info',
                                 'Cargo.lock',
+                                'artifacts',
+                                'yarn.lock',
+                                'cache/',
                                 'target/debug',
                                 'node_modules'],
                 relative=True,  **kwargs):
     path = os.path.abspath(os.path.expanduser(path))
     file2text = {}
-    for file in get_glob(path, recursive=True):
+    for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
         if os.path.isdir(file):
-            continue
-        if any([af in file for af in avoid_folders]):
             continue
         try:
             with open(file, 'r') as f:
@@ -214,7 +240,7 @@ def tqdm(*args, **kwargs):
 def find_word( word:str, path='./')-> str:
     import commune as c
     path = os.path.abspath(path)
-    files = get_glob(path)
+    files = get_files(path)
     progress = c.tqdm(len(files))
     found_files = {}
     for f in files:

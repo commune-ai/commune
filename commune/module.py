@@ -390,7 +390,7 @@ class c:
 
     @classmethod
     def files(cls, path='./', search:str = None, 
-              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules'], **kwargs) -> List[str]:
+              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts'], **kwargs) -> List[str]:
         files =c.glob(path, **kwargs)
         files = [f for f in files if not any([at in f for at in avoid_terms])]
         if search != None:
