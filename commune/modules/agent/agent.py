@@ -31,8 +31,7 @@ class Agent(c.Module):
 
     def get_size(self, x):
         return len(str(x))
-
-
+    
     def modules(self, 
                    query='', 
                    output_format="DICT(data:list[str])" , 

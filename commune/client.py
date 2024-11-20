@@ -6,8 +6,6 @@ import json
 import requests
 import commune as c
 
-# from .pool import ClientPool
-
 class Client(c.Module):
     network2namespace = {}
     stream_prefix = 'data: '
@@ -16,7 +14,7 @@ class Client(c.Module):
             self,
             module : str = 'module',
             network: Optional[bool] = 'local',
-            key : Optional[str]= None,
+            key : Optional[str]= None ,
             **kwargs
         ):
         self.serializer = c.module('serializer')()
@@ -39,7 +37,6 @@ class Client(c.Module):
                 timeout=40,
                 **extra_kwargs) -> None:
         
-        
         if '/' in str(fn):
             module = '.'.join(fn.split('/')[:-1])
             fn = fn.split('/')[-1]
@@ -47,7 +44,6 @@ class Client(c.Module):
             module = fn
             fn = 'info'
         client =  cls(module=module, network=network)
-        # c.print(f'Client({module}/{fn}, key={key.key_address})') 
         return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, **extra_kwargs)
 
     @classmethod
@@ -100,7 +96,8 @@ class Client(c.Module):
         if ip in module_address:
             module_address = module_address.replace(ip, '0.0.0.0')
         url = f"{module_address}/{fn}/"
-        return url        
+        return url   
+         
     def request(self, url: str,
                  data: dict, 
                 headers: dict, 

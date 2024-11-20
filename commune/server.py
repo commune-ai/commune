@@ -280,6 +280,8 @@ class Server(c.Module):
     def info(self, crypto_type: str = 'sr25519', **kwargs) -> dict:
         info = {}
         module = self.module
+        module.address = c.ip() + ':' + str(module.port)
+        
         info['schema'] = module.schema
         info['name'] = module.name 
         info['address'] = module.address
