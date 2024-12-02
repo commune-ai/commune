@@ -34,6 +34,8 @@ class KeyType:
 
 KeyType.crypto_types = [k for k in KeyType.__dict__.keys() if not k.startswith('_')]
 KeyType.crypto_type_map =  {k.lower():v for k,v in KeyType.__dict__.items() if k in KeyType.crypto_types }
+KeyType.crypto_types = list(KeyType.crypto_type_map.keys())
+
 class MnemonicLanguageCode:
     ENGLISH = 'en'
     CHINESE_SIMPLIFIED = 'zh-hans'
@@ -47,10 +49,12 @@ class MnemonicLanguageCode:
 class Key(c.Module):
     crypto_types = KeyType.crypto_types
     crypto_type_map = KeyType.crypto_type_map
+    crypto_types = list(crypto_type_map.keys())
     ss58_format = 42
     crypto_type =  'sr25519'
 
-    def __init__(self,private_key: Union[bytes, str] = None, 
+    def __init__(self,
+                 private_key: Union[bytes, str] = None, 
                  ss58_format: int = ss58_format, 
                  crypto_type: int = crypto_type,
                  derive_path: str = None,
@@ -62,16 +66,25 @@ class Key(c.Module):
                              derive_path=derive_path, 
                              path=path, **kwargs)
         
+    
+    @property
+    def short_address(self):
+        n = 4
+        return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
+        
     def set_crypto_type(self, crypto_type):
         crypto_type = self.resolve_crypto_type(crypto_type)
         if crypto_type != self.crypto_type:
-            return self.set_private_key(private_key=self.private_key, 
-                                 crypto_type=crypto_type, 
-                                 ss58_format=self.ss58_format, 
-                                 derive_path=self.derive_path, 
-                                 path=self.path)
+            kwargs = {
+                'private_key': self.private_key,
+                'ss58_format': self.ss58_format,
+                'derive_path': self.derive_path,
+                'path': self.path, 
+                'crypto_type': crypto_type # update crypto_type
+            }
+            return self.set_private_key(**kwargs)
         else:
-            raise ValueError(f'crypto_type {crypto_type} is already set')
+            return {'success': False, 'message': f'crypto_type already set to {crypto_type}'}
         
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
@@ -108,7 +121,7 @@ class Key(c.Module):
             key_address = ss58_encode(public_key, ss58_format=ss58_format)
             hash_type = 'ss58'
         elif crypto_type == KeyType.ED25519:       
-            private_key = private_key[0:32]         
+            private_key = private_key[:32] if len(private_key) == 64 else private_key        
             public_key, private_key = ed25519_zebra.ed_from_seed(private_key)
             key_address = ss58_encode(public_key, ss58_format=ss58_format)
             hash_type = 'ss58'
@@ -132,6 +145,8 @@ class Key(c.Module):
         self.path = path 
         self.ss58_format = ss58_format
         self.key_address = self.ss58_address
+        self.key_type = self.crypto_type2name(self.crypto_type)
+        return {'key_address':key_address, 'crypto_type':crypto_type}
 
     @classmethod
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
@@ -149,11 +164,8 @@ class Key(c.Module):
         return  json.loads(key_json)
     
     @classmethod
-    def rename_key(self, new_path):
-        return self.mv_key(self.path, new_path)
-    
-    def ticket(self, data=None, **kwargs):
-        return self.sign({'data':data, 'time': c.time()} , to_json=True, **kwargs)
+    def ticket(cls , data=None, key=None, **kwargs):
+        return cls.get_key(key).sign({'data':data, 'time': c.time()} , to_json=True, **kwargs)
 
     @classmethod
     def mv_key(cls, path, new_path):
@@ -165,8 +177,6 @@ class Key(c.Module):
         new_key = cls.get_key(new_path)
         return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
     
-    rename_key = mv_key 
-
     @classmethod
     def copy_key(cls, path, new_path):
         assert cls.key_exists(path), f'key does not exist at {path}'
@@ -188,6 +198,16 @@ class Key(c.Module):
 
         return response
     
+    def key2encrypted(self):
+        keys = self.keys()
+        key2encrypted = {}
+        for k in keys:
+            key2encrypted[k] = self.is_key_encrypted(k)
+        return key2encrypted
+    
+    def encrypted_keys(self):
+        return [k for k,v in self.key2encrypted().items() if v == True]
+            
     @classmethod
     def key_info(cls, path='module', **kwargs):
         return cls.get_key_json(path)
@@ -239,7 +259,11 @@ class Key(c.Module):
         return mems
     
     @classmethod
-    def get_key(cls, path:str,password:str=None, create_if_not_exists:bool = True, crypto_type=crypto_type, **kwargs):
+    def get_key(cls, 
+                path:str,password:str=None, 
+                create_if_not_exists:bool = True, 
+                crypto_type=crypto_type, 
+                **kwargs):
         for k in ['crypto_type', 'key_type', 'type']:
             if k in kwargs:
                 crypto_type = kwargs.pop(k)
@@ -361,23 +385,12 @@ class Key(c.Module):
             raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
         return {'deleted':[key]}
-    
-    @property
-    def crypto_type_name(self):
-        return self.crypto_type2name(self.crypto_type).lower()
 
-    @property
-    def key_type(self):
-        return self.crypto_type2name(self.crypto_type).lower()
 
 
     @classmethod
     def crypto_name2type(cls, name:str):
         crypto_type_map = cls.crypto_type_map
-        name = name.lower()
-        for k,v in crypto_type_map.items():
-            if k.startswith(name.lower()):
-                return v
         name = name.lower()
         if not name in crypto_type_map:
             raise ValueError(f'crypto_type {name} not supported {crypto_type_map}')
@@ -387,6 +400,10 @@ class Key(c.Module):
     def crypto_type2name(cls, crypto_type:str):
         crypto_type_map ={v:k for k,v  in cls.crypto_type_map.items()}
         return crypto_type_map[crypto_type]
+    
+    @classmethod
+    def resolve_crypto_type_name(cls, crypto_type):
+        return cls.crypto_type2name(cls.resolve_crypto_type(crypto_type))
          
     @classmethod
     def resolve_crypto_type(cls, crypto_type):
@@ -400,6 +417,10 @@ class Key(c.Module):
             crypto_type = crypto_type.lower()
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)
+    
+    @classmethod
+    def new_private_key(cls, crypto_type='ecdsa'):
+        return cls.new_key(crypto_type=crypto_type).private_key.hex()
     
     @classmethod
     def new_key(cls, 
@@ -765,10 +786,7 @@ class Key(c.Module):
     seperator = "::signature="
 
 
-    def sign(self, 
-             data: Union[ScaleBytes, bytes, str], 
-             to_json = False,
-             ) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -787,19 +805,14 @@ class Key(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
-        
         if self.crypto_type == KeyType.SR25519:
             signature = sr25519.sign((self.public_key, self.private_key), data)
-
         elif self.crypto_type == KeyType.ED25519:
             signature = ed25519_zebra.ed_sign(self.private_key, data)
-
         elif self.crypto_type == KeyType.ECDSA:
             signature = ecdsa_sign(self.private_key, data)
-
         else:
             raise ConfigurationError("Crypto type not supported")
         
@@ -899,13 +912,12 @@ class Key(c.Module):
             return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
 
-    def resolve_encryption_password(self, password:str):
+    def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:
             password = self.private_key
         if isinstance(password, str):
             password = password.encode()
-        password = hashlib.sha256(password).digest()
-        return password
+        return hashlib.sha256(password).digest()
     
     def resolve_encryption_data(self, data):
         if not isinstance(data, str):
@@ -989,25 +1001,31 @@ class Key(c.Module):
     @classmethod
     def encrypt_key(cls, path = 'test.enc', password=None):
         assert cls.key_exists(path), f'file {path} does not exist'
-        password = password or c.hash(cls.generate_mnemonic())
+        assert not cls.is_key_encrypted(path), f'{path} already encrypted'
         data = cls.get(path)
         enc_text = {'data': c.encrypt(data, password=password), 
                     'encrypted': True}
         cls.put(path, enc_text)
-        return {'encrypted':enc_text, 'path':path }
+        return {'number_of_characters_encrypted':len(enc_text), 'path':path }
     
     @classmethod
-    def is_key_encrypted(cls, path, data=None):
-        data = data or cls.get(path)
+    def is_key_encrypted(cls, key, data=None):
+        data = data or cls.get(key)
         return cls.is_encrypted(data)
     
     @classmethod
-    def decrypt_key(cls, path = 'test.enc', password=None):
+    def decrypt_key(cls, path = 'test.enc', password=None, key=None):
+        assert cls.key_exists(path), f'file {path} does not exist'
+        assert cls.is_key_encrypted(path), f'{path} not encrypted'
         data = cls.get(path)
         assert cls.is_encrypted(data), f'{path} not encrypted'
-        enc_text =  c.decrypt(data['data'], password=password)
-        cls.put(path, enc_text)
-        return {'encrypted':enc_text, 'path':path , 'password':password}
+        dec_text =  c.decrypt(data['data'], password=password)
+        cls.put(path, dec_text)
+        assert not cls.is_key_encrypted(path), f'failed to decrypt {path}'
+        loaded_key = c.get_key(path)
+        return { 'path':path , 
+                 'key_address': loaded_key.ss58_address,
+                 'crypto_type': loaded_key.crypto_type}
 
     @classmethod
     def get_mnemonic(cls, key):
@@ -1118,7 +1136,20 @@ class Key(c.Module):
             return False
         
         return True
+    
 
+    def storage_migration(self): 
+        key2path = self.key2path()
+        new_key2path = {}
+        for k_name, k_path in key2path.items():
+            try:
+                key = c.get_key(k_name)
+                new_k_path = '/'.join(k_path.split('/')[:-1]) + '/' + f'{k_name}_address={key.ss58_address}_type={key.crypto_type}.json'
+                new_key2path[k_name] = new_k_path
+            except Exception as e:
+                c.print(f'failed to migrate {k_name} due to {e}', color='red')
+                
+        return new_key2path
 
 # if __name__ == "__main__":      
 #     Key.run()

@@ -4,7 +4,6 @@ import json
 import streamlit as st
 from typing import *
 
-
 class App(c.Module):
     name_prefix = 'app::'
 

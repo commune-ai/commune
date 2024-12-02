@@ -1,13 +1,14 @@
 
 import commune as c
 
-def test_encryption(value = 10):
+def test_encryption(values = [10, 'fam', 'hello world']):
     cls = c.module('key')
-    value = str(value)
-    key = cls.new_key()
-    enc = key.encrypt(value)
-    dec = key.decrypt(enc)
-    assert dec == value, f'encryption failed, {dec} != {value}'
+    for value in values:
+        value = str(value)
+        key = cls.new_key()
+        enc = key.encrypt(value)
+        dec = key.decrypt(enc)
+        assert dec == value, f'encryption failed, {dec} != {value}'
     return {'encrypted':enc, 'decrypted': dec}
 
 def test_encryption_with_password(value = 10, password = 'fam'):

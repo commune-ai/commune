@@ -14,3 +14,5 @@ class Docs(c.Module):
             {context}
         """
         return c.ask(prompt, model=model, **kwargs)
+    
+    

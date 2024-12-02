@@ -4,15 +4,13 @@ import pandas as pd
 from typing import List, Dict, Union
 import commune as c
 
-class Docker(c.Module):
+class Docker:
     
-    @classmethod
-    def dockerfile(cls, path = c.repo_path): 
+    def dockerfile(self, path = c.repo_path): 
         path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
         return c.get_text(path)
     
-    @classmethod
-    def resolve_repo_path(cls, path):
+    def resolve_repo_path(self, path):
         if path is None:
             path = c.repo_path
         else:
@@ -22,23 +20,22 @@ class Docker(c.Module):
                 path = os.path.abspath(path)
         return path
 
-    @classmethod
-    def resolve_docker_compose_path(cls,path = None):
-        path = cls.resolve_repo_path(path)
+    def resolve_docker_compose_path(self,path = None):
+        path = self.resolve_repo_path(path)
         return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
 
-    @classmethod
-    def docker_compose(cls, path = c.repo_path): 
-        docker_compose_path = cls.resolve_docker_compose_path(path)
+    
+    def docker_compose(self, path = c.repo_path): 
+        docker_compose_path = self.resolve_docker_compose_path(path)
         return c.load_yanl(docker_compose_path)
 
-    @classmethod
-    def resolve_docker_path(cls, path = None):
-        path = cls.resolve_repo_path(path)
+    
+    def resolve_docker_path(self, path = None):
+        path = self.resolve_repo_path(path)
         return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
     
-    @classmethod
-    def build(cls, path = None , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
+    
+    def build(self, path = None , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
         path = c.resolve_path(path)
         
         if tag is None:
@@ -48,40 +45,40 @@ class Docker(c.Module):
         if no_cache:
             cmd += ' --no-cache'
         return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
-    @classmethod
-    def kill(cls, name, sudo=False, verbose=True, prune=False):
+    
+    def kill(self, name, sudo=False, verbose=True, prune=False):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         if prune:
             c.cmd('docker container prune', sudo=sudo, verbose=verbose)
         return {'status': 'killed', 'name': name}
 
-    @classmethod
-    def kill_many(cls, name, sudo=False, verbose=True):
-        servers = cls.ps(name)
+    
+    def kill_many(self, name, sudo=False, verbose=True):
+        servers = self.ps(name)
         for server in servers:
-            cls.kill(server, sudo=sudo, verbose=verbose)
+            self.kill(server, sudo=sudo, verbose=verbose)
             c.print(f'killed {server}', verbose=verbose)
         return {'status': 'killed', 'name': name}
 
-    @classmethod
-    def kill_all(cls, sudo=False, verbose=True):
-        servers = cls.ps()
+    
+    def kill_all(self, sudo=False, verbose=True):
+        servers = self.ps()
         for server in servers:
-            cls.kill(server, sudo=sudo, verbose=verbose)
+            self.kill(server, sudo=sudo, verbose=verbose)
             c.print(f'killed {server}', verbose=verbose)
         return {'status': 'killed'}
-    @classmethod
-    def rm(cls, name, sudo=False, verbose=True):
+    
+    def rm(self, name, sudo=False, verbose=True):
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         return {'status': 'removed', 'name': name}
 
-    @classmethod
-    def exists(cls, name:str):
-        return name in cls.ps()
+    
+    def exists(self, name:str):
+        return name in self.ps()
 
-    @classmethod
-    def rm_sudo(cls, sudo:bool=True, verbose:bool=True):
+    
+    def rm_sudo(self, sudo:bool=True, verbose:bool=True):
         '''
         To remove the requirement for sudo when using Docker, you can configure Docker to run without superuser privileges. Here's how you can do it:
         Create a Docker group (if it doesn't exist) and add your user to that group:
@@ -99,12 +96,12 @@ class Docker(c.Module):
 
     
 
-    @classmethod
-    def containers(cls,  sudo:bool = False):
-        return [container['name'] for container in cls.ps(sudo=sudo)]
     
-    @classmethod 
-    def chmod_scripts(cls):
+    def containers(self,  sudo:bool = False):
+        return [container['name'] for container in self.ps(sudo=sudo)]
+    
+     
+    def chmod_scripts(self):
         c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
 
@@ -118,14 +115,14 @@ class Docker(c.Module):
         c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
 
-    @classmethod
-    def install_docker_compose(cls, sudo=False):
+    
+    def install_docker_compose(self, sudo=False):
         return c.cmd('apt install docker-compose', verbose=True, sudo=True)
     # def build_commune(self, sudo=False):
     #     self.build(path=self.libpath, sudo=sudo)
 
-    @classmethod
-    def images(cls, to_records=True):
+    
+    def images(self, to_records=True):
         text = c.cmd('docker images', verbose=False)
         df = []
         cols = []
@@ -159,18 +156,18 @@ class Docker(c.Module):
         return {'success': True, 'responses': responses }
     
 
-    @classmethod
-    def image2id(cls, image=None):
+    
+    def image2id(self, image=None):
         image2id = {}
-        df = cls.images()
+        df = self.images()
         for  i in range(len(df)):
             image2id[df['REPOSITORY'][i]] = df['IMAGE_ID'][i]
         if image != None:
             id = image2id[image]
         return id
             
-    @classmethod
-    def deploy(cls, 
+    
+    def deploy(self, 
                     image : str,
                     cmd : str  = 'ls',
                     volumes:List[str] = None,
@@ -196,7 +193,7 @@ class Docker(c.Module):
         docker_cmd += f' --net {net} '
 
         if build:
-            cls.build(image, tag=name)
+            self.build(image, tag=name)
         
         if daemon:
             docker_cmd += ' -d '
@@ -242,8 +239,8 @@ class Docker(c.Module):
         #     text_output = c.cmd(docker_cmd, verbose=True)
         # self.update()
        
-    @classmethod
-    def psdf(cls, load=True, save=False, idx_key ='container_id'):
+    
+    def psdf(self, load=True, save=False, idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
 
         rows = []
@@ -265,10 +262,10 @@ class Docker(c.Module):
         df.set_index(idx_key, inplace=True)
         return df   
 
-    @classmethod
-    def ps(cls, search = None, df:bool = False):
+    
+    def ps(self, search = None, df:bool = False):
 
-        psdf = cls.psdf()
+        psdf = self.psdf()
         paths =  psdf['names'].tolist()
         if search != None:
             paths = [p for p in paths if p != None and search in p]
@@ -277,18 +274,18 @@ class Docker(c.Module):
         paths = sorted(paths)
         return paths
 
-    @classmethod
-    def name2dockerfile(cls, path = None):
-       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in cls.dockerfiles(path)}
     
-    @classmethod
-    def resolve_dockerfile(cls, name):
+    def name2dockerfile(self, path = None):
+       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
+    
+    
+    def resolve_dockerfile(self, name):
         if name == None:
             name = 'commune'
         
         if c.exists(name):
             return name
-        name2dockerfile = cls.name2dockerfile()
+        name2dockerfile = self.name2dockerfile()
         if name in name2dockerfile:
             return name2dockerfile[name]
         else:
@@ -296,40 +293,40 @@ class Docker(c.Module):
         
     get_dockerfile = resolve_dockerfile
 
-    @classmethod
-    def compose_paths(cls, path = None):
+    
+    def compose_paths(self, path = None):
        if path is None:
            path = c.libpath + '/'
        return [l for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
     
-    @classmethod
-    def name2compose(cls, path=None):
-        compose_paths = cls.compose_paths(path)
+    
+    def name2compose(self, path=None):
+        compose_paths = self.compose_paths(path)
         return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in compose_paths}
     
-    @classmethod
-    def get_compose_path(cls, path:str):
-        path = cls.name2compose().get(path, path)
+    
+    def get_compose_path(self, path:str):
+        path = self.name2compose().get(path, path)
         return path
 
-    @classmethod
-    def get_compose(cls, path:str):
-        path = cls.get_compose_path(path)
+    
+    def get_compose(self, path:str):
+        path = self.get_compose_path(path)
         return c.load_yaml(path)
 
-    @classmethod
-    def put_compose(cls, path:str, compose:dict):
-        path = cls.get_compose_path(path)
+    
+    def put_compose(self, path:str, compose:dict):
+        path = self.get_compose_path(path)
         return c.save_yaml(path, compose)
     
 
-    # @classmethod
-    # def down(cls, path='frontend'):
-    #     path = cls.get_compose_path(path)
+    # 
+    # def down(self, path='frontend'):
+    #     path = self.get_compose_path(path)
     #     return c.cmd('docker-compose -f {path} down', verbose=True)
 
-    @classmethod
-    def compose(cls, 
+    
+    def compose(self, 
                 path: str,
                 compose: Union[str, dict, None] = None,
                 daemon:bool = True,
@@ -345,12 +342,12 @@ class Docker(c.Module):
 
         cmd = f'docker-compose' if dash else f'docker compose'
 
-        path = cls.get_compose_path(path)
+        path = self.get_compose_path(path)
         if compose == None:
-            compose = cls.get_compose(path)
+            compose = self.get_compose(path)
         
         if isinstance(path, str):
-            compose = cls.get_compose(path)
+            compose = self.get_compose(path)
         
 
         if project_name != None:
@@ -385,12 +382,12 @@ class Docker(c.Module):
             text_output = c.cmd(cmd, verbose=True)
 
         c.rm(tmp_path)
-    @classmethod
+    
     def rm_container(self, name):
         c.cmd(f'docker rm -f {name}', verbose=True)
 
-    @classmethod
-    def logs(cls, name, sudo=False, follow=False, verbose=False, tail:int=2):
+    
+    def logs(self, name, sudo=False, follow=False, verbose=False, tail:int=2):
         cmd = f'docker  logs {name} {"-f" if follow else ""} --tail {tail}'
         return c.cmd(cmd, verbose=verbose)
 
@@ -398,20 +395,20 @@ class Docker(c.Module):
         nodes = self.ps(search=search)
         return {name: self.logs(name) for name in nodes}
 
-    @classmethod
-    def tag(cls, image:str, tag:str):
+    
+    def tag(self, image:str, tag:str):
         c.cmd(f'docker tag {image} {tag}', verbose=True)
         c.cmd(f'docker push {tag}', verbose=True)
-    @classmethod
+    
     def login(self, username:str, password:str):
         c.cmd(f'docker login -u {username} -p {password}', verbose=True)
 
-    @classmethod
+    
     def logout(self, image:str):
         c.cmd(f'docker logout {image}', verbose=True)
 
-    @classmethod
-    def dockerfiles(cls, path = None):
+    
+    def dockerfiles(self, path = None):
         if path is None:
             path = c.libpath + '/'
         dockerfiles = []
@@ -428,9 +425,9 @@ class Docker(c.Module):
         return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
     
 
-    @classmethod
-    def dashboard(cls):
-        self = cls()
+    
+    def dashboard(self):
+        self = self()
         import streamlit as st
         containers = self.psdf()
         name2dockerfile = self.name2dockerfile()
@@ -440,12 +437,8 @@ class Docker(c.Module):
         dockerfile_text = c.get_text(dockerfile)
         st.code(dockerfile_text)
 
-
     def prune(self):
         return c.cmd('docker container prune')
 
-
     def start_docker(self):
         return c.cmd('systemctl start docker')
-
-Docker.run(__name__)

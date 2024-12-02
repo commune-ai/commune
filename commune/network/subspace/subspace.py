@@ -53,7 +53,7 @@ class Subspace(c.Module):
         network=network,
         url: str = None,
         mode = 'wss',
-        num_connections: int = 5,
+        num_connections: int = 1,
         wait_for_finalization: bool = False,
         test = False,
         ws_options = {},
@@ -88,10 +88,8 @@ class Subspace(c.Module):
         code =  code.replace(replace_str, new_str)
         c.put_text(filepath, code)
         cls.network = network
-        return {'current_network': network, 'past_network': og_network}
-        
-    switch_network = switch
-        
+        return {'network': network, 'og_network': og_network}
+                
     def set_network(self, 
                         network=None,
                         mode = 'wss',
@@ -122,6 +120,7 @@ class Subspace(c.Module):
     def set_connections(self, num_connections: int):
         self.connections_queue = queue.Queue(num_connections)
         self.num_connections = num_connections
+        print(f'Setting connections {num_connections}')
         try:
             for _ in range(self.num_connections):
                 self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
@@ -906,10 +905,9 @@ class Subspace(c.Module):
         Raises:
             ChainTransactionError: If the transaction fails.
         """
-        c.print(f'SUBSPACE({module}/{fn} network={self.network} url={self.url})')
-        c.print('PARAMS --> ',params)
 
         key = self.resolve_key(key)
+        c.print(f'Calling(module={module} fn={fn} network={self.network} key={key.key_address} params={params}', color='blue')
 
         if key is None and not unsigned:
             raise ValueError("Key must be provided for signed extrinsics.")
@@ -1918,9 +1916,7 @@ class Subspace(c.Module):
         )
         return weights_dict
 
-    def addresses(
-        self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False
-    ) -> dict[int, str]:
+    def addresses( self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False ) -> dict[int, str]:
         subnet = self.resolve_subnet(subnet)
         addresses = self.query_map("Address", [subnet], extract_value=extract_value, max_age=max_age, update=update)
         sorted_uids = list(sorted(list(addresses.keys())))
@@ -2046,15 +2042,15 @@ class Subspace(c.Module):
         """
         Retrieves a mapping of account balances within the network.
         """
-        key2address = c.key2address()
-        key_addresses = key_addresses or list(key2address.values())
-        key_addresses = [key2address.get(a, a) for a in key_addresses]
+        key_addresses = key_addresses or list(c.key2address().values())
         with self.get_conn(init=True) as substrate:
-            balances =  substrate.query_multi( [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in key_addresses if not ka.startswith('0x')])
+            storage_keys = [substrate.create_storage_key(pallet='System', storage_function='Account', params=[ka]) for ka in key_addresses if not ka.startswith('0x')]
+            balances =  substrate.query_multi(storage_keys, block_hash=block_hash)
         return balances
     
-    def my_balance(self, batch_size=128, timeout=60, max_age=6000, update=False):
-        path = f'{self.network}/balances'
+    def my_balance(self, batch_size=128, timeout=120, max_age=6000, update=False, num_connections=10):
+        path = f'{self.network}/my_balance'
+        self.set_connections(num_connections=num_connections)
 
         balances = self.get(path, None, update=update, max_age=max_age)
         if balances == None:
@@ -2088,6 +2084,9 @@ class Subspace(c.Module):
         balances = {k: v for k, v in balances.items() if v > 0}
         balances = dict(sorted(balances.items(), key=lambda x: x[1], reverse=True))
         return self.format_amount(balances, fmt='j')
+    
+    def balances(self, *args, **kwargs):  
+        return self.my_balance(*args, **kwargs)
     def names(
         self, subnet: int = 0, extract_value: bool = False, max_age=60, update=False
     ) -> dict[int, str]:
@@ -2099,7 +2098,6 @@ class Subspace(c.Module):
         names = {int(k):v for k,v in names.items()}
         names = dict(sorted(names.items(), key=lambda x: x[0]))
         return names
-
 
     def proposal(self, proposal_id: int = 0):
         """
@@ -2360,7 +2358,6 @@ class Subspace(c.Module):
                         ("MaxAllowedValidators", params),
                         ("ModuleBurnConfig", params),
                         ("SubnetMetadata", params),
-                        ("TrustRatio", params),
                     ],
                     "GovernanceModule": [
                         ("SubnetGovernanceConfig", params),
@@ -2372,6 +2369,7 @@ class Subspace(c.Module):
                 },
                 block_hash,
             )
+
         
             subnet_maps: SubnetParamsMaps = {
                 "emission": bulk_query["SubnetEmission"],
@@ -2400,7 +2398,8 @@ class Subspace(c.Module):
             default_subnet_map = {
                 'min_validator_stake': self.to_nanos(50_000),
                 'max_allowed_validators': 50,
-                'maximum_set_weight_calls_per_epoch': 30
+                'maximum_set_weight_calls_per_epoch': 30,
+                'trust_ratio': 50,
             }
             subnet_map_keys = list(subnet_maps.keys())
             netuids = list(subnet_maps["name"].keys())
@@ -2516,28 +2515,45 @@ class Subspace(c.Module):
                    df = False, 
                    update=False):
         if subnet == "all":
-            return {sn: self.my_modules(subnet=sn, keys=ks, df=df)  for sn, ks in self.keys_map().items()}
-        subnet = self.resolve_subnet(subnet)
-        path = f'my_modules/{self.network}/{subnet}'
-        modules = self.get(path, None, max_age=max_age, update=update)
-        namespace = c.namespace()
-        if modules == None:
-            address2key = c.address2key()
-            keys = keys or self.keys(subnet)
-            my_keys = []
-            for k in keys:
-                if k in address2key:
-                    my_keys += [k]
-            modules = self.get_modules(my_keys, subnet=subnet)
-            for i,m in enumerate(modules):
-                serving = m['name'] in namespace
-                m['serving'] = serving
-                m['name'] = address2key[m['key']]
-                modules[i] = m
-        features += ['serving']
-        modules = [{f:m[f] for f in features} for m in modules]
-        if df:
-            modules =  c.df(modules)
+            modules = []
+            for sn, ks in self.keys_map().items():
+                sn_modules = self.my_modules(subnet=sn, keys=ks, df=False)
+                for m in sn_modules:
+                    m['subnet'] = sn
+                    modules += [m]
+            if df:
+                modules =  c.df(modules)
+                # modules = modules.groupb('key').agg(list).reset_index()
+                # modules['stake'] = modules['stake'].apply(sum)
+        else:
+            subnet = self.resolve_subnet(subnet)
+            path = f'my_modules/{self.network}/{subnet}'
+            modules = self.get(path, None, max_age=max_age, update=update)
+            namespace = c.namespace()
+            if modules == None:
+                address2key = c.address2key()
+                keys = keys or self.keys(subnet)
+                my_keys = []
+                for k in keys:
+                    if k in address2key:
+                        my_keys += [k]
+                modules = self.get_modules(my_keys, subnet=subnet)
+                for i,m in enumerate(modules):
+                    if not 'name' in m:
+                        continue
+                    serving = m['name'] in namespace
+                    m['serving'] = serving
+                    m['name'] = address2key[m['key']]
+                    modules[i] = m
+            features += ['serving']
+            modules = [{f:m.get(f, None) for f in features} for m in modules]
+
+            if df:
+                modules =  c.df(modules)
+                # group on key
+                modules = modules.groupb('key').agg(list).reset_index()
+                modules['stake'] = modules['stake'].apply(sum)
+    
         return modules
     
     def my_valis(self, subnet=0):
@@ -2546,53 +2562,19 @@ class Subspace(c.Module):
     def my_keys(self, subnet=0):
         return [m['key'] for m in self.my_modules(subnet)]
     
+    def valis(self, subnet=0, max_age=60, update=False, df=1, search=None, features=['Name', 'Keys', 'StakeFrom'], **kwargs):
+        valis =  self.modules(subnet=subnet , max_age=max_age, features=features,update=update, **kwargs)
+        if search != None:
+            valis = [v for v in valis if search in v['name'] or search ]
+        if df:
+            valis = c.df(valis)
+            valis.set_index('uid', inplace=True)
+            del valis['stake_from']
+            valis.sort_values('stake', ascending=False, inplace=True)
 
-    def all_modules(self,
-                    max_age = tempo,
-                    update=False,
-                    module = "SubspaceModule", 
-                    features = ['Name', 'Address', 'Keys',
-                                'Weights', 'Incentive',
-                                'Dividends',  'Emission', 
-                                'DelegationFee', 'LastUpdate',
-                                'Metadata', 'StakeFrom'  ],
-                    default_module = {
-                        'Weights': [], 
-                        'DelegationFee': 30,
-                        'LastUpdate': -1,
-                    },
-                    **kwargs):
-        
-        path = f'{self.network}/modules/all'
-        modules = self.get(path, None, max_age=max_age, update=update)
-        if modules == None:
-            results = self.query_batch_map({module:[(f, []) for f in features]},self.block_hash())
-            results = self.process_results(results)
-            netuids = list(results['Keys'].keys())
-            modules = {}
-            for _netuid in netuids:
-                modules[_netuid] = []
-                for uid in results['Keys'][_netuid].keys():
-                    module = {'uid': uid}
-                    for f in features:
-                        module[f] = results[f].get(_netuid, {})
-                        if f in ['StakeFrom'] :
-                            module_key = results['Keys'][_netuid][uid]
-                            module[f] = results[f].get(module_key, {})
-                        else:
-                            if isinstance(module[f], dict):
-                                module[f] = module[f].get(uid, default_module.get(f, None)) 
-                            elif isinstance(module[f], list):
-                                module[f] = module[f][uid]
-                    module = {self.storage2name(k):v for k,v in module.items()}
-                    modules[_netuid].append(module)  
-            self.put(path, modules)
-        modules = {int(k):v for k,v in modules.items()}
-        return modules
+        return valis
 
-
-    def validators(self, subnet=0):
-        return self.modules(subnet=subnet )
+    
 
 
 
@@ -2635,17 +2617,16 @@ class Subspace(c.Module):
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 
-                    features = ['Name', 'Address', 'Keys'],
+                    features = ['Name', 'Address', 'Keys', 'Emission'],
                     extra_features = [ 'Weights','Incentive','Dividends', 'Emission', 'DelegationFee', 'LastUpdate'],
                     lite = True,
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
                     num_connections = 4,
+                    search=None,
+                    df = False,
                     default_module = {'Weights': [], 'Incentive': 0, 'Emissions': 0,  'Dividends': 0, 'DelegationFee': 30, 'LastUpdate': 0,
                     },
                     **kwargs):
-        if subnet == 'all': 
-            return self.all_modules(max_age=max_age, update=update, module=module, features=features, default_module=default_module, **kwargs)
-    
         subnet = self.resolve_subnet(subnet)
         if not lite:
             features += extra_features
@@ -2658,10 +2639,11 @@ class Subspace(c.Module):
             self.set_network(num_connections=num_connections)
             future2feature = {}
             params = [subnet] if subnet != None else []
-            for feature in features:
-                params = [subnet] if subnet != None else []
-                if feature in ['StakeFrom'] and lite == False:
+            for feature in features: 
+                if feature in ['StakeFrom']:
                     params = []
+                else:
+                    params = [subnet] if subnet != None else []
                 fn_obj = self.query if feature in  vector_fetures else  self.query_map 
                 f = c.submit(fn_obj, kwargs=dict(name=feature, params=params), timeout=timeout)
                 future2feature[f] = feature
@@ -2680,8 +2662,10 @@ class Subspace(c.Module):
                     if isinstance(results[f], dict):
                         if f in ['Keys']:
                             module[f[:-1]] = module_key
+                    
                         elif f in ['StakeFrom'] :
                             module[f] = results[f].get(module_key, {})
+                            module['Stake'] = sum([v for k,v in module[f].items()]) / 10**9
                         else:
                             module[f] = results[f].get(uid, default_module.get(f, None)) 
                     elif isinstance(results[f], list):
@@ -2691,6 +2675,17 @@ class Subspace(c.Module):
             self.put(path, modules)
         # modules = sorted(modules)
         modules = sorted(modules, key=lambda x: x["uid"])
+        if 'emission' in modules[0]:
+            modules = sorted(modules, key=lambda x: x["emission"], reverse=True)
+            for i,m in enumerate(modules):
+                m['rank'] = i
+                m['emission'] = self.format_amount(m['emission'], fmt='j')
+
+        if search:
+            modules = [m for m in modules if search in m['name']]
+        if df:
+            modules = c.df(modules)
+        
         return modules
     
     def root_modules(self, subnet=0, **kwargs):
@@ -2742,13 +2737,7 @@ class Subspace(c.Module):
         futures = [ c.submit(self.get_module, kwargs=dict(module=k, subnet=subnet, max_age=max_age)) for k in keys]
         return c.wait(futures, timeout=30)
 
-    def get_module(self, 
-                    module,
-                    subnet=0,
-                    fmt='j',
-                    mode = 'https',
-                    block = None,
-                    **kwargs ) -> 'ModuleInfo':
+    def get_module(self, module, subnet=0, fmt='j', mode = 'https', block = None, **kwargs ) -> 'ModuleInfo':
         url = self.get_url( mode=mode)
         subnet = self.resolve_subnet(subnet)
         module = self.resolve_key_address(module)
@@ -2761,7 +2750,7 @@ class Subspace(c.Module):
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
         module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
-        module['stake'] = sum([v for k,v in module['stake_from'].items() ])
+        module['stake'] = sum([v / 10**9 for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)
         module['metadata'] = module.pop('metadata', {})
@@ -2793,6 +2782,18 @@ class Subspace(c.Module):
         [transformed[k1].append((k2, v)) for (k1, k2), v in stake_storage.items()]
 
         return dict(transformed)
+    
+
+    def miners(self, subnet=0, max_age=60, update=False):
+        return self.modules(subnet=subnet, max_age=max_age, update=update)
+    
+    def stats(self, subnet=0, max_age=60, update=False):
+        modules =  c.df(self.modules(subnet=subnet, max_age=max_age, update=update))
+
+        return modules
+
+    
+
 
 
 

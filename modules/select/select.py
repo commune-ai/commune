@@ -33,6 +33,6 @@ class Select:
             output += ch
         output = output.split('<OUTPUT>')[1].split('</OUTPUT>')[0]
         output = json.loads(output)["data"]
-        output_schema = {k:c.fn_schema(module + '/'+k) for k,v in output}
+        output_schema = {k:c.schema(module + '/'+k) for k,v in output}
         return output_schema
 

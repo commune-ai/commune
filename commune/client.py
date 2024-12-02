@@ -105,7 +105,6 @@ class Client(c.Module):
                 stream: bool = True):
         try:             
             response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
-
             if 'text/event-stream' in response.headers.get('Content-Type', ''):
                 return self.stream(response)
             if 'application/json' in response.headers.get('Content-Type', ''):
@@ -132,7 +131,6 @@ class Client(c.Module):
             kwargs = {**kwargs, **extra_kwargs}
         data =  {  "args": args, "kwargs": kwargs}
         data = self.serializer.serialize(data)
-
         return data
 
     def forward(self, 
@@ -155,8 +153,12 @@ class Client(c.Module):
                     'crypto_type': str(key.crypto_type),
                     'time': str(c.time())
                    }
+                   
         headers['signature'] = key.sign({'data': headers['hash'], 'time': headers['time']}).hex()
-        return self.request(url=url, data=data,headers=headers, timeout=timeout)
+        return self.request(url=url, 
+                            data=data,
+                            headers=headers, 
+                            timeout=timeout)
     
     def __del__(self):
         try:
@@ -224,3 +226,78 @@ class Client(c.Module):
             else:
                 return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
             
+
+    def forcurl(self, 
+                fn: str = 'info', 
+                args: list = None, 
+                kwargs: dict = None, 
+                timeout: int = 2,
+                key: str = None,
+                **extra_kwargs) -> str:
+        """
+        Generate a cURL command for the equivalent HTTP request
+        
+        Args:
+            fn (str): Function name to call
+            args (list): Arguments list
+            kwargs (dict): Keyword arguments
+            timeout (int): Request timeout in seconds
+            key (str): Key for authentication
+            **extra_kwargs: Additional keyword arguments
+        
+        Returns:
+            str: cURL command string
+        """
+        # Resolve the key and URL
+        key = self.resolve_key(key)
+        url = self.get_url(fn=fn)
+        
+        # Prepare the data
+        data = self.get_data(args=args or [], kwargs=kwargs or {}, **extra_kwargs)
+        
+        # Prepare headers
+        headers = {
+            'Content-Type': 'application/json',
+            'key': key.ss58_address,
+            'hash': c.hash(data),
+            'crypto_type': str(key.crypto_type),
+            'time': str(c.time())
+        }
+        
+        # Add signature
+        headers['signature'] = key.sign({
+            'data': headers['hash'], 
+            'time': headers['time']
+        }).hex()
+        
+        # Build curl command
+        curl_cmd = ['curl']
+        
+        # Add method
+        curl_cmd.append('-X POST')
+        
+        # Add headers
+        for header_name, header_value in headers.items():
+            curl_cmd.append(f"-H '{header_name}: {header_value}'")
+        
+        # Add data
+        if isinstance(data, str):
+            data_str = data
+        else:
+            data_str = json.dumps(data)
+        curl_cmd.append(f"-d '{data_str}'")
+        
+        # Add URL
+        curl_cmd.append(f"'{url}'")
+        
+        # Add timeout
+        curl_cmd.append(f'--max-time {timeout}')
+        
+        # now get the dict of the response and return it
+        # make the request in the os and return the response
+        import os
+        response = os.popen(' '.join(curl_cmd)).read()
+
+
+        return response
+        

@@ -6,14 +6,7 @@ import commune as c
 
 class OpenRouter(c.Module):
 
-    def __init__(
-        self,
-        api_key = None,
-        base_url: str | None = 'https://openrouter.ai/api/v1',
-        timeout: float | None = None,
-        max_retries: int = 10,
-        **kwargs
-    ):
+    def __init__(self, api_key = None, base_url: str | None = 'https://openrouter.ai/api/v1', timeout: float | None = None, max_retries: int = 10, **kwargs):
         """
         Initialize the OpenAI with the specified model, API key, timeout, and max retries.
 
@@ -24,18 +17,7 @@ class OpenRouter(c.Module):
             timeout (float | None, optional): The timeout value for the client. Defaults to None.
             max_retries (int | None, optional): The maximum number of retries for the client. Defaults to None.
         """
-
-        super().__init__()
-        self.prompt = None
-        if api_key == None:
-            api_key = self.get_api_key()
-
-        self.authenticate(
-            api_key=api_key,
-            base_url=base_url,
-            timeout=timeout,
-            max_retries=max_retries,
-        )
+        self.authenticate( api_key=api_key,base_url=base_url, timeout=timeout, max_retries=max_retries, )
 
     def generate(
         self,
@@ -66,23 +48,15 @@ class OpenRouter(c.Module):
         if len(extra_text) > 0:
             message = message + ' '.join(extra_text)
         history = history or []
-        prompt = prompt or self.prompt
         message = message + prompt if prompt else message
         model = self.resolve_model(model)
-        print(f'Generating with model: {model}')
         model_info = self.get_model_info(model)
         num_tokens = len(message)
         print(f'Sending {num_tokens} tokens -> {model}')
         max_tokens = min(max_tokens, model_info['context_length'] - num_tokens)
         messages = history.copy()
         messages.append({"role": "user", "content": message})
-        result = self.client.chat.completions.create(
-                                                    model=model,
-                                                    messages=messages,
-                                                    stream= bool(stream), 
-                                                    max_tokens = max_tokens,
-                                                    temperature= temperature, 
-                                                    )
+        result = self.client.chat.completions.create(model=model, messages=messages, stream= bool(stream), max_tokens = max_tokens, temperature= temperature  )
     
 
         if stream:
@@ -94,7 +68,6 @@ class OpenRouter(c.Module):
             return result.choices[0].message.content
         
     forward = generate
-
 
     def resolve_model(self, model=None):
         models =  self.models()
@@ -111,7 +84,7 @@ class OpenRouter(c.Module):
 
     def authenticate(
         self,
-        api_key: str,
+        api_key: str = None,
         base_url: None = None,
         timeout: float | None = None,
         max_retries: int = 5,
@@ -127,7 +100,7 @@ class OpenRouter(c.Module):
         """
         self.client = openai.OpenAI(
             base_url=base_url,
-            api_key=api_key,
+            api_key=api_key or self.get_api_key(),
             timeout=timeout,
             max_retries=max_retries,
         )
@@ -137,8 +110,7 @@ class OpenRouter(c.Module):
         models = self.get(path, default={}, max_age=max_age, update=update)
         if len(models) == 0:
             print('Updating models...')
-            url = 'https://openrouter.ai/api/v1/models'
-            response = requests.get(url)
+            response = requests.get(self.url)
             models = json.loads(response.text)['data']
             self.put(path, models)
     
@@ -149,7 +121,6 @@ class OpenRouter(c.Module):
     def models(self, search: str = None, path='models', max_age=0, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
 
-    
     def model_infos(self, search: str = None, path='models', max_age=0, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).values())
     
@@ -171,7 +142,7 @@ class OpenRouter(c.Module):
         models = [m for m in models if any([s in m['id'] for s in search])]
         return [m for m in models]
     
-
     def pricing(self, search: str = None , **kwargs):
         pricing =  [{'name': k , **v['pricing']} for k,v in self.model2info(search=search, **kwargs).items()]
         return c.df(pricing).sort_values('completion', ascending=False)
+    
