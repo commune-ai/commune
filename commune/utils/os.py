@@ -1205,6 +1205,10 @@ def get_port(port:int = None)->int:
 def port_range():
     return get_port_range()
 
+def ports() -> List[int]:
+    
+    return list(range(*get_port_range()))
+
 def resolve_port_range(port_range: list = None) -> list:
     return get_port_range(port_range)
 

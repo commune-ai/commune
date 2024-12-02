@@ -48,6 +48,8 @@ def determine_type(x):
             except ValueError:
                 pass
     return x
+
+
 def forward(argv = None,
             sep = '--', 
             fn_splitters = [':', '/', '//', '::'],
@@ -72,6 +74,7 @@ def forward(argv = None,
                     argv.remove(arg)
                     init_kwargs[key] = determine_type(value)
     # any of the --flags are init kwargs
+
     fn = argv.pop(0).replace('-', '_')
     module = c.module(base)
     fs = [fs for fs in fn_splitters if fs in fn]
@@ -132,5 +135,8 @@ def forward(argv = None,
     else:
         c.print(output)
     return output
+
+
 def main():
     forward()
+    

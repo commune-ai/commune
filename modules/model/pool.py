@@ -7,7 +7,6 @@ class Model(c.Module):
         self.network = network
 
     def generate(self, *args, **kwargs):
-        c.print('Generating model')
         models = c.servers(self.module)
         client = c.choice(models)
         client = c.connect(client)

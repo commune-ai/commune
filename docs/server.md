@@ -61,7 +61,7 @@ c call demo/info
 You can restart or kill a served module using the `restart()` and `kill()` methods:
 
 ```python
-c.restart('demo')  # Restart the module which will run back on the same port
+c.restart('demo')  # Restart the module which will run bxack on the same port
 ```
 
 

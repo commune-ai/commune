@@ -44,8 +44,10 @@ def get_files( path ='./',
         paths = [p for p in paths if search in p]
     return paths
 
-def file2text(path = './', 
-                avoid_terms = ['__pycache__', 
+def abspath(path:str):
+    return os.path.abspath(os.path.expanduser(path))
+
+def file2text(path = './', avoid_terms = ['__pycache__', 
                                 '.git', 
                                 '.ipynb_checkpoints', 
                                 'package.lock',
@@ -56,8 +58,11 @@ def file2text(path = './',
                                 'cache/',
                                 'target/debug',
                                 'node_modules'],
+                avoid_paths = ['~', '/tmp', '/var', '/proc', '/sys', '/dev'],
                 relative=True,  **kwargs):
+    
     path = os.path.abspath(os.path.expanduser(path))
+    assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
     file2text = {}
     for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
         if os.path.isdir(file):
@@ -72,15 +77,10 @@ def file2text(path = './',
         return {k[len(path)+1:]:v for k,v in file2text.items()}
     return file2text
 
-
-def abspath( path:str):
-    return os.path.abspath(os.path.expanduser(path))
-     
 def random_int(start_value=100, end_value=None):
     if end_value == None: 
         end_value = start_value
         start_value, end_value = 0 , start_value
-    
     assert start_value != None, 'start_value must be provided'
     assert end_value != None, 'end_value must be provided'
     return random.randint(start_value, end_value)
@@ -155,6 +155,7 @@ def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
                 x[k] = dict2munch(v)
         x = Munch(x)
     return x 
+
 
 def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     from munch import Munch
