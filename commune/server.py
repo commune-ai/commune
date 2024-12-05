@@ -253,12 +253,24 @@ class Server(c.Module):
             try:
                 return self.forward(fn, request, catch_exception=False)
             except Exception as e:
-                return c.detailed_error(e)
+                result =  c.detailed_error(e)
+                c.print(result, color='red')
+                return result
         module = self.module
+    
         data = self.loop.run_until_complete(request.json())
         # data = self.serializer.deserialize(data) 
-        kwargs = dict(data.get('kwargs', data.get('params', {}))) 
-        args = list(data.get('args', []))
+        if isinstance(data, str):
+            data = json.loads(data)
+            
+        if 'kwargs' in data or 'params' in data:
+            kwargs = dict(data.get('kwargs', data.get('params', {}))) 
+        else:
+            kwargs = data
+        if 'args' in data:
+            args = list(data.get('args', []))
+        else:
+            args = []
         data = {'args': args, 'kwargs': kwargs}
         headers = dict(request.headers.items())
         headers['key'] = headers.get('key', headers.get('address', None))
