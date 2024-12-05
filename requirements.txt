@@ -33,6 +33,5 @@ py-sr25519-bindings>=0.2.0
 py-ed25519-zebra-bindings>=1.0
 py-bip39-bindings>=0.1.9
 twine
-
-
+psutil
 

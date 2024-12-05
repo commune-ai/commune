@@ -35,11 +35,36 @@ class Chat(c.Module):
                 word = c.file2text(word)
             new_text += str(word)
         return new_text
+    
  
-    def reduce(self, text, max_chars=10000 , timeout=5, max_age=30, model='openai/o1-mini'):
-        
+    def reduce(self, text, max_chars=10000 , timeout=40, max_age=30, model='openai/o1-mini'):
         if os.path.exists(text): 
-            text = str(c.file2text(text))
+            path = text
+            if os.path.isdir(path):
+                print('REDUCING A DIRECTORY -->', path)
+                future2path = {}
+                path2result = {}
+                paths = c.files(path)
+                progress = c.tqdm(len(paths), desc='Reducing', leave=False)
+                while len(paths) > 0:
+                    for p in paths:
+                        future = c.submit(self.reduce, [p], timeout=timeout)
+                        future2path[future] = p
+                    try:
+                        for future in c.as_completed(future2path, timeout=timeout):
+                            p = future2path[future]
+                            r = future.result()
+                            paths.remove(p)
+                            path2result[p] = r
+                            print('REDUCING A FILE -->', r)
+                            progress.update(1)
+                    except Exception as e:
+                        print(e)
+                return path2result
+            else:
+                assert os.path.exists(path), f'Path {path} does not exist'
+                print('REDUCING A FILE -->', path)
+                text = str(c.get_text(path))
         elif c.module_exists(text):
             text = c.code(text)
 
@@ -55,38 +80,32 @@ class Chat(c.Module):
         OUTPUT FORMAT ONLY BETWEEN THE TAGS SO WE CAN PARSE
         <OUTPUT>DICT(data=List[Dict[str, str]])</OUTPUT>
         '''
-        print(f"TEXTSIZE : {len(text)}")
-        compress_ratio = 0
-        text_size = len(text)
         if len(text) >= max_chars * 2 :
             batch_text = [text[i:i+max_chars] for i in range(0, len(text), max_chars)]
-            print(f"TEXTSIZE : {text_size} > {max_chars} BATCH SIZE: {len(batch_text)}")
             futures =  [c.submit(self.reduce, [batch], timeout=timeout) for batch in batch_text]
-            text = ''
-            cnt = 0
+            output = ''
             try:
-                n = len(batch_text)
-                progress = c.progress(n)
-                
                 for future in c.as_completed(futures, timeout=timeout):
-                    text += str(future.result())
-                    cnt += 1
-                    progress.update(1)
-                    print(f"SUMMARIZED: {cnt}/{n} COMPRESSION_RATIO: {compress_ratio}")
-                return text
+                    output += str(future.result())
             except Exception as e:
                 print(e)
-            
             final_length = len(text)
-            compress_ratio = final_length/original_length
-            result = { 'compress_ratio': compress_ratio, 'final_length': final_length, 'original_length': original_length}
-            print(result)
-            return text
+            result = { 'compress_ratio': final_length/original_length, 
+                      'final_length': final_length, 
+                      'original_length': original_length, 
+                      "data": text}
+            return result
         if "'''" in text:
             text = text.replace("'''", '"""')
         
         data =  c.ask(text, model=model, stream=0)
-        return data
+        def process_data(data):
+            try:
+                data = data.split('<OUTPUT>')[1].split('</OUTPUT>')[0]
+                return data
+            except:
+                return data
+        return {"data": process_data(data)}
 
     def models(self):
         return self.model.models()

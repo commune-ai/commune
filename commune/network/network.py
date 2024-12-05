@@ -22,6 +22,10 @@ class Network(c.Module):
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
 
+
+    def net(self):
+        return c.network()
+    
     def modules(self, 
                 search=None, 
                 max_age=tempo, 

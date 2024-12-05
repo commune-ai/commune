@@ -27,23 +27,7 @@ class Repo(c.Module):
                 repos.append(root)
         return repos
     
-    def update(self):
-        self.repo2path(update=True)
-    
-    def repo2path(self,  repo = None, search = None, update=False, max_age=1000, repo_path='repo2path'):
-        repo2path = self.get(repo_path, {}, max_age=max_age, update=update) 
-        if len(repo2path) == 0:
-            find_repo_paths = self.find_repo_paths()
-            for path in find_repo_paths:
-                repo_name = path.split('/')[-1]
-                repo2path[repo_name] = path
-            self.put(repo_path, repo2path)
-        if search != None:
-            return {k:v for k,v in repo2path.items() if search in k}
-        if repo != None:
-            return {k:v for k,v in repo2path.items()}
-        return repo2path
-    
+
 
 
     @classmethod
@@ -124,24 +108,14 @@ class Repo(c.Module):
 
     def repo_paths(self):
         return list(self.repo2path().values())
-    def add_repo(self, repo_path, 
-                 path = None,
-                 update=True, 
-                 cwd = None, 
-                 sudo=False):
-        cwd = cwd or c.home_path
-
+    def add_repo(self, repo_path, path = None, cwd = None, sudo=False):
         repo_name =  os.path.basename(repo_path).replace('.git', '')
-        
         if path == None:
-            path = c.home_path + '/'+ repo_name
-        if os.path.isdir(path) and update:
-            c.rm(path)
+            path = os.path.abspath(os.path.expanduser('~/'+ repo_name))
+        assert not os.path.isdir(path), f'{path} already exists'
 
         c.cmd(f'git clone {repo_path}', verbose=True, cwd=cwd, sudo=sudo)
 
-        if update:
-            self.update()
 
         repo_paths = self.repo_paths()
 
@@ -182,4 +156,3 @@ class Repo(c.Module):
             futures.append(c.submit(self.pull_repo, args=[repo], timeout=timeout))
         return c.wait(futures, timeout=timeout)
 
-Repo.run(__name__)

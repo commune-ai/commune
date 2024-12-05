@@ -1,8 +1,9 @@
-import commune as c
 import sys
 import time
 import sys
+import commune as c
 print = c.print
+
 def determine_type(x):
     x = str(x)
     if isinstance(x, str) :
@@ -48,14 +49,13 @@ def determine_type(x):
             except ValueError:
                 pass
     return x
-
-
 def forward(argv = None,
             sep = '--', 
             fn_splitters = [':', '/', '//', '::'],
             base = 'module', 
             helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'], 
             default_fn = 'vs'):
+
     t0 = time.time()
     argv = argv or sys.argv[1:]
     if len(argv) == 0:
@@ -135,8 +135,6 @@ def forward(argv = None,
     else:
         c.print(output)
     return output
-
-
 def main():
     forward()
     

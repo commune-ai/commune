@@ -1881,6 +1881,9 @@ class c:
         for module in modules:
             self.new_module(module=module, **kwargs)
 
+    def net(self):
+        return c.network()
+
     @classmethod
     def new_module( cls,
                    path : str ,
@@ -2060,6 +2063,22 @@ class c:
                 return filename
         return filename + extension
     
+
+    def repo2path(self, search=None):
+        repo2path = {}
+        for p in c.ls('~/'): 
+            if os.path.exists(p+'/.git'):
+                r = p.split('/')[-1]
+                if search == None or search in r:
+                    repo2path[r] = p
+        return dict(sorted(repo2path.items(), key=lambda x: x[0]))
+    
+    def repos(self, search=None):
+        return list(self.repo2path(search=search).keys())
+    
+    def is_repo(self, repo:str):
+        return repo in self.repos()
+
     @classmethod
     def help(cls, *text, module=None,  **kwargs):
         text = ' '.join(map(str, text))
@@ -2071,9 +2090,7 @@ class c:
     def time(self):
         return time.time()
     
-    def repos(self):
-        return c.ls('~/')
-    
+
     def clone(self, repo:str, path:str=None, **kwargs):
         path = '~/' + repo if path == None else path
         cmd =  f'git clone {repo}'
@@ -2321,7 +2338,5 @@ c.routes = {
 c.add_routes()
 Module = c # Module is alias of c
 Module.run(__name__)
-
-
 
 

@@ -30,6 +30,7 @@ class OpenRouter(c.Module):
         model:str = 'claude-3-sonnet',
         max_tokens: int = 100000,
         temperature: float = 1.0,
+        verbose=False,
     ) -> str | Generator[str, None, None]:
         """
         Generates a response using the OpenAI language model.
@@ -52,7 +53,7 @@ class OpenRouter(c.Module):
         model = self.resolve_model(model)
         model_info = self.get_model_info(model)
         num_tokens = len(message)
-        print(f'Sending {num_tokens} tokens -> {model}')
+        c.print(f'Sending {num_tokens} tokens -> {model}', verbose=verbose)
         max_tokens = min(max_tokens, model_info['context_length'] - num_tokens)
         messages = history.copy()
         messages.append({"role": "user", "content": message})

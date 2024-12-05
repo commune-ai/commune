@@ -58,12 +58,14 @@ class Subspace(c.Module):
         test = False,
         ws_options = {},
         timeout: int | None = None,
+        net = None,
     ):
         """
         Args:
             url: The URL of the network node to connect to.
             num_connections: The number of websocket connections to be opened.
         """
+        network = net or network # add a little shortcut
         self.set_network(network=network,
                          mode=mode,
                          url=url,  
@@ -2000,6 +2002,8 @@ class Subspace(c.Module):
 
     def netuid2subnet(self, *args, **kwargs):
         return {v:k for k,v in self.subnet_map(*args, **kwargs).items()}
+    
+    
 
     def resolve_subnet(self, subnet: str) -> int:
         subnet_map = self.subnet_map()

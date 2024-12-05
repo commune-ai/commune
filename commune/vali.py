@@ -95,10 +95,7 @@ class Vali(c.Module):
     results = []
 
     def epoch(self):
-        if len(self.futures) > 0:
-            print('Cancelling futures from previous epoch')
-            [f.cancel() for f in self.futures]
-        self.futures = []
+        futures = []
         self.results = []
         next_epoch = self.nex_epoch
         progress = c.tqdm(total=next_epoch, desc='Next Epoch')
@@ -110,20 +107,22 @@ class Vali(c.Module):
         progress = c.tqdm(total=self.n, desc='Evaluating Modules')
         # return self.modules
         n = len(self.modules)
+        
         for i, module in enumerate(self.modules):
             module["i"] = i
             c.print(f'EVAL(i={i}/{n} key={module["key"]} name={module["name"]})', color='yellow')
-            if len(self.futures) < self.batch_size:
-                self.futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
+            if len(futures) < self.batch_size:
+                futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
             else: 
-                self.results.append(self.next_result())
+                self.results.append(self.next_result(futures))
             progress.update(1)
-        while len(self.futures) > 0:
-            self.results.append(self.next_result())
+        while len(futures) > 0:
+            self.results.append(self.next_result(futures))
         self.results = [r for r in self.results if r.get('score', 0) > 0]
         self.epochs += 1
         self.epoch_time = c.time()
         c.print(self.vote())
+        print(self.scoreboard())
         return self.results
     
     def sync(self, update = False):
@@ -221,14 +220,20 @@ class Vali(c.Module):
     def run_epoch(cls, network='local', run_loop=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, **kwargs).epoch()
 
-    def next_result(self,  features=['score', 'name', 'key', 'i']):
+    def next_result(self, futures:list, features=['score', 'name', 'key', 'i']):
         try:
-            for future in c.as_completed(self.futures, timeout=self.timeout):
-                self.futures.remove(future) 
-                result = future.result()
-                if all([f in result for f in features]):
-                    c.print(f'RESULT(score={result["score"]} key={result["key"]} name={result["name"]} )', color='green')
-                    return result
+            for future in c.as_completed(futures, timeout=self.timeout):
+                    futures.remove(future) 
+                    result = future.result()
+                    if all([f in result for f in features]):
+                        v_result = {f: result[f] for f in features}
+                    
+                        c.print(f'RESULT({v_result})', color='red')
+                        return result
+                    else:
+                        v_result = {f: result[f] for f in result if f not in ['success']}
+                        c.print(f'ERROR({result["error"]})', color='red')
+
         except Exception as e:
             result = c.detailed_error(e)
             result.pop('success')
