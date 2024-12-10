@@ -130,5 +130,10 @@ class Git(c.Module):
         return c.cmd(cmd, cwd)
     
 
-    
-    
+    def get_repos(self, username_or_org="openai"):
+        import requests
+        import re
+        # Get the HTML of the repositories page
+        url = f"https://github.com/{username_or_org}?tab=repositories"
+        # response = requests.get(url)
+        return c.module('web')().page_content(url)["links"]
