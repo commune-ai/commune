@@ -52,7 +52,7 @@ class Network(c.Module):
         return modules
 
     def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
-        return {m['name']: m['address'] for m in self.modules(search=search, max_age=max_age, update=update)}
+        return {m['name']: '0.0.0.0' + ':' + m['address'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
 
     def register_server(self, name:str, address:str, key:str) -> None:
         data = {'name': name, 'address': address, 'key': key}
@@ -103,7 +103,10 @@ class Network(c.Module):
             networks.append(network)
         networks = sorted(list(set(networks)))
         return networks
-              
+    
+    def infos(self, *args, **kwargs) -> Dict:
+        return [c.call(address+'/info') for name, address in self.namespace(*args, **kwargs).items()]
+            
 Network.run(__name__)
 
 

@@ -63,11 +63,14 @@ class Search:
         assert len(output) > 0
         return output
 
-    def files(self, query='the file that is the core of commune',  path='./',  model='sonnet' ):
-        return self.query(options=c.files(path), query=query)
+    def files(self, query='the file that is the core of commune',  path='./',  n=10):
+        return self.query(options=c.files(path), query=query, n=n)
 
     def modules(self,  query='the filel that is the core of commune',  model='sonnet'): 
         return self.query(options=c.modules(), query=query)
 
     def utils(self, query='confuse the gradients'):
         return self.query(query=query, options=c.get_utils())
+
+
+

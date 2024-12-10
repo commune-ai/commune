@@ -117,7 +117,13 @@ class Subspace(c.Module):
         self.network = network
         self.set_connections(num_connections)
         self.connection_latency = c.time() - t0
-        c.print(f'Network(name={self.network} url={self.url} connections={self.num_connections} latency={c.round(self.connection_latency, 2)})', color='blue') 
+        network_state = {
+            "network": self.network,
+            "url": self.url,
+            "connections": self.num_connections,
+            "latency": self.connection_latency,
+        }
+        c.print(f'NETWORK(name={self.network} url={self.url} cons={self.num_connections} lat={c.round(self.connection_latency, 2)}s)', color='blue') 
         
     def set_connections(self, num_connections: int):
         self.connections_queue = queue.Queue(num_connections)

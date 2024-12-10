@@ -1,5 +1,4 @@
 
-```json
 {
   "dependencies": {
     "@codemirror/lang-javascript": "^6.0.0",

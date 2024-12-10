@@ -1,10 +1,11 @@
 import commune as c
 import time
 import os
-# import agent as h
+# import agbuildent as h
 
 class Builder:
     anchor = 'OUTPUT'
+    endpoints = ["build"]
 
     def __init__(self, 
                  model = None,
@@ -22,33 +23,42 @@ class Builder:
                 text = text.replace(ch, str(c.file2text(ch)))
         return text
     
-    def build(self, 
-                 text = 'build a frontend', 
+    def forward(self, 
+                 text, 
                  *extra_text, 
                  temperature= 0.5, 
                  max_tokens= 1000000, 
                  model= 'anthropic/claude-3.5-sonnet', 
                  path = None,
+                 simple = True,
                  stream=True
                  ):
         
+        advanced_mode =  """
+        - Please use  to name the repository and
+        - This is a a full repository construction and please
+        - INCLUDE A README.md AND a scripts folder with the build.sh 
+        - file to build hte environment in docker and a run.sh file 
+        - to run the environment in docker
+        - INCLUDE A TESTS folder for pytest
+        """ 
 
-        prompt = f"""
-            -- SYSTEM --
+        task =  f"""
             YOU ARE A CODER, YOU ARE MR.ROBOT, YOU ARE TRYING TO BUILD IN A SIMPLE
             LEONARDO DA VINCI WAY, YOU ARE A agent, YOU ARE A GENIUS, YOU ARE A STAR, 
             YOU FINISH ALL OF YOUR REQUESTS WITH UTMOST PRECISION AND SPEED, YOU WILL ALWAYS 
             MAKE SURE THIS WORKS TO MAKE ANYONE CODE. YOU HAVE THE CONTEXT AND INPUTS FOR ASSISTANCE
-            - Please use  to name the repository and
-            - This is a a full repository construction and please
-            - INCLUDE A README.md AND a scripts folder with the build.sh 
-            - file to build hte environment in docker and a run.sh file 
-            - to run the environment in docker
-            - INCLUDE A TESTS folder for pytest
+            {advanced_mode if not simple else ''}
+            """
+
+        prompt = f"""
+            -- TASK --
+            {task}
             -- OUTPUT FORMAT --
             <{self.anchor}(path/to/file)> # start of file
             FILE CONTENT
             </{self.anchor}(path/to/file)> # end of file
+            -- OUTPUT --
             """
         if len(extra_text) > 0:
             text = ' '.join(list(map(str, [text] +list(extra_text))))
@@ -98,12 +108,8 @@ class Builder:
                 variables.append(variable)
         return list(set(variables))
     
-
     def utils_path(self):
         return os.path.dirname(__file__) + '/utils.py'
 
-
     def utils(self):
         return c.find_functions(self.utils_path())
-    
-    

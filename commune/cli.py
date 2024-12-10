@@ -49,12 +49,8 @@ def determine_type(x):
             except ValueError:
                 pass
     return x
-def forward(argv = None,
-            sep = '--', 
-            fn_splitters = [':', '/', '//', '::'],
-            base = 'module', 
-            helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'], 
-            default_fn = 'vs'):
+
+def forward(argv = None, sep = '--', fn_splitters = [':', '/', '//', '::'], base = 'module',  helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash'], default_fn = 'vs'):
 
     t0 = time.time()
     argv = argv or sys.argv[1:]

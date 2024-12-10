@@ -86,11 +86,16 @@ class Server(c.Module):
 
         self.free = free
         if self.free:
-            c.print('FREE MODE ENABLED', color='red')
+            c.print('THE FOUNDING FATHERS WOULD BE PROUD OF YOU SON OF A BITCH', color='red')
+        else:
+            if hasattr(self.module, 'free'):
+                self.free = self.module.free
+        self.module.free = self.free
+        
         functions = functions or []
         for i, fn in enumerate(functions):
             if callable(fn):
-                print('Adding function', fn)
+                print('Adding function', f)
                 setattr(self, fn.__name__, fn)
                 functions[i] = fn.__name__
 
@@ -122,7 +127,6 @@ class Server(c.Module):
                 else: 
                     schema[fn] = {'type': str(type(fn_obj)).split("'")[1]}
         module.schema = dict(sorted(schema.items()))
-        module.address = c.ip() + ':' + str(module.port)
 
 
 
@@ -139,6 +143,7 @@ class Server(c.Module):
             "key": module.key.ss58_address,
             "crypto_type": module.key.crypto_type,
             "fn2cost": module.fn2cost,
+            "free": module.free,
         }
 
 
@@ -179,9 +184,14 @@ class Server(c.Module):
         self.module = module 
         uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
 
-    def set_port(self, port:Optional[int]=None):
+    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port'], ip = None):
         module = self.module
         name = module.name
+        for k in port_attributes:
+            if hasattr(module, k):
+                port = getattr(module, k)
+                break
+
 
         if port in [None, 'None']:
             namespace = c.namespace()
@@ -200,7 +210,8 @@ class Server(c.Module):
             print(f'Waiting for port {port} to be free')
 
         module.port = port
-        module.address = c.ip() + ':' + str(module.port)
+        ip = ip or '0.0.0.0' 
+        module.address = ip + ':' + str(module.port)
         self.module = module
         return {'success':True, 'message':f'Set port to {port}'}
     
@@ -238,15 +249,39 @@ class Server(c.Module):
         if self.free: 
             assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
             return True
+        
         request_staleness = c.time() - float(headers['time'])
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
-        auth={'data': c.hash(data), 'time': headers['time']}
+        auth={'data': data, 'time': str(headers['time'])}
         signature = headers['signature']
         rate_limit = self.rate_limit(fn=fn, address=headers['key'])
         count = self.user_count(headers['key'])
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
         assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
         return True
+    
+
+    def get_data(self, request: Request):
+
+        data = self.loop.run_until_complete(request.json())
+        # data = self.serializer.deserialize(data) 
+        if isinstance(data, str):
+            data = json.loads(data)
+        if 'kwargs' in data or 'params' in data:
+            kwargs = dict(data.get('kwargs', data.get('params', {}))) 
+        else:
+            kwargs = data
+        if 'args' in data:
+            args = list(data.get('args', []))
+        else:
+            args = []
+        data = {'args': args, 'kwargs': kwargs}
+        return data 
+    
+    def get_headers(self, request: Request):
+        headers = dict(request.headers)
+        headers['time'] = float(headers.get('time', c.time()))
+        return headers
 
     def forward(self, fn:str, request: Request, catch_exception:bool=True) -> dict:
         if catch_exception:
@@ -257,22 +292,8 @@ class Server(c.Module):
                 c.print(result, color='red')
                 return result
         module = self.module
-    
-        data = self.loop.run_until_complete(request.json())
-        # data = self.serializer.deserialize(data) 
-        if isinstance(data, str):
-            data = json.loads(data)
-            
-        if 'kwargs' in data or 'params' in data:
-            kwargs = dict(data.get('kwargs', data.get('params', {}))) 
-        else:
-            kwargs = data
-        if 'args' in data:
-            args = list(data.get('args', []))
-        else:
-            args = []
-        data = {'args': args, 'kwargs': kwargs}
-        headers = dict(request.headers.items())
+        data = self.get_data(request)
+        headers = self.get_headers(request)
         headers['key'] = headers.get('key', headers.get('address', None))
         is_admin = bool(c.is_admin(headers['key']))
         is_owner = bool(headers['key'] == module.key.ss58_address)
@@ -280,17 +301,16 @@ class Server(c.Module):
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
-            # only the admin can control the server
             fn_obj = getattr(module, fn)
-        start_time = float(headers.get('time', c.time()))
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-        end_time = c.time()
-        latency = c.round(end_time - start_time, 3)
-        
+        latency = c.time() - headers['time']
         if c.is_generator(result):
+            output = ''
             def generator_wrapper(generator):
+                
                 try:
                     for item in generator:
+                        output += self.serialize(item)
                         yield item
                 except Exception as e:
                     yield str(c.detailed_error(e))
@@ -298,17 +318,17 @@ class Server(c.Module):
         else:
             output =  self.serializer.serialize(result)
         if not self.free:
-            user_data = {
-                    'fn': fn,
-                    'input': data, # the data of the request
+            user_data = {'fn': fn,
+                    'data': data, # the data of the request
                     'output': output, # the response
-                    'time': start_time, # the time of the request
+                    'time': headers["time"], # the time of the request
                     'latency': latency, # the latency of the request
                     'key': headers['key'], # the key of the user
                     'cost': module.fn2cost.get(fn, 1), # the cost of the function
                 }
             user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
             c.put(user_path, user_data)
+        
         return result
     
     def sync_loop(self, sync_loop_initial_sleep=4):
@@ -466,8 +486,10 @@ class Server(c.Module):
             return cls.kill_all_servers(verbose=verbose, timeout=timeout)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
-
-
+        
+    @classmethod
+    def killall(cls, **kwargs):
+        return cls.kill_all(**kwargs)
     @classmethod
     def logs_path_map(cls, name=None):
         logs_path_map = {}
@@ -480,7 +502,7 @@ class Server(c.Module):
             return logs_path_map.get(name, {})
 
         return logs_path_map
-    
+
    
     @classmethod
     def rm_logs( cls, name):
@@ -489,10 +511,7 @@ class Server(c.Module):
             c.rm(logs_map[k])
 
     @classmethod
-    def logs(cls, 
-                module:str, 
-                tail: int =100, 
-                mode: str ='cmd',
+    def logs(cls, module:str,  tail: int =100,   mode: str ='cmd',
                 **kwargs):
         
         if mode == 'local':
@@ -510,6 +529,9 @@ class Server(c.Module):
             return c.cmd(f"pm2 logs {module}", verbose=True)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
+        
+    def get_logs(self, tail=100, mode='local'):
+        return self.logs(self.module.name, tail=tail, mode=mode)
         
     @classmethod
     def kill_many(cls, search=None, verbose:bool = True, timeout=10):
@@ -584,7 +606,10 @@ class Server(c.Module):
         module_list = sorted(list(set(module_list)))
         return module_list
     
-    pm2ls = pids = procs = processes 
+    @classmethod
+    def procs(cls, **kwargs):
+        return cls.processes(**kwargs)
+    
 
     @classmethod
     def process_exists(cls, name:str, **kwargs) -> bool:

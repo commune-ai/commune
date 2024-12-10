@@ -2,12 +2,28 @@ import commune as c
 import json
 import os
 
-class AgentCondense(c.Module):
-    description = "This module is used to find files and modules in the current directory"
-    anchor="OUTPUT"
-  
-    def __init__(self, prompt=None, model=None, anchor=None):
-        super().__init__(prompt, model, anchor)
-        self.prompt = prompt
-        self.model = model
-        self.anchor = anchor
+class Agent(c.Module):
+
+    def edit(self, module: str, task="make it better"):
+        task =  " ".join(task)
+        if c.module_exists(module):
+            path = c.get_path(module)
+        assert os.path.exists(path), f"Path {path} does not exist"
+        code = c.get_text(path)
+        prompt = f"""
+        CONTEXT
+        {code}
+        TASK
+        {task}
+        """
+        return c.ask(prompt)
+    
+
+    def ask(self, prompt, *extra_prompts, **kwargs):
+        prompt = ' '.join([prompt] + list(extra_prompts))
+        return c.ask(prompt, *extra_prompts, **kwargs)
+    
+    
+
+        
+        

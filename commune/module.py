@@ -13,6 +13,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 class c:
+    free = False
     libname  = lib = __file__.split('/')[-2]# the name of the library
     endpoints = ['ask', 'generate', 'forward']
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
@@ -208,6 +209,12 @@ class c:
     def pwd(cls):
         pwd = os.getcwd() # the current wor king directory from the process starts 
         return pwd
+
+    def help(self, module, *question):
+        code = c.code(module)
+        question = ' '.join(question)
+        prompt = f" {code} {question}"
+        return c.ask(prompt)
                             
     @classmethod
     def argparse(cls):
@@ -437,6 +444,15 @@ class c:
             utils = [u for u in utils if search in u]
         return sorted(utils)
 
+
+
+    @classmethod
+    def util2code(cls, search=None):
+        utils = cls.utils()
+        util2code = {}
+        for f in utils:
+            util2code[f] = c.code(f)
+        return len(str(util2code))
     @classmethod
     def get_utils(cls, search=None):
         utils = c.find_functions(c.rootpath + '/utils')
@@ -450,15 +466,7 @@ class c:
         return len(cls.utils(search))
 
     cache = {}
-    @classmethod
-    def util2code(cls, search=None):
-        utils = cls.utils()
-        util2code = {}
-        for f in utils:
-            if search != None:
-                if search in f:
-                    util2code[f] = c.fn_code(f)
-        return util2code
+
     
     @classmethod
     def util2path(cls, search=None):
@@ -1111,7 +1119,7 @@ class c:
     def schema(cls, fn:str = '__init__', **kwargs)->dict:
         '''
         Get function schema of function in cls
-        '''
+        '''     
         schema = {}
         fn = cls.get_fn(fn)
         for k,v in dict(inspect.signature(fn)._parameters).items():
@@ -1313,6 +1321,13 @@ class c:
             print('Error in is_fn:', e, fn)
             return False
         return callable(fn)
+    
+    def fn(self, fn:str):
+        if '/' in fn:
+            module , fn = fn.split('/')
+            module = c.module(module)
+            return getattr(module, fn)  
+        return self.get_fn(fn)(*args, **kwargs)
 
     @classmethod
     def get_fn(cls, fn:str, splitters=[":", "/"]) -> 'Callable':
@@ -1759,7 +1774,7 @@ class c:
     
     @classmethod
     def get_path(cls, module:str, **kwargs) -> bool:
-        return c.module(module).filepath()
+        return c.filepath(module, **kwargs)
     
     @classmethod
     def objectpath2name(cls, p, 
@@ -2333,7 +2348,9 @@ c.routes = {
         "generate",
         "models"
     ],
-    "chat": ["ask", "models", "pricing",  "model2info"]
+    "chat": ["ask", "models", "pricing",  "model2info", "reduce"],
+    "builder": ["build"],
+    "summary": ["reduce"]
 }
 c.add_routes()
 Module = c # Module is alias of c
