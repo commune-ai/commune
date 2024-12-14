@@ -30,7 +30,7 @@ class Builder:
                  max_tokens= 1000000, 
                  model= 'anthropic/claude-3.5-sonnet', 
                  path = None,
-                 simple = True,
+                 simple = False,
                  stream=True
                  ):
         

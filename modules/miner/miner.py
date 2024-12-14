@@ -301,5 +301,4 @@ class Miner(c.Module):
         
 
 
-print(Miner.run(__name__))
                 

@@ -25,6 +25,7 @@ class Middleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
+
 class Server(c.Module):
     tag_seperator:str='::'
     user_data_lifetime = 3600
@@ -51,7 +52,7 @@ class Server(c.Module):
         ) -> 'Server':
         module = module or 'module'
         kwargs = kwargs or {}
-        if self.tag_seperator in name:
+        if self.tag_seperator in str(name):
             # module::fam -> module=module, name=module::fam key=module::fam (default)
             module, tag = name.split(self.tag_seperator) 
             module = c.module(module)(**kwargs)
@@ -249,7 +250,6 @@ class Server(c.Module):
         if self.free: 
             assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
             return True
-        
         request_staleness = c.time() - float(headers['time'])
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         auth={'data': data, 'time': str(headers['time'])}
@@ -281,6 +281,7 @@ class Server(c.Module):
     def get_headers(self, request: Request):
         headers = dict(request.headers)
         headers['time'] = float(headers.get('time', c.time()))
+        headers['key'] = headers.get('key', headers.get('address', None))
         return headers
 
     def forward(self, fn:str, request: Request, catch_exception:bool=True) -> dict:
@@ -294,7 +295,6 @@ class Server(c.Module):
         module = self.module
         data = self.get_data(request)
         headers = self.get_headers(request)
-        headers['key'] = headers.get('key', headers.get('address', None))
         is_admin = bool(c.is_admin(headers['key']))
         is_owner = bool(headers['key'] == module.key.ss58_address)
         self.verify_request(fn=fn, data=data, headers=headers)       
@@ -302,6 +302,8 @@ class Server(c.Module):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
             fn_obj = getattr(module, fn)
+        else:
+            raise Exception("FN NOT FOUND")
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.time() - headers['time']
         if c.is_generator(result):
@@ -317,17 +319,18 @@ class Server(c.Module):
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)
-        if not self.free:
-            user_data = {'fn': fn,
-                    'data': data, # the data of the request
-                    'output': output, # the response
-                    'time': headers["time"], # the time of the request
-                    'latency': latency, # the latency of the request
-                    'key': headers['key'], # the key of the user
-                    'cost': module.fn2cost.get(fn, 1), # the cost of the function
-                }
-            user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
-            c.put(user_path, user_data)
+        if self.free:
+            return result
+        user_data = {'fn': fn,
+                'data': data, # the data of the request
+                'output': output, # the response
+                'time': headers["time"], # the time of the request
+                'latency': latency, # the latency of the request
+                'key': headers['key'], # the key of the user
+                'cost': module.fn2cost.get(fn, 1), # the cost of the function
+            }
+        user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
+        c.put(user_path, user_data)
         
         return result
     
@@ -716,4 +719,5 @@ class Server(c.Module):
                 if os.path.exists(path):
                     os.remove(path)
 
-Server.run(__name__)
+if __name__ == '__main__':
+    Server.run()

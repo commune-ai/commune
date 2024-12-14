@@ -3,6 +3,7 @@ import json
 import os
 
 class Agent(c.Module):
+    
 
     def edit(self, module: str, task="make it better"):
         task =  " ".join(task)

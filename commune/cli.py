@@ -97,6 +97,8 @@ def forward(argv = None, sep = '--', fn_splitters = [':', '/', '//', '::'], base
         if not fn in fn2module:
             return c.print(f'FN({fn}) not found {module}', color='red')
         module = c.module(fn2module[fn])
+    if not hasattr(module, fn):
+        module = module()
     fn_obj = getattr(module, fn)
     if c.is_property(fn_obj) or c.classify_fn(fn_obj) == 'self':
         fn_obj = getattr(module(**init_kwargs), fn)

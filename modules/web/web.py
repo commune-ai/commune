@@ -52,7 +52,7 @@ class Web:
     
     engines = list(engine2url.keys())
 
-    def search(self, query:str='twitter', engine="brave", source:str='desktop') -> str:
+    def search(self, query:str='twitter', engine="google", source:str='desktop') -> str:
         '''
         Searches the query on the source
         '''
@@ -87,7 +87,6 @@ class Web:
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             response.raise_for_status()
-            
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Extract text content
@@ -107,7 +106,7 @@ class Web:
                         'url': absolute_url,
                         'alt_text': alt_text
                     })
-
+    
             # Extract links for further crawling
             links = []
             for link in soup.find_all('a'):

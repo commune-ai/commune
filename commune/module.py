@@ -16,7 +16,7 @@ class c:
     free = False
     libname  = lib = __file__.split('/')[-2]# the name of the library
     endpoints = ['ask', 'generate', 'forward']
-    core_features = ['module_name', 'module_class',  'filepath', 'dirpath', 'tree']
+    core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
     organization = org = orgname = 'commune-ai' # the organization
     cost = 1
     description = """This is a module"""
@@ -46,20 +46,21 @@ class c:
         }
     splitters = [':', '/', '.']
 
+
     @classmethod
     def module(cls, 
                path:str = 'module', 
+               kwargs = None, 
                shortcuts : dict = None,
                cache=True, 
                trials=1, 
                tree:dict=None, 
                **extra_kwargs ) -> str:
         path = path or 'module'
-        if path.endswith('.py'):
+        if path.endswith('.py') and os.path.exists(path):
             path = c.path2name(path)
         else:
             path = path.replace('/','.')
-            
         og_path = path
 
         if path in c.module_cache and cache:
@@ -76,27 +77,30 @@ class c:
             if trials == 0:
                 raise ValueError(f'Error in module {og_path} {e}')
             return c.module(path,cache=cache, tree=c.tree(max_age=10), trials=trials-1)
-        if not hasattr(module, 'module_name'):
+        if not cls.is_module(module):
             module.module_class = lambda *args, **kwargs : c.module_class(module)
             module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
             module.key = c.get_key(module.module_name(), create_if_not_exists=True)
-            module.resolve_object = lambda *args, **kwargs : c.resolve_object(module)
+            module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
             module.filepath = lambda *args, **kwargs : c.filepath(module)
             module.dirpath = lambda *args, **kwargs : c.dirpath(module)
             module.code = lambda *args, **kwargs : c.code(module)
+            module.code_hash = lambda *args, **kwargs : c.code_hash(module)
             module.schema = lambda *args, **kwargs : c.schema(module)
-            module.fns = module.functions = lambda *args, **kwargs : c.get_functions(module)
+            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
             module.fn2code = lambda *args, **kwargs : c.fn2code(module)
             module.ask = lambda *args, **kwargs : c.ask(*args, module=module, **kwargs)
             module.config = lambda *args, **kwargs : c.config(module=module, **kwargs)
         if cache:
-            c.module_cache[path] = module      
+            c.module_cache[path] = module
+        if kwargs != None:
+            module = module(**kwargs)      
         return module
     block =  get_block = get_module =   module
     
     @classmethod
     def filepath(cls, obj=None) -> str:
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         try:
             module_path =  inspect.getfile(obj)
         except Exception as e:
@@ -158,21 +162,10 @@ class c:
         return f'{c.storage_path}/{cls.module_name()}'
 
     @classmethod
-    def __str__(cls):
-        return cls.__name__
-    @classmethod
-    def is_module(cls, obj=None) -> bool:
-        
-        if obj is None:
-            obj = cls
-        if all([hasattr(obj, k) for k in c.core_features]):
-            return True
-        return False
+    def is_module(cls, obj) -> bool:
+        return all([hasattr(obj, k) for k in c.core_features])
+
     
-    @classmethod
-    def is_root(cls, obj=None) -> bool:
-        obj = obj or cls
-        return bool(c.is_module(obj) and obj.module_class() == c.module_class())
 
     def print( *text:str,  **kwargs):
         if len(text) == 0:
@@ -185,9 +178,6 @@ class c:
 
     def is_error( *text:str,  **kwargs):
         return c.obj('commune.utils.misc.is_error')(*text, **kwargs)
-
-    
-    is_module_root = is_root_module = is_root
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
@@ -204,6 +194,10 @@ class c:
         assert obj != None, f'Object {obj} does not exist'
 
         return obj
+
+    @classmethod
+    def resolve_module(cls, module:str = None, **kwargs):
+        return cls.resolve_object(module, **kwargs)
     
     @classmethod
     def pwd(cls):
@@ -216,47 +210,36 @@ class c:
         prompt = f" {code} {question}"
         return c.ask(prompt)
                             
+
     @classmethod
-    def argparse(cls):
+    def run(cls, fn=None, params=None, name=None) -> Any: 
+        # if name != '__main__':
+        #     return {}
         parser = argparse.ArgumentParser(description='Argparse for the module')
         parser.add_argument('-m', '--m', '--module', '-module', dest='module', help='The function', type=str, default=cls.module_name())
-        parser.add_argument('-fn', '--fn', dest='function', help='The function', type=str, default="__init__")
+        parser.add_argument('-fn', '--fn', dest='fn', help='The function', type=str, default="__init__")
         parser.add_argument('-kw',  '-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-p', '-params', '--params', dest='params', help='key word arguments to the function', type=str, default="{}") 
-        parser.add_argument('-i','-input', '--input', dest='input', help='key word arguments to the function', type=str, default="{}") 
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-        args = parser.parse_args()
-        args.kwargs = json.loads(args.kwargs.replace("'",'"'))
-        args.params = json.loads(args.params.replace("'",'"'))
-        args.inputs = json.loads(args.input.replace("'",'"'))
-        args.args = json.loads(args.args.replace("'",'"'))
-        args.fn = args.function
+        argv = parser.parse_args()
+        argv.kwargs = json.loads(argv.kwargs.replace("'",'"'))
+        argv.params = params or json.loads(argv.params.replace("'",'"'))
+        argv.args = json.loads(argv.args.replace("'",'"'))
+        argv.fn = fn or argv.fn
         # if you pass in the params, it will override the kwargs
-        if len(args.params) > 0:
-            if isinstance(args.params, dict):
-                args.kwargs = args.params
-            elif isinstance(args.params, list):
-                args.args = args.params
+        if len(argv.params) > 0:
+            if isinstance(argv.params, dict):
+                argv.kwargs = argv.params
+            elif isinstance(argv.params, list):
+                argv.args = argv.params
             else:
-                raise Exception('Invalid params', args.params)
-        return args
-        
-    @classmethod
-    def run(cls, name:str = None) -> Any: 
-        is_main =  name == '__main__' or name == None or name == cls.__name__
-        if not is_main:
-            return {'success':False, 'message':f'Not main module {name}'}
-        args = cls.argparse()
-        if args.function == '__init__':
-            return cls(*args.args, **args.kwargs)     
+                raise Exception('Invalid params', argv.params)
+        if argv.fn == '__init__' or c.classify_fn(getattr(cls, argv.fn)) == 'self':
+            module =  cls(*argv.args, **argv.kwargs)   
         else:
-            fn = getattr(cls, args.function)
-            fn_type = cls.classify_fn(fn)
-            if fn_type == 'self':
-                module = cls(*args.args, **args.kwargs)
-            else:
-                module = cls
-            return getattr(module, args.function)(*args.args, **args.kwargs)     
+            module = cls  
+  
+        return getattr(module, argv.fn)(*argv.args, **argv.kwargs)     
         
     @classmethod
     def commit_hash(cls, libpath:str = None):
@@ -1043,9 +1026,9 @@ class c:
         return len(c.glob(path))
             
     @classmethod
-    def fn2code(cls, search=None, module=None)-> Dict[str, str]:
-        module = module if module else cls
-        functions = module.fns(search)
+    def fn2code(cls, module=None)-> Dict[str, str]:
+        module = cls.resolve_module()
+        functions = module.fns()
         fn_code_map = {}
         for fn in functions:
             try:
@@ -1053,6 +1036,11 @@ class c:
             except Exception as e:
                 print(f'Error: {e}')
         return fn_code_map
+    
+    @classmethod
+    def fn2hash(cls, module=None)-> Dict[str, str]:
+        module = cls.resolve_module(module)   
+        return {k:c.hash(v) for k,v in c.fn2code().items()}
     
     @classmethod
     def getsource(cls, fn):
@@ -1103,7 +1091,7 @@ class c:
         return result
     @classmethod
     def get_parents(cls, obj = None,recursive=True, avoid_classes=['object']) -> List[str]:
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         parents =  list(obj.__bases__)
         if recursive:
             for parent in parents:
@@ -1131,7 +1119,7 @@ class c:
     
     @classmethod
     def init_kwargs(cls, obj = None, **kwargs):
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         fn = getattr(obj, '__init__')
         kwargs =  c.kwargs(fn)
         kwargs.pop('self', None)
@@ -1155,13 +1143,12 @@ class c:
     
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
-        obj = cls.resolve_object(module)
+        obj = cls.resolve_module(module)
         return inspect.getsource(obj)
 
     pycode = code
     @classmethod
     def code_hash(cls, module=None,  *args, **kwargs):
-        import commune as c
         """
         The hash of the code, where the code is the code of the class (cls)
         """
@@ -1205,7 +1192,7 @@ class c:
         '''
         Gets the self methods in a class
         '''
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         functions =  c.get_functions(obj)
         signature_map = {f:c.get_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'cls' in v]
@@ -1237,9 +1224,10 @@ class c:
                       search = None,
                       splitter_options = ["   def " , "    def "] ,
                       include_hidden = False,
+                      include_children = False,
                       **kwargs) -> List[str]:
         '''
-        Get a list of functions in a class
+        Get a list of functions in a class (in text parsing)
         
         Args;
             obj: the class to get the functions from
@@ -1247,7 +1235,7 @@ class c:
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
 
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         functions = []
         text = inspect.getsource(obj)
         functions = []
@@ -1268,31 +1256,16 @@ class c:
     
     @classmethod
     def functions(cls, obj=None, search = None, include_parents = True):
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         return c.get_functions(obj=obj, search=search, include_parents=include_parents)
-
-    @classmethod
-    def get_conflict_functions(cls, obj = None):
-        '''
-        Does the object conflict with the current object
-        '''
-        if isinstance(obj, str):
-            obj = cls.get_module(obj)
-        root_fns = cls.root_functions()
-        conflict_functions = []
-        for fn in obj.functions():
-            if fn in root_fns:
-                print(f'Conflict: {fn}')
-                conflict_functions.append(fn)
-        return conflict_functions
  
     def n_fns(self, search = None):
         return len(self.fns(search=search))
     
     fn_n = n_fns
     @classmethod
-    def fns(self, search = None, include_parents = True):
-        return self.functions(search=search, include_parents=include_parents)
+    def fns(cls, search = None, include_parents = True):
+        return cls.functions(search=search, include_parents=include_parents)
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
         '''
@@ -1321,13 +1294,6 @@ class c:
             print('Error in is_fn:', e, fn)
             return False
         return callable(fn)
-    
-    def fn(self, fn:str):
-        if '/' in fn:
-            module , fn = fn.split('/')
-            module = c.module(module)
-            return getattr(module, fn)  
-        return self.get_fn(fn)(*args, **kwargs)
 
     @classmethod
     def get_fn(cls, fn:str, splitters=[":", "/"]) -> 'Callable':
@@ -1364,7 +1330,7 @@ class c:
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
         method_type_map = {}
-        obj = cls.resolve_object(obj)
+        obj = cls.resolve_module(obj)
         for attr_name in dir(obj):
             method_type = None
             try:
@@ -1726,10 +1692,6 @@ class c:
         return import_module(import_path)
     
     @classmethod
-    def is_module(cls, path:str):
-        return os.path.isdir(path) or path.endswith('.py')
-    
-    @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
         key = key.replace('/', '.')
@@ -1867,17 +1829,16 @@ class c:
     @classmethod
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
-    _modules = None
-
+    
     def n(self, search=None):
         return len(c.modules(search=search))
+    
     @classmethod
     def modules(cls, 
                 search=None, 
                 cache=True,
                 max_age=60,
                 update=False, **extra_kwargs)-> List[str]:
-        modules = cls._modules
         modules = cls.get('modules', max_age=max_age, update=update)
         if not cache or modules == None:
             modules =  cls.get_modules(search=None, **extra_kwargs)
@@ -1987,52 +1948,6 @@ class c:
 
     str2hash = hash
 
-    def add_repo(self, repo:str, path:str=None, **kwargs):
-        return c.cmd(f'git clone {repo} {path}', **kwargs)
-
-    def add_api_key(self, api_key:str, module=None):
-        path = self.get_api_keys_path(module)
-        api_keys = self.get(path, [])
-        api_keys.append(api_key)
-        api_keys = list(set(api_keys))
-        self.put(path, api_keys)
-        return {'api_keys': api_keys}
-    
-    def set_api_keys(self, api_keys:str, module:str=None):
-        path = self.get_api_keys_path(module)
-        api_keys = list(set(api_keys))
-        return self.put(path, api_keys)
-    
-    
-    def rm_api_key(self, api_key:str, module:str=None):
-        module = module or self.module_name()
-        api_keys = self.api_keys(module=module)
-        n = len(api_keys)
-        if isinstance(api_key, int):
-            api_key = api_keys[api_key]
-        if api_key in api_keys:
-            api_keys.remove(api_key)
-            self.set_api_keys(api_keys, module=module)
-        else:
-            return {'error': f'api_key {api_key} not found'}
-        
-        assert len(self.api_keys(module)) == n - 1, f'Error removing api key {api_key}'
-        return {'api_keys': api_keys}
-
-    def get_api_key(self, module=None):
-        return c.choice(self.api_keys(module))
-        
-    def get_api_keys_path(self, module:str=None):
-        module = module or self.module_name()
-        return c.resolve_path(f'api_keys/{module}')
-
-    def api_keys(self, module=None):
-        path = self.get_api_keys_path(module)
-        return c.get(path, [])
-    
-    def rm_api_keys(self, module=None):
-        path = self.get_api_keys_path(module)
-        return c.put(path, [])
     
     @classmethod
     def remote_fn(cls, 
@@ -2165,6 +2080,7 @@ class c:
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
     
+
 c.routes = {
     "vali": [
         "run_epoch",
@@ -2354,6 +2270,7 @@ c.routes = {
 }
 c.add_routes()
 Module = c # Module is alias of c
-Module.run(__name__)
+if __name__ == "__main__":
+    Module.run()
 
 

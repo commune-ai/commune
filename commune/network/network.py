@@ -106,7 +106,8 @@ class Network(c.Module):
     
     def infos(self, *args, **kwargs) -> Dict:
         return [c.call(address+'/info') for name, address in self.namespace(*args, **kwargs).items()]
-            
-Network.run(__name__)
+
+if __name__ == "__main__":        
+    Network.run()
 
 

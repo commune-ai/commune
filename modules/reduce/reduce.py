@@ -102,7 +102,6 @@ class Reduce:
     def query(self,  options,  
               query='most relevant modules', 
               output_format="DICT(data:list[[idx:str, score:float]])",  
-              path='./', 
               anchor = 'OUTPUT', 
               n=10,  
               model='anthropic/claude-3.5-sonnet-20240620:beta'):
@@ -117,7 +116,7 @@ class Reduce:
         OPTIONS 
         {idx2options} 
         INSTRUCTION 
-        only output the idx and score of the top {n} functions that match the query
+        only output the IDX  and score of the TOP {n} FUNCTIONS that match the query
         OUTPUT
         (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
         {front_anchor}{output_format}{back_anchor}

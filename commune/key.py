@@ -863,6 +863,7 @@ class Key(c.Module):
             else:
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
+       
         if max_age != None:
             if isinstance(data, int):
                 staleness = c.timestamp() - int(data)
@@ -872,6 +873,7 @@ class Key(c.Module):
             else:
                 raise ValueError('data should be a timestamp or a dict with a timestamp key')
             assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
+        
         if not isinstance(data, str):
             data = c.python2str(data)
         if address != None:

@@ -2,7 +2,7 @@ import commune as c
 import streamlit as st
 
 
-class Chat(c.Module):
+class App(c.Module):
 
     def __init__(self, 
                  max_tokens=420000, 
@@ -214,5 +214,3 @@ class Chat(c.Module):
     def user_addresses(self, display_name=False):
         users = [u.split('/')[-1] for u in c.ls(self.history_path)]
         return users
-
-Chat.run(__name__)

@@ -84,4 +84,3 @@ class StreamlitAuth(c.Module):
 
 
 
-StreamlitAuth.run(__name__)
