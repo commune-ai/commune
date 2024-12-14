@@ -138,7 +138,3 @@ class User(c.Module):
             if add_user:
                 response = getattr(self, f'rm_user')(add_user_address)
                 st.write(response)
-
-if __name__ == '__main__':
-    User.run()
-

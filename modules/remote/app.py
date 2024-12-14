@@ -255,5 +255,5 @@ class App(c.Module):
 
 
 
-App.run(__name__)
+
 

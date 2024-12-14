@@ -136,6 +136,7 @@ class Subspace(c.Module):
             c.print('ERROR IN CONNECTIONS QUEUE:', e)
             
         return {'connections': self.num_connections, 'url': self.url}
+    
     def get_url(self, mode='wss',  **kwargs):
         prefix = mode + '://'
         url = c.choice(self.url_map[self.network])
@@ -761,6 +762,7 @@ class Subspace(c.Module):
         with self.get_conn(init=True) as substrate:
             block_number = substrate.get_block_number()
         return block_number
+    
     def runtime_spec_version(self):
         # Get the runtime version
         return self.query(name='SpecVersionRuntimeVersion', module='System')
@@ -837,7 +839,6 @@ class Subspace(c.Module):
             self.put(path, result)
 
         return self.process_results(result)
-
 
     def process_results(self, x:dict) -> dict:
         new_x = {}
@@ -2801,6 +2802,9 @@ class Subspace(c.Module):
         modules =  c.df(self.modules(subnet=subnet, max_age=max_age, update=update))
 
         return modules
+    
+    def __str__(self):
+        return f'Subspace(network={self.network}, url={self.url})'
 
     
 

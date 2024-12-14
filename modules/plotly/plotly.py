@@ -101,5 +101,4 @@ class Plotly(c.Module):
 
 
 
-Plotly.run(__name__)
         

@@ -550,4 +550,3 @@ class Remote(c.Module):
             return {k:v['pwd'] for k,v in hosts.items()}
         return self.hosts()[host]['pwd']
     
-Remote.run(__name__)

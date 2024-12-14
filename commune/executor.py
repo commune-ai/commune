@@ -112,7 +112,6 @@ class Task:
         else:
             raise TypeError(f"Cannot compare Task with {type(other)}")
 
-
 # Task = c.module('executor.task')
 NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
@@ -216,7 +215,6 @@ class ThreadPoolExecutor(c.Module):
             return task.future
         
         return task.future.result()
-
 
     def adjust_thread_count(self):
         # if idle threads are available, don't spin new threads
@@ -336,11 +334,10 @@ class ThreadPoolExecutor(c.Module):
 
         return {'success': True, 'msg': 'thread pool test passed'}
 
-        
-
     @property
     def is_empty(self):
         return self.work_queue.empty()
+    
     def status(self):
         return dict(
             num_threads = len(self.threads),

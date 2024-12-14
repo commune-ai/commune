@@ -138,12 +138,3 @@ class App(c.Module):
             if c.port_used(port):
                 app2url[app] = '0.0.0.0:' + str(info['port'])
         return app2url
-
-    # def app(self, **kwargs):
-    #     # create a dashbaord of all apps
-    #     app_modules = self.app_modules(**kwargs)
-
-
-        
-App.run(__name__)
-     

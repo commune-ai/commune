@@ -199,8 +199,6 @@ class Client(c.Module):
             else:
                 return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
 
-
-
     def get_header(self, data, key):
         headers = {
             'Content-Type': 'application/json',
@@ -227,8 +225,6 @@ class Client(c.Module):
         data = self.get_data(args=args or [], kwargs=kwargs or {}, **extra_kwargs)
         headers = self.get_header(data=data, key=key)
         # Prepare headers
-        
-
         
         # Build curl command
         curl_cmd = ['curl', '-X POST']

@@ -1130,7 +1130,7 @@ def pip_install(lib:str= None,
     import commune as c
     if lib in c.modules():
         c.print(f'Installing {lib} Module from local directory')
-        lib = c.resolve_object(lib).dirpath()
+        lib = c.resolve_module(lib).dirpath()
     if lib == None:
         lib = c.libpath
 

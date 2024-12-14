@@ -20,8 +20,10 @@ class Chat(c.Module):
     
     forward = generate
 
-    def ask(self, *text, **kwargs): 
+    def ask(self, *text, module = None, **kwargs): 
         text = ' '.join(list(map(str, text)))
+        if module != None:
+            text = c.code(module) + text
         return self.generate(text, **kwargs)
     
     def process_text(self, text, threshold=1000):
