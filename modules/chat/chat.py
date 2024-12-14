@@ -31,10 +31,17 @@ class Chat(c.Module):
         for word in text.split(' '):
             conditions = {
                 "file": any([word.startswith(ch) for ch in ['.', '~', '/']]),
-                "module": word.startswith('c_') and c.module_exists(word.split('_')[1]),
+                "code": word.startswith('code/'),
+                'c': word.startswith('c/')
             }
             if conditions['file']:
+                print('READING FILE -->', word)
                 word = c.file2text(word)
+            if conditions['code']:
+                word = word[len('code/'):]
+                print('READING MODULE -->', word)
+                word = c.code(word)
+                
             new_text += str(word)
         return new_text
     
