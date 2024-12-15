@@ -29,7 +29,7 @@ class App(c.Module):
                     **kwargs):
         self.system_prompt = system_prompt
         self.admin_key = c.pwd2key(password) if password else self.key
-        self.model = c.module('model.openrouter')(model=model)
+        self.model = c.module('agent')(model=model)
         self.models = self.model.models()
         self.history_path = self.resolve_path(history_path)
         return {'success':True, 'msg':'set_module passed'}
@@ -86,12 +86,10 @@ class App(c.Module):
         df = c.df(history)
         st.write(df)
             
-    def app(self):
+    def run(self):
         self.sidebar()
-
         tab_names = ['Chat', 'History']
         tabs = st.tabs(tab_names)
-        
         with tabs[0]:
             self.chat_page()
         with tabs[1]:
@@ -100,7 +98,6 @@ class App(c.Module):
     def chat_page(self):
         with st.sidebar.expander('PARAMS', expanded=True):
             model = st.selectbox('Model', self.models)
-
             temperature = st.number_input('Temperature', 0.0, 1.0, 0.5)
             if hasattr(self.model, 'get_model_info'):
                 model_info = self.model.get_model_info(model)
@@ -112,12 +109,14 @@ class App(c.Module):
             system_prompt = st.text_area('System Prompt',self.system_prompt, height=200)
 
         input  = st.text_area('Text',self.text, height=100)
+        input = input + '\n' + system_prompt
+
+
         params = {
             'input': input,
             'model': model,
             'temperature': temperature,
             'max_tokens': max_tokens,
-            'system_prompt': system_prompt,
         }
 
         cols = st.columns([1,1])
@@ -127,8 +126,7 @@ class App(c.Module):
             r = self.model.generate(params['input'], 
                                     max_tokens=params['max_tokens'], 
                                     temperature=params['temperature'], 
-                                    model=params['model'], 
-                                    system_prompt=params['system_prompt'], 
+                                    model=params['model'],
                                     stream=True)
             # dank emojis to give it that extra flair
             emojis = '✅🤖💻🔍🧠🔧⌨️'
@@ -214,3 +212,7 @@ class App(c.Module):
     def user_addresses(self, display_name=False):
         users = [u.split('/')[-1] for u in c.ls(self.history_path)]
         return users
+
+
+if __name__ == '__main__':
+    App().run()

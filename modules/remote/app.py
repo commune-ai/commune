@@ -252,8 +252,8 @@ class App(c.Module):
                     st.write(f'**{host}**')
                     st.code(error)
 
-
-
+if __name__ == '__main__':
+    App.app()
 
 
 

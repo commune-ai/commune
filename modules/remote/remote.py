@@ -138,6 +138,9 @@ class Remote(c.Module):
                  ):
         
         host = ip or host
+
+        if 'ssh ' in host:
+            return self.add_host_from_ssh(host)
         
         hosts = self.hosts()
         host = {
@@ -522,16 +525,16 @@ class Remote(c.Module):
         
         return toml_text
 
-    def add_host_from_ssh_string(self, ssh_string: str, name: str = None):
+    def add_host_from_ssh(self, ssh: str, name: str = None):
         """
         Adds a host using an SSH connection string format that includes the password using the -pwd flag.
 
-        :param ssh_string: SSH connection string, e.g., "user@host:port -p ssh_port -pwd password"
+        :param ssh: SSH connection string, e.g., "user@host:port -p ssh_port -pwd password"
         :param name: Optional name for the host; if not provided, a name will be generated
         """
         # Regular expression to parse the SSH connection string including the password specified by -pwd flag
         pattern = r'(?P<user>[^@]+)@(?P<host>[^:]+):(?P<port>\d+).*?-p\s*(?P<ssh_port>\d+).*?-pwd\s*(?P<pwd>[^\s]+)'
-        match = re.match(pattern, ssh_string)
+        match = re.match(pattern, ssh)
         if not match:
             raise ValueError("SSH string format is invalid. Expected format: 'user@host:port -p ssh_port -pwd password'")
 
