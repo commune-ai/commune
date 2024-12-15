@@ -6,9 +6,7 @@ import commune as c
 import json
 import os
 
-
-class Reduce:
-    description = "This module is used to find files and modules in the current directory"
+class find:
     model='anthropic/claude-3.5-sonnet-20240620:beta'
     def forward(self,  text,  max_chars=20000 , model=model,  timeout=40):
         if os.path.exists(text): 
@@ -101,9 +99,9 @@ class Reduce:
     
     def query(self,  options,  
               query='most relevant modules', 
-              output_format="DICT(data:list[[idx:str, score:float]])",  
+              output_format="DICT(data:list[[idx:int, score:float]])",  
               anchor = 'OUTPUT', 
-              n=10,  
+              n=3,  
               model='anthropic/claude-3.5-sonnet-20240620:beta'):
 
         front_anchor = f"<{anchor}>"
@@ -116,7 +114,7 @@ class Reduce:
         OPTIONS 
         {idx2options} 
         INSTRUCTION 
-        only output the IDX  and score of the TOP {n} FUNCTIONS that match the query
+        only output the IDX:int  and score of the TOP {n} FUNCTIONS that match the query
         OUTPUT
         (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
         {front_anchor}{output_format}{back_anchor}
@@ -135,12 +133,14 @@ class Reduce:
             output = output
         output = json.loads(output)
         assert len(output) > 0
+        print(type(output), output, len(output))
         output_idx_list =  [int(k) for k,v in output["data"]]
+        print(output_idx_list, len(options))
         output = [options[i] for i in output_idx_list  if len(options) > i]
     
         return output
 
-    def files(self, path='./',  query='the file that is the core of this folder',  n=10, model='anthropic/claude-3.5-sonnet-20240620:beta'):
+    def files(self, path='./',  query='the file that is the core of this folder',  n=3, model='anthropic/claude-3.5-sonnet-20240620:beta'):
         files =  self.query(options=c.files(path), query=query, n=n, model=model)
         return [c.abspath(path+k) for k in files]
 

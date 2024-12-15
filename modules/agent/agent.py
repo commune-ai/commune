@@ -19,10 +19,8 @@ class Agent(c.Module):
     
     forward = generate
 
-    def ask(self, *text, module = None, **kwargs): 
+    def ask(self, *text, **kwargs): 
         text = ' '.join(list(map(str, text)))
-        if module != None:
-            text = c.code(module) + text
         text = self.process_text(text)
         return self.generate(text, **kwargs)
     
@@ -30,7 +28,7 @@ class Agent(c.Module):
         new_text = ''
         for word in text.split(' '):
             conditions = {
-                "file": any([word.startswith(ch) for ch in ['.', '~', '/']]),
+                "file": any([word.startswith(ch) for ch in ['.', '~', '/']]) and os.path.exists(word),
                 "c": word.startswith('c/'),
             }
             if conditions['file']:
