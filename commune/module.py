@@ -2081,7 +2081,7 @@ class c:
         return c.run_epoch(*args, **kwargs)
     
 
-c.routes = {
+    routes = {
     "vali": [
         "run_epoch",
         "setup_vali",
@@ -2264,7 +2264,7 @@ c.routes = {
         "generate",
         "models"
     ],
-    "chat": ["ask", "models", "pricing",  "model2info", "reduce"],
+    "agent": ["ask", "models", "pricing",  "model2info", "reduce"],
     "builder": ["build"],
     "summary": ["reduce"]
 }
