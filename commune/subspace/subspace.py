@@ -7,9 +7,9 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Mapping, TypeVar, cast, List, Dict, Optional
 from collections import defaultdict
-from commune.network.substrate.storage import StorageKey
-from commune.network.substrate import (ExtrinsicReceipt,  Keypair, SubstrateInterface)# type: ignore
-from commune.network.subspace.types import (ChainTransactionError,
+from commune.substrate.storage import StorageKey
+from commune.substrate import (ExtrinsicReceipt,  Keypair, SubstrateInterface)# type: ignore
+from commune.subspace.types import (ChainTransactionError,
                                     NetworkQueryError, 
                                     SubnetParamsMaps, 
                                     SubnetParamsWithEmission,
@@ -1445,8 +1445,9 @@ class Subspace(c.Module):
         params["netuid"] = subnet
         params['vote_mode'] = params.pop('governance_configuration')['vote_mode']
         params["metadata"] = params.pop("metadata", None)
-
-
+        params["use_weights_encryption"] = params.pop("use_weights_encryption", False)
+        params['copier_margin'] = params.pop('copier_margin', 0)
+        params["max_encryption_period"] = params.pop("max_encryption_period", 420)
         return self.compose_call(fn="update_subnet",params=params,key=key)
 
     def metadata(self) -> str:
@@ -2041,7 +2042,10 @@ class Subspace(c.Module):
                 subnet =  subnet2netuid[subnet]
             else:
                 subnet2netuid = self.subnet2netuid(update=1)
-                assert subnet in subnet2netuid, f"Subnet {subnet} not found"
+                subnet = subnet.lower()
+                subnet = subnet2netuid.get(subnet, subnet)
+                # assert subnet in subnet2netuid, f"Subnet {subnet} not found"
+                
         return subnet
     
     def subnets(self):
@@ -2445,7 +2449,6 @@ class Subspace(c.Module):
                         ("MaxAllowedModules", []),
                         ("MaxRegistrationsPerBlock", []),
                         ("MaxAllowedWeightsGlobal", []),
-                        ("FloorDelegationFee", []),
                         ("FloorFounderShare", []),
                         ("MinWeightStake", []),
                         ("Kappa", []),
@@ -2469,7 +2472,6 @@ class Subspace(c.Module):
                 "max_registrations_per_block": int(query_all["MaxRegistrationsPerBlock"]),
                 "max_name_length": int(query_all["MaxNameLength"]),
                 "min_weight_stake": int(query_all["MinWeightStake"]),
-                "floor_delegation_fee": int(query_all["FloorDelegationFee"]),
                 "max_allowed_weights": int(query_all["MaxAllowedWeightsGlobal"]),
                 "curator": Ss58Address(query_all["Curator"]),
                 "min_name_length": int(query_all["MinNameLength"]),
@@ -2760,7 +2762,7 @@ class Subspace(c.Module):
         module['address'] = vec82str(module['address'])
         module['dividends'] = module['dividends'] / (U16_MAX)
         module['incentive'] = module['incentive'] / (U16_MAX)
-        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from']}
+        module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}
         module['stake'] = sum([v / 10**9 for k,v in module['stake_from'].items() ])
         module['emission'] = self.format_amount(module['emission'], fmt=fmt)
         module['key'] = module.pop('controller', None)

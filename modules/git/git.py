@@ -2,7 +2,7 @@ import commune as c
 import subprocess
 
 
-class Git(c.Module):
+class git(c.Module):
 
     def is_repo(self, libpath:str ):
         # has the .git folder
@@ -24,9 +24,8 @@ class Git(c.Module):
         
 
     @staticmethod
-    def content(url='LambdaLabsML/examples/main/stable-diffusion-finetuning/pokemon_finetune.ipynb',
-                   prefix='https://raw.githubusercontent.com'):
-        return c.module('tool.web').rget(url=f'{prefix}/{url}')
+    def content(url='LambdaLabsML/examples/main/stable-diffusion-finetuning/pokemon_finetune.ipynb', prefix='https://raw.githubusercontent.com'):
+        return c.module('web')().page_content(f'{prefix}/{url}')
     
     submodule_path = c.repo_path + '/repos'
     def add_submodule(self, url, name=None, prefix=submodule_path):
@@ -37,8 +36,6 @@ class Git(c.Module):
             name = f'{prefix}/{name}'
 
         c.cmd(f'git submodule add {url} {name}')
-
-    addsub = add_submodule
 
     @classmethod
     def pull(cls, stash:bool = False, cwd=None):

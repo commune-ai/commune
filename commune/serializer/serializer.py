@@ -32,6 +32,25 @@ class Serializer(c.Module):
                             'serialized': True}
         return self.process_output(result, mode=mode)
 
+
+    def deserialize(self, x) -> object:
+        """Serializes a torch object to DataBlock wire format.
+        """
+        if isinstance(x, str):
+            if x.startswith('{') or x.startswith('['):
+                x = self.str2dict(x)
+            else:
+                if c.is_int(x):
+                    x = int(x)
+                elif c.is_float(x):
+                    x = float(x)
+                return x
+        is_serialized = self.is_serialized(x)
+        if is_serialized:
+            serializer = self.get_serializer(x['data_type'])
+            return serializer.deserialize(x['data'])
+        return x
+    
     def get_data_type_string(self, x):
         # GET THE TYPE OF THE VALUE
         data_type = str(type(x)).split("'")[1].lower()
@@ -72,24 +91,6 @@ class Serializer(c.Module):
         else:
             return False
 
-    def deserialize(self, x) -> object:
-        """Serializes a torch object to DataBlock wire format.
-        """
-        if isinstance(x, str):
-            if x.startswith('{') or x.startswith('['):
-                x = self.str2dict(x)
-            else:
-                if c.is_int(x):
-                    x = int(x)
-                elif c.is_float(x):
-                    x = float(x)
-                return x
-        is_serialized = self.is_serialized(x)
-        if is_serialized:
-            serializer = self.get_serializer(x['data_type'])
-            return serializer.deserialize(x['data'])
-        return x
-    
     def serializer_map(self):
         type_path = self.dirpath()
         module_paths = c.get_objects(type_path)

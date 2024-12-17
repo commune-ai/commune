@@ -208,7 +208,7 @@ class App(c.Module):
                     emoji =  c.emoji("cross") if is_error else c.emoji("check")
                     stats = host2stats.get(host, {'success': 0, 'error': 0})
                     title = f'{emoji} :: {host} :: {emoji}'
-                    
+                    st.write(result)
                     if not is_error:        
                         msg =  result.strip()
                         msg = fn_code(msg)
