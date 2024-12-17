@@ -13,6 +13,7 @@ import nest_asyncio
 nest_asyncio.apply()
 
 class c:
+    default_fn = 'vs'
     free = False
     libname  = lib = __file__.split('/')[-2]# the name of the library
     endpoints = ['ask', 'generate', 'forward']
@@ -250,19 +251,19 @@ class c:
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
     @classmethod
-    def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
+    def run_fn(cls,fn:str, args:list = None, kwargs:dict= None, module:str = None) -> Any:
+        if '/' in fn:
+            module, fn = module.split('/')
         module = c.module(module)
-        is_self_method = bool(fn in module.self_functions())
+        fn_obj = getattr(module, fn)
+        is_self_method = 'self' in c.get_args(fn_obj)
         if is_self_method:
             module = module()
-            fn = getattr(module, fn)
-        else:
-            fn =  getattr(module, fn)
+        fn_obj =  getattr(module, fn)
         args = args or []
         kwargs = kwargs or {}
-        return fn(*args, **kwargs)
+        return fn_obj(*args, **kwargs)
     
-    fn = module_fn
     
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -2281,6 +2282,7 @@ class c:
     
 c.add_routes()
 Module = c # Module is alias of c
+
 if __name__ == "__main__":
     Module.run()
 

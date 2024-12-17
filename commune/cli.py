@@ -4,6 +4,7 @@ import sys
 import commune as c
 print = c.print
 
+
 def determine_type(x):
     x = str(x)
     if isinstance(x, str) :
@@ -85,10 +86,11 @@ def get_init_kwargs(argv, helper_fns = ['code', 'schema', 'fn_schema', 'help', '
 def get_fn(argv, fn_splitters = [':', '/', '//', '::'], init_kwargs={}, default_fn='forward'):
 
     if len(argv) == 0:
-        argv = [default_fn]
-    fn = argv.pop(0).replace('-', '_')
+        fn = default_fn
+    else:
+        fn = argv.pop(0).replace('-', '_')
 
-
+    
     init_kwargs = get_init_kwargs(argv)
 
     # get the function object
@@ -100,10 +102,11 @@ def get_fn(argv, fn_splitters = [':', '/', '//', '::'], init_kwargs={}, default_
         module = c.module(module)
     elif len(fn_splitters) == 0:
         module = c.module()
+        
     if hasattr(module, 'fn2module') and not hasattr(module, fn):
         fn2module = module.fn2module() if callable(module.fn2module) else module.fn2module
         if not fn in fn2module:
-            raise Exception(f'Function({fn}) NOT IN Module({module})', color='red')
+            raise Exception(f'Function({fn}) NOT IN Module({module})')
         module = c.module(fn2module[fn])
 
     fn_obj = getattr(module, fn)
