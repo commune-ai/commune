@@ -59,6 +59,7 @@ class Server(c.Module):
         if isinstance(module, str):
             name = name or module
             module =   c.module(module)(**kwargs)
+        print(f'Launching', module, name, functions)
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
         self.serializer = c.module(serializer)()
         self.module = module
@@ -555,7 +556,7 @@ class Server(c.Module):
                    autorestart: bool = True,
                    verbose: bool = False , 
                    force:bool = True,
-                   meta_fn: str = 'module_fn',
+                   run_fn: str = 'run_fn',
                    cwd : str = None,
                    env : Dict[str, str] = None,
                    refresh:bool=True , 
@@ -564,28 +565,24 @@ class Server(c.Module):
         # get the module and fn
         if '/' in fn:
             module, fn = fn.split('/')
-        module = module or cls
-        if not isinstance(module, str):
-            if hasattr(module, 'module_name'):
-                module = module.module_name()
-            else: 
-                module = module.__name__
+        module = module or cls.module_name()
         name = name or module
         if refresh:
-            c.kill(name)
+            cls.kill(name)
         cmd = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
         if not autorestart :
             cmd += cmd + ' --no-autorestart'
         if force:
             cmd = cmd + ' -f '
-        kwargs =  {'module': module , 'fn': fn, 'args': args if args else [], 'kwargs': kwargs if kwargs else {} }
+        kwargs =  {'module': module , 
+                   'fn': fn, 
+                   'args': args or [], 
+                   'kwargs': kwargs or {} }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
-        cmd = cmd +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
+        cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 
-                'msg':f'Launched {module}', 
-                'cmd': cmd, 
-                'stdout':stdout}
+        print(cmd)
+        return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
     remote_fn = launch
 
     @classmethod
@@ -645,18 +642,6 @@ class Server(c.Module):
             cls.launch('serve', name=name, kwargs=rkwargs, cwd=cwd)
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions = functions, kwargs=kwargs, port=port,  key=key, free = free)
-    
-
-    @classmethod
-    def fleet(cls, module, n:int = 1, **kwargs):
-        futures = []
-        for _ in range(n):
-
-            future = c.submit(c.serve, dict(module=module, name = module + '::' + str(_),  **kwargs))
-            futures.append(future)
-        for future in c.as_completed(futures):
-            c.print(future.result())
-        return {'success':True, 'message':f'Served {n} servers', 'namespace': c.namespace()} 
 
     def extract_time(self, x):
         try:
