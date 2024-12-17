@@ -38,8 +38,8 @@ class c:
         'openrouter':  'model.openrouter',
         'or' : ' model.openrouter',
         'r' :  'remote',
-        's' :  'network.subspace',
-        'subspace': 'network.subspace', 
+        's' :  'subspace',
+        'subspace': 'subspace', 
         'namespace': 'network', 
         'local': 'network',
         'network.local': 'network',
@@ -54,15 +54,13 @@ class c:
                shortcuts : dict = None,
                cache=True, 
                trials=1, 
-               tree:dict=None, 
-               **extra_kwargs ) -> str:
+               tree:dict=None ) -> str:
         path = path or 'module'
         if path.endswith('.py') and os.path.exists(path):
             path = c.path2name(path)
         else:
             path = path.replace('/','.')
         og_path = path
-
         if path in c.module_cache and cache:
             return c.module_cache[path]
         if path in ['module', c.libname[0]]:
@@ -77,26 +75,30 @@ class c:
             if trials == 0:
                 raise ValueError(f'Error in module {og_path} {e}')
             return c.module(path,cache=cache, tree=c.tree(max_age=10), trials=trials-1)
-        if not cls.is_module(module):
-            module.module_class = lambda *args, **kwargs : c.module_class(module)
-            module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
-            module.key = c.get_key(module.module_name(), create_if_not_exists=True)
-            module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
-            module.filepath = lambda *args, **kwargs : c.filepath(module)
-            module.dirpath = lambda *args, **kwargs : c.dirpath(module)
-            module.code = lambda *args, **kwargs : c.code(module)
-            module.code_hash = lambda *args, **kwargs : c.code_hash(module)
-            module.schema = lambda *args, **kwargs : c.schema(module)
-            module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
-            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-            module.ask = lambda *args, **kwargs : c.ask(*args, module=module, **kwargs)
-            module.config = lambda *args, **kwargs : c.config(module=module, **kwargs)
+        module = module if cls.is_module(module) else cls.convert_module(module)
         if cache:
             c.module_cache[path] = module
         if kwargs != None:
             module = module(**kwargs)      
         return module
-    block =  get_block = get_module =   module
+    
+    get_agent = block =  get_block = get_module =   module
+    
+    @classmethod
+    def convert_module(cls, module):
+        module.module_class = lambda *args, **kwargs : c.module_class(module)
+        module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
+        module.key = c.get_key(module.module_name(), create_if_not_exists=True)
+        module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
+        module.filepath = lambda *args, **kwargs : c.filepath(module)
+        module.dirpath = lambda *args, **kwargs : c.dirpath(module)
+        module.code = lambda *args, **kwargs : c.code(module)
+        module.code_hash = lambda *args, **kwargs : c.code_hash(module)
+        module.schema = lambda *args, **kwargs : c.schema(module)
+        module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
+        module.fn2code = lambda *args, **kwargs : c.fn2code(module)
+        module.config = lambda *args, **kwargs : c.config(module=module, **kwargs)
+        return module
     
     @classmethod
     def filepath(cls, obj=None) -> str:
@@ -143,7 +145,7 @@ class c:
     def sandbox(cls, path='./', filename='sandbox.py'):
         for file in  c.files(path):
             if file.endswith(filename):
-                return c.cmd(f'python {file}', verbose=True)
+                return c.cmd(f'python3 {file}', verbose=True)
         return {'success': False, 'message': 'sandbox not found'}
     
     sand = sandbox
@@ -190,9 +192,7 @@ class c:
                 obj =  c.module(obj)
             elif c.is_fn(obj):
                 obj =  c.get_fn(obj)
-
         assert obj != None, f'Object {obj} does not exist'
-
         return obj
 
     @classmethod
@@ -215,6 +215,8 @@ class c:
     def run(cls, fn=None, params=None, name=None) -> Any: 
         # if name != '__main__':
         #     return {}
+        if fn != None:
+            return c.get_fn(fn)(**(params or {}))
         parser = argparse.ArgumentParser(description='Argparse for the module')
         parser.add_argument('-m', '--m', '--module', '-module', dest='module', help='The function', type=str, default=cls.module_name())
         parser.add_argument('-fn', '--fn', dest='fn', help='The function', type=str, default="__init__")
@@ -515,7 +517,7 @@ class c:
         return fn2route
             
     @classmethod
-    def add_routes(cls, routes:dict=None, verbose=False, add_utils=True):
+    def add_routes(cls, routes:dict=None):
         from functools import partial
         """
         This ties other modules into the current module.
@@ -729,20 +731,22 @@ class c:
         assert self.map(x, fn) == [2,3,4]
         return {'success':True, 'message':'map test passed'}
         
-    avoid_paths = ['~', '/', './', storage_path]
     @classmethod
-    def rm(cls, path,possible_extensions = ['json'], avoid_paths = avoid_paths):
+    def rm(cls, path:str,
+           possible_extensions = ['json'], 
+           avoid_paths = ['~', '/', './', storage_path]):
         avoid_paths.append(c.storage_path)
         path = cls.resolve_path(path)
         avoid_paths = [cls.resolve_path(p) for p in avoid_paths] 
         assert path not in avoid_paths, f'Cannot remove {path}'
-        if not os.path.exists(path):
+        path_exists = lambda p: os.path.exists(p)
+        if not path_exists(path): 
             for pe in possible_extensions:
                 if path.endswith(pe) and os.path.exists(path + f'.{pe}'):
                     path = path + f'.{pe}'
                     break
-        if not os.path.exists(path): 
-            return {'success':False, 'message':f'{path} does not exist'}
+            if not path_exists(path):
+                return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
             return shutil.rmtree(path)
         if os.path.isfile(path):
@@ -1016,7 +1020,7 @@ class c:
     @classmethod
     def storage_dir(cls):
         return f'{c.storage_path}/{cls.module_name()}'
-
+    
     @staticmethod
     def sleep(period):
         time.sleep(period) 
@@ -1061,14 +1065,8 @@ class c:
         '''
         Returns the code of a function
         '''
-        try:
-            fn = cls.get_fn(fn)
-            code_text = inspect.getsource(fn)
-        except Exception as e:
-            code_text = None
-            raise e
-            print(f'Error in getting fn_code: {e}')                    
-        return code_text
+        fn = cls.get_fn(fn)      
+        return inspect.getsource(fn)       
     
     @classmethod
     def fn_hash(cls,fn:str = 'subspace/ls', detail:bool=False,  seperator: str = '/') -> str:
@@ -1301,24 +1299,29 @@ class c:
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            if hasattr(cls, fn):
-                fn2route = cls.fn2route() 
-                if fn in fn2route:
-                    return c.obj(fn2route[fn])
-                return getattr(cls, fn)
-            elif c.object_exists(fn):
-                    return c.obj(fn)
-            
+            fn_obj = None
+            module = cls
             for splitter in splitters:
                 if splitter in fn:
                     module_name= splitter.join(fn.split(splitter)[:-1])
                     fn_name = fn.split(splitter)[-1]
                     if c.module_exists(module_name):
                         module = c.get_module(module_name)
-                        return getattr(module, fn_name)
-        if callable(fn):
-            return fn
-        return fn
+                        fn_obj =  getattr(module, fn_name)
+            if hasattr(cls, fn):
+                fn2route = cls.fn2route() 
+                if fn in fn2route:
+                    return c.obj(fn2route[fn])
+                fn_obj =  getattr(cls, fn)
+            elif c.object_exists(fn):
+                fn_obj =  c.obj(fn)
+            args = c.get_args(fn_obj)
+            if 'self' in args:
+                fn_obj = getattr(module(), fn.split('/')[-1])
+        else:
+            fn_obj = fn
+        # assert fn_obj != None, f'{fn} is not a function or object'
+        return fn_obj
         
     @classmethod
     def self_functions(cls, search = None):
@@ -1354,7 +1357,7 @@ class c:
         # if fn is an object get the __
         
         if not callable(fn):
-            fn = cls.get_fn(fn)
+            return []
         try:
             args = inspect.getfullargspec(fn).args
         except Exception as e:
@@ -1695,6 +1698,8 @@ class c:
     def import_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
         key = key.replace('/', '.')
+        if '/' in key:
+            key = key.replace('/', '.')
         module_obj = c.import_module('.'.join(key.split('.')[:-1]))
         return  getattr(module_obj, key.split('.')[-1])
     
@@ -1728,11 +1733,6 @@ class c:
             module_exists =  False
         
         return module_exists
-    
-    @classmethod
-    def has_app(cls, module:str, **kwargs) -> bool:
-        return cls.module_exists(module + '.app', **kwargs)
-    
     
     @classmethod
     def get_path(cls, module:str, **kwargs) -> bool:
@@ -1852,10 +1852,6 @@ class c:
     def has_module(cls, module, path=None):
         path = path or c.libpath
         return module in c.modules()
-    
-    def new_modules(self, *modules, **kwargs):
-        for module in modules:
-            self.new_module(module=module, **kwargs)
 
     def net(self):
         return c.network()
@@ -1882,6 +1878,9 @@ class c:
         return {'name': name, 'path': path, 'msg': 'Module Created'}
     
     add_module = new_module
+
+    def build(self, *args, **kwargs):
+        return c.module('builder')().forward(*args, **kwargs)
     
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
@@ -2008,6 +2007,14 @@ class c:
     
     def is_repo(self, repo:str):
         return repo in self.repos()
+    
+    def file2hash(self, path='./'):
+        file2hash = {}
+        for k,v in c.file2text(path).items():
+            file2hash[k] = c.hash(v)
+        return file2hash
+            
+
 
     @classmethod
     def help(cls, *text, module=None,  **kwargs):
@@ -2020,6 +2027,9 @@ class c:
     def time(self):
         return time.time()
     
+
+    def ask(self, *args, **kwargs):
+        return c.module("agent")().ask(*args, **kwargs) 
 
     def clone(self, repo:str, path:str=None, **kwargs):
         path = '~/' + repo if path == None else path
@@ -2264,10 +2274,11 @@ class c:
         "generate",
         "models"
     ],
-    "agent": ["ask", "models", "pricing",  "model2info", "reduce"],
+    "agent": [ "models", "pricing",  "model2info", "reduce"],
     "builder": ["build"],
     "summary": ["reduce"]
 }
+    
 c.add_routes()
 Module = c # Module is alias of c
 if __name__ == "__main__":

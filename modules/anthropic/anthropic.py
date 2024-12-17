@@ -78,15 +78,3 @@ class Anthropic(c.Module):
         c.print(f"Response: {response}")
         return response
 
-    def schema(self):
-        """Return the module's schema"""
-        return {
-            "call": {
-                "input": {
-                    "prompt": "str",
-                    "system": "str",
-                    "stream": "bool"
-                },
-                "output": "str"
-            }
-        }

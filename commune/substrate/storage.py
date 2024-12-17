@@ -16,7 +16,7 @@
 import binascii
 from typing import Any, Optional
 
-from commune.network.substrate.exceptions import StorageFunctionNotFound
+from commune.substrate.exceptions import StorageFunctionNotFound
 from scalecodec import ScaleBytes, GenericMetadataVersioned, ss58_decode
 from scalecodec.base import ScaleDecoder, RuntimeConfigurationObject, ScaleType
 from .utils.hasher import blake2_256, two_x64_concat, xxh128, blake2_128, blake2_128_concat, identity

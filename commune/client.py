@@ -8,14 +8,12 @@ import os
 import commune as c
 
 class Client(c.Module):
-    network2namespace = {}
-    stream_prefix = 'data: '
 
-    def __init__( self, module : str = 'module',
-            network: Optional[bool] = 'local',
-            mode: Optional[str] = 'http',
-            key : Optional[str]= None ,
-            serializer: Optional[c.Module] = 'serializer',
+    def __init__( self, module : str = 'module', 
+                key : Optional[str]= None ,
+                network: Optional[bool] = 'local',
+                mode: Optional[str] = 'http',
+                serializer: Optional[c.Module] = 'serializer',
             **kwargs
         ):
         self.serializer = c.module(serializer)()
@@ -55,7 +53,9 @@ class Client(c.Module):
             module = fn
             fn = 'info'
         client =  cls(module=module, network=network)
-        return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, **extra_kwargs)
+        kwargs = kwargs or {}
+        kwargs = {**kwargs, **extra_kwargs}
+        return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
 
     @classmethod
     def connect(cls,
@@ -89,12 +89,42 @@ class Client(c.Module):
             module_address = module_address.replace(ip, '0.0.0.0')
         url = f"{module_address}/{fn}/"
         return url   
-         
-    def request(self, url: str,
-                 data: dict, 
-                headers: dict, 
-                timeout: int = 10, 
-                stream: bool = True):
+
+
+    def get_data(self, args=[], kwargs={}, params = None):
+        # derefernece
+        args = c.copy(args or [])
+        kwargs = c.copy(kwargs or {})
+        if isinstance(args, dict):
+            kwargs = {**kwargs, **args}
+            args = []
+        if params:
+            if isinstance(params, dict):
+                kwargs = {**kwargs, **params}
+            elif isinstance(params, list):
+                args = params
+            else:
+                raise Exception(f'Invalid params {params}')
+        data =  {  "args": args, "kwargs": kwargs}
+        data = self.serializer.serialize(data)
+        return data
+
+    def forward(self, 
+                fn  = 'info', 
+                params: Optional[Union[list, dict]] = None,
+                args : Optional[list] = [], 
+                kwargs : Optional[dict] = {},  
+                timeout:int=2,  
+                key : str = None,  
+                mode: str  = 'http', 
+                data=None, 
+                headers = None, 
+                stream:bool = False):
+                
+        key = self.resolve_key(key)
+        url = self.get_url(fn=fn, mode=mode)
+        data = data or self.get_data(params=params, args=args, kwargs=kwargs, )
+        headers = headers or self.get_header(data=data, key=key)
         try:             
             response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
             if 'text/event-stream' in response.headers.get('Content-Type', ''):
@@ -111,27 +141,6 @@ class Client(c.Module):
         except Exception as e:
             result = c.detailed_error(e)
         return result
-
-    def get_data(self, args=[], kwargs={}, **extra_kwargs):
-        # derefernece
-        args = c.copy(args or [])
-        kwargs = c.copy(kwargs or {})
-        if isinstance(args, dict):
-            kwargs = {**kwargs, **args}
-            args = []
-        if extra_kwargs:
-            kwargs = {**kwargs, **extra_kwargs}
-        data =  {  "args": args, "kwargs": kwargs}
-        data = self.serializer.serialize(data)
-        return data
-
-    def forward(self, fn  = 'info', args : str = [], kwargs : str = {},  
-                timeout:int=2,  key : str = None,  mode: str  = 'http', data=None, headers = None,  **extra_kwargs):
-        key = self.resolve_key(key)
-        url = self.get_url(fn=fn, mode=mode)
-        data = data or self.get_data(args=args, kwargs=kwargs,**extra_kwargs)
-        headers = headers or self.get_header(data=data, key=key)
-        return self.request(url=url,  data=data,headers=headers,  timeout=timeout)
     
     def __del__(self):
         try:
@@ -156,10 +165,10 @@ class Client(c.Module):
             print(f'Error in stream: {e}')
             yield None
 
-    def process_stream_line(self, line):
+    def process_stream_line(self, line, stream_prefix = 'data: '):
         event_data = line.decode('utf-8')
-        if event_data.startswith(self.stream_prefix):
-            event_data = event_data[len(self.stream_prefix):] 
+        if event_data.startswith(stream_prefix):
+            event_data = event_data[len(stream_prefix):] 
         if event_data == "": # skip empty lines if the event data is empty
             return ''
         if isinstance(event_data, str):
@@ -173,28 +182,17 @@ class Client(c.Module):
             return False
         else:
             return True
-
-    class Virtual:
-        protected_attributes = [ 'client', 'remote_call']
         
+    class Virtual:
         def __init__(self, client: str ='ReactAgentModule'):
             if isinstance(client, str):
                 client = c.connect(client)
             self.client = client
-        
         def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
             result =  self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
             return result
-
-        def __str__(self):
-            return str(self.client)
-
-        def __repr__(self):
-            return self.__str__()
-            
         def __getattr__(self, key):
-
-            if key in self.protected_attributes :
+            if key in [ 'client', 'remote_call'] :
                 return getattr(self, key)
             else:
                 return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)

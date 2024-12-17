@@ -1163,7 +1163,6 @@ def is_mnemonic(s: str) -> bool:
     # Match 12 or 24 words separated by spaces
     return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
 
-
 def file2functions(self, path):
     path = os.path.abspath(path)
     

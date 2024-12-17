@@ -7,6 +7,7 @@ import sys
 from typing import *
 
 
+
 def jsonable( value):
     import json
     try:
@@ -15,6 +16,8 @@ def jsonable( value):
     except:
         return False
 
+def osname():
+    return os.name
 
 def check_pid( pid):        
     """ Check For the existence of a unix pid. """

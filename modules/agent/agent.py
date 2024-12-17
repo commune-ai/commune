@@ -2,7 +2,7 @@ import commune as c
 import os
 import json
 
-class Agent(c.Module):
+class Agent:
     def __init__(self, 
                  max_tokens=420000, 
                  prompt = 'The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.',
@@ -13,7 +13,12 @@ class Agent(c.Module):
         self.prompt = prompt
         self.model = c.module('model.openrouter')(model=model, **kwargs)
 
-    def generate(self,  text = 'whats 2+2?' , model= 'anthropic/claude-3.5-sonnet',  temperature= 0.5, max_tokens= 1000000,stream=True,  ):
+    def generate(self,  
+                 text = 'whats 2+2?' , 
+                 model= 'anthropic/claude-3.5-sonnet',  
+                 temperature= 0.5, 
+                 max_tokens= 1000000,
+                 stream=True,  ):
         # text = self.process_text(text)
         return self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
     
@@ -22,7 +27,35 @@ class Agent(c.Module):
     def ask(self, *text, **kwargs): 
         text = ' '.join(list(map(str, text)))
         text = self.process_text(text)
+        module = kwargs.get('module', None)
+        if module != None:
+            text = c.code(module) + text 
         return self.generate(text, **kwargs)
+    
+    def edit(self, file='./', **kwargs):
+        text = c.file2text(file)
+        prompt = f"""
+        GOAL
+        edit the following file
+        CONTEXT
+        {text}
+        PLEASE OUTPUT AS THE FOLLOWS IF YOU WANT TO SEE
+        <OUTPUT>STR</OUTPUT>
+        """
+        return self.ask(prompt, **kwargs)
+        
+    def exe(self, *text, path='./', **kwargs):
+        text = ' '.join(list(map(str, text)))
+        prompt = f"""
+        GOAL
+        {text}
+        CONTEXT
+        {c.files(path)}
+        USE YOUR BEST JUDGEMENT TO DECIDE THE NEXT SET OF ACTIONS IN THE COMMAND LINE 
+        PLEASE OUTPUT AS THE FOLLOWS IF YOU WANT TO SEE
+        <OUTPUT>LIST[dict(cmd:str, reason:str)]</OUTPUT>
+        """
+        return self.ask(prompt, **kwargs)
     
     def process_text(self, text, threshold=1000):
         new_text = ''
@@ -142,3 +175,6 @@ class Agent(c.Module):
             if '</OUTPUT>' in output:
                 break
         return json.loads(output.split('<OUTPUT>')[1].split('</OUTPUT>')[0])
+    
+    # def find_fns(self):
+    #     fns = []

@@ -16,12 +16,12 @@ import nacl.public
 from eth_keys.datatypes import PrivateKey
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format
 from scalecodec.base import ScaleBytes
-from commune.network.substrate.utils import ss58
-from commune.network.substrate.constants import DEV_PHRASE
-from commune.network.substrate.exceptions import ConfigurationError
-from commune.network.substrate.key import extract_derive_path
-from commune.network.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
-from commune.network.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
+from commune.substrate.utils import ss58
+from commune.substrate.constants import DEV_PHRASE
+from commune.substrate.exceptions import ConfigurationError
+from commune.substrate.key import extract_derive_path
+from commune.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
+from commune.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra
@@ -36,23 +36,12 @@ KeyType.crypto_types = [k for k in KeyType.__dict__.keys() if not k.startswith('
 KeyType.crypto_type_map =  {k.lower():v for k,v in KeyType.__dict__.items() if k in KeyType.crypto_types }
 KeyType.crypto_types = list(KeyType.crypto_type_map.keys())
 
-class MnemonicLanguageCode:
-    ENGLISH = 'en'
-    CHINESE_SIMPLIFIED = 'zh-hans'
-    CHINESE_TRADITIONAL = 'zh-hant'
-    FRENCH = 'fr'
-    ITALIAN = 'it'
-    JAPANESE = 'ja'
-    KOREAN = 'ko'
-    SPANISH = 'es'
-
 class Key(c.Module):
     crypto_types = KeyType.crypto_types
     crypto_type_map = KeyType.crypto_type_map
     crypto_types = list(crypto_type_map.keys())
     ss58_format = 42
     crypto_type =  'sr25519'
-
     def __init__(self,
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = ss58_format, 
@@ -85,7 +74,7 @@ class Key(c.Module):
             return self.set_private_key(**kwargs)
         else:
             return {'success': False, 'message': f'crypto_type already set to {crypto_type}'}
-        
+
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = ss58_format, 
@@ -150,10 +139,9 @@ class Key(c.Module):
 
     @classmethod
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
-        
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}')
-            return json.loads(cls.get(path))
+            return cls.get(path)
         key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key.path = path
         key_json = key.to_json()
@@ -221,6 +209,7 @@ class Key(c.Module):
 
         cls.add_key(**key_info)
         return {'status': 'success', 'message': f'key loaded from {path}'}
+
     
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):
@@ -453,7 +442,7 @@ class Key(c.Module):
     create = gen = new_key
     
     def to_json(self, password: str = None ) -> dict:
-        state_dict =  self.copy(self.__dict__)
+        state_dict =  c.copy(self.__dict__)
         for k,v in state_dict.items():
             if type(v)  in [bytes]:
                 state_dict[k] = v.hex() 
@@ -483,27 +472,27 @@ class Key(c.Module):
     
 
     @classmethod
-    def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
+    def generate_mnemonic(cls, words: int = 12, language_code: str = "en") -> str:
         """
         params:
             words: The amount of words to generate, valid values are 12, 15, 18, 21 and 24
             language_code: The language to use, valid values are: 'en', 'zh-hans', 
                            'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. 
-                            Defaults to `MnemonicLanguageCode.ENGLISH`
+                            Defaults to `"en"`
         """
         mnemonic =  bip39_generate(words, language_code)
         assert cls.validate_mnemonic(mnemonic, language_code), 'mnemonic is invalid'
         return mnemonic
 
     @classmethod
-    def validate_mnemonic(cls, mnemonic: str, language_code: str = MnemonicLanguageCode.ENGLISH) -> bool:
+    def validate_mnemonic(cls, mnemonic: str, language_code: str = "en") -> bool:
         """
         Verify if specified mnemonic is valid
 
         Parameters
         ----------
         mnemonic: Seed phrase
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `MnemonicLanguageCode.ENGLISH`
+        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
         -------
@@ -513,7 +502,7 @@ class Key(c.Module):
 
 
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=ss58_format, crypto_type=KeyType.SR25519, language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Key':
+    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=ss58_format, crypto_type=KeyType.SR25519, language_code: str = "en") -> 'Key':
         """
         Create a Key for given memonic
 
@@ -522,7 +511,7 @@ class Key(c.Module):
         mnemonic: Seed phrase
         ss58_format: Substrate address format
         crypto_type: Use `KeyType.SR25519` or `KeyType.ED25519` cryptography for generating the Key
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `MnemonicLanguageCode.ENGLISH`
+        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
         -------
@@ -532,7 +521,7 @@ class Key(c.Module):
             mnemonic = cls.generate_mnemonic(language_code=language_code)
 
         if crypto_type == KeyType.ECDSA:
-            if language_code != MnemonicLanguageCode.ENGLISH:
+            if language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
             private_key = mnemonic_to_ecdsa_private_key(mnemonic)
             keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
@@ -598,7 +587,7 @@ class Key(c.Module):
             suri: str, 
             ss58_format: Optional[int] = ss58_format, 
             crypto_type=KeyType.SR25519, 
-            language_code: str = MnemonicLanguageCode.ENGLISH
+            language_code: str = "en"
     ) -> 'Key':
         """
         Creates Key for specified suri in following format: `[mnemonic]/[soft-path]//[hard-path]`
@@ -608,7 +597,7 @@ class Key(c.Module):
         suri:
         ss58_format: Substrate address format
         crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `MnemonicLanguageCode.ENGLISH`
+        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
         -------
@@ -627,7 +616,7 @@ class Key(c.Module):
         suri_parts = suri_regex.groupdict()
 
         if crypto_type == KeyType.ECDSA:
-            if language_code != MnemonicLanguageCode.ENGLISH:
+            if language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
 
             private_key = mnemonic_to_ecdsa_private_key(
@@ -823,9 +812,35 @@ class Key(c.Module):
                     'address': self.ss58_address,}
         return signature
 
-    def is_ticket(self, data):
-        return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
-    
+
+    @classmethod
+    def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
+        
+        if hasattr(data, 'hex'):
+            return data.hex()
+        else:
+            if isinstance(data, str):
+                return data
+            return bytes.decode(data, mode)
+
+    @classmethod
+    def python2str(cls,  input):
+        from copy import deepcopy
+        import json
+        
+        input = deepcopy(input)
+        input_type = type(input)
+        if input_type == str:
+            return input
+        if input_type in [dict]:
+            input = json.dumps(input)
+        elif input_type in [bytes]:
+            input = cls.bytes2str(input)
+        elif input_type in [list, tuple, set]:
+            input = json.dumps(list(input))
+        elif input_type in [int, float, bool]:
+            input = str(input)
+        return input
 
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
@@ -851,7 +866,7 @@ class Key(c.Module):
         True if data is signed with this Key, otherwise False
         """
         data = c.copy(data)
-
+        
         if isinstance(data, dict):
             if self.is_ticket(data):
                 address = data.pop('address')
@@ -895,6 +910,8 @@ class Key(c.Module):
             signature = bytes.fromhex(signature)
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
+        
+        
         if self.crypto_type == KeyType.SR25519:
             crypto_verify_fn = sr25519.verify
         elif self.crypto_type == KeyType.ED25519:
@@ -903,9 +920,7 @@ class Key(c.Module):
             crypto_verify_fn = ecdsa_verify
         else:
             raise ConfigurationError("Crypto type not supported")
-
         verified = crypto_verify_fn(signature, data, public_key)
-
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
@@ -913,6 +928,9 @@ class Key(c.Module):
         if return_address:
             return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
+
+    def is_ticket(self, data):
+        return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:
@@ -1081,31 +1099,6 @@ class Key(c.Module):
     @staticmethod
     def ss58_decode(*args, **kwargs):
         return ss58_decode(*args, **kwargs)
-
-    @classmethod
-    def decrypt_file(cls, 
-                path: Union[str, bytes],
-                key: str = None, 
-                password : str = None,
-                **kwargs) -> bytes:
-        key = c.get_key(key)
-        data = c.get_text(path)
-        return key.decrypt(data, password=password, **kwargs)
-    
-    @classmethod
-    def encrypt_file(cls, 
-                path: Union[str, bytes],
-                key: str = None, 
-                password : str = None,
-                save = True,
-                **kwargs) -> bytes:
-        key = c.get_key(key)
-        data = c.get_text(path)
-        response = key.encrypt(data, password=password, **kwargs)
-        if save:
-            print(f'Encrypting {path}' )
-            c.put_text(path, response)
-        return response
     
     @classmethod
     def get_key_address(cls, key):
@@ -1138,7 +1131,6 @@ class Key(c.Module):
             return False
         
         return True
-    
 
     def storage_migration(self): 
         key2path = self.key2path()

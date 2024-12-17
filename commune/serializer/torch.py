@@ -11,8 +11,7 @@ class TorchSerializer:
         from safetensors.torch import save
         return save({'data':data}).hex()
     
-    @classmethod
-    def str2bytes(cls, data: str, mode: str = 'hex') -> bytes:
+    def str2bytes(self, data: str, mode: str = 'hex') -> bytes:
         if mode in ['utf-8']:
             return bytes(data, mode)
         elif mode in ['hex']:

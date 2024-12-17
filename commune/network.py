@@ -1,7 +1,6 @@
-import commune as c
 from typing import *
 import os
-
+import commune as c
 class Network(c.Module):
     min_stake = 0
     blocktime =  block_time = 8 
