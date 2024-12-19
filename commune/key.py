@@ -576,8 +576,10 @@ class Key(c.Module):
         
         return cls(**kwargs)
     @classmethod
-    def create_from_password(cls, password:str, **kwargs):
-        return cls.create_from_uri(password, **kwargs)
+    def create_from_password(cls, password:str, crypto_type=2, **kwargs):
+        key= cls.create_from_uri(password, crypto_type=1, **kwargs)
+        key.set_crypto_type(crypto_type)
+        return key
     
     str2key = pwd2key = password2key = from_password = create_from_password
 
@@ -618,11 +620,11 @@ class Key(c.Module):
         if crypto_type == KeyType.ECDSA:
             if language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
-
+            print(suri_parts)
             private_key = mnemonic_to_ecdsa_private_key(
                 mnemonic=suri_parts['phrase'],
-                str_derivation_path=suri_parts['path'][1:],
-                passphrase=suri_parts['password'] or ''
+                str_derivation_path=suri_parts['path'],
+                passphrase=suri_parts['password']
             )
             derived_keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
         else:

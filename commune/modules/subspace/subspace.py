@@ -1443,6 +1443,7 @@ class Subspace(c.Module):
         address2key = c.address2key()
         assert original_params['founder'] in address2key, f'No key found for {original_params["founder"]}'
         key = c.get_key(address2key[original_params['founder']])
+        print('Updating subnet', subnet, 'with', params, key)
 
         params = {**(params or {}), **extra_params} 
         if 'founder' in params:
@@ -1454,7 +1455,7 @@ class Subspace(c.Module):
         params["metadata"] = params.pop("metadata", None)
         params["use_weights_encryption"] = params.pop("use_weights_encryption", False)
         params['copier_margin'] = params.pop('copier_margin', 0)
-        params["max_encryption_period"] = params.pop("max_encryption_period", 420)
+        params["max_encryption_period"] = params.pop("max_encryption_period", params["tempo"]+1)
         return self.compose_call(fn="update_subnet",params=params,key=key)
 
     def metadata(self) -> str:
@@ -2318,7 +2319,8 @@ class Subspace(c.Module):
             return key.ss58_address
 
     def resolve_key(self, key:str ):
-        key = c.get_key( key )
+        if isinstance(key, str):
+            key = c.get_key( key )
         return key
 
     def params(self, subnet = None, block_hash: str | None = None, max_age=tempo,  update=False) -> dict[int, SubnetParamsWithEmission]:
@@ -2381,7 +2383,6 @@ class Subspace(c.Module):
                 "max_allowed_validators": bulk_query.get("MaxAllowedValidators", {}),
                 "module_burn_config": bulk_query.get("ModuleBurnConfig", {}),
                 "metadata": bulk_query.get("SubnetMetadata", {}),
-                "trust_ratio": bulk_query.get("TrustRatio", {}),
             }
 
             results: dict[int, SubnetParamsWithEmission] = {}
@@ -2390,7 +2391,6 @@ class Subspace(c.Module):
                 'min_validator_stake': self.to_nanos(50_000),
                 'max_allowed_validators': 50,
                 'maximum_set_weight_calls_per_epoch': 30,
-                'trust_ratio': 50,
             }
             subnet_map_keys = list(subnet_maps.keys())
             netuids = list(subnet_maps["name"].keys())
