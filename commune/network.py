@@ -20,8 +20,7 @@ class Network(c.Module):
     
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
-
-
+    
     def net(self):
         return c.network()
     
@@ -88,21 +87,9 @@ class Network(c.Module):
         servers = self.servers(**kwargs)
         return bool(name in servers)
     
-    def networks(self, module_prefix:str='network') -> List[str]:
-        networks = []
-        for m in c.modules(module_prefix):
-            if not m.startswith(module_prefix):
-                continue
-            if m.count('.') == 1:
-                network = m.split('.')[-1]
-            elif m == module_prefix:
-                network = 'local'
-            else:
-                continue
-            networks.append(network)
-        networks = sorted(list(set(networks)))
-        return networks
-    
+    def networks(self) -> List[str]:
+        return ['local', 'subspace', 'subtensor']
+
     def infos(self, *args, **kwargs) -> Dict:
         return [c.call(address+'/info') for name, address in self.namespace(*args, **kwargs).items()]
 
