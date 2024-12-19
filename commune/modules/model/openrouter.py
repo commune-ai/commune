@@ -8,7 +8,7 @@ class OpenRouter(c.Module):
 
     def __init__(
         self,
-        api_key = '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', # your welcome ;)
+        api_key = None,
         base_url: str | None = 'https://openrouter.ai/api/v1',
         timeout: float | None = None,
         max_retries: int = 10,
