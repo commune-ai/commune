@@ -146,6 +146,7 @@ class Server(c.Module):
             "crypto_type": module.key.crypto_type,
             "fn2cost": module.fn2cost,
             "free": module.free,
+            "time": c.time()
         }
 
 
@@ -335,7 +336,7 @@ class Server(c.Module):
         
         return result
     
-    def sync_loop(self, sync_loop_initial_sleep=4):
+    def sync_loop(self, sync_loop_initial_sleep=10):
         c.sleep(sync_loop_initial_sleep)
         while True:
             try:
@@ -354,8 +355,7 @@ class Server(c.Module):
 
     def sync(self, update=True , state_keys = ['stake_from', 'stake_to']):
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
-        print('SYNCING NETWORK')
-
+        print(f'Sync({self.network_path})')
         if hasattr(self, 'state'):
             latency = c.time() - self.state.get('time', 0)
             if latency < self.max_network_staleness:
@@ -474,7 +474,9 @@ class Server(c.Module):
     def kill_all_processes(cls, verbose:bool = True, timeout=20):
         servers = cls.processes()
         futures = [c.submit(cls.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
-        return c.wait(futures, timeout=timeout)
+        results = c.wait(futures, timeout=timeout)
+
+        return results
 
     @classmethod
     def kill_all_servers(cls, network='local', timeout=20, verbose=True):
@@ -485,15 +487,18 @@ class Server(c.Module):
     @classmethod
     def kill_all(cls, mode='process', verbose:bool = True, timeout=20):
         if mode == 'process':
-            return cls.kill_all_processes(verbose=verbose, timeout=timeout)
+            results =  cls.kill_all_processes(verbose=verbose, timeout=timeout)
         elif mode == 'server':
-            return cls.kill_all_servers(verbose=verbose, timeout=timeout)
+            results =  cls.kill_all_servers(verbose=verbose, timeout=timeout)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
-        
+        c.namespace(update=True)
+        return results
+    
     @classmethod
     def killall(cls, **kwargs):
         return cls.kill_all(**kwargs)
+    
     @classmethod
     def logs_path_map(cls, name=None):
         logs_path_map = {}
@@ -580,8 +585,8 @@ class Server(c.Module):
                    'kwargs': kwargs or {} }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
-        stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         print(cmd)
+        stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
     remote_fn = launch
 

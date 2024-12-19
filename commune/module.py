@@ -13,13 +13,13 @@ import nest_asyncio
 nest_asyncio.apply()
 
 class c:
-    default_fn = 'vs'
-    free = False
+    default_fn = 'forward' # default function
+    free = False # if the server is free 
     libname  = lib = __file__.split('/')[-2]# the name of the library
     endpoints = ['ask', 'generate', 'forward']
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
     organization = org = orgname = 'commune-ai' # the organization
-    cost = 1
+    cost = 1 
     description = """This is a module"""
     base_module = 'module' # the base module
     git_host  = 'https://github.com'
@@ -28,7 +28,7 @@ class c:
     default_ip = local_ip = loopback = '0.0.0.0'   
     rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1]) 
     homepath = home_path  = os.path.expanduser('~') # the home path
-    libpath = lib_path  = os.path.dirname(root_path) # the path to the library
+    libpath = lib_path = os.path.dirname(root_path) # the path to the library
     repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
     modulespath = modules_path = os.path.dirname(__file__) + '/modules'
     docspath = docs_path = libname + '/docs'
@@ -37,7 +37,7 @@ class c:
     shortcuts =  {
         'openai' : 'model.openai',
         'openrouter':  'model.openrouter',
-        'or' : ' model.openrouter',
+        'or' : 'model.openrouter',
         'r' :  'remote',
         's' :  'subspace',
         'subspace': 'subspace', 
@@ -87,7 +87,7 @@ class c:
     
     @classmethod
     def convert_module(cls, module):
-        module.module_class = lambda *args, **kwargs : c.module_class(module)
+
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
@@ -98,7 +98,14 @@ class c:
         module.schema = lambda *args, **kwargs : c.schema(module)
         module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
         module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-        module.config = lambda *args, **kwargs : c.config(module=module, **kwargs)
+        module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
+        module.config = lambda *args, **kwargs : c.config(module)
+        if not hasattr(module, 'ask'):
+            def ask(*args, **kwargs):
+                args = [module.code()] + list(args)
+                return c.ask(*args, **kwargs)
+            module.ask = ask
+        
         return module
     
     @classmethod
@@ -168,8 +175,6 @@ class c:
     def is_module(cls, obj) -> bool:
         return all([hasattr(obj, k) for k in c.core_features])
 
-    
-
     def print( *text:str,  **kwargs):
         if len(text) == 0:
             return
@@ -187,12 +192,23 @@ class c:
         if obj == None:
             obj = cls._obj if cls._obj else cls
         elif isinstance(obj, str):
+            if '/' in obj:
+                fn = obj.split('/')[-1]
+                obj = obj.split('/')[0]
+            else:
+                fn = None
             if c.object_exists(obj):
                 obj =  c.obj(obj)
             elif c.module_exists(obj):
                 obj =  c.module(obj)
             elif c.is_fn(obj):
                 obj =  c.get_fn(obj)
+            if fn != None:
+                fn = getattr(obj, fn)
+                if c.classify_fn(fn) == 'self':
+                    obj = obj()
+                    fn = getattr(obj, fn)
+                return fn
         assert obj != None, f'Object {obj} does not exist'
         return obj
 
@@ -211,11 +227,8 @@ class c:
         prompt = f" {code} {question}"
         return c.ask(prompt)
                             
-
     @classmethod
-    def run(cls, fn=None, params=None, name=None) -> Any: 
-        # if name != '__main__':
-        #     return {}
+    def run(cls, fn=None, params=None, **_kwargs) -> Any: 
         if fn != None:
             return c.get_fn(fn)(**(params or {}))
         parser = argparse.ArgumentParser(description='Argparse for the module')
@@ -253,7 +266,7 @@ class c:
     @classmethod
     def run_fn(cls,fn:str, args:list = None, kwargs:dict= None, module:str = None) -> Any:
         if '/' in fn:
-            module, fn = module.split('/')
+            module, fn = fn.split('/')
         module = c.module(module)
         fn_obj = getattr(module, fn)
         is_self_method = 'self' in c.get_args(fn_obj)
@@ -270,8 +283,8 @@ class c:
     def setattr(self, k, v):
         setattr(self, k, v)
 
-    def forward(self, a=1, b=2):
-        return a+b
+    def forward(self, *args, **kwargs):
+        return c.ask(*args, **kwargs)
     
     ### DICT LAND ###
 
@@ -333,7 +346,10 @@ class c:
     @classmethod
     def get_key(cls,key:str = None , **kwargs) -> None:
         from commune.key import Key
+        if not isinstance(key, str) and hasattr(key,"module_name" ):
+            key = key.module_name()
         return Key.get_key(key, **kwargs)
+    
     key = get_key
 
     @classmethod
@@ -419,9 +435,6 @@ class c:
         c.namespace(update=True)
         c.ip(update=1)
         return {'ip': c.ip(), 'namespace': c.namespace()}
-    
-    def init_module(self,*args, **kwargs):
-        return self.set_config(*args, **kwargs)
 
     @classmethod
     def utils(cls, search=None):
@@ -1032,12 +1045,13 @@ class c:
             
     @classmethod
     def fn2code(cls, module=None)-> Dict[str, str]:
-        module = cls.resolve_module()
+        module = cls.resolve_module(module)
+        module_name = module.module_name()
         functions = module.fns()
         fn_code_map = {}
         for fn in functions:
             try:
-                fn_code_map[fn] = module.fn_code(fn)
+                fn_code_map[fn] = c.code(module_name + '/' + fn)
             except Exception as e:
                 print(f'Error: {e}')
         return fn_code_map
@@ -1045,7 +1059,7 @@ class c:
     @classmethod
     def fn2hash(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)   
-        return {k:c.hash(v) for k,v in c.fn2code().items()}
+        return {k:c.hash(v) for k,v in c.fn2code(module).items()}
     
     @classmethod
     def getsource(cls, fn):
@@ -1062,17 +1076,14 @@ class c:
     
 
     @classmethod
-    def fn_code(cls,fn:str, **kwargs) -> str:
+    def fn_code(cls,fn:str, module=None,**kwargs) -> str:
         '''
         Returns the code of a function
         '''
+
         fn = cls.get_fn(fn)      
         return inspect.getsource(fn)       
     
-    @classmethod
-    def fn_hash(cls,fn:str = 'subspace/ls', detail:bool=False,  seperator: str = '/') -> str:
-        fn_code = cls.fn_code(fn, detail=detail, seperator=seperator)
-        return cls.hash(fn_code)
 
     @classmethod
     def is_generator(cls, obj):
@@ -1173,7 +1184,6 @@ class c:
         is the object a class
         '''
         return type(obj).__name__ == 'type'
-
 
     @classmethod
     def fn_signature(cls, fn) -> dict: 
@@ -1667,15 +1677,12 @@ class c:
     def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
         classes = cls.find_classes(path,depth=depth)
         functions = cls.find_functions(path)
-
         if search != None:
             classes = [c for c in classes if search in c]
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
         return object_paths
-    objs = search =  get_objects
-            
-
+    objs = get_objects 
     @staticmethod
     def ensure_sys_path():
         if not hasattr(c, 'included_pwd_in_path'):
@@ -1696,7 +1703,7 @@ class c:
         return import_module(import_path)
     
     @classmethod
-    def import_object(cls, key:str, **kwargs)-> Any:
+    def get_object(cls, key:str, **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
         key = key.replace('/', '.')
         if '/' in key:
@@ -1704,7 +1711,12 @@ class c:
         module_obj = c.import_module('.'.join(key.split('.')[:-1]))
         return  getattr(module_obj, key.split('.')[-1])
     
-    o = obj = get_obj = import_object
+    @classmethod
+    def obj(cls, key:str, **kwargs)-> Any:
+        return c.get_object(key, **kwargs)
+    @classmethod
+    def import_object(cls, key:str, **kwargs)-> Any:
+        return c.get_object(key, **kwargs)
 
     @classmethod
     def object_exists(cls, path:str, verbose=False)-> Any:
@@ -1714,8 +1726,6 @@ class c:
         except Exception as e:
             return False
     
-    imp = get_object = importobj = import_object
-
     @classmethod
     def module_exists(cls, module:str, **kwargs) -> bool:
         '''

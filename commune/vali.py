@@ -217,10 +217,10 @@ class Vali(c.Module):
         return paths
     
     @classmethod
-    def run_epoch(cls, network='local', run_loop=False, **kwargs):
-        return  cls(network=network, run_loop=run_loop, **kwargs).epoch()
+    def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
+        return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
 
-    def next_result(self, futures:list, features=['score', 'name', 'key', 'i']):
+    def next_result(self, futures:list, features=['score', 'name', 'key']):
         try:
             for future in c.as_completed(futures, timeout=self.timeout):
                     futures.remove(future) 
@@ -241,17 +241,33 @@ class Vali(c.Module):
         return result
     
     @staticmethod
-    def test(  n=1, tag = 'vali_test_net',  miner='module', vali='vali',  path = '/tmp/commune/vali_test',network='local'):
-        test_miners = [f'{miner}::{tag}_{i}' for i in range(n)]
+    def test(  
+             n=2, 
+             tag = 'vali_test_net',  
+             miner='module', 
+             trials = 5,
+             tempo = 4,
+             update=True,
+             path = '/tmp/commune/vali_test',
+             network='local'
+             ):
+        test_miners = [f'{miner}::{tag}{i}' for i in range(n)]
         modules = test_miners
         search = tag
+        assert len(modules) == n, f'Number of miners not equal to n {len(modules)} != {n}'
         for m in modules:
             c.serve(m)
-        namespace = c.namespace(search=search)
-        while len(namespace) < n:
-            namespace = c.namespace(search=search)
-        scoreboard = Vali.run_epoch(network=network, search=search, path=path)
-        assert len(scoreboard) == n, f'Leaderboard not updated {scoreboard}'
+        namespace = c.namespace()
+        for m in modules:
+            assert m in namespace, f'Miner not in namespace {m}'
+        vali = Vali(network=network, search=search, path=path, update=update, tempo=tempo, run_loop=False)
+        print(vali.modules)
+        scoreboard = []
+        while len(scoreboard) < n:
+            c.sleep(1)
+            scoreboard = vali.epoch()
+            trials -= 1
+            assert trials > 0, f'Trials exhausted {trials}'
         for miner in modules:
             c.print(c.kill(miner))
         return {'success': True, 'msg': 'subnet test passed'}
