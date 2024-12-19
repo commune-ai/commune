@@ -16,12 +16,12 @@ import nacl.public
 from eth_keys.datatypes import PrivateKey
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format
 from scalecodec.base import ScaleBytes
-from commune.substrate.utils import ss58
-from commune.substrate.constants import DEV_PHRASE
-from commune.substrate.exceptions import ConfigurationError
-from commune.substrate.key import extract_derive_path
-from commune.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
-from commune.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
+from commune.modules.substrate.utils import ss58
+from commune.modules.substrate.constants import DEV_PHRASE
+from commune.modules.substrate.exceptions import ConfigurationError
+from commune.modules.substrate.key import extract_derive_path
+from commune.modules.substrate.utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
+from commune.modules.substrate.utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra

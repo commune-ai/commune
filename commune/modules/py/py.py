@@ -5,21 +5,22 @@ import shutil
 import commune as c
 
 class Py(c.Module):
-    def __init__(self, base_path=None):
-        self.base_path = base_path or os.path.expanduser('~')
-        self.venv_path = os.path.join(self.base_path, '.envs')
+    def __init__(self, venv_path=None):
+        self.set_venv_path(venv_path)
+
+    def set_venv_path(self, venv_path):
+        self.venv_path = venv_path or os.path.expanduser('~/.envs')
         os.makedirs(self.venv_path, exist_ok=True)
 
-    def create_env(self, env):
+    def create(self, env):
         env_path = os.path.join(self.venv_path, env)
         if os.path.exists(env_path):
             print(f"Environment {env} already exists.")
             return
         subprocess.check_call([sys.executable, '-m', 'venv', env_path])
         return {'msg': f"Created environment {env} at {env_path}"}
-    create = create_env
 
-    def remove_env(self, env):
+    def remove(self, env):
         env_path = os.path.join(self.venv_path, env)
         if not os.path.exists(env_path):
             print(f"Environment {env} does not exist.")
@@ -88,29 +89,25 @@ class Py(c.Module):
     def run(self, path=c.repopath+'/modules/sandbox.py', env="bt"):
         env = self.get_env(env)
         env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts')
+        # run the script with the selected environment without activating it
         if not os.path.exists(env_path):
             print(f"Environment {env} does not exist.")
             return
-        activation_script = os.path.join(env_path, 'activate') if os.name == 'posix' else os.path.join(env_path, 'Scripts', 'activate.bat')
-        python_executable = os.path.join(env_path, 'python') if os.name == 'posix' else os.path.join(env_path, 'python.exe')
-        os.system(f"{'source ' if os.name == 'posix' else ''}{activation_script}")
-        os.system(python_executable + ' ' + path)
-        if os.name == 'posix':
-            os.system("deactivate")
-        
-        
+        cmd = f'{env_path}/python {path}'
+        os.system(cmd)
+    
     def env2cmd(self):
         env2cmd = {}
         for env, path in self.env2path().items():
             env2cmd[env] = f'{path}/bin/activate'
         return env2cmd
             
-    def enter_env(self, env):
-        env_path = self.env2path().get(env)
-        if os.name == 'posix':  # Linux/Mac
-            activate_script = f'{env_path}/bin/activate'
-            shell_command = f'{activate_script}'
-            subprocess.run(shell_command, shell=True)
-        else:  # Windows
-            activate_script = f'{env_path}\\Scripts\\activate.bat'
-            subprocess.run(['cmd', '/K', activate_script])
+    def enter(self, env):
+        env = self.get_env(env)
+        env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts')
+        if not os.path.exists(env_path):
+            print(f"Environment {env} does not exist.")
+            return
+        activation_script = os.path.join(env_path, 'activate') if os.name == 'posix' else os.path.join(env_path, 'Scripts', 'activate.bat')
+        os.system(f"{'source ' if os.name == 'posix' else ''}{activation_script}")
+        return dict(msg=f"Entered environment {env}")

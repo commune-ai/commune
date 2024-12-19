@@ -4,7 +4,6 @@ import sys
 import commune as c
 print = c.print
 
-
 def determine_type(x):
     x = str(x)
     if isinstance(x, str) :
@@ -136,6 +135,8 @@ def run_fn(fn_obj, args, kwargs):
 
 def forward():
     argv = sys.argv[1:]
+    if len(argv) == 0:
+        argv = ['vs']
     fn = get_fn(argv)
     args, kwargs = get_args_kwargs(argv)
     return run_fn(fn, args, kwargs)

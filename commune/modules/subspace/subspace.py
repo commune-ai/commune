@@ -7,9 +7,9 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Mapping, TypeVar, cast, List, Dict, Optional
 from collections import defaultdict
-from commune.substrate.storage import StorageKey
-from commune.substrate import (ExtrinsicReceipt,  Keypair, SubstrateInterface)# type: ignore
-from commune.subspace.types import (ChainTransactionError,
+from commune.modules.substrate.storage import StorageKey
+from commune.modules.substrate import (ExtrinsicReceipt,  Keypair, SubstrateInterface)# type: ignore
+from commune.modules.subspace.types import (ChainTransactionError,
                                     NetworkQueryError, 
                                     SubnetParamsMaps, 
                                     SubnetParamsWithEmission,
@@ -1370,7 +1370,7 @@ class Subspace(c.Module):
     
     regnet = register_subnet
 
-    def set_weights(
+    def vote(
         self,
         modules: list[int], # uids, keys or names
         weights: list[int], # any value, relative is takens
@@ -1402,10 +1402,17 @@ class Subspace(c.Module):
         key2uid = self.key2uid(subnet)
         uids = [key2uid.get(m, m) for m in modules]
         params = {"uids": uids,"weights": weights,"netuid": subnet}
-        response = self.compose_call("set_weights", params=params, key=key)
+        response = self.compose_call("set_weights", params=params, key=key, module="SubnetEmissionModule")
         return response
     
-    vote = set_weights
+    def set_weights(
+        self,
+        modules: list[int], # uids, keys or names
+        weights: list[int], # any value, relative is takens
+        key: Keypair,
+        subnet = 0,
+    ) -> ExtrinsicReceipt:
+        return self.vote(modules, weights, key, subnet=subnet)
 
     def update_subnet(
         self,
@@ -1902,28 +1909,8 @@ class Subspace(c.Module):
         return applications
 
     def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]] | None:
-        """
-        Retrieves a mapping of weights for keys on the network.
-
-        Queries the network and returns a mapping of key UIDs to
-        their respective weights.
-
-        Args:
-            netuid: The network UID from which to get the weights.
-
-        Returns:
-            A dictionary mapping key UIDs to lists of their weights.
-
-        Raises:
-            QueryError: If the query to the network fails or is invalid.
-        """
         subnet = self.resolve_subnet(subnet)
-
-        weights_dict = self.query_map(
-            "Weights",
-            [subnet],
-            extract_value=extract_value
-        )
+        weights_dict = self.query_map("Weights",[subnet],extract_value=extract_value, module='SubnetEmissionModule')
         return weights_dict
 
     def addresses( self, subnet: int = 0, extract_value: bool = False, max_age: int = 60, update: bool = False ) -> dict[int, str]:
@@ -2127,17 +2114,6 @@ class Subspace(c.Module):
     def proposals(
         self, extract_value: bool = False
     ) -> dict[int, dict[str, Any]]:
-        """
-        Retrieves a mappping of proposals from the network.
-        
-        Returns:
-            A dictionary mapping proposal IDs
-            to dictionaries of their parameters.
-
-        Raises:
-            QueryError: If the query to the network fails or is invalid.
-        """
-
         return self.query_map( "Proposals", extract_value=extract_value, module="GovernanceModule")
 
     def dao_treasury_address(self) -> Ss58Address:
@@ -2700,12 +2676,6 @@ class Subspace(c.Module):
             modules = c.df(modules)
         
         return modules
-    
-    def root_modules(self, subnet=0, **kwargs):
-        return self.modules(subnet=subnet,**kwargs)
-
-    def get_rate_limit(self, address):
-        return self.resolve_key_address(address)
 
     def format_amount(self, x, fmt='nano') :
         if type(x) in [dict]:
@@ -2807,9 +2777,31 @@ class Subspace(c.Module):
     
     def __str__(self):
         return f'Subspace(network={self.network}, url={self.url})'
-
     
+    def get_metadata_pallet(self, pallet):
+        with self.get_conn() as substrate:
+            metadata = substrate.get_metadata().get_metadata_pallet(pallet)
+        return metadata
+                        
+    # get all of the storage names for a module
+    pallets = ["SubnetEmissionModule", "SubspaceModule", "GovernanceModule", "SubspaceModule"]
+    def storage(self, 
+                search=None, 
+                pallets= pallets, 
+                features = ['name', 'modifier', 'type', 'docs']):
+        # Get metadata
+        pallet2storage = {}
+        for pallet in pallets:
+            metadata = self.get_metadata_pallet(pallet)
+            storage =[{f:getattr(s, f) for f in features }for s in  metadata["storage"]['entries']]
+            if search:
+                storage = [s for s in storage if search in s['name'].lower()]
+            if len(storage) > 0:
+                pallet2storage[pallet] = storage
 
-
+        return pallet2storage
+    
+            
+    
 
 

@@ -62,15 +62,21 @@ class Agent:
         for word in text.split(' '):
             conditions = {
                 "file": any([word.startswith(ch) for ch in ['.', '~', '/']]) and os.path.exists(word),
-                "c": word.startswith('c/'),
+                "code": word.startswith('code/'),
+                "run": word.startswith('run/'),
             }
             if conditions['file']:
                 print('READING FILE -->', word)
                 word = c.file2text(word)
-            if conditions['c']:
-                word = word[len('c/'):]
+            if conditions['code']:
+                word = word[len('code/'):]
                 print('READING MODULE -->', word)
                 word = c.code(word)
+            
+            if conditions['run']:
+                word = word[len('run/'):]
+                print('CALLING FUNCTION -->', word)
+                word = c.run_fn(word)
                 
             new_text += str(word)
         return new_text
