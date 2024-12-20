@@ -12,7 +12,7 @@ class fal:
         Args:
             api_key (str, optional): FAL API key. If not provided, will try to get from environment.
         """
-        self.api_key = c.module('api')(self).get_key()
+        self.api_key = c.module('apikey')(self).get_key()
         if not self.api_key:
             raise ValueError("FAL_KEY must be provided either as argument or environment variable")
 

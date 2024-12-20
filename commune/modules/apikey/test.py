@@ -3,7 +3,7 @@ import commune as c
 class Test:
     def __init__(self, module='api.test'):
         self.module = module
-        self.api = c.module('api')(module=module)
+        self.api = c.module('apikey')(module=module)
         
     def test_set_module(self):
         # Test with string

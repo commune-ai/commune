@@ -2,11 +2,15 @@
 
 import commune as c 
 
-class API:
+class ApiKey:
     def __init__(self, module='model.openrouter', path:str=None):
         self.set_module(module)
         self.path = path or c.resolve_path('api')
+
     def set_module(self, module):
+        """
+        sets the module
+        """
         if not isinstance(module, str):
             if hasattr(module, 'module_name'):
                 module = module.module_name()

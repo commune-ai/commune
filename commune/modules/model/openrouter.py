@@ -88,6 +88,7 @@ class OpenRouter(c.Module):
 
     def resolve_model(self, model=None):
         models =  self.models()
+        model = str(model)
         if str(model) not in models:
             if ',' in model:
                 models = [m for m in models if any([s in m for s in model.split(',')])]
@@ -100,7 +101,7 @@ class OpenRouter(c.Module):
         return model
     
     def get_key(self):
-        return c.module('api')(module=self).get_key()
+        return c.module('apikey')(module=self).get_key()
 
     def authenticate(
         self,
