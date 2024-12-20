@@ -1049,11 +1049,11 @@ class c:
         module_name = module.module_name()
         functions = module.fns()
         fn_code_map = {}
+    
         for fn in functions:
-            try:
-                fn_code_map[fn] = c.code(module_name + '/' + fn)
-            except Exception as e:
-                print(f'Error: {e}')
+ 
+            fn_code_map[fn] = c.code(getattr(module, fn))
+           
         return fn_code_map
     
     @classmethod
@@ -1158,10 +1158,15 @@ class c:
 
     pycode = code
     @classmethod
+    def module_hash(cls, module=None,  *args, **kwargs):
+        return c.hash(c.code(module or cls.module_name(), **kwargs))
+
+    @classmethod
+    def module_hash(cls, module=None,  *args, **kwargs):
+        return c.hash(c.code(module or cls.module_name(), **kwargs))
+
+    @classmethod
     def code_hash(cls, module=None,  *args, **kwargs):
-        """
-        The hash of the code, where the code is the code of the class (cls)
-        """
         return c.hash(c.code(module or cls.module_name(), **kwargs))
 
     @classmethod

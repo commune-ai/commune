@@ -36,7 +36,6 @@ class Server(c.Module):
 
     def __init__(
         self, 
-        ### CORE PARAMETERS
         module: Union[c.Module, object] = None,
         key:str = None, # key for the server (str)
         name: str = None, # the name of the server
@@ -44,7 +43,7 @@ class Server(c.Module):
         port: Optional[int] = None, # the port the server is running on
         network:str = 'subspace', # the network used for incentives
         fn2cost : Dict[str, float] = None, # the cost of the function
-        free : bool = False,
+        free : bool = False, # if the server is free (checks signature)
         kwargs : dict = None, # the kwargs for the module
         crypto_type = 'sr25519', # the crypto type of the key
         users_path: Optional[str] = None, # the path to the user data
