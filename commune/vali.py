@@ -10,8 +10,11 @@ class Vali(c.Module):
     networks = ['local'] + voting_networks
     epoch_time = 0
     vote_time = 0
-    vote_staleness = 0
-    epochs = 0
+    vote_staleness = 0 # the time since the last vote
+    epochs = 0 # the number of epochs
+    futures = [] # the futures for the parallel tasks
+    results = [] # the results of the parallel tasks
+    _clients = {} # the clients for the parallel tasks
 
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
@@ -27,25 +30,23 @@ class Vali(c.Module):
                     update : bool =False, # update during the first epoch
                     run_loop : bool = True, # This is the key that we need to change to false
                  **kwargs):
-        self.set_executor(max_workers=max_workers, batch_size=batch_size, timeout=timeout)
-        self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
+
+        self.timeout = timeout or 3
+        self.max_workers = max_workers or c.cpu_count() * 5
+        self.batch_size = batch_size or 128
+        self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
         self.set_key(key)
+
+        self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
         if run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
 
 
     def set_key(self, key):
-        self.key = key or c.get_key()
+        self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
 
-    def set_executor(self, max_workers:int, batch_size:int, timeout:int):
-        self.timeout = timeout or 3
-        self.max_workers = max_workers or c.cpu_count() * 5
-        self.batch_size = batch_size or 128
-        self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
-        return {'success': True, 'msg': 'Executor set', 'max_workers': self.max_workers, 'batch_size': self.batch_size, 'timeout': self.timeout}
-    
     def set_network(self, network:str, 
                     subnet:str=None, 
                     tempo:int=60, 
@@ -64,6 +65,8 @@ class Vali(c.Module):
         self.tempo = tempo
         self.search = search
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}'))
+        self.is_voting_network = any([v in self.network for v in self.voting_networks])
+
         self.set_score(score)
         self.sync(update=update)
 
@@ -77,10 +80,6 @@ class Vali(c.Module):
         assert callable(self.score), f'SCORE NOT SET {self.score}'
         return {'success': True, 'msg': 'Score function set'}
 
-    @property
-    def is_voting_network(self):
-        return any([v in self.network for v in self.voting_networks])
-    
     def run_loop(self):
         while True:
             try:
@@ -88,42 +87,71 @@ class Vali(c.Module):
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
     @property
-    def nex_epoch(self):
+    def time_until_next_epoch(self):
         return int(self.epoch_time + self.tempo - c.time())
+
+
+    def get_client(self, module:dict):
+        if module['key'] in self._clients:
+            client =  self._clients[module['key']]
+        else:
+            client =  c.connect(module['address'], key=self.key)
+            self._clients[module['key']] = client
+        return client
     
-    futures = []
-    results = []
+    def score_module(self,  module:dict, **kwargs):
+        """
+        module: dict
+            name: str
+            address: str
+            key: str
+            time: int
+        """
+        module['time'] = c.time() # the timestamp
+        client = self.get_client(module)
+        module['score'] = self.score(client, **kwargs)
+        module['latency'] = c.time() - module['time']
+        if module['score'] > 0:
+            module_path = self.path +'/'+ module['key']
+            c.put_json(module_path, module)
+        return module
+
+    def score_modules(self, modules: List[dict]):
+        futures = []
+        results = []
+        for module in modules:
+            futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
+        try:
+            for r in c.as_completed(futures, timeout=self.timeout):
+                r = r.result()
+                results.append(r)
+        except Exception as e:
+            c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=0)
+        return results
 
     def epoch(self):
-        futures = []
-        self.results = []
-        next_epoch = self.nex_epoch
+        next_epoch = self.time_until_next_epoch
         progress = c.tqdm(total=next_epoch, desc='Next Epoch')
         for _ in  range(next_epoch):
             progress.update(1)
             c.sleep(1)
         self.sync()
-        c.print(f'EPOCH(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
-        progress = c.tqdm(total=self.n, desc='Evaluating Modules')
-        # return self.modules
-        n = len(self.modules)
-        
-        for i, module in enumerate(self.modules):
-            module["i"] = i
-            c.print(f'EVAL(i={i}/{n} key={module["key"]} name={module["name"]})', color='yellow')
-            if len(futures) < self.batch_size:
-                futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
-            else: 
-                self.results.append(self.next_result(futures))
+        c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n} )', color='yellow')
+        batches = [self.modules[i:i+self.batch_size] for i in range(0, self.n, self.batch_size)]
+        progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
+        results = []
+        for i, module_batch in enumerate(batches):
+            print(f'Batch[{i}/{len(batches)}]')
+            try:
+                results += self.score_modules(module_batch)
+            except Exception as e:
+                c.print(f'ERROR({c.detailed_error(e)})', color='red')
             progress.update(1)
-        while len(futures) > 0:
-            self.results.append(self.next_result(futures))
-        self.results = [r for r in self.results if r.get('score', 0) > 0]
         self.epochs += 1
         self.epoch_time = c.time()
-        c.print(self.vote())
+        self.vote(results)
         print(self.scoreboard())
-        return self.results
+        return results
     
     def sync(self, update = False):
         max_age =  0 if update else (self.tempo or 60)
@@ -136,56 +164,40 @@ class Vali(c.Module):
         self.network_info = {'n': self.n, 'network': self.network ,  'subnet': self.subnet, 'params': self.params}
         c.print(f'<Network({self.network_info})')
         return self.network_info
-
-    def score_module(self,  module:dict, **kwargs):
-        module['time'] = c.time() # the timestamp
-        module['score'] = self.score(c.connect(module['address'], key=self.key), **kwargs)
-        module['latency'] = c.time() - module['time']
-        if module['score'] > 0:
-            module_path = self.path +'/'+ module['key']
-            c.put_json(module_path, module)
-        return module
     
     @property
     def votes_path(self):
         return self.path + f'/votes'
 
-    def vote(self, submit_async=True, **kwargs):
-
+    def vote(self, results):
         if not self.is_voting_network :
             return {'success': False, 'msg': f'NOT VOTING NETWORK({self.network})'}
-        self.vote_staleness = c.time() - self.vote_time
-        if self.vote_staleness < self.tempo:
+        if c.time() - self.vote_time < self.tempo:
             return {'success': False, 'msg': f'Vote is too soon {self.vote_staleness}'}
-        fn_obj = self.network_module.vote
-        params = dict(modules=[], weights=[], key=self.key, subnet=self.subnet)
-        if len(self.results) == 0:
+        params = dict(modules=[], 
+                      weights=[], 
+                      key=self.key,
+                        subnet=self.subnet)
+        if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
-        for m in self.results:
+        for m in results:
+            if not isinstance(m, dict) or 'key' not in m:
+                continue
             params['modules'].append(m['key'])
             params['weights'].append(m['score'])
-        if submit_async:
-            return c.submit(fn_obj, params)
-        else:
-            return self.network_module.vote(**params)
-    
-    set_weights = vote 
 
-    def module_info(self, **kwargs):
-        if hasattr(self, 'network_module'):
-            return self.network_module.module_info(self.key.ss58_address, subnet=self.subnet, **kwargs)
-        else:
-            return self.info()
+        return self.network_module.vote(**params)
+    
     
     def scoreboard(self,
                     keys = ['name', 'score', 'latency',  'address', 'key'],
                     ascending = True,
                     by = 'score',
                     to_dict = False,
-                    n = None,
                     page = None,
                     **kwargs
                     ):
+        page_size = 1000
         max_age = self.tempo
         df = []
         # chunk the jobs into batches
@@ -195,20 +207,18 @@ class Vali(c.Module):
                 df += [{k: r.get(k, None) for k in keys}]
             else :
                 self.rm(path)
-
         df = c.df(df) 
         if len(df) > 0:
             if isinstance(by, str):
                 by = [by]
             df = df.sort_values(by=by, ascending=ascending)
-            if n != None:
-                if page != None:
-                    df = df[page*n:(page+1)*n]
-                else:
-                    df = df[:n]
         # if to_dict is true, we return the dataframe as a list of dictionaries
         if to_dict:
             return df.to_dict(orient='records')
+        if len(df) > page_size:
+            pages = len(df)//page_size
+            page = page or 0
+            df = df[page*page_size:(page+1)*page_size]
 
         return df
 
@@ -219,26 +229,6 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
-
-    def next_result(self, futures:list, features=['score', 'name', 'key']):
-        try:
-            for future in c.as_completed(futures, timeout=self.timeout):
-                    futures.remove(future) 
-                    result = future.result()
-                    if all([f in result for f in features]):
-                        v_result = {f: result[f] for f in features}
-                    
-                        c.print(f'RESULT({v_result})', color='red')
-                        return result
-                    else:
-                        v_result = {f: result[f] for f in result if f not in ['success']}
-                        c.print(f'ERROR({result["error"]})', color='red')
-
-        except Exception as e:
-            result = c.detailed_error(e)
-            result.pop('success')
-            c.print(f'ERROR({result})', color='red')
-        return result
     
     @staticmethod
     def test(  

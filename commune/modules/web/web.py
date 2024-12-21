@@ -29,6 +29,18 @@ class Web:
         )
         self.logger = logging.getLogger(__name__)
 
+    def text(self, url: str = '') -> str:
+        # 1. Fetch the page
+        response = requests.get(url)
+        html = response.text  # or response.content
+
+        # 2. Parse HTML with BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 3. Extract just the text (without HTML tags)
+        page_text = soup.get_text(separator="\n", strip=True)
+        return page_text
+
     def is_valid_url(self, url: str) -> bool:
         """Check if URL is valid and belongs to the same domain"""
         try:
@@ -37,8 +49,6 @@ class Web:
             return parsed_base.netloc == parsed_url.netloc
         except Exception:
             return False
-        
-
 
     # def search(self, query:str='twitter', source:str='desktop') -> str:
 
@@ -47,7 +57,8 @@ class Web:
             'google': 'https://www.google.com/search?q={query}',
             'bing': 'https://www.bing.com/search?q={query}',
             'yahoo': 'https://search.yahoo.com/search?p={query}',
-            'duckduckgo': 'https://duckduckgo.com/?q{query}'
+            'duckduckgo': 'https://duckduckgo.com/?q{query}',
+            "sybil": "https://sybil.com/search?q={query}"
         }
     
     engines = list(engine2url.keys())
@@ -64,7 +75,7 @@ class Web:
             future2engine = {}
             for engine in self.engine2url:
                 url = self.engine2url[engine].format(query=query)
-                future = c.submit(self.page_content, [url], timeout=10)
+                future = c.submit(self.content, [url], timeout=10)
                 future2engine[future] = engine
 
             for f in c.as_completed(future2engine):
@@ -76,9 +87,9 @@ class Web:
         else:
             raise ValueError(f'Engine {engine} not supported')
         
-        return self.page_content(url)
+        return self.content(url)
 
-    def page_content(self, url: str="https://search.brave.com/search?q=twitter") -> Dict:
+    def content(self, url: str="https://search.brave.com/search?q=twitter") -> Dict:
         """
         Fetch and extract content from a webpage
         Returns a dictionary containing text content and image URLs
@@ -90,10 +101,10 @@ class Web:
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Extract text content
-            text_content = []
+            text = []
             for text in soup.stripped_strings:
                 if len(text.strip()) > 0:
-                    text_content.append(text.strip())
+                    text.append(text.strip())
 
             # Extract images
             images = []
@@ -118,7 +129,7 @@ class Web:
 
             return {
                 'url': url,
-                'text_content': text_content,
+                'text': text,
                 'images': images,
                 'links': links
             }
@@ -143,7 +154,7 @@ class Web:
         with open(text_file, 'w', encoding='utf-8') as f:
             f.write(f"URL: {content['url']}\n\n")
             f.write("TEXT CONTENT:\n")
-            for text in content['text_content']:
+            for text in content['text']:
                 f.write(f"{text}\n")
             
             f.write("\nIMAGES:\n")
@@ -164,7 +175,7 @@ class Web:
                 continue
 
             self.logger.info(f"Crawling: {current_url}")
-            content = self.page_content(current_url)
+            content = self.content(current_url)
             
             if content:
                 self.visited_urls.add(current_url)
@@ -180,9 +191,3 @@ class Web:
                 ])
 
         return crawled_content
-
-# Example usage
-if __name__ == "__main__":
-    crawler = WebCrawler("https://example.com", max_pages=5)
-    results = crawler.crawl(save_output=True)
-    print(f"Crawled {len(results)} pages successfully!")

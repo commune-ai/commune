@@ -789,6 +789,8 @@ class Subspace(c.Module):
         Raises:
             NetworkQueryError: If the query fails or is invalid.
         """
+        if '/' in name:
+            module, name = name.split('/')
         result = self.query_batch({module: [(name, params)]})
         return result[name]
 
@@ -2551,15 +2553,28 @@ class Subspace(c.Module):
     def my_keys(self, subnet=0):
         return [m['key'] for m in self.my_modules(subnet)]
     
-    def valis(self, subnet=0, max_age=60, update=False, df=1, search=None, features=['Name', 'Keys', 'StakeFrom'], **kwargs):
-        valis =  self.modules(subnet=subnet , max_age=max_age, features=features,update=update, **kwargs)
+    def valis(self, subnet=0, max_age=600,
+               update=False, 
+               df=0,
+               search=None, 
+               min_stake = 1000000,
+               features=['Name', 'Keys', 'StakeFrom', 'LastUpdate'],
+                 **kwargs):
+                 
+        valis =  self.modules(subnet=subnet , 
+                              max_age=max_age, 
+                              features=features,
+                              update=update, **kwargs)
         if search != None:
             valis = [v for v in valis if search in v['name'] or search ]
-        if df:
+        valis = [v for v in valis if v['stake'] > min_stake]
+        for v in valis:
+            v['stakers'] = len(v['stake_from'])
+            v.pop('stake_from')
+        valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
+       
+        if  df:
             valis = c.df(valis)
-            valis.set_index('uid', inplace=True)
-            del valis['stake_from']
-            valis.sort_values('stake', ascending=False, inplace=True)
 
         return valis
 
@@ -2606,7 +2621,7 @@ class Subspace(c.Module):
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 
-                    features = ['Name', 'Address', 'Keys', 'Emission'],
+                    features = ['Name', 'Address', 'Keys'],
                     extra_features = [ 'Weights','Incentive','Dividends', 'Emission', 'DelegationFee', 'LastUpdate'],
                     lite = True,
                     vector_fetures = ['Incentive', 'Dividends', 'Emission'],
@@ -2620,6 +2635,10 @@ class Subspace(c.Module):
         if not lite:
             features += extra_features
         path = f'{self.network}/modules/{subnet}'
+        if lite:
+            path += '/lite'
+        else:
+            path += '/full'
         modules = self.get(path, None, max_age=max_age, update=update)
         update = bool(modules == None)
         c.print(f'MODULES(subnet={subnet} update={update})')
@@ -2668,7 +2687,6 @@ class Subspace(c.Module):
             modules = sorted(modules, key=lambda x: x["emission"], reverse=True)
             for i,m in enumerate(modules):
                 m['rank'] = i
-                m['emission'] = self.format_amount(m['emission'], fmt='j')
 
         if search:
             modules = [m for m in modules if search in m['name']]
