@@ -21,11 +21,11 @@ from typing import Optional
 
 from .utils import version_tuple
 
-from commune.modules.substrate.exceptions import ExtrinsicFailedException, DeployContractFailedException, \
+from .exceptions import ExtrinsicFailedException, DeployContractFailedException, \
     ContractReadFailedException, ContractMetadataParseException, StorageFunctionNotFound
 from scalecodec.base import ScaleBytes, ScaleType
 from scalecodec.types import GenericContractExecResult
-from commune.modules.substrate.base import SubstrateInterface, Keypair, ExtrinsicReceipt
+from .base import SubstrateInterface, Keypair, ExtrinsicReceipt
 
 __all__ = ['ContractExecutionReceipt', 'ContractMetadata', 'ContractCode', 'ContractInstance', 'ContractEvent']
 
