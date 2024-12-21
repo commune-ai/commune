@@ -10,6 +10,7 @@ import os
 import json
 import asyncio
 
+
 class Middleware(BaseHTTPMiddleware):
     def __init__(self, app, max_bytes: int):
         super().__init__(app)
@@ -24,7 +25,6 @@ class Middleware(BaseHTTPMiddleware):
             return JSONResponse(status_code=413, content={"error": "Request too large"})
         response = await call_next(request)
         return response
-
 
 class Server(c.Module):
     tag_seperator:str='::'
@@ -70,9 +70,6 @@ class Server(c.Module):
         self.set_user_path(users_path)
         self.start_server()
 
-    def set_user_path(self, users_path):
-        self.users_path = users_path or self.resolve_path(f'users/{self.module.name}')
-
     def set_name(self, name):
         self.module.name = name
         return {'success':True, 'message':f'Set name to {name}'}
@@ -99,15 +96,14 @@ class Server(c.Module):
                 print('Adding function', f)
                 setattr(self, fn.__name__, fn)
                 functions[i] = fn.__name__
-
         functions  =  sorted(list(set(functions + helper_functions)))
         module = self.module
         functions =  functions or []
         for k in functions_attributes:
             if hasattr(module, k):
-                function_addributes = getattr(module, k)
-                if isinstance(function_addributes, list):
-                    functions += function_addributes
+                print('Found ', k)
+                functions = getattr(module, k)
+                break
         # get function decorators form c.endpoint()
 
         for f in dir(module):
@@ -122,18 +118,13 @@ class Server(c.Module):
         schema = {}
         for fn in functions :
             if hasattr(module, fn):
-                fn_obj = getattr(module, fn )
-                if callable(fn_obj):
-                    schema[fn] = c.schema(fn_obj)
-                else: 
-                    schema[fn] = {'type': str(type(fn_obj)).split("'")[1]}
+                schema[fn] = c.schema(getattr(module, fn ))
+            else:
+                print(f'Function {fn} not found in {module.name}')
         module.schema = dict(sorted(schema.items()))
-
-
 
         if not hasattr(module, 'fn2cost'):
             module.fn2cost = fn2cost or {}
-
 
         ### get the info for the module
         module.info = {
@@ -148,8 +139,6 @@ class Server(c.Module):
             "time": c.time()
         }
 
-
-
     def set_user_path(self, users_path):
         self.users_path = users_path or self.resolve_path(f'users/{self.module.name}')
 
@@ -160,7 +149,6 @@ class Server(c.Module):
         module.crypto_type = module.key.crypto_type
         return {'success':True, 'message':f'Set key to {module.key.ss58_address}'}
     
-
     def start_server(self,
             max_bytes = 10 * 1024 * 1024 , # max bytes within the request (bytes)
             allow_origins  = ["*"], # allowed origins
@@ -217,7 +205,6 @@ class Server(c.Module):
         self.module = module
         return {'success':True, 'message':f'Set port to {port}'}
     
-
     def is_admin(self, address):
         return c.is_admin(address)
 
@@ -225,28 +212,24 @@ class Server(c.Module):
                    address:str,  
                    fn: str= 'info', 
                    multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1},
-                   rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake2rate': 1000, 'admin': 10000}, # the maximum rate 
+                   rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000}, # the maximum rate 
                 ) -> float:
         # stake rate limit
         module = self.module
-        if c.is_admin(address) or address == module.key.ss58_address:
+        if c.is_admin(address):
             return rates['admin']
-        if address in self.address2key:
+        elif address == module.key.ss58_address:
+            return rates['owner']
+        elif address in self.address2key:
             return rates['local']
-        stake_score = self.state['stake'].get(address, 0) + multipliers['stake']
-        stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * multipliers['stake_to']
-        stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * multipliers['stake_from']
-        stake = stake_score + stake_to_score + stake_from_score
-        rates['stake2rate'] = rates['stake2rate'] * module.fn2cost.get(fn, 1)
-        return min((stake / rates['stake2rate']), rates['max'])
-    
-
-    def serialize(self, data):
-        return self.serializer.serialize(data)
-
-    def deserialize(self, data):
-        return self.serializer.deserialize(data)
-    
+        else:
+            stake_score = self.state['stake'].get(address, 0) + multipliers['stake']
+            stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * multipliers['stake_to']
+            stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * multipliers['stake_from']
+            stake = stake_score + stake_to_score + stake_from_score
+            rates['stake'] = rates['stake'] * module.fn2cost.get(fn, 1)
+            return min((stake / rates['stake']), rates['max'])
+        
     def verify_request(self, fn:str, data:dict, headers:dict ):
         if self.free: 
             assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
@@ -256,14 +239,12 @@ class Server(c.Module):
         auth={'data': data, 'time': str(headers['time'])}
         signature = headers['signature']
         rate_limit = self.rate_limit(fn=fn, address=headers['key'])
-        count = self.user_count(headers['key'])
+        count = self.user_call_count(headers['key'])
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
         assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
         return True
     
-
     def get_data(self, request: Request):
-
         data = self.loop.run_until_complete(request.json())
         # data = self.serializer.deserialize(data) 
         if isinstance(data, str):
@@ -302,27 +283,24 @@ class Server(c.Module):
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
-            fn_obj = getattr(module, fn)
+            fn_obj = getattr(self, fn)
         else:
-            raise Exception("FN NOT FOUND")
+            raise Exception(f"{fn} not found in {module.name}")
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.time() - headers['time']
         if c.is_generator(result):
             output = ''
-            def generator_wrapper(generator):
-                
-                try:
-                    for item in generator:
-                        output += self.serialize(item)
-                        yield item
-                except Exception as e:
-                    yield str(c.detailed_error(e))
+            def generator_wrapper(generator,):
+                for item in generator:
+                    yield item
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)
+        
         if self.free:
             return result
-        user_data = {'fn': fn,
+        user_data = {
+                'fn': fn,
                 'data': data, # the data of the request
                 'output': output, # the response
                 'time': headers["time"], # the time of the request
@@ -368,7 +346,6 @@ class Server(c.Module):
         state['stake'] = {}
         state['stake_to'] = {}
         state['stake_from'] = {}
-
         if update:
             try  : 
                 c.namespace(max_age=max_age)
@@ -401,7 +378,6 @@ class Server(c.Module):
                 if name in namespace:
                     try:
                         result = c.call(namespace[name]+'/info')
-                        print(result)
                         if 'key' in result:
                             c.print(f'{name} is running', color='green')
                         return result
@@ -421,39 +397,26 @@ class Server(c.Module):
 
     @classmethod
     def endpoint(cls, 
-                 cost=1, # cost per call 
+                 cost = 1,
                  user2rate : dict = None, 
                  rate_limit : int = 100, # calls per minute
                  timestale : int = 60,
                  public:bool = False,
-                 cost_keys = ['cost', 'w', 'weight'],
                  **kwargs):
-        
-        for k in cost_keys:
-            if k in kwargs:
-                cost = kwargs[k]
-                break
-
         def decorator_fn(fn):
             metadata = {
-                **c.schema(fn),
+                'schema':c.schema(fn),
                 'cost': cost,
                 'rate_limit': rate_limit,
                 'user2rate': user2rate,   
                 'timestale': timestale,
                 'public': public,            
             }
-            import commune as c
             fn.__dict__['__metadata__'] = metadata
-
             return fn
-
         return decorator_fn
     
     serverfn = endpoint
-
-
-
 
     @classmethod
     def kill(cls, name:str, verbose:bool = True, **kwargs):
@@ -508,10 +471,8 @@ class Server(c.Module):
             logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
         if name != None:
             return logs_path_map.get(name, {})
-
         return logs_path_map
 
-   
     @classmethod
     def rm_logs( cls, name):
         logs_map = cls.logs_path_map(name)
@@ -519,8 +480,7 @@ class Server(c.Module):
             c.rm(logs_map[k])
 
     @classmethod
-    def logs(cls, module:str,  tail: int =100,   mode: str ='cmd',
-                **kwargs):
+    def logs(cls, module:str,  tail: int =100,   mode: str ='cmd', **kwargs):
         
         if mode == 'local':
             text = ''
@@ -550,7 +510,7 @@ class Server(c.Module):
         return c.wait(futures)
     
     @classmethod
-    def launch(cls, 
+    def start_process(cls, 
                   fn: str = 'serve',
                    module:str = None,  
                    name:Optional[str]=None, 
@@ -566,7 +526,6 @@ class Server(c.Module):
                    refresh:bool=True , 
                    **extra_kwargs):
         env = env or {}
-        # get the module and fn
         if '/' in fn:
             module, fn = fn.split('/')
         module = module or cls.module_name()
@@ -574,20 +533,14 @@ class Server(c.Module):
         if refresh:
             cls.kill(name)
         cmd = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
-        if not autorestart :
-            cmd += cmd + ' --no-autorestart'
-        if force:
-            cmd = cmd + ' -f '
-        kwargs =  {'module': module , 
-                   'fn': fn, 
-                   'args': args or [], 
-                   'kwargs': kwargs or {} }
+        cmd = cmd  if autorestart else ' --no-autorestart' 
+        cmd = cmd + ' -f ' if force else cmd
+        kwargs =  {'module': module ,  'fn': fn, 'args': args or [],  'kwargs': kwargs or {} }
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
-        print(cmd)
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
-    remote_fn = launch
+    remote_fn = launch = start_process
 
     @classmethod
     def restart(cls, name:str):
@@ -619,8 +572,6 @@ class Server(c.Module):
     def process_exists(cls, name:str, **kwargs) -> bool:
         return name in cls.processes(**kwargs)
 
-
-
     @classmethod
     def serve(cls, 
               module: Any = None,
@@ -643,7 +594,7 @@ class Server(c.Module):
         if remote:
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_kwargs', 'response', 'namespace']}
             rkwargs['remote'] = False
-            cls.launch('serve', name=name, kwargs=rkwargs, cwd=cwd)
+            cls.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions = functions, kwargs=kwargs, port=port,  key=key, free = free)
 
@@ -651,10 +602,19 @@ class Server(c.Module):
         try:
             x = float(x.split('/')[-1].split('.')[0])
         except Exception as e:
-            c.print(e)
             x = 0
         return x
 
+    @classmethod
+    def fleet(cls, module, n=10, timeout=10):
+        futures = [ c.submit(c.serve, {'module':module + '::' + str(i)}, timeout=timeout) for i in range(n)]
+        progress = c.progress(futures)
+        results = []
+        for f in c.as_completed(futures, timeout=timeout):
+            r = f.result()
+            results.append(r)
+            progress.update()
+        return results
     def remove_user_data(self, address):
         return c.rm(self.user_path(address))
 
@@ -664,15 +624,27 @@ class Server(c.Module):
     def user2count(self):
         user2count = {}
         for user in self.users():
-            user2count[user] = self.user_count(user)
+            user2count[user] = self.user_call_count(user)
         return user2count
+    
+    def history(self, user):
+        return self.user_data(user)
+    
+    def user2fn2count(self):
+        user2fn2count = {}
+        for user in self.users():
+            user2fn2count[user] = {}
+            for user_data in self.user_data(user):
+                fn = user_data['fn']
+                user2fn2count[user][fn] = user2fn2count[user].get(fn, 0) + 1
+        return user2fn2count
 
-    def user_paths(self, address ):
+    def user_call_paths(self, address ):
         user_paths = c.glob(self.user_path(address))
         return sorted(user_paths, key=self.extract_time)
     
     def user_data(self, address, stream=False):
-        user_paths = self.user_paths(address)
+        user_paths = self.user_call_paths(address)
         if stream:
             def stream_fn():
                 for user_path in user_paths:
@@ -685,23 +657,26 @@ class Server(c.Module):
     def user_path(self, key_address):
         return self.users_path + '/' + key_address
 
-    def user_count(self, user):
+    def user_call_count(self, user):
         self.check_user_data(user)
-        return len(self.user_paths(user))
+        return len(self.user_call_paths(user))
+    
+    def users(self):
+        return os.listdir(self.users_path)
     
     def user_path2time(self, address):
-        user_paths = self.user_paths(address)
+        user_paths = self.user_call_paths(address)
         user_path2time = {user_path: self.extract_time(user_path) for user_path in user_paths}
         return user_path2time
     
-    def user_path2latency(self, address):
-        user_paths = self.user_paths(address)
+    def user_call_path2latency(self, address):
+        user_paths = self.user_call_paths(address)
         t0 = c.time()
         user_path2time = {user_path: t0 - self.extract_time(user_path) for user_path in user_paths}
         return user_path2time
     
     def check_user_data(self, address):
-        path2latency = self.user_path2latency(address)
+        path2latency = self.user_call_path2latency(address)
         for path, latency  in path2latency.items():
             if latency > self.user_data_lifetime:
                 c.print(f'Removing stale path {path} ({latency}/{self.period})')

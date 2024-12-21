@@ -308,7 +308,6 @@ class ThreadPoolExecutor(c.Module):
         for future in c.as_completed(futures):
             results += [future.result()]
         return results
-
     
     @classmethod
     def test(cls):

@@ -220,13 +220,7 @@ class c:
     def pwd(cls):
         pwd = os.getcwd() # the current wor king directory from the process starts 
         return pwd
-
-    def help(self, module, *question):
-        code = c.code(module)
-        question = ' '.join(question)
-        prompt = f" {code} {question}"
-        return c.ask(prompt)
-                            
+    
     @classmethod
     def run(cls, fn=None, params=None, **_kwargs) -> Any: 
         if fn != None:
@@ -277,7 +271,6 @@ class c:
         kwargs = kwargs or {}
         return fn_obj(*args, **kwargs)
     
-    
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
     def setattr(self, k, v):
@@ -286,29 +279,6 @@ class c:
     def forward(self, *args, **kwargs):
         return c.ask(*args, **kwargs)
     
-    ### DICT LAND ###
-
-    def to_dict(self)-> Dict:
-        return self.__dict__
-    
-    @classmethod
-    def from_dict(cls, input_dict:Dict[str, Any]) -> 'Module':
-        return cls(**input_dict)
-        
-    def to_json(self) -> str:
-        state_dict = self.to_dict()
-        assert isinstance(state_dict, dict), 'State dict must be a dictionary'
-        assert c.jsonable(state_dict), 'State dict must be jsonable'
-        return json.dumps(state_dict)
-    
-    @classmethod
-    def from_json(cls, json_str:str) -> 'Module':
-        import json
-        return cls.from_dict(json.loads(json_str))
-
-    @classmethod
-    def test_fns(cls, *args, **kwargs):
-        return [f for f in cls.functions(*args, **kwargs) if f.startswith('test_')]
     tests_path = f'{libpath}/tests'
     @classmethod
     def pytest(cls, *args, **kwargs):
@@ -458,15 +428,7 @@ class c:
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
-    
-    
-    @classmethod
-    def num_utils(cls, search=None):
-        return len(cls.utils(search))
-
-    cache = {}
-
-    
+        
     @classmethod
     def util2path(cls, search=None):
         utils_paths = cls.utils(search=search)
@@ -517,6 +479,15 @@ class c:
             routes[k] = routes.get(k , [])
             routes[k].append(v)
         return routes
+    @classmethod
+    def fn2schema(cls, module=None, search=None):
+        fn2schema = {}
+        for fn in c.functions(module):
+            if search != None and search not in fn:
+                continue
+            schema = c.schema(fn)
+            fn2schema[fn] = schema
+        return fn2schema
 
     @classmethod
     def fn2route(cls):
@@ -569,53 +540,6 @@ class c:
         return {'success': True, 'msg': 'enabled routes', 'latency': latency}
     
     @classmethod
-    def has_test_module(cls, module=None):
-        module = module or cls.module_name()
-        return cls.module_exists(cls.module_name() + '.test')
-    
-    @classmethod
-    def test(cls,
-              module=None,
-              timeout=42, 
-              trials=3, 
-              parallel=True,
-              ):
-        if module == None:
-            return c.cmd(f'pytest {c.tests_path}')
-        module = module or cls.module_name()
-
-        if c.module_exists( module + '.test'):
-            module =  module + '.test'
-        module = c.module(module)()
-        test_fns = module.test_fns()
-
-        def trial_wrapper(fn, trials=trials):
-            def trial_fn(trials=trials):
-
-                for i in range(trials):
-                    try:
-                        return fn()
-                    except Exception as e:
-                        print(f'Error: {e}, Retrying {i}/{trials}')
-                        cls.c.sleep(1)
-                return False
-            return trial_fn
-        fn2result = {}
-        if parallel:
-            future2fn = {}
-            for fn in test_fns:
-                f = c.submit(trial_wrapper(getattr(module, fn)), timeout=timeout)
-                future2fn[f] = fn
-            for f in cls.as_completed(future2fn, timeout=timeout):
-                fn = future2fn.pop(f)
-                fn2result[fn] = f.result()
-        else:
-            for fn in cls.test_fns():
-                print(f'testing {fn}')
-                fn2result[fn] = trial_wrapper(getattr(cls, fn))()       
-        return fn2result
-    
-    @classmethod
     def is_class(cls, obj):
         return inspect.isclass(obj)
     
@@ -635,9 +559,7 @@ class c:
                 except:
                     fn = getattr(Module, f)
                 return fn(*args, **kwargs)
-        
             globals_input[f] = partial(wrapper_fn, f)
-
         return globals_input
 
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
@@ -652,13 +574,6 @@ class c:
         self.config = config 
         return self.config
 
-    def config_exists(self, path:str=None) -> bool:
-        '''
-        Returns true if the config exists
-        '''
-        path = path if path else self.config_path()
-        return self.path_exists(path)
-
     @classmethod
     def config(cls, module=None, to_munch=True) -> 'Munch':
         '''
@@ -669,44 +584,8 @@ class c:
         if os.path.exists(path):
             config = c.load_yaml(path)
         else:
-            config = c.init_kwargs(module)
-        if to_munch:
-            config =  c.dict2munch(config)
-        return config
-    
-    @classmethod
-    def save_config(cls, config:Union['Munch', Dict]= None, path:str=None) -> 'Munch':
-        from copy import deepcopy
-        from munch import Munch
-        '''
-        Saves the config to a yaml file
-        '''
-        if config == None:
-            config = cls.config()
-        
-        if isinstance(config, Munch):
-            config = cls.munch2dict(deepcopy(config))
-        elif isinstance(config, dict):
-            config = deepcopy(config)
-        else:
-            raise ValueError(f'config must be a dict or munch, not {type(config)}')
-        
-        assert isinstance(config, dict), f'config must be a dict, not {config}'
-
-        config = cls.save_yaml(data=config , path=path)
-
-        return config
-      
-    @classmethod
-    def has_config(cls) -> bool:
-        try:
-            return os.path.exists(cls.config_path())
-        except:
-            return False
-    
-    def update_config(self, config):
-        self.config.update(config)
-        return self.config
+            config =  c.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
+        return c.dict2munch(config) if to_munch else config
 
     @classmethod
     def put_json(cls, 
@@ -736,15 +615,7 @@ class c:
             return [fn(v) for v in x]
         else:
             raise ValueError(f'Cannot map {x}')
-        
-    def test_map(self):
-        x = {'a':1, 'b':2}
-        fn = lambda x: x+1
-        assert self.map(x, fn) == {'a':2, 'b':3}
-        x = [1,2,3]
-        assert self.map(x, fn) == [2,3,4]
-        return {'success':True, 'message':'map test passed'}
-        
+
     @classmethod
     def rm(cls, path:str,
            possible_extensions = ['json'], 
@@ -793,17 +664,7 @@ class c:
         return data
     
     load_json = get_json
-
-    @classmethod
-    def path_exists(cls, path:str)-> bool:
-        if os.path.exists(path):
-            return True
-        path = cls.resolve_path(path)
-        exists =  os.path.exists(path)
-        return exists
     
-    file_exists = path_exists
-
     @classmethod
     def mv(cls, path1, path2):
         path1 = cls.resolve_path(path1)
@@ -844,7 +705,6 @@ class c:
     def abspath(cls, path:str):
         return os.path.abspath(os.path.expanduser(path))
     
-
     @classmethod
     def put_text(cls, path:str, text:str, key=None) -> None:
         # Get the absolute path of the file
@@ -1038,42 +898,20 @@ class c:
     @staticmethod
     def sleep(period):
         time.sleep(period) 
-    
-    def num_files(self, path:str='./')-> int:
-        import commune as c
-        return len(c.glob(path))
-            
+
     @classmethod
     def fn2code(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)
-        module_name = module.module_name()
         functions = module.fns()
         fn_code_map = {}
-    
         for fn in functions:
- 
             fn_code_map[fn] = c.code(getattr(module, fn))
-           
         return fn_code_map
     
     @classmethod
     def fn2hash(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)   
         return {k:c.hash(v) for k,v in c.fn2code(module).items()}
-    
-    @classmethod
-    def getsource(cls, fn):
-        obj = None
-        if isinstance(fn, str):
-            if c.object_exists(fn):
-                obj = c.obj(fn)
-            elif c.module_exists(fn):
-                obj = c.module(fn)
-
-     
-        assert obj != None, f'{fn} is not a function or object'
-        return inspect.getsource(obj)
-    
 
     @classmethod
     def fn_code(cls,fn:str, module=None,**kwargs) -> str:
@@ -1084,7 +922,6 @@ class c:
         fn = cls.get_fn(fn)      
         return inspect.getsource(fn)       
     
-
     @classmethod
     def is_generator(cls, obj):
         """
@@ -1112,6 +949,15 @@ class c:
                         
                             parents += [pp]
         return parents
+    
+    @classmethod
+    def module_schema(cls, module = None):
+        module = cls.resolve_module(module)
+        module_schema = {}
+        for fn in c.functions(module):
+            schema = c.schema(getattr(module, fn))
+            module_schema[fn] = schema
+        return module_schema
 
     @classmethod
     def schema(cls, fn:str = '__init__', **kwargs)->dict:
@@ -1119,38 +965,18 @@ class c:
         Get function schema of function in cls
         '''     
         schema = {}
+
         fn = cls.get_fn(fn)
+        if not callable(fn):
+            return {'fn_type': 'property', 'type': type(fn).__name__}
+
         for k,v in dict(inspect.signature(fn)._parameters).items():
             schema[k] = {
                     'default': "_empty"  if v.default == inspect._empty else v.default, 
                     'type': str(type(v.default)).split("'")[1]  if v.default == inspect._empty and v.default != None else v.annotation.__name__
             }
         return schema
-    
-    @classmethod
-    def init_kwargs(cls, obj = None, **kwargs):
-        obj = cls.resolve_module(obj)
-        fn = getattr(obj, '__init__')
-        kwargs =  c.kwargs(fn)
-        kwargs.pop('self', None)
-        if 'config' in kwargs:
-            if kwargs['config'] != None:
-                kwargs.update(kwargs.pop('config'))
-            del kwargs['config']
-        if 'kwargs' in kwargs:
-            if kwargs['kwargs'] != None:
-                kwargs = kwargs.pop('kwargs')
-            del kwargs['kwargs']
 
-        return kwargs
-    
-    init_params = init_kwargs
-    
-
-    @classmethod
-    def is_fn(cls, fn:str):
-        return '/' in str(fn) or hasattr(cls, str(fn)) or (c.object_exists(fn) and callable(c.obj(fn)))
-    
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
         obj = cls.resolve_module(module)
@@ -1160,47 +986,32 @@ class c:
     @classmethod
     def module_hash(cls, module=None,  *args, **kwargs):
         return c.hash(c.code(module or cls.module_name(), **kwargs))
-
-    @classmethod
-    def module_hash(cls, module=None,  *args, **kwargs):
-        return c.hash(c.code(module or cls.module_name(), **kwargs))
-
     @classmethod
     def code_hash(cls, module=None,  *args, **kwargs):
         return c.hash(c.code(module or cls.module_name(), **kwargs))
 
     @classmethod
-    def kwargs(cls, fn):
+    def dir(cls, module=None, search=None, **kwargs):
+        module = cls.resolve_module(module)
+        if search != None:
+            return [f for f in dir(module) if search in f]
+            
+        return dir(module)
+
+    @classmethod
+    def get_params(cls, fn):
         """
         Gets the function defaults
         """
         fn = cls.get_fn(fn)
-        function_defaults = dict(inspect.signature(fn)._parameters)
-        for k,v in function_defaults.items():
+        params = dict(inspect.signature(fn)._parameters)
+        for k,v in params.items():
             if v._default != inspect._empty and  v._default != None:
-                function_defaults[k] = v._default
+                params[k] = v._default
             else:
-                function_defaults[k] = None
-        return function_defaults
- 
-    @staticmethod
-    def is_class(obj):
-        '''
-        is the object a class
-        '''
-        return type(obj).__name__ == 'type'
-
-    @classmethod
-    def fn_signature(cls, fn) -> dict: 
-        '''
-        get the signature of a function
-        '''
-        if isinstance(fn, str):
-            fn = getattr(cls, fn)
-        return dict(inspect.signature(fn)._parameters)
+                params[k] = None
+        return params
     
-    function_signature = fn_signature
-
     @classmethod
     def class_functions(cls: Union[str, type], obj=None):
         '''
@@ -1291,6 +1102,7 @@ class c:
     @classmethod
     def exists(cls, path:str):
         return os.path.exists(path) or os.path.exists(cls.resolve_path(path))
+   
     @classmethod
     def is_fn(cls, fn, splitters = [':', '/', '.']):
         try:
@@ -1341,7 +1153,7 @@ class c:
         
     @classmethod
     def self_functions(cls, search = None):
-        fns =  cls.classify_fns(cls)['self']
+        fns =  c.classify_fns(cls)['self']
         if search != None:
             fns = [f for f in fns if search in f]
         return fns
@@ -1353,7 +1165,7 @@ class c:
         for attr_name in dir(obj):
             method_type = None
             try:
-                method_type = cls.classify_fn(getattr(obj, attr_name))
+                method_type = c.classify_fn(getattr(obj, attr_name))
             except Exception as e:
                 continue
             if method_type not in method_type_map:
@@ -1399,27 +1211,10 @@ class c:
     def num_fns(self):
         return len(self.fns())
     
-    @classmethod
-    def is_dir_module(cls, path:str) -> bool:
-        """
-        determine if the path is a module
-        """
-        filepath = cls.name2path(path)
-        if path.replace('.', '/') + '/' in filepath:
-            return True
-        if ('modules/' + path.replace('.', '/')) in filepath:
-            return True
-        return False
-    
     @staticmethod
     def is_imported(package:str) :
         return  bool(package in sys.modules)
-    
-    @classmethod
-    def is_parent(cls, obj=None):
-        obj = obj or cls 
-        return bool(obj in cls.get_parents())
-    
+
     @classmethod
     def find_lines(self, text:str, search:str) -> List[str]:
         """
@@ -1488,7 +1283,7 @@ class c:
                 path_options += [module_filepath]
 
             for p in path_options:
-                p = cls.resolve_extension(p)
+                p = p + extension if p.endswith(extension) else p 
                 if os.path.exists(p):
                     p_text = cls.get_text(p)
                     path =  p
@@ -1598,44 +1393,16 @@ class c:
         classes = [file_path + '.' + c for c in classes]
         return classes
 
-    @classmethod
-    def find_class2functions(cls, path):
+        
+    @staticmethod
+    def round(x, sig=6, small_value=1.0e-9):
+        import math
+        """
+        rounds a number to a certain number of significant figures
+        """
+        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
-        path = os.path.abspath(path)
-        if os.path.isdir(path):
-            class2functions = {}
-            for p in cls.glob(path+'/**/**.py', recursive=True):
-                if p.endswith('.py'):
-                    object_path = cls.path2objectpath(p)
-                    response =  cls.find_class2functions(p )
-                    for k,v in response.items():
-                        class2functions[object_path+ '.' +k] = v
-            return class2functions
 
-        code = cls.get_text(path)
-        classes = []
-        class2functions = {}
-        class_functions = []
-        new_class = None
-        for line in code.split('\n'):
-            if all([s in line for s in ['class ', ':']]):
-                new_class = line.split('class ')[-1].split('(')[0].strip()
-                if new_class.endswith(':'):
-                    new_class = new_class[:-1]
-                if ' ' in new_class:
-                    continue
-                classes += [new_class]
-                if len(class_functions) > 0:
-                    class2functions[new_class] = cls.copy(class_functions)
-                class_functions = []
-            if all([s in line for s in ['   def', '(']]):
-                fn = line.split(' def')[-1].split('(')[0].strip()
-                class_functions += [fn]
-        if new_class != None:
-            class2functions[new_class] = class_functions
-
-        return class2functions
-    
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
         
@@ -1687,7 +1454,9 @@ class c:
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
         return object_paths
+    
     objs = get_objects 
+
     @staticmethod
     def ensure_sys_path():
         if not hasattr(c, 'included_pwd_in_path'):
@@ -1700,9 +1469,7 @@ class c:
             c.included_pwd_in_path = True
 
     @classmethod
-    def import_module(cls, 
-                      import_path:str, 
-                      ) -> 'Object':
+    def import_module(cls, import_path:str ) -> 'Object':
         from importlib import import_module
         c.ensure_sys_path()
         return import_module(import_path)
@@ -1719,6 +1486,7 @@ class c:
     @classmethod
     def obj(cls, key:str, **kwargs)-> Any:
         return c.get_object(key, **kwargs)
+    
     @classmethod
     def import_object(cls, key:str, **kwargs)-> Any:
         return c.get_object(key, **kwargs)
@@ -1749,10 +1517,6 @@ class c:
             module_exists =  False
         
         return module_exists
-    
-    @classmethod
-    def get_path(cls, module:str, **kwargs) -> bool:
-        return c.filepath(module, **kwargs)
     
     @classmethod
     def objectpath2name(cls, p, 
@@ -1816,8 +1580,7 @@ class c:
             tree = dict(zip(simple_paths, class_paths))
             c.put(tree_cache_path, tree)
         return tree
-
-
+    
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
@@ -1827,12 +1590,6 @@ class c:
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
-    
-    @classmethod
-    def overlapping_modules(cls, search:str=None, **kwargs):
-        local_modules = cls.local_modules(search=search)
-        core_modules = cls.core_modules(search=search)
-        return [m for m in local_modules if m in core_modules]
     
     @classmethod
     def core_modules(cls, search=None, depth=10000, **kwargs):
@@ -1863,11 +1620,6 @@ class c:
             modules = [m for m in modules if search in m]     
         return modules
     blocks = modules
-
-    @classmethod
-    def has_module(cls, module, path=None):
-        path = path or c.libpath
-        return module in c.modules()
 
     def net(self):
         return c.network()
@@ -1949,21 +1701,6 @@ class c:
     def root_key(cls):
         return cls.get_key()
 
-    @staticmethod
-    def round(x, sig=6, small_value=1.0e-9):
-        import math
-        """
-        Rounds x to the number of {sig} digits
-        :param x:
-        :param sig: signifant digit
-        :param small_value: smallest possible value
-        :return:
-        """
-        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-
-    str2hash = hash
-
-    
     @classmethod
     def remote_fn(cls, 
                     fn: str='train', 
@@ -1978,7 +1715,6 @@ class c:
                     cwd = None,
                     **extra_launch_kwargs
                     ):
-
         kwargs = c.locals2kwargs(kwargs)
         kwargs = kwargs if kwargs else {}
         args = args if args else []
@@ -2001,12 +1737,6 @@ class c:
             command += ' -f '
         command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
         return c.cmd(command, cwd=cwd)
-    
-    @staticmethod
-    def resolve_extension( filename:str, extension = '.py') -> str:
-        if filename.endswith(extension):
-                return filename
-        return filename + extension
     
 
     def repo2path(self, search=None):
@@ -2072,6 +1802,7 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True
+            
     
     @classmethod
     def module2fns(cls, path=None):
@@ -2295,8 +2026,11 @@ class c:
     "summary": ["reduce"]
 }
     
+
 c.add_routes()
 Module = c # Module is alias of c
+
+
 
 if __name__ == "__main__":
     Module.run()

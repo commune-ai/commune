@@ -242,7 +242,6 @@ class Client(c.Module):
         response = os.popen(' '.join(curl_cmd)).read()
         return response
         
-
     def __str__ ( self ):
         return "Client(address={})".format(self.address) 
     def __repr__ ( self ):

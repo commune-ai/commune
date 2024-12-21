@@ -750,8 +750,18 @@ def get_line(module, idx):
     assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'  
     line =  lines[max(idx, 0)]
     return line
-    
 
+def find_lines(text:str, search:str) -> List[str]:
+    """
+    Finds the lines in text with search
+    """
+    found_lines = []
+    lines = text.split('\n')
+    for line in lines:
+        if search in line:
+            found_lines += [line]
+    
+    return found_lines
 def file2lines(path:str='./')-> List[str]:
     result = file2text(path)
     return {f: text.split('\n') for f, text in result.items()}

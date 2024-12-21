@@ -6,19 +6,24 @@ import commune as c
 import json
 import os
 
-class query:
+class Find:
     model='anthropic/claude-3.5-sonnet-20240620:beta'
 
-    def forward(self,  options,  
+    def forward(self,  
               query='most relevant modules', 
-              output_format="DICT(data:list[[idx:int, score:float]])",  
-              anchor = 'OUTPUT', 
-              n=3,  
+              options: list[str] = [],  
+              n=10,  
+              threshold=0.5,
               model='anthropic/claude-3.5-sonnet-20240620:beta'):
 
-        front_anchor = f"<{anchor}>"
-        back_anchor = f"</{anchor}>"
+        front_anchor = f"<OUTPUT>"
+        back_anchor = f"</OUTPUT>"
         idx2options = {i:option for i, option in enumerate(options)}
+        home_path = c.resolve_path('~')
+        for idx, option in idx2options.items():
+            if option.startswith(home_path):
+                idx2options[idx] = option.replace(home_path, '~/')
+
         print(f"Querying {query} with options {options}")
         prompt = f"""
         QUERY
@@ -26,10 +31,10 @@ class query:
         OPTIONS 
         {idx2options} 
         INSTRUCTION 
-        only output the IDX:int  and score of the TOP {n} FUNCTIONS that match the query
+        only output the IDX:int  and score OF AT MOST {n} BUT YOU DONT NEED TO FOR SIMPLICITY
         OUTPUT
         (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
-        {front_anchor}{output_format}{back_anchor}
+        <OUTPUT>DICT(data:list[[idx:int, score:float]])</OUTPUT>
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
@@ -45,8 +50,7 @@ class query:
             output = output
         output = json.loads(output)
         assert len(output) > 0
-        output_idx_list =  [int(k) for k,v in output["data"]]
-        output = [options[i] for i in output_idx_list  if len(options) > i]
+        output = [options[idx] for idx, score in output["data"]  if len(options) > idx and score > threshold]
         return output
 
 
@@ -73,12 +77,21 @@ class query:
             file2lines[file] = found_lines
         return file2lines
 
-    def files(self, path='./',  query='the file that is the core of this folder',  n=3, model='anthropic/claude-3.5-sonnet-20240620:beta'):
-        files =  self.query(options=c.files(path), query=query, n=n, model=model)
+    def files(self,
+              query='the file that is the core of this folder',
+               path='./',  
+               model='anthropic/claude-3.5-sonnet-20240620:beta', 
+               n=30):
+        files =  c.files(path)
+        homepath = c.resolve_path('~/')
+        for i, file in enumerate(files):
+            if file.startswith(homepath):
+                files[i] = file.replace(homepath, '~/')
+        files =  self.forward(options=files, query=query, n=n, model=model)
         return [c.abspath(path+k) for k in files]
 
     def modules(self,  query='the filel that is the core of commune', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
-        return self.query(options=c.modules(), query=query, model=model)
+        return self.forward(options=c.modules(), query=query, model=model)
 
     def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
-        return self.query(query=query, options=c.get_utils(), model=model)
+        return self.forward(query=query, options=c.get_utils(), model=model)
