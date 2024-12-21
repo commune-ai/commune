@@ -1207,27 +1207,7 @@ class c:
             return 'class'
 
         return 'static'
-        
-    def num_fns(self):
-        return len(self.fns())
-    
-    @staticmethod
-    def is_imported(package:str) :
-        return  bool(package in sys.modules)
 
-    @classmethod
-    def find_lines(self, text:str, search:str) -> List[str]:
-        """
-        Finds the lines in text with search
-        """
-        found_lines = []
-        lines = text.split('\n')
-        for line in lines:
-            if search in line:
-                found_lines += [line]
-        
-        return found_lines
-    
     @classmethod
     def name2path(cls, 
                     simple:str,
@@ -1837,7 +1817,6 @@ class c:
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
     
-
     routes = {
     "vali": [
         "run_epoch",
@@ -1887,15 +1866,11 @@ class c:
         "valid_ss58_address",
         "valid_h160_address",
         "add_key",
-        "from_password",
         "str2key",
         "pwd2key",
-        "getmem",
-        "mem",
         "mems",
         "switch_key",
-        "module_info",
-        "rename_kefy",
+        "rename_key",
         "mv_key",
         "add_keys",
         "key_exists",
@@ -1978,7 +1953,7 @@ class c:
 
     "subspace": [
         "transfer_stake",
-        "stake_trnsfer",
+        "stake_transfer",
         "switch",
         "switchnet",
         "subnet",
@@ -1994,7 +1969,6 @@ class c:
         "subnets",
         "send",
         "my_keys",
-        "key2value",
         "transfer",
         "multistake",
         "stake",
@@ -2017,11 +1991,7 @@ class c:
         "registered_subnets",
         "registered_netuids"
     ],
-    "model.openrouter": [
-        "generate",
-        "models"
-    ],
-    "agent": [ "models", "pricing",  "model2info", "reduce"],
+    "agent": [ "models",  "model2info", "reduce", "generate"],
     "builder": ["build"],
     "summary": ["reduce"]
 }

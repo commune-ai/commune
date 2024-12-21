@@ -7,9 +7,10 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, Mapping, TypeVar, cast, List, Dict, Optional
 from collections import defaultdict
-from commune.modules.substrate.storage import StorageKey
-from commune.modules.substrate import (ExtrinsicReceipt,  Keypair, SubstrateInterface)# type: ignore
-from commune.modules.subspace.types import (ChainTransactionError,
+from .storage import StorageKey
+from .key import  Keypair# type: ignore
+from .base import ExtrinsicReceipt, SubstrateInterface
+from .types import (ChainTransactionError,
                                     NetworkQueryError, 
                                     SubnetParamsMaps, 
                                     SubnetParamsWithEmission,
