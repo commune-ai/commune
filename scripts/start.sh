@@ -15,4 +15,5 @@ fi
     --restart unless-stopped \
     --privileged \
     $NAME"
+  echo "Starting $NAME"
   eval docker run $CONTAINER_PARAMS
