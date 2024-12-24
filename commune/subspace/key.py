@@ -80,7 +80,6 @@ import nacl.bindings
 import nacl.public
 from eth_keys.datatypes import PrivateKey
 
-from .constants import DEV_PHRASE
 from .exceptions import ConfigurationError
 from .utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
 from .utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
@@ -88,6 +87,9 @@ from .utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra
+
+DEV_PHRASE = 'bottom drive obey lake curtain smoke basket hold race lonely fit walk'
+
 
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
 

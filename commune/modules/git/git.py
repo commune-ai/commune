@@ -1,9 +1,16 @@
 import commune as c
 import subprocess
+import requests
+import base64
+import re
 
 
 class git(c.Module):
 
+    def __init__(self, repo_url='commune-ai/commune'):
+        self.repo_url = repo_url
+        self.api_base = "https://api.github.com"
+        self.repo_path = self._get_repo_path()
     def is_repo(self, libpath:str ):
         # has the .git folder
         return c.cmd(f'ls -a {libpath}').count('.git') > 0
@@ -134,3 +141,76 @@ class git(c.Module):
         url = f"https://github.com/{username_or_org}?tab=repositories"
         # response = requests.get(url)
         return c.module('web')().page_content(url)["links"]
+    
+        
+    def _get_repo_path(self):
+        """Extract repository path from URL"""
+        return "/".join(self.repo_url.split("github.com/")[1].split("/"))
+
+    def get_file_content(self, path):
+        """Get content of a specific file"""
+        url = f"{self.api_base}/repos/{self.repo_path}/contents/{path}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            content = response.json()
+            if content.get("encoding") == "base64":
+                return base64.b64decode(content["content"]).decode()
+        return None
+
+    def get_directory_contents(self, path=""):
+        """Get contents of a directory"""
+        url = f"{self.api_base}/repos/{self.repo_path}/contents/{path}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Failed to get contents of {path}") 
+            print(response.text)
+        return []
+
+    def process_code(self, code_content):
+        """Process the code content - example processing"""
+        if not code_content:
+            return None
+        
+        # Example processing:
+        # 1. Remove comments
+        code_content = re.sub(r'#.*', '', code_content)
+        code_content = re.sub(r'"""[\s\S]*?"""', '', code_content)
+        
+        # 2. Remove empty lines
+        code_content = "\n".join([line for line in code_content.split("\n") if line.strip()])
+        
+        return code_content
+
+    def process_repository(self, path=""):
+        """Process entire repository recursively"""
+        processed_files = {}
+        contents = self.get_directory_contents(path)
+        
+        for item in contents:
+            if isinstance(item, dict):
+                if item["type"] == "file" and item["name"].endswith(".py"):
+                    content = self.get_file_content(item["path"])
+                    processed_content = self.process_code(content)
+                    processed_files[item["path"]] = processed_content
+                elif item["type"] == "dir":
+                    sub_processed = self.process_repository(item["path"])
+                    processed_files.update(sub_processed)
+                    
+        return processed_files
+
+    @classmethod
+    def test(cls):
+        # Initialize processor
+        processor = cls("https://github.com/commune-ai/eliza")
+        
+        # Process repository
+        processed_files = processor.process_repository()
+        
+        # Print results
+        file2content = {file_path: processed_content if processed_content else "No content" for file_path, processed_content in processed_files.items()}
+        for file_path, processed_content in processed_files.items():
+            print(f"\nFile: {file_path}")
+            print("Processed content:")
+            print(processed_content[:200] + "..." if processed_content else "No content")

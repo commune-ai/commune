@@ -39,9 +39,30 @@ from .storage import StorageKey
 
 from .exceptions import SubstrateRequestException, ConfigurationError, StorageFunctionNotFound, BlockNotFound, \
     ExtrinsicNotFound, ExtensionCallNotFound
-from .constants import *
 from .key import Keypair, KeypairType, MnemonicLanguageCode
 from .utils.ss58 import ss58_decode, ss58_encode, is_valid_ss58_address, get_ss58_format
+
+
+WELL_KNOWN_STORAGE_KEYS = {
+    "Code": {
+        "storage_key": "0x3a636f6465",
+        "value_type_string": "RawBytes",
+        "docs": "Wasm code of the runtime",
+        "default": '0x'
+    },
+    "HeapPages": {
+        "storage_key": "0x3a686561707061676573",
+        "value_type_string": "u64",
+        "docs": "Number of wasm linear memory pages required for execution of the runtime.",
+        "default": "0x0000000000000000"
+    },
+    "ExtrinsicIndex": {
+        "storage_key": "0x3a65787472696e7369635f696e646578",
+        "value_type_string": "u32",
+        "docs": "Number of wasm linear memory pages required for execution of the runtime.",
+        "default": "0x00000000"
+    },
+}
 
 
 __all__ = ['SubstrateInterface', 'ExtrinsicReceipt', 'logger']

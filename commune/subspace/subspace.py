@@ -2463,7 +2463,6 @@ class Subspace(c.Module):
     
     
     def my_subnets(self, update=False):
-        c.print("===========MY SUBNETS=========")
         subnet2params = self.params(update=update)
         address2key = c.address2key()
         results = []
@@ -2473,9 +2472,8 @@ class Subspace(c.Module):
                         'netuid': netuid,  
                         'founder': address2key[params['founder']],
                         'tempo': params['tempo'],
-                        'incentive_ratio': params['incentive_ratio'],
-                        'immunity_period': params['immunity_period'],
                         'emission': params['emission'],
+                        'metadata': params['metadata'],
                         }
                 results += [row]
         # group by founder

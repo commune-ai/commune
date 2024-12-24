@@ -88,7 +88,7 @@ class c:
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
-        module.resolve_path = lambda p, **kwargs : c.resolve_path(c.storage_path + '/' + module.module_name() + p, **kwargs)
+        module.storage_dir = lambda *args, **kwargs : c.storage_dir(module)
         module.filepath = lambda *args, **kwargs : c.filepath(module)
         module.dirpath = lambda *args, **kwargs : c.dirpath(module)
         module.code = lambda *args, **kwargs : c.code(module)
@@ -165,8 +165,9 @@ class c:
         return sys.path
     
     @classmethod
-    def storage_dir(cls):
-        return f'{c.storage_path}/{cls.module_name()}'
+    def storage_dir(cls, module=None):
+        module = cls.resolve_module(module)
+        return f'{c.storage_path}/{module.module_name()}'
 
     @classmethod
     def is_module(cls, obj) -> bool:
@@ -343,7 +344,6 @@ class c:
     def decrypt(cls, data: Any,  password : str = None, key: str = None, **kwargs) -> bytes:
         return c.get_key(key).decrypt(data, password=password)
     
-    
     @classmethod
     def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
         return c.get_key(key).sign(data, **kwargs)
@@ -493,7 +493,7 @@ class c:
         tree = c.tree()
         for module, fns in routes.items():
             is_module = bool( module in tree)
-            splitter = '/' if  is_module else '.'
+            splitter = '/' if  is_module else '/'
             for fn in fns:
                 fn2route[fn] =  module + splitter + fn
         return fn2route
@@ -572,7 +572,7 @@ class c:
         return self.config
 
     @classmethod
-    def config(cls, module=None, to_munch=True) -> 'Munch':
+    def config(cls, module=None, to_munch=True, fn='__init__') -> 'Munch':
         '''
         Returns the config
         '''
@@ -677,21 +677,24 @@ class c:
         return path2
 
     @classmethod
-    def resolve_path(cls, path:str = None, extension:Optional[str]=None):
+    def resolve_path(cls, 
+                     path:str = None, 
+                     extension:Optional[str]=None, 
+                     storage_dir=None) -> str:
         '''
         Abspath except for when the path does not have a
         leading / or ~ or . in which case it is appended to the storage dir
         '''
-        if path == None:
-            return cls.storage_dir()
+        storage_dir = storage_dir or cls.storage_dir()
+        if path == None :
+            return storage_dir
         if path.startswith('/'):
             path = path
-        elif path.startswith('~') :
+        elif path.startswith('~/') :
             path = os.path.expanduser(path)
-        elif path.startswith('.'):
+        elif path.startswith('./'):
             path = os.path.abspath(path)
         else:
-            storage_dir = cls.storage_dir()
             if storage_dir not in path:
                 path = os.path.join(storage_dir, path)
         if extension != None and not path.endswith(extension):
@@ -889,10 +892,6 @@ class c:
         except:
             return False
 
-    @classmethod
-    def storage_dir(cls):
-        return f'{c.storage_path}/{cls.module_name()}'
-    
     @staticmethod
     def sleep(period):
         time.sleep(period) 
@@ -1456,13 +1455,18 @@ class c:
         return import_module(import_path)
     
     @classmethod
-    def get_object(cls, key:str, **kwargs)-> Any:
+    def get_object(cls, key:str, splitters=['/', '::', ':',  '.'], **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
-        key = key.replace('/', '.')
-        if '/' in key:
-            key = key.replace('/', '.')
-        module_obj = c.import_module('.'.join(key.split('.')[:-1]))
-        return  getattr(module_obj, key.split('.')[-1])
+        module_path = None
+        object_name = None
+        for splitter in splitters:
+            if splitter in key:
+                module_path = '.'.join(key.split(splitter)[:-1])
+                object_name = key.split(splitter)[-1]
+                break
+        assert module_path != None and object_name != None, f'Invalid key {key}'
+        module_obj = c.import_module(module_path)
+        return  getattr(module_obj, object_name)
     
     @classmethod
     def obj(cls, key:str, **kwargs)-> Any:
@@ -1901,8 +1905,8 @@ class c:
     ],
     "network": [
         "networks",
-        "register_server",
-        "deregister_server",
+        "add_server",
+        "remove_server",
         "server_exists",
         "add_server",
         "has_server",

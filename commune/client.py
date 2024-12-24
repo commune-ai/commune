@@ -7,7 +7,7 @@ import requests
 import os
 import commune as c
 
-class Client(c.Module):
+class Client:
 
     def __init__( self, 
                 module : str = 'module', 
@@ -73,6 +73,7 @@ class Client(c.Module):
             address, fn = address.split('/')
         else:
             address = self.address
+        print('address', address, self.address)
         address = address if address.startswith(mode) else f'{mode}://{address}'
         return f"{address}/{fn}/"
 
@@ -176,13 +177,12 @@ class Client(c.Module):
             else:
                 return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
 
-    def get_header(self, data, key):
-        headers = {
-            'Content-Type': 'application/json',
+    def get_header(self, data, key: 'Key'):
+        time_str = str(c.time())
+        return {
             'key': key.ss58_address,
             'crypto_type': str(key.crypto_type),
-            'time': str(c.time()),
-        }
-        headers['signature'] =  key.sign({'data': data, 'time': headers['time']}).hex()
-
-        return headers 
+            'time': time_str,
+            'Content-Type': 'application/json',
+            'signature':  key.sign({'data': data, 'time': time_str}).hex()
+        } 
