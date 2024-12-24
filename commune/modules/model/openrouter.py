@@ -142,7 +142,7 @@ class OpenRouter(c.Module):
         models = {m['id']:m for m in models}
         return models
     
-    def models(self, search: str = None, path='models', max_age=0, update=False):
+    def models(self, search: str = None, path='models', max_age=60, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
 
     

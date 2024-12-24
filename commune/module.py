@@ -46,8 +46,6 @@ class c:
         'network.local': 'network',
         }
     splitters = [':', '/', '.']
-
-
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -87,10 +85,10 @@ class c:
     
     @classmethod
     def convert_module(cls, module):
-
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
+        module.resolve_path = lambda p, **kwargs : c.resolve_path(c.storage_path + '/' + module.module_name() + p, **kwargs)
         module.filepath = lambda *args, **kwargs : c.filepath(module)
         module.dirpath = lambda *args, **kwargs : c.dirpath(module)
         module.code = lambda *args, **kwargs : c.code(module)
@@ -105,7 +103,6 @@ class c:
                 args = [module.code()] + list(args)
                 return c.ask(*args, **kwargs)
             module.ask = ask
-        
         return module
     
     @classmethod
@@ -757,7 +754,7 @@ class c:
         encrypt = encrypt or password != None
         
         if encrypt or password != None:
-            v = cls.encrypt(v, password=password)
+            v = c.encrypt(v, password=password)
 
         if not c.jsonable(v):
             v = c.serialize(v)    
@@ -780,6 +777,7 @@ class c:
             full :bool = False, 
             update :bool = False,
             password : str = None,
+            time_features = ['timestamp', 'time'],
             verbose = False,
             **kwargs) -> Any:
         
@@ -801,7 +799,7 @@ class c:
             max_age = 0
         if max_age != None:
             timestamp = 0
-            for k in ['timestamp', 'time']:
+            for k in time_features:
                 if k in data:
                     timestamp = data[k]
                     break
@@ -1361,7 +1359,6 @@ class c:
         code = cls.get_text(path)
         classes = []
         file_path = cls.path2objectpath(path)
-
         for line in code.split('\n'):
             if line.startswith(class_prefix) and line.strip().endswith(class_suffix):
                 new_class = line.split(class_prefix)[-1].split('(')[0].strip()
@@ -1372,6 +1369,10 @@ class c:
                 classes += [new_class]
         classes = [file_path + '.' + c for c in classes]
         return classes
+    
+    @classmethod
+    def classes(cls, path='./', depth=8, **kwargs):
+        return cls.find_classes(path, depth=depth, **kwargs)
 
         
     @staticmethod

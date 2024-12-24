@@ -168,7 +168,7 @@ class Agent:
         return self.model.models()
     
 
-    def score(self, module, **kwargs):
+    def score(self, module:str, **kwargs):
         if c.exists(module):
             code = c.file2text(module)
         else:

@@ -1053,7 +1053,7 @@ def free_port(ports = None,
         port_range = c.get_port_range(port_range)
         ports = list(range(*port_range))
         
-    ip = ip if ip else c.default_ip
+    ip = ip if ip else '0.0.0.0'
 
     if random_selection:
         ports = c.shuffle(ports)
@@ -1083,8 +1083,7 @@ def resolve_port(port:int=None, **kwargs):
 def get_available_ports(port_range: List[int] = None , ip:str =None) -> int:
     import commune as c
     port_range = c.resolve_port_range(port_range)
-    ip = ip if ip else c.default_ip
-    
+    ip = ip if ip else '0.0.0.0'
     available_ports = []
     # return only when the port is available
     for port in range(*port_range): 

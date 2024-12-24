@@ -10,66 +10,43 @@ import os
 class Reduce:
     description = "This module is used to find files and modules in the current directory"
     model='anthropic/claude-3.5-sonnet-20240620:beta'
-    def forward(self,  text,  max_chars=20000 , model=model,  timeout=40):
-        if os.path.exists(text): 
-            path = text
-            if os.path.isdir(path):
-                future2path = {}
-                path2result = {}
-                paths = c.files(path)
-                progress = c.tqdm(len(paths), desc='Reducing', leave=False)
-                n = len(paths)
-                cnt = 0
-                while len(paths) > 0:
-                    for p in paths:
-                        future = c.submit(self.reduce, [p], timeout=timeout)
-                        future2path[future] = p
-                    try:
-                        for future in c.as_completed(future2path, timeout=timeout):
-                            p = future2path[future]
-                            r = future.result()
-                            paths.remove(p)
-                            path2result[p] = r
-                            cnt += 1
-                            print(f'REDUCED({p})({cnt}/{n})', r)
-                            progress.update(1)
-                    except Exception as e:
-                        print(e)
-                return path2result
-            else:
-                assert os.path.exists(path), f'Path {path} does not exist'
-                print(f'Reducing {path}')
-                text = str(c.get_text(path))
-        elif c.module_exists(text):
-            text = c.code(text)
-        code_hash = c.hash(text)
-        path = f'summary/{code_hash}' 
+    def forward(self,  text, model=model,  timeout=10, n=10):
+        if isinstance(text, str) and os.path.exists(text): 
+            file2text = c.file2text(text)
+            futures = []
+            future2file = {}
+            file2summary = c.file2text(text)
+            for i, (file, text) in enumerate(file2text.items()):
+                future = c.submit(self.forward, dict(text=text, model=model), timeout=timeout)
+                future2file[future] = file
+            progress = c.progress(len(futures), total=len(file2text))
+
+            try:
+                for future in c.as_completed(future2file, timeout=timeout):
+                    file = future2file[future]
+                    file2summary[file] = future.result()
+                    progress.update()
+  
+            except Exception as e:
+                print(e)
+                pass
+            return file2summary
+            
         text = f'''
         GOAL
         summarize the following into tupples and make sure you compress as much as oyu can
         CONTEXT
         {text}
-        OUTPUT FORMAT ONLY BETWEEN THE TAGS SO WE CAN PARSE
-        <OUTPUT>DICT(data=list[str])</OUTPUT>
+        OUTPUT FORMAT IN JSON FORMAT ONLY BETWEEN THE ANCHORS ONLY INCLUDE PURE JSON, NO TEXT
+        <OUTPUT>JSON(data:list[])</OUTPUT>
         '''
-        if len(text) >= max_chars * 2 :
-            batch_text = [text[i:i+max_chars] for i in range(0, len(text), max_chars)]
-            for i, t in enumerate(batch_text):
-                result = c.ask(t, model=model, stream=0)
-                if i == 0:
-                    result = result.split('<OUTPUT>')[1]
-                if i == len(batch_text) - 1:
-                    result = result.split('</OUTPUT>')[0]
-                path2result[path] = result
-            return result
-        if "'''" in text:
-            text = text.replace("'''", '"""')
-        data =  c.ask(text, model=model, stream=0)
-        return {"data": self.process_data(data)}
+        assert len(text) < 20000
+        return self.process_data(c.ask(text, model=model, stream=0))
 
     def process_data(self, data):
         try:
             data = data.split('<OUTPUT>')[1].split('</OUTPUT>')[0]
+            data = json.loads(data)
             return data
         except:
             return data
