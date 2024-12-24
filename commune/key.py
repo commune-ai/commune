@@ -6,6 +6,7 @@ import os
 import binascii
 import re
 import secrets
+import base64
 from base64 import b64encode
 import hashlib
 from Crypto import Random
@@ -1418,6 +1419,9 @@ class Key(c.Module):
                 c.print(f'failed to migrate {k_name} due to {e}', color='red')
                 
         return new_key2path
+
+# if __name__ == "__main__":      
+#     Key.run()
 
 
 

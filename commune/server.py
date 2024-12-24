@@ -10,7 +10,6 @@ import os
 import json
 import asyncio
 
-
 class Middleware(BaseHTTPMiddleware):
     def __init__(self, app, max_bytes: int):
         super().__init__(app)
@@ -26,15 +25,18 @@ class Middleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-class Server(c.Module):
+class Server:
     tag_seperator:str='::'
     user_data_lifetime = 3600
     pm2_dir = os.path.expanduser('~/.pm2')
     period : int = 3600 # the period for 
     max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
+    multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
+    rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
 
     def __init__(
+        
         self, 
         module: Union[c.Module, object] = None,
         key:str = None, # key for the server (str)
@@ -60,19 +62,16 @@ class Server(c.Module):
             module =   c.module(module)(**kwargs)
         print(f'Launching', module, name, functions)
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
-        self.serializer = c.module(serializer)()
         self.module = module
-        self.set_name(name)
+        self.module.name = name    
         self.set_key(key=key, crypto_type=crypto_type)
         self.set_port(port)
         self.set_network(network)  
         self.set_functions(functions=functions, fn2cost=fn2cost, free=free)
         self.set_user_path(users_path)
+        self.serializer = c.module(serializer)()
         self.start_server()
 
-    def set_name(self, name):
-        self.module.name = name
-        return {'success':True, 'message':f'Set name to {name}'}
     def set_functions(self, 
                       functions:Optional[List[str]] , 
                       fn2cost=None,    
@@ -100,12 +99,11 @@ class Server(c.Module):
         module = self.module
         functions =  functions or []
         for k in functions_attributes:
-            if hasattr(module, k):
+            if hasattr(module, k) and isinstance(getattr(module, k), list):
                 print('Found ', k)
                 functions = getattr(module, k)
                 break
         # get function decorators form c.endpoint()
-
         for f in dir(module):
             try:
                 if hasattr(getattr(module, f), '__metadata__'):
@@ -113,7 +111,6 @@ class Server(c.Module):
             except Exception as e:
                 c.print(f'Error in get_endpoints: {e} for {f}')
         module.functions = sorted(list(set(functions)))
-
         ## get the schema for the functions
         schema = {}
         for fn in functions :
@@ -122,9 +119,8 @@ class Server(c.Module):
             else:
                 print(f'Function {fn} not found in {module.name}')
         module.schema = dict(sorted(schema.items()))
-
-        if not hasattr(module, 'fn2cost'):
-            module.fn2cost = fn2cost or {}
+        module.fn2cost = module.fn2cost if hasattr(module, 'fn2cost') else (fn2cost or {})
+        assert isinstance(module.fn2cost, dict), f'fn2cost must be a dict, not {type(module.fn2cost)}'
 
         ### get the info for the module
         module.info = {
@@ -138,10 +134,6 @@ class Server(c.Module):
             "free": module.free,
             "time": c.time()
         }
-
-    def set_user_path(self, users_path):
-        self.users_path = users_path or self.resolve_path(f'users/{self.module.name}')
-
     def set_key(self, key, crypto_type):
         module = self.module
         module.key = c.get_key(key or module.name, create_if_not_exists=True, crypto_type=crypto_type)
@@ -170,7 +162,7 @@ class Server(c.Module):
             return self.forward(fn, request)
         app.post("/{fn}")(api_forward)
         c.print(f'Served(name={module.name}, address={module.address}, key={module.key.key_address})', color='purple')
-        c.print(c.register_server(name=module.name, address=module.address, key=module.key.ss58_address))
+        c.print(c.add_server(name=module.name, address=module.address, key=module.key.ss58_address))
         self.module = module 
         uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
 
@@ -181,8 +173,6 @@ class Server(c.Module):
             if hasattr(module, k):
                 port = getattr(module, k)
                 break
-
-
         if port in [None, 'None']:
             namespace = c.namespace()
             if name in namespace:
@@ -208,40 +198,34 @@ class Server(c.Module):
     def is_admin(self, address):
         return c.is_admin(address)
 
-    def rate_limit(self, 
-                   address:str,  
-                   fn: str= 'info', 
-                   multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1},
-                   rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000}, # the maximum rate 
-                ) -> float:
-        # stake rate limit
-        module = self.module
-        if c.is_admin(address):
-            return rates['admin']
-        elif address == module.key.ss58_address:
-            return rates['owner']
-        elif address in self.address2key:
-            return rates['local']
-        else:
-            stake_score = self.state['stake'].get(address, 0) + multipliers['stake']
-            stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * multipliers['stake_to']
-            stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * multipliers['stake_from']
-            stake = stake_score + stake_to_score + stake_from_score
-            rates['stake'] = rates['stake'] * module.fn2cost.get(fn, 1)
-            return min((stake / rates['stake']), rates['max'])
-        
-    def verify_request(self, fn:str, data:dict, headers:dict ):
+    def verify(self, fn:str, data:dict,  headers:dict ) -> bool:
         if self.free: 
             assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
             return True
+        auth = {'data': data, 'time': str(headers['time'])}
+        signature = headers['signature']
+
+        assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
         request_staleness = c.time() - float(headers['time'])
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
         auth={'data': data, 'time': str(headers['time'])}
-        signature = headers['signature']
-        rate_limit = self.rate_limit(fn=fn, address=headers['key'])
+        module = self.module
+        address = headers['key']
+        if c.is_admin(address):
+            rate_limit =  self.rates['admin']
+        elif address == module.key.ss58_address:
+            rate_limit =  self.rates['owner']
+        elif address in self.address2key:
+            rate_limit =  self.rates['local']
+        else:
+            stake_score = self.state['stake'].get(address, 0) + self.multipliers['stake']
+            stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * self.multipliers['stake_to']
+            stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * self.multipliers['stake_from']
+            stake = stake_score + stake_to_score + stake_from_score
+            self.rates['stake'] = self.rates['stake'] * module.fn2cost.get(fn, 1)
+            rate_limit =  min((stake / self.rates['stake']), self.rates['max'])
         count = self.user_call_count(headers['key'])
         assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
-        assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
         return True
     
     def get_data(self, request: Request):
@@ -279,7 +263,7 @@ class Server(c.Module):
         headers = self.get_headers(request)
         is_admin = bool(c.is_admin(headers['key']))
         is_owner = bool(headers['key'] == module.key.ss58_address)
-        self.verify_request(fn=fn, data=data, headers=headers)       
+        self.verify(fn=fn, data=data, headers=headers)       
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
@@ -296,7 +280,6 @@ class Server(c.Module):
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)
-        
         if self.free:
             return result
         user_data = {
@@ -310,7 +293,6 @@ class Server(c.Module):
             }
         user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
         c.put(user_path, user_data)
-        
         return result
     
     def sync_loop(self, sync_loop_initial_sleep=10):
@@ -327,7 +309,6 @@ class Server(c.Module):
         self.network = network
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
         c.thread(self.sync_loop)
-        # self.sync()
         return {'success':True, 'message':f'Set network to {network}', 'network':network, 'network_path':self.network_path}
 
     def sync(self, update=True , state_keys = ['stake_from', 'stake_to']):
@@ -339,8 +320,7 @@ class Server(c.Module):
                 return {'msg': 'state is fresh'}
         max_age = self.max_network_staleness
         network_path = self.network_path
-        state = self.get(network_path, {}, max_age=max_age, updpate=update)
-        network = self.network
+        state = c.get(network_path, {}, max_age=max_age, updpate=update)
         state = {}
         self.address2key =  c.address2key()
         state['stake'] = {}
@@ -349,7 +329,7 @@ class Server(c.Module):
         if update:
             try  : 
                 c.namespace(max_age=max_age)
-                self.subspace = c.module('subspace')(network=network)
+                self.subspace = c.module('subspace')(network=self.network)
                 state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=max_age)
                 state['stake_to'] = self.subspace.stake_to(fmt='j', update=update, max_age=max_age)
                 state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
@@ -357,7 +337,7 @@ class Server(c.Module):
                 c.print(f'Error {e} while syncing network--> {network}')
         is_valid_state = lambda x: all([k in x for k in state_keys])
         assert is_valid_state(state), f'Format for network state is {[k for k in state_keys if k not in state]}'
-        self.put(network_path, state)
+        c.put(network_path, state)
         self.state = state
         return {'msg': 'state synced successfully'}
 
@@ -386,14 +366,6 @@ class Server(c.Module):
                 c.sleep(sleep_interval)
                 time_waiting += sleep_interval
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
-
-
-    
-    def add_endpoint(self, name, fn):
-        setattr(self, name, fn)
-        self.endpoints.append(name)
-        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
-        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
 
     @classmethod
     def endpoint(cls, 
@@ -429,7 +401,7 @@ class Server(c.Module):
         except Exception as e:
             result =  {'message':f'Error killing {name}', 'success':False, 'error':e}
 
-        c.deregister_server(name)
+        c.remove_server(name)
         return result
     
     @classmethod
@@ -683,5 +655,19 @@ class Server(c.Module):
                 if os.path.exists(path):
                     os.remove(path)
 
+    def resolve_path(self, path):
+        return c.resolve_path(path, storage_dir=self.storage_dir())
+
+    def set_user_path(self, users_path):
+        self.users_path = users_path or self.resolve_path(f'users/{self.module.name}')
+
+    
+    def add_endpoint(self, name, fn):
+        setattr(self, name, fn)
+        self.endpoints.append(name)
+        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
+        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
+
 if __name__ == '__main__':
     Server.run()
+

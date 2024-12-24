@@ -19,7 +19,9 @@ class Network(c.Module):
         return {'network': self.network, 'tempo': self.tempo, 'modules_path': self.modules_path}
     
     def params(self,*args,  **kwargs):
-        return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
+        return { 'network': self.network, 
+                'tempo' : self.tempo,
+                'n': self.n}
     
     def net(self):
         return c.network()
@@ -52,7 +54,7 @@ class Network(c.Module):
     def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
         return {m['name']: '0.0.0.0' + ':' + m['address'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
 
-    def register_server(self, name:str, address:str, key:str) -> None:
+    def add_server(self, name:str, address:str, key:str) -> None:
         data = {'name': name, 'address': address, 'key': key}
         modules = self.modules()
         modules.append(data)
@@ -63,9 +65,9 @@ class Network(c.Module):
         import json
         assert c.verify(signature), 'Signature is not valid.'
         data = json.loads(signature['data'])
-        return self.register_server(data['name'], data['address'])
+        return self.add_server(data['name'], data['address'])
     
-    def deregister_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
+    def remove_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
         modules = self.modules()
         modules = [m for m in modules if not any([m[f] == name for f in features])]
         c.put(self.modules_path, modules)
