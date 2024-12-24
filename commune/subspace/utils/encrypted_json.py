@@ -1,9 +1,7 @@
 import base64
 import json
 from os import urandom
-
 from typing import Union
-
 from nacl.hashlib import scrypt
 from nacl.secret import SecretBox
 from sr25519 import pair_from_ed25519_secret_key

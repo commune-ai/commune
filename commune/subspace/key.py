@@ -46,26 +46,6 @@ class DeriveJunction:
         return cls(chain_code=chain_code, is_hard=is_hard)
 
 
-def extract_derive_path(derive_path: str):
-
-    path_check = ''
-    junctions = []
-    paths = re.findall(RE_JUNCTION, derive_path)
-
-    if paths:
-        path_check = ''.join(''.join(path) for path in paths)
-
-        for path_separator, path_value in paths:
-            junctions.append(DeriveJunction.from_derive_path(
-                path=path_value, is_hard=path_separator == '//')
-            )
-
-    if path_check != derive_path:
-        raise ValueError('Reconstructed path "{}" does not match input'.format(path_check))
-
-    return junctions
-
-
 
 # Python Substrate Interface Library
 #
@@ -102,7 +82,6 @@ from eth_keys.datatypes import PrivateKey
 
 from .constants import DEV_PHRASE
 from .exceptions import ConfigurationError
-from .key import extract_derive_path
 from .utils.ecdsa_helpers import mnemonic_to_ecdsa_private_key, ecdsa_verify, ecdsa_sign
 from .utils.encrypted_json import decode_pair_from_encrypted_json, encode_pair
 
@@ -111,6 +90,26 @@ import sr25519
 import ed25519_zebra
 
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
+
+
+def extract_derive_path(derive_path: str):
+
+    path_check = ''
+    junctions = []
+    paths = re.findall(RE_JUNCTION, derive_path)
+
+    if paths:
+        path_check = ''.join(''.join(path) for path in paths)
+
+        for path_separator, path_value in paths:
+            junctions.append(DeriveJunction.from_derive_path(
+                path=path_value, is_hard=path_separator == '//')
+            )
+
+    if path_check != derive_path:
+        raise ValueError('Reconstructed path "{}" does not match input'.format(path_check))
+
+    return junctions
 
 
 class KeypairType:
@@ -430,8 +429,7 @@ class Keypair:
         )
 
     @classmethod
-    def create_from_encrypted_json(cls, json_data: Union[str, dict], passphrase: str,
-                                   ss58_format: int = None) -> 'Keypair':
+    def create_from_encrypted_json(cls, json_data: Union[str, dict], passphrase: str, ss58_format: int = None) -> 'Keypair':
         """
         Create a Keypair from a PolkadotJS format encrypted JSON file
 

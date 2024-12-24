@@ -124,7 +124,8 @@ class Vali(c.Module):
         try:
             for r in c.as_completed(futures, timeout=self.timeout):
                 r = r.result()
-                results.append(r)
+                if 'score' in r:
+                    results.append(r)
         except Exception as e:
             c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=0)
         return results
@@ -141,7 +142,7 @@ class Vali(c.Module):
         progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
         results = []
         for i, module_batch in enumerate(batches):
-            print(f'Batch[{i}/{len(batches)}]')
+            print(f'Batch(i={i}/{len(batches)})')
             try:
                 results += self.score_modules(module_batch)
             except Exception as e:
@@ -158,6 +159,7 @@ class Vali(c.Module):
         self.modules = self.network_module.modules(subnet=self.subnet, max_age=max_age)
         self.params = self.network_module.params(subnet=self.subnet, max_age=max_age)
         self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
+        print(self.tempo)
         if self.search != None:
             self.modules = [m for m in self.modules if self.search in m['name']]
         self.n  = len(self.modules)  

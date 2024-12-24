@@ -7,28 +7,10 @@ import hashlib
 from typing import Dict, List, Set
 import logging
 import commune as c
+
 class Web:
     endpoints = ["search", "crawl"]
-    def __init__(self, url: str='https://github.com/ai16z/eliza/fork', max_pages: int = 10):
-        """
-        Initialize the WebCrawler with a base URL and maximum pages to crawl
-        """
-        self.url = url
-        self.max_pages = max_pages
-        self.visited_urls: Set[str] = set()
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        self.setup_logging()
-
-    def setup_logging(self):
-        """Configure logging for the crawler"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-
+    
     def text(self, url: str = '') -> str:
         # 1. Fetch the page
         response = requests.get(url)
@@ -63,7 +45,21 @@ class Web:
     
     engines = list(engine2url.keys())
 
-    def search(self, query:str='twitter', engine="google", source:str='desktop') -> str:
+    def ask(self, *args, **kwargs):
+        text = ' '.join(list(map(str, args)))
+        context =  self.search(query=text, **kwargs)
+        prompt = f"""
+        QUERY
+        {text}
+        CONTEXT
+        {context}
+        """
+        return c.generate(prompt, stream=1)
+        
+
+    def search(self, 
+               query:str='twitter',  
+               engine="all") -> str:
         '''
         Searches the query on the source
         '''
@@ -101,10 +97,10 @@ class Web:
             soup = BeautifulSoup(response.content, 'html.parser')
             
             # Extract text content
-            text = []
+            result_text = []
             for text in soup.stripped_strings:
                 if len(text.strip()) > 0:
-                    text.append(text.strip())
+                    result_text.append(text.strip())
 
             # Extract images
             images = []
@@ -129,7 +125,7 @@ class Web:
 
             return {
                 'url': url,
-                'text': text,
+                'text': result_text,
                 'images': images,
                 'links': links
             }
