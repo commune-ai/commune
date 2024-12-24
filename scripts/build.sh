@@ -1,4 +1,2 @@
-
-PWD=$(pwd)
-NAME=$(basename $PWD)
-docker build -t $NAME $PWD
+NAME=$(basename $(pwd))
+docker build -t $NAME $(pwd)

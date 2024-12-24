@@ -9,30 +9,21 @@ import commune as c
 
 class Client(c.Module):
 
-    def __init__( self, module : str = 'module', 
-                key : Optional[str]= None ,
+    def __init__( self, 
+                module : str = 'module', 
+                key : Optional[str]= None,
                 network: Optional[bool] = 'local',
-                mode: Optional[str] = 'http',
                 serializer: Optional[c.Module] = 'serializer',
-            **kwargs
+               **kwargs
         ):
         self.serializer = c.module(serializer)()
         self.key  = c.get_key(key, create_if_not_exists=True)
-        self.set_address(module, network=network, mode=mode)
-
-    def set_address(self, module, network='local', mode='http'):
         if  c.is_address(module):
             address = module
         else:
-            namespace = c.namespace(network=network)
-            if module in namespace:
-                address = namespace[module]
-            else:
-                raise Exception(f'Module {module} not found in namespace {namespace}')
-        prefix = f'{mode}://'
+            address = c.namespace(network=network).get(module)
         self.network = network
-        self.mode = mode
-        self.address = prefix + address if not address.startswith(prefix) else address
+        self.address = address
         self.session = requests.Session()
 
     @classmethod
@@ -76,20 +67,14 @@ class Client(c.Module):
         key  = c.get_key(module)
         assert info['key'] == key.ss58_address
         return {'info': info, 'key': str(key)}
-    
 
     def get_url(self, fn, mode='http'):
         if '/' in str(fn):  
-            module, fn = module.split('/')
+            address, fn = address.split('/')
         else:
-            module = self.module
-        module_address = self.address
-        ip = c.ip()
-        if ip in module_address:
-            module_address = module_address.replace(ip, '0.0.0.0')
-        url = f"{module_address}/{fn}/"
-        return url   
-
+            address = self.address
+        address = address if address.startswith(mode) else f'{mode}://{address}'
+        return f"{address}/{fn}/"
 
     def get_data(self, args=[], kwargs={}, params = None):
         # derefernece
@@ -117,27 +102,16 @@ class Client(c.Module):
                 timeout:int=2,  
                 key : str = None,  
                 mode: str  = 'http', 
-                data=None, 
                 headers = None, 
                 stream:bool = False):
                 
         key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode)
-        data = data or self.get_data(params=params, args=args, kwargs=kwargs, )
+        data = self.get_data(params=params, args=args, kwargs=kwargs )
         headers = headers or self.get_header(data=data, key=key)
-        try:             
+        try: 
             response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
-            if 'text/event-stream' in response.headers.get('Content-Type', ''):
-                return self.stream(response)
-            if 'application/json' in response.headers.get('Content-Type', ''):
-                result = response.json()
-            elif 'text/plain' in response.headers.get('Content-Type', ''):
-                result = response.text
-            else:
-                result = response.content
-                if response.status_code != 200:
-                    raise Exception(result)
-            result = self.serializer.deserialize(result)
+            result = self.process_response(response)
         except Exception as e:
             result = c.detailed_error(e)
         return result
@@ -155,17 +129,29 @@ class Client(c.Module):
         if isinstance(key, str):
             key = c.get_key(key)
         return key
+    
+    def process_response(self, response):
+        if 'text/event-stream' in response.headers.get('Content-Type', ''):
+            return self.stream(response)
+        if 'application/json' in response.headers.get('Content-Type', ''):
+            result = response.json()
+        elif 'text/plain' in response.headers.get('Content-Type', ''):
+            result = response.text
+        else:
+            result = response.content
+            if response.status_code != 200:
+                raise Exception(result)
+        result = self.serializer.deserialize(result)
+        return result
 
     def stream(self, response):
         try:
             for chunk in response.iter_lines():
-                line = self.process_stream_line(chunk)
-                yield line
+                yield self.process_stream_line(chunk)
         except Exception as e:
-            print(f'Error in stream: {e}')
-            yield None
+            yield c.detailed_error(e)
 
-    def process_stream_line(self, line, stream_prefix = 'data: '):
+    def process_stream_line(self, line , stream_prefix = 'data: '):
         event_data = line.decode('utf-8')
         if event_data.startswith(stream_prefix):
             event_data = event_data[len(stream_prefix):] 
@@ -175,13 +161,6 @@ class Client(c.Module):
             if event_data.startswith('{') and event_data.endswith('}') and 'data' in event_data:
                 event_data = json.loads(event_data)['data']
         return event_data
-    
-    @staticmethod
-    def check_response(x) -> bool:
-        if isinstance(x, dict) and 'error' in x:
-            return False
-        else:
-            return True
         
     class Virtual:
         def __init__(self, client: str ='ReactAgentModule'):
@@ -207,42 +186,3 @@ class Client(c.Module):
         headers['signature'] =  key.sign({'data': data, 'time': headers['time']}).hex()
 
         return headers 
-
-    def forcurl(self, 
-                fn: str = 'info', 
-                args: list = None, 
-                kwargs: dict = None, 
-                timeout: int = 2,
-                key: str = None,
-                **extra_kwargs) -> str:
-        # Resolve the key and URL
-        key = self.resolve_key(key)
-        url = self.get_url(fn=fn)
-        
-        # Prepare the data
-        data = self.get_data(args=args or [], kwargs=kwargs or {}, **extra_kwargs)
-        headers = self.get_header(data=data, key=key)
-        # Prepare headers
-        
-        # Build curl command
-        curl_cmd = ['curl', '-X POST']
-        
-        # Add headers
-        for header_name, header_value in headers.items():
-            curl_cmd.append(f"-H '{header_name}: {header_value}'")
-        
-        # Add data
-        if isinstance(data, str):
-            data_str = data
-        else:
-            data_str = json.dumps(data)
-        curl_cmd.append(f"-d '{data_str}'")
-        curl_cmd.append(f"'{url}'")
-        curl_cmd.append(f'--max-time {timeout}')
-        response = os.popen(' '.join(curl_cmd)).read()
-        return response
-        
-    def __str__ ( self ):
-        return "Client(address={})".format(self.address) 
-    def __repr__ ( self ):
-        return self.__str__()
