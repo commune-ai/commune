@@ -6,6 +6,7 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 ### Important Files and Directories
 - `commune/`: Main package directory
 - `docs/`: Documentation directory
+- `wiki/`: Wiki documentation directory
 - `examples/`: (To be created) Example code directory
 - `tests/`: Test files directory
 
@@ -13,8 +14,9 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 
 #### Phase 1: Basic Documentation
 - [x] Update README.md with comprehensive overview
-- [ ] Set up basic wiki structure
-- [ ] Document installation and quick start
+- [x] Set up basic wiki structure
+- [x] Create detailed installation guide
+- [ ] Complete Quick Start guide
 
 #### Phase 2: Technical Documentation
 - [ ] Document core modules and APIs
@@ -34,20 +36,24 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 ### Last Session Summary
 **Date**: 2024-12-27
 **Progress**:
-- Created initial PROGRESS.md file
-- Enhanced README.md with comprehensive overview including:
-  - Key features
-  - Installation instructions
-  - Quick start guide
-  - Core components
-  - Development guidelines
-  - Links and resources
+- Created wiki structure with organized sections:
+  - Getting Started guides
+  - Core Concepts
+  - Tutorials
+  - API Reference
+  - Advanced Topics
+  - Contributing guides
+- Created comprehensive installation guide with:
+  - System requirements
+  - Installation methods
+  - Environment setup
+  - Troubleshooting section
 
 ### Next Steps
 1. Continue with Phase 1:
-   - Set up wiki structure
-   - Create detailed installation guide
-   - Add troubleshooting section
+   - Create Quick Start guide
+   - Document core concepts
+   - Add initial tutorials
 
 ### Important Notes for Future Sessions
 - Check `docs/` directory for existing documentation before creating new docs
