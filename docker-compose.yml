@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  commune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/commune
+    working_dir: /app
+    tty: true
+    stdin_open: true
+    ports:
+      - "8888:8888"  # Adjust ports as needed for your application
+    environment:
+      - DEBIAN_FRONTEND=noninteractive
+    command: tail -f /dev/null
