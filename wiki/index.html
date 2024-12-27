@@ -6,7 +6,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.min.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-light.min.css" id="light-theme">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css" id="dark-theme" disabled>
     <style>
         :root[data-theme="light"] {
             --bg-color: #ffffff;
@@ -45,30 +46,43 @@
 
         .container {
             display: flex;
-            gap: 2rem;
+            gap: 3rem;
+            margin-top: 2rem;
+            padding-left: 280px;
         }
 
         .sidebar {
-            width: 250px;
+            width: 260px;
             position: fixed;
+            left: 45px;
             background-color: var(--sidebar-bg);
-            padding: 1rem;
+            padding: 1.5rem;
             border-radius: 6px;
             box-shadow: 0 1px 3px var(--shadow-color);
+            max-height: calc(100vh - 100px);
+            overflow-y: auto;
+            z-index: 10;
         }
 
         .content {
-            margin-left: 270px;
+            position: relative;
             flex-grow: 1;
+            padding-right: 2rem;
+            width: 100%;
+            max-width: 980px;
+            margin: 0 auto;
+            z-index: 1;
         }
 
         .markdown-body {
+            position: relative;
             padding: 2rem;
             background-color: var(--bg-color);
             border-radius: 6px;
             box-shadow: 0 1px 3px var(--shadow-color);
             border: 1px solid var(--border-color);
             color: var(--text-color);
+            z-index: 1;
         }
 
         .nav-link {
@@ -101,6 +115,15 @@
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 20;
+        }
+
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
         }
 
         .theme-toggle:hover {
@@ -123,12 +146,21 @@
             border-bottom-color: var(--border-color);
         }
 
-        [data-theme="dark"] .markdown-body code {
-            background-color: var(--code-bg);
+        [data-theme="light"] .markdown-body pre {
+            background-color: #fafafa !important;
+        }
+
+        [data-theme="light"] .markdown-body code {
+            color: #383a42 !important;
         }
 
         [data-theme="dark"] .markdown-body pre {
-            background-color: var(--code-bg);
+            background-color: #282c34 !important;
+        }
+
+        [data-theme="dark"] .markdown-body code {
+            background-color: #282c34 !important;
+            color: #abb2bf !important;
         }
 
         [data-theme="dark"] .markdown-body blockquote {
@@ -168,7 +200,9 @@
     </style>
 </head>
 <body>
-    <button class="theme-toggle" onclick="toggleTheme()"> Toggle Theme</button>
+    <button class="theme-toggle" onclick="toggleTheme()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eclipse"><circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 1 0 10 10"/></svg>
+    </button>
     <div class="container">
         <div class="sidebar">
             <h2>Documentation</h2>
@@ -205,11 +239,22 @@
             const newTheme = currentTheme === 'light' ? 'dark' : 'light';
             html.setAttribute('data-theme', newTheme);
             localStorage.setItem('theme', newTheme);
+            
+            // Toggle syntax highlighting themes
+            document.getElementById('light-theme').disabled = newTheme === 'dark';
+            document.getElementById('dark-theme').disabled = newTheme === 'light';
+            
+            // Reapply syntax highlighting
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightBlock(block);
+            });
         }
 
         // Load saved theme
         const savedTheme = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
+        document.getElementById('light-theme').disabled = savedTheme === 'dark';
+        document.getElementById('dark-theme').disabled = savedTheme === 'light';
 
         // Handle navigation
         async function loadContent(path) {
