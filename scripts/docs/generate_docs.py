@@ -14,12 +14,12 @@ import sys
 import glob
 import inspect
 import logging
+import importlib.util
 from typing import List, Dict, Any
-import commune as c
 
 class DocGenerator:
     def __init__(self):
-        self.root_dir = c.repo_path
+        self.root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))
         self.wiki_dir = os.path.join(self.root_dir, 'wiki')
         self.docs_dir = os.path.join(self.root_dir, 'docs')
         self.setup_logging()
@@ -51,16 +51,45 @@ class DocGenerator:
     def discover_modules(self) -> List[str]:
         """Find all Python modules in the codebase."""
         module_paths = []
-        for root, _, files in os.walk(os.path.join(self.root_dir, 'commune')):
+        commune_dir = os.path.join(self.root_dir, 'commune')
+        for root, _, files in os.walk(commune_dir):
             for file in files:
                 if file.endswith('.py') and not file.startswith('_'):
                     module_paths.append(os.path.join(root, file))
         return module_paths
 
+    def import_module_from_path(self, module_path: str):
+        """Import a module from file path."""
+        module_name = os.path.splitext(os.path.basename(module_path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        if spec is None:
+            raise ImportError(f"Could not load spec for {module_path}")
+        
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        
+        if spec.loader is None:
+            raise ImportError(f"Could not load module {module_path}")
+        
+        try:
+            spec.loader.exec_module(module)
+            return module
+        except Exception as e:
+            self.logger.warning(f"Could not execute module {module_path}: {str(e)}")
+            return None
+
     def extract_module_docs(self, module_path: str) -> Dict[str, Any]:
         """Extract documentation from a module."""
         module_name = os.path.splitext(os.path.basename(module_path))[0]
-        module = c.import_module(module_path)
+        module = self.import_module_from_path(module_path)
+        
+        if module is None:
+            return {
+                'name': module_name,
+                'doc': f"Failed to load module {module_name}",
+                'classes': {},
+                'functions': {}
+            }
         
         docs = {
             'name': module_name,
@@ -73,10 +102,13 @@ class DocGenerator:
             if name.startswith('_'):
                 continue
 
-            if inspect.isclass(obj):
-                docs['classes'][name] = self.extract_class_docs(obj)
-            elif inspect.isfunction(obj):
-                docs['functions'][name] = self.extract_function_docs(obj)
+            try:
+                if inspect.isclass(obj):
+                    docs['classes'][name] = self.extract_class_docs(obj)
+                elif inspect.isfunction(obj):
+                    docs['functions'][name] = self.extract_function_docs(obj)
+            except Exception as e:
+                self.logger.warning(f"Error extracting docs for {name}: {str(e)}")
 
         return docs
 
@@ -93,13 +125,20 @@ class DocGenerator:
 
     def extract_function_docs(self, func) -> Dict[str, Any]:
         """Extract documentation from a function."""
-        return {
-            'doc': inspect.getdoc(func) or '',
-            'signature': str(inspect.signature(func)),
-            'annotations': {
-                k: str(v) for k, v in func.__annotations__.items()
+        try:
+            return {
+                'doc': inspect.getdoc(func) or '',
+                'signature': str(inspect.signature(func)),
+                'annotations': {
+                    k: str(v) for k, v in getattr(func, '__annotations__', {}).items()
+                }
             }
-        }
+        except Exception as e:
+            return {
+                'doc': f"Error extracting function docs: {str(e)}",
+                'signature': 'Unknown',
+                'annotations': {}
+            }
 
     def write_module_docs(self, module_path: str, docs: Dict[str, Any]):
         """Write module documentation to markdown file."""
@@ -115,6 +154,7 @@ class DocGenerator:
         with open(doc_path, 'w') as f:
             f.write(f"# {docs['name']}\n\n")
             f.write(f"{docs['doc']}\n\n")
+            f.write(f"Source: `{relative_path}`\n\n")
 
             if docs['classes']:
                 f.write("## Classes\n\n")
@@ -127,19 +167,30 @@ class DocGenerator:
                         for method_name, method_docs in class_docs['methods'].items():
                             f.write(f"##### `{method_name}{method_docs['signature']}`\n\n")
                             f.write(f"{method_docs['doc']}\n\n")
+                            if method_docs['annotations']:
+                                f.write("Type annotations:\n```python\n")
+                                for param, type_hint in method_docs['annotations'].items():
+                                    f.write(f"{param}: {type_hint}\n")
+                                f.write("```\n\n")
 
             if docs['functions']:
                 f.write("## Functions\n\n")
                 for name, func_docs in docs['functions'].items():
                     f.write(f"### `{name}{func_docs['signature']}`\n\n")
                     f.write(f"{func_docs['doc']}\n\n")
+                    if func_docs['annotations']:
+                        f.write("Type annotations:\n```python\n")
+                        for param, type_hint in func_docs['annotations'].items():
+                            f.write(f"{param}: {type_hint}\n")
+                        f.write("```\n\n")
 
     def update_examples(self):
         """Update code examples in documentation."""
         self.logger.info("Updating code examples...")
         
         example_files = glob.glob(
-            os.path.join(self.wiki_dir, '*.md')
+            os.path.join(self.wiki_dir, '**/*.md'),
+            recursive=True
         )
         
         for file_path in example_files:
@@ -153,9 +204,24 @@ class DocGenerator:
         with open(file_path, 'r') as f:
             content = f.read()
 
-        # Update example outputs
-        # This is a placeholder - implement based on your needs
+        # Extract and validate code blocks
+        import re
+        code_blocks = re.finditer(
+            r'```python\n(.*?)\n```',
+            content,
+            re.DOTALL
+        )
+        
         updated_content = content
+        for match in code_blocks:
+            code = match.group(1)
+            # Validate code but don't execute
+            try:
+                compile(code, '<string>', 'exec')
+            except Exception as e:
+                self.logger.warning(
+                    f"Invalid code in {file_path}: {str(e)}"
+                )
 
         with open(file_path, 'w') as f:
             f.write(updated_content)
@@ -193,38 +259,34 @@ class DocGenerator:
                 content = f.read()
             
             # Check internal links
-            for link in self.extract_links(content):
-                if not self.validate_link(link):
-                    issues.append(f"Broken link in {file_path}: {link}")
+            import re
+            links = re.finditer(r'\[([^\]]+)\]\(([^\)]+)\)', content)
+            
+            for match in links:
+                link_text, link_target = match.groups()
+                if not link_target.startswith(('http://', 'https://')):
+                    target_path = os.path.join(
+                        os.path.dirname(file_path),
+                        link_target
+                    )
+                    if not os.path.exists(target_path):
+                        issues.append(
+                            f"Broken link in {file_path}: {link_target}"
+                        )
         
         return issues
-
-    def extract_links(self, content: str) -> List[str]:
-        """Extract markdown links from content."""
-        # This is a simple implementation - enhance based on your needs
-        import re
-        return re.findall(r'\[([^\]]+)\]\(([^\)]+)\)', content)
-
-    def validate_link(self, link: str) -> bool:
-        """Validate if a link is valid."""
-        if link.startswith(('http://', 'https://')):
-            # Skip external links for now
-            return True
-        
-        # Check if internal link target exists
-        target_path = os.path.join(self.root_dir, link)
-        return os.path.exists(target_path)
 
     def check_content_freshness(self) -> List[str]:
         """Check for outdated content."""
         issues = []
         threshold = 90 * 24 * 60 * 60  # 90 days in seconds
+        current_time = int(os.path.getmtime(__file__))
         
         for root, _, files in os.walk(self.wiki_dir):
             for file in files:
                 if file.endswith('.md'):
                     file_path = os.path.join(root, file)
-                    age = c.time() - os.path.getmtime(file_path)
+                    age = current_time - os.path.getmtime(file_path)
                     
                     if age > threshold:
                         issues.append(
@@ -238,6 +300,9 @@ def main():
     generator = DocGenerator()
     
     try:
+        # Create docs directory if it doesn't exist
+        os.makedirs(os.path.join(generator.docs_dir, 'api'), exist_ok=True)
+        
         # Generate API documentation
         generator.generate_api_docs()
         

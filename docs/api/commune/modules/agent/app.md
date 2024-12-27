@@ -1,0 +1,306 @@
+# app
+
+
+
+Source: `commune/modules/agent/app.py`
+
+## Classes
+
+### App
+
+
+
+#### Methods
+
+##### `add_files(self, files)`
+
+
+
+##### `ask(self, *args, **kwargs)`
+
+
+
+##### `build(self, *args, **kwargs)`
+
+
+
+##### `call(self, input='whats 2+2?', temperature=0.5, max_tokens=1000000, model='anthropic/claude-3.5-sonnet', system_prompt='make this shit work', key=None, stream=True)`
+
+partial(func, *args, **keywords) - new function with partial application
+of the given arguments and keywords.
+
+##### `chat_page(self)`
+
+
+
+##### `clear_history(self, address)`
+
+
+
+##### `clone(self, repo: str, path: str = None, **kwargs)`
+
+
+
+Type annotations:
+```python
+repo: <class 'str'>
+path: <class 'str'>
+```
+
+##### `copy_module(self, module: str, path: str)`
+
+
+
+Type annotations:
+```python
+module: <class 'str'>
+path: <class 'str'>
+```
+
+##### `ensure_sys_path()`
+
+
+
+##### `epoch(self, *args, **kwargs)`
+
+
+
+##### `file2hash(self, path='./')`
+
+
+
+##### `fn_n(self, search=None)`
+
+
+
+##### `forward(self, *args, **kwargs)`
+
+
+
+##### `get_age(self, k: str) -> int`
+
+
+
+Type annotations:
+```python
+k: <class 'str'>
+return: <class 'int'>
+```
+
+##### `get_data(self, address)`
+
+
+
+##### `get_yaml(path: str = None, default={}, **kwargs) -> Dict`
+
+fLoads a yaml file
+
+Type annotations:
+```python
+path: <class 'str'>
+return: typing.Dict
+```
+
+##### `has_module(self, path: str)`
+
+
+
+Type annotations:
+```python
+path: <class 'str'>
+```
+
+##### `history(self, address: str = None, columns=['datetime', 'input', 'output', 'system_prompt', 'model', 'temperature', 'max_tokens'], df=False)`
+
+
+
+Type annotations:
+```python
+address: <class 'str'>
+```
+
+##### `history_page(self)`
+
+
+
+##### `history_paths(self, address: str = None)`
+
+
+
+Type annotations:
+```python
+address: <class 'str'>
+```
+
+##### `install(self, path)`
+
+
+
+##### `is_encrypted(self, path: str) -> bool`
+
+
+
+Type annotations:
+```python
+path: <class 'str'>
+return: <class 'bool'>
+```
+
+##### `is_error(*text: str, **kwargs)`
+
+
+
+Type annotations:
+```python
+text: <class 'str'>
+```
+
+##### `is_repo(self, repo: str)`
+
+
+
+Type annotations:
+```python
+repo: <class 'str'>
+```
+
+##### `n(self, search=None)`
+
+
+
+##### `n_fns(self, search=None)`
+
+
+
+##### `net(self)`
+
+
+
+##### `post_processing(self, data)`
+
+
+
+##### `print(*text: str, **kwargs)`
+
+
+
+Type annotations:
+```python
+text: <class 'str'>
+```
+
+##### `progress(*args, **kwargs)`
+
+
+
+##### `pull(self)`
+
+
+
+##### `push(self, msg: str = 'update')`
+
+
+
+Type annotations:
+```python
+msg: <class 'str'>
+```
+
+##### `repo2path(self, search=None)`
+
+
+
+##### `repos(self, search=None)`
+
+
+
+##### `resolve_key(self, key: str = None) -> str`
+
+
+
+Type annotations:
+```python
+key: <class 'str'>
+return: <class 'str'>
+```
+
+##### `round(x, sig=6, small_value=1e-09)`
+
+
+
+##### `run(self)`
+
+
+
+##### `save_data(self, data)`
+
+
+
+##### `search_history(self)`
+
+
+
+##### `set_config(self, config: Union[str, dict, NoneType] = None) -> 'Munch'`
+
+Set the config as well as its local params
+
+Type annotations:
+```python
+config: typing.Union[str, dict, NoneType]
+return: Munch
+```
+
+##### `set_key(self, key: str, **kwargs) -> None`
+
+
+
+Type annotations:
+```python
+key: <class 'str'>
+return: None
+```
+
+##### `set_module(self, model, history_path='history', password=None, system_prompt='The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.', **kwargs)`
+
+
+
+##### `setattr(self, k, v)`
+
+
+
+##### `sidebar(self, user='user', password='password', seperator='::')`
+
+
+
+##### `sleep(period)`
+
+
+
+##### `sync(self)`
+
+
+
+##### `syspath(self)`
+
+
+
+##### `time(self)`
+
+
+
+##### `tqdm(*args, **kwargs)`
+
+
+
+##### `user_addresses(self, display_name=False)`
+
+
+
+##### `user_files(self)`
+
+
+
+##### `vs(self, path=None)`
+
+
+
