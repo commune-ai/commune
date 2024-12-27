@@ -13,165 +13,293 @@ Let's create a simple calculator module:
 
 ```python
 import commune as c
+from typing import List, Dict, Any, Union
+from dataclasses import dataclass
+
+@dataclass
+class CalculatorConfig:
+    """Configuration for Calculator module."""
+    precision: int = 2
+    max_history: int = 100
 
 class Calculator(c.Module):
-    def __init__(self):
+    """A simple calculator module with history tracking."""
+    
+    def __init__(self, config: CalculatorConfig = None):
+        """Initialize calculator with optional configuration."""
         super().__init__()
-        self.history = []
+        self.config = config or CalculatorConfig()
+        self.history: List[str] = []
     
-    def add(self, a: float, b: float) -> float:
-        """Add two numbers and store in history."""
-        result = a + b
-        self.history.append(f"{a} + {b} = {result}")
+    def add(self, a: Union[int, float], b: Union[int, float]) -> float:
+        """Add two numbers and store in history.
+        
+        Args:
+            a: First number
+            b: Second number
+            
+        Returns:
+            Sum of a and b rounded to configured precision
+        """
+        result = round(a + b, self.config.precision)
+        self._add_to_history(f"{a} + {b} = {result}")
         return result
     
-    def subtract(self, a: float, b: float) -> float:
-        """Subtract b from a and store in history."""
-        result = a - b
-        self.history.append(f"{a} - {b} = {result}")
+    def subtract(self, a: Union[int, float], b: Union[int, float]) -> float:
+        """Subtract b from a and store in history.
+        
+        Args:
+            a: Number to subtract from
+            b: Number to subtract
+            
+        Returns:
+            Difference of a and b rounded to configured precision
+        """
+        result = round(a - b, self.config.precision)
+        self._add_to_history(f"{a} - {b} = {result}")
         return result
     
-    def get_history(self) -> list:
-        """Return calculation history."""
+    def get_history(self) -> List[str]:
+        """Return calculation history.
+        
+        Returns:
+            List of calculation history entries
+        """
         return self.history
-```
+    
+    def _add_to_history(self, entry: str) -> None:
+        """Add entry to history, maintaining max size.
+        
+        Args:
+            entry: History entry to add
+        """
+        self.history.append(entry)
+        if len(self.history) > self.config.max_history:
+            self.history.pop(0)
 
-## Step-by-Step Explanation
+# Example usage
+def main():
+    # Create calculator with custom config
+    calc = Calculator(CalculatorConfig(precision=3, max_history=5))
+    
+    # Perform calculations
+    result1 = calc.add(5.123, 3.456)
+    result2 = calc.subtract(10.1, 3.2)
+    
+    # View history
+    print(f"Results: {result1}, {result2}")
+    print(f"History: {calc.get_history()}")
 
-### 1. Module Class Definition
-```python
-class Calculator(c.Module):
+if __name__ == '__main__':
+    main()
 ```
-- Inherit from `c.Module` to get Commune functionality
-- This provides networking, serialization, and state management
-
-### 2. Initialization
-```python
-def __init__(self):
-    super().__init__()
-    self.history = []
-```
-- Always call `super().__init__()` first
-- Initialize any module-specific state
-
-### 3. Module Methods
-```python
-def add(self, a: float, b: float) -> float:
-```
-- Use type hints for better documentation
-- Keep methods focused and single-purpose
-- Document with docstrings
 
 ## Making the Module Network-Accessible
 
 ```python
-# Save as calculator.py
 import commune as c
+from typing import List, Dict, Any
+import asyncio
 
-class Calculator(c.Module):
-    # Previous code here...
+class NetworkCalculator(Calculator):
+    """Network-enabled calculator module."""
+    
+    async def serve(
+        self,
+        host: str = "0.0.0.0",
+        port: int = 8000
+    ) -> None:
+        """Serve calculator over network.
+        
+        Args:
+            host: Host address to bind to
+            port: Port to listen on
+        """
+        server = await c.serve(
+            self,
+            host=host,
+            port=port
+        )
+        print(f"Calculator serving on {host}:{port}")
+        return server
     
     @property
-    def functions(self):
-        """List available module functions."""
+    def functions(self) -> List[str]:
+        """List available module functions.
+        
+        Returns:
+            List of function names
+        """
         return ['add', 'subtract', 'get_history']
     
-    def info(self):
-        """Module information."""
+    def info(self) -> Dict[str, Any]:
+        """Get module information.
+        
+        Returns:
+            Dictionary containing module metadata
+        """
         return {
             'name': 'calculator',
             'version': '0.1.0',
-            'functions': self.functions
+            'functions': self.functions,
+            'config': {
+                'precision': self.config.precision,
+                'max_history': self.config.max_history
+            }
         }
 
+async def main():
+    """Start network calculator service."""
+    try:
+        calc = NetworkCalculator()
+        await calc.serve()
+        
+        # Keep running
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down calculator service...")
+
 if __name__ == '__main__':
-    # Start the module
-    module = Calculator()
-    module.serve()
+    asyncio.run(main())
 ```
 
 ## Using the Module
 
 ### 1. Local Usage
 ```python
-# Create instance
-calc = c.module('calculator')
+import commune as c
+from typing import Dict, Any
 
-# Use methods
-result = calc.add(5, 3)
-print(result)  # 8
+async def use_calculator() -> None:
+    """Example of using calculator module locally."""
+    try:
+        # Create instance
+        calc = await c.connect('calculator')
+        
+        # Use methods
+        result = await calc.add(5, 3)
+        print(f"5 + 3 = {result}")
+        
+        history = await calc.get_history()
+        print(f"Calculation history: {history}")
+    except Exception as e:
+        print(f"Error using calculator: {e}")
 
-history = calc.get_history()
-print(history)  # ['5 + 3 = 8']
+# Run example
+asyncio.run(use_calculator())
 ```
 
-### 2. Network Usage
+### 2. Remote Usage
 ```python
-# Start the module server
-c.serve('calculator')
+import commune as c
+from typing import Optional
 
-# Connect from another process/machine
-remote_calc = c.connect('calculator')
-result = remote_calc.add(10, 5)
-```
-
-## Adding State Management
-
-```python
-class Calculator(c.Module):
-    def __init__(self):
-        super().__init__()
-        self.load_state()
+async def connect_calculator(
+    address: str = "localhost:8000"
+) -> Optional[c.Module]:
+    """Connect to remote calculator.
     
-    def save_state(self):
-        """Save history to persistent storage."""
-        state = {'history': self.history}
-        self.put('state', state)
-    
-    def load_state(self):
-        """Load history from storage."""
-        state = self.get('state', {})
-        self.history = state.get('history', [])
+    Args:
+        address: Remote calculator address
+        
+    Returns:
+        Connected calculator module or None if connection fails
+    """
+    try:
+        calc = await c.connect(
+            module='calculator',
+            address=address
+        )
+        print(f"Connected to calculator at {address}")
+        return calc
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+        return None
+
+async def main():
+    calc = await connect_calculator()
+    if calc:
+        result = await calc.add(10, 5)
+        print(f"10 + 5 = {result}")
+
+if __name__ == '__main__':
+    asyncio.run(main())
 ```
 
 ## Error Handling
 
 ```python
-class Calculator(c.Module):
-    def divide(self, a: float, b: float) -> float:
-        """Divide a by b with error handling."""
+import commune as c
+from typing import Dict, Any, Optional
+import asyncio
+
+class RobustCalculator(Calculator):
+    """Calculator with enhanced error handling."""
+    
+    async def safe_calculate(
+        self,
+        operation: str,
+        a: Union[int, float],
+        b: Union[int, float]
+    ) -> Dict[str, Any]:
+        """Safely perform calculation with error handling.
+        
+        Args:
+            operation: Operation to perform ('add' or 'subtract')
+            a: First number
+            b: Second number
+            
+        Returns:
+            Dictionary containing result or error information
+        """
         try:
-            if b == 0:
-                raise ValueError("Cannot divide by zero")
-            result = a / b
-            self.history.append(f"{a} / {b} = {result}")
-            return result
+            method = getattr(self, operation)
+            result = await method(a, b)
+            return {
+                'success': True,
+                'result': result,
+                'error': None
+            }
         except Exception as e:
-            self.history.append(f"Error: {str(e)}")
-            raise
-```
+            return {
+                'success': False,
+                'result': None,
+                'error': str(e)
+            }
+    
+    @staticmethod
+    def validate_input(
+        value: Any
+    ) -> Optional[str]:
+        """Validate numeric input.
+        
+        Args:
+            value: Value to validate
+            
+        Returns:
+            Error message if validation fails, None otherwise
+        """
+        try:
+            float(value)
+            return None
+        except (TypeError, ValueError):
+            return f"Invalid numeric value: {value}"
 
-## Testing the Module
+# Example usage
+async def main():
+    calc = RobustCalculator()
+    
+    # Test with valid input
+    result1 = await calc.safe_calculate('add', 5, 3)
+    print(f"Valid calculation: {result1}")
+    
+    # Test with invalid input
+    result2 = await calc.safe_calculate('add', 'invalid', 3)
+    print(f"Invalid calculation: {result2}")
 
-```python
-def test_calculator():
-    calc = Calculator()
-    
-    # Test addition
-    assert calc.add(2, 3) == 5
-    
-    # Test subtraction
-    assert calc.subtract(5, 3) == 2
-    
-    # Test history
-    assert len(calc.get_history()) == 2
-    
-    # Test error handling
-    try:
-        calc.divide(1, 0)
-        assert False, "Should raise error"
-    except ValueError:
-        pass
+if __name__ == '__main__':
+    asyncio.run(main())
 ```
 
 ## Best Practices

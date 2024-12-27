@@ -19,55 +19,198 @@ A module in Commune is a self-contained unit that:
 
 ```python
 import commune as c
+from typing import Any, Dict
 
 class MyModule(c.Module):
+    """Example module demonstrating core features."""
+    
     # Default function called when no method is specified
     default_fn = 'forward'
     
     # Module description
     description = "My custom module"
     
-    # Module initialization
-    def __init__(self, config_param=1):
+    def __init__(self, config_param: int = 1):
+        """Initialize module with configuration."""
         super().__init__()
         self.config_param = config_param
     
-    # Default forward method
-    def forward(self, x):
+    def forward(self, x: Any) -> Any:
+        """Default processing method."""
         return x * self.config_param
+
+# Example usage
+module = MyModule(config_param=2)
+result = module.forward(3)  # Returns 6
 ```
 
 ### Core Features
 
 1. **Auto-Configuration**
-   ```python
-   class ConfigModule(c.Module):
-       def __init__(self, param1="default", param2=42):
-           # Automatically saves all locals as config
-           self.set_config(locals())
-   ```
+```python
+import commune as c
+from typing import Dict, Optional
+
+class ConfigModule(c.Module):
+    def __init__(
+        self,
+        param1: str = "default",
+        param2: int = 42,
+        config: Optional[Dict] = None
+    ):
+        super().__init__()
+        # Save all init parameters as config
+        self.set_config(locals())
+        
+        # Override with provided config
+        if config:
+            self.update_config(config)
+    
+    def get_param(self, name: str) -> Any:
+        """Get parameter value from config."""
+        return self.config.get(name)
+
+# Example usage
+module = ConfigModule(param1="custom")
+print(module.get_param("param1"))  # "custom"
+```
 
 2. **State Management**
-   ```python
-   class StateModule(c.Module):
-       def __init__(self):
-           super().__init__()
-           # Access module state
-           self.storage_dir()  # Get module storage directory
-           self.save_config()  # Save current configuration
-   ```
+```python
+import commune as c
+from typing import Dict, List, Any
 
-3. **Function Discovery**
-   ```python
-   class FunctionModule(c.Module):
-       def get_functions(self):
-           # List all available functions
-           return self.functions()
-           
-       def get_schema(self):
-           # Get module schema
-           return self.schema()
-   ```
+class StateModule(c.Module):
+    def __init__(self):
+        super().__init__()
+        self.state = {
+            'counter': 0,
+            'history': []
+        }
+    
+    def update_state(self, data: Any) -> Dict:
+        """Update module state."""
+        self.state['counter'] += 1
+        self.state['history'].append(data)
+        return self.state
+    
+    def get_state(self) -> Dict:
+        """Return current state."""
+        return self.state
+    
+    def reset_state(self) -> None:
+        """Reset state to initial values."""
+        self.state = {
+            'counter': 0,
+            'history': []
+        }
+
+# Example usage
+module = StateModule()
+module.update_state("test")
+print(module.get_state())
+```
+
+3. **Module Communication**
+```python
+import commune as c
+from typing import List
+
+class CompositeModule(c.Module):
+    def __init__(self):
+        super().__init__()
+        # Load other modules
+        self.storage = c.module('storage')
+        self.processor = c.module('processor')
+    
+    async def process_and_store(
+        self,
+        data: List[Any]
+    ) -> Dict[str, Any]:
+        """Process data and store results."""
+        # Process data
+        results = await self.processor.batch_process(data)
+        
+        # Store results
+        storage_key = await self.storage.store(results)
+        
+        return {
+            'key': storage_key,
+            'results': results
+        }
+
+# Example usage
+async def main():
+    module = CompositeModule()
+    result = await module.process_and_store([1, 2, 3])
+    print(result)
+```
+
+## Error Handling
+
+1. **Module Not Found**
+```python
+import commune as c
+from typing import Optional
+
+def safe_load_module(
+    name: str,
+    default: Optional[str] = None
+) -> Optional[c.Module]:
+    """Safely load a module with fallback."""
+    try:
+        return c.module(name)
+    except ModuleNotFoundError:
+        if default:
+            return c.module(default)
+        return None
+
+# Example usage
+module = safe_load_module('custom_module', 'default_module')
+```
+
+2. **Network Errors**
+```python
+import commune as c
+from typing import Any, Dict
+
+class ResilientModule(c.Module):
+    def __init__(self, retries: int = 3):
+        super().__init__()
+        self.retries = retries
+    
+    async def safe_call(
+        self,
+        module_name: str,
+        method: str,
+        *args,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Make resilient module calls."""
+        for attempt in range(self.retries):
+            try:
+                module = c.module(module_name)
+                result = await getattr(module, method)(*args, **kwargs)
+                return {
+                    'success': True,
+                    'result': result,
+                    'attempts': attempt + 1
+                }
+            except Exception as e:
+                if attempt == self.retries - 1:
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'attempts': attempt + 1
+                    }
+                continue
+
+# Example usage
+async def main():
+    module = ResilientModule()
+    result = await module.safe_call('api_module', 'fetch_data')
+    print(result)
+```
 
 ## Module Lifecycle
 

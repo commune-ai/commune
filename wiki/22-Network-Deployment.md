@@ -16,18 +16,78 @@ The simplest deployment for development and testing:
 
 ```python
 import commune as c
+from typing import Dict, Any, Optional
+import asyncio
 
-# Create and serve a module
 class MyModule(c.Module):
-    def process(self, data):
+    """Example module for local deployment."""
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        """Initialize module with optional configuration."""
+        super().__init__()
+        self.config = config or {}
+    
+    async def process(self, data: Any) -> str:
+        """Process input data.
+        
+        Args:
+            data: Input data to process
+            
+        Returns:
+            Processed data string
+        """
         return f"Processed: {data}"
+    
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get module statistics.
+        
+        Returns:
+            Dictionary of module stats
+        """
+        return {
+            'processed_count': self.processed_count,
+            'uptime': self.get_uptime(),
+            'errors': self.error_count
+        }
 
-# Start local server
-c.serve('my_module', network='local', port=8000)
+async def run_local_server():
+    """Start local development server."""
+    try:
+        # Create and serve module
+        module = MyModule()
+        server = await c.serve(
+            module,
+            network='local',
+            port=8000,
+            host='0.0.0.0'
+        )
+        print("Local server running on port 8000")
+        
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down server...")
+        await server.stop()
 
-# Connect from another process
-client = c.connect('my_module')
-result = client.process("test data")
+async def test_connection():
+    """Test connection to local server."""
+    try:
+        # Connect to module
+        client = await c.connect('my_module')
+        
+        # Test processing
+        result = await client.process("test data")
+        print(f"Result: {result}")
+        
+        # Get stats
+        stats = await client.get_stats()
+        print(f"Module stats: {stats}")
+    except Exception as e:
+        print(f"Connection error: {e}")
+
+if __name__ == '__main__':
+    # Run server
+    asyncio.run(run_local_server())
 ```
 
 ### 2. Production Network
@@ -35,61 +95,189 @@ result = client.process("test data")
 For production environments with multiple nodes:
 
 ```python
-# config.yaml
-network:
-  name: "prod_network"
-  subnet: "main"
-  tempo: 60
-  validators: 5
-  min_stake: 1000
-  block_time: 8
-
-security:
-  key_type: "sr25519"
-  authentication: true
-  rate_limit: true
-  max_requests: 1000
-
-modules:
-  - name: "api_module"
-    port: 8001
-    replicas: 3
-  - name: "storage_module"
-    port: 8002
-    replicas: 2
-```
-
-```python
-# deployment.py
 import commune as c
+from typing import Dict, Any, List, Optional
 import yaml
+import asyncio
+from dataclasses import dataclass
 
-def deploy_network():
-    # Load configuration
-    with open('config.yaml') as f:
-        config = yaml.safe_load(f)
+@dataclass
+class NetworkConfig:
+    """Configuration for production network."""
+    name: str
+    subnet: str
+    tempo: int
+    validators: int
+    min_stake: float
+    block_time: int
+
+@dataclass
+class SecurityConfig:
+    """Security configuration for network."""
+    key_type: str
+    authentication: bool
+    rate_limit: bool
+    max_requests: int
+
+@dataclass
+class ProductionConfig:
+    """Complete production configuration."""
+    network: NetworkConfig
+    security: SecurityConfig
+
+class ProductionNetwork:
+    """Manager for production network deployment."""
     
-    # Initialize network
-    network = c.module('network')(
-        network=config['network']['name'],
-        subnet=config['network']['subnet'],
-        tempo=config['network']['tempo']
-    )
+    def __init__(self, config_path: str):
+        """Initialize with configuration file.
+        
+        Args:
+            config_path: Path to YAML config file
+        """
+        self.config = self._load_config(config_path)
+        self.modules: Dict[str, c.Module] = {}
     
-    # Deploy modules
-    for module_config in config['modules']:
-        for i in range(module_config['replicas']):
-            port = module_config['port'] + i
-            c.serve(
-                module_config['name'],
-                port=port,
-                network=config['network']['name'],
-                key_type=config['security']['key_type'],
-                authentication=config['security']['authentication']
+    @staticmethod
+    def _load_config(path: str) -> ProductionConfig:
+        """Load configuration from YAML file.
+        
+        Args:
+            path: Path to config file
+            
+        Returns:
+            Parsed configuration object
+        """
+        with open(path, 'r') as f:
+            config_dict = yaml.safe_load(f)
+            return ProductionConfig(
+                network=NetworkConfig(**config_dict['network']),
+                security=SecurityConfig(**config_dict['security'])
             )
+    
+    async def start(self) -> None:
+        """Start the production network."""
+        try:
+            # Initialize network
+            network = await c.network(
+                network=self.config.network.name,
+                subnet=self.config.network.subnet,
+                validators=self.config.network.validators,
+                min_stake=self.config.network.min_stake,
+                block_time=self.config.network.block_time
+            )
+            
+            # Apply security settings
+            await network.configure_security(
+                key_type=self.config.security.key_type,
+                authentication=self.config.security.authentication,
+                rate_limit=self.config.security.rate_limit,
+                max_requests=self.config.security.max_requests
+            )
+            
+            print(f"Production network {self.config.network.name} started")
+            
+            # Keep network running
+            while True:
+                await self._monitor_network(network)
+                await asyncio.sleep(self.config.network.tempo)
+        except Exception as e:
+            print(f"Network error: {e}")
+            raise
+    
+    async def _monitor_network(
+        self,
+        network: c.Module
+    ) -> None:
+        """Monitor network health.
+        
+        Args:
+            network: Network module to monitor
+        """
+        try:
+            stats = await network.get_stats()
+            print(f"Network stats: {stats}")
+            
+            # Check validator health
+            validators = await network.get_validators()
+            for v in validators:
+                if v['score'] < 0.5:
+                    print(f"Warning: Low validator score - {v['id']}")
+        except Exception as e:
+            print(f"Monitoring error: {e}")
 
-if __name__ == "__main__":
-    deploy_network()
+class LoadBalancer:
+    """Load balancer for distributing requests."""
+    
+    def __init__(
+        self,
+        strategy: str = 'round_robin',
+        check_interval: int = 30
+    ):
+        """Initialize load balancer.
+        
+        Args:
+            strategy: Load balancing strategy
+            check_interval: Health check interval in seconds
+        """
+        self.strategy = strategy
+        self.check_interval = check_interval
+        self.modules: List[c.Module] = []
+        self.current_index = 0
+    
+    async def add_module(
+        self,
+        module: c.Module
+    ) -> None:
+        """Add module to load balancer.
+        
+        Args:
+            module: Module to add
+        """
+        self.modules.append(module)
+    
+    async def get_next_module(self) -> Optional[c.Module]:
+        """Get next available module based on strategy.
+        
+        Returns:
+            Next module to use or None if none available
+        """
+        if not self.modules:
+            return None
+            
+        if self.strategy == 'round_robin':
+            module = self.modules[self.current_index]
+            self.current_index = (self.current_index + 1) % len(self.modules)
+            return module
+        
+        return self.modules[0]  # Default to first module
+    
+    async def check_health(self) -> None:
+        """Check health of all modules."""
+        unhealthy = []
+        for module in self.modules:
+            try:
+                await module.ping()
+            except Exception:
+                unhealthy.append(module)
+        
+        # Remove unhealthy modules
+        for module in unhealthy:
+            self.modules.remove(module)
+            print(f"Removed unhealthy module: {module}")
+
+async def main():
+    """Run production deployment."""
+    try:
+        # Start production network
+        network = ProductionNetwork('config.yaml')
+        await network.start()
+    except KeyboardInterrupt:
+        print("\nShutting down production network...")
+    except Exception as e:
+        print(f"Fatal error: {e}")
+
+if __name__ == '__main__':
+    asyncio.run(main())
 ```
 
 ### 3. Docker Deployment

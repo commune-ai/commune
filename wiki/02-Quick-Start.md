@@ -16,38 +16,65 @@ class MyFirstModule(c.Module):
         self.message = "Hello from Commune!"
     
     def forward(self, text: str) -> str:
+        """Process input text with greeting."""
         return f"{self.message} You said: {text}"
 
-# Save this in a file named my_first_module.py
+# Initialize the module
+module = MyFirstModule()
 ```
 
 ### 2. Running Your Module
 
-```bash
-# Start the module server
-c serve MyFirstModule
+```python
+# Method 1: Direct usage
+module = MyFirstModule()
+result = module.forward("Hello World")
+print(result)  # "Hello from Commune! You said: Hello World"
 
-# In another terminal, call the module
-c call MyFirstModule/forward "Hello World"
+# Method 2: Using module system
+c.serve('MyFirstModule', port=8000)  # In one terminal
+result = c.call('MyFirstModule.forward', "Hello World")  # In another terminal
 ```
 
 ### 3. Web Integration Example
 
 ```python
 import commune as c
+from typing import List, Dict
 
-# Create a web-enabled module
 class WebModule(c.Module):
     def __init__(self):
         super().__init__()
         self.web = c.module('web')
     
-    def search(self, query: str) -> str:
-        return self.web.search(query)
+    def search(self, query: str) -> List[Dict[str, str]]:
+        """Search the web for given query."""
+        results = self.web.search(query)
+        return [
+            {
+                'title': result.title,
+                'url': result.url,
+                'snippet': result.snippet
+            }
+            for result in results[:5]  # Top 5 results
+        ]
 
-# Use the module
-module = WebModule()
-results = module.search("Commune blockchain")
+    def summarize(self, url: str) -> str:
+        """Summarize content from URL."""
+        content = self.web.get_content(url)
+        return self.web.summarize(content)
+
+# Example usage
+def main():
+    module = WebModule()
+    results = module.search("Commune blockchain")
+    
+    if results:
+        summary = module.summarize(results[0]['url'])
+        print(f"Summary of top result: {summary}")
+
+if __name__ == '__main__':
+    main()
 ```
 
 ## Common Patterns
@@ -122,6 +149,78 @@ class MyValidator(c.Module):
 
 # Register validator
 c serve MyValidator --network mainnet --validator
+```
+
+## Advanced Features
+
+### 1. Module Configuration
+
+```python
+import commune as c
+from typing import Optional
+
+class ConfigurableModule(c.Module):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        max_retries: int = 3,
+        timeout: float = 30.0
+    ):
+        super().__init__()
+        self.config = {
+            'api_key': api_key or c.get_api_key('default'),
+            'max_retries': max_retries,
+            'timeout': timeout
+        }
+    
+    def get_config(self) -> dict:
+        """Return non-sensitive config."""
+        return {
+            'max_retries': self.config['max_retries'],
+            'timeout': self.config['timeout']
+        }
+
+# Example usage
+module = ConfigurableModule(max_retries=5)
+print(module.get_config())
+```
+
+### 2. Error Handling
+
+```python
+import commune as c
+from typing import Any
+
+class RobustModule(c.Module):
+    def __init__(self):
+        super().__init__()
+    
+    def safe_process(self, data: Any) -> dict:
+        """Process data with error handling."""
+        try:
+            result = self.process(data)
+            return {
+                'success': True,
+                'result': result,
+                'error': None
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'result': None,
+                'error': str(e)
+            }
+    
+    def process(self, data: Any) -> Any:
+        """Internal processing logic."""
+        if not data:
+            raise ValueError("Data cannot be empty")
+        return {'processed': data}
+
+# Example usage
+module = RobustModule()
+print(module.safe_process(None))  # Handles error gracefully
+print(module.safe_process("test"))  # Processes successfully
 ```
 
 ## Next Steps

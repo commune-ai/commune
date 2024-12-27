@@ -10,14 +10,58 @@ The Server component is the backbone of Commune's network architecture, providin
 
 ```python
 import commune as c
+from typing import Optional, Dict, Any
 
 class MyServer(c.Module):
-    def __init__(self, port=8000):
+    """Custom server module with configurable settings."""
+    
+    def __init__(
+        self,
+        port: int = 8000,
+        host: str = "0.0.0.0",
+        network: str = "subspace",
+        max_workers: int = 4
+    ):
+        super().__init__()
         self.server = c.server(
             module=self,
             port=port,
-            network='subspace'
+            host=host,
+            network=network,
+            max_workers=max_workers
         )
+    
+    async def start(self) -> None:
+        """Start the server."""
+        await self.server.start()
+    
+    async def stop(self) -> None:
+        """Stop the server gracefully."""
+        await self.server.stop()
+    
+    async def handle_request(
+        self,
+        method: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Handle incoming requests."""
+        try:
+            handler = getattr(self, method)
+            result = await handler(**data)
+            return {
+                'success': True,
+                'result': result
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+
+# Example usage
+async def main():
+    server = MyServer(port=8000)
+    await server.start()
 ```
 
 Key features:
@@ -33,39 +77,206 @@ Key features:
 The Network component handles module discovery and communication:
 
 ```python
-network = c.network(
-    network='local',
-    tempo=60  # Update interval in seconds
-)
+import commune as c
+from typing import List, Dict, Optional
 
-# Get available modules
-modules = network.modules()
+class NetworkManager:
+    """Manages network connections and module discovery."""
+    
+    def __init__(
+        self,
+        network: str = 'local',
+        tempo: int = 60,
+        discovery_port: int = 8888
+    ):
+        self.network = c.network(
+            network=network,
+            tempo=tempo,
+            discovery_port=discovery_port
+        )
+    
+    async def discover_modules(
+        self,
+        module_type: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Discover available modules on the network."""
+        modules = await self.network.modules()
+        
+        if module_type:
+            return [
+                m for m in modules
+                if m.get('type') == module_type
+            ]
+        return modules
+    
+    async def get_module_info(
+        self,
+        module_name: str
+    ) -> Optional[Dict[str, Any]]:
+        """Get detailed information about a module."""
+        try:
+            return await self.network.get_module_info(module_name)
+        except Exception:
+            return None
+    
+    async def connect(
+        self,
+        module_name: str,
+        timeout: float = 5.0
+    ) -> Optional[c.Module]:
+        """Connect to a remote module."""
+        try:
+            return await self.network.connect(
+                module_name,
+                timeout=timeout
+            )
+        except TimeoutError:
+            return None
+
+# Example usage
+async def main():
+    manager = NetworkManager(network='testnet')
+    modules = await manager.discover_modules()
+    print(f"Found {len(modules)} modules")
+    
+    # Connect to specific module
+    module = await manager.connect('storage')
+    if module:
+        info = await manager.get_module_info('storage')
+        print(f"Connected to storage module: {info}")
 ```
-
-Features:
-- Module discovery
-- Network state management
-- Address resolution
-- Load balancing
 
 ## Network Types
 
 ### 1. Local Network
 ```python
-# Start local network
-c.serve('my_module', network='local')
+import commune as c
+from typing import List, Dict
 
-# Connect to local module
-result = c.call('my_module/forward', "data")
+async def setup_local_network(
+    modules: List[Dict[str, Any]]
+) -> None:
+    """Set up a local development network."""
+    network = c.network(network='local')
+    
+    # Start modules
+    for module_config in modules:
+        module = await network.start_module(
+            name=module_config['name'],
+            config=module_config.get('config', {})
+        )
+        print(f"Started {module_config['name']}")
+    
+    # Wait for network stabilization
+    await network.wait_ready()
+
+# Example configuration
+modules_config = [
+    {
+        'name': 'storage',
+        'config': {'path': '/data'}
+    },
+    {
+        'name': 'compute',
+        'config': {'workers': 2}
+    }
+]
+
+async def main():
+    await setup_local_network(modules_config)
 ```
 
-### 2. Subspace Network
+### 2. Production Network
 ```python
-# Serve on Subspace network
-c.serve('my_module', network='subspace', netuid=0)
+import commune as c
+from typing import Dict, Any
+import yaml
 
-# Connect to Subspace module
-result = c.call('subspace:my_module/forward', "data")
+def load_network_config(path: str) -> Dict[str, Any]:
+    """Load network configuration from YAML."""
+    with open(path, 'r') as f:
+        return yaml.safe_load(f)
+
+async def setup_production_network(
+    config_path: str
+) -> None:
+    """Set up a production network with config."""
+    config = load_network_config(config_path)
+    
+    network = c.network(
+        network=config['network']['name'],
+        subnet=config['network']['subnet'],
+        validators=config['network']['validators'],
+        min_stake=config['network']['min_stake']
+    )
+    
+    # Apply security settings
+    network.set_security_config(
+        key_type=config['security']['key_type'],
+        authentication=config['security']['authentication'],
+        rate_limit=config['security']['rate_limit']
+    )
+    
+    await network.start()
+
+# Example usage
+async def main():
+    await setup_production_network('network_config.yaml')
+```
+
+## Best Practices
+
+### 1. Error Handling
+```python
+import commune as c
+from typing import Optional, Dict, Any
+
+class NetworkModule(c.Module):
+    """Network-aware module with error handling."""
+    
+    async def safe_remote_call(
+        self,
+        module: str,
+        method: str,
+        *args,
+        timeout: float = 5.0,
+        retries: int = 3,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Make safe remote calls with retries."""
+        for attempt in range(retries):
+            try:
+                remote = await c.connect(
+                    module,
+                    timeout=timeout
+                )
+                result = await getattr(remote, method)(
+                    *args,
+                    **kwargs
+                )
+                return {
+                    'success': True,
+                    'result': result,
+                    'attempts': attempt + 1
+                }
+            except Exception as e:
+                if attempt == retries - 1:
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'attempts': attempt + 1
+                    }
+                continue
+
+# Example usage
+async def main():
+    module = NetworkModule()
+    result = await module.safe_remote_call(
+        'storage',
+        'get_data',
+        key='test'
+    )
+    print(result)
 ```
 
 ## Communication Patterns
@@ -229,23 +440,6 @@ metrics = network.metrics()
 # Get server stats
 stats = server.stats()
 ```
-
-## Best Practices
-
-1. **Network Design**
-   - Use appropriate network type for your use case
-   - Implement proper error handling
-   - Monitor network health
-
-2. **Security**
-   - Always use authentication
-   - Implement rate limiting
-   - Validate all inputs
-
-3. **Performance**
-   - Use caching when appropriate
-   - Implement connection pooling
-   - Monitor resource usage
 
 ## Common Issues
 

@@ -8,25 +8,63 @@ Commune provides robust blockchain integration capabilities, with primary suppor
 
 ```python
 import commune as c
+from typing import Dict, Any, Optional
+from dataclasses import dataclass
 
-# Initialize Subtensor connection
-subtensor = c.module('subtensor')
+@dataclass
+class NetworkConfig:
+    """Configuration for Subtensor network."""
+    network: str
+    netuid: int
+    stake: float
+    endpoint: Optional[str] = None
 
-# Connect to specific network
-subtensor = c.module('subtensor', network='mainnet')
-```
+class SubtensorModule(c.Module):
+    """Module for interacting with Subtensor network."""
+    
+    def __init__(
+        self,
+        config: Optional[NetworkConfig] = None
+    ):
+        super().__init__()
+        self.config = config or NetworkConfig(
+            network='mainnet',
+            netuid=1,
+            stake=0.1
+        )
+        self.subtensor = c.module('subtensor')(
+            network=self.config.network,
+            endpoint=self.config.endpoint
+        )
+    
+    async def get_network_info(self) -> Dict[str, Any]:
+        """Get current network information."""
+        try:
+            return {
+                'block': await self.subtensor.get_current_block(),
+                'stake': await self.subtensor.get_stake(),
+                'peers': await self.subtensor.get_peers(),
+                'difficulty': await self.subtensor.get_difficulty()
+            }
+        except Exception as e:
+            return {'error': str(e)}
+    
+    async def get_network_status(self) -> Dict[str, Any]:
+        """Get network health status."""
+        try:
+            return {
+                'is_synced': await self.subtensor.is_synced(),
+                'connections': await self.subtensor.get_connected_peers(),
+                'version': await self.subtensor.get_version()
+            }
+        except Exception as e:
+            return {'error': str(e)}
 
-### 2. Network Operations
-
-```python
-# Get network info
-info = subtensor.get_network_info()
-
-# Check network status
-status = subtensor.get_network_status()
-
-# Get current block
-block = subtensor.get_current_block()
+# Example usage
+async def main():
+    module = SubtensorModule()
+    info = await module.get_network_info()
+    print(f"Network Info: {info}")
 ```
 
 ## Validator System
@@ -34,37 +72,206 @@ block = subtensor.get_current_block()
 ### 1. Basic Validator
 
 ```python
-class MyValidator(c.Module):
-    def __init__(self, network='local'):
+import commune as c
+from typing import Dict, Any, List
+from dataclasses import dataclass
+import asyncio
+
+@dataclass
+class ValidatorConfig:
+    """Configuration for validator module."""
+    network: str
+    stake: float
+    interval: int
+    min_score: float
+
+class CustomValidator(c.Module):
+    """Custom validator implementation."""
+    
+    def __init__(
+        self,
+        config: Optional[ValidatorConfig] = None
+    ):
         super().__init__()
-        self.vali = c.module('vali')(
-            network=network,
-            score=self.score_fn
+        self.config = config or ValidatorConfig(
+            network='local',
+            stake=1.0,
+            interval=12,
+            min_score=0.5
+        )
+        self.validator = c.module('validator')(
+            network=self.config.network,
+            stake=self.config.stake
         )
     
-    def score_fn(self, module):
-        # Implement validation logic
-        return score  # 0.0 to 1.0
+    async def score_module(
+        self,
+        module: c.Module
+    ) -> float:
+        """Score a module based on performance metrics."""
+        try:
+            # Get module metrics
+            latency = await self.measure_latency(module)
+            uptime = await self.get_uptime(module)
+            quality = await self.assess_quality(module)
+            
+            # Calculate weighted score
+            score = (
+                0.3 * self.normalize(latency, max_val=1000) +
+                0.3 * uptime +
+                0.4 * quality
+            )
+            
+            return max(0.0, min(1.0, score))
+        except Exception:
+            return 0.0
+    
+    async def measure_latency(
+        self,
+        module: c.Module
+    ) -> float:
+        """Measure module response latency."""
+        start = asyncio.get_event_loop().time()
+        try:
+            await module.ping()
+            return asyncio.get_event_loop().time() - start
+        except Exception:
+            return float('inf')
+    
+    async def get_uptime(
+        self,
+        module: c.Module
+    ) -> float:
+        """Get module uptime score."""
+        try:
+            stats = await module.get_stats()
+            return stats.get('uptime', 0) / 100.0
+        except Exception:
+            return 0.0
+    
+    async def assess_quality(
+        self,
+        module: c.Module
+    ) -> float:
+        """Assess module output quality."""
+        try:
+            # Run test queries
+            results = await self.run_test_suite(module)
+            return sum(results) / len(results)
+        except Exception:
+            return 0.0
+    
+    @staticmethod
+    def normalize(
+        value: float,
+        max_val: float
+    ) -> float:
+        """Normalize value to 0-1 range."""
+        return max(0.0, min(1.0, 1 - (value / max_val)))
+    
+    async def run_test_suite(
+        self,
+        module: c.Module
+    ) -> List[float]:
+        """Run test cases and return scores."""
+        test_cases = [
+            ('ping', {}),
+            ('get_info', {}),
+            ('process', {'data': 'test'})
+        ]
+        
+        results = []
+        for method, args in test_cases:
+            try:
+                await getattr(module, method)(**args)
+                results.append(1.0)
+            except Exception:
+                results.append(0.0)
+        
+        return results
+
+# Example usage
+async def main():
+    validator = CustomValidator()
+    module = await c.connect('test_module')
+    score = await validator.score_module(module)
+    print(f"Module Score: {score}")
 ```
 
-### 2. Advanced Validation
+## Best Practices
+
+### 1. Error Handling
 
 ```python
-class CustomValidator(c.Vali):
-    def __init__(self):
-        super().__init__(
-            network='subspace',
-            batch_size=128,
-            timeout=3
-        )
+import commune as c
+from typing import Dict, Any, Optional
+import asyncio
+
+class BlockchainModule(c.Module):
+    """Base class for blockchain interactions."""
     
-    async def score(self, module):
+    async def safe_call(
+        self,
+        method: str,
+        *args,
+        retries: int = 3,
+        delay: float = 1.0,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Make safe blockchain calls with retries."""
+        for attempt in range(retries):
+            try:
+                result = await getattr(self, method)(
+                    *args,
+                    **kwargs
+                )
+                return {
+                    'success': True,
+                    'result': result,
+                    'attempts': attempt + 1
+                }
+            except Exception as e:
+                if attempt == retries - 1:
+                    return {
+                        'success': False,
+                        'error': str(e),
+                        'attempts': attempt + 1
+                    }
+                await asyncio.sleep(delay)
+                continue
+    
+    @staticmethod
+    def validate_transaction(
+        tx: Dict[str, Any]
+    ) -> Optional[str]:
+        """Validate transaction parameters."""
+        required = ['to', 'value', 'data']
+        
+        # Check required fields
+        missing = [f for f in required if f not in tx]
+        if missing:
+            return f"Missing fields: {', '.join(missing)}"
+        
+        # Validate value
         try:
-            # Custom validation logic
-            result = await module.validate()
-            return self.normalize_score(result)
-        except Exception as e:
-            return 0.0
+            value = float(tx['value'])
+            if value <= 0:
+                return "Value must be positive"
+        except ValueError:
+            return "Invalid value format"
+        
+        return None
+
+# Example usage
+async def main():
+    module = BlockchainModule()
+    result = await module.safe_call(
+        'send_transaction',
+        to='0x...',
+        value=1.0,
+        data='0x...'
+    )
+    print(result)
 ```
 
 ## Token Economics
@@ -244,23 +451,6 @@ class MetricsValidator(c.Vali):
         # Log and analyze event
         c.log.info(f"Event: {event}")
 ```
-
-## Best Practices
-
-1. **Validation Design**
-   - Implement fair and transparent scoring
-   - Handle edge cases gracefully
-   - Include proper error handling
-
-2. **Security**
-   - Secure key management
-   - Implement proper access controls
-   - Regular security audits
-
-3. **Performance**
-   - Use batch processing when possible
-   - Implement caching strategies
-   - Monitor resource usage
 
 ## Common Issues
 

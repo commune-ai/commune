@@ -21,73 +21,297 @@ Let's create a simple validator for API modules:
 
 ```python
 import commune as c
-from typing import Optional, Union, List, Dict
+from typing import Optional, Union, List, Dict, Any
+from dataclasses import dataclass
+import asyncio
+import time
+
+@dataclass
+class ValidatorConfig:
+    """Configuration for API validator."""
+    network: str = 'local'
+    subnet: Optional[str] = None
+    batch_size: int = 32
+    timeout: int = 5
+    min_response_time: float = 0.1
+    max_response_time: float = 2.0
+    required_endpoints: List[str] = None
+    
+    def __post_init__(self):
+        """Set default required endpoints if none provided."""
+        if self.required_endpoints is None:
+            self.required_endpoints = ['info', 'status', 'health']
 
 class APIValidator(c.Vali):
-    def __init__(self,
-                network='local',
-                subnet: Optional[str] = None,
-                batch_size: int = 32,
-                timeout: int = 5):
+    """Validator for API modules with comprehensive scoring."""
+    
+    def __init__(
+        self,
+        config: Optional[ValidatorConfig] = None
+    ):
+        """Initialize validator with configuration.
+        
+        Args:
+            config: Validator configuration
+        """
+        self.config = config or ValidatorConfig()
         
         super().__init__(
-            network=network,
-            subnet=subnet,
-            batch_size=batch_size,
-            timeout=timeout,
-            score=self.score_api,  # Set our custom scoring function
-            run_loop=True  # Auto-start validation loop
+            network=self.config.network,
+            subnet=self.config.subnet,
+            batch_size=self.config.batch_size,
+            timeout=self.config.timeout,
+            score=self.score_api,
+            run_loop=True
         )
         
-        # Initialize validator-specific attributes
-        self.required_endpoints = ['info', 'status', 'health']
-        self.min_response_time = 0.1
-        self.max_response_time = 2.0
+        # Initialize metrics storage
+        self.metrics: Dict[str, Dict[str, Any]] = {}
     
-    async def score_api(self, module) -> float:
-        """Score an API module based on:
-        1. Endpoint availability
-        2. Response time
-        3. Error handling
-        4. Data quality
+    async def score_api(
+        self,
+        module: c.Module
+    ) -> float:
+        """Score an API module based on multiple criteria.
+        
+        Args:
+            module: Module to score
+            
+        Returns:
+            Score between 0 and 1
         """
         try:
-            # Check basic module info
-            info = await module.info()
-            if not isinstance(info, dict):
-                return 0.0
+            # Initialize scoring components
+            endpoint_score = await self._check_endpoints(module)
+            response_score = await self._measure_response(module)
+            error_score = await self._test_error_handling(module)
             
-            # Test required endpoints
-            endpoint_scores = []
-            for endpoint in self.required_endpoints:
-                if endpoint in info.get('endpoints', []):
-                    endpoint_scores.append(1.0)
-                else:
-                    endpoint_scores.append(0.0)
+            # Calculate weighted final score
+            final_score = (
+                0.4 * endpoint_score +
+                0.4 * response_score +
+                0.2 * error_score
+            )
             
-            # Test response time
-            start_time = c.time()
-            await module.health()
-            response_time = c.time() - start_time
-            
-            # Calculate time score
-            time_score = 1.0
-            if response_time > self.max_response_time:
-                time_score = 0.0
-            elif response_time > self.min_response_time:
-                time_score = 1.0 - ((response_time - self.min_response_time) 
-                                  / (self.max_response_time - self.min_response_time))
-            
-            # Combine scores
-            endpoint_score = sum(endpoint_scores) / len(self.required_endpoints)
-            final_score = (endpoint_score * 0.7) + (time_score * 0.3)
+            # Update metrics
+            self._update_metrics(module, {
+                'endpoint_score': endpoint_score,
+                'response_score': response_score,
+                'error_score': error_score,
+                'final_score': final_score
+            })
             
             return final_score
-            
         except Exception as e:
-            c.print(f"Scoring error: {str(e)}")
+            print(f"Error scoring module {module}: {e}")
             return 0.0
-```
+    
+    async def _check_endpoints(
+        self,
+        module: c.Module
+    ) -> float:
+        """Check required endpoint availability.
+        
+        Args:
+            module: Module to check
+            
+        Returns:
+            Score based on endpoint availability
+        """
+        available = 0
+        total = len(self.config.required_endpoints)
+        
+        for endpoint in self.config.required_endpoints:
+            try:
+                if hasattr(module, endpoint):
+                    # Test endpoint
+                    await getattr(module, endpoint)()
+                    available += 1
+            except Exception:
+                continue
+        
+        return available / total if total > 0 else 0.0
+    
+    async def _measure_response(
+        self,
+        module: c.Module
+    ) -> float:
+        """Measure module response times.
+        
+        Args:
+            module: Module to measure
+            
+        Returns:
+            Score based on response times
+        """
+        times = []
+        
+        for _ in range(3):  # Make multiple measurements
+            try:
+                start = time.time()
+                await module.info()  # Use info endpoint as benchmark
+                elapsed = time.time() - start
+                times.append(elapsed)
+            except Exception:
+                times.append(self.config.max_response_time)
+        
+        # Calculate average response time
+        avg_time = sum(times) / len(times)
+        
+        # Normalize to score between 0 and 1
+        if avg_time <= self.config.min_response_time:
+            return 1.0
+        elif avg_time >= self.config.max_response_time:
+            return 0.0
+        else:
+            return 1.0 - (
+                (avg_time - self.config.min_response_time) /
+                (self.config.max_response_time - self.config.min_response_time)
+            )
+    
+    async def _test_error_handling(
+        self,
+        module: c.Module
+    ) -> float:
+        """Test module's error handling capabilities.
+        
+        Args:
+            module: Module to test
+            
+        Returns:
+            Score based on error handling
+        """
+        tests = [
+            self._test_invalid_input(module),
+            self._test_timeout_handling(module),
+            self._test_error_response(module)
+        ]
+        
+        results = await asyncio.gather(*tests, return_exceptions=True)
+        return sum(1.0 for r in results if r is True) / len(tests)
+    
+    async def _test_invalid_input(
+        self,
+        module: c.Module
+    ) -> bool:
+        """Test handling of invalid input.
+        
+        Args:
+            module: Module to test
+            
+        Returns:
+            True if handles invalid input correctly
+        """
+        try:
+            await module.process(None)
+            return False  # Should have raised an error
+        except Exception:
+            return True
+    
+    async def _test_timeout_handling(
+        self,
+        module: c.Module
+    ) -> bool:
+        """Test handling of timeouts.
+        
+        Args:
+            module: Module to test
+            
+        Returns:
+            True if handles timeouts correctly
+        """
+        try:
+            async with asyncio.timeout(0.1):
+                await module.process("timeout_test")
+            return True
+        except asyncio.TimeoutError:
+            return True  # Timeout is expected
+        except Exception:
+            return False
+    
+    async def _test_error_response(
+        self,
+        module: c.Module
+    ) -> bool:
+        """Test error response format.
+        
+        Args:
+            module: Module to test
+            
+        Returns:
+            True if error response is properly formatted
+        """
+        try:
+            result = await module.process("error_test")
+            if isinstance(result, dict) and 'error' in result:
+                return True
+            return False
+        except Exception as e:
+            return hasattr(e, 'error_code')
+    
+    def _update_metrics(
+        self,
+        module: c.Module,
+        scores: Dict[str, float]
+    ) -> None:
+        """Update module metrics history.
+        
+        Args:
+            module: Scored module
+            scores: Dictionary of scores
+        """
+        module_id = str(module)
+        
+        try:
+            if module_id not in self.metrics:
+                self.metrics[module_id] = {
+                    'history': [],
+                    'average_score': 0.0
+                }
+            
+            # Add new scores
+            self.metrics[module_id]['history'].append(scores)
+            
+            # Keep last 100 scores
+            if len(self.metrics[module_id]['history']) > 100:
+                self.metrics[module_id]['history'].pop(0)
+            
+            # Update average
+            self.metrics[module_id]['average_score'] = (
+                sum(h['final_score'] for h in self.metrics[module_id]['history']) /
+                len(self.metrics[module_id]['history'])
+            )
+        except Exception as e:
+            print(f"Error updating metrics for {module_id}: {e}")
+
+# Example usage
+async def main():
+    """Run validator example."""
+    try:
+        # Create validator with custom config
+        config = ValidatorConfig(
+            batch_size=16,
+            timeout=3,
+            min_response_time=0.05,
+            max_response_time=1.0
+        )
+        validator = APIValidator(config)
+        
+        # Connect to test module
+        module = await c.connect('test_api')
+        
+        # Score module
+        score = await validator.score_api(module)
+        print(f"Module score: {score}")
+        
+        # Get metrics
+        metrics = validator.metrics[str(module)]
+        print(f"Module metrics: {metrics}")
+    except Exception as e:
+        print(f"Error in validation: {e}")
+
+if __name__ == '__main__':
+    asyncio.run(main())
 
 ## Advanced Validator Features
 
