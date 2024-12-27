@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html data-theme="light">
+<head>
+    <title>Commune Documentation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/github-markdown-css/github-markdown.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <style>
+        :root[data-theme="light"] {
+            --bg-color: #ffffff;
+            --text-color: #24292e;
+            --sidebar-bg: #f6f8fa;
+            --link-color: #0366d6;
+            --border-color: #e1e4e8;
+            --code-bg: #f6f8fa;
+            --blockquote-color: #6a737d;
+            --header-border: #eaecef;
+            --shadow-color: rgba(0,0,0,0.12);
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --sidebar-bg: #161b22;
+            --link-color: #58a6ff;
+            --border-color: #30363d;
+            --code-bg: #1f2428;
+            --blockquote-color: #8b949e;
+            --header-border: #21262d;
+            --shadow-color: rgba(0,0,0,0.3);
+        }
+
+        body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 45px;
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .container {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .sidebar {
+            width: 250px;
+            position: fixed;
+            background-color: var(--sidebar-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px var(--shadow-color);
+        }
+
+        .content {
+            margin-left: 270px;
+            flex-grow: 1;
+        }
+
+        .markdown-body {
+            padding: 2rem;
+            background-color: var(--bg-color);
+            border-radius: 6px;
+            box-shadow: 0 1px 3px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+        }
+
+        .nav-link {
+            display: block;
+            padding: 8px 12px;
+            color: var(--link-color);
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-link:hover {
+            background-color: var(--code-bg);
+        }
+
+        h2 {
+            margin-top: 2rem;
+            padding-bottom: 0.3em;
+            border-bottom: 1px solid var(--header-border);
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            padding: 8px 16px;
+            background-color: var(--sidebar-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background-color: var(--code-bg);
+        }
+
+        /* Dark mode overrides for markdown content */
+        [data-theme="dark"] .markdown-body {
+            color: var(--text-color);
+            background-color: var(--bg-color);
+        }
+
+        [data-theme="dark"] .markdown-body h1,
+        [data-theme="dark"] .markdown-body h2,
+        [data-theme="dark"] .markdown-body h3,
+        [data-theme="dark"] .markdown-body h4,
+        [data-theme="dark"] .markdown-body h5,
+        [data-theme="dark"] .markdown-body h6 {
+            color: var(--text-color);
+            border-bottom-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .markdown-body code {
+            background-color: var(--code-bg);
+        }
+
+        [data-theme="dark"] .markdown-body pre {
+            background-color: var(--code-bg);
+        }
+
+        [data-theme="dark"] .markdown-body blockquote {
+            color: var(--blockquote-color);
+            border-left-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .markdown-body table th,
+        [data-theme="dark"] .markdown-body table td {
+            border-color: var(--border-color);
+        }
+
+        [data-theme="dark"] .markdown-body hr {
+            background-color: var(--border-color);
+        }
+
+        @media (max-width: 767px) {
+            .container {
+                flex-direction: column;
+            }
+            .sidebar {
+                position: static;
+                width: 100%;
+                margin-bottom: 2rem;
+            }
+            .content {
+                margin-left: 0;
+            }
+            body {
+                padding: 15px;
+            }
+            .theme-toggle {
+                position: static;
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="theme-toggle" onclick="toggleTheme()"> Toggle Theme</button>
+    <div class="container">
+        <div class="sidebar">
+            <h2>Documentation</h2>
+            <nav id="nav"></nav>
+        </div>
+        <div class="content">
+            <div id="content" class="markdown-body"></div>
+        </div>
+    </div>
+    <script>
+        const pages = [
+            { title: 'Home', path: '00-Home.md' },
+            { title: 'Installation', path: '01-Installation.md' },
+            { title: 'Quick Start', path: '02-Quick-Start.md' },
+            { title: 'Module System', path: '10-Module-System.md' },
+            { title: 'Network Architecture', path: '11-Network-Architecture.md' },
+            { title: 'Blockchain Integration', path: '12-Blockchain-Integration.md' }
+        ];
+
+        // Build navigation
+        const nav = document.getElementById('nav');
+        pages.forEach(page => {
+            const link = document.createElement('a');
+            link.href = '#' + page.path;
+            link.textContent = page.title;
+            link.className = 'nav-link';
+            nav.appendChild(link);
+        });
+
+        // Theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+
+        // Handle navigation
+        async function loadContent(path) {
+            try {
+                const response = await fetch(path);
+                const text = await response.text();
+                const content = document.getElementById('content');
+                content.innerHTML = marked.parse(text);
+                // Highlight code blocks
+                document.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                });
+            } catch (error) {
+                console.error('Error loading content:', error);
+            }
+        }
+
+        // Handle hash changes
+        function handleHash() {
+            const hash = window.location.hash.slice(1) || '00-Home.md';
+            loadContent(hash);
+        }
+
+        window.addEventListener('hashchange', handleHash);
+        handleHash(); // Load initial content
+    </script>
+</body>
+</html>
