@@ -20,7 +20,7 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 
 #### Phase 2: Technical Documentation
 - [x] Document core Module System
-- [ ] Document Network Architecture
+- [x] Document Network Architecture
 - [ ] Document Blockchain Integration
 - [ ] Create detailed tutorials
 - [ ] Add code examples
@@ -38,22 +38,23 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 ### Last Session Summary
 **Date**: 2024-12-27
 **Progress**:
-- Created comprehensive Module System documentation:
-  - Core concepts and structure
-  - Module lifecycle management
-  - Composition and inheritance patterns
-  - Advanced features and best practices
-  - Common patterns and troubleshooting
+- Created comprehensive Network Architecture documentation:
+  - Core components (Server, Network Manager)
+  - Communication patterns
+  - Security model
+  - Load balancing and fault tolerance
+  - Performance optimization
+  - Monitoring and debugging
 - Previous progress:
-  - Added Quick Start guide
+  - Added Module System documentation
+  - Created Quick Start guide
   - Set up wiki structure
-  - Created installation guide
 
 ### Next Steps
 1. Continue Phase 2:
-   - Create Network Architecture guide
    - Document Blockchain Integration
-   - Add practical examples
+   - Create practical tutorials
+   - Add example code
 
 ### Important Notes for Future Sessions
 - Check `docs/` directory for existing documentation before creating new docs
@@ -62,20 +63,20 @@ This file tracks the progress of documenting the Commune library. Commune is a m
 - Always update this PROGRESS.md file at the end of each session
 
 ### Key Components to Document
-1. Network Architecture
-   - Server/Client implementation
-   - Consensus mechanism
-   - Cross-chain integration
-
-2. Blockchain Integration
+1. Blockchain Integration
    - Subtensor integration
    - Custom validators
    - Token economics
 
-3. CLI Interface
-   - Command structure
-   - Configuration options
-   - Common use cases
+2. Tutorial Topics
+   - Building custom modules
+   - Implementing validators
+   - Network deployment
+
+3. Example Code
+   - Basic module examples
+   - Network configuration
+   - Security implementation
 
 ### Documentation Style Guide
 - Use Markdown for all documentation
