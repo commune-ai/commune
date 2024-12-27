@@ -1,136 +1,102 @@
-# Commune: Incentivizing Applications in a Multichain World
+# Commune: A Modular Blockchain Development Framework
 
-Commune is a modular consensus system designed to incentivize applications to run on networks through innovative token models and bonding curves. It provides a flexible framework for building and managing distributed applications across multiple chains.
+Commune is a powerful framework for building and deploying modular blockchain applications with a focus on AI integration and cross-chain interoperability. It provides a flexible, pythonic interface for creating distributed applications, managing blockchain modules, and implementing custom consensus mechanisms.
 
-## 🚀 Quick Start
+## 🚀 Key Features
 
-### Installation
+- **Modular Architecture**: Build independent modules that can be composed and deployed across networks
+- **Cross-Chain Integration**: Native support for multiple blockchains, including Subtensor
+- **AI-Ready**: Built-in support for AI model deployment and distributed inference
+- **Flexible Consensus**: Implement custom validation logic and consensus mechanisms
+- **Developer-Friendly**: Intuitive Python API with comprehensive CLI tools
 
-**Requirements:**
+## 📦 Installation
+
+### Prerequisites
 - Python 3.10+
-- NodeJS 14+
-- npm 6+
+- Node.js 20+
+- Rust toolchain
 
 ```bash
 # Clone the repository
 git clone https://github.com/commune-ai/commune.git
 
-# Install the package
+# Install Python dependencies
 cd commune
-pip install -e ./
+pip install -e .
 
-# Install npm dependencies
+# Install Node.js dependencies
 chmod +x ./scripts/*
-sudo ./scripts/install_npm_env.sh
+./scripts/install_npm_env.sh
 ```
 
-### Basic Usage
+## 🎯 Quick Start
 
 ```python
 import commune as c
 
-# Create a new module
-c.new_module('agi')
+# Create and deploy a module
+c.new_module('my_service')
+c.serve('my_service')
 
-# Serve a module
-c.serve('agi')
+# Call module functions
+response = c.call('my_service/forward', "Hello World!")
 
-# Call a module
-c.call('agi/forward', "hello")
-```
-
-## 🏗️ Core Concepts
-
-### Modules
-
-A module is a collection of functions and state variables. Modules are the building blocks of Commune and can be:
-- Served as HTTP endpoints
-- Called remotely
-- Managed through the CLI
-- Inherited and extended
-
-### Networks
-
-Networks in Commune consist of:
-- **Namespace**: Maps server names to addresses
-- **Servers**: Modules exposed as network endpoints
-- **Validators**: Nodes that validate and secure the network
-
-### Keys
-
-Commune uses SR25519 keys for:
-- Signing messages
-- Encrypting/decrypting data
-- Cross-chain compatibility
-- Creating temporary tokens
-
-## 💻 CLI Interface
-
-Commune provides a Pythonic CLI for interacting with the system:
-
-```bash
-# Create a new module
-c new_module agi
-
-# Serve a module
-c serve agi
-
-# List modules
-c modules
-
-# Get module info
-c module_info agi
-```
-
-## 🔗 Network Features
-
-### Validator System
-
-- **Staking**: Token-based staking with rewards
-- **Anti-Rug Mechanism**: Prevents pump and dump schemes
-- **Price Controls**: Min/max pricing and stop loss mechanisms
-- **Subnet Management**: Create and manage subnets with locked liquidity
-
-### Token Economics
-
-- Bonding curves for price discovery
-- Token emission vs native emission
-- Cross-chain token locking
-- User-to-user token lending
-
-## 🛠️ Development
-
-### Creating a Module
-
-```python
-import commune as c
-
+# Create a custom module
 class MyModule(c.Module):
-    def __init__(self, param1=1):
-        self.set_config(locals())
-    
     def forward(self, x):
-        return x * self.config.param1
+        return f"Processing: {x}"
 ```
 
-### Serving a Module
+## 🔧 Core Components
 
-```python
-# Serve on local network
-c.serve('mymodule', network='local')
+### Module System
+- **Modular Design**: Each module is a self-contained unit with its own state and functions
+- **Remote Execution**: Call module functions across the network
+- **Inheritance**: Extend existing modules to create custom functionality
+- **HTTP Integration**: Expose modules as HTTP endpoints
 
-# Serve on Subspace network
-c.serve('mymodule', network='subspace', netuid=0)
-```
+### Network Architecture
+- **Distributed Computing**: Run modules across multiple nodes
+- **Load Balancing**: Automatic distribution of workloads
+- **Fault Tolerance**: Built-in redundancy and failover mechanisms
+
+### Blockchain Integration
+- **Multi-Chain Support**: Connect with various blockchain networks
+- **Custom Validators**: Implement custom validation logic
+- **Token Economics**: Built-in support for token-based incentives
 
 ## 📚 Documentation
 
-For more detailed documentation, please see:
-- [Module Basics](docs/modules.md)
-- [Network Architecture](docs/network.md)
-- [Key Management](docs/keys.md)
-- [Validator System](docs/validators.md)
+- [Core Concepts](docs/core/)
+- [API Reference](docs/api/)
+- [Tutorials](docs/tutorials/)
+- [Examples](examples/)
+
+## 🛠️ Development
+
+```bash
+# Run tests
+python -m pytest tests/
+
+# Start development server
+c serve my_module --dev
+
+# Deploy to network
+c deploy my_module --network mainnet
+```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Links
+
+- [Website](https://commune.ai)
+- [Documentation](https://docs.commune.ai)
+- [GitHub](https://github.com/commune-ai/commune)
+- [Discord](https://discord.gg/commune)
