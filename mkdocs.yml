@@ -1,0 +1,144 @@
+site_name: Commune Documentation
+site_description: Documentation for the Commune framework
+repo_url: https://github.com/commune-ai/commune
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.highlight
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - footnotes
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Wiki:
+    - Home: wiki/00-Home.md
+    - Installation: wiki/01-Installation.md
+    - Quick Start: wiki/02-Quick-Start.md
+    - Core Concepts:
+      - Module System: wiki/10-Module-System.md
+      - Network Architecture: wiki/11-Network-Architecture.md
+      - Blockchain Integration: wiki/12-Blockchain-Integration.md
+    - Tutorials:
+      - Basic Module: wiki/20-Tutorial-Basic-Module.md
+      - Custom Validator: wiki/21-Tutorial-Custom-Validator.md
+      - Network Deployment: wiki/22-Network-Deployment.md
+      - Security Best Practices: wiki/23-Security-Best-Practices.md
+  - Getting Started:
+    - Introduction: 0_intro.md
+    - Installation: 1_install.md
+    - Tips: 2_tips.md
+  - Core:
+    - CLI: core/cli.md
+    - Key: core/key.md
+    - Module: core/module.md
+    - Network: core/network.md
+    - Server: core/server.md
+    - Validator: core/vali.md
+  - API Reference:
+    - Base:
+      - Client: api/commune/client.md
+      - Executor: api/commune/executor.md
+      - Key: api/commune/key.md
+      - Module: api/commune/module.md
+      - Network: api/commune/network.md
+      - Server: api/commune/server.md
+      - Validator: api/commune/vali.md
+    - Modules:
+      - Agent:
+        - Agent: api/commune/modules/agent/agent.md
+        - App: api/commune/modules/agent/app.md
+        - History: api/commune/modules/agent/history.md
+        - Test: api/commune/modules/agent/test.md
+      - AI Models:
+        - Anthropic: api/commune/modules/anthropic/anthropic.md
+        - Base Model: api/commune/modules/model/model.md
+        - OpenAI: api/commune/modules/model/openai.md
+        - OpenRouter: api/commune/modules/model/openrouter.md
+        - Sentence Transformers: api/commune/modules/model/sentence.md
+        - Transformer: api/commune/modules/model/transformers/transformer.md
+        - Einsum: api/commune/modules/model/einsum/einsum.md
+        - Utils: api/commune/modules/model/utils.md
+      - API Keys:
+        - API Key Manager: api/commune/modules/apikey/apikey.md
+        - Test: api/commune/modules/apikey/test.md
+      - Core Modules:
+        - Base: api/commune/modules/base/base.md
+        - Builder: api/commune/modules/builder/builder.md
+        - Docker: api/commune/modules/docker/docker.md
+        - Git: api/commune/modules/git/git.md
+        - Memory: api/commune/modules/memory/memory.md
+        - Python: api/commune/modules/py/py.md
+        - Repository: api/commune/modules/repo/repo.md
+      - Data & Storage:
+        - Storage: api/commune/modules/storage/storage.md
+        - Store: api/commune/modules/store/store.md
+      - Network:
+        - Miner: api/commune/modules/miner/miner.md
+        - Remote:
+          - App: api/commune/modules/remote/app.md
+          - Remote: api/commune/modules/remote/remote.md
+          - SSH: api/commune/modules/remote/ssh.md
+        - Subnet:
+          - Miner: api/commune/modules/subnet/miner.md
+          - Validator: api/commune/modules/subnet/vali.md
+        - Subtensor: api/commune/modules/subtensor/subtensor.md
+      - Serialization:
+        - Base: api/commune/modules/serializer/serializer.md
+        - Bytes: api/commune/modules/serializer/bytes.md
+        - Munch: api/commune/modules/serializer/munch.md
+        - NumPy: api/commune/modules/serializer/numpy.md
+        - Pandas: api/commune/modules/serializer/pandas.md
+        - PyTorch: api/commune/modules/serializer/torch.md
+      - UI & Visualization:
+        - Emoji: api/commune/modules/emoji/emoji.md
+        - Plotly: api/commune/modules/plotly/plotly.md
+        - Streamlit:
+          - Base: api/commune/modules/streamlit/streamlit.md
+          - Plot: api/commune/modules/streamlit/plot.md
+          - Utils: api/commune/modules/streamlit/utils.md
+          - Auth: api/commune/modules/streamlit/auth/streamlit_auth.md
+          - Watchdog: api/commune/modules/streamlit/watchdog/streamlit_watchdog.md
+      - Utils:
+        - Find: api/commune/modules/find/find.md
+        - Reduce: api/commune/modules/reduce/reduce.md
+        - Scan: api/commune/modules/scan/scan.md
+        - User: api/commune/modules/user/user.md
+        - Web: api/commune/modules/web/web.md
+    - Subspace:
+      - Base: api/commune/subspace/base.md
+      - Contracts: api/commune/subspace/contracts.md
+      - Exceptions: api/commune/subspace/exceptions.md
+      - Extensions: api/commune/subspace/extensions.md
+      - Interfaces: api/commune/subspace/interfaces.md
+      - Key: api/commune/subspace/key.md
+      - Storage: api/commune/subspace/storage.md
+      - Subspace: api/commune/subspace/subspace.md
+      - Types: api/commune/subspace/types.md
+      - Utils:
+        - Caching: api/commune/subspace/utils/caching.md
+        - ECDSA Helpers: api/commune/subspace/utils/ecdsa_helpers.md
+        - Encrypted JSON: api/commune/subspace/utils/encrypted_json.md
+        - Hasher: api/commune/subspace/utils/hasher.md
+        - SS58: api/commune/subspace/utils/ss58.md
+    - Utils:
+      - Asyncio: api/commune/utils/asyncio.md
+      - Misc: api/commune/utils/misc.md
+      - OS: api/commune/utils/os.md
+      - Thread: api/commune/utils/thread.md
+      - PyTorch: api/commune/utils/torch.md
