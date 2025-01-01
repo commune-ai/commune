@@ -73,7 +73,6 @@ class Client:
             address, fn = address.split('/')
         else:
             address = self.address
-        print('address', address, self.address)
         address = address if address.startswith(mode) else f'{mode}://{address}'
         return f"{address}/{fn}/"
 

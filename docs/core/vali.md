@@ -1,30 +1,19 @@
 ```python
 import commune as c
-from vali import Vali
 
-# Initialize Vali with default settings
-vali = Vali(network='local')
-
-# Initialize with custom settings
-vali = Vali(
-    network='subspace/{subnet}',
-    batch_size=128,
-    timeout=3,
-    run_loop=True
-)
-
+vali = c.module('vali')( network='local', batch_size=128, timeout=3, run_loop=True)
 # Get scoreboard
 scoreboard = vali.scoreboard()
 ```
-
 ## Configuration Options
 
-- `network`: Network type ('local', 'bittensor', 'subspace', etc.)
-- `subnet`: Optional subnet specification
+- `network`: Network type ('local', 'bittensor', 'subspace', etc.), to specify the subnet, use {network}/{subnet} (default: 'subspace/storage')
+- `subnet`: Subnet name  (default: None)
 - `batch_size`: Size of parallel processing batches (default: 128)
-- `max_workers`: Number of parallel workers
+- `max_workers`: Number of parallel workers (default: 4)
 - `timeout`: Evaluation timeout in seconds (default: 3)
-- `tempo`: Time between epochs
+- `tempo`: Time between epochs (default: 5)
+- `score`: Score function (Optional)
 - `run_loop`: Enable/disable continuous monitoring
 
 ## Key Methods

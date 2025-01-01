@@ -30,17 +30,15 @@ T2 = TypeVar("T2")
 
 class Subspace(c.Module):
 
+    name2storage_exceptions = {'key': 'Keys'}
+    storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
     min_stake = 50000
     tempo = 60
     blocktime = block_time = 8
     blocks_per_day = 24*60*60/block_time
     url_map = {
-        "main": [ 
-            "api.communeai.net"
-            ],
-        "test": [
-            "testnet.api.communeai.net"
-            ]
+        "main": ["api.communeai.net"],
+        "test": ["testnet.api.communeai.net"]
     }
     network : str = 'main' # og network
     networks = list(url_map.keys())
@@ -1178,8 +1176,8 @@ class Subspace(c.Module):
     def stake(
         self,
         key: Keypair,
-        amount: int,
         dest: Ss58Address,
+        amount: int,
     ) -> ExtrinsicReceipt:
         """
         Stakes the specified amount of tokens to a module key address.
@@ -1192,9 +1190,35 @@ class Subspace(c.Module):
             A receipt of the staking transaction.
         """
 
-        params = {"amount": amount, "module_key": dest}
+        params = {"amount": amount * 10**9, "module_key": dest}
 
         return self.compose_call(fn="add_stake", params=params, key=key)
+
+    def bridge(
+        self,
+        key: Keypair,
+        amount: int,
+    ):
+        """
+        Bridge tokens from the Subspace network to the Torus network.
+
+        Args:
+            key: The keypair associated with the account that is bridging the tokens.
+            amount: The amount of tokens to bridge, in nanotokens.
+
+        Returns:
+            A receipt of the bridging transaction.
+
+        Raises:
+            InsufficientBalanceError: If the account does not have enough balance.
+            ChainTransactionError: If the transaction fails.
+        """
+
+        params = {"amount": amount * (10**9)}
+
+        response = self.compose_call("bridge", key=key, params=params)
+
+        return response
 
     def unstake(
         self,
@@ -1987,8 +2011,6 @@ class Subspace(c.Module):
 
     def netuid2subnet(self, *args, **kwargs):
         return {v:k for k,v in self.subnet_map(*args, **kwargs).items()}
-    
-    
 
     def resolve_subnet(self, subnet: str) -> int:
         subnet_map = self.subnet_map()
@@ -2537,37 +2559,41 @@ class Subspace(c.Module):
     def my_keys(self, subnet=0):
         return [m['key'] for m in self.my_modules(subnet)]
     
-    def valis(self, subnet=0, max_age=600,
-               update=False, 
-               df=0,
-               search=None, 
-               min_stake = 1000000,
-               features=['Name', 'Keys', 'StakeFrom', 'LastUpdate'],
-                 **kwargs):
+    def valis(self, 
+              subnet=0, 
+              max_age=600, 
+              update=False,
+              df=1,
+              search=None,
+              min_stake=0,
+              features=['Name', 'Keys', 'StakeFrom'],
+              **kwargs):
                  
-        valis =  self.modules(subnet=subnet , 
-                              max_age=max_age, 
-                              features=features,
-                              update=update, **kwargs)
+        valis =  self.modules(subnet=subnet , max_age=max_age, features=features, update=update, **kwargs)
+        
         if search != None:
-            valis = [v for v in valis if search in v['name'] or search ]
-        valis = [v for v in valis if v['stake'] > min_stake]
+            valis = [v for v in valis if search in v['name'] or search in v['key'] ]
+        
+        stake_total = sum([v['stake'] for v in valis])
+        valis = [v for v in valis if v['stake'] >= min_stake]
+        cumulative_stake = 0
+        
+        valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
+
         for v in valis:
             v['stakers'] = len(v['stake_from'])
+            cumulative_stake = cumulative_stake + v["stake"]
+            v['cumstake'] = cumulative_stake / stake_total
             v.pop('stake_from')
-        valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
+
+        if search != None:
+            valis = [v for v in valis if search in v['name']]
        
         if  df:
             valis = c.df(valis)
 
         return valis
 
-    
-
-
-
-    name2storage_exceptions = {'key': 'Keys'}
-    storage2name_exceptions = {v:k for k,v in name2storage_exceptions.items()}
     def storage2name(self, name):
         new_name = ''
         if name in self.storage2name_exceptions:
@@ -2773,17 +2799,7 @@ class Subspace(c.Module):
     def subnet2netuid(self, **kwargs ) -> Dict[str, str]:
         return {v.lower():k for k,v in self.netuid2subnet(**kwargs).items()}
     name2netuid = subnet2netuid
-
-    def transform_stake_dmap(self, stake_storage: dict[tuple[Ss58Address, Ss58Address], int]) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
-        """
-        Transforms either the StakeTo or StakeFrom storage into the stake legacy data type.
-        """
-        transformed: dict[Ss58Address, list[tuple[Ss58Address, int]]] = defaultdict(list)
-        [transformed[k1].append((k2, v)) for (k1, k2), v in stake_storage.items()]
-
-        return dict(transformed)
     
-
     def miners(self, subnet=0, max_age=60, update=False):
         return self.modules(subnet=subnet, max_age=max_age, update=update)
     

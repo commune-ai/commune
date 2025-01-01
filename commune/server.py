@@ -34,9 +34,9 @@ class Server:
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
-
+    helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
+    functions_attributes =['helper_functions', 'whitelist', "whitelist_functions", 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
     def __init__(
-        
         self, 
         module: Union[c.Module, object] = None,
         key:str = None, # key for the server (str)
@@ -62,43 +62,33 @@ class Server:
             module =   c.module(module)(**kwargs)
         print(f'Launching', module, name, functions)
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
+        self.free = free
         self.module = module
         self.module.name = name    
         self.set_key(key=key, crypto_type=crypto_type)
         self.set_port(port)
         self.set_network(network)  
-        self.set_functions(functions=functions, fn2cost=fn2cost, free=free)
+        self.set_functions(functions=functions, fn2cost=fn2cost)
         self.set_user_path(users_path)
         self.serializer = c.module(serializer)()
         self.start_server()
 
-    def set_functions(self, 
-                      functions:Optional[List[str]] , 
-                      fn2cost=None,    
-                      helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'],
-                      functions_attributes =['helper_functions', 'whitelist', "whitelist_functions", 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'], 
-                      free = False
-                      ):
-        
-
-        self.free = free
+    def set_functions(self, functions:Optional[List[str]] , fn2cost=None):
         if self.free:
             c.print('THE FOUNDING FATHERS WOULD BE PROUD OF YOU SON OF A BITCH', color='red')
         else:
             if hasattr(self.module, 'free'):
                 self.free = self.module.free
         self.module.free = self.free
-        
-        functions = functions or []
+        functions =  functions or []
         for i, fn in enumerate(functions):
             if callable(fn):
                 print('Adding function', f)
                 setattr(self, fn.__name__, fn)
                 functions[i] = fn.__name__
-        functions  =  sorted(list(set(functions + helper_functions)))
+        functions  =  sorted(list(set(functions + self.helper_functions)))
         module = self.module
-        functions =  functions or []
-        for k in functions_attributes:
+        for k in self.functions_attributes:
             if hasattr(module, k) and isinstance(getattr(module, k), list):
                 print('Found ', k)
                 functions = getattr(module, k)
@@ -134,6 +124,7 @@ class Server:
             "free": module.free,
             "time": c.time()
         }
+        
     def set_key(self, key, crypto_type):
         module = self.module
         module.key = c.get_key(key or module.name, create_if_not_exists=True, crypto_type=crypto_type)
@@ -198,7 +189,7 @@ class Server:
     def is_admin(self, address):
         return c.is_admin(address)
 
-    def verify(self, fn:str, data:dict,  headers:dict ) -> bool:
+    def gate(self, fn:str, data:dict,  headers:dict ) -> bool:
         if self.free: 
             assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
             return True
@@ -261,9 +252,9 @@ class Server:
         module = self.module
         data = self.get_data(request)
         headers = self.get_headers(request)
+        self.gate(fn=fn, data=data, headers=headers)   
         is_admin = bool(c.is_admin(headers['key']))
-        is_owner = bool(headers['key'] == module.key.ss58_address)
-        self.verify(fn=fn, data=data, headers=headers)       
+        is_owner = bool(headers['key'] == module.key.ss58_address)    
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
@@ -271,28 +262,28 @@ class Server:
         else:
             raise Exception(f"{fn} not found in {module.name}")
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
-        latency = c.time() - headers['time']
+        latency = c.time() - float(headers['time'])
         if c.is_generator(result):
             output = ''
-            def generator_wrapper(generator,):
+            def generator_wrapper(generator):
                 for item in generator:
+                    output += str(item)
                     yield item
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)
-        if self.free:
-            return result
-        user_data = {
-                'fn': fn,
-                'data': data, # the data of the request
-                'output': output, # the response
-                'time': headers["time"], # the time of the request
-                'latency': latency, # the latency of the request
-                'key': headers['key'], # the key of the user
-                'cost': module.fn2cost.get(fn, 1), # the cost of the function
-            }
-        user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
-        c.put(user_path, user_data)
+        if not self.free:
+            user_data = {
+                    'fn': fn,
+                    'data': data, # the data of the request
+                    'output': output, # the response
+                    'time': headers["time"], # the time of the request
+                    'latency': latency, # the latency of the request
+                    'key': headers['key'], # the key of the user
+                    'cost': module.fn2cost.get(fn, 1), # the cost of the function
+                }
+            user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
+            c.put(user_path, user_data)
         return result
     
     def sync_loop(self, sync_loop_initial_sleep=10):
@@ -308,6 +299,7 @@ class Server:
     def set_network(self, network):
         self.network = network
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
+        self.address2key =  c.address2key()
         c.thread(self.sync_loop)
         return {'success':True, 'message':f'Set network to {network}', 'network':network, 'network_path':self.network_path}
 
@@ -322,7 +314,6 @@ class Server:
         network_path = self.network_path
         state = c.get(network_path, {}, max_age=max_age, updpate=update)
         state = {}
-        self.address2key =  c.address2key()
         state['stake'] = {}
         state['stake_to'] = {}
         state['stake_from'] = {}
@@ -334,7 +325,7 @@ class Server:
                 state['stake_to'] = self.subspace.stake_to(fmt='j', update=update, max_age=max_age)
                 state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
             except Exception as e:
-                c.print(f'Error {e} while syncing network--> {network}')
+                c.print(f'Error {e} while syncing network')
         is_valid_state = lambda x: all([k in x for k in state_keys])
         assert is_valid_state(state), f'Format for network state is {[k for k in state_keys if k not in state]}'
         c.put(network_path, state)
