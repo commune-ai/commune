@@ -85,8 +85,10 @@ class App(c.Module):
         history = [h for h in history if search in str(h)]
         df = c.df(history)
         st.write(df)
-            
-    def run(self):
+
+    @classmethod 
+    def run(cls):
+        self = cls()
         self.sidebar()
         tab_names = ['Chat', 'History']
         tabs = st.tabs(tab_names)

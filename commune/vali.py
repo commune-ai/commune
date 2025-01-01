@@ -36,7 +36,6 @@ class Vali(c.Module):
         self.batch_size = batch_size or 128
         self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
         self.set_key(key)
-
         self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
         if run_loop:
             c.thread(self.run_loop)
@@ -64,7 +63,7 @@ class Vali(c.Module):
         self.network_module = c.module(self.network)() 
         self.tempo = tempo
         self.search = search
-        self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}'))
+        self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
         self.is_voting_network = any([v in self.network for v in self.voting_networks])
 
         self.set_score(score)
@@ -107,28 +106,27 @@ class Vali(c.Module):
             key: str
             time: int
         """
+
         module['time'] = c.time() # the timestamp
         client = self.get_client(module)
         module['score'] = self.score(client, **kwargs)
         module['latency'] = c.time() - module['time']
-        if module['score'] > 0:
-            module_path = self.path +'/'+ module['key']
-            c.put_json(module_path, module)
+        module['path'] = self.path +'/'+ module['key']
         return module
 
     def score_modules(self, modules: List[dict]):
-        futures = []
-        results = []
-        for module in modules:
-            futures.append(self.executor.submit(self.score_module, [module], timeout=self.timeout))
+        module_results = []
+        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]
         try:
-            for r in c.as_completed(futures, timeout=self.timeout):
-                r = r.result()
-                if 'score' in r:
-                    results.append(r)
+            for f in c.as_completed(futures, timeout=self.timeout):
+                m = f.result()
+                if m.get('score', 0) > 0:
+                    c.put_json(m['path'], m)
+                    module_results.append(m)
         except Exception as e:
-            c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=0)
-        return results
+            c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=1)
+        
+        return module_results
 
     def epoch(self):
         next_epoch = self.time_until_next_epoch
@@ -143,15 +141,12 @@ class Vali(c.Module):
         results = []
         for i, module_batch in enumerate(batches):
             print(f'Batch(i={i}/{len(batches)})')
-            try:
-                results += self.score_modules(module_batch)
-            except Exception as e:
-                c.print(f'ERROR({c.detailed_error(e)})', color='red')
+            results += self.score_modules(module_batch)
             progress.update(1)
         self.epochs += 1
         self.epoch_time = c.time()
-        self.vote(results)
         print(self.scoreboard())
+        self.vote(results)
         return results
     
     def sync(self, update = False):
@@ -176,18 +171,17 @@ class Vali(c.Module):
             return {'success': False, 'msg': f'NOT VOTING NETWORK({self.network})'}
         if c.time() - self.vote_time < self.tempo:
             return {'success': False, 'msg': f'Vote is too soon {self.vote_staleness}'}
-        params = dict(modules=[], 
-                      weights=[], 
-                      key=self.key,
-                        subnet=self.subnet)
         if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
+        params = dict(modules=[],  
+                      weights=[],  
+                      key=self.key,
+                      subnet=self.subnet)
         for m in results:
             if not isinstance(m, dict) or 'key' not in m:
                 continue
             params['modules'].append(m['key'])
             params['weights'].append(m['score'])
-
         return self.network_module.vote(**params)
     
     

@@ -1241,7 +1241,6 @@ class c:
         pwd = c.pwd()
         path_options = []
         simple = simple.replace('/', '.')
-
         # create all of the possible paths by combining the ignore_prefixes with the simple path
         dir_paths = list([pwd+ '/' + x for x in ignore_prefixes]) # local first
         dir_paths += list([c.libpath + '/' + x for x in ignore_prefixes]) # add libpath stuff
@@ -1260,21 +1259,24 @@ class c:
                 path_options += [module_filepath]
 
             for p in path_options:
-                p = p + extension if p.endswith(extension) else p 
+                p = p if p.endswith(extension) else p + extension
                 if os.path.exists(p):
-                    p_text = cls.get_text(p)
+                    p_text = c.get_text(p)
                     path =  p
                     if c.libname in p_text and 'class ' in p_text or '  def ' in p_text:
-                        return p   
+                        break
             if path != None:
                 break
         return path
 
-
     @classmethod
     def path2name(cls,  
                     path:str, 
-                    ignore_prefixes = ['src', 'commune', 'modules', 'commune.modules', 'module'],
+                    ignore_prefixes = ['src', 
+                                       'commune', 
+                                       'modules', 
+                                       'commune.modules',
+                                       'module'],
                     module_folder_filnames = ['__init__', 'main', 'module'],
                     module_extension = 'py',
                     ignore_suffixes = ['module'],

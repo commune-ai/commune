@@ -64,13 +64,8 @@ class Build:
             text = ' '.join(list(map(str, [text] +list(extra_text))))
 
         text = self.process_text(text)
-        output =  self.model.generate( prompt + '\n' + text,
-                                      stream=stream, 
-                                      model=model, 
-                                      max_tokens=max_tokens, 
-                                      temperature=temperature )
-        if path == None:
-            return output
+        prompt = prompt + text
+        output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
         return self.process_output(output, path=path)
     
     def process_output(self, response, path=None):

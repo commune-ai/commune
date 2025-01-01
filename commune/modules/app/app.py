@@ -19,7 +19,6 @@ class App(c.Module):
     def start(self,
            module:str = 'server', 
            name : Optional[str] = None,
-           fn:str='app', 
            port:int=None, 
            remote:bool = False, 
            kwargs:dict=None, 
@@ -58,16 +57,13 @@ class App(c.Module):
         if c.module_exists(module + '.app'):
             module = module + '.app'
         app2info = self.app2info()
-        kwargs_str = json.dumps(kwargs or {}).replace('"', "'")
         module_class = c.module(module)
-        cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port} -- --fn {fn} --kwargs "{kwargs_str}"'
+        cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port}'
         cwd = cwd or os.path.dirname(module_class.filepath())
-
         module = c.module(module)
         app_info= {
             'name': name,
             'port': port,
-            'fn': fn,
             'kwargs': kwargs,
             'cmd': cmd, 
             'cwd': cwd ,
