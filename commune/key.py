@@ -396,7 +396,12 @@ class Key(c.Module):
             key_address = private_key_obj.public_key.to_checksum_address()
             hash_type = 'h160'
         elif crypto_type == KeyType.SOLANA:
-            pass
+            private_key = private_key[0:32]
+            keypair = SolanaKeypair.from_seed(private_key)
+            public_key = keypair.pubkey()
+            private_key = keypair.secret()
+            key_address = ss58_encode(public_key, ss58_format=ss58_format)
+            hash_type = 'ss58'
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
