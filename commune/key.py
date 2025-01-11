@@ -131,6 +131,10 @@ def ecdsa_verify(signature: bytes, data: bytes, address: bytes) -> bool:
     recovered_pubkey = signature_obj.recover_public_key_from_msg(data)
     return recovered_pubkey.to_canonical_address() == address
 
+def solana_sign(private_key: bytes, message: bytes) -> bytes:
+    keypair = SolanaKeypair.from_seed(private_key)
+    return bytes(keypair.sign_message(message))
+
 def solana_verify(signature: bytes, message: bytes, public_key: bytes) -> bool:
     signature = SolanaSignature.from_bytes(signature)
     pubkey = SolanaPubkey.from_bytes(public_key)
@@ -1111,7 +1115,7 @@ class Key(c.Module):
         elif self.crypto_type == KeyType.ECDSA:
             signature = ecdsa_sign(self.private_key, data)
         elif self.crypto_type == KeyType.SOLANA:
-            signature = SolanaKeypair.from_seed(self.private_key).sign_message(data)
+            signature = solana_sign(self.private_key, data)
         else:
             raise Exception("Crypto type not supported")
         
