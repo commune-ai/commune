@@ -38,6 +38,7 @@ import struct
 from ecdsa.curves import SECP256k1
 from eth_keys.datatypes import Signature, PrivateKey
 from eth_utils import to_checksum_address, keccak as eth_utils_keccak
+from solders.keypair import Keypair as SolanaKeypair
 
 BIP39_PBKDF2_ROUNDS = 2048
 BIP39_SALT_MODIFIER = "mnemonic"
@@ -305,6 +306,7 @@ class KeyType:
     ED25519 = 0
     SR25519 = 1
     ECDSA = 2
+    SOLANA = 3
 KeyType.crypto_types = [k for k in KeyType.__dict__.keys() if not k.startswith('_')]
 KeyType.crypto_type_map =  {k.lower():v for k,v in KeyType.__dict__.items() if k in KeyType.crypto_types }
 KeyType.crypto_types = list(KeyType.crypto_type_map.keys())
@@ -393,6 +395,8 @@ class Key(c.Module):
             public_key = private_key_obj.public_key.to_address()
             key_address = private_key_obj.public_key.to_checksum_address()
             hash_type = 'h160'
+        elif crypto_type == KeyType.SOLANA:
+            pass
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
@@ -798,7 +802,9 @@ class Key(c.Module):
                 raise ValueError("ECDSA mnemonic only supports english")
             private_key = mnemonic_to_ecdsa_private_key(mnemonic)
             keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
-
+        elif crypto_type == KeyType.SOLANA:
+            private_key = SolanaKeypair.from_seed_phrase_and_passphrase(mnemonic, "").secret()
+            keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
         else:
             keypair = cls.create_from_seed(
                 seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", language_code))).decode("ascii"),
@@ -834,6 +840,10 @@ class Key(c.Module):
             public_key, private_key = sr25519.pair_from_seed(seed_hex)
         elif crypto_type == KeyType.ED25519:
             private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
+        elif crypto_type == KeyType.SOLANA:
+            keypair = SolanaKeypair.from_seed(seed_hex)
+            public_key = keypair.pubkey()
+            private_key = keypair.secret()
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         
@@ -899,6 +909,11 @@ class Key(c.Module):
                 str_derivation_path=suri_parts['path'],
                 passphrase=suri_parts['password']
             )
+            derived_keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+        elif crypto_type == KeyType.SOLANA:
+            if language_code != "en":
+                raise ValueError("Solana mnemonic only supports english")
+            private_key = SolanaKeypair.from_seed_phrase_and_passphrase(suri_parts['phrase'], passphrase=suri_parts['password']).secret()
             derived_keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
         else:
 
