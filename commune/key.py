@@ -39,6 +39,8 @@ from ecdsa.curves import SECP256k1
 from eth_keys.datatypes import Signature, PrivateKey
 from eth_utils import to_checksum_address, keccak as eth_utils_keccak
 from solders.keypair import Keypair as SolanaKeypair
+from solders.signature import Signature as SolanaSignature
+from solders.pubkey import Pubkey as SolanaPubkey
 
 BIP39_PBKDF2_ROUNDS = 2048
 BIP39_SALT_MODIFIER = "mnemonic"
@@ -128,6 +130,11 @@ def ecdsa_verify(signature: bytes, data: bytes, address: bytes) -> bool:
     signature_obj = Signature(signature)
     recovered_pubkey = signature_obj.recover_public_key_from_msg(data)
     return recovered_pubkey.to_canonical_address() == address
+
+def solana_verify(signature: bytes, message: bytes, public_key: bytes) -> bool:
+    signature = SolanaSignature.from_bytes(signature)
+    pubkey = SolanaPubkey.from_bytes(public_key)
+    return signature.verify(message, pubkey)
 
 NONCE_LENGTH = 24
 SCRYPT_LENGTH = 32 + (3 * 4)
@@ -1023,6 +1030,9 @@ class Key(c.Module):
             crypto_type = KeyType.ED25519
             # Strip the nonce part of the private key
             private_key = private_key[0:32]
+        elif 'solana' in json_data['encoding']['content']:
+            crypto_type = KeyType.SOLANA
+            private_key = private_key[0:32]
         else:
             raise NotImplementedError("Unknown KeyType found in JSON")
 
@@ -1047,24 +1057,27 @@ class Key(c.Module):
         if not name:
             name = self.ss58_address
 
-        if self.crypto_type != KeyType.SR25519:
+        if self.crypto_type == KeyType.SR25519:
+            # Secret key from PolkadotJS is an Ed25519 expanded secret key, so has to be converted
+            # https://github.com/polkadot-js/wasm/blob/master/packages/wasm-crypto/src/rs/sr25519.rs#L125
+            converted_private_key = sr25519.convert_secret_key_to_ed25519(self.private_key)
+            encoded = encode_pair(self.public_key, converted_private_key, passphrase)
+            encoding_content = ["pkcs8", "sr25519"]
+        elif self.crypto_type == KeyType.SOLANA:
+            keypair = SolanaKeypair.from_seed(self.private_key)
+            encoded = encode_pair(self.public_key, keypair.secret(), passphrase)
+            encoding_content = ["pkcs8", "solana"]
+        else:
             raise NotImplementedError(f"Cannot create JSON for crypto_type '{self.crypto_type}'")
-
-        # Secret key from PolkadotJS is an Ed25519 expanded secret key, so has to be converted
-        # https://github.com/polkadot-js/wasm/blob/master/packages/wasm-crypto/src/rs/sr25519.rs#L125
-        converted_private_key = sr25519.convert_secret_key_to_ed25519(self.private_key)
-
-        encoded = encode_pair(self.public_key, converted_private_key, passphrase)
 
         json_data = {
             "encoded": b64encode(encoded).decode(),
-            "encoding": {"content": ["pkcs8", "sr25519"], "type": ["scrypt", "xsalsa20-poly1305"], "version": "3"},
+            "encoding": {"content": encoding_content, "type": ["scrypt", "xsalsa20-poly1305"], "version": "3"},
             "address": self.ss58_address,
             "meta": {
                 "name": name, "tags": [], "whenCreated": int(time.time())
             }
         }
-
         return json_data
     
     seperator = "::signature="
@@ -1097,6 +1110,8 @@ class Key(c.Module):
             signature = ed25519_zebra.ed_sign(self.private_key, data)
         elif self.crypto_type == KeyType.ECDSA:
             signature = ecdsa_sign(self.private_key, data)
+        elif self.crypto_type == KeyType.SOLANA:
+            signature = SolanaKeypair.from_seed(self.private_key).sign_message(data)
         else:
             raise Exception("Crypto type not supported")
         
@@ -1213,6 +1228,8 @@ class Key(c.Module):
             crypto_verify_fn = ed25519_zebra.ed_verify
         elif self.crypto_type == KeyType.ECDSA:
             crypto_verify_fn = ecdsa_verify
+        elif self.crypto_type == KeyType.SOLANA:
+            crypto_verify_fn = solana_verify
         else:
             raise Exception("Crypto type not supported")
         verified = crypto_verify_fn(signature, data, public_key)
