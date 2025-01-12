@@ -41,6 +41,7 @@ from eth_utils import to_checksum_address, keccak as eth_utils_keccak
 from solders.keypair import Keypair as SolanaKeypair
 from solders.signature import Signature as SolanaSignature
 from solders.pubkey import Pubkey as SolanaPubkey
+from base58 import b58encode
 
 BIP39_PBKDF2_ROUNDS = 2048
 BIP39_SALT_MODIFIER = "mnemonic"
@@ -409,10 +410,10 @@ class Key(c.Module):
         elif crypto_type == KeyType.SOLANA:
             private_key = private_key[0:32]
             keypair = SolanaKeypair.from_seed(private_key)
-            public_key = keypair.pubkey()
+            public_key = keypair.pubkey().__bytes__()
             private_key = keypair.secret()
-            key_address = ss58_encode(public_key, ss58_format=ss58_format)
-            hash_type = 'ss58'
+            key_address = b58encode(bytes(public_key)).decode('utf-8')
+            hash_type = 'base58'
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
@@ -719,7 +720,6 @@ class Key(c.Module):
             c.print(f'generating {crypto_type} keypair, {suri}')
 
         crypto_type = cls.resolve_crypto_type(crypto_type)
-
         if suri:
             key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
@@ -856,10 +856,6 @@ class Key(c.Module):
             public_key, private_key = sr25519.pair_from_seed(seed_hex)
         elif crypto_type == KeyType.ED25519:
             private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
-        elif crypto_type == KeyType.SOLANA:
-            keypair = SolanaKeypair.from_seed(seed_hex)
-            public_key = keypair.pubkey()
-            private_key = keypair.secret()
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         
