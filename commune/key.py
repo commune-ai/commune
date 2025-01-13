@@ -23,7 +23,9 @@ import commune as c
 import re
 from hashlib import blake2b
 from math import ceil
+from scalecodec.utils.ss58 import ss58_decode, ss58_encode, is_valid_ss58_address, get_ss58_format
 import base64
+
 import json
 from os import urandom
 from typing import Union
@@ -411,7 +413,9 @@ class Key(c.Module):
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}')
-            return cls.get(path)
+            key_json = cls.get(path)
+            if key_json != None:
+                return cls.from_json(cls.get(path))
         key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key.path = path
         key_json = key.to_json()
@@ -731,15 +735,13 @@ class Key(c.Module):
             obj = json.loads(obj)
         if obj == None:
            return None 
-        for k,v in obj.items():
-            if cls.is_encrypted(obj[k]) and password != None:
-                obj[k] = cls.decrypt(data=obj[k], password=password)
+        if cls.is_encrypted(obj) and password != None:
+            obj = cls.decrypt(data=obj, password=password)
         if 'ss58_address' in obj:
             obj['_ss58_address'] = obj.pop('ss58_address')
         if crypto_type != None:
             obj['crypto_type'] = crypto_type
         return  cls(**obj)
-    
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = "en") -> str:

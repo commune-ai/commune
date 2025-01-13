@@ -71,6 +71,7 @@ class Vali(c.Module):
 
 
     def score(self, module):
+        print(module.info(), 'FAM')
         return int('name' in module.info())
     
     def set_score(self, score):
@@ -106,26 +107,32 @@ class Vali(c.Module):
             key: str
             time: int
         """
-
+        if isinstance(module, str):
+            module = self.network_module.get_module(module)
         module['time'] = c.time() # the timestamp
         client = self.get_client(module)
-        module['score'] = self.score(client, **kwargs)
+        try:
+            module['score'] = self.score(client, **kwargs)
+        except Exception as e:
+            module['score'] = 0
+            module['error'] = c.detailed_error(e)
         module['latency'] = c.time() - module['time']
         module['path'] = self.path +'/'+ module['key']
         return module
 
     def score_modules(self, modules: List[dict]):
         module_results = []
-        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]
+        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
         try:
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
+                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     module_results.append(m)
         except Exception as e:
             c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=1)
-        
+        print(module_results)
         return module_results
 
     def epoch(self):
