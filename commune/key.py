@@ -138,8 +138,8 @@ def solana_sign(private_key: bytes, message: bytes) -> bytes:
 
 def solana_verify(signature: bytes, message: bytes, public_key: bytes) -> bool:
     signature = SolanaSignature.from_bytes(signature)
-    pubkey = SolanaPubkey.from_bytes(public_key)
-    return signature.verify(message, pubkey)
+    pubkey = SolanaPubkey(public_key)
+    return signature.verify(pubkey, message)
 
 NONCE_LENGTH = 24
 SCRYPT_LENGTH = 32 + (3 * 4)
@@ -450,13 +450,13 @@ class Key(c.Module):
         return cls.get_key(key).sign({'data':data, 'time': c.time()} , to_json=True, **kwargs)
 
     @classmethod
-    def mv_key(cls, path, new_path):
+    def mv_key(cls, path, new_path, crypto_type='sr25519'):
         assert cls.key_exists(path), f'key does not exist at {path}'
-        cls.put(new_path, cls.get_key(path).to_json())
+        cls.put(new_path, cls.get_key(path, crypto_type=crypto_type).to_json())
         cls.rm_key(path)
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         assert not cls.key_exists(path), f'key still exists at {path}'
-        new_key = cls.get_key(new_path)
+        new_key = cls.get_key(new_path, crypto_type=crypto_type)
         return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
     
     @classmethod
