@@ -23,7 +23,6 @@ import commune as c
 import re
 from hashlib import blake2b
 from math import ceil
-from scalecodec.utils.ss58 import ss58_decode, ss58_encode, is_valid_ss58_address, get_ss58_format
 import base64
 import json
 from os import urandom
@@ -136,11 +135,9 @@ PUB_LENGTH = 32
 SALT_LENGTH = 32
 SEC_LENGTH = 64
 SEED_LENGTH = 32
-
 SCRYPT_N = 1 << 15
 SCRYPT_P = 1
 SCRYPT_R = 8
-
 
 def decode_pair_from_encrypted_json(json_data: Union[str, dict], passphrase: str) -> tuple:
     """

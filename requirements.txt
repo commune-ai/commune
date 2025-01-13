@@ -2,6 +2,8 @@ fastapi
 sse-starlette 
 paramiko
 nest_asyncio
+uvicorn
+scalecodec>=1.2.10,<1.3
 asyncio
 aiofiles
 aiohttp

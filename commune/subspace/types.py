@@ -2,7 +2,6 @@
 Common types for the communex module.
 """
 
-from enum import Enum
 from typing import *
 
 Ss58Address = NewType("Ss58Address", str)
@@ -25,7 +24,7 @@ MaxBurn = NewType("MaxBurn", int)
 BurnConfig = NewType("BurnConfig", dict[MinBurn, MaxBurn])
 
 
-class VoteMode (Enum):
+class VoteMode:
     authority = "Authority"
     vote = "Vote"
 
