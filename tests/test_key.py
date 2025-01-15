@@ -75,7 +75,7 @@ def test_key_encryption(password='1234'):
     return {'success': True, 'msg': 'test_key_encryption passed'}
 
 def test_move_key():
-    self = c.module('key')()
+    self = c.module('key')(crypto_type=crypto_type)
     self.add_key('testfrom', crypto_type=crypto_type)
     assert self.key_exists('testfrom')
     og_key = self.get_key('testfrom', crypto_type=crypto_type)
