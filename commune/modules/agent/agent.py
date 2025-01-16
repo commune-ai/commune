@@ -72,23 +72,23 @@ class Agent:
     def process_text(self, text, threshold=1000):
         new_text = ''
         for word in text.split(' '):
-            conditions = {
-                "file": any([word.startswith(ch) for ch in ['.', '~', '/']]) and os.path.exists(word),
-                "code": word.startswith('code/'),
-                "run": word.startswith('run/'),
-            }
-            if conditions['file']:
-                print('READING FILE -->', word)
+            word_is_filepath = any([word.startswith(ch) for ch in ['.', '~', '/']]) and os.path.exists(word)
+            if word_is_filepath:
                 word = c.file2text(word)
-            if conditions['code']:
-                word = word[len('code/'):]
-                print('READING MODULE -->', word)
-                word = c.code(word)
-            
-            if conditions['run']:
-                word = word[len('run/'):]
-                print('CALLING FUNCTION -->', word)
-                word = c.run_fn(word)
+            else:
+                condition2fn = {
+                    "file": c.file2text,
+                    "code": c.code,
+                    "c": c.code,
+                    'm': c.code,
+                    'module': c.code,
+                    "run": c.run_fn,
+                }
+                for condition, fn in condition2fn.items():
+                    if word.startswith(condition + '/'):
+                        
+                        word = str(fn(word.split(condition + '/')[-1]))
+                        break
                 
             new_text += str(word)
         return new_text

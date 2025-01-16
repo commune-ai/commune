@@ -301,6 +301,7 @@ class c:
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
 
 
+
     is_file_module = is_module_file
 
     @classmethod
@@ -914,6 +915,21 @@ class c:
         module = cls.resolve_module(module)   
         return {k:c.hash(v) for k,v in c.fn2code(module).items()}
 
+    def test_rm_fn_code(self):
+        fam = 111111111
+
+    def rm_fn_code(self, fn='module/test_rm_fn_code'):
+        assert '/' in fn, 'provide {module}/{fn} format'
+        module, fn = fn.split('/')
+        module = c.module(module)
+        code = c.code(module)
+        fn_code = c.fn2code(module)[fn]
+        assert fn_code in code, f'{fn} was not found'
+        code = code.replace(fn_code, '')
+        assert not fn_code in code, f'{fn} was not removed'
+        filepath = module.filepath()
+        c.put_text(filepath, code)
+
     @classmethod
     def fn_code(cls,fn:str, module=None,**kwargs) -> str:
         '''
@@ -1060,19 +1076,16 @@ class c:
             include_parents: whether to include the parent functions
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
-
         obj = cls.resolve_module(obj)
-        functions = []
         text = inspect.getsource(obj)
         functions = []
         # just
         for splitter in splitter_options:
             for line in text.split('\n'):
-                if f'"{splitter}"' in line:
+                if f'"{splitter}"' in line: # removing edge case
                     continue
                 if line.startswith(splitter):
                     functions += [line.split(splitter)[1].split('(')[0].strip()]
-
         functions = sorted(list(set(functions)))
         if search != None:
             functions = [f for f in functions if search in f]
@@ -1416,15 +1429,14 @@ class c:
         fns = []
         if os.path.isdir(path):
             path = os.path.abspath(path)
-            for p in cls.glob(path+'/**/**.py', recursive=True):
+            for p in c.glob(path+'/**/**.py', recursive=True):
                 p_fns = c.find_functions(p)
-                file_object_path = cls.path2objectpath(p)
+                file_object_path = c.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
                 for fn in p_fns:
                     fns += [fn]
-
         else:
-            code = cls.get_text(path)
+            code = c.get_text(path)
             for line in code.split('\n'):
                 if line.startswith('def ') or line.startswith('async def '):
                     fn = line.split('def ')[-1].split('(')[0].strip()
@@ -1433,10 +1445,9 @@ class c:
     
     @classmethod
     def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
-        classes = cls.find_classes(path,depth=depth)
-        functions = cls.find_functions(path)
+        classes = c.find_classes(path,depth=depth)
+        functions = c.find_functions(path)
         if search != None:
-            classes = [c for c in classes if search in c]
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
         return object_paths
@@ -1795,9 +1806,9 @@ class c:
         from_to_map = {}
         for m, fns in routes.items():
             for fn in fns:
+                assert  fn not in from_to_map, f'Function {fn} already exists in {from_to_map[fn]}'
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
-
     
     routes = {
     "vali": [
@@ -1853,7 +1864,6 @@ class c:
         "pwd2key",
         "mems",
         "switch_key",
-        "rename_key",
         "mv_key",
         "add_keys",
         "key_exists",
@@ -1883,7 +1893,6 @@ class c:
     ],
     "network": [
         "networks",
-        "add_server",
         "remove_server",
         "server_exists",
         "add_server",
@@ -1891,7 +1900,6 @@ class c:
         "add_servers",
         "rm_servers",
         "rm_server",
-        "namespace",
         "namespace",
         "infos",
         "get_address",
@@ -1976,8 +1984,8 @@ class c:
     ],
     "agent": [ "models",  "model2info", "reduce", "generate"],
     "builder": ["build"],
-    "summary": ["reduce"]
 }
+
     
 
 c.add_routes()
