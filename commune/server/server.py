@@ -658,6 +658,10 @@ class Server(c.Module):
         assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
         return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
 
+    @classmethod
+    def test(cls, **kwargs):
+        from .test import Test
+        return Test().test()
 
 if __name__ == '__main__':
     Server.run()

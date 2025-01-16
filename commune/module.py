@@ -916,9 +916,6 @@ class c:
         module = cls.resolve_module(module)   
         return {k:c.hash(v) for k,v in c.fn2code(module).items()}
 
-    def test_rm_fn_code(self):
-        fam = 111111111
-
     def rm_fn_code(self, fn='module/test_rm_fn_code'):
         assert '/' in fn, 'provide {module}/{fn} format'
         module, fn = fn.split('/')
@@ -1819,7 +1816,6 @@ class c:
             for f in module2fns[m]:
                 fn2module[f] = m
         return fn2module
-    
 
     def install(self, path  ):
         path = path + '/requirements.txt'
@@ -2013,9 +2009,37 @@ class c:
     ],
     "agent": [ "models",  "model2info", "reduce", "generate"],
     "builder": ["build"],
-}
+    }
 
-    
+    def run_test(self, module=None, parallel=True):
+        module = module or self
+        fns = [f for f in dir(module) if 'test_' in f]
+        fn2result = {}
+        fn2error = {}
+        if parallel:
+            future2fn = {}
+            for fn in fns:
+                future = c.submit(getattr(module, fn))
+                future2fn[future] = fn
+            for future in c.as_completed(future2fn):
+                fn = future2fn[future]
+                try:
+                    result = future.result()
+                    fn2result[fn] = result
+                except Exception as e:
+                    fn2error[fn] = {'success': False, 'msg': str(e)}
+        else:
+            for fn in fns:
+                try:
+                    result = getattr(module, fn)()
+                    fn2result[fn] = result
+                except Exception as e:
+                    fn2error[fn] = {'success': False, 'msg': str(e)}
+        if len(fn2error) > 0:
+            raise Exception(f'Errors: {fn2error}')
+        
+        return fn2result
+
 
 c.add_routes()
 Module = c # Module is alias of c

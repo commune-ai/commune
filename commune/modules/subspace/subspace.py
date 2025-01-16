@@ -2835,6 +2835,12 @@ class Subspace(c.Module):
                 pallet2storage[pallet] = storage
 
         return pallet2storage
+
+    @classmethod
+    def test(cls):
+        from .test import Test
+        return Test().test()
+
     
             
     

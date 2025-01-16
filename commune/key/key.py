@@ -1419,6 +1419,12 @@ class Key(c.Module):
                 
         return new_key2path
 
+    @classmethod
+    def test(cls):
+        from .test import Test
+        return Test().test()
+
+
 # if __name__ == "__main__":      
 #     Key.run()
 
