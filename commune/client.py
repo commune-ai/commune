@@ -90,8 +90,7 @@ class Client:
                 args = params
             else:
                 raise Exception(f'Invalid params {params}')
-        data =  {  "args": args, "kwargs": kwargs}
-        data = self.serializer.serialize(data)
+        data =  {"args": args, "kwargs": kwargs}
         return data
 
     def forward(self, 

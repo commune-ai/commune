@@ -233,7 +233,6 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
-
     @staticmethod
     def test(  
              n=2, 
