@@ -9,28 +9,24 @@ import commune as c
 
 class Client:
 
-    def __init__( self, 
-                module : str = 'module', 
-                key : Optional[str]= None,
-                network: Optional[bool] = 'local',
-                serializer: Optional[c.Module] = 'serializer',
-               **kwargs
-        ):
-        self.serializer = c.module(serializer)()
+    def __init__( self,  
+                 module : str = 'module',  
+                 key : Optional[str]= None,  
+                 network: Optional[bool] = 'local', 
+                 **kwargs):
         self.key  = c.get_key(key, create_if_not_exists=True)
-        if  c.is_address(module):
-            address = module
-        else:
-            address = c.namespace(network=network).get(module)
-        self.network = network
-        self.address = address
-        self.session = requests.Session()
+        self.set_module(module, network=network)
 
+    def set_module(self, module, network='local'):
+        self.address = module if c.is_address(module) else c.namespace(network=network).get(module)
+        self.session = requests.Session()
+        
     @classmethod
     def call(cls, 
                 fn:str = 'info',
                 *args,
                 kwargs = None,
+                params = None,
                 module : str = 'module',
                 network:str = 'local',
                 key:str = None,
@@ -40,25 +36,19 @@ class Client:
         if '/' in str(fn):
             module = '.'.join(fn.split('/')[:-1])
             fn = fn.split('/')[-1]
-        else:
-            module = fn
-            fn = 'info'
-        client =  cls(module=module, network=network)
-        kwargs = kwargs or {}
+        kwargs = (params or kwargs) or {}
         kwargs = {**kwargs, **extra_kwargs}
-        return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
+        return cls(module=module, network=network).forward(fn=fn, 
+                                                            args=args, 
+                                                            kwargs=kwargs, 
+                                                            params=params,
+                                                            timeout=timeout, 
+                                                            key=key)
 
     @classmethod
-    def client(cls,
-                module:str = 'module', 
-                network : str = 'local',
-                virtual:bool = True, 
-                **kwargs):
+    def client(cls, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
         client =  cls(module=module, network=network,**kwargs)
-        if virtual:
-            return Client.Virtual(client=client)
-        else:
-            return client
+        return Client.Virtual(client=client) if virtual else client
     
     def test(self, module='module::test_client'):
         c.serve(module)
@@ -101,13 +91,12 @@ class Client:
                 timeout:int=2,  
                 key : str = None,  
                 mode: str  = 'http', 
-                headers = None, 
                 stream:bool = False):
                 
         key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode)
         data = self.get_data(params=params, args=args, kwargs=kwargs )
-        headers = headers or self.get_header(data=data, key=key)
+        headers =self.get_header(data=data, key=key)
         try: 
             response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
             result = self.process_response(response)
@@ -140,7 +129,6 @@ class Client:
             result = response.content
             if response.status_code != 200:
                 raise Exception(result)
-        result = self.serializer.deserialize(result)
         return result
 
     def stream(self, response):
