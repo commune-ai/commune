@@ -9,8 +9,8 @@ from functools import partial
 import os
 from copy import deepcopy
 from typing import *
-# import nest_asyncio
-# nest_asyncio.apply()
+import nest_asyncio
+nest_asyncio.apply()
 
 class c:
     default_fn = 'forward' # default function
