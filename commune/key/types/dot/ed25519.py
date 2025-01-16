@@ -1,44 +1,32 @@
+import ed25519_zebra
 import sr25519
 import commune as c
 
-from .types.index import *
-from .utils import *
+from commune.key.constants import *
+from commune.key.utils import *
 
-import json
-
-import time
-import os
 import binascii
 import re
-import secrets
-import base64
-from base64 import b64encode
-import hashlib
-from Crypto import Random
-from Crypto.Cipher import AES
-import nacl.bindings
 import nacl.public
 from scalecodec.base import ScaleBytes
 from bip39 import bip39_to_mini_secret
 from scalecodec.utils.ss58 import (
     ss58_decode,
-    ss58_encode,
-    is_valid_ss58_address,
-    get_ss58_format,
+    ss58_encode
 )
 from typing import Union, Optional
-from .key import Key, KeyType
-class DotSR25519(Key):
+from commune.key.key import Key, KeyType
+class DotED25519(Key):
     def __init__(
         self,
         private_key: Union[bytes, str] = None,
         ss58_format: int = SS58_FORMAT,
         derive_path: str = None,
         path: str = None,
-        crypto_type: Union[str, int] = KeyType.SR25519,
+        crypto_type: Union[str, int] = KeyType.ED25519,
         **kwargs
     ):
-        self.crypto_type = KeyType.SR25519
+        self.crypto_type = KeyType.ED25519
         self.set_private_key(private_key=private_key, ss58_format = ss58_format, derive_path=derive_path, path=path, **kwargs)
         
     def set_private_key(
@@ -62,16 +50,17 @@ class DotSR25519(Key):
         seed_hex: hex string of seed
         """
         # If no arguments are provided, generate a random keypair
+
+
         if private_key == None:
-            private_key = self.new_key().private_key
+            private_key = self.new_key(crypto_type=self.crypto_type).private_key
         if type(private_key) == str:
             private_key = c.str2bytes(private_key)
-        if self.crypto_type == KeyType.SR25519:
-            if len(private_key) != 64:
-                private_key = sr25519.pair_from_seed(private_key)[1]
-            public_key = sr25519.public_from_secret_key(private_key)
+        if self.crypto_type == KeyType.ED25519:
+            private_key = private_key[:32] if len(private_key) == 64 else private_key        
+            private_key, public_key = ed25519_zebra.ed_from_seed(private_key)
             key_address = ss58_encode(public_key, ss58_format=ss58_format)
-            hash_type = "ss58"
+            hash_type = 'ss58'
         else:
             raise ValueError('crypto_type "{}" not supported'.format(self.crypto_type))
         if type(public_key) is str:
@@ -91,8 +80,8 @@ class DotSR25519(Key):
 
     @classmethod
     def create_from_mnemonic(
-        cls, mnemonic: str = None, ss58_format=SS58_FORMAT, language_code: str = "en", crypto_type=KeyType.SR25519
-    ) -> "DotSR25519":
+        cls, mnemonic: str = None, ss58_format=SS58_FORMAT, language_code: str = "en", crypto_type=KeyType.ED25519
+    ) -> "DotED25519":
         """
         Create a Key for given memonic
 
@@ -120,12 +109,10 @@ class DotSR25519(Key):
 
         return keypair
 
-    from_mnemonic = from_mem = create_from_mnemonic
-
     @classmethod
     def create_from_seed(
         cls, seed_hex: Union[bytes, str], ss58_format: Optional[int] = SS58_FORMAT
-    ) -> "DotSR25519":
+    ) -> "DotED25519":
         """
         Create a Key for given seed
 
@@ -140,15 +127,14 @@ class DotSR25519(Key):
         """
         if type(seed_hex) is str:
             seed_hex = bytes.fromhex(seed_hex.replace("0x", ""))
-        public_key, private_key = sr25519.pair_from_seed(seed_hex)
-
+        private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
         ss58_address = ss58_encode(public_key, ss58_format)
         kwargs = dict(
             ss58_address=ss58_address,
             public_key=public_key,
             private_key=private_key,
             ss58_format=ss58_format,
-            crypto_type=KeyType.SR25519,
+            crypto_type=KeyType.ED25519,
         )
 
         return cls(**kwargs)
@@ -159,8 +145,8 @@ class DotSR25519(Key):
         suri: str,
         ss58_format: Optional[int] = SS58_FORMAT,
         language_code: str = "en",
-        crypto_type: Union[str, int] = KeyType.SR25519,
-    ) -> "DotSR25519":
+        crypto_type: Union[str, int] = KeyType.ED25519,
+    ) -> "DotED25519":
         """
         Creates Key for specified suri in following format: `[mnemonic]/[soft-path]//[hard-path]`
 
@@ -172,7 +158,7 @@ class DotSR25519(Key):
 
         Returns
         -------
-        Key
+        DotED25519
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
         suri = str(suri)
@@ -191,7 +177,7 @@ class DotSR25519(Key):
 
         if suri_parts["password"]:
             raise NotImplementedError(
-                f"Passwords in suri not supported for crypto_type '{KeyType.SR25519}'"
+                f"Passwords in suri not supported for crypto_type '{KeyType.ED25519}'"
             )
 
         derived_keypair = cls.create_from_mnemonic(
@@ -217,15 +203,13 @@ class DotSR25519(Key):
                         (junction.chain_code, child_pubkey, child_privkey), b""
                     )
 
-            derived_keypair = DotSR25519(
+            derived_keypair = DotED25519(
                 public_key=child_pubkey,
                 private_key=child_privkey,
                 ss58_format=ss58_format,
             )
 
         return derived_keypair
-
-    from_mnem = from_mnemonic = create_from_mnemonic
 
     def export_to_encrypted_json(self, passphrase: str, name: str = None) -> dict:
         """
@@ -240,26 +224,7 @@ class DotSR25519(Key):
         -------
         dict
         """
-        if not name:
-            name = self.ss58_address
-
-        # Secret key from PolkadotJS is an Ed25519 expanded secret key, so has to be converted
-        # https://github.com/polkadot-js/wasm/blob/master/packages/wasm-crypto/src/rs/sr25519.rs#L125
-        converted_private_key = sr25519.convert_secret_key_to_ed25519(self.private_key)
-        encoded = encode_pair(self.public_key, converted_private_key, passphrase)
-        encoding_content = ["pkcs8", "sr25519"]
-
-        json_data = {
-            "encoded": b64encode(encoded).decode(),
-            "encoding": {
-                "content": encoding_content,
-                "type": ["scrypt", "xsalsa20-poly1305"],
-                "version": "3",
-            },
-            "address": self.ss58_address,
-            "meta": {"name": name, "tags": [], "whenCreated": int(time.time())},
-        }
-        return json_data
+        raise NotImplementedError(f"Cannot create JSON for crypto_type '{self.crypto_type}'")
 
     seperator = "::signature="
 
@@ -284,7 +249,7 @@ class DotSR25519(Key):
             data = data.encode()
         if not self.private_key:
             raise Exception("No private key set to create signatures")
-        signature = sr25519.sign((self.public_key, self.private_key), data)
+        signature = ed25519_zebra.ed_sign(self.private_key, data)
 
         if to_json:
             return {
@@ -369,7 +334,7 @@ class DotSR25519(Key):
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
 
-        crypto_verify_fn = sr25519.verify
+        crypto_verify_fn = ed25519_zebra.ed_verify
 
         verified = crypto_verify_fn(signature, data, public_key)
         if not verified:

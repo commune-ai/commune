@@ -19,7 +19,7 @@ import commune as c
 
 from scalecodec.utils.ss58 import is_valid_ss58_address
 
-from .types.index import *
+from commune.key.constants import *
 from .utils import *
 
 class KeyType:
@@ -42,16 +42,16 @@ class Key(c.Module):
     ):
         crypto_type = cls.resolve_crypto_type(crypto_type)
         if crypto_type == KeyType.SR25519:
-            from .dot_sr25519 import DotSR25519
+            from .types.dot.sr25519 import DotSR25519
             return super().__new__(DotSR25519)
         elif crypto_type == KeyType.ED25519:
-            from .dot_ed25519 import DotED25519
+            from commune.key.types.dot.ed25519 import DotED25519
             return super().__new__(DotED25519)
         elif crypto_type == KeyType.ECDSA:
-            from .eth import ECDSA
+            from .types.eth import ECDSA
             return super().__new__(ECDSA)
         elif crypto_type == KeyType.SOLANA:
-            from .sol import Solana
+            from .types.sol import Solana
             return super().__new__(Solana)
         else:
             raise NotImplementedError(f"unsupported crypto_type {crypto_type}")
@@ -507,16 +507,16 @@ class Key(c.Module):
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
         if crypto_type == KeyType.SR25519:
-            from commune.key.dot_sr25519 import DotSR25519
+            from commune.key.types.dot.sr25519 import DotSR25519
             return DotSR25519.create_from_mnemonic(mnemonic=mnemonic, ss58_format=ss58_format, language_code=language_code, crypto_type=crypto_type)
         elif crypto_type == KeyType.ED25519:
-            from commune.key.dot_ed25519 import DotED25519
+            from commune.key.types.dot.ed25519 import DotED25519
             return DotED25519.create_from_mnemonic(mnemonic=mnemonic, ss58_format=ss58_format, language_code=language_code, crypto_type=crypto_type)
         elif crypto_type == KeyType.ECDSA:
-            from commune.key.eth import ECDSA
+            from commune.key.types.eth import ECDSA
             return ECDSA.create_from_mnemonic(mnemonic=mnemonic, ss58_format=ss58_format, language_code=language_code, crypto_type=crypto_type)
         elif crypto_type == KeyType.SOLANA:
-            from commune.key.sol import Solana
+            from commune.key.types.sol import Solana
             return Solana.create_from_mnemonic(mnemonic=mnemonic, ss58_format=ss58_format, language_code=language_code, crypto_type=crypto_type)
         else:
             raise NotImplementedError("create_from_mnemonic not implemented")
@@ -545,16 +545,16 @@ class Key(c.Module):
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
         if crypto_type == KeyType.SR25519:
-            from commune.key.dot_sr25519 import DotSR25519
+            from commune.key.types.dot.sr25519 import DotSR25519
             return DotSR25519.create_from_seed(seed_hex=seed_hex, ss58_format=ss58_format, crypto_type=crypto_type)
         elif crypto_type == KeyType.ED25519:
-            from commune.key.dot_ed25519 import DotED25519
+            from commune.key.types.dot.ed25519 import DotED25519
             return DotED25519.create_from_seed(seed_hex=seed_hex, ss58_format=ss58_format, crypto_type=crypto_type)
         elif crypto_type == KeyType.ECDSA:
-            from commune.key.eth import ECDSA
+            from commune.key.types.eth import ECDSA
             return ECDSA.create_from_seed(seed_hex=seed_hex, ss58_format=ss58_format, crypto_type=crypto_type)
         elif crypto_type == KeyType.SOLANA:
-            from commune.key.sol import Solana
+            from commune.key.types.sol import Solana
             return Solana.create_from_seed(seed_hex=seed_hex, ss58_format=ss58_format, crypto_type=crypto_type)
         else:
             raise NotImplementedError("create_from_seed not implemented")
@@ -588,16 +588,16 @@ class Key(c.Module):
         Key
         """
         if crypto_type == KeyType.SR25519:
-            from commune.key.dot_sr25519 import DotSR25519
+            from commune.key.types.dot.sr25519 import DotSR25519
             return DotSR25519.create_from_uri(suri=suri, ss58_format=ss58_format, language_code=language_code)
         elif crypto_type == KeyType.ED25519:
-            from commune.key.dot_ed25519 import DotED25519
+            from commune.key.types.dot.ed25519 import DotED25519
             return DotED25519.create_from_uri(suri=suri, ss58_format=ss58_format, language_code=language_code)
         elif crypto_type == KeyType.ECDSA:
-            from commune.key.eth import ECDSA
+            from commune.key.types.eth import ECDSA
             return ECDSA.create_from_uri(suri=suri, ss58_format=ss58_format, language_code=language_code)
         elif crypto_type == KeyType.SOLANA:
-            from commune.key.sol import Solana
+            from commune.key.types.sol import Solana
             return Solana.create_from_uri(suri=suri, ss58_format=ss58_format, language_code=language_code)
         else:
             raise NotImplementedError("create_from_uri not implemented")

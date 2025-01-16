@@ -19,7 +19,7 @@ from solders.keypair import Keypair as SolanaKeypair
 from solders.pubkey import Pubkey as SolanaPubkey
 from solders.signature import Signature as SolanaSignature
 
-from .types.index import *
+from .constants import *
 
 class PublicKey:
     def __init__(self, private_key):
