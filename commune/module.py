@@ -105,6 +105,12 @@ class c:
                 return c.ask(*args, **kwargs)
             module.ask = ask
         return module
+
+
+    @classmethod
+    def getfile(cls, obj=None) -> str:
+        obj = cls.resolve_module(obj)
+        return inspect.getfile(obj)
     
     @classmethod
     def filepath(cls, obj=None) -> str:
@@ -2039,6 +2045,12 @@ class c:
             raise Exception(f'Errors: {fn2error}')
         
         return fn2result
+
+
+    def readmes(self, path='./', search=None):
+        files =  c.files(path)
+        readmes = [f for f in files if f.endswith('.md')]
+        return readmes
 
 
 c.add_routes()
