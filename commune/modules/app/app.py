@@ -36,15 +36,6 @@ class App(c.Module):
                 'url':  f'http://localhost:{port}',
 
             }
-        # if remote:
-        #     if self.app_exists(name):
-        #         self.kill_app(name)
-        #     self.remote_fn(
-        #                 fn='start',
-        #                 name=self.name_prefix + module ,
-        #                 kwargs= rkwargs)
-        
-        #     return response
 
 
         module = c.shortcuts.get(module, module)

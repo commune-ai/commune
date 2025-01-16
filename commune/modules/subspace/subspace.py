@@ -968,6 +968,8 @@ class Subspace(c.Module):
                 response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
         return response
 
+
+ 
     def compose_call_multisig(
         self,
         fn: str,

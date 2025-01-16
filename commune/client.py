@@ -49,7 +49,7 @@ class Client:
         return client.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
 
     @classmethod
-    def connect(cls,
+    def client(cls,
                 module:str = 'module', 
                 network : str = 'local',
                 virtual:bool = True, 
@@ -185,3 +185,7 @@ class Client:
             'Content-Type': 'application/json',
             'signature':  key.sign({'data': data, 'time': time_str}).hex()
         } 
+    
+    @classmethod
+    def connect(cls, module, **kwargs):
+        return cls.client(module, **kwargs)

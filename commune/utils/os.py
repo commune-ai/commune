@@ -6,8 +6,6 @@ import shlex
 import sys
 from typing import *
 
-
-
 def jsonable( value):
     import json
     try:

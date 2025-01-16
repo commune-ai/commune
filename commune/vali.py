@@ -41,7 +41,6 @@ class Vali(c.Module):
             c.thread(self.run_loop)
     init_vali = __init__
 
-
     def set_key(self, key):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
@@ -93,7 +92,11 @@ class Vali(c.Module):
         if module['key'] in self._clients:
             client =  self._clients[module['key']]
         else:
-            client =  c.connect(module['address'], key=self.key)
+            if isinstance(module, str):
+                address = module
+            else:
+                address = module['address']
+            client =  c.client(address, key=self.key)
             self._clients[module['key']] = client
         return client
     
@@ -230,7 +233,7 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
-    
+
     @staticmethod
     def test(  
              n=2, 
@@ -267,3 +270,6 @@ class Vali(c.Module):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
+
+
+    

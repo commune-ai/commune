@@ -91,7 +91,7 @@ class Find:
         return [c.abspath(path+k) for k in files]
 
     def modules(self,  query='the filel that is the core of commune', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
-        return self.forward(options=c.modules(), query=query, model=model)
+        return self.forward(options=c.get_modules(), query=query, model=model)
 
     def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
         return self.forward(query=query, options=c.get_utils(), model=model)

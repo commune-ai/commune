@@ -516,8 +516,8 @@ class c:
                 try:
                     fn_obj = c.import_object(route)
                 except: 
-                    module = '.'.join(route.split('.')[:-1])
-                    fn = route.split('.')[-1]
+                    module = '/'.join(route.split('/')[:-1])
+                    fn = route.split('/')[-1]
                     module = c.module(module)
                     fn_obj = getattr(module, fn)
                     if c.classify_fn(fn_obj) == 'self':
@@ -527,10 +527,11 @@ class c:
                 else:
                     return fn_obj
             return fn(*args, **kwargs)
+
         for module, fns in routes.items():
             for fn in fns: 
                 if not hasattr(cls, fn):
-                    fn_obj = partial(fn_generator, route=module + '.' + fn) 
+                    fn_obj = partial(fn_generator, route=module + '/' + fn) 
                     fn_obj.__name__ = fn
                     setattr(cls, fn, fn_obj)
         latency = time.time() - t0
@@ -899,10 +900,13 @@ class c:
     @classmethod
     def fn2code(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)
-        functions = module.fns()
+        functions = c.get_functions(module)
         fn_code_map = {}
         for fn in functions:
-            fn_code_map[fn] = c.code(getattr(module, fn))
+            try:
+                fn_code_map[fn] = c.code(getattr(module, fn))
+            except Exception as e:
+                c.print(f'Error {e} {fn}', color='red')
         return fn_code_map
     
     @classmethod
@@ -1688,44 +1692,6 @@ class c:
     def root_key(cls):
         return cls.get_key()
 
-    @classmethod
-    def remote_fn(cls, 
-                    fn: str='train', 
-                    module: str = None,
-                    args : list = None,
-                    kwargs : dict = None, 
-                    name : str =None,
-                    refresh : bool =True,
-                    interpreter = 'python3',
-                    autorestart : bool = True,
-                    force : bool = False,
-                    cwd = None,
-                    **extra_launch_kwargs
-                    ):
-        kwargs = c.locals2kwargs(kwargs)
-        kwargs = kwargs if kwargs else {}
-        args = args if args else []
-        if 'remote' in kwargs:
-            kwargs['remote'] = False
-        assert fn != None, 'fn must be specified for pm2 launch'
-        kwargs = {'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}
-        name = name or module
-        if refresh:
-            c.kill(name)
-        module = c.module(module)
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-        filepath = module.filepath()
-        cwd = os.path.dirname(filepath)
-        root_filepath = c.module('module').filepath()
-        command = f"pm2 start {root_filepath} --name {name} --interpreter {interpreter}"
-        if not autorestart:
-            command += ' --no-autorestart'
-        if force:
-            command += ' -f '
-        command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
-        return c.cmd(command, cwd=cwd)
-    
-
     def repo2path(self, search=None):
         repo2path = {}
         for p in c.ls('~/'): 
@@ -1823,6 +1789,15 @@ class c:
     
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
+
+    def routes_from_to(self):
+        routes = c.routes
+        from_to_map = {}
+        for m, fns in routes.items():
+            for fn in fns:
+                from_to_map[fn] = m + '/' + fn
+        return from_to_map
+
     
     routes = {
     "vali": [
@@ -1852,7 +1827,8 @@ class c:
     "client": [
         "call",
         "call_search",
-        "connect"
+        "connect",
+        "client",
     ],
     "repo": [
         "is_repo",
