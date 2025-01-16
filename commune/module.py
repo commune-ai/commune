@@ -1650,7 +1650,7 @@ class c:
     @classmethod
     def jload(cls, json_string):
         import json
-        return json.loads(json_string.replace("'", '"'))
+        return json.loads(json_string)
 
     @classmethod
     def partial(cls, fn, *args, **kwargs):
