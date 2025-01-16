@@ -42,6 +42,7 @@ class c:
         's' :  'subspace',
         'subspace': 'subspace', 
         'namespace': 'network', 
+        "client": 'server.client',
         'local': 'network',
         'network.local': 'network',
         }
@@ -1594,13 +1595,27 @@ class c:
         return tree
     
     @classmethod
-    def core_modules(cls, search=None, depth=10000, **kwargs):
+    def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
         object_paths = cls.find_classes(cls.libpath, depth=depth )
-        object_paths = [cls.objectpath2name(p) for p in object_paths]
+        object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
-    
+
+    @classmethod
+    def core_code(cls, search=None, depth=10000, **kwargs):
+        return {k:c.code(k) for k in cls.core_modules(search=search, depth=depth, **kwargs)}
+
+    def core_size(self, search=None, depth=10000, **kwargs):
+        return {k:len(c.code(k)) for k in self.core_modules(search=search, depth=depth, **kwargs)}
+    def module2size(self, search=None, depth=10000, **kwargs):
+        module2size = {}
+        module2code = c.module2code(search=search, depth=depth, **kwargs)
+        for k,v in module2code.items():
+            module2size[k] = len(v)
+        module2size = dict(sorted(module2size.items(), key=lambda x: x[1], reverse=True))
+
+        return module2size
     @classmethod
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
@@ -1781,6 +1796,20 @@ class c:
             except Exception as e:
                 pass
         return module2fns
+
+    def module2code(self, search=None, update=False, max_age=60, **kwargs):
+        module2code = {}
+        module2code = c.get('module2code', None, max_age=max_age, update=update)
+        if module2code != None:
+            return module2code
+        module2code = {}
+        for m in c.modules(search=search, **kwargs):
+            try:
+                module2code[m] = c.code(m)
+            except Exception as e:
+                print(f'Error in {m} {e}')
+        c.put('module2code', module2code)
+        return module2code
     
     @classmethod
     def fn2module(cls, path=None):

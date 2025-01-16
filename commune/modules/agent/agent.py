@@ -83,11 +83,11 @@ class Agent:
                     'm': c.code,
                     'module': c.code,
                     "run": c.run_fn,
+                    'fn': c.run_fn,
                 }
                 for condition, fn in condition2fn.items():
                     if word.startswith(condition + '/'):
-                        
-                        word = str(fn(word.split(condition + '/')[-1]))
+                        word = str(fn('/'.join(word.split(condition + '/')[1:])))
                         break
                 
             new_text += str(word)
