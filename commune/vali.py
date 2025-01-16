@@ -65,10 +65,8 @@ class Vali(c.Module):
         self.search = search
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
         self.is_voting_network = any([v in self.network for v in self.voting_networks])
-
         self.set_score(score)
         self.sync(update=update)
-
 
     def score(self, module):
         print(module.info(), 'FAM')
