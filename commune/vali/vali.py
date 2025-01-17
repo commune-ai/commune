@@ -64,6 +64,7 @@ class Vali(c.Module):
         self.search = search
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
         self.is_voting_network = any([v in self.network for v in self.voting_networks])
+
         self.set_score(score)
         self.sync(update=update)
 
@@ -92,6 +93,7 @@ class Vali(c.Module):
         if module['key'] in self._clients:
             client =  self._clients[module['key']]
         else:
+
             if isinstance(module, str):
                 address = module
             else:
@@ -108,6 +110,7 @@ class Vali(c.Module):
             key: str
             time: int
         """
+
         if isinstance(module, str):
             module = self.network_module.get_module(module)
         module['time'] = c.time() # the timestamp
@@ -134,6 +137,7 @@ class Vali(c.Module):
         except Exception as e:
             c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=1)
         print(module_results)
+
         return module_results
 
     def epoch(self):
@@ -233,15 +237,42 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
+
     @staticmethod
-    def test():
-        from .test import Test
-        return Test().test()
+    def test(  
+             n=2, 
+             tag = 'vali_test_net',  
+             miner='module', 
+             trials = 5,
+             tempo = 4,
+             update=True,
+             path = '/tmp/commune/vali_test',
+             network='local'
+             ):
+        test_miners = [f'{miner}::{tag}{i}' for i in range(n)]
+        modules = test_miners
+        search = tag
+        assert len(modules) == n, f'Number of miners not equal to n {len(modules)} != {n}'
+        for m in modules:
+            c.serve(m)
+        namespace = c.namespace()
+        for m in modules:
+            assert m in namespace, f'Miner not in namespace {m}'
+        vali = Vali(network=network, search=search, path=path, update=update, tempo=tempo, run_loop=False)
+        print(vali.modules)
+        scoreboard = []
+        while len(scoreboard) < n:
+            c.sleep(1)
+            scoreboard = vali.epoch()
+            trials -= 1
+            assert trials > 0, f'Trials exhausted {trials}'
+        for miner in modules:
+            c.print(c.kill(miner))
+        return {'success': True, 'msg': 'subnet test passed'}
+
     
     def refresh_scoreboard(self):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
 
-
-    

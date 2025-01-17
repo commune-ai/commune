@@ -321,7 +321,7 @@ class c:
 
     @classmethod
     def get_key(cls,key:str = None , **kwargs) -> None:
-        from commune.key import Key
+        from commune.key.key import Key
         if not isinstance(key, str) and hasattr(key,"module_name" ):
             key = key.module_name()
         return Key.get_key(key, **kwargs)
