@@ -8,7 +8,13 @@ from .key.key import Key  # the key module
 
 # set the module functions as globalsw
 c.add_to_globals(globals())
-key = (
-    c.get_key
-)  # override key function with file key in commune/key.py TODO: remove this line with a better solution
 network = c.network
+
+v = Vali 
+s = Server
+k = Key
+# set the module functions as globals
+key = (
+  c.get_key
+) # override key function with file key in commune/key.py TODO: remove this line with a better solution
+

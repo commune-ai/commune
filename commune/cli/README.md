@@ -2,6 +2,14 @@
 
 We have a pythonic cli for commune, which is a wrapper around the `c.Module` library. This is a simple way to interact with the commune library. This does not need to be formated like argparse, and is more like a pythonic cli, where you can test out the functions and modules.
 
+There are two paths to your first aergument
+
+c {fn} *args **kwargs  (default module is "module")
+
+or 
+
+c {module}/{fn} *args **kwarrgs
+
 ```bash
 c {module_name}/{function_name} *args **kwargs
 ```
@@ -123,8 +131,11 @@ c call module/ask hey stream=1
 # c.connect('module').ask('hey', stream=1)
 ```
 
+
+
 Limitatons
 
 - Lists and dictionaries are not supported 
 - Only positional arguments are supported
 - Only one function can be called at a time
+

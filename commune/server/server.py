@@ -25,7 +25,8 @@ class Middleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-class Server:
+
+class Server(c.Module):
     tag_seperator:str='::'
     user_data_lifetime = 3600
     pm2_dir = os.path.expanduser('~/.pm2')
@@ -505,6 +506,7 @@ class Server:
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
     remote_fn = launch = start_process
 
+
     @classmethod
     def restart(cls, name:str):
         assert name in cls.processes()
@@ -658,6 +660,12 @@ class Server:
         self.endpoints.append(name)
         assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
         return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
+
+
+    @classmethod
+    def test(cls, **kwargs):
+        from .test import Test
+        return Test().test()
 
 if __name__ == '__main__':
     Server.run()

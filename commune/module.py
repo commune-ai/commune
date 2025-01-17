@@ -42,6 +42,7 @@ class c:
         's' :  'subspace',
         'subspace': 'subspace', 
         'namespace': 'network', 
+        "client": 'server.client',
         'local': 'network',
         'network.local': 'network',
         }
@@ -104,6 +105,12 @@ class c:
                 return c.ask(*args, **kwargs)
             module.ask = ask
         return module
+
+
+    @classmethod
+    def getfile(cls, obj=None) -> str:
+        obj = cls.resolve_module(obj)
+        return inspect.getfile(obj)
     
     @classmethod
     def filepath(cls, obj=None) -> str:
@@ -299,6 +306,7 @@ class c:
         dirpath = cls.dirpath()
         filepath = cls.filepath()
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
+
 
 
     is_file_module = is_module_file
@@ -516,8 +524,8 @@ class c:
                 try:
                     fn_obj = c.import_object(route)
                 except: 
-                    module = '.'.join(route.split('.')[:-1])
-                    fn = route.split('.')[-1]
+                    module = '/'.join(route.split('/')[:-1])
+                    fn = route.split('/')[-1]
                     module = c.module(module)
                     fn_obj = getattr(module, fn)
                     if c.classify_fn(fn_obj) == 'self':
@@ -527,10 +535,11 @@ class c:
                 else:
                     return fn_obj
             return fn(*args, **kwargs)
+
         for module, fns in routes.items():
             for fn in fns: 
                 if not hasattr(cls, fn):
-                    fn_obj = partial(fn_generator, route=module + '.' + fn) 
+                    fn_obj = partial(fn_generator, route=module + '/' + fn) 
                     fn_obj.__name__ = fn
                     setattr(cls, fn, fn_obj)
         latency = time.time() - t0
@@ -899,16 +908,31 @@ class c:
     @classmethod
     def fn2code(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)
-        functions = module.fns()
+        functions = c.get_functions(module)
         fn_code_map = {}
         for fn in functions:
-            fn_code_map[fn] = c.code(getattr(module, fn))
+            try:
+                fn_code_map[fn] = c.code(getattr(module, fn))
+            except Exception as e:
+                c.print(f'Error {e} {fn}', color='red')
         return fn_code_map
     
     @classmethod
     def fn2hash(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)   
         return {k:c.hash(v) for k,v in c.fn2code(module).items()}
+
+    def rm_fn_code(self, fn='module/test_rm_fn_code'):
+        assert '/' in fn, 'provide {module}/{fn} format'
+        module, fn = fn.split('/')
+        module = c.module(module)
+        code = c.code(module)
+        fn_code = c.fn2code(module)[fn]
+        assert fn_code in code, f'{fn} was not found'
+        code = code.replace(fn_code, '')
+        assert not fn_code in code, f'{fn} was not removed'
+        filepath = module.filepath()
+        c.put_text(filepath, code)
 
     @classmethod
     def fn_code(cls,fn:str, module=None,**kwargs) -> str:
@@ -1056,19 +1080,16 @@ class c:
             include_parents: whether to include the parent functions
             include_hidden:  whether to include hidden functions (starts and begins with "__")
         '''
-
         obj = cls.resolve_module(obj)
-        functions = []
         text = inspect.getsource(obj)
         functions = []
         # just
         for splitter in splitter_options:
             for line in text.split('\n'):
-                if f'"{splitter}"' in line:
+                if f'"{splitter}"' in line: # removing edge case
                     continue
                 if line.startswith(splitter):
                     functions += [line.split(splitter)[1].split('(')[0].strip()]
-
         functions = sorted(list(set(functions)))
         if search != None:
             functions = [f for f in functions if search in f]
@@ -1412,15 +1433,14 @@ class c:
         fns = []
         if os.path.isdir(path):
             path = os.path.abspath(path)
-            for p in cls.glob(path+'/**/**.py', recursive=True):
+            for p in c.glob(path+'/**/**.py', recursive=True):
                 p_fns = c.find_functions(p)
-                file_object_path = cls.path2objectpath(p)
+                file_object_path = c.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
                 for fn in p_fns:
                     fns += [fn]
-
         else:
-            code = cls.get_text(path)
+            code = c.get_text(path)
             for line in code.split('\n'):
                 if line.startswith('def ') or line.startswith('async def '):
                     fn = line.split('def ')[-1].split('(')[0].strip()
@@ -1429,10 +1449,9 @@ class c:
     
     @classmethod
     def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
-        classes = cls.find_classes(path,depth=depth)
-        functions = cls.find_functions(path)
+        classes = c.find_classes(path,depth=depth)
+        functions = c.find_functions(path)
         if search != None:
-            classes = [c for c in classes if search in c]
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
         return object_paths
@@ -1579,13 +1598,27 @@ class c:
         return tree
     
     @classmethod
-    def core_modules(cls, search=None, depth=10000, **kwargs):
+    def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
         object_paths = cls.find_classes(cls.libpath, depth=depth )
-        object_paths = [cls.objectpath2name(p) for p in object_paths]
+        object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
-    
+
+    @classmethod
+    def core_code(cls, search=None, depth=10000, **kwargs):
+        return {k:c.code(k) for k in cls.core_modules(search=search, depth=depth, **kwargs)}
+
+    def core_size(self, search=None, depth=10000, **kwargs):
+        return {k:len(c.code(k)) for k in self.core_modules(search=search, depth=depth, **kwargs)}
+    def module2size(self, search=None, depth=10000, **kwargs):
+        module2size = {}
+        module2code = c.module2code(search=search, depth=depth, **kwargs)
+        for k,v in module2code.items():
+            module2size[k] = len(v)
+        module2size = dict(sorted(module2size.items(), key=lambda x: x[1], reverse=True))
+
+        return module2size
     @classmethod
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
@@ -1650,7 +1683,7 @@ class c:
     @classmethod
     def jload(cls, json_string):
         import json
-        return json.loads(json_string.replace("'", '"'))
+        return json.loads(json_string)
 
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -1687,44 +1720,6 @@ class c:
     @classmethod
     def root_key(cls):
         return cls.get_key()
-
-    @classmethod
-    def remote_fn(cls, 
-                    fn: str='train', 
-                    module: str = None,
-                    args : list = None,
-                    kwargs : dict = None, 
-                    name : str =None,
-                    refresh : bool =True,
-                    interpreter = 'python3',
-                    autorestart : bool = True,
-                    force : bool = False,
-                    cwd = None,
-                    **extra_launch_kwargs
-                    ):
-        kwargs = c.locals2kwargs(kwargs)
-        kwargs = kwargs if kwargs else {}
-        args = args if args else []
-        if 'remote' in kwargs:
-            kwargs['remote'] = False
-        assert fn != None, 'fn must be specified for pm2 launch'
-        kwargs = {'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}
-        name = name or module
-        if refresh:
-            c.kill(name)
-        module = c.module(module)
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-        filepath = module.filepath()
-        cwd = os.path.dirname(filepath)
-        root_filepath = c.module('module').filepath()
-        command = f"pm2 start {root_filepath} --name {name} --interpreter {interpreter}"
-        if not autorestart:
-            command += ' --no-autorestart'
-        if force:
-            command += ' -f '
-        command = command +  f' -- --fn module_fn --kwargs "{kwargs_str}"'
-        return c.cmd(command, cwd=cwd)
-    
 
     def repo2path(self, search=None):
         repo2path = {}
@@ -1804,6 +1799,20 @@ class c:
             except Exception as e:
                 pass
         return module2fns
+
+    def module2code(self, search=None, update=False, max_age=60, **kwargs):
+        module2code = {}
+        module2code = c.get('module2code', None, max_age=max_age, update=update)
+        if module2code != None:
+            return module2code
+        module2code = {}
+        for m in c.modules(search=search, **kwargs):
+            try:
+                module2code[m] = c.code(m)
+            except Exception as e:
+                print(f'Error in {m} {e}')
+        c.put('module2code', module2code)
+        return module2code
     
     @classmethod
     def fn2module(cls, path=None):
@@ -1813,7 +1822,6 @@ class c:
             for f in module2fns[m]:
                 fn2module[f] = m
         return fn2module
-    
 
     def install(self, path  ):
         path = path + '/requirements.txt'
@@ -1823,6 +1831,15 @@ class c:
     
     def epoch(self, *args, **kwargs):
         return c.run_epoch(*args, **kwargs)
+
+    def routes_from_to(self):
+        routes = c.routes
+        from_to_map = {}
+        for m, fns in routes.items():
+            for fn in fns:
+                assert  fn not in from_to_map, f'Function {fn} already exists in {from_to_map[fn]}'
+                from_to_map[fn] = m + '/' + fn
+        return from_to_map
     
     routes = {
     "vali": [
@@ -1852,7 +1869,8 @@ class c:
     "client": [
         "call",
         "call_search",
-        "connect"
+        "connect",
+        "client",
     ],
     "repo": [
         "is_repo",
@@ -1877,7 +1895,6 @@ class c:
         "pwd2key",
         "mems",
         "switch_key",
-        "rename_key",
         "mv_key",
         "add_keys",
         "key_exists",
@@ -1907,7 +1924,6 @@ class c:
     ],
     "network": [
         "networks",
-        "add_server",
         "remove_server",
         "server_exists",
         "add_server",
@@ -1915,7 +1931,6 @@ class c:
         "add_servers",
         "rm_servers",
         "rm_server",
-        "namespace",
         "namespace",
         "infos",
         "get_address",
@@ -2000,9 +2015,43 @@ class c:
     ],
     "agent": [ "models",  "model2info", "reduce", "generate"],
     "builder": ["build"],
-    "summary": ["reduce"]
-}
-    
+    }
+
+    def run_test(self, module=None, parallel=True):
+        module = module or self
+        fns = [f for f in dir(module) if 'test_' in f]
+        fn2result = {}
+        fn2error = {}
+        if parallel:
+            future2fn = {}
+            for fn in fns:
+                future = c.submit(getattr(module, fn))
+                future2fn[future] = fn
+            for future in c.as_completed(future2fn):
+                fn = future2fn[future]
+                try:
+                    result = future.result()
+                    fn2result[fn] = result
+                except Exception as e:
+                    fn2error[fn] = {'success': False, 'msg': str(e)}
+        else:
+            for fn in fns:
+                try:
+                    result = getattr(module, fn)()
+                    fn2result[fn] = result
+                except Exception as e:
+                    fn2error[fn] = {'success': False, 'msg': str(e)}
+        if len(fn2error) > 0:
+            raise Exception(f'Errors: {fn2error}')
+        
+        return fn2result
+
+
+    def readmes(self, path='./', search=None):
+        files =  c.files(path)
+        readmes = [f for f in files if f.endswith('.md')]
+        return readmes
+
 
 c.add_routes()
 Module = c # Module is alias of c

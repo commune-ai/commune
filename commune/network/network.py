@@ -25,6 +25,10 @@ class Network(c.Module):
     
     def net(self):
         return c.network()
+
+    def get_module(self, name:str, **kwargs):
+        modules = self.modules()
+        return [m for m in modules if m['name'] == name][0]
     
     def modules(self, 
                 search=None, 

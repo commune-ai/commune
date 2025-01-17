@@ -7,13 +7,15 @@ import json
 import os
 
 class Find:
-    model='anthropic/claude-3.5-sonnet-20240620:beta'
-
     def forward(self,  
-              query='most relevant modules', 
               options: list[str] = [],  
+              query='most relevant', 
+              rules = '''only output the IDX:int  and score OF AT MOST {n}
+                         BUT YOU DONT NEED TO FOR SIMPLICITY''',
+               output_format="DICT(data:list[[idx:int, score:float]])",
               n=10,  
               threshold=0.5,
+              context = None,
               model='anthropic/claude-3.5-sonnet-20240620:beta'):
 
         front_anchor = f"<OUTPUT>"
@@ -28,13 +30,15 @@ class Find:
         prompt = f"""
         QUERY
         {query}
+        CONTEXT
+        {context}
         OPTIONS 
         {idx2options} 
-        INSTRUCTION 
-        only output the IDX:int  and score OF AT MOST {n} BUT YOU DONT NEED TO FOR SIMPLICITY
+        RULES 
+        {rules}
         OUTPUT
         (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
-        <OUTPUT>DICT(data:list[[idx:int, score:float]])</OUTPUT>
+        <OUTPUT>{output_format}</OUTPUT>
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
@@ -90,8 +94,11 @@ class Find:
         files =  self.forward(options=files, query=query, n=n, model=model)
         return [c.abspath(path+k) for k in files]
 
-    def modules(self,  query='the filel that is the core of commune', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
-        return self.forward(options=c.modules(), query=query, model=model)
+    def modules(self,  query='', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
+        module2fns = []
+        return self.forward(options=c.get_modules(), query=query, model=model, context=c.module2fns())
+
+    def
 
     def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
         return self.forward(query=query, options=c.get_utils(), model=model)

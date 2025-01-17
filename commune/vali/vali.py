@@ -41,7 +41,6 @@ class Vali(c.Module):
             c.thread(self.run_loop)
     init_vali = __init__
 
-
     def set_key(self, key):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
@@ -69,8 +68,8 @@ class Vali(c.Module):
         self.set_score(score)
         self.sync(update=update)
 
-
     def score(self, module):
+        print(module.info(), 'FAM')
         return int('name' in module.info())
     
     def set_score(self, score):
@@ -94,7 +93,12 @@ class Vali(c.Module):
         if module['key'] in self._clients:
             client =  self._clients[module['key']]
         else:
-            client =  c.connect(module['address'], key=self.key)
+
+            if isinstance(module, str):
+                address = module
+            else:
+                address = module['address']
+            client =  c.client(address, key=self.key)
             self._clients[module['key']] = client
         return client
     
@@ -107,25 +111,33 @@ class Vali(c.Module):
             time: int
         """
 
+        if isinstance(module, str):
+            module = self.network_module.get_module(module)
         module['time'] = c.time() # the timestamp
         client = self.get_client(module)
-        module['score'] = self.score(client, **kwargs)
+        try:
+            module['score'] = self.score(client, **kwargs)
+        except Exception as e:
+            module['score'] = 0
+            module['error'] = c.detailed_error(e)
         module['latency'] = c.time() - module['time']
         module['path'] = self.path +'/'+ module['key']
         return module
 
     def score_modules(self, modules: List[dict]):
         module_results = []
-        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]
+        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
         try:
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
+                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     module_results.append(m)
         except Exception as e:
             c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=1)
-        
+        print(module_results)
+
         return module_results
 
     def epoch(self):
@@ -225,7 +237,7 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
-    
+
     @staticmethod
     def test(  
              n=2, 
@@ -257,8 +269,10 @@ class Vali(c.Module):
         for miner in modules:
             c.print(c.kill(miner))
         return {'success': True, 'msg': 'subnet test passed'}
+
     
     def refresh_scoreboard(self):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
+

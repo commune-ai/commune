@@ -968,6 +968,8 @@ class Subspace(c.Module):
                 response =  {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key.ss58_address}'}
         return response
 
+
+ 
     def compose_call_multisig(
         self,
         fn: str,
@@ -2833,6 +2835,12 @@ class Subspace(c.Module):
                 pallet2storage[pallet] = storage
 
         return pallet2storage
+
+    @classmethod
+    def test(cls):
+        from .test import Test
+        return Test().test()
+
     
             
     

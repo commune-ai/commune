@@ -1,3 +1,4 @@
+
 import json
 from typing import Union, Optional
 import time
@@ -22,6 +23,7 @@ from scalecodec.utils.ss58 import is_valid_ss58_address
 from commune.key.constants import *
 from .utils import *
 
+
 class KeyType:
     ED25519 = 0
     SR25519 = 1
@@ -35,6 +37,7 @@ class Key(c.Module):
     crypto_types = KeyType.crypto_types
     crypto_type_map = KeyType.crypto_type_map
     crypto_types = list(crypto_type_map.keys())
+
     def __new__(
         cls,
         crypto_type: Union[str, int] = KeyType.SR25519,
@@ -55,6 +58,7 @@ class Key(c.Module):
             return super().__new__(Solana)
         else:
             raise NotImplementedError(f"unsupported crypto_type {crypto_type}")
+
     
     @property
     def short_address(self):
@@ -78,14 +82,14 @@ class Key(c.Module):
                 "message": f"crypto_type already set to {crypto_type}",
             }
 
-    def set_private_key(
-        self,
-        private_key: Union[bytes, str] = None,
-        ss58_format: int = 42,
-        derive_path: str = None,
-        path: str = None,
-        **kwargs,
-    ):
+    def set_private_key(self, 
+                 private_key: Union[bytes, str] = None, 
+                 ss58_format: int = ss58_format, 
+                 crypto_type: int = crypto_type,
+                 derive_path: str = None,
+                 path:str = None,
+                 **kwargs
+                 ):
         """
         Allows generation of Keys from a variety of input combination, such as a public/private key combination,
         mnemonic or URI containing soft and hard derivation paths. With these Keys data can be signed and verified
@@ -157,6 +161,8 @@ class Key(c.Module):
                 c.print(f"generating key {key_name}")
             response.append(cls.add_key(key_name, **kwargs))
 
+        return response
+    
     def key2encrypted(self):
         keys = self.keys()
         key2encrypted = {}
@@ -211,13 +217,13 @@ class Key(c.Module):
     def key2mnemonic(cls, search=None) -> dict[str, str]:
         """
         keyname (str) --> mnemonic (str)
-
         """
         mems = {}
         for key in cls.keys(search):
             try:
                 mems[key] = cls.get_mnemonic(key)
             except Exception as e:
+
                 c.print(f"failed to get mem for {key} due to {e}")
         if search:
             mems = {k: v for k, v in mems.items() if search in k or search in v}
@@ -237,6 +243,7 @@ class Key(c.Module):
             key = path
             return key
         path = path or "module"
+
         # if ss58_address is provided, get key from address
         if cls.valid_ss58_address(path):
             path = cls.address2key().get(path)
@@ -247,6 +254,7 @@ class Key(c.Module):
             else:
                 print(path)
                 raise ValueError(f"key does not exist at --> {path}")
+
         key_json = cls.get(path)
         # if key is encrypted, decrypt it
         if cls.is_encrypted(key_json):
@@ -264,6 +272,7 @@ class Key(c.Module):
         key.path = path
         return key
 
+
     @classmethod
     def get_keys(cls, search=None, clean_failed_keys=False):
         keys = {}
@@ -271,7 +280,9 @@ class Key(c.Module):
             if str(search) in key or search == None:
                 try:
                     keys[key] = cls.get_key(key)
+
                 except Exception:
+
                     continue
                 if keys[key] == None:
                     if clean_failed_keys:
@@ -311,6 +322,7 @@ class Key(c.Module):
 
     address_seperator = "_address="
 
+
     @classmethod
     def key2path(cls) -> dict:
         """
@@ -322,6 +334,7 @@ class Key(c.Module):
 
     @classmethod
     def keys(cls, search: str = None, **kwargs):
+
         keys = list(cls.key2path().keys())
         if search != None:
             keys = [key for key in keys if search in key]
@@ -335,7 +348,6 @@ class Key(c.Module):
     def key_exists(cls, key, **kwargs):
         path = cls.get_key_path(key)
         import os
-
         return os.path.exists(path)
 
     @classmethod
@@ -353,6 +365,7 @@ class Key(c.Module):
     @classmethod
     def get_key_address(cls, key):
         return cls.get_key(key).ss58_address
+
 
     @classmethod
     def rm_key(cls, key=None):
@@ -391,6 +404,7 @@ class Key(c.Module):
             assert crypto_type in reverse_crypto_type_map, (
                 f"crypto_type {crypto_type} not supported {crypto_type_map}"
             )
+
             crypto_type = reverse_crypto_type_map[crypto_type]
         if isinstance(crypto_type, str):
             crypto_type = crypto_type.lower()
@@ -458,6 +472,7 @@ class Key(c.Module):
         obj["crypto_type"] = crypto_type
         return cls(**obj)
     
+
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = "en") -> str:
         """
@@ -469,6 +484,7 @@ class Key(c.Module):
         """
         mnemonic = bip39_generate(words, language_code)
         assert cls.validate_mnemonic(mnemonic, language_code), "mnemonic is invalid"
+
         return mnemonic
 
     @classmethod
@@ -487,10 +503,12 @@ class Key(c.Module):
         """
         return bip39_validate(mnemonic, language_code)
 
+
     @classmethod
     def create_from_mnemonic(
         cls, mnemonic: str, ss58_format: int = SS58_FORMAT, language_code: str = "en", crypto_type: Union[str, int] = KeyType.SR25519
     ) -> "Key":
+
         """
         Create a Key for given memonic
 
@@ -505,6 +523,7 @@ class Key(c.Module):
         -------
         Key
         """
+
         crypto_type = cls.resolve_crypto_type(crypto_type)
         if crypto_type == KeyType.SR25519:
             from commune.key.types.dot.sr25519 import DotSR25519
@@ -530,6 +549,7 @@ class Key(c.Module):
         ss58_format: Optional[int] = SS58_FORMAT,
         crypto_type: Union[str, int] = KeyType.SR25519
     ) -> "Key":
+
         """
         Create a Key for given seed
 
@@ -564,16 +584,18 @@ class Key(c.Module):
         key = cls.create_from_uri(password, crypto_type=crypto_type, **kwargs)
         key.set_crypto_type(crypto_type)
 
+
     str2key = pwd2key = password2key = from_password = create_from_password
 
     @classmethod
-    def create_from_uri(
+    def create_from_uri
         cls,
         suri: str,
         ss58_format: int = SS58_FORMAT,
         crypto_type: Union[str, int] = KeyType.SR25519,
         language_code: str = "en",
     ) -> "Key":
+
         """
         Creates Key for specified suri in following format: `[mnemonic]/[soft-path]//[hard-path]`
 
@@ -581,6 +603,7 @@ class Key(c.Module):
         ----------
         suri:
         ss58_format: Substrate address format
+        crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
         language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
@@ -657,6 +680,7 @@ class Key(c.Module):
         if type(json_data) is str:
             json_data = json.loads(json_data)
         private_key, public_key = decode_pair_from_encrypted_json(json_data, passphrase)
+
         if 'sr25519' in json_data['encoding']['content']:
             crypto_type = KeyType.SR25519
         elif 'ed25519' in json_data['encoding']['content']:
@@ -669,6 +693,7 @@ class Key(c.Module):
         else:
             raise NotImplementedError("Unknown KeyType found in JSON")
         
+
         if ss58_format is None and 'address' in json_data:
             ss58_format = get_ss58_format(json_data['address'])
 
@@ -707,6 +732,7 @@ class Key(c.Module):
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = "utf-8") -> str:
         if hasattr(data, "hex"):
+
             return data.hex()
         else:
             if isinstance(data, str):
@@ -799,6 +825,7 @@ class Key(c.Module):
         self,
         message: Union[bytes, str],
         recipient_public_key: bytes,
+
         nonce: bytes = secrets.token_bytes(24),
     ) -> bytes:
         """
@@ -872,6 +899,7 @@ class Key(c.Module):
         cls.put(path, enc_text)
         return {"number_of_characters_encrypted": len(enc_text), "path": path}
 
+
     @classmethod
     def is_key_encrypted(cls, key, data=None):
         data = data or cls.get(key)
@@ -917,6 +945,7 @@ class Key(c.Module):
 
     @classmethod
     def valid_ss58_address(cls, address: str, ss58_format:int = SS58_FORMAT) -> bool:
+
         """
         Checks if the given address is a valid ss58 address.
         """
@@ -977,6 +1006,7 @@ class Key(c.Module):
         return True
 
     def storage_migration(self):
+
         key2path = self.key2path()
         new_key2path = {}
         for k_name, k_path in key2path.items():
@@ -1009,3 +1039,9 @@ class Key(c.Module):
                 c.print(f"failed to migrate {k_name} due to {e}", color="red")
 
         return new_key2path
+
+    @classmethod
+    def test(cls):
+        from .test import Test
+        return Test().test()
+

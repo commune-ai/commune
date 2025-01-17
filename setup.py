@@ -22,6 +22,6 @@ setup(
     author_email='',
     license='IDGAF License, Do What You Want, I wont sue you',
     install_requires=install_requires,
-    entry_points={'console_scripts': [f'{libname[0]}={libname}.cli:main']},
+    entry_points={'console_scripts': [f'c={libname}.cli.cli:main']},
     classifiers=['FUCK SHIT UP'], 
     python_requires='>=3.8')

@@ -9,6 +9,9 @@ enter:
 	${SCRIPTS_PATH}/enter.sh
 test:
 	${SCRIPTS_PATH}/test.sh
+restart:
+	make stop
+	make start
 chmod:
 	chmod +x ${SCRIPTS_PATH}/*
 up: 
