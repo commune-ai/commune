@@ -84,8 +84,8 @@ class Key(c.Module):
 
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
-                 ss58_format: int = ss58_format, 
-                 crypto_type: int = crypto_type,
+                 ss58_format: int = SS58_FORMAT, 
+                 crypto_type: int = KeyType.SR25519,
                  derive_path: str = None,
                  path:str = None,
                  **kwargs
@@ -588,7 +588,7 @@ class Key(c.Module):
     str2key = pwd2key = password2key = from_password = create_from_password
 
     @classmethod
-    def create_from_uri
+    def create_from_uri(
         cls,
         suri: str,
         ss58_format: int = SS58_FORMAT,
