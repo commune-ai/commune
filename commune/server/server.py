@@ -50,6 +50,7 @@ class Server(c.Module):
         crypto_type = 'sr25519', # the crypto type of the key
         users_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
+        run_server = True, # if the server should be run
         ) -> 'Server':
         module = module or 'module'
         kwargs = kwargs or {}
@@ -71,7 +72,8 @@ class Server(c.Module):
         self.set_functions(functions=functions, fn2cost=fn2cost)
         self.set_user_path(users_path)
         self.serializer = c.module(serializer)()
-        self.start_server()
+        if run_server:
+            self.run_server()
 
     def set_functions(self, functions:Optional[List[str]] , fn2cost=None):
         if self.free:
@@ -132,7 +134,7 @@ class Server(c.Module):
         module.crypto_type = module.key.crypto_type
         return {'success':True, 'message':f'Set key to {module.key.ss58_address}'}
     
-    def start_server(self,
+    def run_server(self,
             max_bytes = 10 * 1024 * 1024 , # max bytes within the request (bytes)
             allow_origins  = ["*"], # allowed origins
             allow_credentials  =True, # allow credentials
@@ -591,6 +593,14 @@ class Server(c.Module):
     
     def history(self, user):
         return self.user_data(user)
+
+    @classmethod
+    def all_history(cls, module=None):
+        self = cls(module=module, run_server=False)
+        all_history = {}
+        for user in self.users():
+            all_history[user] = self.history(user)
+        return all_history
     
     def user2fn2count(self):
         user2fn2count = {}
@@ -624,7 +634,10 @@ class Server(c.Module):
         return len(self.user_call_paths(user))
     
     def users(self):
-        return os.listdir(self.users_path)
+        try:
+            return os.listdir(self.users_path)
+        except:
+            return []
     
     def user_path2time(self, address):
         user_paths = self.user_call_paths(address)
@@ -645,11 +658,12 @@ class Server(c.Module):
                 if os.path.exists(path):
                     os.remove(path)
 
-    def resolve_path(self, path):
-        return c.resolve_path(path, storage_dir=self.storage_dir())
+    @classmethod
+    def resolve_path(cls, path):
+        return c.resolve_path(path, storage_dir=cls.storage_dir())
 
     def set_user_path(self, users_path):
-        self.users_path = users_path or self.resolve_path(f'users/{self.module.name}')
+        self.users_path = users_path or self.resolve_path(f'history/{self.module.name}')
 
     
     def add_endpoint(self, name, fn):

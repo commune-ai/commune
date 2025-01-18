@@ -36,6 +36,9 @@ class Client:
         if '/' in str(fn):
             module = '.'.join(fn.split('/')[:-1])
             fn = fn.split('/')[-1]
+        else:
+            module = fn 
+            fn = 'info'
         kwargs = (params or kwargs) or {}
         kwargs = {**kwargs, **extra_kwargs}
         return cls(module=module, network=network).forward(fn=fn, 

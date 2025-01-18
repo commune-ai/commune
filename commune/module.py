@@ -74,7 +74,7 @@ class c:
         except Exception as e:
             if trials == 0:
                 raise ValueError(f'Error in module {og_path} {e}')
-            return c.module(path,cache=cache, tree=c.tree(max_age=10), trials=trials-1)
+            return c.module(path,cache=cache, tree=c.tree(max_age=100), trials=trials-1)
         module = module if cls.is_module(module) else cls.convert_module(module)
         if cache:
             c.module_cache[path] = module
@@ -330,10 +330,14 @@ class c:
 
     @classmethod
     def files(cls, 
-              path='./', 
+              path=None, 
               search:str = None, 
               avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
               **kwargs) -> List[str]:
+        if cls.module_name == 'module':
+            path = path or './'
+        else:
+            path = path or cls.storage_dir()
         files =c.glob(path, **kwargs)
         files = [f for f in files if not any([at in f for at in avoid_terms])]
         if search != None:
@@ -1592,6 +1596,7 @@ class c:
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
+        # overlap the local tree over the lib tree
         tree = {**lib_tree, **local_tree}
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
@@ -1743,6 +1748,17 @@ class c:
         return file2hash
             
 
+
+    def __repr__(self):
+        name = self.__class__.__name__
+        if 'c' == name:
+            name = 'module'
+        name = name.capitalize()
+        
+        return f'{name}()'
+
+    def __str__(self):
+        return self.__repr__()
 
     @classmethod
     def help(cls, *text, module=None,  **kwargs):
