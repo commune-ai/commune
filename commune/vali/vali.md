@@ -16,6 +16,7 @@ scoreboard = vali.scoreboard()
 - `score`: Score function (Optional)
 - `run_loop`: Enable/disable continuous monitoring
 
+
 ## Key Methods
 
 ### score_module
@@ -31,6 +32,8 @@ Runs a complete evaluation cycle.
 ```python
 results = vali.epoch()
 ```
+
+
 
 ### scoreboard
 Generates a performance scoreboard.

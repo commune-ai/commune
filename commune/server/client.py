@@ -8,16 +8,12 @@ import os
 import commune as c
 
 class Client:
-
     def __init__( self,  
                  module : str = 'module',  
                  key : Optional[str]= None,  
                  network: Optional[bool] = 'local', 
                  **kwargs):
         self.key  = c.get_key(key, create_if_not_exists=True)
-        self.set_module(module, network=network)
-
-    def set_module(self, module, network='local'):
         self.address = module if c.is_address(module) else c.namespace(network=network).get(module)
         self.session = requests.Session()
         

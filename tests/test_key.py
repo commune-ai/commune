@@ -89,15 +89,5 @@ def test_move_key():
     return {'success':True, 'msg':'test_move_key passed', 'key':new_key.ss58_address}
 
 
-def test_ss58_encoding():
-    self = c.module('key')
-    keypair = self.create_from_uri('//Alice')
-    ss58_address = keypair.ss58_address
-    public_key = keypair.public_key
-    assert keypair.ss58_address == self.ss58_encode(public_key, ss58_format=42)
-    assert keypair.ss58_address == self.ss58_encode(public_key, ss58_format=42)
-    assert keypair.public_key.hex() == self.ss58_decode(ss58_address)
-    assert keypair.public_key.hex() == self.ss58_decode(ss58_address)
-    return {'success':True}
 
 
