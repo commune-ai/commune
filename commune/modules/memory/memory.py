@@ -14,9 +14,8 @@ class Memory:
     def check_storage(self, value:str):
         return len(self.memory) + len(value) <= self.max_bytes
 
-    def store(self, value):
-        value = json.dumps(value)
-        self.memory += [value_hash]
+    def put(self, value):
+        
 
-    def load(self, address):
-        return self.memory.get(address, 0)
+    def get(self, key):
+        return self.memory.get(key, 0)

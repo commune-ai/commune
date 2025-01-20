@@ -4,7 +4,7 @@ from os import path
 from io import open
 from pkg_resources import parse_requirements
 here = path.abspath(path.dirname(__file__))
-libname = here.split('/')[-1] # name of the package is assumed to be the name of the directory
+libname = 'commune'  # name of the package is assumed to be the name of the directory
 with open(f'{here}/README.md', encoding='utf-8') as f:
     long_description = f.read()
 with open(f'{here}/requirements.txt') as requirements_file:

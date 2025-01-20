@@ -304,6 +304,7 @@ class KeyType:
     ED25519 = 0
     SR25519 = 1
     ECDSA = 2
+    
 KeyType.crypto_types = [k for k in KeyType.__dict__.keys() if not k.startswith('_')]
 KeyType.crypto_type_map =  {k.lower():v for k,v in KeyType.__dict__.items() if k in KeyType.crypto_types }
 KeyType.crypto_types = list(KeyType.crypto_type_map.keys())
@@ -1335,7 +1336,7 @@ class Key(c.Module):
         return {'saved':path}
     
     def __repr__(self):
-        return self.__str__()
+        return 'Keypair'
         
     @classmethod
     def from_private_key(cls, private_key:str):

@@ -5,6 +5,7 @@ import pandas as pd
 from typing import *
 
 class Vali(c.Module):
+    
     endpoints = ['score', 'scoreboard']
     voting_networks = ['bittensor', 'subspace']
     networks = ['local'] + voting_networks
@@ -35,16 +36,11 @@ class Vali(c.Module):
         self.max_workers = max_workers or c.cpu_count() * 5
         self.batch_size = batch_size or 128
         self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
-        self.set_key(key)
+        self.key = c.get_key(key or self.module_name())
         self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
         if run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
-
-    def set_key(self, key):
-        self.key = c.get_key(key or self.module_name())
-        return {'success': True, 'msg': 'Key set', 'key': self.key}
-
     def set_network(self, network:str, 
                     subnet:str=None, 
                     tempo:int=60, 

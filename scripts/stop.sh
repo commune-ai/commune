@@ -9,9 +9,10 @@ else
   NAME=$1
 fi
 CONTAINER_EXISTS=$(docker ps -q -f name=$NAME)  
+CONTAINER_ID=$(docker ps -aq -f name=$NAME)
+
 echo "STOPING($NAME)"
 if [ $CONTAINER_EXISTS ]; then
   docker kill $NAME
-  CONTAINER_ID=$(docker ps -aq -f name=$NAME)
   docker rm $NAME
 fi

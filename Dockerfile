@@ -1,7 +1,7 @@
 # GENERAL CONTAINER, REPORTING FOR OPENNESS SIR
 FROM ubuntu:22.04
 
-#SYSTEM
+#SYSTEM ENVIRONMENT
 ARG DEBIAN_FRONTEND=noninteractive
 RUN usermod -s /bin/bash root
 RUN apt-get update 
@@ -15,11 +15,12 @@ RUN npm install -g pm2
 
 #PYTHON ENVIRONMENT
 RUN apt-get install python3 python3-pip python3-venv -y
-WORKDIR /app
 
-# make /commune equal to the current directory
+# MODULE ENVIRONMENT (ANYTHING YOU WANT TO INSTALL, DO IT HERE)
+WORKDIR /app
 COPY . .
-RUN pip install -e ./commune
+RUN pip install -e ./
+
 
 # ENTRYPOINT 
 ENTRYPOINT [ "tail", "-f", "/dev/null"]

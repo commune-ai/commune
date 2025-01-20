@@ -80,16 +80,6 @@ def nan_check(input, key_list=[], root_key=''):
     return key_list
 
 
-def seed_everything(seed: int) -> None:
-    import os, torch, np
-    "seeding function for reproducibility"
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    
     
 
 

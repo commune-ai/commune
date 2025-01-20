@@ -35,7 +35,6 @@ class Server(c.Module):
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
     helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
-    functions_attributes =['helper_functions', 'whitelist', "whitelist_functions", 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
@@ -48,7 +47,7 @@ class Server(c.Module):
         free : bool = False, # if the server is free (checks signature)
         kwargs : dict = None, # the kwargs for the module
         crypto_type = 'sr25519', # the crypto type of the key
-        users_path: Optional[str] = None, # the path to the user data
+        user_history_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
         run_server = True, # if the server should be run
         ) -> 'Server':
@@ -70,12 +69,16 @@ class Server(c.Module):
         self.set_port(port)
         self.set_network(network)  
         self.set_functions(functions=functions, fn2cost=fn2cost)
-        self.set_user_path(users_path)
+        self.set_user_history_path(user_history_path)
         self.serializer = c.module(serializer)()
         if run_server:
             self.run_server()
 
-    def set_functions(self, functions:Optional[List[str]] , fn2cost=None):
+    def set_functions(self, 
+                          functions:Optional[List[str]] , 
+                          fn2cost=None, 
+                          functions_attributes =['helper_functions', 'whitelist', "whitelist_functions", 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
+                        ):
         if self.free:
             c.print('THE FOUNDING FATHERS WOULD BE PROUD OF YOU SON OF A BITCH', color='red')
         else:
@@ -90,7 +93,7 @@ class Server(c.Module):
                 functions[i] = fn.__name__
         functions  =  sorted(list(set(functions + self.helper_functions)))
         module = self.module
-        for k in self.functions_attributes:
+        for k in functions_attributes:
             if hasattr(module, k) and isinstance(getattr(module, k), list):
                 print('Found ', k)
                 functions = getattr(module, k)
@@ -393,7 +396,6 @@ class Server(c.Module):
             result =  {'message':f'Killed {name}', 'success':True}
         except Exception as e:
             result =  {'message':f'Error killing {name}', 'success':False, 'error':e}
-
         c.remove_server(name)
         return result
     
@@ -402,7 +404,6 @@ class Server(c.Module):
         servers = cls.processes()
         futures = [c.submit(cls.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
         results = c.wait(futures, timeout=timeout)
-
         return results
 
     @classmethod
@@ -583,7 +584,7 @@ class Server(c.Module):
         return c.rm(self.user_path(address))
 
     def users(self):
-        return os.listdir(self.users_path)
+        return os.listdir(self.user_history_path)
 
     def user2count(self):
         user2count = {}
@@ -627,7 +628,7 @@ class Server(c.Module):
             return [c.get(user_path) for user_path in user_paths]
         
     def user_path(self, key_address):
-        return self.users_path + '/' + key_address
+        return self.user_history_path + '/' + key_address
 
     def user_call_count(self, user):
         self.check_user_data(user)
@@ -635,7 +636,7 @@ class Server(c.Module):
     
     def users(self):
         try:
-            return os.listdir(self.users_path)
+            return os.listdir(self.user_history_path)
         except:
             return []
     
@@ -662,10 +663,9 @@ class Server(c.Module):
     def resolve_path(cls, path):
         return c.resolve_path(path, storage_dir=cls.storage_dir())
 
-    def set_user_path(self, users_path):
-        self.users_path = users_path or self.resolve_path(f'history/{self.module.name}')
+    def set_user_history_path(self, user_history_path):
+        self.user_history_path = user_history_path or self.resolve_path(f'history/{self.module.name}')
 
-    
     def add_endpoint(self, name, fn):
         setattr(self, name, fn)
         self.endpoints.append(name)

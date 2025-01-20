@@ -107,4 +107,4 @@ class Build:
         return os.path.dirname(__file__) + '/utils.py'
 
     def utils(self):
-        return c.find_functions(self.utils_path())
+        return c.path2functions(self.utils_path())

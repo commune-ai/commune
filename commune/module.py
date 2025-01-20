@@ -106,7 +106,6 @@ class c:
             module.ask = ask
         return module
 
-
     @classmethod
     def getfile(cls, obj=None) -> str:
         obj = cls.resolve_module(obj)
@@ -136,7 +135,7 @@ class c:
 
     def vs(self, path = None):
         path = path or c.libpath
-        path = c.abspath(path)
+        path = os.path.abspath(path)
         return c.cmd(f'code {path}')
     
     @classmethod
@@ -187,10 +186,10 @@ class c:
             for t in text[0]:
                 c.print(t, end='')
         else:
-            return c.obj('commune.utils.misc.print')(*text, **kwargs)
+            return c.obj('commune.utils.os.print')(*text, **kwargs)
 
     def is_error( *text:str,  **kwargs):
-        return c.obj('commune.utils.misc.is_error')(*text, **kwargs)
+        return c.obj('commune.utils.os.is_error')(*text, **kwargs)
 
     @classmethod
     def resolve_object(cls, obj:str = None, **kwargs):
@@ -241,7 +240,6 @@ class c:
         argv.params = params or json.loads(argv.params.replace("'",'"'))
         argv.args = json.loads(argv.args.replace("'",'"'))
         argv.fn = fn or argv.fn
-        # if you pass in the params, it will override the kwargs
         if len(argv.params) > 0:
             if isinstance(argv.params, dict):
                 argv.kwargs = argv.params
@@ -306,8 +304,6 @@ class c:
         dirpath = cls.dirpath()
         filepath = cls.filepath()
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
-
-
 
     is_file_module = is_module_file
 
@@ -417,12 +413,10 @@ class c:
 
     @classmethod
     def utils(cls, search=None):
-        utils = c.find_functions(c.rootpath + '/utils')
+        utils = c.path2functions(c.rootpath + '/utils')
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
-
-
 
     @classmethod
     def util2code(cls, search=None):
@@ -431,9 +425,10 @@ class c:
         for f in utils:
             util2code[f] = c.code(f)
         return len(str(util2code))
+
     @classmethod
     def get_utils(cls, search=None):
-        utils = c.find_functions(c.rootpath + '/utils')
+        utils = c.path2functions(c.rootpath + '/utils')
         if search != None:
             utils = [u for u in utils if search in u]
         return sorted(utils)
@@ -474,7 +469,6 @@ class c:
     
     @classmethod
     def get_routes(cls):
-
         if not hasattr(cls, 'routes'):
             routes_path = os.path.dirname(__file__)+ '/routes.json'
             routes =  cls.get_yaml(routes_path)
@@ -487,6 +481,8 @@ class c:
             v = util.split('.')[-1]
             routes[k] = routes.get(k , [])
             routes[k].append(v)
+        for k , v in routes.items():
+            routes[k] = list(set(v))
         return routes
     @classmethod
     def fn2schema(cls, module=None, search=None):
@@ -512,7 +508,6 @@ class c:
             
     @classmethod
     def add_routes(cls, routes:dict=None):
-        from functools import partial
         """
         This ties other modules into the current module.
         The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
@@ -576,7 +571,6 @@ class c:
         '''
         Set the config as well as its local params
         '''
-        # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
         config = config or {}
         config = {**self.config(), **config}
         if isinstance(config, dict):
@@ -586,9 +580,6 @@ class c:
 
     @classmethod
     def config(cls, module=None, to_munch=True, fn='__init__') -> 'Munch':
-        '''
-        Returns the config
-        '''
         module = module or cls
         path = module.config_path()
         if os.path.exists(path):
@@ -756,7 +747,7 @@ class c:
         if search != None:
             ls_files = list(filter(lambda x: search in x, ls_files))
         return ls_files
-    
+ 
     @classmethod
     def put(cls, 
             k: str, 
@@ -1203,9 +1194,7 @@ class c:
         get the arguments of a function
         params:
             fn: the function
-        """
-        # if fn is an object get the __
-        
+        """        
         if not callable(fn):
             return []
         try:
@@ -1433,12 +1422,12 @@ class c:
         raise ValueError(f'Path not found for objectpath {objectpath}')
 
     @classmethod
-    def find_functions(cls, path = './', **kwargs):
+    def path2functions(cls, path = './', **kwargs):
         fns = []
         if os.path.isdir(path):
             path = os.path.abspath(path)
             for p in c.glob(path+'/**/**.py', recursive=True):
-                p_fns = c.find_functions(p)
+                p_fns = c.path2functions(p)
                 file_object_path = c.path2objectpath(p)
                 p_fns = [file_object_path + '.' + f for f in p_fns]
                 for fn in p_fns:
@@ -1454,7 +1443,7 @@ class c:
     @classmethod
     def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
         classes = c.find_classes(path,depth=depth)
-        functions = c.find_functions(path)
+        functions = c.path2functions(path)
         if search != None:
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
@@ -1616,14 +1605,15 @@ class c:
 
     def core_size(self, search=None, depth=10000, **kwargs):
         return {k:len(c.code(k)) for k in self.core_modules(search=search, depth=depth, **kwargs)}
+    
     def module2size(self, search=None, depth=10000, **kwargs):
         module2size = {}
         module2code = c.module2code(search=search, depth=depth, **kwargs)
         for k,v in module2code.items():
             module2size[k] = len(v)
         module2size = dict(sorted(module2size.items(), key=lambda x: x[1], reverse=True))
-
         return module2size
+
     @classmethod
     def get_modules(cls, search=None, **kwargs):
         return list(cls.tree(search=search, **kwargs).keys())
@@ -1632,11 +1622,7 @@ class c:
         return len(c.modules(search=search))
     
     @classmethod
-    def modules(cls, 
-                search=None, 
-                cache=True,
-                max_age=60,
-                update=False, **extra_kwargs)-> List[str]:
+    def modules(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:
         modules = cls.get('modules', max_age=max_age, update=update)
         if not cache or modules == None:
             modules =  cls.get_modules(search=None, **extra_kwargs)
@@ -1693,14 +1679,6 @@ class c:
     @classmethod
     def partial(cls, fn, *args, **kwargs):
         return partial(fn, *args, **kwargs)
-
-    @classmethod
-    def repo_url(cls, *args, **kwargs):
-        return cls.module('git').repo_url(*args, **kwargs)    
-
-    @classmethod
-    def ps(cls, *args, **kwargs):
-        return cls.get_module('docker').ps(*args, **kwargs)
  
     @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
@@ -1853,7 +1831,8 @@ class c:
         from_to_map = {}
         for m, fns in routes.items():
             for fn in fns:
-                assert  fn not in from_to_map, f'Function {fn} already exists in {from_to_map[fn]}'
+                route = m + '/' + fn
+                assert  fn not in from_to_map, f'Function {route}  already exists in {from_to_map[fn]}'
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
     
@@ -1996,6 +1975,7 @@ class c:
         "switchnet",
         "subnet",
         "update_module",
+        'subnet2emission',
         "subnet_params_map",
         "staketo", 
         "network",
@@ -2031,6 +2011,7 @@ class c:
     ],
     "agent": [ "models",  "model2info", "reduce", "generate"],
     "builder": ["build"],
+    "docker": ["ps"]
     }
 
     def run_test(self, module=None, parallel=True):

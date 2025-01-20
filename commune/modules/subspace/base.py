@@ -1867,8 +1867,8 @@ class SubstrateInterface:
         if not isinstance(call, GenericCall):
             raise TypeError("'call' must be of type Call")
 
-        if not isinstance(keypair, Keypair):
-            raise TypeError("'keypair' must be of type Keypair")
+        # if not isinstance(keypair, Keypair):
+        #     raise TypeError("'keypair' must be of type Keypair")
 
         # No valid signature is required for fee estimation
         signature = '0x' + '00' * 64

@@ -5,6 +5,7 @@ import commune as c
 import sys
 import time
 import torch
+import faiss
 
 
 class MultiModalVectorStore:
