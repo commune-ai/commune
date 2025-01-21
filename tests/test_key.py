@@ -1,27 +1,37 @@
 
 import commune as c
 
-def test_encryption(values = [10, 'fam', 'hello world']):
-    cls = c.module('key')
+Key = c.module('key')
+def test_signing( crypto_type=[1,2], data='test'):
+    # at the moment, the ed25519 is not supported in the current version of pycryptodome
+    if isinstance(crypto_type, list):
+        return  [test_signing(k, data=data) for k in crypto_type]
+    key = Key(crypto_type=crypto_type)
+    sig = key.sign(data)
+    assert key.verify(data,sig, key.public_key)
+    return {'success':True, 'data':data, 'crypto_type':key.crypto_type2name(key.crypto_type)}
+
+
+def test_encryption( values = [10, 'fam', 'hello world'], crypto_type=[0,1,2]):
+    if isinstance(crypto_type, list):
+        return [test_encryption(values=values, crypto_type=k) for k in crypto_type]
     for value in values:
         value = str(value)
-        key = cls.new_key()
+        key = c.new_key(crypto_type=crypto_type)
         enc = key.encrypt(value)
         dec = key.decrypt(enc)
         assert dec == value, f'encryption failed, {dec} != {value}'
-    return {'encrypted':enc, 'decrypted': dec}
-
+    return {'encrypted':enc, 'decrypted': dec, 'crypto_type':key.crypto_type2name(key.crypto_type)}
 def test_encryption_with_password(value = 10, password = 'fam'):
-    cls = c.module('key')
     value = str(value)
-    key = cls.new_key()
+    key = Key.new_key()
     enc = key.encrypt(value, password=password)
     dec = key.decrypt(enc, password=password)
     assert dec == value, f'encryption failed, {dec} != {value}'
     return {'encrypted':enc, 'decrypted': dec}
 
 def test_key_encryption(test_key='test.key'):
-    self = c.module('key')
+    self = Key
     key = self.add_key(test_key, refresh=True)
     og_key = self.get_key(test_key)
     r = self.encrypt_key(test_key)
@@ -31,7 +41,7 @@ def test_key_encryption(test_key='test.key'):
     return {'success': True, 'msg': 'test_key_encryption passed'}
 
 def test_key_management(key1='test.key' , key2='test2.key'):
-    self = c.module('key')
+    self = Key
     if self.key_exists(key1):
         self.rm_key(key1)
     if self.key_exists(key2):
@@ -55,27 +65,26 @@ def test_key_management(key1='test.key' , key2='test2.key'):
 
 
 def test_signing():
-    self = c.module('key')()
+    self = Key()
     sig = self.sign('test')
     assert self.verify('test',sig, self.public_key)
     return {'success':True}
 
 def test_key_encryption(password='1234'):
-    cls = c.module('key')
     path = 'test.enc'
-    cls.add_key('test.enc', refresh=True)
-    assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
-    cls.encrypt_key(path, password=password)
-    assert cls.is_key_encrypted(path) == True, f'file {path} is not encrypted'
-    cls.decrypt_key(path, password=password)
-    assert cls.is_key_encrypted(path) == False, f'file {path} is encrypted'
-    cls.rm(path)
+    Key.add_key('test.enc', refresh=True)
+    assert Key.is_key_encrypted(path) == False, f'file {path} is encrypted'
+    Key.encrypt_key(path, password=password)
+    assert Key.is_key_encrypted(path) == True, f'file {path} is not encrypted'
+    Key.decrypt_key(path, password=password)
+    assert Key.is_key_encrypted(path) == False, f'file {path} is encrypted'
+    Key.rm(path)
     print('file deleted', path, c.exists, 'fam')
     assert not c.exists(path), f'file {path} not deleted'
     return {'success': True, 'msg': 'test_key_encryption passed'}
 
 def test_move_key():
-    self = c.module('key')()
+    self = Key()
     self.add_key('testfrom')
     assert self.key_exists('testfrom')
     og_key = self.get_key('testfrom')

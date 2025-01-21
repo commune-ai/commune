@@ -31,7 +31,15 @@ import hashlib
 import hmac
 import struct
 from eth_keys.datatypes import Signature, PrivateKey
-from .utils import (extract_derive_path, python2str, ss58_encode, ss58_decode, get_ss58_format, is_valid_ss58_address, b64encode)
+from .utils import (extract_derive_path, 
+                    python2str, 
+                    ss58_encode, 
+                    ss58_decode, get_ss58_format, 
+                    is_valid_ss58_address,
+                     b64encode, 
+                     mnemonic_to_ecdsa_private_key, 
+                     ecdsa_sign, 
+                     ecdsa_verify)
 
 
 class KeyType:
@@ -986,6 +994,8 @@ class Key(c.Module):
             crypto_type = crypto_type.lower()
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)  
+
+
 
 # if __name__ == "__main__":      
 #     Key.run()
