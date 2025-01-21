@@ -186,7 +186,8 @@ class c:
             for t in text[0]:
                 c.print(t, end='')
         else:
-            return c.obj('commune.utils.os.print')(*text, **kwargs)
+            from .utils.os import print_console
+            return print_console(*text, **kwargs)
 
     def is_error( *text:str,  **kwargs):
         return c.obj('commune.utils.os.is_error')(*text, **kwargs)
@@ -1919,7 +1920,7 @@ class c:
     ],
     "network": [
         "networks",
-        "remove_server",
+        "rm_server",
         "server_exists",
         "add_server",
         "has_server",
@@ -1959,12 +1960,9 @@ class c:
         "wait_for_server", 
         "endpoint", 
         "is_endpoint",
-        "fleet", 
         "processes", 
         "kill", 
-        "kill_many", 
         "kill_all", 
-        "kill_all_processes", 
         "logs"
     ],
 

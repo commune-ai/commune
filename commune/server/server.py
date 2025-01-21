@@ -2,55 +2,43 @@ import commune as c
 from typing import *
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
 import uvicorn
 import os
 import json
 import asyncio
-
-class Middleware(BaseHTTPMiddleware):
-    def __init__(self, app, max_bytes: int):
-        super().__init__(app)
-        self.max_bytes = max_bytes
-    async def dispatch(self, request: Request, call_next):
-        content_length = request.headers.get('content-length')
-        if content_length:
-            if int(content_length) > self.max_bytes:
-                return JSONResponse(status_code=413, content={"error": "Request too large"})
-        body = await request.body()
-        if len(body) > self.max_bytes:
-            return JSONResponse(status_code=413, content={"error": "Request too large"})
-        response = await call_next(request)
-        return response
+from .pm import ProcessManager
 
 class Server(c.Module):
     tag_seperator:str='::'
-    user_data_lifetime = 3600
-    pm2_dir = os.path.expanduser('~/.pm2')
+    user_data_lifetime = 3600 # the lifetime of the user data
     period : int = 3600 # the period for 
     max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
     helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
+    pm = ProcessManager()
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
-        key:str = None, # key for the server (str)
-        name: str = None, # the name of the server
+        key:str = Optional[None], # key for the server (str)
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
+        name: Optional[str] = None, # the name of the server
+        kwargs : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
         network:str = 'subspace', # the network used for incentives
         fn2cost : Dict[str, float] = None, # the cost of the function
         free : bool = False, # if the server is free (checks signature)
-        kwargs : dict = None, # the kwargs for the module
-        crypto_type = 'sr25519', # the crypto type of the key
-        user_history_path: Optional[str] = None, # the path to the user data
+        crypto_type: Union[int, str] = 'sr25519', # the crypto type of the key
+        history_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
+        middleware: Optional[callable] = None, # the middleware for the server
         run_server = True, # if the server should be run
+
         ) -> 'Server':
+
+        self.app = FastAPI()
         module = module or 'module'
         kwargs = kwargs or {}
         if self.tag_seperator in str(name):
@@ -60,19 +48,40 @@ class Server(c.Module):
         if isinstance(module, str):
             name = name or module
             module =   c.module(module)(**kwargs)
-        print(f'Launching', module, name, functions)
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
         self.free = free
         self.module = module
-        self.module.name = name    
+        self.module.name = name   
         self.set_key(key=key, crypto_type=crypto_type)
         self.set_port(port)
         self.set_network(network)  
-        self.set_functions(functions=functions, fn2cost=fn2cost)
-        self.set_user_history_path(user_history_path)
+        self.set_history_path(history_path)
         self.serializer = c.module(serializer)()
+        self.set_functions(functions=functions, fn2cost=fn2cost) 
+        self.set_middleware(middleware=middleware)
         if run_server:
             self.run_server()
+
+
+    def set_middleware(self, middleware=None, 
+                        max_bytes:int = 10000000, # the maximum size of the request
+                        allow_origins:List[str] = ['*'], # the allowed origins
+                        allow_credentials:bool = True, # if credentials are allowed
+                        allow_methods:List[str] = ["*"], # the allowed methods
+                        allow_headers:List[str] = ["*"]
+
+                            ):
+        if middleware == None:
+            from .middleware import Middleware
+            middleware = Middleware
+        self.middleware = middleware
+        self.app.add_middleware(self.middleware, max_bytes=max_bytes)    
+        self.app.add_middleware(CORSMiddleware,  
+                           allow_origins=allow_origins, 
+                           allow_credentials=allow_credentials, 
+                           allow_methods=allow_methods,  
+                           allow_headers=allow_headers)
+        return {'success':True, 'message':f'Set middleware to {middleware}'}
 
     def set_functions(self, 
                           functions:Optional[List[str]] , 
@@ -137,93 +146,41 @@ class Server(c.Module):
         module.crypto_type = module.key.crypto_type
         return {'success':True, 'message':f'Set key to {module.key.ss58_address}'}
     
-    def run_server(self,
-            max_bytes = 10 * 1024 * 1024 , # max bytes within the request (bytes)
-            allow_origins  = ["*"], # allowed origins
-            allow_credentials  =True, # allow credentials
-            allow_methods  = ["*"], # allowed methods
-            allow_headers = ["*"] , # allowed headers
-    ):
-        module = self.module
+    def run_server(self):
         c.thread(self.sync_loop)
         self.loop = asyncio.get_event_loop()
-        app = FastAPI()  
-        app.add_middleware(Middleware, max_bytes=max_bytes)    
-        app.add_middleware(CORSMiddleware,  
-                           allow_origins=allow_origins, 
-                           allow_credentials=allow_credentials, 
-                           allow_methods=allow_methods,  
-                           allow_headers=allow_headers)
         def api_forward(fn:str, request: Request):
             return self.forward(fn, request)
-        app.post("/{fn}")(api_forward)
-        c.print(f'Served(name={module.name}, address={module.address}, key={module.key.key_address})', color='purple')
-        c.print(c.add_server(name=module.name, address=module.address, key=module.key.ss58_address))
-        self.module = module 
-        uvicorn.run(app, host='0.0.0.0', port=module.port, loop='asyncio')
+        self.app.post("/{fn}")(api_forward)
+        c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
+        c.add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
+        uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
-    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port'], ip = None):
-        module = self.module
-        name = module.name
+    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
+        name = self.module.name
         for k in port_attributes:
-            if hasattr(module, k):
-                port = getattr(module, k)
+            if hasattr(self.module, k):
+                port = getattr(self.module, k)
                 break
         if port in [None, 'None']:
             namespace = c.namespace()
             if name in namespace:
-                c.kill(name)
+                self.pm.kill(name)
                 try:
-                    port =  int(namespace.get(module.name).split(':')[-1])
+                    port =  int(namespace.get(self.module.name).split(':')[-1])
                 except:
                     port = c.free_port()
             else:
                 port = c.free_port()
-
         while c.port_used(port):
             c.kill_port(port)
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
-
-        module.port = port
-        ip = ip or '0.0.0.0' 
-        module.address = ip + ':' + str(module.port)
-        self.module = module
+        self.module.port = port
+        self.module.address = '0.0.0.0:' + str(self.module.port)
         return {'success':True, 'message':f'Set port to {port}'}
     
-    def is_admin(self, address):
-        return c.is_admin(address)
 
-    def gate(self, fn:str, data:dict,  headers:dict ) -> bool:
-        if self.free: 
-            assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
-            return True
-        auth = {'data': data, 'time': str(headers['time'])}
-        signature = headers['signature']
-
-        assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
-        request_staleness = c.time() - float(headers['time'])
-        assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
-        auth={'data': data, 'time': str(headers['time'])}
-        module = self.module
-        address = headers['key']
-        if c.is_admin(address):
-            rate_limit =  self.rates['admin']
-        elif address == module.key.ss58_address:
-            rate_limit =  self.rates['owner']
-        elif address in self.address2key:
-            rate_limit =  self.rates['local']
-        else:
-            stake_score = self.state['stake'].get(address, 0) + self.multipliers['stake']
-            stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * self.multipliers['stake_to']
-            stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * self.multipliers['stake_from']
-            stake = stake_score + stake_to_score + stake_from_score
-            self.rates['stake'] = self.rates['stake'] * module.fn2cost.get(fn, 1)
-            rate_limit =  min((stake / self.rates['stake']), self.rates['max'])
-        count = self.user_call_count(headers['key'])
-        assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
-        return True
-    
     def get_data(self, request: Request):
         data = self.loop.run_until_complete(request.json())
         # data = self.serializer.deserialize(data) 
@@ -290,16 +247,7 @@ class Server(c.Module):
             user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
             c.put(user_path, user_data)
         return result
-    
-    def sync_loop(self, sync_loop_initial_sleep=10):
-        c.sleep(sync_loop_initial_sleep)
-        while True:
-            try:
-                r = self.sync()
-            except Exception as e:
-                r = c.detailed_error(e)
-                c.print('Error in sync_loop -->', r, color='red')
-            c.sleep(self.max_network_staleness)
+
 
     def set_network(self, network):
         self.network = network
@@ -336,6 +284,16 @@ class Server(c.Module):
         c.put(network_path, state)
         self.state = state
         return {'msg': 'state synced successfully'}
+
+    def sync_loop(self, sync_loop_initial_sleep=10):
+        c.sleep(sync_loop_initial_sleep)
+        while True:
+            try:
+                r = self.sync()
+            except Exception as e:
+                r = c.detailed_error(e)
+                c.print('Error in sync_loop -->', r, color='red')
+            c.sleep(self.max_network_staleness)
 
     @classmethod
     def wait_for_server(cls,
@@ -386,156 +344,6 @@ class Server(c.Module):
     
     serverfn = endpoint
 
-    @classmethod
-    def kill(cls, name:str, verbose:bool = True, **kwargs):
-        try:
-            if name == 'all':
-                return cls.kill_all(verbose=verbose)
-            c.cmd(f"pm2 delete {name}", verbose=False)
-            cls.rm_logs(name)
-            result =  {'message':f'Killed {name}', 'success':True}
-        except Exception as e:
-            result =  {'message':f'Error killing {name}', 'success':False, 'error':e}
-        c.remove_server(name)
-        return result
-    
-    @classmethod
-    def kill_all_processes(cls, verbose:bool = True, timeout=20):
-        servers = cls.processes()
-        futures = [c.submit(cls.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
-        results = c.wait(futures, timeout=timeout)
-        return results
-
-    @classmethod
-    def kill_all_servers(cls, network='local', timeout=20, verbose=True):
-        servers = c.servers(network=network)
-        futures = [c.submit(cls.kill, kwargs={'module':s, 'update': False}, return_future=True) for s in servers]
-        return c.wait(futures, timeout=timeout)
-    
-    @classmethod
-    def kill_all(cls, mode='process', verbose:bool = True, timeout=20):
-        if mode == 'process':
-            results =  cls.kill_all_processes(verbose=verbose, timeout=timeout)
-        elif mode == 'server':
-            results =  cls.kill_all_servers(verbose=verbose, timeout=timeout)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-        c.namespace(update=True)
-        return results
-    
-    @classmethod
-    def killall(cls, **kwargs):
-        return cls.kill_all(**kwargs)
-    
-    @classmethod
-    def logs_path_map(cls, name=None):
-        logs_path_map = {}
-        for l in c.ls(f'{cls.pm2_dir}/logs/'):
-            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
-            logs_path_map[key] = logs_path_map.get(key, []) + [l]
-        for k in logs_path_map.keys():
-            logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
-        if name != None:
-            return logs_path_map.get(name, {})
-        return logs_path_map
-
-    @classmethod
-    def rm_logs( cls, name):
-        logs_map = cls.logs_path_map(name)
-        for k in logs_map.keys():
-            c.rm(logs_map[k])
-
-    @classmethod
-    def logs(cls, module:str,  tail: int =100,   mode: str ='cmd', **kwargs):
-        
-        if mode == 'local':
-            text = ''
-            for m in ['out','error']:
-                # I know, this is fucked 
-                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
-                try:
-                    text +=  c.get_text(path, tail=tail)
-                except Exception as e:
-                    c.print('ERROR GETTING LOGS -->' , e)
-                    continue
-            return text
-        elif mode == 'cmd':
-            return c.cmd(f"pm2 logs {module}", verbose=True)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-        
-    def get_logs(self, tail=100, mode='local'):
-        return self.logs(self.module.name, tail=tail, mode=mode)
-        
-    @classmethod
-    def kill_many(cls, search=None, verbose:bool = True, timeout=10):
-        futures = []
-        for name in c.servers(search=search):
-            f = c.submit(c.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
-            futures.append(f)
-        return c.wait(futures)
-    
-    @classmethod
-    def start_process(cls, 
-                  fn: str = 'serve',
-                   module:str = None,  
-                   name:Optional[str]=None, 
-                   args : list = None,
-                   kwargs: dict = None,
-                   interpreter:str='python3', 
-                   autorestart: bool = True,
-                   verbose: bool = False , 
-                   force:bool = True,
-                   run_fn: str = 'run_fn',
-                   cwd : str = None,
-                   env : Dict[str, str] = None,
-                   refresh:bool=True , 
-                   **extra_kwargs):
-        env = env or {}
-        if '/' in fn:
-            module, fn = fn.split('/')
-        module = module or cls.module_name()
-        name = name or module
-        if refresh:
-            cls.kill(name)
-        cmd = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
-        cmd = cmd  if autorestart else ' --no-autorestart' 
-        cmd = cmd + ' -f ' if force else cmd
-        kwargs =  {'module': module ,  'fn': fn, 'args': args or [],  'kwargs': kwargs or {} }
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-        cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
-        stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
-        return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
-
-    @classmethod
-    def restart(cls, name:str):
-        assert name in cls.processes()
-        c.print(f'Restarting {name}', color='cyan')
-        c.cmd(f"pm2 restart {name}", verbose=False)
-        cls.rm_logs(name)  
-        return {'success':True, 'message':f'Restarted {name}'}
-    
-    @classmethod
-    def processes(cls, search=None,  **kwargs) -> List[str]:
-        output_string = c.cmd('pm2 status', verbose=False)
-        module_list = []
-        for line in output_string.split('\n')[3:]:
-            if  line.count('│') > 2:
-                name = line.split('│')[2].strip()
-                module_list += [name]
-        if search != None:
-            module_list = [m for m in module_list if search in m]
-        module_list = sorted(list(set(module_list)))
-        return module_list
-    
-    @classmethod
-    def procs(cls, **kwargs):
-        return cls.processes(**kwargs)
-    
-
-    @classmethod
-    def process_exists(cls, name:str, **kwargs) -> bool:
-        return name in cls.processes(**kwargs)
 
     @classmethod
     def serve(cls, 
@@ -559,7 +367,7 @@ class Server(c.Module):
         if remote:
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_kwargs', 'response', 'namespace']}
             rkwargs['remote'] = False
-            cls.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
+            cls.pm.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd, module=cls.module_name())
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions = functions, kwargs=kwargs, port=port,  key=key, free = free)
 
@@ -570,26 +378,13 @@ class Server(c.Module):
             x = 0
         return x
 
-    @classmethod
-    def fleet(cls, module, n=10, timeout=10):
-        futures = [ c.submit(c.serve, {'module':module + '::' + str(i)}, timeout=timeout) for i in range(n)]
-        progress = c.progress(futures)
-        results = []
-        for f in c.as_completed(futures, timeout=timeout):
-            r = f.result()
-            results.append(r)
-            progress.update()
-        return results
-    def remove_user_data(self, address):
-        return c.rm(self.user_path(address))
-
     def users(self):
-        return os.listdir(self.user_history_path)
+        return os.listdir(self.history_path)
 
     def user2count(self):
         user2count = {}
         for user in self.users():
-            user2count[user] = self.user_call_count(user)
+            user2count[user] = self.call_count(user)
         return user2count
     
     def history(self, user):
@@ -612,12 +407,12 @@ class Server(c.Module):
                 user2fn2count[user][fn] = user2fn2count[user].get(fn, 0) + 1
         return user2fn2count
 
-    def user_call_paths(self, address ):
+    def call_paths(self, address ):
         user_paths = c.glob(self.user_path(address))
         return sorted(user_paths, key=self.extract_time)
     
     def user_data(self, address, stream=False):
-        user_paths = self.user_call_paths(address)
+        user_paths = self.call_paths(address)
         if stream:
             def stream_fn():
                 for user_path in user_paths:
@@ -628,25 +423,20 @@ class Server(c.Module):
             return [c.get(user_path) for user_path in user_paths]
         
     def user_path(self, key_address):
-        return self.user_history_path + '/' + key_address
+        return self.history_path + '/' + key_address
 
-    def user_call_count(self, user):
+    def call_count(self, user):
         self.check_user_data(user)
-        return len(self.user_call_paths(user))
+        return len(self.call_paths(user))
     
     def users(self):
         try:
-            return os.listdir(self.user_history_path)
+            return os.listdir(self.history_path)
         except:
             return []
     
-    def user_path2time(self, address):
-        user_paths = self.user_call_paths(address)
-        user_path2time = {user_path: self.extract_time(user_path) for user_path in user_paths}
-        return user_path2time
-    
     def user_call_path2latency(self, address):
-        user_paths = self.user_call_paths(address)
+        user_paths = self.call_paths(address)
         t0 = c.time()
         user_path2time = {user_path: t0 - self.extract_time(user_path) for user_path in user_paths}
         return user_path2time
@@ -659,12 +449,12 @@ class Server(c.Module):
                 if os.path.exists(path):
                     os.remove(path)
 
-    @classmethod
-    def resolve_path(cls, path):
-        return c.resolve_path(path, storage_dir=cls.storage_dir())
+    # @classmethod
+    # def resolve_path(cls, path):
+    #     return c.resolve_path(path, storage_dir=cls.storage_dir())
 
-    def set_user_history_path(self, user_history_path):
-        self.user_history_path = user_history_path or self.resolve_path(f'history/{self.module.name}')
+    def set_history_path(self, history_path):
+        self.history_path = history_path or self.resolve_path(f'history/{self.module.name}')
 
     def add_endpoint(self, name, fn):
         setattr(self, name, fn)
@@ -672,11 +462,58 @@ class Server(c.Module):
         assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
         return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
 
+
+    def is_admin(self, address):
+        return c.is_admin(address)
+
+    def gate(self, fn:str, data:dict,  headers:dict ) -> bool:
+        if self.free: 
+            assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
+            return True
+        auth = {'data': data, 'time': str(headers['time'])}
+        signature = headers['signature']
+
+        assert c.verify(auth=auth,signature=signature, address=headers['key']), 'Invalid signature'
+        request_staleness = c.time() - float(headers['time'])
+        assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
+        auth={'data': data, 'time': str(headers['time'])}
+        module = self.module
+        address = headers['key']
+        if c.is_admin(address):
+            rate_limit =  self.rates['admin']
+        elif address == module.key.ss58_address:
+            rate_limit =  self.rates['owner']
+        elif address in self.address2key:
+            rate_limit =  self.rates['local']
+        else:
+            stake_score = self.state['stake'].get(address, 0) + self.multipliers['stake']
+            stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * self.multipliers['stake_to']
+            stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * self.multipliers['stake_from']
+            stake = stake_score + stake_to_score + stake_from_score
+            self.rates['stake'] = self.rates['stake'] * module.fn2cost.get(fn, 1)
+            rate_limit =  min((stake / self.rates['stake']), self.rates['max'])
+        count = self.call_count(headers['key'])
+        assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
+        return True
+    
     @classmethod
     def test(cls, **kwargs):
         from .test import Test
         return Test().test()
 
+    @classmethod
+    def kill_all(cls, **kwargs):
+        cls.pm.kill_all(**kwargs)
+        c.namespace(update=1)
+
+    @classmethod
+    def kill(cls, name, **kwargs):
+        cls.pm.kill(name, **kwargs)
+        c.rm_server(name=name)
+        return {'success':True, 'message':f'Killed {name}'}
+    @classmethod
+    def server_exists(cls, name):
+        return cls.pm.exists(name)
 if __name__ == '__main__':
     Server.run()
 

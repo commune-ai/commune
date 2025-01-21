@@ -71,7 +71,7 @@ class Network(c.Module):
         data = json.loads(signature['data'])
         return self.add_server(data['name'], data['address'])
     
-    def remove_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
+    def rm_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
         modules = self.modules()
         modules = [m for m in modules if not any([m[f] == name for f in features])]
         c.put(self.modules_path, modules)

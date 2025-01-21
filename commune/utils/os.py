@@ -1606,7 +1606,7 @@ def resolve_console( console = None, **kwargs):
     console = console
     return console
 
-def print( *text:str, 
+def print_console( *text:str, 
             color:str=None, 
             verbose:bool = True,
             console: 'Console' = None,
