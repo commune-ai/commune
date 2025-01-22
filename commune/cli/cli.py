@@ -4,6 +4,7 @@ import sys
 import commune as c
 print = c.print
 class cli:
+
     def determine_type(self, x):
         x = str(x)
         if isinstance(x, str) :
@@ -79,36 +80,33 @@ class cli:
                 continue
         return init_kwargs
 
-    def get_fn(self, argv, fn_splitters = [':', '/', '//', '::'], init_kwargs={}, default_fn='forward'):
-
+    def get_fn(self, argv, init_kwargs={}, default_fn='forward', default_module='module'):
         if len(argv) == 0:
             fn = default_fn
         else:
             fn = argv.pop(0).replace('-', '_')
-
-        
         init_kwargs = self.get_init_kwargs(argv)
-
         # get the function object
-        fn_splitters = [fs for fs in fn_splitters if fs in fn]
-        if len(fn_splitters) == 1: 
-            fn_splitter = fn_splitters[0]
-            module, fn = fn.split(fn_splitter)
-            module = c.shortcuts.get(module, module)
-            module = c.module(module)
-        elif len(fn_splitters) == 0:
-            module = c.module()
-            
-        if hasattr(module, 'fn2module') and not hasattr(module, fn):
-            fn2module = module.fn2module() if callable(module.fn2module) else module.fn2module
-            if not fn in fn2module:
-                raise Exception(f'Function({fn}) NOT IN Module({module})')
-            module = c.module(fn2module[fn])
+        if  '/' in fn and '::' in fn:
+            fn_splitter = '::'
+            module = fn.split(fn_splitter)[0]
+            fn = fn.split(fn_splitter)[-1]
+        elif '/' in fn:
+            fn_splitter = '/'
+            module = fn_splitter.join(fn.split(fn_splitter)[:-1])
+            fn = fn.split(fn_splitter)[-1]
+        else:
+            module = default_module
 
+
+        module = c.shortcuts.get(module, module)
+        print('⚡️'*4+f'{module}::{fn}'+'⚡️'*4, color='yellow')
+        module = c.module(module)
+        if not hasattr(module, fn):
+            return {'error': f'module::{fn} does not exist', 'success': False}
         fn_obj = getattr(module, fn)
-        initialize_module_class = bool(not hasattr(module, fn) or isinstance(fn, property) or 'self' in c.get_args(fn_obj))
+        initialize_module_class = isinstance(fn, property) or 'self' in c.get_args(fn_obj)
         module = module(**init_kwargs) if initialize_module_class else module
-        print('⚡️'*4+fn+'⚡️'*4, color='yellow')
         fn_obj = getattr(module, fn)
         return fn_obj
 

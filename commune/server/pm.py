@@ -13,6 +13,8 @@ import asyncio
 
 class ProcessManager:
 
+    description = 'Process manager manages processes using pm2'
+
     pm2_dir = os.path.expanduser('~/.pm2')
     
     def kill(self, name:str, verbose:bool = True, **kwargs):
@@ -136,3 +138,12 @@ class ProcessManager:
     
     def exists(self, name:str, **kwargs) -> bool:
         return name in self.processes(**kwargs)
+
+
+    def ensure_env(self,**kwargs):
+        '''ensure that the environment variables are set for the process'''
+        is_pm2_installed = bool( '/bin/pm2' in c.cmd('which pm2', verbose=False))
+        if not is_pm2_installed:
+            c.cmd('npm install -g pm2')
+            c.cmd('pm2 update')
+        return {'success':True, 'message':f'Ensured env '}

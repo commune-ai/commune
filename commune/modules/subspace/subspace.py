@@ -2803,6 +2803,8 @@ class Subspace(c.Module):
         netuid2subnet = self.netuid2subnet(**kwargs)
         netuid2emission = self.netuid2emission(**kwargs)
         return  dict(sorted({netuid2subnet[k]:v for k,v in netuid2emission.items()}.items(), key=lambda x: x[1], reverse=True))
+    def s2e(self):
+        return self.subnet2emission()
 
     def subnet2netuid(self, **kwargs ) -> Dict[str, str]:
         return {v.lower():k for k,v in self.netuid2subnet(**kwargs).items()}

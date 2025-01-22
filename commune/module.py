@@ -83,7 +83,7 @@ class c:
             module = module(**kwargs)      
         return module
     
-    get_agent = block =  get_block = get_module =   module
+    get_agent = block =  get_block = get_module =  mod =  module
     
     @classmethod
     def convert_module(cls, module):
@@ -165,9 +165,7 @@ class c:
     module_cache = {}
     _obj = None
 
-    def sync(self):
-        return {'tree': c.tree(update=1), 'namespace':c.namespace(update=1), 'ip': c.ip()}
-    
+
     def syspath(self):
         return sys.path
     
@@ -659,11 +657,13 @@ class c:
         if not os.path.exists(path):
             if not path.endswith('.json'):
                 path = path + '.json'
+
         try:
             with open(path, 'r') as file:
                 data = json.load(file)
         except Exception as e:
-            data = default
+            print('Error in get_json', e)
+            return default
         return data
     
     load_json = get_json
@@ -1443,16 +1443,15 @@ class c:
         return fns
     
     @classmethod
-    def get_objects(cls, path:str = './', depth=10, search=None, **kwargs):
+    def objects(cls, path:str = './', depth=10, search=None, **kwargs):
         classes = c.find_classes(path,depth=depth)
         functions = c.path2functions(path)
         if search != None:
             functions = [f for f in functions if search in f]
         object_paths = functions + classes
         return object_paths
-    
-    objs = get_objects 
 
+    objs = objects
     @staticmethod
     def ensure_sys_path():
         if not hasattr(c, 'included_pwd_in_path'):
@@ -1480,6 +1479,9 @@ class c:
                 module_path = '.'.join(key.split(splitter)[:-1])
                 object_name = key.split(splitter)[-1]
                 break
+        if isinstance(key, str) and key.endswith('.py') :
+            key = c.path2objectpath(key)
+            
         assert module_path != None and object_name != None, f'Invalid key {key}'
         module_obj = c.import_module(module_path)
         return  getattr(module_obj, object_name)
@@ -1632,7 +1634,7 @@ class c:
         if search != None:
             modules = [m for m in modules if search in m]     
         return modules
-    blocks = modules
+    blocks = mods = modules
 
     def net(self):
         return c.network()
@@ -1826,7 +1828,7 @@ class c:
         return c.cmd(f'pip install -r {path}')
     
     def epoch(self, *args, **kwargs):
-        return c.run_epoch(*args, **kwargs)
+        return c.mod('vali')(*args, **kwargs)
 
     def routes_from_to(self):
         routes = c.routes
@@ -1838,180 +1840,6 @@ class c:
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
     
-    routes = {
-    "vali": [
-        "run_epoch",
-        "setup_vali",
-        "from_module"
-    ],
-    "py": [
-        "envs", 
-        "env2cmd", 
-        "create_env", 
-        "env2path"
-        ],
-    "cli": [
-        "parse_args"
-    ],
-    "streamlit": [
-        "set_page_config",
-        "load_style",
-        "st_load_css"
-    ],
-    "docker": [
-        "containers",
-        "dlogs",
-        "images"
-    ],
-    "client": [
-        "call",
-        "call_search",
-        "connect",
-        "client",
-    ],
-    "repo": [
-        "is_repo",
-        "repos"
-    ],
-    "serializer": [
-        "serialize",
-        "deserialize",
-        "serializer_map",
-    ],
-    "key": [
-        "rename_key",
-        "ss58_encode",
-        "ss58_decode",
-        "key2mem",
-        "key_info_map",
-        "key_info",
-        "valid_ss58_address",
-        "valid_h160_address",
-        "add_key",
-        "str2key",
-        "pwd2key",
-        "mems",
-        "switch_key",
-        "mv_key",
-        "add_keys",
-        "key_exists",
-        "ls_keys",
-        "rm_key",
-        "key_encrypted",
-        "encrypt_key",
-        "get_keys",
-        "rm_keys",
-        "key2address",
-        "key_addresses",
-        "address2key",
-        "is_key",
-        "new_key",
-        "save_keys",
-        "load_key",
-        "load_keys",
-        "get_signer",
-        "encrypt_file",
-        "decrypt_file",
-        "get_key_for_address",
-        "resolve_key_address",
-        "ticket"
-    ],
-    "remote": [
-        "host2ssh"
-    ],
-    "network": [
-        "networks",
-        "rm_server",
-        "server_exists",
-        "add_server",
-        "has_server",
-        "add_servers",
-        "rm_servers",
-        "rm_server",
-        "namespace",
-        "infos",
-        "get_address",
-        "servers",
-        "name2address"
-    ],
-    "app": [
-        "start_app",
-        "app",
-        "apps",
-        "app2info",
-        "kill_app"
-    ],
-    "user": [
-        "role2users",
-        "is_user",
-        "get_user",
-        "update_user",
-        "get_role",
-        "refresh_users",
-        "user_exists",
-        "is_admin",
-        "admins",
-        "add_admin",
-        "rm_admin",
-        "num_roles",
-        "rm_user"
-    ],
-    "server": [
-        "serve",
-        "wait_for_server", 
-        "endpoint", 
-        "is_endpoint",
-        "processes", 
-        "kill", 
-        "kill_all", 
-        "logs"
-    ],
-
-    "subspace": [
-        "transfer_stake",
-        "stake_transfer",
-        "switch",
-        "switchnet",
-        "subnet",
-        "update_module",
-        'subnet2emission',
-        "subnet_params_map",
-        "staketo", 
-        "network",
-        "get_staketo", 
-        "stakefrom",
-        "get_stakefrom",
-        "switch_network",
-        "key2balance",
-        "subnets",
-        "send",
-        "my_keys",
-        "transfer",
-        "multistake",
-        "stake",
-        "unstake",
-        "register",
-        "subnet_params",
-        "global_params",
-        "balance",
-        "get_balance",
-        "get_stake",
-        "get_stake_to",
-        "get_stake_from",
-        "my_stake_to",
-        "netuid2subnet",
-        "subnet2netuid",
-        "is_registered",
-        "update_subnet",
-        "my_subnets", 
-        "register_subnet",
-        "registered_subnets",
-        "registered_netuids"
-    ],
-    "agent": [ "models",  "model2info", "reduce", "generate"],
-    "builder": ["build"],
-    "docker": ["ps"]
-    }
 
     def run_test(self, module=None, parallel=True):
         module = module or self
@@ -2048,6 +1876,9 @@ class c:
         readmes = [f for f in files if f.endswith('.md')]
         return readmes
 
+
+
+c.routes = c.get_json(__file__.replace(__file__.split('/')[-1], 'routes.json'))
 
 c.add_routes()
 Module = c # Module is alias of c

@@ -8,7 +8,6 @@ import base64
 from base64 import b64encode
 import hashlib
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format, is_valid_ss58_address
-
 from scalecodec.base import ScaleBytes
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
