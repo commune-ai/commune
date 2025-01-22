@@ -43,8 +43,9 @@ class c:
         'subspace': 'subspace', 
         'namespace': 'network', 
         "client": 'server.client',
-        'local': 'network',
-        'network.local': 'network',
+        'network': 'server.network',
+        'local': 'server.network',
+        'network.local': 'server.network',
         }
     splitters = [':', '/', '.']
     @classmethod

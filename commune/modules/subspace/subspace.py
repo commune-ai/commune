@@ -1932,6 +1932,12 @@ class Subspace(c.Module):
         addresses = self.query_map("Address", [subnet], extract_value=extract_value, max_age=max_age, update=update)
         sorted_uids = list(sorted(list(addresses.keys())))
         return [addresses[uid] for uid in sorted_uids]
+
+
+    def state(self):
+        state['stake_from'] = self.net[self.network].stake_from(fmt='j', update=update, max_age=max_age)
+        state['stake_to'] = self.net[self.network].stake_to(fmt='j', update=update, max_age=max_age)
+        state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
     
     def state(self, timeout=42):
         futures = []

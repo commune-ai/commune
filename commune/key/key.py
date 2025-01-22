@@ -156,7 +156,6 @@ class Key(c.Module):
             if key_json != None:
                 return cls.from_json(cls.get(path))
         key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
-        key.path = path
         key_json = key.to_json()
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
@@ -262,7 +261,8 @@ class Key(c.Module):
     
     @classmethod
     def get_key(cls, 
-                path:str,password:str=None, 
+                path:str,
+                password:str=None, 
                 create_if_not_exists:bool = True, 
                 crypto_type=crypto_type, 
                 **kwargs):
@@ -282,7 +282,6 @@ class Key(c.Module):
                 key = cls.add_key(path, **kwargs)
                 c.print(f'key does not exist, generating new key -> {key["path"]}')
             else:
-                print(path)
                 raise ValueError(f'key does not exist at --> {path}')
         key_json = cls.get(path)
         # if key is encrypted, decrypt it
@@ -291,7 +290,7 @@ class Key(c.Module):
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'})
             return None
-        key_json = c.jload(key_json) if isinstance(key_json, str) else key_json
+        key_json = json.loads(key_json) if isinstance(key_json, str) else key_json
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
         return key
@@ -424,7 +423,6 @@ class Key(c.Module):
         else:
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
-        
         return key
     
     create = gen = new_key

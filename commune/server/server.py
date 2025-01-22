@@ -7,7 +7,9 @@ import uvicorn
 import os
 import json
 import asyncio
+from .middleware import Middleware
 from .pm import ProcessManager
+from .network import Network
 
 class Server(c.Module):
     tag_seperator:str='::'
@@ -18,49 +20,81 @@ class Server(c.Module):
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
     helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
-    pm = ProcessManager()
+    pm = ProcessManager() # manages the backgroudn processes of the servers being deployed (pm2)
+    net = {'local': Network()} # tcan add more networks as str -> network client
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
         key:str = Optional[None], # key for the server (str)
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
         name: Optional[str] = None, # the name of the server
-        kwargs : dict = None, # the kwargs for the module
+        params : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
-        network:str = 'subspace', # the network used for incentives
+        network:str = 'subspace', # the .network used for incentives
         fn2cost : Dict[str, float] = None, # the cost of the function
         free : bool = False, # if the server is free (checks signature)
         crypto_type: Union[int, str] = 'sr25519', # the crypto type of the key
         history_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
-        run_server = True, # if the server should be run
+        run_app = True, # if the server should be run
 
         ) -> 'Server':
-
+        self.add_network(network)  
+        self.serializer = c.module(serializer)()
+        self.set_module(module=module, name=name, port=port,fn2cost=fn2cost,  \
+                        params=params, key=key, crypto_type=crypto_type, \
+                        run_app=run_app, functions=functions, free=free, 
+                        history_path=history_path)
+        if not run_app:
+            return {'msg': 'not running app'}
         self.app = FastAPI()
+        self.set_middleware(middleware=middleware)
+        c.thread(self.sync_loop)
+        def api_forward(fn:str, request: Request):
+            return self.forward(fn, request)
+        self.app.post("/{fn}")(api_forward)
+        c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
+        self.net['local'].add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
+        uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+
+    def set_module(self,module : str,  
+                    functions: List[str], 
+                    name:Optional[str], 
+                    fn2cost:dict, 
+                    port:int, 
+                    params:dict, 
+                    key:str, 
+                    crypto_type:str, 
+                    run_app:bool, 
+                    history_path:str,
+                    free:bool): 
+
+        self.free = free
+
         module = module or 'module'
-        kwargs = kwargs or {}
+        params =params or {}
         if self.tag_seperator in str(name):
             # module::fam -> module=module, name=module::fam key=module::fam (default)
             module, tag = name.split(self.tag_seperator) 
-            module = c.module(module)(**kwargs)
+            module = c.module(module)(**params)
         if isinstance(module, str):
             name = name or module
-            module =   c.module(module)(**kwargs)
+            module =   c.module(module)(**params)
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
-        self.free = free
         self.module = module
-        self.module.name = name   
-        self.set_key(key=key, crypto_type=crypto_type)
+        self.module.name = name 
+        self.module.key = c.get_key(key or name, create_if_not_exists=True, crypto_type=crypto_type)
+        self.module.key_address = self.module.key.key_address
+        self. module.crypto_type = self.module.key.crypto_type
+
         self.set_port(port)
-        self.set_network(network)  
-        self.set_history_path(history_path)
-        self.serializer = c.module(serializer)()
+
         self.set_functions(functions=functions, fn2cost=fn2cost) 
-        self.set_middleware(middleware=middleware)
-        if run_server:
-            self.run_server()
+
+        self.set_history_path(history_path)
+
+        self.loop = asyncio.get_event_loop()
 
 
     def set_middleware(self, middleware=None, 
@@ -71,10 +105,7 @@ class Server(c.Module):
                         allow_headers:List[str] = ["*"]
 
                             ):
-        if middleware == None:
-            from .middleware import Middleware
-            middleware = Middleware
-        self.middleware = middleware
+        self.middleware = middleware or Middleware
         self.app.add_middleware(self.middleware, max_bytes=max_bytes)    
         self.app.add_middleware(CORSMiddleware,  
                            allow_origins=allow_origins, 
@@ -139,22 +170,6 @@ class Server(c.Module):
             "time": c.time()
         }
         
-    def set_key(self, key, crypto_type):
-        module = self.module
-        module.key = c.get_key(key or module.name, create_if_not_exists=True, crypto_type=crypto_type)
-        module.key_address = module.key.key_address
-        module.crypto_type = module.key.crypto_type
-        return {'success':True, 'message':f'Set key to {module.key.ss58_address}'}
-    
-    def run_server(self):
-        c.thread(self.sync_loop)
-        self.loop = asyncio.get_event_loop()
-        def api_forward(fn:str, request: Request):
-            return self.forward(fn, request)
-        self.app.post("/{fn}")(api_forward)
-        c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
-        c.add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
-        uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         name = self.module.name
@@ -163,7 +178,7 @@ class Server(c.Module):
                 port = getattr(self.module, k)
                 break
         if port in [None, 'None']:
-            namespace = c.namespace()
+            namespace = self.net['local'].namespace()
             if name in namespace:
                 self.pm.kill(name)
                 try:
@@ -183,7 +198,7 @@ class Server(c.Module):
 
     def get_data(self, request: Request):
         data = self.loop.run_until_complete(request.json())
-        # data = self.serializer.deserialize(data) 
+        data = self.serializer.deserialize(data) 
         if isinstance(data, str):
             data = json.loads(data)
         if 'kwargs' in data or 'params' in data:
@@ -249,12 +264,12 @@ class Server(c.Module):
         return result
 
 
-    def set_network(self, network):
+    def add_network(self, network):
         self.network = network
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
         self.address2key =  c.address2key()
-        c.thread(self.sync_loop)
-        return {'success':True, 'message':f'Set network to {network}', 'network':network, 'network_path':self.network_path}
+        c.thread(self.sync)
+        return {'success':True,  'network':network, 'network_path':self.network_path}
 
     def sync(self, update=True , state_keys = ['stake_from', 'stake_to']):
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
@@ -265,23 +280,12 @@ class Server(c.Module):
                 return {'msg': 'state is fresh'}
         max_age = self.max_network_staleness
         network_path = self.network_path
-        state = c.get(network_path, {}, max_age=max_age, updpate=update)
+        state = c.get(network_path, None, max_age=max_age, updpate=update)
         state = {}
-        state['stake'] = {}
-        state['stake_to'] = {}
-        state['stake_from'] = {}
-        if update:
-            try  : 
-                c.namespace(max_age=max_age)
-                self.subspace = c.module('subspace')(network=self.network)
-                state['stake_from'] = self.subspace.stake_from(fmt='j', update=update, max_age=max_age)
-                state['stake_to'] = self.subspace.stake_to(fmt='j', update=update, max_age=max_age)
-                state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
-            except Exception as e:
-                c.print(f'Error {e} while syncing network')
-        is_valid_state = lambda x: all([k in x for k in state_keys])
-        assert is_valid_state(state), f'Format for network state is {[k for k in state_keys if k not in state]}'
-        c.put(network_path, state)
+        if state == None:
+            self.net['local'].namespace(max_age=max_age)
+            self.net[self.network] = c.module(self.network)()
+            state = self.net[self.network].state()
         self.state = state
         return {'msg': 'state synced successfully'}
 
@@ -308,7 +312,7 @@ class Server(c.Module):
         c.print(f'waiting for {name} to start...', color='cyan')
     
         while time_waiting < timeout:
-                namespace = c.namespace(network=network, max_age=max_age)
+                namespace = cls.net['local'].namespace(network=network, max_age=max_age)
                 if name in namespace:
                     try:
                         result = c.call(namespace[name]+'/info')
@@ -348,7 +352,7 @@ class Server(c.Module):
     @classmethod
     def serve(cls, 
               module: Any = None,
-              kwargs:Optional[dict] = None,  # kwargs for the module
+              params:Optional[dict] = None,  # kwargs for the module
               port :Optional[int] = None, # name of the server if None, it will be the module name
               name = None, # name of the server if None, it will be the module name
               remote:bool = True, # runs the server remotely (pm2, ray)
@@ -360,16 +364,16 @@ class Server(c.Module):
               ):
         module = module or 'module'
         name = name or module
-        kwargs = {**(kwargs or {}), **extra_kwargs}
-        c.print(f'Serving(module={module} params={kwargs} name={name} function={functions})')
+        c.print(f'Serving({name} key={key} params={params} function={functions} )')
         if not isinstance(module, str):
             remote = False
         if remote:
+            params = {**(params or {}), **extra_kwargs}
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_kwargs', 'response', 'namespace']}
             rkwargs['remote'] = False
             cls.pm.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd, module=cls.module_name())
             return cls.wait_for_server(name)
-        return Server(module=module, name=name, functions = functions, kwargs=kwargs, port=port,  key=key, free = free)
+        return Server(module=module, name=name, functions = functions, params=params, port=port,  key=key, free = free)
 
     def extract_time(self, x):
         try:
@@ -392,7 +396,7 @@ class Server(c.Module):
 
     @classmethod
     def all_history(cls, module=None):
-        self = cls(module=module, run_server=False)
+        self = cls(module=module, run_app=False)
         all_history = {}
         for user in self.users():
             all_history[user] = self.history(user)
@@ -504,16 +508,39 @@ class Server(c.Module):
     @classmethod
     def kill_all(cls, **kwargs):
         cls.pm.kill_all(**kwargs)
-        c.namespace(update=1)
+        cls.net['local'].namespace(update=1)
 
     @classmethod
     def kill(cls, name, **kwargs):
         cls.pm.kill(name, **kwargs)
-        c.rm_server(name=name)
+        cls.net['local'].rm_server(name=name)
         return {'success':True, 'message':f'Killed {name}'}
+
+    @classmethod
+    def kill_server(cls, name, **kwargs):
+        cls.pm.kill(name, **kwargs)
+        cls.net['local'].rm_server(name=name)
+        return {'success':True, 'message':f'Killed {name}'}
+
     @classmethod
     def server_exists(cls, name):
-        return cls.pm.exists(name)
+        return cls.pm.exists(name) and cls.net['local'].namespace().get(name, None) != None
+
+    @staticmethod
+    def test_serving_with_different_key(module = 'module', timeout=10):
+        tag = 'test_serving_with_different_key'
+        key_name = module + '::'+ tag
+        module_name =  module + '::'+ tag + '_b' 
+        c.print(c.serve(module_name, key=key_name))
+        key = c.get_key(key_name)
+        c.sleep(2)
+        info = c.call(f'{module_name}/info', timeout=2)
+        assert info.get('key', None) == key.ss58_address , f" {info}"
+        c.kill(module_name)
+        c.rm_key(key_name)
+        assert not c.key_exists(key_name)
+        assert not c.server_exists(module_name)
+        return {'success': True, 'msg': 'server test passed'}
 if __name__ == '__main__':
     Server.run()
 

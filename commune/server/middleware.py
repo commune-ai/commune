@@ -2,7 +2,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request
 
-
 class Middleware(BaseHTTPMiddleware):
     def __init__(self, app, max_bytes: int):
         super().__init__(app)

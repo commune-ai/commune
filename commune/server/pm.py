@@ -11,8 +11,6 @@ import os
 import json
 import asyncio
 
-
-
 class ProcessManager:
 
     pm2_dir = os.path.expanduser('~/.pm2')
