@@ -52,7 +52,6 @@ class c:
     def module(cls, 
                path:str = 'module', 
                kwargs = None, 
-               shortcuts : dict = None,
                cache=True, 
                trials=1, 
                tree:dict=None ) -> str:
@@ -68,14 +67,11 @@ class c:
             return c
         tree = tree or c.tree()
         path = tree.get(path, path)
-        shortcuts = shortcuts or c.shortcuts
-        path = shortcuts.get(path, path)
+        path = c.shortcuts.get(path, path)
         try:
             module = c.import_object(path)
         except Exception as e:
-            if trials == 0:
-                raise ValueError(f'Error in module {og_path} {e}')
-            return c.module(path,cache=cache, tree=c.tree(max_age=100), trials=trials-1)
+            return c.module(path,cache=cache, tree=c.tree(update=1))
         module = module if cls.is_module(module) else cls.convert_module(module)
         if cache:
             c.module_cache[path] = module
@@ -1357,7 +1353,7 @@ class c:
         return simple_path
 
     @classmethod
-    def find_classes(cls, path='./', depth=8, 
+    def classes(cls, path='./', depth=8, 
                      class_prefix = 'class ', 
                      file_extension = '.py',
                      class_suffix = ':', **kwargs):
@@ -1368,9 +1364,9 @@ class c:
                 return []
             for p in c.ls(path):
                 if os.path.isdir(p):
-                    classes += cls.find_classes(p, depth=depth-1)
+                    classes += cls.classes(p, depth=depth-1)
                 elif p.endswith(file_extension):
-                    p_classes =  cls.find_classes(p)
+                    p_classes =  cls.classes(p)
                     classes += p_classes
             return classes
         code = cls.get_text(path)
@@ -1387,11 +1383,7 @@ class c:
         classes = [file_path + '.' + c for c in classes]
         return classes
     
-    @classmethod
-    def classes(cls, path='./', depth=8, **kwargs):
-        return cls.find_classes(path, depth=depth, **kwargs)
 
-        
     @staticmethod
     def round(x, sig=6, small_value=1.0e-9):
         import math
@@ -1444,7 +1436,7 @@ class c:
     
     @classmethod
     def objects(cls, path:str = './', depth=10, search=None, **kwargs):
-        classes = c.find_classes(path,depth=depth)
+        classes = c.classes(path,depth=depth)
         functions = c.path2functions(path)
         if search != None:
             functions = [f for f in functions if search in f]
@@ -1578,7 +1570,7 @@ class c:
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
             c.print(f'TREE(max_age={max_age}, depth={depth}, path={path})', color='green')
-            class_paths = cls.find_classes(path, depth=depth)
+            class_paths = cls.classes(path, depth=depth)
             simple_paths = [cls.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
             c.put(tree_cache_path, tree)
@@ -1597,7 +1589,7 @@ class c:
     
     @classmethod
     def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
-        object_paths = cls.find_classes(cls.libpath, depth=depth )
+        object_paths = cls.classes(cls.libpath, depth=depth )
         object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
             object_paths = [p for p in object_paths if search in p]
