@@ -1,21 +1,21 @@
-# Commune: Incentivizing Applications in a Multichain World
+# Commune: A Modular Consensus System
 
-Commune is a modular consensus system designed to incentivize applications to run on networks through innovative token models and bonding curves. It provides a flexible framework for building and managing distributed applications across multiple chains.
+Commune is a modular consensus system designed for building and managing distributed applications with innovative token models and bonding curves.
 
 ## 🚀 Quick Start
 
-### Installation
-
-**Requirements:**
+### Requirements
 - Python 3.10+
 - NodeJS 14+
 - npm 6+
 
+### Installation
+
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/commune-ai/commune.git
 
-# Install the package
+# Install package
 cd commune
 pip install -e ./
 
@@ -24,84 +24,65 @@ chmod +x ./scripts/*
 sudo ./scripts/install_npm_env.sh
 ```
 
-### Basic Usage
+## 🏗️ Core Components
 
-```python
-import commune as c
+### 1. Module System
+- Create modules: `c new_module <name>`
+- Serve modules: `c serve <module>`
+- Call modules: `c call <module>/<function>`
+- View modules: `c modules`
+- [Learn More About Modules](docs/modules.md)
 
-# Create a new module
-c.new_module('agi')
+### 2. Key Management
+- Generate keys: `c add_key <name>`
+- List keys: `c keys`
+- Sign messages: `c sign <message>`
+- Create tickets: `c ticket <name>`
+- [Learn More About Keys](core/key.md)
 
-# Serve a module
-c.serve('agi')
+### 3. Server Management
+- Start server: `c serve <module>`
+- View servers: `c servers`
+- Connect to server: `c connect <module>`
+- View logs: `c logs <module>`
+- [Learn More About Servers](core/server.md)
 
-# Call a module
-c.call('agi/forward', "hello")
-```
-
-## 🏗️ Core Concepts
-
-### Modules
-
-A module is a collection of functions and state variables. Modules are the building blocks of Commune and can be:
-- Served as HTTP endpoints
-- Called remotely
-- Managed through the CLI
-- Inherited and extended
-
-### Networks
-
-Networks in Commune consist of:
-- **Namespace**: Maps server names to addresses
-- **Servers**: Modules exposed as network endpoints
-- **Validators**: Nodes that validate and secure the network
-
-### Keys
-
-Commune uses SR25519 keys for:
-- Signing messages
-- Encrypting/decrypting data
-- Cross-chain compatibility
-- Creating temporary tokens
+### 4. Validator System
+- Monitor network: `c vali`
+- View scoreboard: `c scoreboard`
+- Score modules: `c score <module>`
+- [Learn More About Validation](core/vali.md)
 
 ## 💻 CLI Interface
 
-Commune provides a Pythonic CLI for interacting with the system:
-
+Commune provides a Pythonic CLI:
 ```bash
-# Create a new module
-c new_module agi
+# Module format
+c <module>/<function> *args **kwargs
 
-# Serve a module
-c serve agi
-
-# List modules
-c modules
-
-# Get module info
-c module_info agi
+# Direct format
+c <function> *args **kwargs
 ```
+
+[Learn More About CLI](core/cli.md)
 
 ## 🔗 Network Features
 
 ### Validator System
-
-- **Staking**: Token-based staking with rewards
-- **Anti-Rug Mechanism**: Prevents pump and dump schemes
-- **Price Controls**: Min/max pricing and stop loss mechanisms
-- **Subnet Management**: Create and manage subnets with locked liquidity
+- Token-based staking
+- Anti-rug mechanisms
+- Price controls
+- Subnet management
 
 ### Token Economics
-
-- Bonding curves for price discovery
-- Token emission vs native emission
-- Cross-chain token locking
-- User-to-user token lending
+- Bonding curves
+- Token emission
+- Cross-chain locking
+- User lending
 
 ## 🛠️ Development
 
 ### Creating a Module
-
 ```python
 import commune as c
 
@@ -114,23 +95,36 @@ class MyModule(c.Module):
 ```
 
 ### Serving a Module
-
 ```python
-# Serve on local network
+# Local network
 c.serve('mymodule', network='local')
 
-# Serve on Subspace network
+# Subspace network
 c.serve('mymodule', network='subspace', netuid=0)
 ```
 
 ## 📚 Documentation
-
-For more detailed documentation, please see:
-- [Module Basics](docs/modules.md)
-- [Network Architecture](docs/network.md)
-- [Key Management](docs/keys.md)
-- [Validator System](docs/validators.md)
+- [Installation Guide](1_install.md)
+- [Module Basics](0_intro.md)
+- [CLI Reference](core/cli.md)
+- [Server Guide](core/server.md)
+- [Key Management](core/key.md)
+- [Validator System](core/vali.md)
 
 ## 🤝 Contributing
+Contributions welcome! Please submit Pull Requests.
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 📄 License
+[Add License Information]
+```
+
+This README provides:
+1. Clear installation instructions
+2. Overview of core components
+3. Links to detailed documentation
+4. Code examples
+5. CLI usage
+6. Network features
+7. Development guide
+
+All references to core modules and documentation are included with proper links. The structure is clean and easy to navigate while providing comprehensive information about the system's capabilities.
