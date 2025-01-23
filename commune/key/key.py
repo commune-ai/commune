@@ -57,15 +57,12 @@ class Key(c.Module):
     def __init__(self,
                  private_key: Union[bytes, str] = None, 
                  crypto_type: int = crypto_type,
-                 derive_path: str = None,
                  path:str = None,
                  **kwargs): 
         self.set_private_key(private_key=private_key, 
                              crypto_type=crypto_type, 
-                             derive_path=derive_path, 
                              path=path, **kwargs)
-        
-    
+
     @property
     def short_address(self):
         n = 4
@@ -77,7 +74,6 @@ class Key(c.Module):
             kwargs = {
                 'private_key': self.private_key,
                 'ss58_format': self.ss58_format,
-                'derive_path': self.derive_path,
                 'path': self.path, 
                 'crypto_type': crypto_type # update crypto_type
             }
@@ -88,7 +84,6 @@ class Key(c.Module):
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
                  crypto_type: int = crypto_type,
-                 derive_path: str = None,
                  path:str = None,
                  **kwargs
                  ):
@@ -138,7 +133,6 @@ class Key(c.Module):
         self.address = self.key_address =  self.ss58_address = key_address
         self.private_key = private_key
         self.crypto_type = crypto_type
-        self.derive_path = derive_path
         self.path = path 
         self.key_address = self.ss58_address
         self.crypto_type_name = self.crypto_type2name(self.crypto_type)
@@ -346,15 +340,12 @@ class Key(c.Module):
     
     @classmethod
     def get_key_path(cls, key):
-        storage_dir = cls.storage_dir()
-        key_path = storage_dir + '/' + key + '.json'
+        key_path = cls.storage_dir() + '/' + key + '.json'
         return key_path
     @classmethod
     def get_key_json(cls, key):
-        storage_dir = cls.storage_dir()
-        key_path = storage_dir + '/' + key + '.json'
+        key_path =  cls.storage_dir() + '/' + key + '.json'
         return c.get(key_path)
-
 
     @classmethod
     def rm_key(cls, key=None):
@@ -378,10 +369,7 @@ class Key(c.Module):
         return cls.new_key(crypto_type=crypto_type).private_key.hex()
     
     @classmethod
-    def new_key(cls, 
-            mnemonic:str = None,
-            suri:str = None, 
-            private_key: str = None,
+    def new_key(cls, mnemonic:str = None, suri:str = None, private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
             **kwargs):
         '''
@@ -389,13 +377,13 @@ class Key(c.Module):
         '''
         crypto_type = cls.resolve_crypto_type(crypto_type)
         if suri:
-            key =  cls.create_from_uri(suri, crypto_type=crypto_type)
+            key =  cls.from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
+            key = cls.from_mnemonic(mnemonic, crypto_type=crypto_type)
         elif private_key:
-            key = cls.create_from_private_key(private_key,crypto_type=crypto_type)
+            key = cls.from_private_key(private_key,crypto_type=crypto_type)
         else:
-            key = cls.create_from_mnemonic(cls.generate_mnemonic(), crypto_type=crypto_type)
+            key = cls.from_mnemonic(cls.generate_mnemonic(), crypto_type=crypto_type)
         return key
     
     create = gen = new_key
@@ -409,9 +397,7 @@ class Key(c.Module):
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
         if '_ss58_address' in state_dict:
             state_dict['ss58_address'] = state_dict.pop('_ss58_address')
-
         state_dict = json.dumps(state_dict)
-        
         return state_dict
     
     @classmethod
@@ -447,7 +433,7 @@ class Key(c.Module):
 
 
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str = None, crypto_type=KeyType.SR25519) -> 'Key':
+    def from_mnemonic(cls, mnemonic: str = None, crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given memonic
         """
@@ -456,9 +442,9 @@ class Key(c.Module):
         if crypto_type == KeyType.ECDSA:
             if cls.language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
-            keypair = cls.create_from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), crypto_type=crypto_type)
+            keypair = cls.from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), crypto_type=crypto_type)
         else:
-            keypair = cls.create_from_seed(
+            keypair = cls.from_seed(
                 seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", cls.language_code))).decode("ascii"),
                 crypto_type=crypto_type,
             )
@@ -467,10 +453,10 @@ class Key(c.Module):
 
         return keypair
 
-    from_mnemonic = from_mem = create_from_mnemonic
+    from_mnemonic = from_mem = from_mnemonic
 
     @classmethod
-    def create_from_seed(cls, seed_hex: Union[bytes, str], crypto_type=KeyType.SR25519) -> 'Key':
+    def from_seed(cls, seed_hex: Union[bytes, str], crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given seed
 
@@ -505,15 +491,15 @@ class Key(c.Module):
         
         return cls(**kwargs)
     @classmethod
-    def create_from_password(cls, password:str, crypto_type=2, **kwargs):
-        key= cls.create_from_uri(password, crypto_type=1, **kwargs)
+    def from_password(cls, password:str, crypto_type=2, **kwargs):
+        key= cls.from_uri(password, crypto_type=1, **kwargs)
         key.set_crypto_type(crypto_type)
         return key
     
-    str2key = pwd2key = password2key = from_password = create_from_password
+    str2key = pwd2key = password2key = from_password = from_password
 
     @classmethod
-    def create_from_uri(
+    def from_uri(
             cls, 
             suri: str, 
             crypto_type=KeyType.SR25519, 
@@ -550,18 +536,18 @@ class Key(c.Module):
                 str_derivation_path=suri_parts['path'],
                 passphrase=suri_parts['password']
             )
-            derived_keypair = cls.create_from_private_key(private_key, crypto_type=crypto_type)
+            derived_keypair = cls.from_private_key(private_key, crypto_type=crypto_type)
         else:
 
             if suri_parts['password']:
                 raise NotImplementedError(f"Passwords in suri not supported for crypto_type '{crypto_type}'")
 
-            derived_keypair = cls.create_from_mnemonic(suri_parts['phrase'], crypto_type=crypto_type)
+            derived_keypair = cls.from_mnemonic(suri_parts['phrase'], crypto_type=crypto_type)
 
             if suri_parts['path'] != '':
 
                 derived_keypair.derive_path = suri_parts['path']
-
+                
                 if crypto_type not in [KeyType.SR25519]:
                     raise NotImplementedError('Derivation paths for this crypto type not supported')
 
@@ -589,9 +575,9 @@ class Key(c.Module):
                 derived_keypair = Key(public_key=child_pubkey, private_key=child_privkey)
 
         return derived_keypair
-    from_mnem = from_mnemonic = create_from_mnemonic
+    from_mnem = from_mnemonic = from_mnemonic
     @classmethod
-    def create_from_private_key(
+    def from_private_key(
             cls, 
             private_key: Union[bytes, str],
             crypto_type: int = KeyType.SR25519
@@ -792,10 +778,6 @@ class Key(c.Module):
         c.put_json(path, self.to_json())
         return {'saved':path}
         
-    @classmethod
-    def from_private_key(cls, private_key:str):
-        return cls(private_key=private_key)
-
     @classmethod
     def valid_ss58_address(cls, address: str ) -> bool:
         """
