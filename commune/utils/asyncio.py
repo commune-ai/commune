@@ -12,6 +12,7 @@ def get_new_event_loop(nest_asyncio:bool = False):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     return loop
+
 def sync_wrapper(fn):
     
     def wrapper_fn(*args, **kwargs):

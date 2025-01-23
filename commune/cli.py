@@ -3,7 +3,15 @@ import time
 import sys
 import commune as c
 print = c.print
-class cli:
+class Cli:
+
+    def forward(self):
+        argv = sys.argv[1:]
+        if len(argv) == 0:
+            argv = ['vs']
+        fn = self.get_fn(argv)
+        args, kwargs = self.get_args_kwargs(argv)
+        return self.run_fn(fn, args, kwargs)
 
     def determine_type(self, x):
         x = str(x)
@@ -65,7 +73,7 @@ class cli:
         return args, kwargs
 
 
-    def get_init_kwargs(self, argv, helper_fns = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash']):
+    def get_init_kwargs(self, argv:list, helper_fns:list = ['code', 'schema', 'fn_schema', 'help', 'fn_info', 'fn_hash']):
         init_kwargs = {}
         for arg in c.copy(argv):
             if arg.startswith('--'): # init kwargs
@@ -80,7 +88,7 @@ class cli:
                 continue
         return init_kwargs
 
-    def get_fn(self, argv, init_kwargs={}, default_fn='forward', default_module='module'):
+    def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module'):
         if len(argv) == 0:
             fn = default_fn
         else:
@@ -127,15 +135,6 @@ class cli:
         else:
             print(output)
         return output
-
-    def forward(self):
-        argv = sys.argv[1:]
-        if len(argv) == 0:
-            argv = ['vs']
-        fn = self.get_fn(argv)
-        args, kwargs = self.get_args_kwargs(argv)
-        return self.run_fn(fn, args, kwargs)
-
 def main():
-    cli().forward()
+    Cli().forward()
     

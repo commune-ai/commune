@@ -3,11 +3,9 @@ import os
 import commune as c
 class Network(c.Module):
     min_stake = 0
-    blocktime =  block_time = 8 
+    block_time = 8 
     n = 100
     tempo = 60
-    blocks_per_day = 24*60*60/block_time
-    # the default
     endpoints = ['namespace']
     def __init__(self, network:str='local', tempo=tempo,  path=None, **kwargs):
         self.set_network(network=network, tempo=tempo, path=path)
@@ -63,12 +61,6 @@ class Network(c.Module):
         c.put(self.modules_path, modules)
         return {'success': True, 'msg': f'Block {name}.'}
     
-    def register_from_signature(self, signature=None):
-        import json
-        assert c.verify(signature), 'Signature is not valid.'
-        data = json.loads(signature['data'])
-        return self.add_server(data['name'], data['address'])
-    
     def rm_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
         modules = self.modules()
         modules = [m for m in modules if not any([m[f] == name for f in features])]
@@ -96,8 +88,4 @@ class Network(c.Module):
 
     def infos(self, *args, **kwargs) -> Dict:
         return [c.call(address+'/info') for name, address in self.namespace(*args, **kwargs).items()]
-
-if __name__ == "__main__":        
-    Network.run()
-
 

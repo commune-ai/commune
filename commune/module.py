@@ -110,18 +110,12 @@ class c:
     @classmethod
     def filepath(cls, obj=None) -> str:
         obj = cls.resolve_module(obj)
-        try:
-            module_path =  inspect.getfile(obj)
-        except Exception as e:
-            c.print(f'Error: {e} {cls}', color='red')
-            module_path =  inspect.getfile(cls)
-        return module_path
+        return inspect.getfile(obj)
     
     @classmethod
     def dirpath(cls, obj=None) -> str:
         return os.path.dirname(cls.filepath(obj))
     
-    dir_path =  dirpath
     @classmethod
     def module_name(cls, obj=None):
         obj = obj or cls
@@ -267,16 +261,12 @@ class c:
     
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
-    def setattr(self, k, v):
-        setattr(self, k, v)
-
     def forward(self, *args, **kwargs):
         return c.ask(*args, **kwargs)
     
     tests_path = f'{libpath}/tests'
     @classmethod
-    def pytest(cls, *args, **kwargs):
-    
+    def test(cls, *args, **kwargs):
         return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
     
     @classmethod
@@ -321,6 +311,15 @@ class c:
               search:str = None, 
               avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
               **kwargs) -> List[str]:
+        """
+        Lists all files in the path
+        params:
+            path: the path to search
+            search: the term to search for
+            avoid_terms: the terms to avoid
+        return :
+            a list of files in the path
+        """
         if cls.module_name == 'module':
             path = path or './'
         else:
@@ -467,15 +466,6 @@ class c:
         for k , v in routes.items():
             routes[k] = list(set(v))
         return routes
-    @classmethod
-    def fn2schema(cls, module=None, search=None):
-        fn2schema = {}
-        for fn in c.functions(module):
-            if search != None and search not in fn:
-                continue
-            schema = c.schema(fn)
-            fn2schema[fn] = schema
-        return fn2schema
 
     @classmethod
     def fn2route(cls):
@@ -586,15 +576,6 @@ class c:
         return path
 
     save_json = put_json
-
-    @classmethod
-    def map(cls, x, fn):
-        if isinstance(x, dict):
-            return {k:fn(v) for k,v in x.items()}
-        elif isinstance(x, list):
-            return [fn(v) for v in x]
-        else:
-            raise ValueError(f'Cannot map {x}')
 
     @classmethod
     def rm(cls, path:str,
@@ -733,34 +714,22 @@ class c:
     def put(cls, 
             k: str, 
             v: Any,  
-            mode: bool = 'json',
             encrypt: bool = False, 
             password: str = None, **kwargs) -> Any:
         '''
         Puts a value in the config
         '''
         encrypt = encrypt or password != None
-        
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
-
-        if not c.jsonable(v):
-            v = c.serialize(v)    
-        
         data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}            
-        
-        # default json 
-        getattr(cls,f'put_{mode}')(k, data)
-
-        data_size = cls.sizeof(v)
-    
-        return {'k': k, 'data_size': data_size, 'encrypted': encrypt, 'timestamp': time.time()}
+        cls.put_json(k, data)
+        return {'k': k, 'data_size': cls.sizeof(v), 'encrypted': encrypt, 'timestamp': time.time()}
     
     @classmethod
     def get(cls,
             k:str, 
             default: Any=None, 
-            mode:str = 'json',
             max_age:str = None,
             full :bool = False, 
             update :bool = False,
@@ -773,7 +742,7 @@ class c:
         Puts a value in sthe config, with the option to encrypt it
         Return the value
         '''
-        data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
+        data = cls.get_json(k,default=default, **kwargs)
 
         if password != None:
             assert data['encrypted'] , f'{k} is not encrypted'
@@ -1537,9 +1506,6 @@ class c:
         return modules
     blocks = mods = modules
 
-    def net(self):
-        return c.network()
-
     @classmethod
     def new_module( cls,
                    path : str ,
@@ -1615,12 +1581,6 @@ class c:
     def is_repo(self, repo:str):
         return repo in self.repos()
     
-    def file2hash(self, path='./'):
-        file2hash = {}
-        for k,v in c.file2text(path).items():
-            file2hash[k] = c.hash(v)
-        return file2hash
-
     @classmethod
     def help(cls, *text, module=None,  **kwargs):
         text = ' '.join(map(str, text))
