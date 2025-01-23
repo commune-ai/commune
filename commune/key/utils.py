@@ -313,3 +313,22 @@ def bytes2str(data: bytes, mode: str = 'utf-8') -> str:
             return data
         return bytes.decode(data, mode)
 
+
+
+def valid_h160_address(cls, address):
+    # Check if it starts with '0x'
+    if not address.startswith('0x'):
+        return False
+    
+    # Remove '0x' prefix
+    address = address[2:]
+    
+    # Check length
+    if len(address) != 40:
+        return False
+    
+    # Check if it contains only valid hex characters
+    if not re.match('^[0-9a-fA-F]{40}$', address):
+        return False
+    
+    return True

@@ -46,7 +46,6 @@
         "key_info_map",
         "key_info",
         "valid_ss58_address",
-        "valid_h160_address",
         "add_key",
         "str2key",
         "pwd2key",

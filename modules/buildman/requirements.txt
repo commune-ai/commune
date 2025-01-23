@@ -1,0 +1,5 @@
+
+docker==6.1.2
+pytest==7.3.1
+logging==0.5.1.2
+typing==3.7.4.3

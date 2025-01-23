@@ -17,10 +17,8 @@ RUN npm install -g pm2
 RUN apt-get install python3 python3-pip python3-venv -y
 
 # MODULE ENVIRONMENT (ANYTHING YOU WANT TO INSTALL, DO IT HERE)
+COPY . /commune
+RUN pip install -e /commune
 WORKDIR /app
-COPY . .
-RUN pip install -e ./
-
-
 # ENTRYPOINT 
 ENTRYPOINT [ "tail", "-f", "/dev/null"]

@@ -47,21 +47,20 @@ class KeyType:
     SR25519 = 1
     ECDSA = 2
 
+
 class Key(c.Module):
 
     crypto_type_map = {k.lower():v for k,v in KeyType.__dict__.items()}
-
     ss58_format = 42
     crypto_type =  'sr25519'
+    language_code = 'en'
     def __init__(self,
                  private_key: Union[bytes, str] = None, 
-                 ss58_format: int = ss58_format, 
                  crypto_type: int = crypto_type,
                  derive_path: str = None,
                  path:str = None,
                  **kwargs): 
         self.set_private_key(private_key=private_key, 
-                             ss58_format=ss58_format, 
                              crypto_type=crypto_type, 
                              derive_path=derive_path, 
                              path=path, **kwargs)
@@ -88,7 +87,6 @@ class Key(c.Module):
 
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
-                 ss58_format: int = ss58_format, 
                  crypto_type: int = crypto_type,
                  derive_path: str = None,
                  path:str = None,
@@ -103,7 +101,6 @@ class Key(c.Module):
         ss58_address: Substrate address
         public_key: hex string or bytes of public_key key
         private_key: hex string or bytes of private key
-        ss58_format: Substrate address format, default to 42 when omitted
         seed_hex: hex string of seed
         crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
         """
@@ -118,12 +115,12 @@ class Key(c.Module):
             if len(private_key) != 64:
                 private_key = sr25519.pair_from_seed(private_key)[1]
             public_key = sr25519.public_from_secret_key(private_key)
-            key_address = ss58_encode(public_key, ss58_format=ss58_format)
+            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
             hash_type = 'ss58'
         elif crypto_type == KeyType.ED25519:       
             private_key = private_key[:32] if len(private_key) == 64 else private_key        
             public_key, private_key = ed25519_zebra.ed_from_seed(private_key)
-            key_address = ss58_encode(public_key, ss58_format=ss58_format)
+            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
             hash_type = 'ss58'
         elif crypto_type == KeyType.ECDSA:
             private_key = private_key[0:32]
@@ -143,9 +140,8 @@ class Key(c.Module):
         self.crypto_type = crypto_type
         self.derive_path = derive_path
         self.path = path 
-        self.ss58_format = ss58_format
         self.key_address = self.ss58_address
-        self.key_type = self.crypto_type2name(self.crypto_type)
+        self.crypto_type_name = self.crypto_type2name(self.crypto_type)
         return {'key_address':key_address, 'crypto_type':crypto_type}
 
     @classmethod
@@ -181,8 +177,7 @@ class Key(c.Module):
         assert cls.get_key(path) == cls.get_key(new_path), f'key does not match'
         new_key = cls.get_key(new_path)
         return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
-    
-    
+
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
         response = []
@@ -251,7 +246,7 @@ class Key(c.Module):
                 create_if_not_exists:bool = True, 
                 crypto_type=crypto_type, 
                 **kwargs):
-        for k in ['crypto_type', 'key_type', 'type']:
+        for k in ['crypto_type', 'type']:
             if k in kwargs:
                 crypto_type = kwargs.pop(k)
                 break
@@ -378,7 +373,6 @@ class Key(c.Module):
             raise ValueError(f'crypto_type {name} not supported {crypto_type_map}')
         return crypto_type_map[name]
         
-    
     @classmethod
     def new_private_key(cls, crypto_type='ecdsa'):
         return cls.new_key(crypto_type=crypto_type).private_key.hex()
@@ -389,16 +383,11 @@ class Key(c.Module):
             suri:str = None, 
             private_key: str = None,
             crypto_type: Union[int,str] = 'sr25519', 
-            verbose:bool=False,
             **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        if verbose:
-            c.print(f'generating {crypto_type} keypair, {suri}')
-
         crypto_type = cls.resolve_crypto_type(crypto_type)
-
         if suri:
             key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
@@ -406,8 +395,7 @@ class Key(c.Module):
         elif private_key:
             key = cls.create_from_private_key(private_key,crypto_type=crypto_type)
         else:
-            mnemonic = cls.generate_mnemonic()
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
+            key = cls.create_from_mnemonic(cls.generate_mnemonic(), crypto_type=crypto_type)
         return key
     
     create = gen = new_key
@@ -441,62 +429,53 @@ class Key(c.Module):
         return  cls(**obj)
 
     @classmethod
-    def generate_mnemonic(cls, words: int = 12, language_code: str = "en") -> str:
+    def generate_mnemonic(cls, words: int = 12) -> str:
         """
         params:
             words: The amount of words to generate, valid values are 12, 15, 18, 21 and 24
-            language_code: The language to use, valid values are: 'en', 'zh-hans', 
-                           'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. 
-                            Defaults to `"en"`
         """
-        mnemonic =  bip39_generate(words, language_code)
-        assert cls.validate_mnemonic(mnemonic, language_code), 'mnemonic is invalid'
+        mnemonic =  bip39_generate(words, cls.language_code)
+        cls.validate_mnemonic(mnemonic)
         return mnemonic
 
     @classmethod
-    def validate_mnemonic(cls, mnemonic: str, language_code: str = "en") -> bool:
+    def validate_mnemonic(cls, mnemonic: str) -> bool:
         """
         Verify if specified mnemonic is valid
 
         Parameters
         ----------
         mnemonic: Seed phrase
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
-
         Returns
         -------
         bool
         """
-        return bip39_validate(mnemonic, language_code)
+        assert bip39_validate(mnemonic, cls.language_code), """Invalid mnemonic, please provide a valid mnemonic"""
 
 
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=ss58_format, crypto_type=KeyType.SR25519, language_code: str = "en") -> 'Key':
+    def create_from_mnemonic(cls, mnemonic: str = None, crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given memonic
 
         Parameters
         ----------
         mnemonic: Seed phrase
-        ss58_format: Substrate address format
         crypto_type: Use `KeyType.SR25519` or `KeyType.ED25519` cryptography for generating the Key
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
         -------
         Key
         """
         if not mnemonic:
-            mnemonic = cls.generate_mnemonic(language_code=language_code)
-
+            mnemonic = cls.generate_mnemonic()
         if crypto_type == KeyType.ECDSA:
-            if language_code != "en":
+            if cls.language_code != "en":
                 raise ValueError("ECDSA mnemonic only supports english")
-            keypair = cls.create_from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), ss58_format=ss58_format, crypto_type=crypto_type)
+            keypair = cls.create_from_private_key(mnemonic_to_ecdsa_private_key(mnemonic), crypto_type=crypto_type)
         else:
             keypair = cls.create_from_seed(
-                seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", language_code))).decode("ascii"),
-                ss58_format=ss58_format,
+                seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", cls.language_code))).decode("ascii"),
                 crypto_type=crypto_type,
             )
         
@@ -507,14 +486,13 @@ class Key(c.Module):
     from_mnemonic = from_mem = create_from_mnemonic
 
     @classmethod
-    def create_from_seed(cls, seed_hex: Union[bytes, str], ss58_format: Optional[int] = ss58_format, crypto_type=KeyType.SR25519) -> 'Key':
+    def create_from_seed(cls, seed_hex: Union[bytes, str], crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given seed
 
         Parameters
         ----------
         seed_hex: hex string of seed
-        ss58_format: Substrate address format
         crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
 
         Returns
@@ -531,13 +509,13 @@ class Key(c.Module):
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         
-        ss58_address = ss58_encode(public_key, ss58_format)
+        ss58_address = ss58_encode(public_key, cls.ss58_format)
 
         kwargs =  dict(
             ss58_address=ss58_address, 
             public_key=public_key, 
             private_key=private_key,
-            ss58_format=ss58_format,
+            ss58_format=cls.ss58_format,
               crypto_type=crypto_type, 
         )
         
@@ -554,9 +532,7 @@ class Key(c.Module):
     def create_from_uri(
             cls, 
             suri: str, 
-            ss58_format: Optional[int] = ss58_format, 
             crypto_type=KeyType.SR25519, 
-            language_code: str = "en",
             DEV_PHRASE = 'bottom drive obey lake curtain smoke basket hold race lonely fit walk'
 
     ) -> 'Key':
@@ -566,9 +542,7 @@ class Key(c.Module):
         Parameters
         ----------
         suri:
-        ss58_format: Substrate address format
         crypto_type: Use KeyType.SR25519 or KeyType.ED25519 cryptography for generating the Key
-        language_code: The language to use, valid values are: 'en', 'zh-hans', 'zh-hant', 'fr', 'it', 'ja', 'ko', 'es'. Defaults to `"en"`
 
         Returns
         -------
@@ -587,23 +561,18 @@ class Key(c.Module):
         suri_parts = suri_regex.groupdict()
 
         if crypto_type == KeyType.ECDSA:
-            if language_code != "en":
-                raise ValueError("ECDSA mnemonic only supports english")
-            print(suri_parts)
             private_key = mnemonic_to_ecdsa_private_key(
                 mnemonic=suri_parts['phrase'],
                 str_derivation_path=suri_parts['path'],
                 passphrase=suri_parts['password']
             )
-            derived_keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+            derived_keypair = cls.create_from_private_key(private_key, crypto_type=crypto_type)
         else:
 
             if suri_parts['password']:
                 raise NotImplementedError(f"Passwords in suri not supported for crypto_type '{crypto_type}'")
 
-            derived_keypair = cls.create_from_mnemonic(
-                suri_parts['phrase'], ss58_format=ss58_format, crypto_type=crypto_type, language_code=language_code
-            )
+            derived_keypair = cls.create_from_mnemonic(suri_parts['phrase'], crypto_type=crypto_type)
 
             if suri_parts['path'] != '':
 
@@ -633,7 +602,7 @@ class Key(c.Module):
                             b''
                         )
 
-                derived_keypair = Key(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
+                derived_keypair = Key(public_key=child_pubkey, private_key=child_privkey)
 
         return derived_keypair
     from_mnem = from_mnemonic = create_from_mnemonic
@@ -641,9 +610,6 @@ class Key(c.Module):
     def create_from_private_key(
             cls, 
             private_key: Union[bytes, str],
-            public_key: Union[bytes, str] = None, 
-            ss58_address: str = None,
-            ss58_format: int = ss58_format, 
             crypto_type: int = KeyType.SR25519
     ) -> 'Key':
         """
@@ -651,23 +617,12 @@ class Key(c.Module):
         Parameters
         ----------
         private_key: hex string or bytes of private key
-        public_key: hex string or bytes of public key
-        ss58_address: Substrate address
-        ss58_format: Substrate address format, default = 42
         crypto_type: Use KeyType.[SR25519|ED25519|ECDSA] cryptography for generating the Key
-
         Returns
         -------
         Key
         """
-
-        return cls(ss58_address=ss58_address, 
-                   public_key=public_key, 
-                   private_key=private_key,
-                   ss58_format=ss58_format, 
-                   crypto_type=crypto_type
-        )
-    from_private_key = create_from_private_key
+        return cls(private_key=private_key, crypto_type=crypto_type)
 
     def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False) -> bytes:
         """
@@ -688,6 +643,7 @@ class Key(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
+
         if not self.private_key:
             raise Exception('No private key set to create signatures')
         if self.crypto_type == KeyType.SR25519:
@@ -700,17 +656,13 @@ class Key(c.Module):
             raise Exception("Crypto type not supported")
         
         if to_json:
-            return {'data':data.decode(),'crypto_type':self.crypto_type,
-                    'signature':signature.hex(),
-                    'address': self.ss58_address,}
+            return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
 
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
                public_key:Optional[str]= None, 
-               return_address = False,
-               ss58_format = ss58_format,
                max_age = None,
                address = None,
                **kwargs
@@ -784,8 +736,6 @@ class Key(c.Module):
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
-        if return_address:
-            return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
 
     def resolve_encryption_password(self, password:str=None) -> str:
@@ -850,7 +800,7 @@ class Key(c.Module):
         return cls.get_key(key).mnemonic
 
     def __str__(self):
-        return f'<Key(address={self.key_address} type={self.key_type} path={self.path})>'
+        return f'<Key(address={self.key_address} type={self.crypto_type_name} path={self.path})>'
     
     def save(self, path=None):
         if path == None:
@@ -863,12 +813,12 @@ class Key(c.Module):
         return cls(private_key=private_key)
 
     @classmethod
-    def valid_ss58_address(cls, address: str, ss58_format=ss58_format ) -> bool:
+    def valid_ss58_address(cls, address: str ) -> bool:
         """
         Checks if the given address is a valid ss58 address.
         """
         try:
-            return is_valid_ss58_address( address , valid_ss58_format  =ss58_format )
+            return is_valid_ss58_address( address , valid_ss58_format=cls.ss58_format )
         except Exception as e:
             return False
           
@@ -899,25 +849,6 @@ class Key(c.Module):
         else:
             address = key
         return address
-    
-    @classmethod
-    def valid_h160_address(cls, address):
-        # Check if it starts with '0x'
-        if not address.startswith('0x'):
-            return False
-        
-        # Remove '0x' prefix
-        address = address[2:]
-        
-        # Check length
-        if len(address) != 40:
-            return False
-        
-        # Check if it contains only valid hex characters
-        if not re.match('^[0-9a-fA-F]{40}$', address):
-            return False
-        
-        return True
 
     def storage_migration(self): 
         key2path = self.key2path()
@@ -950,10 +881,6 @@ class Key(c.Module):
         crypto_type_map ={v:k for k,v  in cls.crypto_type_map.items()}
         return crypto_type_map[crypto_type]
     
-    @classmethod
-    def resolve_crypto_type_name(cls, crypto_type):
-        return cls.crypto_type2name(cls.resolve_crypto_type(crypto_type))
-
     @classmethod
     def resolve_crypto_type(cls, crypto_type):
         if isinstance(crypto_type, int) or (isinstance(crypto_type, str) and c.is_int(crypto_type)):
