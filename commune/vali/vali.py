@@ -6,10 +6,10 @@ from typing import *
 
 class Vali(c.Module):
     endpoints = ['score', 'scoreboard']
-    voting_networks = ['bittensor', 'subspace']
-    networks = ['local'] + voting_networks
+    incentive_networks = ['bittensor', 'subspace']
+    networks = ['local'] + incentive_networks
     epoch_time = 0
-    vote_time = 0
+    vote_time = 0 # the time of the last vote (for voting networks)
     vote_staleness = 0 # the time since the last vote
     epochs = 0 # the number of epochs
     futures = [] # the futures for the parallel tasks
@@ -40,7 +40,7 @@ class Vali(c.Module):
         if run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
-
+    
     def set_key(self, key):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
@@ -63,7 +63,7 @@ class Vali(c.Module):
         self.tempo = tempo
         self.search = search
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
-        self.is_voting_network = any([v in self.network for v in self.voting_networks])
+        self.is_voting_network = any([v in self.network for v in self.incentive_networks])
         self.set_score(score)
         self.sync(update=update)
 
@@ -87,8 +87,13 @@ class Vali(c.Module):
     def time_until_next_epoch(self):
         return int(self.epoch_time + self.tempo - c.time())
 
-
-    def get_client(self, module:dict):
+    def get_client(self, module:dict) -> 'commune.Client':
+        feature2type = {'name': str, 'address': str, 'key': str}
+        for f, t in feature2type.items():
+            assert f in module, f'Module missing {f}'
+            assert isinstance(module[f], t), f'Module {f} is not {t}'
+        if isinstance(module, str):
+            module = self.network_module.get_module(module)
         if module['key'] in self._clients:
             client =  self._clients[module['key']]
         else:
@@ -99,19 +104,10 @@ class Vali(c.Module):
             client =  c.client(address, key=self.key)
             self._clients[module['key']] = client
         return client
-    
+
     def score_module(self,  module:dict, **kwargs):
-        """
-        module: dict
-            name: str
-            address: str
-            key: str
-            time: int
-        """
-        if isinstance(module, str):
-            module = self.network_module.get_module(module)
-        module['time'] = c.time() # the timestamp
         client = self.get_client(module)
+        module['time'] = c.time() # the timestamp
         try:
             module['score'] = self.score(client, **kwargs)
         except Exception as e:
@@ -122,19 +118,17 @@ class Vali(c.Module):
         return module
 
     def score_modules(self, modules: List[dict]):
-        module_results = []
-        futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
         try:
+            results = []
+            futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
-                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
-                    module_results.append(m)
+                    results.append(m)
         except Exception as e:
-            c.print(f'ERROR({c.detailed_error(e)})', color='red', verbose=1)
-        print(module_results)
-        return module_results
+            c.print(f'ERROR({c.detailed_error(e)})', color='red')
+        return results
 
     def epoch(self):
         next_epoch = self.time_until_next_epoch
@@ -181,17 +175,13 @@ class Vali(c.Module):
             return {'success': False, 'msg': f'Vote is too soon {self.vote_staleness}'}
         if len(results) == 0:
             return {'success': False, 'msg': 'No results to vote on'}
-        params = dict(modules=[],  
-                      weights=[],  
-                      key=self.key,
-                      subnet=self.subnet)
+        params = dict(modules=[], weights=[],  key=self.key, subnet=self.subnet)
         for m in results:
             if not isinstance(m, dict) or 'key' not in m:
                 continue
             params['modules'].append(m['key'])
             params['weights'].append(m['score'])
         return self.network_module.vote(**params)
-    
     
     def scoreboard(self,
                     keys = ['name', 'score', 'latency',  'address', 'key'],
@@ -233,10 +223,6 @@ class Vali(c.Module):
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
         return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
-    @staticmethod
-    def test():
-        from .test import Test
-        return Test().test()
     
     def refresh_scoreboard(self):
         path = self.path

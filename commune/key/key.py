@@ -442,13 +442,6 @@ class Key(c.Module):
     def validate_mnemonic(cls, mnemonic: str) -> bool:
         """
         Verify if specified mnemonic is valid
-
-        Parameters
-        ----------
-        mnemonic: Seed phrase
-        Returns
-        -------
-        bool
         """
         assert bip39_validate(mnemonic, cls.language_code), """Invalid mnemonic, please provide a valid mnemonic"""
 
@@ -457,15 +450,6 @@ class Key(c.Module):
     def create_from_mnemonic(cls, mnemonic: str = None, crypto_type=KeyType.SR25519) -> 'Key':
         """
         Create a Key for given memonic
-
-        Parameters
-        ----------
-        mnemonic: Seed phrase
-        crypto_type: Use `KeyType.SR25519` or `KeyType.ED25519` cryptography for generating the Key
-
-        Returns
-        -------
-        Key
         """
         if not mnemonic:
             mnemonic = cls.generate_mnemonic()
@@ -862,11 +846,6 @@ class Key(c.Module):
                 c.print(f'failed to migrate {k_name} due to {e}', color='red')
                 
         return new_key2path
-
-    @classmethod
-    def test(cls):
-        from .test import Test
-        return Test().test()
 
     @classmethod
     def crypto_name2type(cls, name:str):
