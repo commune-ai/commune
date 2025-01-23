@@ -22,8 +22,7 @@ class c:
     cost = 1 
     description = """This is a module"""
     base_module = 'module' # the base module
-    git_host  = 'https://github.com'
-    giturl = f'{git_host}/{org}/{libname}.git' # tge gutg
+    giturl = f'https://github.com/{org}/{libname}.git' # tge gutg
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = local_ip = loopback = '0.0.0.0'   
     rootpath = root_path  = root  = '/'.join(__file__.split('/')[:-1]) 
@@ -420,7 +419,11 @@ class c:
         util2code = {}
         for f in utils:
             util2code[f] = c.code(f)
-        return len(str(util2code))
+        return util2code
+
+    @classmethod
+    def util2hash(cls, search=None):
+        return {k:c.hash(v) for k,v in c.util2code(search=search).items()}
 
     @classmethod
     def get_utils(cls, search=None):
@@ -1219,7 +1222,7 @@ class c:
 
     @classmethod
     def name2path(cls, 
-                    simple:str,
+                    name:str,
                     extension = '.py',
                     ignore_prefixes = ['', 
                                        'src', 
@@ -1243,12 +1246,9 @@ class c:
         Parameters:
             path (str): The module path
         """
-        shortcuts = c.shortcuts
-        simple = shortcuts.get(simple, simple)
-
+        name = c.shortcuts.get(name, nsme)
         if simple.endswith(extension):
             simple = simple[:-len(extension)]
-
         path = None
         pwd = c.pwd()
         path_options = []

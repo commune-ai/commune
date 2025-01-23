@@ -1,5 +1,11 @@
 
 import os
+import urllib
+import requests
+from loguru import logger
+from typing import *
+import netaddr
+import os
 import shutil
 import subprocess
 import shlex
@@ -16,15 +22,6 @@ def jsonable( value):
 
 def osname():
     return os.name
-
-def check_pid( pid):        
-    """ Check For the existence of a unix pid. """
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
 
 def gc():
     import gc
@@ -46,20 +43,10 @@ def resolve_path(path):
     path = os.path.abspath(path)
     return path
 
-def check_pid(pid):        
-    """ Check For the existence of a unix pid. """
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
-
 def kill_process(pid):
     import signal
     if isinstance(pid, str):
         pid = int(pid)
-    
     os.kill(pid, signal.SIGKILL)
 
 kill_pid = kill_process
@@ -74,18 +61,6 @@ def run_command(command:str):
 def path_exists(path:str):
     return os.path.exists(path)
 
-def seed_everything(seed: int) -> None:
-    import numpy as np
-    import torch
-    import random
-    "seeding function for reproducibility"
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
     try:
@@ -99,7 +74,6 @@ def kill_process(pid):
     import signal
     if isinstance(pid, str):
         pid = int(pid)
-    
     os.kill(pid, signal.SIGKILL)
 
 
@@ -368,7 +342,6 @@ def least_used_gpu(self):
 def least_used_gpu_memory(self):
     least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
     return least_used_gpu
-
 
 def hardware(fmt:str='gb'):
     return {
@@ -684,20 +657,6 @@ def cmd( command:Union[str, list],
             text += ch
     return text
 
-
-
-
-
-
-
-
-# hey/thanks bittensor
-import os
-import urllib
-import requests
-from loguru import logger
-from typing import *
-import netaddr
 
 def is_valid_ip(ip:str) -> bool:
     import netaddr
@@ -1232,9 +1191,6 @@ import glob
 import requests
 import json
 
-
-
-
 def type2files( path:str='./', **kwargs):
     files = get_files(path, **kwargs)
     type2files = {}
@@ -1381,12 +1337,8 @@ def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
         x = Munch(x)
     return x 
 
-
 def munch2dict( x:'Munch', recursive:bool=True)-> dict:
     from munch import Munch
-    '''
-    Turn munch object  into dictionary
-    '''
     if isinstance(x, Munch):
         x = dict(x)
         for k,v in x.items():
@@ -1394,15 +1346,9 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
                 x[k] = munch2dict(v)
     return x 
 
-
-
 def munch( x:Dict) -> 'Munch':
-    '''
-    Converts a dict to a munch
-    '''
     return dict2munch(x)
 
-  
 def time(  t=None) -> float:
     from time import time
     return time()
@@ -1418,8 +1364,6 @@ def time2datetime( t:float):
     return c.get_util('time.time2datetime')(t)
 
 time2date = time2datetime
-
-
 
 def datetime2time( x:str):
     import datetime
@@ -2064,8 +2008,6 @@ def retry(fn, trials:int = 3, verbose:bool = True):
 
     return wrapper
 
-
-
 def df( x, **kwargs):
     from pandas import DataFrame
     return DataFrame(x, **kwargs)
@@ -2206,18 +2148,6 @@ def chunk(sequence:list = [0,2,3,4,5,6,6,7],
         chunks[idx].append(element)
     return chunks
 
-
-def task( fn, timeout=1, mode='asyncio'):
-    
-    if mode == 'asyncio':
-        import asyncio
-        assert callable(fn)
-        future = asyncio.wait_for(fn, timeout=timeout)
-        return future
-    else:
-        raise NotImplemented
-    
-
 def locals2kwargs(locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['cls','self']) -> dict:
     locals_dict = locals_dict or {}
     kwargs = locals_dict or {}
@@ -2348,4 +2278,3 @@ def get_folder_contents_advanced(url='commune-ai/commune.git',
     except Exception as e:
         print(f"Error: {e}")
         return None
-    

@@ -348,7 +348,6 @@ class Server(c.Module):
     
     serverfn = endpoint
 
-
     @classmethod
     def serve(cls, 
               module: Any = None,

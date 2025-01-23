@@ -19,9 +19,7 @@ class Network(c.Module):
         return {'network': self.network, 'tempo': self.tempo, 'modules_path': self.modules_path}
     
     def params(self,*args,  **kwargs):
-        return { 'network': self.network, 
-                'tempo' : self.tempo,
-                'n': self.n}
+        return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
     
     def net(self):
         return c.network()
