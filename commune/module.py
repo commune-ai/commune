@@ -140,7 +140,7 @@ class c:
 
     @classmethod
     def class_name(cls, obj= None) -> str:
-        obj = obj if obj != None else cls
+        obj = obj if obj else cls
         return obj.__name__
 
     @classmethod
@@ -187,7 +187,7 @@ class c:
         return c.obj('commune.utils.os.is_error')(*text, **kwargs)
 
     @classmethod
-    def resolve_object(cls, obj:str = None, **kwargs):
+    def resolve_module(cls, obj:str = None, **kwargs):
         if obj == None:
             obj = cls._obj if cls._obj else cls
         elif isinstance(obj, str):
@@ -211,10 +211,6 @@ class c:
         assert obj != None, f'Object {obj} does not exist'
         return obj
 
-    @classmethod
-    def resolve_module(cls, module:str = None, **kwargs):
-        return cls.resolve_object(module, **kwargs)
-    
     @classmethod
     def pwd(cls):
         pwd = os.getcwd() # the current wor king directory from the process starts 
@@ -390,15 +386,7 @@ class c:
         return f'<{self.class_name()}'
     def __str__(self) -> str:
         return f'<{self.class_name()}'
-    
-    def pull(self):
-        return c.cmd('git pull', verbose=True, cwd=c.libpath)
-    
-    def push(self, msg:str = 'update'):
-        c.cmd('git add .', verbose=True, cwd=c.libpath)
-        c.cmd(f'git commit -m "{msg}"', verbose=True, cwd=c.libpath)
-        return c.cmd('git push', verbose=True, cwd=c.libpath)
-    
+
     # local update  
     @classmethod
     def update(cls,  ):
@@ -459,12 +447,8 @@ class c:
 
     @staticmethod
     def get_yaml( path:str=None, default={}, **kwargs) -> Dict:
-        '''fLoads a yaml file'''
-        import yaml
-        path = os.path.abspath(path)
-        with open(path, 'r') as file:
-            data = yaml.load(file, Loader=yaml.FullLoader)
-        return data
+        from .utils.os import get_yaml
+        return get_yaml(path=path, default=default, **kwargs)
     
     @classmethod
     def get_routes(cls):
@@ -553,15 +537,11 @@ class c:
         globals_input = globals_input or {}
         for k,v in c.__dict__.items():
             globals_input[k] = v     
-        for f in c.class_functions() + c.static_functions():
+        for f in c.class_functions(c) + c.static_functions(c):
             globals_input[f] = getattr(c, f)
-
-        for f in c.self_functions():
+        for f in c.self_functions(c):
             def wrapper_fn(f, *args, **kwargs):
-                try:
-                    fn = getattr(Module(), f)
-                except:
-                    fn = getattr(Module, f)
+                fn = getattr(Module(), f)
                 return fn(*args, **kwargs)
             globals_input[f] = partial(wrapper_fn, f)
         return globals_input
@@ -831,71 +811,12 @@ class c:
         return -1
     
     @classmethod
-    def get_text(cls, 
-                 path: str, 
-                 tail = None,
-                 start_byte:int = 0,
-                 end_byte:int = 0,
-                 start_line :int= None,
-                 end_line:int = None ) -> str:
+    def get_text(cls, path: str, **kwargs ) -> str:
         # Get the absolute path of the file
         path = cls.resolve_path(path)
-
-        if not os.path.exists(path):
-            if os.path.exists(path + '.json'):
-                path = path + '.json'
-
-        # Read the contents of the file
-        with open(path, 'rb') as file:
-
-            file.seek(0, 2) # this is done to get the fiel size
-            file_size = file.tell()  # Get the file size
-            if start_byte < 0:
-                start_byte = file_size - start_byte
-            if end_byte <= 0:
-                end_byte = file_size - end_byte 
-            if end_byte < start_byte:
-                end_byte = start_byte + 100
-            chunk_size = end_byte - start_byte + 1
-
-            file.seek(start_byte)
-
-            content_bytes = file.read(chunk_size)
-
-            # Convert the bytes to a string
-            try:
-                content = content_bytes.decode()
-            except UnicodeDecodeError as e:
-                if hasattr(content_bytes, 'hex'):
-                    content = content_bytes.hex()
-                else:
-                    raise e
-
-            if tail != None:
-                content = content.split('\n')
-                content = '\n'.join(content[-tail:])
-    
-            elif start_line != None or end_line != None:
-                
-                content = content.split('\n')
-                if end_line == None or end_line == 0 :
-                    end_line = len(content) 
-                if start_line == None:
-                    start_line = 0
-                if start_line < 0:
-                    start_line = start_line + len(content)
-                if end_line < 0 :
-                    end_line = end_line + len(content)
-                content = '\n'.join(content[start_line:end_line])
-            else:
-                content = content_bytes.decode()
+        with open(path, 'r') as file:
+            content = file.read()
         return content
-    
-    def is_encrypted(self, path:str) -> bool:
-        try:
-            return self.get_json(path).get('encrypted', False)
-        except:
-            return False
 
     @staticmethod
     def sleep(period):
@@ -917,18 +838,6 @@ class c:
     def fn2hash(cls, module=None)-> Dict[str, str]:
         module = cls.resolve_module(module)   
         return {k:c.hash(v) for k,v in c.fn2code(module).items()}
-
-    def rm_fn_code(self, fn='module/test_rm_fn_code'):
-        assert '/' in fn, 'provide {module}/{fn} format'
-        module, fn = fn.split('/')
-        module = c.module(module)
-        code = c.code(module)
-        fn_code = c.fn2code(module)[fn]
-        assert fn_code in code, f'{fn} was not found'
-        code = code.replace(fn_code, '')
-        assert not fn_code in code, f'{fn} was not removed'
-        filepath = module.filepath()
-        c.put_text(filepath, code)
 
     @classmethod
     def fn_code(cls,fn:str, module=None,**kwargs) -> str:
@@ -1070,7 +979,6 @@ class c:
                       **kwargs) -> List[str]:
         '''
         Get a list of functions in a class (in text parsing)
-        
         Args;
             obj: the class to get the functions from
             include_parents: whether to include the parent functions
@@ -1166,8 +1074,9 @@ class c:
         return fn_obj
         
     @classmethod
-    def self_functions(cls, search = None):
-        fns =  c.classify_fns(cls)['self']
+    def self_functions(cls, obj=None, search = None):
+        obj = obj or cls
+        fns =  c.classify_fns(obj)['self']
         if search != None:
             fns = [f for f in fns if search in f]
         return fns
@@ -1720,19 +1629,6 @@ class c:
         for k,v in c.file2text(path).items():
             file2hash[k] = c.hash(v)
         return file2hash
-            
-
-
-    def __repr__(self):
-        name = self.__class__.__name__
-        if 'c' == name:
-            name = 'module'
-        name = name.capitalize()
-        
-        return f'{name}()'
-
-    def __str__(self):
-        return self.__repr__()
 
     @classmethod
     def help(cls, *text, module=None,  **kwargs):
@@ -1744,16 +1640,17 @@ class c:
 
     def time(self):
         return time.time()
-    
 
     def ask(self, *args, **kwargs):
         return c.module("agent")().ask(*args, **kwargs) 
 
-    def clone(self, repo:str, path:str=None, **kwargs):
-        path = '~/' + repo if path == None else path
-        cmd =  f'git clone {repo}'
-
-        return c.cmd(f'git clone {repo} {path}', **kwargs)
+    def clone(self, repo:str = 'commune-ai/commune', path:str=None, **kwargs):
+        gitprefix = 'https://github.com/'
+        if not repo.startswith(gitprefix):
+            repo = gitprefix + repo
+        path = os.path.abspath(path or  '~/'+repo.split('/')[-1])
+        cmd =  f'git clone {repo} {path}'
+        return c.cmd(cmd, verbose=True)
     
     def copy_module(self,module:str, path:str):
         code = c.code(module)
@@ -1773,8 +1670,7 @@ class c:
     def has_module(self, path:str):
         for path in c.files(path): 
             if path.endswith('.py'):
-                return True
-            
+                return True  
     
     @classmethod
     def module2fns(cls, path=None):
@@ -1813,12 +1709,6 @@ class c:
                 fn2module[f] = m
         return fn2module
 
-    def install(self, path  ):
-        path = path + '/requirements.txt'
-        print(path)
-        assert os.path.exists(path)
-        return c.cmd(f'pip install -r {path}')
-    
     def epoch(self, *args, **kwargs):
         return c.mod('vali')(*args, **kwargs)
 
@@ -1832,7 +1722,6 @@ class c:
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
     
-
     def run_test(self, module=None, parallel=True):
         module = module or self
         fns = [f for f in dir(module) if 'test_' in f]
@@ -1861,7 +1750,6 @@ class c:
             raise Exception(f'Errors: {fn2error}')
         
         return fn2result
-
 
     def readmes(self, path='./', search=None):
         files =  c.files(path)

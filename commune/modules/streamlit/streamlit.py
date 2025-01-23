@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import plotly.express as px
 # from commune.plot.dag import DagModule 
-
+import json
 import commune as c
 
 
@@ -338,7 +338,7 @@ class StreamlitModule(c.Module):
                 elif v.startswith('{') and v.endswith('}'):
 
                     if len(v) > 2:
-                        v = c.jload(v)
+                        v = json.loads(v)
                     else:
                         v = {}               
                 elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':

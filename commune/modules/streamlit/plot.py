@@ -325,7 +325,7 @@ class Plot(c.Module):
                 elif v.startswith('{') and v.endswith('}'):
 
                     if len(v) > 2:
-                        v = c.jload(v)
+                        v = json.loads(v)
                     else:
                         v = {}               
                 elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':

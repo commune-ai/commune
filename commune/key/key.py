@@ -164,10 +164,6 @@ class Key(c.Module):
         return  json.loads(key_json)
     
     @classmethod
-    def ticket(cls , data=None, key=None, **kwargs):
-        return cls.get_key(key).sign({'data':data, 'time': c.time()} , to_json=True, **kwargs)
-
-    @classmethod
     def mv_key(cls, path, new_path):
         assert cls.key_exists(path), f'key does not exist at {path}'
         cls.put(new_path, cls.get_key(path).to_json())
@@ -211,17 +207,6 @@ class Key(c.Module):
     @classmethod
     def key_info(cls, path='module', **kwargs):
         return cls.get_key_json(path)
-    
-    @classmethod
-    def load_key(cls, path=None):
-        key_info = cls.get(path)
-        key_info = c.jload(key_info)
-        if key_info['path'] == None:
-            key_info['path'] = path.replace('.json', '').split('/')[-1]
-
-        cls.add_key(**key_info)
-        return {'status': 'success', 'message': f'key loaded from {path}'}
-
     
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):
@@ -746,10 +731,7 @@ class Key(c.Module):
         data = c.copy(data)
 
         if isinstance(data, dict):
-            if self.is_ticket(data):
-                address = data.pop('address')
-                signature = data.pop('signature')
-            elif 'data' in data and 'signature' in data and 'address' in data:
+            if 'data' in data and 'signature' in data and 'address' in data:
                 signature = data.pop('signature')
                 address = data.pop('address', address)
                 data = data.pop('data')
@@ -806,9 +788,6 @@ class Key(c.Module):
             return ss58_encode(public_key, ss58_format=ss58_format)
         return verified
 
-    def is_ticket(self, data):
-        return all([k in data for k in ['data','signature', 'address', 'crypto_type']]) and any([k in data for k in ['time', 'timestamp']])
-
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:
             password = self.private_key
@@ -864,9 +843,7 @@ class Key(c.Module):
         cls.put(path, dec_text)
         assert not cls.is_key_encrypted(path), f'failed to decrypt {path}'
         loaded_key = c.get_key(path)
-        return { 'path':path , 
-                 'key_address': loaded_key.ss58_address,
-                 'crypto_type': loaded_key.crypto_type}
+        return { 'path':path , 'key_address': loaded_key.ss58_address,'crypto_type': loaded_key.crypto_type}
 
     @classmethod
     def get_mnemonic(cls, key):
@@ -880,9 +857,6 @@ class Key(c.Module):
             path = self.path
         c.put_json(path, self.to_json())
         return {'saved':path}
-    
-    def __repr__(self):
-        return 'Keypair'
         
     @classmethod
     def from_private_key(cls, private_key:str):
