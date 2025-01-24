@@ -132,10 +132,19 @@ c call module/ask hey stream=1
 ```
 
 
+Tricks 
+
+```bash
+c # takes you to commune
+```
+
+
 
 Limitatons
 
 - Lists and dictionaries are not supported 
 - Only positional arguments are supported
 - Only one function can be called at a time
+
+
 

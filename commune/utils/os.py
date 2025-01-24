@@ -43,6 +43,9 @@ def resolve_path(path):
     path = os.path.abspath(path)
     return path
 
+def is_mac():
+    return sys.platform == 'darwin'
+
 def kill_process(pid):
     import signal
     if isinstance(pid, str):
@@ -283,8 +286,6 @@ def disk_info(path:str = '/', fmt:str='gb'):
         response[key] = format_data_size(value, fmt=fmt)
     return response
 
-    
-
 def mv(path1, path2):
     assert os.path.exists(path1), path1
     if not os.path.isdir(path2):
@@ -311,7 +312,6 @@ def cp(path1:str, path2:str, refresh:bool = False):
     if os.path.isdir(path1):
         shutil.copytree(path1, path2)
 
-
     elif os.path.isfile(path1):
         
         shutil.copy(path1, path2)
@@ -323,25 +323,6 @@ def cuda_available() -> bool:
     import torch
     return torch.cuda.is_available()
 
-def free_gpu_memory():
-    gpu_info = gpu_info()
-    return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
-
-def most_used_gpu(self):
-    most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
-    return most_used_gpu
-
-def most_used_gpu_memory(self):
-    most_used_gpu = max(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
-    return most_used_gpu
-
-def least_used_gpu(self):
-    least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[0]
-    return least_used_gpu
-
-def least_used_gpu_memory(self):
-    least_used_gpu = min(self.free_gpu_memory().items(), key=lambda x: x[1])[1]
-    return least_used_gpu
 
 def hardware(fmt:str='gb'):
     return {
@@ -478,15 +459,6 @@ def gpu_info( fmt='gb') -> Dict[int, Dict[str, float]]:
             gpu_info[key] = format_data_size(value, fmt=fmt)
         gpu_info_map[gpu_id] = gpu_info
     return gpu_info_map
-    
-
-def cuda_available() -> bool:
-    import torch
-    return torch.cuda.is_available()
-
-def free_gpu_memory():
-    gpu_info = gpu_info()
-    return {gpu_id: gpu_info['free'] for gpu_id, gpu_info in gpu_info.items()}
 
 def most_used_gpu():
     most_used_gpu = max(free_gpu_memory().items(), key=lambda x: x[1])[0]
@@ -1453,10 +1425,6 @@ def python2str( input):
         input = str(input)
     return input
 
-def dict2str(cls, data: str) -> str:
-    import json
-    return json.dumps(data)
-
 def bytes2dict(data: bytes) -> str:
     import json
     data = bytes2str(data)
@@ -1645,7 +1613,7 @@ def cp( path1:str, path2:str, refresh:bool = False):
 
 def go(path=None):
     import commune as c
-    path = os.path.abspath('~/'+str(path or c.libname))
+    path = os.path.abspath('~/'+str(path or c.reponame))
     return c.cmd(f'code {path}')
 
 def cuda_available() -> bool:
@@ -2109,26 +2077,6 @@ std = stdev
 def is_class(module: Any) -> bool:
     return type(module).__name__ == 'type' 
 
-def path2functions(self, path=None):
-    path = path or (self.root_path + '/utils')
-    paths = self.ls(path)
-    path2functions = {}        
-    for p in paths:
-
-        functions = []
-        if os.path.isfile(p) == False:
-            continue
-        text = self.get_text(p)
-        if len(text) == 0:
-            continue
-        
-        for line in text.split('\n'):
-            if 'def ' in line and '(' in line:
-                functions.append(line.split('def ')[1].split('(')[0])
-        replative_path = p[len(path)+1:]
-        path2functions[replative_path] = functions
-    return path2functions
-
 @staticmethod
 def chunk(sequence:list = [0,2,3,4,5,6,6,7],
         chunk_size:int=4,
@@ -2159,9 +2107,6 @@ def locals2kwargs(locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['c
         kwargs.update( locals_dict.pop(k, {}) or {})
     return kwargs
 
-def pip_libs(cls):
-    return list(cls.lib2version().values())
-
 required_libs = []
 
 def ensure_libs(libs: List[str] = None, verbose:bool=False):
@@ -2170,19 +2115,10 @@ def ensure_libs(libs: List[str] = None, verbose:bool=False):
         results.append(ensure_lib(lib, verbose=verbose))
     return results
 
-def install(cls, libs: List[str] = None, verbose:bool=False):
-    return cls.ensure_libs(libs, verbose=verbose)
-
-def ensure_env(cls):
-    cls.ensure_libs(cls.libs)
-
-def pip_exists(cls, lib:str, verbose:str=True):
-    return bool(lib in cls.pip_libs())
-
-def version(cls, lib:str=None):
+def version( lib:str=None):
     import commune as c
-    lib = lib or c.libname
-    lines = [l for l in cls.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
+    lib = lib or c.reponame
+    lines = [l for l in c.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
     if len(lines)>0:
         return lines[0].split(' ')[-1].strip()
     else:
@@ -2227,7 +2163,7 @@ jupyter = enable_jupyter
 
 def pip_list(lib=None):
     import commune as c
-    lib = lib or c.libname
+    lib = lib or c.reponame
     pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
     if lib != None:
         pip_list = [l for l in pip_list if l.startswith(lib)]
@@ -2237,11 +2173,6 @@ def is_mnemonic(s: str) -> bool:
     import re
     # Match 12 or 24 words separated by spaces
     return bool(re.match(r'^(\w+ ){11}\w+$', s)) or bool(re.match(r'^(\w+ ){23}\w+$', s))
-
-def file2functions(self, path):
-    path = os.path.abspath(path)
-    
-    return functions
 
 def is_private_key(s: str) -> bool:
     import re
@@ -2281,6 +2212,7 @@ def get_folder_contents_advanced(url='commune-ai/commune.git',
 
 def file2hash(path='./'):
     file2hash = {}
+    import commune as c
     for k,v in c.file2text(path).items():
         file2hash[k] = c.hash(v)
     return file2hash

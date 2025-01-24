@@ -4,7 +4,7 @@ from yaml.loader import SafeLoader
 import streamlit as st
 
 class StreamlitAuth(c.Module):
-    config_path = c.repo_path + '/data/auth_config.yaml'
+    config_path = c.reponame + '/data/auth_config.yaml'
     def __init__(self, config_path=None):
 
         self.load_config(config_path)

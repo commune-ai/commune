@@ -135,6 +135,3 @@ class Cli:
         else:
             print(output)
         return output
-def main():
-    Cli().forward()
-    

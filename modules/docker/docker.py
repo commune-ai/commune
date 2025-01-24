@@ -6,16 +6,16 @@ import commune as c
 
 class Docker:
     
-    def dockerfile(self, path = c.repo_path): 
+    def dockerfile(self, path = c.reponame): 
         path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
         return c.get_text(path)
     
     def resolve_repo_path(self, path):
         if path is None:
-            path = c.repo_path
+            path = c.reponame
         else:
             if not path.startswith('/') or not path.startswith('~') or not path.startswith('.'):
-                path = c.repo_path + '/' + path
+                path = c.reponame + '/' + path
             else:
                 path = os.path.abspath(path)
         return path
@@ -25,7 +25,7 @@ class Docker:
         return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
 
     
-    def docker_compose(self, path = c.repo_path): 
+    def docker_compose(self, path = c.reponame): 
         docker_compose_path = self.resolve_docker_compose_path(path)
         return c.load_yanl(docker_compose_path)
 
@@ -114,8 +114,6 @@ class Docker:
         self.chmod_scripts()
         c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
-
-    
     def install_docker_compose(self, sudo=False):
         return c.cmd('apt install docker-compose', verbose=True, sudo=True)
     # def build_commune(self, sudo=False):

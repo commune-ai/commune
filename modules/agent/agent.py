@@ -71,26 +71,45 @@ class Agent:
     
     def process_text(self, text, threshold=1000):
         new_text = ''
-        for word in text.split(' '):
-            word_is_filepath = any([word.startswith(ch) for ch in ['.', '~', '/']]) and os.path.exists(word)
-            if word_is_filepath:
-                word = c.file2text(word)
-            else:
-                condition2fn = {
-                    "file": c.file2text,
-                    "code": c.code,
-                    "c": c.code,
-                    'm': c.code,
-                    'module': c.code,
-                    "run": c.run_fn,
-                    'fn': c.run_fn,
-                }
+
+        is_function_running = False
+        words = text.split(' ')
+        condition2fn = {
+            "file": c.file2text,
+            "text": c.file2text,
+            "code": c.code,
+            "c": c.code,
+            'm': c.code,
+            'module': c.code,
+            "run": c.run_fn,
+            'fn': c.run_fn,
+        }
+        for i, word in enumerate(words):
+            prev_word = words[i-1] if i > 0 else ''
+            if i > 0:
                 for condition, fn in condition2fn.items():
-                    if word.startswith(condition + '/'):
-                        word = str(fn('/'.join(word.split(condition + '/')[1:])))
+                    is_condition = bool(words[i-1].startswith('/'+condition ) or words[i-1].startswith(condition +'/' ))
+                    if  is_condition:
+                        word = condition2fn[condition](word)
+                        wordchars = len(str(word))
+                        c.print(f'Condition(fn={condition}, chars={wordchars})' )
                         break
-                
+            # resolve @module/fn(word[i-1]) arg(word[i]) which allows for @module/fn arg 
+            # restrictions can currently only handle one function argument, future support for multiple
+            if prev_word.startswith('@'):
+                if prev_word.endswith('/'):
+                    prev_word = prev_word[:-1]
+                if prev_word.count('/') == 1:
+                    if prev_word.endswith('@/'):
+                        prev_word =  '@'+'module' + prev_word.split('@')[1]
+                    module, fn = prev_word.split('@')[1].split('/')
+                else:
+                    module = 'module'
+                    fn = prev_word.split('@')[1]
+                module = c.module(module)()
+                word = str(getattr(module, fn)(word))
             new_text += str(word)
+        c.print(f'ProcessedText(chars={len(new_text)})')
         return new_text
     
  

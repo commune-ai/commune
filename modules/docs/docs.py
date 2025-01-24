@@ -1,7 +1,6 @@
 import commune as c
 import os
-
-class Docs(c.Module):
+class Docs:
     def ask(self, *question, 
                 model='anthropic/claude-3.5-sonnet', 
                 **kwargs ) -> int:

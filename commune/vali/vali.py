@@ -12,9 +12,6 @@ class Vali(c.Module):
     vote_time = 0 # the time of the last vote (for voting networks)
     vote_staleness = 0 # the time since the last vote
     epochs = 0 # the number of epochs
-    futures = [] # the futures for the parallel tasks
-    results = [] # the results of the parallel tasks
-    _clients = {} # the clients for the parallel tasks
 
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
@@ -24,13 +21,13 @@ class Vali(c.Module):
                     max_workers : Optional[int]=  None , # the number of parallel workers in the executor
                     score : Union['callable', int]= None, # score function
                     key : str = None,
-                    path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                     tempo : int = None , 
                     timeout : int = 3, # timeout per evaluation of the module
                     update : bool =False, # update during the first epoch
                     run_loop : bool = True, # This is the key that we need to change to false
+                    path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                  **kwargs):
-
+                 
         self.timeout = timeout or 3
         self.max_workers = max_workers or c.cpu_count() * 5
         self.batch_size = batch_size or 128
@@ -63,12 +60,10 @@ class Vali(c.Module):
         self.tempo = tempo
         self.search = search
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
-        self.is_voting_network = any([v in self.network for v in self.incentive_networks])
         self.set_score(score)
         self.sync(update=update)
 
     def score(self, module):
-        print(module.info(), 'FAM')
         return int('name' in module.info())
     
     def set_score(self, score):
@@ -88,6 +83,8 @@ class Vali(c.Module):
         return int(self.epoch_time + self.tempo - c.time())
 
     def get_client(self, module:dict) -> 'commune.Client':
+        if not hasattr(self, '_clients'):
+            self._clients = {}
         feature2type = {'name': str, 'address': str, 'key': str}
         for f, t in feature2type.items():
             assert f in module, f'Module missing {f}'
@@ -155,6 +152,7 @@ class Vali(c.Module):
         max_age =  0 if update else (self.tempo or 60)
         self.modules = self.network_module.modules(subnet=self.subnet, max_age=max_age)
         self.params = self.network_module.params(subnet=self.subnet, max_age=max_age)
+        self.is_voting_network = bool(hasattr(self.network_module, 'vote'))
         self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
         print(self.tempo)
         if self.search != None:
@@ -206,14 +204,12 @@ class Vali(c.Module):
             if isinstance(by, str):
                 by = [by]
             df = df.sort_values(by=by, ascending=ascending)
-        # if to_dict is true, we return the dataframe as a list of dictionaries
         if to_dict:
             return df.to_dict(orient='records')
         if len(df) > page_size:
             pages = len(df)//page_size
             page = page or 0
             df = df[page*page_size:(page+1)*page_size]
-
         return df
 
     def module_paths(self):

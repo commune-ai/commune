@@ -60,8 +60,7 @@ class Key(c.Module):
                  path:str = None,
                  **kwargs): 
         self.set_private_key(private_key=private_key, 
-                             crypto_type=crypto_type, 
-                             path=path, **kwargs)
+                             crypto_type=crypto_type, **kwargs)
 
     @property
     def short_address(self):
@@ -84,7 +83,6 @@ class Key(c.Module):
     def set_private_key(self, 
                  private_key: Union[bytes, str] = None, 
                  crypto_type: int = crypto_type,
-                 path:str = None,
                  **kwargs
                  ):
         """
@@ -111,30 +109,25 @@ class Key(c.Module):
                 private_key = sr25519.pair_from_seed(private_key)[1]
             public_key = sr25519.public_from_secret_key(private_key)
             key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
-            hash_type = 'ss58'
         elif crypto_type == KeyType.ED25519:       
-            private_key = private_key[:32] if len(private_key) == 64 else private_key        
+            private_key = private_key[:32]    
+            assert len(private_key) == 32  
             public_key, private_key = ed25519_zebra.ed_from_seed(private_key)
             key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
-            hash_type = 'ss58'
         elif crypto_type == KeyType.ECDSA:
             private_key = private_key[0:32]
+            assert len(private_key) == 32
             private_key_obj = PrivateKey(private_key)
             public_key = private_key_obj.public_key.to_address()
             key_address = private_key_obj.public_key.to_checksum_address()
-            hash_type = 'h160'
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         if type(public_key) is str:
             public_key = bytes.fromhex(public_key.replace('0x', ''))
-
-        self.hash_type = hash_type
         self.public_key = public_key
         self.address = self.key_address =  self.ss58_address = key_address
         self.private_key = private_key
         self.crypto_type = crypto_type
-        self.path = path 
-        self.key_address = self.ss58_address
         self.crypto_type_name = self.crypto_type2name(self.crypto_type)
         return {'key_address':key_address, 'crypto_type':crypto_type}
 
@@ -342,6 +335,7 @@ class Key(c.Module):
     def get_key_path(cls, key):
         key_path = cls.storage_dir() + '/' + key + '.json'
         return key_path
+
     @classmethod
     def get_key_json(cls, key):
         key_path =  cls.storage_dir() + '/' + key + '.json'
@@ -552,10 +546,9 @@ class Key(c.Module):
                     raise NotImplementedError('Derivation paths for this crypto type not supported')
 
                 derive_junctions = extract_derive_path(suri_parts['path'])
-
                 child_pubkey = derived_keypair.public_key
                 child_privkey = derived_keypair.private_key
-
+                
                 for junction in derive_junctions:
 
                     if junction.is_hard:
@@ -714,14 +707,10 @@ class Key(c.Module):
         if isinstance(password, str):
             password = password.encode()
         return hashlib.sha256(password).digest()
-    
-    def resolve_encryption_data(self, data):
-        if not isinstance(data, str):
-            data = str(data)
-        return data
 
     def encrypt(self, data, password=None):
-        data = self.resolve_encryption_data(data)
+        if not isinstance(data, str):
+            data = str(data)
         password = self.resolve_encryption_password(password)
         data = data + (AES.block_size - len(data) % AES.block_size) * chr(AES.block_size - len(data) % AES.block_size)
         iv = Random.new().read(AES.block_size)

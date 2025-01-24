@@ -1,6 +1,5 @@
 import commune as c
 import os
-import streamlit as st
 
 class Repo(c.Module):
     def __init__(self, a=1, b=2):

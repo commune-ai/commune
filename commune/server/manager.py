@@ -11,7 +11,7 @@ import os
 import json
 import asyncio
 
-class ProcessManager:
+class Manager:
 
     description = 'Process manager manages processes using pm2'
 

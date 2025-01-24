@@ -65,6 +65,13 @@ class Serializer(c.Module):
 
         return data_type
 
+    def str2bytes(self,  data: str, mode: str = 'hex') -> bytes:
+        if mode in ['utf-8']:
+            return bytes(data, mode)
+        elif mode in ['hex']:
+            return bytes.fromhex(data)
+
+
     def process_output(self, result, mode = 'str'):
         """
         process the output
