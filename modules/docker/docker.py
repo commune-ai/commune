@@ -108,11 +108,11 @@ class Docker:
 
     def install_gpus(self):
         self.chmod_scripts()
-        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
+        c.cmd('./run/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
 
     def install(self):
         self.chmod_scripts()
-        c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
+        c.cmd('./run/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
     def install_docker_compose(self, sudo=False):
         return c.cmd('apt install docker-compose', verbose=True, sudo=True)

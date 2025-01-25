@@ -14,14 +14,13 @@ Commune is a modular consensus system designed for building and managing distrib
 ```bash
 # Clone repository
 git clone https://github.com/commune-ai/commune.git
-
 # Install package
-cd commune
-pip install -e ./
+pip install -e ./commune
+
 
 # Install npm dependencies
-chmod +x ./scripts/*
-sudo ./scripts/install_npm_env.sh
+chmod +x ./run/*
+sudo ./run/install.sh # to install the environments
 ```
 
 ## 🏗️ Core Components

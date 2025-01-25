@@ -70,8 +70,8 @@ class c:
         root_modules = ['module', c.reponame[0]]
         if path in root_modules:
             return c
-        tree = tree or c.tree()
         path = c.shortcuts.get(path, path)
+        tree = tree or c.tree()
         path = tree.get(path, path)
         module = c.import_object(path)
         module = module if cls.is_module(module) else cls.convert_module(module)
@@ -119,10 +119,11 @@ class c:
     @classmethod
     def module_name(cls, obj=None):
         obj = obj or cls
+        if  isinstance(obj, str):
+            obj = c.module(obj)
         module_file =  inspect.getfile(obj)
         return c.path2name(module_file)
     path  = name = module_name 
-
     def vs(self, path = None):
         path = path or c.libpath
         path = os.path.abspath(path)
@@ -486,8 +487,9 @@ class c:
                 try:
                     fn_obj = c.import_object(route)
                 except: 
-                    module = '/'.join(route.split('/')[:-1])
-                    fn = route.split('/')[-1]
+                    if '/' in route:
+                        module = '/'.join(route.split('/')[:-1])
+                        fn = route.split('/')[-1]
                     module = c.module(module)
                     fn_obj = getattr(module, fn)
                     if c.classify_fn(fn_obj) == 'self':
@@ -1361,6 +1363,14 @@ class c:
         except Exception as e:
             return False
     
+
+    @classmethod
+    def module_exists(cls, path:str, verbose=False)-> Any:
+        try:
+            c.import_module(path, verbose=verbose)
+            return True
+        except Exception as e:
+            return False
     @classmethod
     def module_exists(cls, module:str, **kwargs) -> bool:
         '''
@@ -1417,6 +1427,7 @@ class c:
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.libpath, depth=depth, **kwargs)
+
     
     @classmethod
     def core_tree(cls, **kwargs):
@@ -1431,7 +1442,6 @@ class c:
         tree_cache_path = 'tree/'+os.path.abspath(path).replace('/', '_')
         tree = c.get(tree_cache_path, None, max_age=max_age, update=update)
         if tree == None:
-            c.print(f'TREE(max_age={max_age}, depth={depth}, path={path})', color='green')
             class_paths = cls.classes(path, depth=depth)
             simple_paths = [cls.objectpath2name(p) for p in class_paths]
             tree = dict(zip(simple_paths, class_paths))
@@ -1588,7 +1598,6 @@ class c:
         # append the char to the code
         c.rm(path)
         for char in code:
-            print(char, end='')
             time.sleep(0.000001)
             # append the char to the code one at a time so i can see the progress
             with open(path, 'a') as f:

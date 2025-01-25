@@ -247,7 +247,7 @@ class Key(c.Module):
         if not cls.key_exists(path):
             if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)
-                c.print(f'key does not exist, generating new key -> {key["path"]}')
+                c.print(f'key does not exist, generating new key -> {path}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
         key_json = cls.get(path)
@@ -328,7 +328,6 @@ class Key(c.Module):
     @classmethod
     def key_exists(cls, key, **kwargs):
         path = cls.get_key_path(key)
-        import os
         return os.path.exists(path)
     
     @classmethod

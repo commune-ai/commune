@@ -1,7 +1,9 @@
 ## if not has npm install it
+REPO_NAME=$(basename $(pwd))
 OS_NAME=$(uname)
+echo "REPO_NAME: $REPO_NAME OS_NAME: $OS_NAME"
 
-echo "OS_NAME: $OS_NAME"
+# show its stats of the hard
 
 if ! command -v npm &> /dev/null
 then
@@ -47,24 +49,46 @@ then
 fi
 echo "Python3 installed"
 
-# make sure docker is installed
+# ensure pip
 
-if ! command -v docker &> /dev/null
+if ! command -v pip3 &> /dev/null
 then
     if [ "$OS_NAME" == "Linux" ]; then
         echo "Linux"
         sudo apt update
-        sudo apt install docker.io -y
-        sudo systemctl start docker
-        sudo systemctl enable docker
+        sudo apt install python3-pip -y
     fi
     if [ "$OS_NAME" == "Darwin" ]; then
         echo "Mac"
-        brew install docker
+        brew install python3-pip
     fi
     if [ "$OS_NAME" == "Windows" ]; then
         echo "Windows"
-        choco install docker-desktop
+        choco install python3-pip
     fi
 fi
-echo "Docker installed"
+
+echo "Pip3 installed"
+
+# ensure the repo is installed as a python package by ckeckiing "pip list | grep $REPO_NAME" 
+
+echo "Installed $REPO_NAME as a python package"
+
+# is commune installed
+
+if pip3 list | grep commune
+then
+    IS_INSTALLED="True"
+else
+    IS_INSTALLED="False"
+fi
+
+
+if [ "$IS_INSTALLED" == "False" ]; then
+    echo "Installing commune"
+    pip3 install -e .
+else
+    echo "commune is already installed"
+fi
+
+c key

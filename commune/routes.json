@@ -123,9 +123,13 @@
         "is_endpoint",
         "processes", 
         "kill", 
-        "kill_all", 
+        "kill_all",
         "logs"
     ],
+
+    "docker":
+        ["ps"],
+
 
     "subspace": [
         "s2e",

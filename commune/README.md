@@ -246,8 +246,8 @@ pip install -e ./
 3. **install npm pm2**
 This is required for the webserver to run
 ```bash 
-chmod +x ./scripts/* # make sure the scripts are executable
-sudo ./scripts/install_npm_env.sh # install npm and pm2 (sudo may not be required)
+chmod +x ./run/* # make sure the scripts are executable
+sudo ./run/install_npm_env.sh # install npm and pm2 (sudo may not be required)
 ```
 
 4. Check if commune is installed correctly, try running the following command

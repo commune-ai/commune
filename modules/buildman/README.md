@@ -15,10 +15,10 @@ A Python-based system to manage Docker containers and track container usage cost
 git clone https://github.com/yourusername/docker-cost-tracker.git
 
 # Build the Docker environment
-./scripts/build.sh
+./run/build.sh
 
 # Run the application
-./scripts/run.sh
+./run/run.sh
 ```
 
 ## Usage

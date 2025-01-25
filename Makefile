@@ -1,4 +1,4 @@
-SCRIPTS_PATH=./scripts
+SCRIPTS_PATH=./run
 build:
 	${SCRIPTS_PATH}/build.sh 
 start:
@@ -9,6 +9,8 @@ enter:
 	${SCRIPTS_PATH}/enter.sh
 test:
 	${SCRIPTS_PATH}/test.sh
+install:
+	${SCRIPTS_PATH}/install.sh	
 restart:
 	make stop
 	make start

@@ -16,7 +16,7 @@ class Server(c.Module):
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
     helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
-    m = manager = c.module("server.manager")()
+    manager = c.module("server.manager")()
     net = {'local': c.module('server.network')()}
     def __init__(
         self, 
@@ -42,11 +42,9 @@ class Server(c.Module):
         if isinstance(module, str):
             if self.tag_seperator in str(module):
                 module, tag = name.split(self.tag_seperator) 
-            module =   c.module(module)(**params)
-        if name == None:
-            name = c.module_name(module)
+        name = name or module
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
-        self.module = module
+        self.module = c.module(module)(**params)
         self.module.name = name 
         self.module.key = c.get_key(key or name, create_if_not_exists=True, crypto_type=crypto_type)
         self.module.key_address = self.module.key.key_address
@@ -63,25 +61,6 @@ class Server(c.Module):
         c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
         self.net['local'].add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
         uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-        
-
-    def set_gate(self, gate:str):
-        from .gate import Gate
-        self.gate = gate or Gate()
-        if isinstance(gate, str):
-            gate = c.mod(gate)()
-        assert hasattr(self.gate, 'gate')
-        assert hasattr(self.gate, 'middleware')
-        self.app.add_middleware(self.gate.middleware())
-
-    def set_manager(self, module=None):
-        if isinstance(module, str):
-            module = c.module(module)
-        self.manager = module or self.manager
-
-    
-
-
 
     functions_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
 
@@ -121,9 +100,9 @@ class Server(c.Module):
             if hasattr(self.module, fn):
                 schema[fn] = c.schema(getattr(self.module, fn ))
             else:
-                print(f'Function {fn} not found in {module.name}')
+                print(f'Function {fn} not found in {self.module.name}')
         self.module.schema = dict(sorted(schema.items()))
-        self.module.fn2cost = module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
+        self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
 
         ### get the info for the module
@@ -201,13 +180,13 @@ class Server(c.Module):
         headers = self.get_headers(request)
         self.gate(fn=fn, data=data, headers=headers)   
         is_admin = bool(c.is_admin(headers['key']))
-        is_owner = bool(headers['key'] == module.key.ss58_address)    
+        is_owner = bool(headers['key'] == self.module.key.ss58_address)    
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         elif (is_admin or is_owner) and hasattr(self, fn):
             fn_obj = getattr(self, fn)
         else:
-            raise Exception(f"{fn} not found in {module.name}")
+            raise Exception(f"{fn} not found in {self.module.name}")
         result = fn_obj(*data['args'], **data['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.time() - float(headers['time'])
         if c.is_generator(result):
@@ -228,7 +207,7 @@ class Server(c.Module):
                     'time': headers["time"], # the time of the request
                     'latency': latency, # the latency of the request
                     'key': headers['key'], # the key of the user
-                    'cost': module.fn2cost.get(fn, 1), # the cost of the function
+                    'cost': self.module.fn2cost.get(fn, 1), # the cost of the function
                 }
             user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
             c.put(user_path, user_data)
@@ -366,8 +345,8 @@ class Server(c.Module):
         return cls.net['local'].server_exists(name)
 
     @classmethod
-    def logs(self, name):
-        return self.manager.logs(name)
+    def logs(cls, name):
+        return clsf.manager.logs(name)
     def is_admin(self, address):
         return c.is_admin(address)
 
@@ -381,20 +360,19 @@ class Server(c.Module):
             request_staleness = c.time() - float(headers['time'])
             assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
             auth={'data': data, 'time': str(headers['time'])}
-            module = self.module
             address = headers['key']
             if c.is_admin(address):
                 rate_limit =  self.rates['admin']
-            elif address == module.key.ss58_address:
+            elif address == self.module.key.ss58_address:
                 rate_limit =  self.rates['owner']
             elif address in self.address2key:
                 rate_limit =  self.rates['local']
             else:
                 stake_score = self.state['stake'].get(address, 0) + self.multipliers['stake']
                 stake_to_score = (sum(self.state['stake_to'].get(address, {}).values())) * self.multipliers['stake_to']
-                stake_from_score = self.state['stake_from'].get(module.key.ss58_address, {}).get(address, 0) * self.multipliers['stake_from']
+                stake_from_score = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(address, 0) * self.multipliers['stake_from']
                 stake = stake_score + stake_to_score + stake_from_score
-                self.rates['stake'] = self.rates['stake'] * module.fn2cost.get(fn, 1)
+                self.rates['stake'] = self.rates['stake'] * self.module.fn2cost.get(fn, 1)
                 rate_limit =  min((stake / self.rates['stake']), self.rates['max'])
             count = self.call_count(headers['key'])
             assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
