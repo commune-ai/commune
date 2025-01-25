@@ -65,7 +65,7 @@ class ApiKey:
         return list(self.api2path().keys())
     def rm_api(self, module):
         path = self.get_api_path(module)  
-        assert c.exists(path), f'Error removing api keys for {module}'
+        assert c.path_exists(path), f'Error removing api keys for {module}'
         return c.rm(path)
     def api_paths(self):
         return list(self.api2path().values())
@@ -75,6 +75,6 @@ class ApiKey:
         return key in self.keys(module)
     def rm_keys(self, module):
         path =  self.get_api_path(module)  
-        assert c.exists(path), f'Error removing api keys for {module}'
+        assert c.path_exists(path), f'Error removing api keys for {module}'
         return c.rm(path) 
     

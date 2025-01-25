@@ -79,8 +79,8 @@ def test_key_encryption(password='1234'):
     Key.decrypt_key(path, password=password)
     assert Key.is_key_encrypted(path) == False, f'file {path} is encrypted'
     Key.rm(path)
-    print('file deleted', path, c.exists, 'fam')
-    assert not c.exists(path), f'file {path} not deleted'
+    print('file deleted', path, c.path_exists, 'fam')
+    assert not c.path_exists(path), f'file {path} not deleted'
     return {'success': True, 'msg': 'test_key_encryption passed'}
 
 def test_move_key():

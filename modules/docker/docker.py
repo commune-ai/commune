@@ -281,7 +281,7 @@ class Docker:
         if name == None:
             name = 'commune'
         
-        if c.exists(name):
+        if c.path_exists(name):
             return name
         name2dockerfile = self.name2dockerfile()
         if name in name2dockerfile:

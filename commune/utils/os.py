@@ -2145,7 +2145,7 @@ def pip_install(lib:str= None,
     if lib == None:
         lib = c.libpath
 
-    if c.exists(lib):
+    if c.path_exists(lib):
         cmd = f'pip install -e'
     else:
         cmd = f'pip install'

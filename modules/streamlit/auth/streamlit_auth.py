@@ -19,7 +19,7 @@ class StreamlitAuth(c.Module):
 
     def load_config(self, config_path=None):
         config_path = config_path if config_path != None else self.config_path
-        if not c.exists(config_path):
+        if not c.path_exists(config_path):
             c.put_yaml(config_path, self.config_template())
         self.config = c.get_yaml(config_path)
         return self.config

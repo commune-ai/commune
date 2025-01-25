@@ -111,6 +111,11 @@ class c:
     def filepath(cls, obj=None) -> str:
         obj = cls.resolve_module(obj)
         return inspect.getfile(obj)
+
+    def file2size(self, path:str='./', reverse=True) -> int:
+        file2size =  {k:len(str(v)) for k,v in c.file2text(path).items()}
+        file2size = dict(sorted(file2size.items(), key=lambda x: x[1], reverse=reverse))
+        return file2size
     
     @classmethod
     def dirpath(cls, obj=None) -> str:
@@ -778,6 +783,19 @@ class c:
             content = file.read()
         return content
 
+    @classmethod
+    def text(cls, path: str = './', **kwargs ) -> str:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path)
+        if os.path.isdir(path):
+            return c.file2text(path)
+        with open(path, 'r') as file:
+            content = file.read()
+        return content
+    @classmethod
+    def textsize(cls, path: str = './', **kwargs ) -> str:
+        return len(str(cls.text(path)))
+
     @staticmethod
     def sleep(period):
         time.sleep(period) 
@@ -982,8 +1000,8 @@ class c:
         return isinstance(fn, property)
     
     @classmethod
-    def exists(cls, path:str):
-        return os.path.exists(path) or os.path.exists(cls.resolve_path(path))
+    def path_exists(cls, path:str):
+        return os.path.exists(path)
    
     @classmethod
     def is_fn(cls, fn, splitters = [':', '/', '.']):
@@ -1331,7 +1349,7 @@ class c:
         return import_module(import_path)
     
     @classmethod
-    def get_object(cls, key:str, splitters=['/', '::', ':',  '.'], **kwargs)-> Any:
+    def get_object(cls, key:str, splitters=['/', '::',  '.'], **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
         module_path = None
         object_name = None
@@ -1340,7 +1358,7 @@ class c:
                 module_path = '.'.join(key.split(splitter)[:-1])
                 object_name = key.split(splitter)[-1]
                 break
-        if isinstance(key, str) and key.endswith('.py') :
+        if isinstance(key, str) and key.endswith('.py') and c.path_exists(key):
             key = c.path2objectpath(key)
             
         assert module_path != None and object_name != None, f'Invalid key {key}'
@@ -1357,6 +1375,9 @@ class c:
 
     @classmethod
     def object_exists(cls, path:str, verbose=False)-> Any:
+
+        # better way to check if an object exists?
+
         try:
             c.import_object(path, verbose=verbose)
             return True

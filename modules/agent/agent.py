@@ -188,7 +188,7 @@ class Agent:
     
 
     def score(self, module:str, **kwargs):
-        if c.exists(module):
+        if c.path_exists(module):
             code = c.file2text(module)
         else:
             code = c.code(module)

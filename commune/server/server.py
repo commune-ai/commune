@@ -126,7 +126,6 @@ class Server(c.Module):
             "address": self.module.address,
             "key": self.module.key.ss58_address,
             "crypto_type": self.module.key.crypto_type,
-            "fn2cost": self.module.fn2cost,
             "free": self.module.free,
             "time": c.time()
         }

@@ -11,8 +11,6 @@ class History(c.Module):
         self.max_age = max_age        
         self.set_history_path(path)
     # HISTORY 
-        
-
     def check_item(self, item, required_fields=['address', 'timestamp']):
         assert all([field in item for field in required_fields]), f'Missing required fields: {required_fields}'
         assert c.valid_ss58_address(item['address']), f'Invalid address: {item["address"]}'
