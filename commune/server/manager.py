@@ -81,7 +81,7 @@ class Manager:
         return c.wait(futures)
     
     
-    def start_process(self, 
+    def start(self, 
                   fn: str = 'serve',
                    module:str = None,  
                    name:Optional[str]=None, 
@@ -106,7 +106,13 @@ class Manager:
         cmd = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
         cmd = cmd  if autorestart else ' --no-autorestart' 
         cmd = cmd + ' -f ' if force else cmd
-        kwargs =  {'module': module ,  'fn': fn, 'args': args or [],  'kwargs': kwargs or {} }
+        kwargs =  {
+                    'module': module ,  
+                    'fn': fn, 
+                    'args': args or [],  
+                    'kwargs': kwargs or {} 
+                    }
+
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)

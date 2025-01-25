@@ -16,7 +16,7 @@ class Server(c.Module):
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
-    helper_functions  = ['info', 'metadata', 'schema', 'free', 'name', 'functions','key_address', 'crypto_type','fns', 'forward', 'rate_limit'] # the helper functions
+    helper_functions  = ['info', 'metadata', 'schema', 'name', 'functions','fns', 'forward'] # the helper functions
     manager = c.module("server.manager")()
     net = {'local': c.module('server.network')()}
     def __init__(
@@ -53,7 +53,6 @@ class Server(c.Module):
         self.module = c.module(module)(**params)
         self.module.name = name 
         self.module.key = c.get_key(key or name, create_if_not_exists=True, crypto_type=crypto_type)
-        self.module.key_address = self.module.key.key_address
         self.set_port(port)
         self.set_functions(functions) 
         self.loop = asyncio.get_event_loop()
@@ -75,7 +74,7 @@ class Server(c.Module):
         print(f'Network: {self.network}')
         uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
-    functions_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
+    function_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
 
     def set_functions(self,  functions:Optional[List[str]] ):
 
@@ -88,40 +87,32 @@ class Server(c.Module):
                 self.free = self.module.free
         self.module.free = self.free
         functions =  functions or []
-        for i, fn in enumerate(functions):
-            if callable(fn):
-                print('Adding function', f)
-                setattr(self, fn.__name__, fn)
-                functions[i] = fn.__name__
-        functions  =  sorted(list(set(functions + self.helper_functions)))
-        for k in self.functions_attributes:
-            if hasattr(self.module, k) and isinstance(getattr(self.module, k), list):
-                print('Found ', k)
-                functions = getattr(self.module, k)
-                break
-        # get function decorators form c.endpoint()
+        if len(functions) > 0:
+            for i, fn in enumerate(functions):
+                if callable(fn):
+                    print('Adding function -->', f)
+                    setattr(self, fn.__name__, fn)
+                    functions[i] = fn.__name__
+        function_attributes = [fa for fa in self.function_attributes if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list)]
+        assert len(function_attributes) == 1 , f'{function_attributes} is too many funcitonal attributes, choose one dog'
+        functions = getattr(self.module, function_attributes[0])
         for f in dir(self.module):
             try:
-                if hasattr(getattr(self.module, f), '__metadata__'):
+                if hasattr(getattr(self.module, f), '__fn_metadata__'):
                     functions.append(f)
             except Exception as e:
                 c.print(f'Error in get_endpoints: {e} for {f}')
+        self.module.schema = {fn: c.schema(getattr(self.module, fn )) for fn in functions}
+        functions  =  sorted(list(set(functions + self.helper_functions)))
         self.module.functions = sorted(list(set(functions)))
-        ## get the schema for the functions
-        schema = {}
-        for fn in functions :
-            if hasattr(self.module, fn):
-                schema[fn] = c.schema(getattr(self.module, fn ))
-            else:
-                print(f'Function {fn} not found in {self.module.name}')
-        self.module.schema = dict(sorted(schema.items()))
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
+        c.print(f'Functions({self.module.functions})')
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
 
         ### get the info for the module
         self.module.info = {
-            "functions": functions,
-            "schema": schema,
+            "functions": self.module.functions,
+            "schema": self.module.schema,
             "name": self.module.name,
             "address": self.module.address,
             "key": self.module.key.ss58_address,
@@ -234,7 +225,7 @@ class Server(c.Module):
 
     def sync(self, update=True , state_keys = ['stake_from', 'stake_to']):
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
-        print(f'Sync({self.network_path})')
+        c.print(f'Network(network={self.network} path={self.network_path.replace(c.homepath, "~")})')
         if hasattr(self, 'state'):
             latency = c.time() - self.state.get('time', 0)
             if latency < self.max_network_staleness:
@@ -279,6 +270,7 @@ class Server(c.Module):
                         result = c.call(namespace[name]+'/info')
                         if 'key' in result:
                             c.print(f'{name} is running', color='green')
+                        result.pop('schema', None)
                         return result
                     except Exception as e:
                         c.print(f'Error getting info for {name} --> {e}', color='red')
@@ -303,7 +295,7 @@ class Server(c.Module):
                 'timestale': timestale,
                 'public': public,            
             }
-            fn.__dict__['__metadata__'] = metadata
+            fn.__dict__['__fn_metadata__'] = metadata
             return fn
         return decorator_fn
     
@@ -324,11 +316,10 @@ class Server(c.Module):
         module = module or 'module'
         name = name or module
         params = {**(params or {}), **extra_params}
-        c.print(f'Serving({name} key={key} params={params} function={functions} )')
         if remote and isinstance(module, str):
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
             rkwargs['remote'] = False
-            cls.manager.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd, module="server")
+            cls.manager.start( module="server", fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key)
 
