@@ -7,6 +7,7 @@ import uvicorn
 import os
 import json
 import asyncio
+from starlette.middleware.base import BaseHTTPMiddleware
 
 class Server(c.Module):
     tag_seperator:str='::'
@@ -34,6 +35,11 @@ class Server(c.Module):
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
         run_app = True, # if the server should be run
+        allow_origins=["*"], 
+        allow_credentials=True, 
+        allow_methods=["*"], 
+        allow_headers=["*"],
+        max_bytes: int = 10**6,
         ) -> 'Server':
         self.set_network(network)  
         self.serializer = c.module(serializer)()
@@ -57,9 +63,16 @@ class Server(c.Module):
             return {'msg': 'not running app'}
         self.app = FastAPI()
         c.thread(self.sync_loop)
-        self.app.post("/{fn}")(self.forward)
+
+        def forward(fn: str, request: Request):
+            return self.forward(fn, request)
+        self.app.add_middleware(self.middleware(max_bytes=max_bytes))
+        self.app.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=allow_methods, allow_headers=allow_headers)
+         # add the endpoints to the app
+        self.app.post("/{fn}")(forward)
         c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
         self.net['local'].add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
+        print(f'Network: {self.network}')
         uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
     functions_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
@@ -173,7 +186,6 @@ class Server(c.Module):
                 return self.forward(fn, request, catch_exception=False)
             except Exception as e:
                 result =  c.detailed_error(e)
-                c.print(result, color='red')
                 return result
         module = self.module
         data = self.get_data(request)
@@ -198,6 +210,7 @@ class Server(c.Module):
             result = EventSourceResponse(generator_wrapper(result))
         else:
             output =  self.serializer.serialize(result)
+            
         if not self.free:
             user_data = {
                     'url': self.module.address, # the address of the server
@@ -316,7 +329,7 @@ class Server(c.Module):
         if remote and isinstance(module, str):
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
             rkwargs['remote'] = False
-            cls.m.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd, module="server")
+            cls.manager.start_process(fn='serve', name=name, kwargs=rkwargs, cwd=cwd, module="server")
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key)
 
@@ -333,20 +346,19 @@ class Server(c.Module):
 
     @classmethod
     def kill_all(cls): 
-        return cls.m.kill_all()
+        return cls.manager.kill_all()
 
     @classmethod
     def kill(cls, name, **kwargs):
-        cls.m.kill(name, **kwargs)
-        return {'success':True, 'message':f'Killed {name}'}
-        
+        return cls.manager.kill(name, **kwargs)
+
     @classmethod
     def server_exists(cls, name):
         return cls.net['local'].server_exists(name)
 
     @classmethod
     def logs(cls, name):
-        return clsf.manager.logs(name)
+        return cls.manager.logs(name)
     def is_admin(self, address):
         return c.is_admin(address)
 
@@ -457,10 +469,9 @@ class Server(c.Module):
         return x
 
 
-
-    def middleware(self):
+    def middleware(self, max_bytes = 10**6):
         class Middleware(BaseHTTPMiddleware):
-            def __init__(self, app, max_bytes: int = self.max_bytes):
+            def __init__(self, app, max_bytes: int = max_bytes):
                 super().__init__(app)
                 self.max_bytes = max_bytes
             async def dispatch(self, request: Request, call_next):

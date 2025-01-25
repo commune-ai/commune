@@ -131,14 +131,11 @@ class Manager:
         module_list = sorted(list(set(module_list)))
         return module_list
     
-    
     def procs(self, **kwargs):
         return self.processes(**kwargs)
-
-    
+        
     def exists(self, name:str, **kwargs) -> bool:
         return name in self.processes(**kwargs)
-
 
     def ensure_env(self,**kwargs):
         '''ensure that the environment variables are set for the process'''
