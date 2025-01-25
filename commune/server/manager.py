@@ -103,6 +103,7 @@ class Manager:
         name = name or module
         if refresh:
             self.kill(name)
+
         cmd = f"pm2 start {c.filepath()} --name {name} --interpreter {interpreter}"
         cmd = cmd  if autorestart else ' --no-autorestart' 
         cmd = cmd + ' -f ' if force else cmd
@@ -115,6 +116,9 @@ class Manager:
 
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         cmd = cmd +  f' -- --fn {run_fn} --kwargs "{kwargs_str}"'
+
+        print(cmd)
+
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
 

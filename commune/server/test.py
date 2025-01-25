@@ -1,5 +1,3 @@
-
-
 import commune as c
 
 def test():
@@ -28,7 +26,7 @@ def test():
         t2 = time.time()
 
         latency = t2 - t1
-        emoji = '✅' if str(des_ser_data) == str(ser_data) else '❌'
+        emoji = '🟢' if str(des_ser_data) == str(ser_data) else '❌'
         print(type(data),emoji)
     return {'msg': 'PASSED test_serialize_deserialize'}
 

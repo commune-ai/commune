@@ -51,8 +51,13 @@ class Network(c.Module):
             modules = [m for m in modules if search in m['name']]
         return modules
 
-    def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
-        return {m['name']: '0.0.0.0' + ':' + m['address'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
+    def namespace(self, search=None,  max_age:int = None, update:bool = False, **kwargs) -> dict:
+        max_age = max_age or self.tempo
+        modules = self.modules(search=search, max_age=max_age, update=update)
+        namespace =  {}
+        for m in modules:
+            namespace[m['name']] = '0.0.0.0' + ':' + m['address'].split(':')[-1]
+        return namespace
 
     def add_server(self, name:str, address:str, key:str) -> None:
         data = {'name': name, 'address': address, 'key': key}

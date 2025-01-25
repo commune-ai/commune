@@ -124,7 +124,7 @@ class Cli:
         output = fn_obj(*args, **kwargs) if callable(fn_obj) else fn_obj
         latency = time.time() - t0
         is_error =  c.is_error(output)
-        print(f'❌Error({latency:.3f}sec)❌' if is_error else f'✅Result({latency:.3f}s)✅')
+        print(f'❌Error({latency:.3f}sec)❌' if is_error else f'🟢Result({latency:.3f}s)🟢')
         is_generator = c.is_generator(output)
         if is_generator:
             for item in output:

@@ -11,70 +11,71 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 class Server(c.Module):
     tag_seperator:str='::'
-    user_data_lifetime = 3600 # the lifetime of the user data
+    lifetime = 3600 # the lifetime of the user data
     max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
     max_network_staleness: int = 60 #  (in seconds) the time it takes for. the network to refresh
     multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}
     rates : Dict[str, int]= {'max': 10, 'local': 10000, 'stake': 1000, 'owner': 10000, 'admin': 10000} # the maximum rate  ):
     helper_functions  = ['info', 'metadata', 'schema', 'name', 'functions','fns', 'forward'] # the helper functions
-    manager = c.module("server.manager")()
+    function_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
     net = {'local': c.module('server.network')()}
+    manager = c.module("server.manager")()
+    
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
-        key:str = Optional[None], # key for the server (str)
+        key:str = None, # key for the server (str)
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
         name: Optional[str] = None, # the name of the server
         params : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
         gate:str = None, # the .network used for incentives
         free : bool = False, # if the server is free (checks signature)
-        crypto_type: Union[int, str] = 'sr25519', # the crypto type of the key
+        key_type: Union[int, str] = 'sr25519', # the crypto type of the key
         network = 'subspace', # the network the server is running on
         history_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
-        run_app = True, # if the server should be run
-        allow_origins=["*"], 
-        allow_credentials=True, 
-        allow_methods=["*"], 
-        allow_headers=["*"],
-        max_bytes: int = 10**6,
+        run_api = True, # if the server should be run
         ) -> 'Server':
         self.set_network(network)  
         self.serializer = c.module(serializer)()
+        if module == None:
+            if isinstance(name, str):
+                module = name
         module = module or 'module'
         params =params or {}
         if isinstance(module, str):
-            if self.tag_seperator in str(module):
+            if self.tag_seperator in module:
+                name =  module
                 module, tag = name.split(self.tag_seperator) 
+
         name = name or module
+
         # NOTE: ONLY ENABLE FREEMODE IF YOU ARE ON A CLOSED NETWORK,
         self.module = c.module(module)(**params)
         self.module.name = name 
-        self.module.key = c.get_key(key or name, create_if_not_exists=True, crypto_type=crypto_type)
+        self.module.key = c.get_key(key or name,key_type=key_type)
         self.set_port(port)
         self.set_functions(functions) 
         self.loop = asyncio.get_event_loop()
         self.history_path = history_path or self.resolve_path(f'history/{self.module.name}')
+        if run_api:
+            self.run_api()
 
-        if not run_app:
-            return {'msg': 'not running app'}
-        self.app = FastAPI()
-        c.thread(self.sync_loop)
-
+    def run_api(self, max_bytes: int = 10**6, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]):
         def forward(fn: str, request: Request):
             return self.forward(fn, request)
-        self.app.add_middleware(self.middleware(max_bytes=max_bytes))
-        self.app.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=allow_methods, allow_headers=allow_headers)
-         # add the endpoints to the app
-        self.app.post("/{fn}")(forward)
-        c.print(f'Served(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
+        self.api = FastAPI()
+        c.thread(self.sync_loop)
+        self.api.add_middleware(self.middleware(max_bytes=max_bytes))
+        self.api.add_middleware(CORSMiddleware, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=allow_methods, allow_headers=allow_headers)
+        self.api.post("/{fn}")(forward)
+        c.print(f'Server(name={self.module.name}, address={self.module.address}, key={self.module.key.key_address})', color='purple')
         self.net['local'].add_server(name=self.module.name, address=self.module.address, key=self.module.key.ss58_address)
         print(f'Network: {self.network}')
-        uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+        uvicorn.run(self.api, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
-    function_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
 
     def set_functions(self,  functions:Optional[List[str]] ):
 
@@ -116,24 +117,21 @@ class Server(c.Module):
             "name": self.module.name,
             "address": self.module.address,
             "key": self.module.key.ss58_address,
-            "crypto_type": self.module.key.crypto_type,
+            "key_type": self.module.key.key_type,
             "free": self.module.free,
             "time": c.time()
         }
 
         return {'success':True, 'message':f'Set functions to {functions}'}
         
-    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
-        m = self.manager
-        name = self.module.name
-        for k in port_attributes:
-            if hasattr(self.module, k):
-                port = getattr(self.module, k)
-                break
+    @classmethod
+    def get_port(cls, port=None, name=None):
+        name = name or 'module'
+        
         if port in [None, 'None']:
-            namespace = self.net['local'].namespace()
+            namespace = cls.net['local'].namespace()
             if name in namespace:
-                m.kill(name)
+                cls.manager.kill(name)
                 try:
                     port =  int(namespace.get(self.module.name).split(':')[-1])
                 except:
@@ -144,7 +142,14 @@ class Server(c.Module):
             c.kill_port(port)
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
-        self.module.port = port
+        return port
+    def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
+        name = self.module.name
+        for k in port_attributes:
+            if hasattr(self.module, k):
+                port = getattr(self.module, k)
+                break
+        self.module.port = port or self.get_port(port=port, name=name)
         self.module.address = '0.0.0.0:' + str(self.module.port)
         return {'success':True, 'message':f'Set port to {port}'}
     
@@ -180,7 +185,8 @@ class Server(c.Module):
         module = self.module
         data = self.get_data(request)
         headers = self.get_headers(request)
-        self.gate(fn=fn, data=data, headers=headers)   
+        gate_info = self.gate(fn=fn, data=data, headers=headers)  
+        c.print(f'Forward(fn={fn} key={headers["key"][:4]}... gate={gate_info})')
         is_admin = bool(c.is_admin(headers['key']))
         is_owner = bool(headers['key'] == self.module.key.ss58_address)    
         if hasattr(module, fn):
@@ -211,7 +217,9 @@ class Server(c.Module):
                     'latency': latency, # the latency of the request
                     'key': headers['key'], # the key of the user
                     'cost': self.module.fn2cost.get(fn, 1), # the cost of the function
+                    "client_signature": headers.get('signature', None), # the signature of the client
                 }
+            user_data['server_signature'] = self.module.key.sign(user_data, to_str=True)
             user_path = self.user_path(f'{user_data["key"]}/{user_data["fn"]}/{c.time()}.json') 
             c.put(user_path, user_data)
         return result
@@ -227,6 +235,7 @@ class Server(c.Module):
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
         c.print(f'Network(network={self.network} path={self.network_path.replace(c.homepath, "~")})')
         if hasattr(self, 'state'):
+            print('state exists')
             latency = c.time() - self.state.get('time', 0)
             if latency < self.max_network_staleness:
                 return {'msg': 'state is fresh'}
@@ -253,31 +262,34 @@ class Server(c.Module):
 
     @classmethod
     def wait_for_server(cls,
-                          name: str ,
+                          name: int ,
                           network: str = 'local',
-                          timeout:int = 600,
-                          max_age = 1,
-                          sleep_interval: int = 1) -> bool :
+                          timeout:int = 100, 
+                          sleep_interval=1) -> bool :
         
         time_waiting = 0
-        # rotating status thing
-        c.print(f'waiting for {name} to start...', color='cyan')
-    
-        while time_waiting < timeout:
-                namespace = cls.net['local'].namespace(network=network, max_age=max_age)
-                if name in namespace:
-                    try:
-                        result = c.call(namespace[name]+'/info')
-                        if 'key' in result:
-                            c.print(f'{name} is running', color='green')
-                        result.pop('schema', None)
-                        return result
-                    except Exception as e:
-                        c.print(f'Error getting info for {name} --> {e}', color='red')
-                c.sleep(sleep_interval)
-                time_waiting += sleep_interval
-        raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
+        # have a waiting counter on one line
 
+        lights = '🟡'
+        # have the time print on the same line and delete the previous line without using c. 
+        while time_waiting < timeout:
+            namespace = c.namespace()
+            c.sleep(sleep_interval)
+            c.print(c.logs(name, mode='local'), end='\r')
+            c.print(f'🟡ServerLoading(name={name} t={int(time_waiting)} timeout={timeout})🟡', end='\r')
+            if name in namespace:
+                result = c.call(namespace[name])
+                if 'functions' in result:
+                    result.pop('schema')
+                    break
+            time_waiting += sleep_interval
+            if time_waiting > timeout:
+                raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
+        # checkmarket
+        c.print(f'🟢ServerLoading(name={name} t={int(time_waiting)} timeout={timeout})🟢')
+
+
+        return result
     @classmethod
     def endpoint(cls, 
                  cost = 1,
@@ -312,15 +324,16 @@ class Server(c.Module):
               cwd = None,
               **extra_params
               ):
-
         module = module or 'module'
         name = name or module
+        print(f'Serving(module={module}, name={name})')
         params = {**(params or {}), **extra_params}
         if remote and isinstance(module, str):
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
             rkwargs['remote'] = False
             cls.manager.start( module="server", fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
             return cls.wait_for_server(name)
+        print(locals())
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key)
 
     def add_endpoint(self, name, fn):
@@ -347,8 +360,8 @@ class Server(c.Module):
         return cls.net['local'].server_exists(name)
 
     @classmethod
-    def logs(cls, name):
-        return cls.manager.logs(name)
+    def logs(cls, name, **kwargs):
+        return cls.manager.logs(name, **kwargs)
     def is_admin(self, address):
         return c.is_admin(address)
 
@@ -363,6 +376,7 @@ class Server(c.Module):
             assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
             auth={'data': data, 'time': str(headers['time'])}
             address = headers['key']
+            stake = 0
             if c.is_admin(address):
                 rate_limit =  self.rates['admin']
             elif address == self.module.key.ss58_address:
@@ -378,7 +392,7 @@ class Server(c.Module):
                 rate_limit =  min((stake / self.rates['stake']), self.rates['max'])
             count = self.call_count(headers['key'])
             assert count <= rate_limit, f'rate limit exceeded {count} > {rate_limit}'     
-            return True
+            return {'rate_limit': rate_limit, 'count': count, 'stake': stake}
 
     def users(self):
         try:
@@ -395,8 +409,8 @@ class Server(c.Module):
     def check_user_data(self, address):
         path2latency = self.user_call_path2latency(address)
         for path, latency  in path2latency.items():
-            if latency > self.user_data_lifetime:
-                c.print(f'Removing stale path {path} ({latency}/{self.user_data_lifetime})')
+            if latency > self.lifetime:
+                c.print(f'RemovingPath(path={path} age(s)={latency} lifetime={self.lifetime})')
                 if os.path.exists(path):
                     os.remove(path)
 
@@ -434,6 +448,11 @@ class Server(c.Module):
     def users(self):
         return os.listdir(self.history_path)
 
+    @classmethod
+    def rm_all_data(cls):
+        c.rm(cls.history_path)
+        return {'success':True, 'message':'Removed all user data'}
+
     def user2count(self):
         user2count = {}
         for user in self.users():
@@ -443,9 +462,11 @@ class Server(c.Module):
     def history(self, user):
         return self.user_data(user)
 
+
+
     @classmethod
     def all_history(cls, module=None):
-        self = cls(module=module, run_app=False)
+        self = cls(module=module, run_api=False)
         all_history = {}
         for user in self.users():
             all_history[user] = self.history(user)

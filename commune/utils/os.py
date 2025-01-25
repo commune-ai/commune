@@ -233,11 +233,12 @@ def stream_output(process, verbose=False):
             pipe = getattr(process, mode)
             if pipe == None:
                 continue
-            for line in iter(pipe.readline, b''):
-                line = line.decode('utf-8')
+            # print on the character level
+            for ch in iter(lambda: pipe.read(1), ''):
+                ch = ch.decode('utf-8')
                 if verbose:
-                    print(line[:-1])
-                yield line
+                    print(ch, end='')
+                yield ch
     except Exception as e:
         print(e)
         pass
@@ -2047,7 +2048,7 @@ emojis = {
     'heart': '❤️',
     'star': '⭐',
     'fire': '🔥',
-    'check': '✅',
+    'check': '🟢',
     'cross': '❌',
     'warning': '⚠️',
     'info': 'ℹ️',

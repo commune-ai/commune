@@ -12,7 +12,7 @@ c add_key alice
 
 key already exists at alice
 {
-    'crypto_type': 1,
+    'key_type': 1,
     'seed_hex': '518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
     'derive_path': None,
     'path': 'alice',
@@ -34,7 +34,7 @@ c add_key alice
 
 
 {
-    'crypto_type': 1,
+    'key_type': 1,
     'seed_hex': 
 '518fad1043efc934a759334215ef54d48e1f8836355ed864bbb797f90ecb32b7',
     'derive_path': None,
@@ -207,7 +207,7 @@ c.key_info('fam')  # Replace 'fam' with the key name
 
 ```
 {
-    'crypto_type': 1,
+    'key_type': 1,
     'seed_hex': '6a363df4c2b7eaeb0b13efedbd37308d2bda3be8bc8aa758ecc00eb3089f7b97',
     'derive_path': None,
     'path': 'fam',

@@ -80,7 +80,6 @@
     ],
     "network": [
         "networks",
-        "rm_server",
         "server_exists",
         "add_server",
         "has_server",
@@ -129,8 +128,6 @@
 
     "docker":
         ["ps"],
-
-
     "subspace": [
         "s2e",
         "transfer_stake",

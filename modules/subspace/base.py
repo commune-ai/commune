@@ -1631,7 +1631,7 @@ class SubstrateInterface:
                 signature_version = signature[0]
                 signature = signature[1:]
             else:
-                signature_version = keypair.crypto_type
+                signature_version = keypair.key_type
 
         else:
             # Create signature payload
@@ -1640,7 +1640,7 @@ class SubstrateInterface:
             )
 
             # Set Signature version to crypto type of keypair
-            signature_version = keypair.crypto_type
+            signature_version = keypair.key_type
 
             # Sign payload
             signature = keypair.sign(signature_payload)

@@ -2,26 +2,26 @@
 import commune as c
 
 Key = c.module('key')
-def test_signing( crypto_type=[1,2], data='test'):
+def test_signing( key_type=[1,2], data='test'):
     # at the moment, the ed25519 is not supported in the current version of pycryptodome
-    if isinstance(crypto_type, list):
-        return  [test_signing(k, data=data) for k in crypto_type]
-    key = Key(crypto_type=crypto_type)
+    if isinstance(key_type, list):
+        return  [test_signing(k, data=data) for k in key_type]
+    key = Key(key_type=key_type)
     sig = key.sign(data)
     assert key.verify(data,sig, key.public_key)
-    return {'success':True, 'data':data, 'crypto_type':key.crypto_type2name(key.crypto_type)}
+    return {'success':True, 'data':data, 'key_type':key.key_type2name(key.key_type)}
 
 
-def test_encryption( values = [10, 'fam', 'hello world'], crypto_type=[0,1,2]):
-    if isinstance(crypto_type, list):
-        return [test_encryption(values=values, crypto_type=k) for k in crypto_type]
+def test_encryption( values = [10, 'fam', 'hello world'], key_type=[0,1,2]):
+    if isinstance(key_type, list):
+        return [test_encryption(values=values, key_type=k) for k in key_type]
     for value in values:
         value = str(value)
-        key = c.new_key(crypto_type=crypto_type)
+        key = c.new_key(key_type=key_type)
         enc = key.encrypt(value)
         dec = key.decrypt(enc)
         assert dec == value, f'encryption failed, {dec} != {value}'
-    return {'encrypted':enc, 'decrypted': dec, 'crypto_type':key.crypto_type2name(key.crypto_type)}
+    return {'encrypted':enc, 'decrypted': dec, 'key_type':key.key_type2name(key.key_type)}
 def test_encryption_with_password(value = 10, password = 'fam'):
     value = str(value)
     key = Key.new_key()

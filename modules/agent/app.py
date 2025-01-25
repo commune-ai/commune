@@ -131,7 +131,7 @@ class App(c.Module):
                                     model=params['model'],
                                     stream=True)
             # dank emojis to give it that extra flair
-            emojis = '✅🤖💻🔍🧠🔧⌨️'
+            emojis = '🟢🤖💻🔍🧠🔧⌨️'
             reverse_emojis = emojis[::-1]
             with st.spinner(f'{emojis} Generating {reverse_emojis}'):
                 st.write_stream(r)

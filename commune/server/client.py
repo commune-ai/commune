@@ -166,7 +166,7 @@ class Client:
         time_str = str(c.time())
         return {
             'key': key.ss58_address,
-            'crypto_type': str(key.crypto_type),
+            'key_type': str(key.key_type),
             'time': time_str,
             'Content-Type': 'application/json',
             'signature':  key.sign({'data': data, 'time': time_str}).hex()

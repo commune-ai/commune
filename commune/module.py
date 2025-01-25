@@ -74,7 +74,7 @@ class c:
         tree = tree or c.tree()
         path = tree.get(path, path)
         module = c.import_object(path)
-        module = module if cls.is_module(module) else cls.convert_module(module)
+        module = module if cls.is_obj_module(module) else cls.convert_module(module)
 
         if cache:
             c.module_cache[path] = module
@@ -88,6 +88,7 @@ class c:
     @classmethod
     def convert_module(cls, module):
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
+
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
         module.storage_dir = lambda *args, **kwargs : c.storage_dir(module)
@@ -99,7 +100,8 @@ class c:
         module.functions = module.fns = lambda *args, **kwargs : c.get_functions(module)
         module.fn2code = lambda *args, **kwargs : c.fn2code(module)
         module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
-        module.config = lambda *args, **kwargs : c.config(module)
+        if not hasattr(module, 'config'):
+            module.config = lambda *args, **kwargs : c.config(module)
         if not hasattr(module, 'ask'):
             def ask(*args, **kwargs):
                 args = [module.code()] + list(args)
@@ -138,6 +140,10 @@ class c:
     def module_class(cls, obj=None) -> str:
         return (obj or cls).__name__
 
+
+    def createenv(self, env):
+        return c.module('py')().create
+
     @classmethod
     def class_name(cls, obj= None) -> str:
         obj = obj if obj else cls
@@ -166,12 +172,22 @@ class c:
     
     @classmethod
     def storage_dir(cls, module=None):
-        module = cls.resolve_module(module)
-        return f'{c.storage_path}/{module.module_name()}'
+        module = module or cls
+        if isinstance(module, str):
+            module_name = module
+        else:
+            module_name = module.module_name()
+        return f'{c.storage_path}/{module_name}'
 
     @classmethod
-    def is_module(cls, obj) -> bool:
+    def is_obj_module(cls, obj) -> bool:
         return all([hasattr(obj, k) for k in c.core_features])
+
+    def is_module(cls, obj) -> bool:
+        try:
+            return cls.import_module(obj)
+        except Exception as e:
+            return False
 
     def print( *text:str,  **kwargs):
         if len(text) == 0:
@@ -241,15 +257,13 @@ class c:
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
     @classmethod
-    def run_fn(cls,fn:str, args:list = None, kwargs:dict= None, module:str = None) -> Any:
+    def run_fn(cls,fn:str, args:list = None, kwargs=None,  module:str = None) -> Any:
         if '/' in fn:
-            module, fn = fn.split('/')
-        module = c.module(module)
-        fn_obj = getattr(module, fn)
-        is_self_method = 'self' in c.get_args(fn_obj)
-        if is_self_method:
-            module = module()
-        fn_obj =  getattr(module, fn)
+            module = fn.split('/')[0]
+            fn = fn.split('/')[1]
+        fn_obj =  getattr(c.module(module), fn)
+        if 'self' in c.get_args(fn_obj):
+            fn_obj = getattr(c.module(module)(), fn)
         args = args or []
         kwargs = kwargs or {}
         return fn_obj(*args, **kwargs)
@@ -272,7 +286,7 @@ class c:
             return args[1:]
 
     @classmethod
-    def is_module_file(cls, module = None) -> bool:
+    def is_obj_module_file(cls, module = None) -> bool:
         if module != None:
             cls = c.module(module)
         dirpath = cls.dirpath()
@@ -281,12 +295,12 @@ class c:
 
 
     @classmethod
-    def is_module_folder(cls,  module = None) -> bool:
+    def is_obj_module_folder(cls,  module = None) -> bool:
         if module != None:
             cls = c.module(module)
         return not cls.is_file_module()
     
-    is_folder_module = is_module_folder 
+    is_folder_module = is_obj_module_folder 
 
     @classmethod
     def get_key(cls,key:str = None , **kwargs) -> None:
@@ -340,8 +354,11 @@ class c:
         return c.get_key(key).decrypt(data, password=password)
     
     @classmethod
-    def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
-        return '0x'+c.get_key(key).sign(data, **kwargs).hex()
+    def sign(cls, data:dict  = None, key: str = None, to_str=False, **kwargs) -> bool:
+        signature = c.get_key(key).sign(data, **kwargs)
+        if to_str:
+            return '0x' + signature.hex()
+        return signature
     
     @classmethod
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
@@ -385,7 +402,7 @@ class c:
 
     # local update  
     @classmethod
-    def update(cls,  ):
+    def update(cls ):
         c.namespace(update=True)
         c.ip(update=1)
         return {'ip': c.ip(), 'namespace': c.namespace()}
@@ -469,8 +486,8 @@ class c:
         fn2route = {}
         tree = c.tree()
         for module, fns in routes.items():
-            is_module = bool( module in tree)
-            splitter = '/' if  is_module else '/'
+            is_obj_module = bool( module in tree)
+            splitter = '/' if  is_obj_module else '/'
             for fn in fns:
                 fn2route[fn] =  module + splitter + fn
         return fn2route
@@ -497,7 +514,7 @@ class c:
                         fn = route.split('/')[-1]
                     module = c.module(module)
                     fn_obj = getattr(module, fn)
-                    if c.classify_fn(fn_obj) == 'self':
+                    if 'self' in c.get_args(fn_obj):
                         fn_obj = getattr(module(), fn)
                 if callable(fn_obj):
                     return fn_obj(*args, **kwargs)
@@ -547,6 +564,8 @@ class c:
     @classmethod
     def config(cls, module=None, to_munch=True, fn='__init__') -> 'Munch':
         module = module or cls
+        if not hasattr(module, 'config_path'):
+            return {}
         path = module.config_path()
         if os.path.exists(path):
             config = c.load_yaml(path)
@@ -563,6 +582,7 @@ class c:
                  **kwargs) -> str:
         if meta != None:
             data = {'data':data, 'meta':meta}
+        c.print(f'Putting data in {path}', verbose=verbose)
         if not path.endswith('.json'):
             path = path + '.json'
         path = cls.resolve_path(path=path)
@@ -642,12 +662,16 @@ class c:
     def resolve_path(cls, 
                      path:str = None, 
                      extension:Optional[str]=None, 
+                     module=None,
                      storage_dir=None) -> str:
         '''
         Abspath except for when the path does not have a
         leading / or ~ or . in which case it is appended to the storage dir
         '''
-        storage_dir = storage_dir or cls.storage_dir()
+        if module != None:
+            storage_dir = c.storage_dir(module)
+        else:
+            storage_dir = storage_dir or cls.storage_dir()
         if path == None :
             return storage_dir
         if path.startswith('/'):
@@ -665,7 +689,7 @@ class c:
     
     @classmethod
     def abspath(cls, path:str):
-        return os.path.abspath(os.path.expanduser(path))
+        return os.path.abspath(path)
     
     @classmethod
     def put_text(cls, path:str, text:str, key=None) -> None:
@@ -1202,9 +1226,9 @@ class c:
             else:
                 raise ValueError(f'Path {path} is not in libpath {c.libpath} or pwd {pwd}') 
         dir_chunks = path.split('/')[:-1] if '/' in path else []
-        is_module_folder = all([bool(chunk in dir_chunks) for chunk in path_filename_chunks])
-        is_module_folder = is_module_folder or (path_filename in module_folder_filnames)
-        if is_module_folder:
+        is_obj_module_folder = all([bool(chunk in dir_chunks) for chunk in path_filename_chunks])
+        is_obj_module_folder = is_obj_module_folder or (path_filename in module_folder_filnames)
+        if is_obj_module_folder:
             path = '/'.join(path.split('/')[:-1])
         path = path[1:] if path.startswith('/') else path
         path = path.replace('/', '.')
@@ -1364,6 +1388,7 @@ class c:
         assert module_path != None and object_name != None, f'Invalid key {key}'
         module_obj = c.import_module(module_path)
         return  getattr(module_obj, object_name)
+
     
     @classmethod
     def obj(cls, key:str, **kwargs)-> Any:
@@ -1469,10 +1494,34 @@ class c:
             c.put(tree_cache_path, tree)
         return tree
 
-    def test(self):
-        cmd=f"pytest {c.test_path}"
-        return c.cmd(cmd,  verbose=True)
-    
+
+    def core_test_files(self):
+        files = []
+        for module in c.core_modules():
+            files += self.test_files(module)
+        return files
+
+
+    def test( self, module=None):
+        if module != None:
+            modules = [module]
+        else:
+            modules = ["key", "server", "subspace"]
+        test_files = []
+        for m in modules:
+            test_files += self.test_files(m)
+        test_files = list(set(test_files))
+        c.print(f'Test(modules={modules} files={test_files})')
+        return c.cmd(f'pytest {" ".join(test_files)}',  stream=1)
+
+    def test_files(self, module=None):
+        module = c.module(module)
+        dirpath = module.dirpath()
+        test_files = []
+        for p in c.ls(dirpath):
+            if 'test' in p:
+                test_files += [p]
+        return test_files
     _tree = None
     @classmethod
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
@@ -1486,11 +1535,14 @@ class c:
     
     @classmethod
     def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
-        object_paths = cls.classes(cls.libpath, depth=depth )
-        object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
+        core_modules = cls.classes(cls.libpath, depth=depth )
+        core_modules = [cls.objectpath2name(p) for p in core_modules if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
-            object_paths = [p for p in object_paths if search in p]
-        return sorted(list(set(object_paths)))
+            core_modules = [p for p in core_modules if search in p]
+        core_modules += ['subspace']
+        
+        core_modules = sorted(list(set(core_modules)))  
+        return sorted(list(set(core_modules)))
 
     @classmethod
     def core_code(cls, search=None, depth=10000, **kwargs):
@@ -1607,7 +1659,10 @@ class c:
         gitprefix = 'https://github.com/'
         if not repo.startswith(gitprefix):
             repo = gitprefix + repo
-        path = os.path.abspath(path or  '~/'+repo.split('/')[-1])
+        path = c.abspath(path or  '~/'+repo.split('/')[-1])
+        if os.path.exists(path):
+            c.cmd('cd {path} && git pull', verbose=True)
+            return {'path': path, 'msg': f'Path {path} already exists'}
         cmd =  f'git clone {repo} {path}'
         return c.cmd(cmd, verbose=True)
     
