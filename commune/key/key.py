@@ -282,6 +282,7 @@ class Key(c.Module):
         path = 'key2address'
         key2address = cls.get(path, None, max_age=max_age, update=update)
         if key2address == None:
+            key2address = {}
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         return key2address
@@ -327,6 +328,7 @@ class Key(c.Module):
     
     @classmethod
     def key_exists(cls, key, **kwargs):
+        
         path = cls.get_key_path(key)
         return os.path.exists(path)
     

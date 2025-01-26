@@ -22,7 +22,7 @@ class Server(c.Module):
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
-        key:str = Optional[None], # key for the server (str)
+        key:str = None, # key for the server (str)
         functions:Optional[List[Union[str, callable]]] = None, # list of endpoints
         name: Optional[str] = None, # the name of the server
         params : dict = None, # the kwargs for the module
@@ -34,7 +34,7 @@ class Server(c.Module):
         history_path: Optional[str] = None, # the path to the user data
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
-        run_app = True, # if the server should be run
+        run_api = True, # if the server should be run
         allow_origins=["*"], 
         allow_credentials=True, 
         allow_methods=["*"], 
@@ -58,8 +58,11 @@ class Server(c.Module):
         self.loop = asyncio.get_event_loop()
         self.history_path = history_path or self.resolve_path(f'history/{self.module.name}')
 
-        if not run_app:
-            return {'msg': 'not running app'}
+        if run_api:
+            self.run_api(max_bytes=max_bytes, allow_origins=allow_origins, allow_credentials=allow_credentials, allow_methods=allow_methods, allow_headers=allow_headers)
+
+            
+    def run_api(self, max_bytes = 10**6, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"]):
         self.app = FastAPI()
         c.thread(self.sync_loop)
 
@@ -445,7 +448,7 @@ class Server(c.Module):
 
     @classmethod
     def all_history(cls, module=None):
-        self = cls(module=module, run_app=False)
+        self = cls(module=module, run_api=False)
         all_history = {}
         for user in self.users():
             all_history[user] = self.history(user)
