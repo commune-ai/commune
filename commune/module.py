@@ -52,6 +52,11 @@ class c:
     splitters = [':', '/', '.']
     route_cache = None
     _obj = None
+
+
+    def giturl(self, path:str='./') -> str:
+        path = self.resolve_path(path or self.libpath)
+        return c.cmd(f'git remote get-url origin', cwd=path)
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -60,33 +65,30 @@ class c:
                trials=1, 
                tree:dict=None ) -> str:
         path = path or 'module'
+        if path in ['module', c.reponame[0]]:
+            return c
         if path.endswith('.py') and os.path.exists(path):
             path = c.path2name(path)
+        path = path.replace('/','.')
+        if (path in c.module_cache):
+            module = c.module_cache[path]
         else:
-            path = path.replace('/','.')
-        if (path in c.module_cache) \
-                         and cache:
-            return c.module_cache[path]
-        root_modules = ['module', c.reponame[0]]
-        if path in root_modules:
-            return c
-        path = c.shortcuts.get(path, path)
-        tree = tree or c.tree()
-        path = tree.get(path, path)
-        module = c.import_object(path)
-        module = module if cls.is_module(module) else cls.convert_module(module)
-
-        if cache:
+            path = c.shortcuts.get(path, path)
+            tree = tree or c.tree()
+            path = tree.get(path, path)
+            module = c.import_object(path)
+            if not c.is_object_module(module):
+                module = c.convert_module(module)
             c.module_cache[path] = module
         if params != None:
-            module = module(**params)   
-
+            module = module(**params)
         return module
     
     get_agent = block =  get_block = get_module =  mod =  module
     
     @classmethod
-    def convert_module(cls, module):
+    def convert_module(cls, module:'Object', verbose=False):
+        c.print(f'ConvertingModule({module})', verbose=verbose)
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
@@ -170,18 +172,11 @@ class c:
         return f'{c.storage_path}/{module.module_name()}'
 
     @classmethod
-    def is_module(cls, obj) -> bool:
+    def is_object_module(cls, obj) -> bool:
         return all([hasattr(obj, k) for k in c.core_features])
 
     def print( *text:str,  **kwargs):
-        if len(text) == 0:
-            return
-        if c.is_generator(text[0]):
-            for t in text[0]:
-                c.print(t, end='')
-        else:
-            from .utils.os import print_console
-            return print_console(*text, **kwargs)
+        return c.obj('commune.utils.os.print_console')(*text, **kwargs)
 
     def is_error( *text:str,  **kwargs):
         return c.obj('commune.utils.os.is_error')(*text, **kwargs)
@@ -516,6 +511,12 @@ class c:
     
     @classmethod
     def is_class(cls, obj):
+        if isinstance(obj, str):
+            try:
+                obj = c.obj(obj)
+            except Exception as e:
+                print(e)
+                return False
         return inspect.isclass(obj)
     
     @classmethod
@@ -1513,7 +1514,7 @@ class c:
     
     def n(self, search=None):
         return len(c.modules(search=search))
-    
+
     @classmethod
     def modules(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:
         modules = cls.get('modules', max_age=max_age, update=update)

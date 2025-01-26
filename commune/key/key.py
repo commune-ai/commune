@@ -143,8 +143,8 @@ class Key(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         c.print(cls.put(path, key_json))
-        cls.update()
-        return  json.loads(key_json)
+        assert cls.key_exists(path), f'key does not exist at {path}'
+        return {'success': True, 'path':path, 'key':key}
     
     @classmethod
     def mv_key(cls, path, new_path):
@@ -278,7 +278,7 @@ class Key(c.Module):
         return keys
         
     @classmethod
-    def key2address(cls, search=None, max_age=10, update=False, **kwargs):
+    def key2address(cls, search=None, max_age=None, update=False, **kwargs):
         path = 'key2address'
         key2address = cls.get(path, None, max_age=max_age, update=update)
         if key2address == None:
@@ -286,6 +286,21 @@ class Key(c.Module):
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
             cls.put(path, key2address)
         return key2address
+
+    @classmethod
+    def deregister_key(cls, key):
+        key2address = cls.key2address()
+        if key in key2address:
+            key2address.pop(key)
+            cls.put('key2address', key2address)
+        return {'deregistered':key}
+    
+    @classmethod
+    def register_key(cls, key):
+        key2address = cls.key2address()
+        key2address[key] = key.ss58_address
+        cls.put('key2address', key2address)
+        return {'registered':key}
     
     @classmethod
     def n(cls, search=None, **kwargs):
@@ -295,7 +310,7 @@ class Key(c.Module):
     def address2key(cls, search:Optional[str]=None, update:bool=False):
         address2key =  { v: k for k,v in cls.key2address(update=update).items()}
         if search != None :
-            return address2key.get(search, None)
+            return {k:v for k,v in address2key.items() if search in k}
         return address2key
     
     @classmethod
@@ -701,6 +716,8 @@ class Key(c.Module):
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
+
+
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:

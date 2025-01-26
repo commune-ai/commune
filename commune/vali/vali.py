@@ -26,11 +26,10 @@ class Vali(c.Module):
                     update : bool =False, # update during the first epoch
                     run_loop : bool = True, # This is the key that we need to change to false
                     path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
-                 **kwargs):
-                 
-        self.timeout = timeout or 3
+                 **kwargs):     
+        self.timeout = timeout
         self.max_workers = max_workers or c.cpu_count() * 5
-        self.batch_size = batch_size or 128
+        self.batch_size = batch_size
         self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
         self.set_key(key)
         self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
@@ -64,7 +63,8 @@ class Vali(c.Module):
         self.sync(update=update)
 
     def score(self, module):
-        return int('name' in module.info())
+        info = module.info()
+        return int('name' in info)
     
     def set_score(self, score):
         if callable(score):
@@ -85,7 +85,7 @@ class Vali(c.Module):
     def get_client(self, module:dict) -> 'commune.Client':
         if not hasattr(self, '_clients'):
             self._clients = {}
-        feature2type = {'name': str, 'address': str, 'key': str}
+        feature2type = {'name': str, 'url': str, 'key': str}
         for f, t in feature2type.items():
             assert f in module, f'Module missing {f}'
             assert isinstance(module[f], t), f'Module {f} is not {t}'
@@ -95,26 +95,27 @@ class Vali(c.Module):
             client =  self._clients[module['key']]
         else:
             if isinstance(module, str):
-                address = module
+                url = module
             else:
-                address = module['address']
-            client =  c.client(address, key=self.key)
+                url = module['url']
+            client =  c.client(url, key=self.key)
             self._clients[module['key']] = client
         return client
 
     def score_module(self,  module:dict, **kwargs):
-        client = self.get_client(module)
-        module['time'] = c.time() # the timestamp
+        client = self.get_client(module) # the client
+        t0 = c.time() # the timestamp
         try:
-            module['score'] = self.score(client, **kwargs)
+            score = self.score(client, **kwargs)
         except Exception as e:
-            module['score'] = 0
             module['error'] = c.detailed_error(e)
+        module['score'] = score
+        module['time'] = t0
         module['latency'] = c.time() - module['time']
         module['path'] = self.path +'/'+ module['key']
         return module
 
-    def score_modules(self, modules: List[dict]):
+    def score_batch(self, modules: List[dict]):
         try:
             results = []
             futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
@@ -134,13 +135,13 @@ class Vali(c.Module):
             progress.update(1)
             c.sleep(1)
         self.sync()
-        c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n} )', color='yellow')
+        c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
         batches = [self.modules[i:i+self.batch_size] for i in range(0, self.n, self.batch_size)]
         progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
         results = []
         for i, module_batch in enumerate(batches):
-            print(f'Batch(i={i}/{len(batches)})')
-            results += self.score_modules(module_batch)
+            c.print(f'Batch(i={i}/{len(batches)})', color='yellow')
+            results += self.score_batch(module_batch)
             progress.update(1)
         self.epochs += 1
         self.epoch_time = c.time()
@@ -154,7 +155,6 @@ class Vali(c.Module):
         self.params = self.network_module.params(subnet=self.subnet, max_age=max_age)
         self.is_voting_network = bool(hasattr(self.network_module, 'vote'))
         self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
-        print(self.tempo)
         if self.search != None:
             self.modules = [m for m in self.modules if self.search in m['name']]
         self.n  = len(self.modules)  
@@ -182,7 +182,7 @@ class Vali(c.Module):
         return self.network_module.vote(**params)
     
     def scoreboard(self,
-                    keys = ['name', 'score', 'latency',  'address', 'key'],
+                    keys = ['name', 'score', 'latency',  'url', 'key'],
                     ascending = True,
                     by = 'score',
                     to_dict = False,

@@ -5,6 +5,8 @@ import commune as c
 print = c.print
 class Cli:
 
+    desc = 'Commune CLI'
+
     def forward(self):
         argv = sys.argv[1:]
         if len(argv) == 0:

@@ -59,13 +59,7 @@ class Subspace(c.Module):
         timeout: int | None = None,
         net = None,
     ):
-        """
-        Args:
-            url: The URL of the network node to connect to.
-            num_connections: The number of websocket connections to be opened.
-        """
-        network = net or network # add a little shortcut
-        self.set_network(network=network,
+        self.set_network(network=net or network, # add a little shortcut,
                          mode=mode,
                          url=url,  
                          test = test,
@@ -134,7 +128,7 @@ class Subspace(c.Module):
         except Exception as e: 
             c.print('ERROR IN CONNECTIONS QUEUE:', e)
             
-        return {'connections': self.num_connections, 'url': self.url}
+        return {'num_connections': self.num_connections, 'url': self.url}
     
     def get_url(self, mode='wss',  **kwargs):
         prefix = mode + '://'
@@ -789,6 +783,8 @@ class Subspace(c.Module):
         Raises:
             NetworkQueryError: If the query fails or is invalid.
         """
+        if  'Weights' in name:
+            module = 'SubnetEmissionModule'
         if '/' in name:
             module, name = name.split('/')
         result = self.query_batch({module: [(name, params)]})
@@ -821,6 +817,8 @@ class Subspace(c.Module):
             QueryError: If the query to the network fails or is invalid.
         """
 
+        if name == 'Weights':
+            module = 'SubnetEmissionModule'
         path =  self.resolve_path(f'{self.network}/query_map/{module}/{name}_params={params}')
         result = c.get(path, None, max_age=max_age, update=update)
         if result == None:
@@ -1268,13 +1266,13 @@ class Subspace(c.Module):
         key = self.resolve_key(key)
         subnet = self.resolve_subnet(subnet)
         address = c.namespace().get(name, '0.0.0.0:8888')
-        address = address if public else ('0.0.0.0:' + address.split(':')[-1])
-        module = self.get_module(key.ss58_address, subnet=subnet)
+        address = url if public else ('0.0.0.0:' + url.split(':')[-1])
+        module = self.get_module(key.ss58_url, subnet=subnet)
         validator_weight_fee = validator_weight_fee or module.get('validator_weight_fee', 0)
         delegation_fee = delegation_fee or module.get('stake_delegation_fee', 0)
         params = {
             "name": name,
-            "address": address,
+            "url": url,
             "stake_delegation_fee": delegation_fee,
             "metadata": metadata,
             'validator_weight_fee': validator_weight_fee,
@@ -1287,7 +1285,7 @@ class Subspace(c.Module):
         self,
         name: str,
         subnet: str = "Rootnet",
-        address: str | None = None,
+        url: str | None = None,
         module_key = None, 
         key: Keypair = None,
         metadata: str | None = 'NA',
@@ -1300,23 +1298,23 @@ class Subspace(c.Module):
         Args:
             key: The keypair used for registering the module.
             name: The name of the module.
-            address: The address of the module. 
+            url: The url of the module. 
             key_address : The ss58_address of the module
             subnet: The network subnet to register the module in.
                 If None, a default value is used.
         """
         key =  c.get_key(key)
-        if address == None:
+        if url == None:
             namespace = c.namespace()
-            address = namespace.get(name, '0.0.0.0:8888')
+            url = namespace.get(name, '0.0.0.0:8888')
             if public:
                 ip = c.ip()
                 c.print(f'WARNING: Your Module is Publically Accessible ip:{ip}')
             else:
-                address = '0.0.0.0' +':'+ address.split(':')[-1]
+                url = '0.0.0.0' +':'+ url.split(':')[-1]
         params = {
             "network_name": self.resolve_subnet_name(subnet),
-            "address":  address,
+            "address":  url,
             "name": name,
             "module_key":c.get_key(module_key or name, creaet_if_not_exists=True).ss58_address,
             "metadata": metadata,
@@ -2367,7 +2365,7 @@ class Subspace(c.Module):
         path = self.resolve_path(f'{self.network}/params_map')
         results = c.get(path,None, max_age=max_age, update=update)
         if results == None:
-            c.print(f"PARAMS(subnet=all update=True)")
+            c.print(f"SUBSPACE_UPDATE(params)")
             params = []
             bulk_query = self.query_batch_map(
                 {
@@ -2535,7 +2533,7 @@ class Subspace(c.Module):
     def my_modules(self, subnet="all", 
                    max_age=60, 
                    keys=None, 
-                   features=['name', 'key', 'address', 'emission', 'weights', 'stake'],
+                   features=['name', 'key', 'url', 'emission', 'weights', 'stake'],
                    df = False, 
                    update=False):
         if subnet == "all":
@@ -2594,29 +2592,18 @@ class Subspace(c.Module):
               df=1,
               search=None,
               min_stake=0,
-              features=['Name', 'Keys', 'StakeFrom'],
+              features=['name', 'key', 'stake_from', 'weights'],
               **kwargs):
-                 
+         
         valis =  self.modules(subnet=subnet , max_age=max_age, features=features, update=update, **kwargs)
-        
         if search != None:
             valis = [v for v in valis if search in v['name'] or search in v['key'] ]
-        
         stake_total = sum([v['stake'] for v in valis])
         valis = [v for v in valis if v['stake'] >= min_stake]
-        cumulative_stake = 0
-        
         valis = sorted(valis, key=lambda x: x["stake"], reverse=True)
-
-        for v in valis:
-            v['stakers'] = len(v['stake_from'])
-            cumulative_stake = cumulative_stake + v["stake"]
-            v['cumstake'] = cumulative_stake / stake_total
-            v.pop('stake_from')
-
         if search != None:
             valis = [v for v in valis if search in v['name']]
-       
+
         if  df:
             valis = c.df(valis)
 
@@ -2634,7 +2621,8 @@ class Subspace(c.Module):
             new_name += ch
         return new_name
     
-    def name2storage(self, name):
+    def name2storage(self, name, name_map={'url': 'address'}):
+        name = name_map.get(name, name)
         new_name = ''
         next_char_upper = False
         if name in self.name2storage_exceptions:
@@ -2659,40 +2647,28 @@ class Subspace(c.Module):
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 
-                    features = ['Name', 'Address', 'Keys'],
-                    extra_features = [ 'Weights','Incentive','Dividends', 'Emission', 'DelegationFee', 'LastUpdate'],
+                    features = ['name', 'url', 'key', 'weights'],
                     lite = True,
-                    vector_fetures = ['Incentive', 'Dividends', 'Emission'],
                     num_connections = 4,
                     search=None,
                     df = False,
-                    default_module = {'Weights': [], 'Incentive': 0, 'Emissions': 0,  'Dividends': 0, 'DelegationFee': 30, 'LastUpdate': 0,
-                    },
                     **kwargs):
         subnet = self.resolve_subnet(subnet)
-        if not lite:
-            features += extra_features
-        path = f'{self.network}/modules/{subnet}'
-        if lite:
-            path += '/lite'
-        else:
-            path += '/full'
-        path = self.resolve_path(path)
+        path = self.resolve_path(f'{self.network}/modules/{subnet}/{c.hash(sorted(features))}')
         modules = c.get(path, None, max_age=max_age, update=update)
         update = bool(modules == None)
-        c.print(f'MODULES(subnet={subnet} update={update})')
-
         if update:
             self.set_network(num_connections=num_connections)
             future2feature = {}
             params = [subnet] if subnet != None else []
-            for feature in features: 
-                if feature in ['StakeFrom']:
+            for feature in features:
+                storage_name = self.name2storage(feature)
+                if feature in ['stake_from']:
                     params = []
                 else:
-                    params = [subnet] if subnet != None else []
-                fn_obj = self.query if feature in  vector_fetures else  self.query_map 
-                f = c.submit(fn_obj, kwargs=dict(name=feature, params=params), timeout=timeout)
+                    params = ([subnet] if subnet != None else [])
+                fn_obj = self.query if bool(feature in ['incentive', 'dividends', 'emission']) else  self.query_map 
+                f = c.submit(fn_obj, kwargs=dict(name=storage_name, params=params), timeout=timeout)
                 future2feature[f] = feature
             results = {}
             progress = c.tqdm(total=len(future2feature))
@@ -2702,36 +2678,28 @@ class Subspace(c.Module):
                 progress.update(1)
             results = self.process_results(results)
             modules = []
-            for uid in results['Keys'].keys():
-                module_key = results['Keys'][uid]
-                module = {'uid': uid}
+            for uid in results['key'].keys():
+                module = {'key': results['key'][uid]}
                 for f in features:
+                    if f in ['key']:
+                        continue
                     if isinstance(results[f], dict):
-                        if f in ['Keys']:
-                            module[f[:-1]] = module_key
-                    
-                        elif f in ['StakeFrom'] :
-                            module[f] = results[f].get(module_key, {})
-                            module['Stake'] = sum([v for k,v in module[f].items()]) / 10**9
-                        else:
-                            module[f] = results[f].get(uid, default_module.get(f, None)) 
+                        if uid in results[f]:
+                            module[f] = results[f][uid]
+                        if module['key'] in results[f]:
+                            module[f] = results[f][module['key']]
+                        if f in ['stake_from']:
+                            module[f] = results[f].get(module['key'], {})
+                            module['stake'] = sum([v for k,v in module[f].items()])
                     elif isinstance(results[f], list):
                         module[f] = results[f][uid]
-                module = {self.storage2name(k):v for k,v in module.items()}
+                module = {k:v for k,v in module.items()}
                 modules.append(module)  
             c.put(path, modules)
-        # modules = sorted(modules)
-        modules = sorted(modules, key=lambda x: x["uid"])
-        if 'emission' in modules[0]:
-            modules = sorted(modules, key=lambda x: x["emission"], reverse=True)
-            for i,m in enumerate(modules):
-                m['rank'] = i
-
         if search:
             modules = [m for m in modules if search in m['name']]
         if df:
             modules = c.df(modules)
-        
         return modules
 
     def format_amount(self, x, fmt='nano') :
@@ -2795,7 +2763,7 @@ class Subspace(c.Module):
                                ).json()
         module = {**module['result']['stats'], **module['result']['params']}
         module['name'] = self.vec82str(module['name'])
-        module['address'] = self.vec82str(module['address'])
+        module['url'] = self.vec82str(module['address'])
         module['dividends'] = module['dividends'] / U16_MAX
         module['incentive'] = module['incentive'] / U16_MAX
         module['stake_from'] = {k:self.format_amount(v, fmt=fmt) for k,v in module['stake_from'].items()}

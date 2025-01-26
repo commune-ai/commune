@@ -14,7 +14,7 @@ class Client:
                  network: Optional[bool] = 'local', 
                  **kwargs):
         self.key  = c.get_key(key, create_if_not_exists=True)
-        self.address = module if c.is_address(module) else c.namespace(network=network).get(module)
+        self.url = module if c.is_url(module) else c.namespace(network=network).get(module)
         self.session = requests.Session()
         
     @classmethod
@@ -25,7 +25,7 @@ class Client:
                 params = None,
                 module : str = 'module',
                 network:str = 'local',
-                key:str = None,
+                key: Optional[str] = None, # defaults to module key (c.default_key)
                 timeout=40,
                 **extra_kwargs) -> None:
         
@@ -48,30 +48,19 @@ class Client:
     def client(cls, module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
         client =  cls(module=module, network=network,**kwargs)
         return Client.Virtual(client=client) if virtual else client
-    
-    def test(self, module='module::test_client'):
-        c.serve(module)
-        c.sleep(1)
-        info = c.call(module+'/info')
-        key  = c.get_key(module)
-        assert info['key'] == key.ss58_address
-        return {'info': info, 'key': str(key)}
 
     def get_url(self, fn, mode='http'):
         if '/' in str(fn):  
-            address, fn = address.split('/')
+            url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
         else:
-            address = self.address
-        address = address if address.startswith(mode) else f'{mode}://{address}'
-        return f"{address}/{fn}/"
+            url = self.url
+        url = url if url.startswith(mode) else f'{mode}://{url}'
+        return f"{url}/{fn}/"
 
-    def get_data(self, args=[], kwargs={}, params = None):
-        # derefernece
-        args = c.copy(args or [])
-        kwargs = c.copy(kwargs or {})
-        if isinstance(args, dict):
-            kwargs = {**kwargs, **args}
-            args = []
+    def get_params(self,params: Union[list, dict] = None, args = None, kwargs = None):
+        params = params or {}
+        args = args or []
+        kwargs = kwargs or {}
         if params:
             if isinstance(params, dict):
                 kwargs = {**kwargs, **params}
@@ -79,25 +68,27 @@ class Client:
                 args = params
             else:
                 raise Exception(f'Invalid params {params}')
-        data =  {"args": args, "kwargs": kwargs}
-        return data
+        params =  {"args": args, "kwargs": kwargs}
+        return params
 
     def forward(self, 
                 fn  = 'info', 
-                params: Optional[Union[list, dict]] = None,
-                args : Optional[list] = [], 
-                kwargs : Optional[dict] = {},  
+                params: Optional[Union[list, dict]] = None, # if you want to pass params as a list or dict
                 timeout:int=2,  
                 key : str = None,  
                 mode: str  = 'http', 
-                stream:bool = False):
+                stream:bool = False, 
+                # if you want to pass positional arguments to the function, use args 
+                args : Optional[list] = [], 
+                kwargs : Optional[dict] = {},              
+    ):
                 
         key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode)
-        data = self.get_data(params=params, args=args, kwargs=kwargs )
-        headers =self.get_header(data=data, key=key)
+        params = self.get_params(params=params, args=args, kwargs=kwargs )
+        headers =self.get_header(params=params, key=key)
         try: 
-            response = self.session.post(url, json=data, headers=headers, timeout=timeout, stream=stream)
+            response = self.session.post(url, json=params, headers=headers, timeout=timeout, stream=stream)
             result = self.process_response(response)
         except Exception as e:
             result = c.detailed_error(e)
@@ -162,14 +153,14 @@ class Client:
             else:
                 return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
 
-    def get_header(self, data, key: 'Key'):
+    def get_header(self, params, key: 'Key'):
         time_str = str(c.time())
         return {
             'key': key.ss58_address,
             'crypto_type': str(key.crypto_type),
             'time': time_str,
             'Content-Type': 'application/json',
-            'signature':  key.sign({'data': data, 'time': time_str}).hex()
+            'signature':  key.sign({'params': params, 'time': time_str}).hex()
         } 
     
     @classmethod

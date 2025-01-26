@@ -1923,7 +1923,7 @@ def wordinfolder( word:str, path:str='./')-> bool:
         progress.update(1)
     return False
 
-def is_address( address:str) -> bool:
+def is_url( address:str) -> bool:
     if not isinstance(address, str):
         return False
     if '://' in address:

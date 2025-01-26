@@ -18,26 +18,19 @@ class Network(c.Module):
     
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
-    
-    def net(self):
-        return c.network()
 
-    def get_module(self, name:str, **kwargs):
-        modules = self.modules()
-        return [m for m in modules if m['name'] == name][0]
-    
     def modules(self, 
                 search=None, 
                 max_age=tempo, 
                 update=False, 
-                features=['name', 'address', 'key'], 
+                features=['name', 'url', 'key'], 
                 timeout=8, 
                 **kwargs):
         modules = c.get(self.modules_path, max_age=max_age, update=update)
         if modules == None:
             modules = []
-            addresses = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
-            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in addresses]
+            urls = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
+            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in urls]
             try:
                 for f in c.as_completed(futures, timeout=timeout):
                     data = f.result()
@@ -52,16 +45,16 @@ class Network(c.Module):
         return modules
 
     def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
-        return {m['name']: '0.0.0.0' + ':' + m['address'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
+        return {m['name']: '0.0.0.0' + ':' + m['url'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
 
-    def add_server(self, name:str, address:str, key:str) -> None:
-        data = {'name': name, 'address': address, 'key': key}
+    def add_server(self, name:str, url:str, key:str) -> None:
+        data = {'name': name, 'url': url, 'key': key}
         modules = self.modules()
         modules.append(data)
         c.put(self.modules_path, modules)
         return {'success': True, 'msg': f'Block {name}.'}
     
-    def rm_server(self, name:str, features=['name', 'key', 'address']) -> Dict:
+    def rm_server(self, name:str, features=['name', 'key', 'url']) -> Dict:
         modules = self.modules()
         modules = [m for m in modules if not any([m[f] == name for f in features])]
         c.put(self.modules_path, modules)
@@ -72,7 +65,7 @@ class Network(c.Module):
     def names(self, *args, **kwargs) -> List[str]:
         return list(self.namespace(*args, **kwargs).keys())
     
-    def addresses(self,*args, **kwargs) -> List[str]:
+    def urls(self,*args, **kwargs) -> List[str]:
         return list(self.namespace(*args, **kwargs).values())
     
     def servers(self, search=None,  **kwargs) -> List[str]:
@@ -87,5 +80,5 @@ class Network(c.Module):
         return ['local', 'subspace', 'subtensor']
 
     def infos(self, *args, **kwargs) -> Dict:
-        return [c.call(address+'/info') for name, address in self.namespace(*args, **kwargs).items()]
+        return [c.call(url+'/info') for name, url in self.namespace(*args, **kwargs).items()]
 
