@@ -108,28 +108,16 @@ class Subspace(c.Module):
         self.num_connections = num_connections                  
         self.wait_for_finalization = wait_for_finalization
         self.network = network
-        self.set_connections(num_connections)
-        self.connection_latency = c.time() - t0
-        network_state = {
-            "network": self.network,
-            "url": self.url,
-            "connections": self.num_connections,
-            "latency": self.connection_latency,
-        }
-        c.print(f'NETWORK(name={self.network} url={self.url} cons={self.num_connections} lat={c.round(self.connection_latency, 2)}s)', color='blue') 
-        
-    def set_connections(self, num_connections: int):
         self.connections_queue = queue.Queue(num_connections)
         self.num_connections = num_connections
-        print(f'Setting connections {num_connections}')
-        try:
-            for _ in range(self.num_connections):
-                self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
-        except Exception as e: 
-            c.print('ERROR IN CONNECTIONS QUEUE:', e)
-            
-        return {'num_connections': self.num_connections, 'url': self.url}
-    
+        for _ in range(self.num_connections):
+            self.connections_queue.put(SubstrateInterface(self.url, ws_options=self.ws_options))
+        self.connection_latency = c.time() - t0
+        network_state = {"network": self.network, "url": self.url,"connections": self.num_connections,"latency": self.connection_latency,
+        }
+        c.print(f'Subspace(network={self.network} url={self.url} connections={self.num_connections} latency(s)={c.round(self.connection_latency, 2)})', color='blue') 
+        
+
     def get_url(self, mode='wss',  **kwargs):
         prefix = mode + '://'
         url = c.choice(self.url_map[self.network])
@@ -1193,32 +1181,6 @@ class Subspace(c.Module):
         params = {"amount": amount * 10**9, "module_key": dest}
 
         return self.compose_call(fn="add_stake", params=params, key=key)
-
-    def bridge(
-        self,
-        key: Keypair,
-        amount: int,
-    ):
-        """
-        Bridge tokens from the Subspace network to the Torus network.
-
-        Args:
-            key: The keypair associated with the account that is bridging the tokens.
-            amount: The amount of tokens to bridge, in nanotokens.
-
-        Returns:
-            A receipt of the bridging transaction.
-
-        Raises:
-            InsufficientBalanceError: If the account does not have enough balance.
-            ChainTransactionError: If the transaction fails.
-        """
-
-        params = {"amount": amount * (10**9)}
-
-        response = self.compose_call("bridge", key=key, params=params)
-
-        return response
 
     def unstake(
         self,
@@ -2649,67 +2611,65 @@ class Subspace(c.Module):
             new_name += ch
         return new_name
                 
-
-
     def modules(self,
                     subnet=0,
                     max_age = tempo,
                     update=False,
                     timeout=30,
                     module = "SubspaceModule", 
-                    features = ['name', 'url', 'key', 'weights'],
+                    features = ['key', 'url', 'name'],
                     lite = True,
-                    num_connections = 4,
+                    num_connections = 1,
                     search=None,
                     df = False,
                     **kwargs):
         subnet = self.resolve_subnet(subnet)
-        path = self.resolve_path(f'{self.network}/modules/{subnet}/{c.hash(sorted(features))}')
-        modules = c.get(path, None, max_age=max_age, update=update)
-        update = bool(modules == None)
-        if update:
-            self.set_network(num_connections=num_connections)
-            future2feature = {}
-            params = [subnet] if subnet != None else []
-            for feature in features:
+        subnet_path = self.resolve_path(f'{self.network}/modules/{subnet}')
+        feature2path = {f:subnet_path + '/' + f for f in features}
+        future2feature = {}
+        params = [subnet] if subnet != None else []
+        results  = {}
+        for feature in features:
+            results[feature] = c.get(feature2path[feature], None, max_age=max_age, update=update)
+            if results[feature] == None:
                 storage_name = self.name2storage(feature)
-                if feature in ['stake_from']:
-                    params = []
-                else:
-                    params = ([subnet] if subnet != None else [])
+                params = [] if feature in ['stake_from'] else ([subnet] if subnet != None else []) 
                 fn_obj = self.query if bool(feature in ['incentive', 'dividends', 'emission']) else  self.query_map 
-                f = c.submit(fn_obj, kwargs=dict(name=storage_name, params=params), timeout=timeout)
-                future2feature[f] = feature
-            results = {}
-            progress = c.tqdm(total=len(future2feature))
-            for f in c.as_completed(future2feature, timeout=timeout):
-                feature = future2feature.pop(f)
-                results[feature] = f.result()
-                progress.update(1)
-            results = self.process_results(results)
-            modules = []
-            for uid in results['key'].keys():
-                module = {'key': results['key'][uid]}
-                for f in features:
-                    if f in ['key']:
-                        continue
-                    if isinstance(results[f], dict):
-                        if uid in results[f]:
-                            module[f] = results[f][uid]
-                        if module['key'] in results[f]:
-                            module[f] = results[f][module['key']]
-                        if f in ['stake_from']:
-                            module[f] = results[f].get(module['key'], {})
-                            module['stake'] = sum([v for k,v in module[f].items()])
-                    elif isinstance(results[f], list):
+                future = c.submit(fn_obj, kwargs=dict(name=storage_name, params=params), timeout=timeout)
+                future2feature[future] = feature
+        
+        progress = c.tqdm(total=len(future2feature))
+        for future in c.as_completed(future2feature, timeout=timeout):
+            feature = future2feature.pop(future)
+            results[feature] = future.result()
+            
+            c.put(feature2path[feature], results[feature])
+            progress.update(1)
+    
+
+        # process
+        results = self.process_results(results)
+        modules = []
+        for uid in results['key'].keys():
+            module = {'key': results['key'][uid]}
+            for f in features:
+                if f in ['key']:
+                    continue
+                if isinstance(results[f], dict):
+                    if uid in results[f]:
                         module[f] = results[f][uid]
-                module = {k:v for k,v in module.items()}
-                modules.append(module)  
-            c.put(path, modules)
+                    if module['key'] in results[f]:
+                        module[f] = results[f][module['key']]
+                elif isinstance(results[f], list):
+                    module[f] = results[f][uid]
+            module = {k:v for k,v in module.items()}
+            modules.append(module)  
         if search:
             modules = [m for m in modules if search in m['name']]
         if df:
             modules = c.df(modules)
+        for i,m in enumerate(modules):
+            modules[i] = {k:m[k] for k in features}
         return modules
 
     def format_amount(self, x, fmt='nano') :
@@ -2792,15 +2752,13 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def netuid2emission(self , fmt='j', **kwargs) -> Dict[str, int]:
+    def subnet2emission(self, **kwargs ) -> Dict[str, str]:
         params = self.params(**kwargs)
         subnet2emission =  {v:params['emission'] * self.blocks_per_day for v,params in params.items()}
-        return self.format_amount(subnet2emission, fmt=fmt)
-    
-    def subnet2emission(self, **kwargs ) -> Dict[str, str]:
         netuid2subnet = self.netuid2subnet(**kwargs)
         netuid2emission = self.netuid2emission(**kwargs)
         return  dict(sorted({netuid2subnet[k]:v for k,v in netuid2emission.items()}.items(), key=lambda x: x[1], reverse=True))
+
     def s2e(self):
         return self.subnet2emission()
 
