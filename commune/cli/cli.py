@@ -91,6 +91,7 @@ class Cli:
         return init_kwargs
 
     def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module'):
+
         if len(argv) == 0:
             fn = default_fn
         else:
@@ -107,10 +108,13 @@ class Cli:
             fn = fn.split(fn_splitter)[-1]
         else:
             module = default_module
+        if module in c.shortcuts:
+            old_module = module
+            module = c.shortcuts[module]
+            print(f'ShortcutEnabled({old_module} -> {module})', color='yellow')
 
-
-        module = c.shortcuts.get(module, module)
-        print('⚡️'*4+f'{module}::{fn}'+'⚡️'*4, color='yellow')
+        filepath = c.filepath(module).replace(c.home_path, '~')    
+        print(f'Calling({module}/{fn}, path={filepath})', color='yellow')
         module = c.module(module)
         if not hasattr(module, fn):
             return {'error': f'module::{fn} does not exist', 'success': False}

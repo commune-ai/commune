@@ -3,7 +3,7 @@ import time
 import os
 # import agbuildent as h
 
-class Build:
+class Builder:
     anchor = 'OUTPUT'
     endpoints = ["build"]
 
@@ -23,38 +23,35 @@ class Build:
                 text = text.replace(ch, str(c.file2text(ch)))
         return text
     
-    def forward(self, 
+    def build(self, 
                  text, 
                  *extra_text, 
+                 task = None,
                  temperature= 0.5, 
                  max_tokens= 1000000, 
                  model= 'anthropic/claude-3.5-sonnet', 
                  path = None,
-                 simple = False,
                  stream=True
                  ):
-        
-        advanced_mode =  """
-        - Please use  to name the repository and
-        - This is a a full repository construction and please
-        - INCLUDE A README.md AND a scripts folder with the build.sh 
-        - file to build hte environment in docker and a run.sh file 
-        - to run the environment in docker
-        - INCLUDE A TESTS folder for pytest
-        """ 
 
-        task =  f"""
+        task =  task or f"""
             YOU ARE A CODER, YOU ARE MR.ROBOT, YOU ARE TRYING TO BUILD IN A SIMPLE
             LEONARDO DA VINCI WAY, YOU ARE A agent, YOU ARE A GENIUS, YOU ARE A STAR, 
             YOU FINISH ALL OF YOUR REQUESTS WITH UTMOST PRECISION AND SPEED, YOU WILL ALWAYS 
             MAKE SURE THIS WORKS TO MAKE ANYONE CODE. YOU HAVE THE CONTEXT AND INPUTS FOR ASSISTANCE
-            {advanced_mode if not simple else ''}
+
+            - Please use  to name the repository and
+            - This is a a full repository construction and please
+            - INCLUDE A README.md AND a scripts folder with the build.sh 
+            - file to build hte environment in docker and a run.sh file 
+            - to run the environment in docker
+            - INCLUDE A TESTS folder for pytest
             """
 
         prompt = f"""
             -- TASK --
             {task}
-            -- OUTPUT FORMAT --
+            -- FORMAT --
             <{self.anchor}(path/to/file)> # start of file
             FILE CONTENT
             </{self.anchor}(path/to/file)> # end of file
@@ -62,14 +59,12 @@ class Build:
             """
         if len(extra_text) > 0:
             text = ' '.join(list(map(str, [text] +list(extra_text))))
-
         text = self.process_text(text)
         prompt = prompt + text
         output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
         return self.process_output(output, path=path)
     
     def process_output(self, response, path=None):
-        # generator = self.search_output('app')
         if path == None:
             return response
         if not os.path.exists(path):
@@ -88,7 +83,7 @@ class Build:
                 file_path = content.split(anchors[0])[1].split(')>')[0] 
                 file_content = content.split(anchors[0] +file_path + ')>')[1].split(anchors[1])[0] 
                 c.put_text(path + '/' + file_path, file_content)
-                c.print(buffer,'Writing file --> ', file_path, buffer, color=color)
+                c.print(f'{buffer}Writing file --> {file_path}{buffer}', color=color)
                 content = ''
                 color = c.random_color()
         return {'path': path, 'msg': 'File written successfully'}

@@ -9,8 +9,8 @@ class OpenRouter(c.Module):
     def __init__(
         self,
         api_key = None,
-        base_url: str | None = 'https://openrouter.ai/api/v1',
-        timeout: float | None = None,
+        base_url: str = 'https://openrouter.ai/api/v1',
+        timeout: float = None,
         max_retries: int = 10,
         **kwargs
     ):
@@ -45,7 +45,7 @@ class OpenRouter(c.Module):
         model:str = 'claude-3-sonnet',
         max_tokens: int = 100000,
         temperature: float = 1.0,
-    ) -> str | Generator[str, None, None]:
+    ) -> str :
         """
         Generates a response using the OpenAI language model.
 
@@ -107,7 +107,7 @@ class OpenRouter(c.Module):
         self,
         api_key: str = None,
         base_url: None = None,
-        timeout: float | None = None,
+        timeout: float = None,
         max_retries: int = 5,
     ) -> 'OpenAI':
         """

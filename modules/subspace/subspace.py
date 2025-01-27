@@ -1223,14 +1223,24 @@ class Subspace(c.Module):
     def unstake(
         self,
         key: Keypair,
-        dest: Ss58Address,
         amount: int,
+        dest: Ss58Address = None,
     ) -> ExtrinsicReceipt:
         """
         Unstakes the specified amount of tokens from a module key address.
         """
-        params = {"amount":  self.to_nanos(amount), "module_key": dest}
-        return self.compose_call(fn="remove_stake", params=params, key=key)
+        with c.print_load('Unstaking'):
+            if dest == None:
+                print('Didnt specify destination, unstaking from first module')
+                stake_to = self.get_staketo(key)
+                for k,v in stake_to.items():
+                    if v >= amount:
+                        print(f'Didnt specify destination, unstaking {amount} from {k}')
+                        dest = k
+                        break
+            params = {"amount":  self.to_nanos(amount), "module_key": dest}
+            return params
+            return self.compose_call(fn="remove_stake", params=params, key=key)
     
 
 

@@ -241,7 +241,7 @@ class Miner(c.Module):
 
     def unstake_and_transfer_back(self, key, amount=20):
         assert self.subspace.is_registered(key, netuid=self.netuid), f'{key} is not registered'
-        self.subspace.unstake(key, netuid=self.netuid, amount=amount, key=key)
+        self.subspace.unstake(key=key, netuid=self.netuid, amount=amount, key=key)
         self.subspace.transfer(key=key, dest=self.key.ss58_address, amount=amount)
 
     def unstake_many(self, amount=50, transfer_back=True):

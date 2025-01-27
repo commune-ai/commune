@@ -86,7 +86,7 @@ class Manager:
                     continue
             return text
         elif mode == 'cmd':
-            return c.cmd(f"pm2 logs {module}", verbose=True)
+            return c.cmd(f"pm2 logs {module}")
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
         

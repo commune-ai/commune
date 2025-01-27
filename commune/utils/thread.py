@@ -169,3 +169,9 @@ def threads(search:str = None):
     if search != None:
         threads = [t for t in threads if search in t]
     return threads
+
+
+def cancel(futures):
+    for f in futures:
+        f.cancel()
+    return {'success': True, 'msg': 'cancelled futures'}

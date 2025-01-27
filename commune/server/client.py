@@ -87,11 +87,8 @@ class Client:
         url = self.get_url(fn=fn, mode=mode)
         params = self.get_params(params=params, args=args, kwargs=kwargs )
         headers =self.get_header(params=params, key=key)
-        try: 
-            response = self.session.post(url, json=params, headers=headers, timeout=timeout, stream=stream)
-            result = self.process_response(response)
-        except Exception as e:
-            result = c.detailed_error(e)
+        response = self.session.post(url, json=params, headers=headers, timeout=timeout, stream=stream)
+        result = self.process_response(response)
         return result
     
     def __del__(self):

@@ -4,4 +4,5 @@ if [ -z $1 ]; then
 else
   NAME=$1
 fi
+
 docker build -t $NAME $(pwd)

@@ -257,7 +257,8 @@ class Server:
         time_waiting = 0
         # rotating status thing
         c.print(f'waiting for {name} to start...', color='cyan')
-    
+        future = c.submit(c.logs, [name])
+
         while time_waiting < timeout:
                 namespace = cls.net['local'].namespace(network=network, max_age=max_age)
                 if name in namespace:
@@ -270,7 +271,9 @@ class Server:
                     except Exception as e:
                         c.print(f'Error getting info for {name} --> {e}', color='red')
                 c.sleep(sleep_interval)
+                
                 time_waiting += sleep_interval
+        future.cancel()
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
 
     @classmethod
@@ -320,8 +323,8 @@ class Server:
         return cls.net['local'].server_exists(name)
 
     @classmethod
-    def logs(cls, name):
-        return cls.manager.logs(name)
+    def logs(cls, name, **kwargs):
+        return cls.manager.logs(name, **kwargs)
 
     def is_admin(self, key_address):
         return c.is_admin(key_address)
@@ -382,7 +385,6 @@ class Server:
         t1 = c.time()
         user_path2time = {p: t1 - self.path2time(p) for p in user_paths}
         return user_path2time
-    
 
     def get_call_data_path(self, key_address):
         return self.history_path + '/' + key_address

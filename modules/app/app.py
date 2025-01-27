@@ -30,16 +30,8 @@ class App(c.Module):
         
         rkwargs = c.locals2kwargs(locals())
         rkwargs['remote'] = False
-        response = {
-                'success': True,
-                'module': module,
-                'url':  f'http://localhost:{port}',
-
-            }
-
-
+        response = {'success': True,'module': module,'url':  f'http://localhost:{port}'}
         module = c.shortcuts.get(module, module)
-        
         kwargs = kwargs or {}
         name = name or module
         port = port or self.get_free_port(module)
@@ -47,24 +39,10 @@ class App(c.Module):
         # if the module is an app, we need to add the .app to the module name
         if c.module_exists(module + '.app'):
             module = module + '.app'
-        app2info = self.app2info()
         module_class = c.module(module)
         cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port}'
-        cwd = cwd or os.path.dirname(module_class.filepath())
-        module = c.module(module)
-        app_info= {
-            'name': name,
-            'port': port,
-            'kwargs': kwargs,
-            'cmd': cmd, 
-            'cwd': cwd ,
-        }
-        
-        app2info[name] = app_info
-        self.put('app2info', app2info )
-        c.cmd(cmd, verbose=True, cwd=c.pwd())
-        return response
-    
+        return cmd
+
     start_app = app = start
 
 
