@@ -413,3 +413,94 @@ def locals2hash(kwargs:dict = {'a': 1}, keys=['kwargs']) -> str:
     kwargs.pop('cls', None)
     kwargs.pop('self', None)
     return dict2hash(kwargs)
+
+
+def random_int(start_value=100, end_value=None):
+    if end_value == None: 
+        end_value = start_value
+        start_value, end_value = 0 , start_value
+    assert start_value != None, 'start_value must be provided'
+    assert end_value != None, 'end_value must be provided'
+    return random.randint(start_value, end_value)
+
+def random_float(min=0, max=1):
+    return random.uniform(min, max)
+
+def random_ratio_selection( x:list, ratio:float = 0.5)->list:
+    if type(x) in [float, int]:
+        x = list(range(int(x)))
+    assert len(x)>0
+    if ratio == 1:
+        return x
+    assert ratio > 0 and ratio <= 1
+    random.shuffle(x)
+    k = max(int(len(x) * ratio),1)
+    return x[:k]
+
+def is_int( value) -> bool:
+    o = False
+    try :
+        int(value)
+        if '.' not in str(value):
+            o =  True
+    except:
+        pass
+    return o
+
+def is_float( value) -> bool:
+    o =  False
+    try :
+        float(value)
+        if '.' in str(value):
+            o = True
+    except:
+        pass
+
+    return o 
+
+def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
+    from munch import Munch
+    '''
+    Turn dictionary into Munch
+    '''
+    if isinstance(x, dict):
+        for k,v in x.items():
+            if isinstance(v, dict) and recursive:
+                x[k] = dict2munch(v)
+        x = Munch(x)
+    return x 
+
+def munch2dict( x:'Munch', recursive:bool=True)-> dict:
+    from munch import Munch
+    if isinstance(x, Munch):
+        x = dict(x)
+        for k,v in x.items():
+            if isinstance(v, Munch) and recursive:
+                x[k] = munch2dict(v)
+    return x 
+
+def munch( x:Dict) -> 'Munch':
+    return dict2munch(x)
+
+def time(  t=None) -> float:
+    from time import time
+    return time()
+def timestamp(  t=None) -> float:
+    return int(time())
+def time2datetime( t:float):
+    import commune as c
+    return c.util('time.time2datetime')(t)
+
+time2date = time2datetime
+
+def datetime2time( x:str):
+    import datetime
+    return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
+
+def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
+    search = search.split(',')
+    new_d = {}
+    for k,v in d.items():
+        if search in k.lower():
+            new_d[k] = v
+    return new_d

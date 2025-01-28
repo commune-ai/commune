@@ -11,6 +11,14 @@ import subprocess
 import shlex
 import sys
 from typing import *
+import random
+import os
+import sys
+from typing import *
+import glob 
+import requests
+import json
+
 
 def osname():
     return os.name
@@ -455,9 +463,8 @@ def cmd(command:Union[str, list],
                 cwd : str = None,
                 **kwargs) -> 'subprocess.Popen':
 
-
-   
     import commune as c
+
     if len(args) > 0:
         command = ' '.join([command] + list(args))
 
@@ -468,8 +475,11 @@ def cmd(command:Union[str, list],
 
     if bash:
         command = f'bash -c "{command}"'
+
     cwd = c.resolve_path(c.pwd() if cwd == None else cwd)
+    
     env = {**os.environ, **env}
+
     process = subprocess.Popen(shlex.split(command),
                                 stdout=subprocess.PIPE, 
                                 stderr=subprocess.STDOUT,
@@ -477,225 +487,18 @@ def cmd(command:Union[str, list],
                                 env=env, **kwargs)
     if return_process:
         return process
+
     streamer = stream_output(process)
+
     if stream:
         return streamer
     else:
         text = ''
         for ch in streamer:
             text += ch
+
     return text
 
-
-
-import random
-import os
-import sys
-from typing import *
-import glob 
-import requests
-import json
-
-def type2files( path:str='./', **kwargs):
-    files = get_files(path, **kwargs)
-    type2files = {}
-    for f in files:
-        if '.' in f:
-            f_type = f.split('.')[-1]
-            if f_type not in type2files:
-                type2files[f_type] = []
-            type2files[f_type].append(f)
-    return type2files
-
-def type2filecount( path:str='./', **kwargs):
-    return {k: len(v) for k,v in type2files(path, **kwargs).items()}
-
-def get_files( path ='./', 
-              search=None,
-              avoid_terms = None,
-              include_terms = None,
-               recursive:bool = True, files_only:bool = True):
-    import glob
-    path = os.path.abspath(path)
-    if os.path.isdir(path):
-        path = os.path.join(path, '**')
-    paths = glob.glob(path, recursive=recursive)
-    if files_only:
-        paths =  list(filter(lambda f:os.path.isfile(f), paths))
-    if avoid_terms != None:
-        paths = [p for p in paths if not any([term in p for term in avoid_terms])]
-    if include_terms != None:
-        paths = [p for p in paths if any([term in p for term in include_terms])]
-    if search != None:
-        paths = [p for p in paths if search in p]
-    return paths
-
-def abspath(path:str):
-    return os.path.abspath(os.path.expanduser(path))
-
-def file2text(path = './', avoid_terms = ['__pycache__', 
-                                '.git', 
-                                '.ipynb_checkpoints', 
-                                'package.lock',
-                                'egg-info',
-                                'Cargo.lock',
-                                'artifacts',
-                                'yarn.lock',
-                                'cache/',
-                                'target/debug',
-                                'node_modules'],
-                avoid_paths = ['~', '/tmp', '/var', '/proc', '/sys', '/dev'],
-                relative=True,  **kwargs):
-    
-    path = os.path.abspath(os.path.expanduser(path))
-    assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
-    file2text = {}
-    for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
-        if os.path.isdir(file):
-            continue
-        try:
-            with open(file, 'r') as f:
-                content = f.read()
-                file2text[file] = content
-        except Exception as e:
-            continue
-    if relative:
-        return {k[len(path)+1:]:v for k,v in file2text.items()}
-    return file2text
-
-def random_int(start_value=100, end_value=None):
-    if end_value == None: 
-        end_value = start_value
-        start_value, end_value = 0 , start_value
-    assert start_value != None, 'start_value must be provided'
-    assert end_value != None, 'end_value must be provided'
-    return random.randint(start_value, end_value)
-
-def random_float(min=0, max=1):
-    return random.uniform(min, max)
-
-def random_ratio_selection( x:list, ratio:float = 0.5)->list:
-    if type(x) in [float, int]:
-        x = list(range(int(x)))
-    assert len(x)>0
-    if ratio == 1:
-        return x
-    assert ratio > 0 and ratio <= 1
-    random.shuffle(x)
-    k = max(int(len(x) * ratio),1)
-    return x[:k]
-
-def is_success( x):
-    # assume that if the result is a dictionary, and it has an error key, then it is an error
-    if isinstance(x, dict):
-        if 'error' in x:
-            return False
-        if 'success' in x and x['success'] == False:
-            return False
-    return True
-
-def is_error( x:Any):
-    """
-    The function checks if the result is an error
-    The error is a dictionary with an error key set to True
-    """
-    if isinstance(x, dict):
-        if 'error' in x and x['error'] == True:
-            return True
-        if 'success' in x and x['success'] == False:
-            return True
-    return False
-
-def is_int( value) -> bool:
-    o = False
-    try :
-        int(value)
-        if '.' not in str(value):
-            o =  True
-    except:
-        pass
-    return o
-
-
-    
-
-def is_float( value) -> bool:
-    o =  False
-    try :
-        float(value)
-        if '.' in str(value):
-            o = True
-    except:
-        pass
-
-    return o 
-
-def dict2munch( x:dict, recursive:bool=True)-> 'Munch':
-    from munch import Munch
-    '''
-    Turn dictionary into Munch
-    '''
-    if isinstance(x, dict):
-        for k,v in x.items():
-            if isinstance(v, dict) and recursive:
-                x[k] = dict2munch(v)
-        x = Munch(x)
-    return x 
-
-def munch2dict( x:'Munch', recursive:bool=True)-> dict:
-    from munch import Munch
-    if isinstance(x, Munch):
-        x = dict(x)
-        for k,v in x.items():
-            if isinstance(v, Munch) and recursive:
-                x[k] = munch2dict(v)
-    return x 
-
-def munch( x:Dict) -> 'Munch':
-    return dict2munch(x)
-
-def time(  t=None) -> float:
-    from time import time
-    return time()
-def timestamp(  t=None) -> float:
-    return int(time())
-def time2datetime( t:float):
-    import commune as c
-    return c.util('time.time2datetime')(t)
-
-time2date = time2datetime
-
-def datetime2time( x:str):
-    import datetime
-    return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
-
-def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
-    search = search.split(',')
-    new_d = {}
-    for k,v in d.items():
-        if search in k.lower():
-            new_d[k] = v
-    return new_d
-
-def path2text( path:str, relative=False):
-    import glob
-    path = os.path.abspath(path)
-    assert os.path.exists(path), f'path {path} does not exist'
-    if os.path.isdir(path):
-        filepath_list = glob.glob(path + '/**')
-    else:
-        assert os.path.exists(path), f'path {path} does not exist'
-        filepath_list = [path] 
-    path2text = {}
-    for filepath in filepath_list:
-        try:
-            path2text[filepath] = get_text(filepath)
-        except Exception as e:
-            pass
-    if relative:
-        pwd = pwd()
-        path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
-    return path2text
 
 def determine_type( x):
     x_type = type(x)
@@ -717,39 +520,8 @@ def detailed_error(e) -> dict:
     }   
     return response
 
-
-def hash_modes():
-    return ['keccak', 'ss58', 'python', 'md5', 'sha256', 'sha512', 'sha3_512']
-
-def get_cwd():
+def getcwd():
     return os.getcwd()
-
-def cp( path1:str, path2:str, refresh:bool = False):
-    import shutil
-    # what if its a folder?
-    assert os.path.exists(path1), path1
-    if refresh == False:
-        assert not os.path.exists(path2), path2
-    
-    path2_dirpath = os.path.dirname(path2)
-    if not os.path.isdir(path2_dirpath):
-        os.makedirs(path2_dirpath, exist_ok=True)
-        assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
-
-    if os.path.isdir(path1):
-        shutil.copytree(path1, path2)
-
-    elif os.path.isfile(path1):
-        
-        shutil.copy(path1, path2)
-    else:
-        raise ValueError(f'path1 is not a file or a folder: {path1}')
-    return path2
-
-def go(path=None):
-    import commune as c
-    path = os.path.abspath('~/'+str(path or c.reponame))
-    return c.cmd(f'code {path}')
 
 def cuda_available() -> bool:
     import commune as c

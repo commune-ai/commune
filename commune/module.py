@@ -178,13 +178,11 @@ class c:
     def is_object_module(cls, obj) -> bool:
         return all([hasattr(obj, k) for k in c.core_features])
 
-    
-
     def print( *text:str,  **kwargs):
         return c.obj('commune.utils.log.print_console')(*text, **kwargs)
 
     def is_error( *text:str,  **kwargs):
-        return c.obj('commune.utils.os.is_error')(*text, **kwargs)
+        return c.obj('commune.utils.log.is_error')(*text, **kwargs)
     @classmethod
     def resolve_module(cls, obj:str = None, default=None, fn_splitter='/', **kwargs):
         obj = obj or cls._obj or default or cls
@@ -1486,7 +1484,7 @@ class c:
         if module != None:
             path = path + '/' + module  + '_test.py'
         assert os.path.exists(path), f'Path {path} does not exist'        
-        return c.cmd(f"pytest {path}",  verbose=False, stream=1)
+        return c.cmd(f"pytest {path}")
     
     _tree = None
     @classmethod

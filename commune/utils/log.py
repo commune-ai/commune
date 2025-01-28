@@ -3,6 +3,28 @@ import time
 import sys
 import itertools
 from contextlib import contextmanager
+from typing import *
+
+def is_success( x):
+    # assume that if the result is a dictionary, and it has an error key, then it is an error
+    if isinstance(x, dict):
+        if 'error' in x:
+            return False
+        if 'success' in x and x['success'] == False:
+            return False
+    return True
+
+def is_error( x:Any):
+    """
+    The function checks if the result is an error
+    The error is a dictionary with an error key set to True
+    """
+    if isinstance(x, dict):
+        if 'error' in x and x['error'] == True:
+            return True
+        if 'success' in x and x['success'] == False:
+            return True
+    return False
 
 # As a context manager
 @contextmanager

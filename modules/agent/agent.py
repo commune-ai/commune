@@ -184,8 +184,8 @@ class Agent:
                 return data
         return {"data": process_data(data)}
 
-    def models(self):
-        return self.model.models()
+    def models(self, *args, **kwargs):
+        return self.model.models(*args,**kwargs)
     
 
     def score(self, module:str, **kwargs):
