@@ -1904,18 +1904,12 @@ class Subspace(c.Module):
         return [addresses[uid] for uid in sorted_uids]
 
 
-    def state(self):
-        state['stake_from'] = self.net[self.network].stake_from(fmt='j', update=update, max_age=max_age)
-        state['stake_to'] = self.net[self.network].stake_to(fmt='j', update=update, max_age=max_age)
+    def state(self, update=False, max_age=60):
+        state = {}
+        state['stake_from'] = self.stake_from(fmt='j', update=update, max_age=max_age)
+        state['stake_to'] = self.stake_to(fmt='j')
         state['stake'] =  {k: sum(v.values()) for k,v in state['stake_from'].items()}
-    
-    def state(self, timeout=42):
-        futures = []
-        fns  = ['params', 'global_params', 'modules']
-        futures = [c.submit(getattr(self,fn), kwargs=dict(update=1), timeout=timeout) for fn in fns]
-        return dict(zip(fns, c.wait(futures, timeout=timeout)))
-
-
+        return state
     def subnet(self,subnet=0, update=False, max_age=60):
         futures = []
         path = self.resolve_path(f'{self.network}/subnet_state/{subnet}')
@@ -1930,7 +1924,7 @@ class Subspace(c.Module):
         return state
     sync = state
 
-    def stakefrom(self, key=None, extract_value: bool = False, fmt='j', **kwargs
+    def stake_from(self, key=None, extract_value: bool = False, fmt='j', **kwargs
     ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes from various sources for keys on the network.
@@ -1939,9 +1933,9 @@ class Subspace(c.Module):
         result = self.query_map("StakeFrom", params, extract_value=extract_value, **kwargs)
         return self.format_amount(result, fmt=fmt)
 
-    stake_from = stakefrom
+    stakefrom = stake_from 
 
-    def staketo( self, key=None, extract_value: bool = False, fmt='j', **kwargs ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
+    def stake_to( self, key=None, extract_value: bool = False, fmt='j', **kwargs ) -> dict[Ss58Address, list[tuple[Ss58Address, int]]]:
         """
         Retrieves a mapping of stakes to destinations for keys on the network.
         """
@@ -1955,7 +1949,7 @@ class Subspace(c.Module):
                     staketo[kk] = {}
                 staketo[kk][k] = vv
         return staketo
-    stake_to = staketo
+    staketo = stake_to
 
     def max_allowed_weights(
         self, extract_value: bool = False

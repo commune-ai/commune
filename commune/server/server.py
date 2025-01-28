@@ -9,6 +9,7 @@ import json
 import asyncio
 
 class Server:
+    network = 'subspace'
     max_user_data_age = 3600 # the lifetime of the user call data
     max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
     helper_functions  = ['info', 'schema', 'functions', 'forward'] # the helper functions
@@ -48,7 +49,7 @@ class Server:
         self.history_path = history_path or self.resolve_path(f'history/{self.module.name}')
         self.serializer = c.module(serializer)()
         if run_api:
-            self.set_network(network)  
+            self.sync_network(network)  
             self.run_api()
 
     @classmethod
@@ -226,24 +227,25 @@ class Server:
         return  c.storage_path + '/' + self.module_name() + '/' + path
 
     state = {}
-    def set_network(self, network=None):
+    def sync_network(self, network=None):
         self.network = network or self.network
         self.network_path = self.resolve_path(f'networks/{self.network}/state.json')
         self.address2key =  c.address2key()
         c.print(f'Network(network={self.network} path={self.network_path})')
-
-    
-    def sync(self):
         self.state = c.get(self.network_path, {}, max_age=self.max_network_age)
-        if len(self.state) == 0:
-            self.state = c.module(self.network)().state()
-        return {'msg': 'state synced successfully'}
+        if self.state == {}:
+            def sync():
+                self.network_module = c.module(self.network)()
+                self.state = self.network_module.state()
+            c.thread(sync)
+
+        return {'network':self.network}
 
     def sync_loop(self):
         c.sleep(self.max_network_age/2)
         while True:
             try:
-                r = self.sync()
+                r = self.sync_network()
             except Exception as e:
                 r = c.detailed_error(e)
                 c.print('Error in sync_loop -->', r, color='red')
