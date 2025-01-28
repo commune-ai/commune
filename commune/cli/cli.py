@@ -91,7 +91,6 @@ class Cli:
         return init_kwargs
 
     def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module'):
-
         if len(argv) == 0:
             fn = default_fn
         else:
@@ -112,7 +111,6 @@ class Cli:
             old_module = module
             module = c.shortcuts[module]
             print(f'ShortcutEnabled({old_module} -> {module})', color='yellow')
-
         filepath = c.filepath(module).replace(c.home_path, '~')    
         print(f'Calling({module}/{fn}, path={filepath})', color='yellow')
         module = c.module(module)

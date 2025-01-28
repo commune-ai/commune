@@ -13,7 +13,7 @@ class Server:
     max_user_data_age = 3600 # the lifetime of the user call data
     max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
     helper_functions  = ['info', 'schema', 'functions', 'forward'] # the helper functions
-    function_attributes =['whitelist', 'endpoints', 'functions',  'fns', "exposed_functions",'server_functions', 'public_functions'] # the attributes for the functions
+    function_attributes =['endpoints', 'functions', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     manager = c.module("server.manager")()
     net = {'local': c.module('server.network')()}
     def __init__(
@@ -120,14 +120,14 @@ class Server:
         c.print(f'Functions({self.module.functions} fn2cost={self.module.fn2cost} free={self.free})')
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
         self.module.info = {
-            "functions": self.module.functions,
-            "schema": self.module.schema,
             "name": self.module.name,
             "url": self.module.url,
             "key": self.module.key.ss58_address,
             "crypto_type": self.module.key.crypto_type,
             "fn2cost": self.module.fn2cost,
-            "time": c.time()
+            "time": c.time(),
+            "functions": self.module.functions,
+            "schema": self.module.schema,
         }
         return {'success':True, 'message':f'Set functions to {functions}'}
         

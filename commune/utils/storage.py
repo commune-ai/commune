@@ -472,3 +472,7 @@ def path2text( path:str, relative=False):
         pwd = pwd()
         path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
     return path2text
+
+
+def textsize( path: str = './', **kwargs ) -> str:
+    return len(str(cls.text(path)))

@@ -64,30 +64,38 @@ class c:
                params : dict = None, 
                cache=True, 
                trials=1, 
+               verbose=False,
                tree:dict=None ) -> str:
         path = path or 'module'
         if path in ['module', c.reponame[0]]:
             return c
+        t0 = c.time()
         path = path.replace('/','.')
-        if (path in c.module_cache):
-            module = c.module_cache[path]
+        path = c.shortcuts.get(path, path)
+        tree = tree or c.tree()
+        simp_path = path
+        path = tree.get(path, path)
+        obj_path = path
+        if (obj_path in c.module_cache):
+            module = c.module_cache[obj_path]
         else:
-            path = c.shortcuts.get(path, path)
-            tree = tree or c.tree()
-            path = tree.get(path, path)
-            module = c.import_object(path)
-            if not c.is_object_module(module):
-                module = c.convert_module(module)
-            c.module_cache[path] = module
+            module = c.import_object(obj_path)
+            module = c.obj2module(module) # if the model
+            c.module_cache[obj_path] = module
         if params != None:
             module = module(**params)
+        loadtime = c.time() - t0
+        c.print(f'Module(simp_path={obj_path}, obj_path={obj_path}, t={loadtime:.2f}s') if verbose else ''
         return module
     
     get_agent = block =  get_block = get_module =  mod =  module
     
     @classmethod
-    def convert_module(cls, module:'Object', verbose=False):
-        c.print(f'ConvertingModule({module})', verbose=verbose)
+    def obj2module(cls, obj:'Object', verbose=False):
+        module = obj
+        if c.is_object_module(obj):
+            return module
+        c.print(f'ConvertingObj2Module({obj})', verbose=verbose)
         module.module_name = module.name = lambda *args, **kwargs : c.module_name(module)
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
         module.key = c.get_key(module.module_name(), create_if_not_exists=True)
@@ -218,6 +226,7 @@ class c:
         argv.params = params or json.loads(argv.params.replace("'",'"'))
         argv.args = json.loads(argv.args.replace("'",'"'))
         argv.fn = fn or argv.fn
+
         if len(argv.params) > 0:
             if isinstance(argv.params, dict):
                 argv.kwargs = argv.params
@@ -229,7 +238,7 @@ class c:
             module =  cls(*argv.args, **argv.kwargs)   
         else:
             module = cls  
-  
+        print(argv)
         return getattr(module, argv.fn)(*argv.args, **argv.kwargs)     
         
     @classmethod
@@ -800,9 +809,6 @@ class c:
         with open(path, 'r') as file:
             content = file.read()
         return content
-    @classmethod
-    def textsize(cls, path: str = './', **kwargs ) -> str:
-        return len(str(cls.text(path)))
 
     @staticmethod
     def sleep(period):
@@ -1349,13 +1355,13 @@ class c:
     objs = objects
     @classmethod
     def ensure_sys_path(cls, paths:List[str] = None):
-        paths = paths or [c.modules_path, c.pwd()]
+        paths = paths or [ c.pwd()]
         if not hasattr(c, 'included_pwd_in_path'):
             c.included_pwd_in_path = False
         if  not c.included_pwd_in_path:
             for p in paths:
                 if not p in sys.path:
-                    sys.path.append(p) 
+                    sys.path = [p] + sys.path
             sys.path = list(set(sys.path))
             c.included_pwd_in_path = True
         return sys.path
@@ -1365,6 +1371,16 @@ class c:
         from importlib import import_module
         c.ensure_sys_path()
         return import_module(import_path)
+
+    @classmethod
+    def is_python_module(cls, module):
+        try:
+            c.import_module(module)
+            return True
+        except Exception as e:
+            return False
+
+
     
     @classmethod
     def get_object(cls, key:str, splitters=['/', '::',  '.'], **kwargs)-> Any:
@@ -1458,8 +1474,7 @@ class c:
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.libpath, depth=depth, **kwargs)
-
-    
+        
     @classmethod
     def core_tree(cls, **kwargs):
         tree =  c.get_tree(c.libpath, **kwargs)
@@ -1614,7 +1629,8 @@ class c:
     def repos(self, search=None):
         return list(self.repo2path(search=search).keys())
 
-    def time(self):
+    @classmethod
+    def time(cls):
         return time.time()
 
     def ask(self, *args, **kwargs):

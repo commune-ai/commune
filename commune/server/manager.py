@@ -19,7 +19,6 @@ class Manager:
     def __init__(self, network='local', **kwargs):
         self.net = Network(network=network)
         self.ensure_env()
-
         attrs = ['add_server', 'rm_server', 'namespace', 'modules']
         self.add_server = self.net.add_server
         self.rm_server = self.net.rm_server
@@ -36,20 +35,10 @@ class Manager:
             result =  {'message':f'Error killing {name}', 'success':False, 'error':e}
         c.rm_server(name)
         return result
-
-
-    def namespace(self, search=None):
-        from .network import Network
-        network = Network()
-        return network.namespace(search=search)
-
-    def namespace(self, search=None):
-        return self.net.namespace(search=search)
-    
     
     def kill_all(self, verbose:bool = True, timeout=20):
         servers = self.processes()
-        futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}, return_future=True) for s in servers]
+        futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}) for s in servers]
         results = c.wait(futures, timeout=timeout)
         return results
     

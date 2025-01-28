@@ -784,7 +784,7 @@ class Subspace(c.Module):
         params: list[Any] = [],
         module: str = "SubspaceModule",
         extract_value: bool = True,
-        max_age=0,
+        max_age=60,
         update=False,
         block = None,
         block_hash: str | None = None,

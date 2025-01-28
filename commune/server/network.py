@@ -4,29 +4,42 @@ import commune as c
 class Network(c.Module):
     min_stake = 0
     block_time = 8 
-    n = 100
-    tempo = 60
     endpoints = ['namespace']
-    def __init__(self, network:str='local', tempo=tempo,  path=None, **kwargs):
-        self.set_network(network=network, tempo=tempo, path=path)
+    def __init__(self, 
+                 network:str='local', 
+                 tempo=60,  
+                 n = 100,
+                 path=None, 
+                 **kwargs):
+        self.set_network(network=network, tempo=tempo, path=path,  n=n)
 
-    def set_network(self, network:str, tempo:int=60, path=None, **kwargs):
+    def set_network(self, 
+                    network:str, 
+                    tempo:int=60, 
+                    n=100, 
+                    path=None,
+                    **kwargs):
         self.network = network 
         self.tempo = tempo
-        self.modules_path = self.resolve_path(path or f'{self.network}/modules')
-        return {'network': self.network, 'tempo': self.tempo, 'modules_path': self.modules_path}
+        self.n = self.n
+        self.network_path = self.resolve_path(path or f'{self.network}')
+        self.modules_path =  f'{self.network_path}/modules'
+        return {'network': self.network, 
+                'tempo': self.tempo, 
+                'n': self.n,
+                'network_path': self.network_path}
     
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
 
     def modules(self, 
                 search=None, 
-                max_age=tempo, 
+                max_age=None, 
                 update=False, 
                 features=['name', 'url', 'key'], 
                 timeout=8, 
                 **kwargs):
-        modules = c.get(self.modules_path, max_age=max_age, update=update)
+        modules = c.get(self.modules_path, max_age=max_age or self.tempo, update=update)
         if modules == None:
             modules = []
             urls = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
@@ -44,8 +57,11 @@ class Network(c.Module):
             modules = [m for m in modules if search in m['name']]
         return modules
 
-    def namespace(self, search=None,  max_age:int = tempo, update:bool = False, **kwargs) -> dict:
-        return {m['name']: '0.0.0.0' + ':' + m['url'].split(':')[-1] for m in self.modules(search=search, max_age=max_age, update=update)}
+    def resolve_max_age(self, max_age=None):
+        return max_age or self.tempo
+
+    def namespace(self, search=None,  max_age:int = None, update:bool = False, **kwargs) -> dict:
+        return {m['name']: '0.0.0.0' + ':' + m['url'].split(':')[-1] for m in self.modules(search=search, max_age=self.resolve_max_age(max_age), update=update)}
 
     def add_server(self, name:str, url:str, key:str) -> None:
         data = {'name': name, 'url': url, 'key': key}
@@ -62,15 +78,8 @@ class Network(c.Module):
     def resolve_network(self, network:str) -> str:
         return network or self.network
     
-    def names(self, *args, **kwargs) -> List[str]:
-        return list(self.namespace(*args, **kwargs).keys())
-    
-    def urls(self,*args, **kwargs) -> List[str]:
-        return list(self.namespace(*args, **kwargs).values())
-    
     def servers(self, search=None,  **kwargs) -> List[str]:
-        namespace = self.namespace(search=search,**kwargs)
-        return list(namespace.keys())
+        return list( self.namespace(search=search,**kwargs).keys())
     
     def server_exists(self, name:str, **kwargs) -> bool:
         servers = self.servers(**kwargs)

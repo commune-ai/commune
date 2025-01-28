@@ -62,51 +62,14 @@ def submit(
             kwargs: dict = None, 
             args:list = None, 
             timeout:int = 40, 
-            return_future:bool=True,
-            init_args : list = [],
-            init_kwargs:dict= {},
-            executor = None,
             module: str = None,
             mode:str='thread',
             max_workers : int = 100,
             ):
     import commune as c
-    kwargs = {} if kwargs == None else kwargs
-    args = [] if args == None else args
-    if params != None:
-        if isinstance(params, dict):
-            kwargs = {**kwargs, **params}
-        elif isinstance(params, list):
-            args = [*args, *params]
-        else:
-            raise ValueError('params must be a list or a dictionary')
-    
     fn = c.get_fn(fn)
-    executor = c.module('executor')(max_workers=max_workers, mode=mode) if executor == None else executor
-    args = c.copy(args)
-    kwargs = c.copy(kwargs)
-    init_kwargs = c.copy(init_kwargs)
-    init_args = c.copy(init_args)
-    if module == None:
-        module = c.Module
-    else:
-        module = module(module)
-    if isinstance(fn, str):
-        method_type = c.classify_fn(getattr(module, fn))
-    elif callable(fn):
-        method_type = c.classify_fn(fn)
-    else:
-        raise ValueError('fn must be a string or a callable')
-    
-    if method_type == 'self':
-        module = module(*init_args, **init_kwargs)
-
-    future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
-        
-    if return_future:
-        return future
-    else:
-        return wait(future, timeout=timeout)
+    executor = c.module('executor')(max_workers=max_workers, mode=mode) 
+    return executor.submit(fn=fn, params=params, args=args, kwargs=kwargs, timeout=timeout)
 
 def as_completed(futures:list, timeout:int=10, **kwargs):
     import concurrent

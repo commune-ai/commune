@@ -28,7 +28,7 @@ class History(c.Module):
     def refresh_history(self):
         path = self.history_path
         self.rm(path)
-        return self.ls(path)
+        return c.ls(path)
 
     def add_history(self, item):
         self.check_item(item)
@@ -45,7 +45,7 @@ class History(c.Module):
     
     def history_size(self, key):
         path = self.get_user_directory(key)
-        return len(self.ls(path))
+        return len(c.ls(path))
     
     def history_exists(self, key):
         path = self.get_user_directory(key)
@@ -53,7 +53,7 @@ class History(c.Module):
 
     def user_history(self, key):
         path = self.get_user_directory(key)
-        return self.ls(path)
+        return c.ls(path)
     def set_history_path(self, path):
         self.history_path = self.resolve_path(path)
         return {'history_path': self.history_path}
