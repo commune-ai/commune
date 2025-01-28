@@ -6,8 +6,7 @@ from typing import *
 
 class Vali(c.Module):
     endpoints = ['score', 'scoreboard']
-    incentive_networks = ['bittensor', 'subspace']
-    networks = ['local'] + incentive_networks
+    networks = ['local', 'bittensor', 'subspace'] 
     epoch_time = 0
     vote_time = 0 # the time of the last vote (for voting networks)
     vote_staleness = 0 # the time since the last vote
@@ -18,7 +17,6 @@ class Vali(c.Module):
                     subnet : Optional[Union[str, int]] = None, # (OPTIONAL) the name of the subnetwork 
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
                     batch_size : int = 128, # the batch size of the most parallel tasks
-                    max_workers : Optional[int]=  None , # the number of parallel workers in the executor
                     score : Union['callable', int]= None, # score function
                     key : str = None,
                     tempo : int = None , 
@@ -28,39 +26,62 @@ class Vali(c.Module):
                     path : str= None, # the storage path for the module eval, if not null then the module eval is stored in this directory
                  **kwargs):     
         self.timeout = timeout
-        self.max_workers = max_workers or c.cpu_count() * 5
         self.batch_size = batch_size
-        self.executor = c.module('executor')(max_workers=self.max_workers,  maxsize=self.batch_size)
         self.set_key(key)
-        self.set_network(network=network, subnet=subnet, tempo=tempo, search=search, path=path,  score=score, update=update)
+        self.sync_network(network=network, 
+                          subnet=subnet, 
+                          tempo=tempo, 
+                          search=search, 
+                          path=path, 
+                          update=update)
+        self.set_score(score)
         if run_loop:
             c.thread(self.run_loop)
     init_vali = __init__
+
+    def set_score(self, score=None):
+        if score == None:
+            score = self.score
+        if isinstance(score, str):
+            score = c.get_fn(score)
+        if callable(score):
+            setattr(self, 'score', score )
+
+        c.print(f'Score({self.score})')
+
+    
+        assert callable(self.score), f'SCORE NOT SET {self.score}'
+        return {'success': True, 'msg': 'Score function set'}
     
     def set_key(self, key):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
 
-    def set_network(self, network:str, 
+    def sync_network(self, network:str = None, 
                     subnet:str=None, 
                     tempo:int=60, 
                     search:str=None, 
                     path:str=None, 
-                    score = None,
-                    update=False):
-    
-
-        if not network in self.networks and '/' not in network:
-            network = f'subspace/{network}'
-        [network, subnet] = network.split('/') if '/' in network else [network, subnet]
-        self.subnet = subnet 
-        self.network = network
+                     update = False):
+        self.network = network or 'local'
+        self.subnet = subnet or 0
+        if '/' in self.network:
+            self.network, self.subnet = self.network.split('/')
         self.network_module = c.module(self.network)() 
-        self.tempo = tempo
-        self.search = search
+        self.tempo = tempo or 60
+        self.search = search or None
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
-        self.set_score(score)
-        self.sync(update=update)
+        self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo, update=update)
+        self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo, update=update)
+        self.is_voting_network = bool(hasattr(self.network_module, 'vote'))
+        self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
+        if self.search != None:
+            self.modules = [m for m in self.modules if self.search in m['name']]
+        self.n  = len(self.modules)  
+        self.network_info = {'n': self.n, 'network': self.network  ,  'subnet': self.subnet, 'params': self.params}
+        c.print(f'<Network({self.network_info})')
+        return self.network_info
+    
 
     def score(self, module):
         info = module.info()
@@ -118,9 +139,10 @@ class Vali(c.Module):
     def score_batch(self, modules: List[dict]):
         try:
             results = []
-            futures = [self.executor.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
+            futures = [c.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
+                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     results.append(m)
@@ -134,7 +156,7 @@ class Vali(c.Module):
         for _ in  range(next_epoch):
             progress.update(1)
             c.sleep(1)
-        self.sync()
+        self.sync_network()
         c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
         batches = [self.modules[i:i+self.batch_size] for i in range(0, self.n, self.batch_size)]
         progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
@@ -148,19 +170,6 @@ class Vali(c.Module):
         print(self.scoreboard())
         self.vote(results)
         return results
-    
-    def sync(self, update = False):
-        max_age =  0 if update else (self.tempo or 60)
-        self.modules = self.network_module.modules(subnet=self.subnet, max_age=max_age)
-        self.params = self.network_module.params(subnet=self.subnet, max_age=max_age)
-        self.is_voting_network = bool(hasattr(self.network_module, 'vote'))
-        self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
-        if self.search != None:
-            self.modules = [m for m in self.modules if self.search in m['name']]
-        self.n  = len(self.modules)  
-        self.network_info = {'n': self.n, 'network': self.network ,  'subnet': self.subnet, 'params': self.params}
-        c.print(f'<Network({self.network_info})')
-        return self.network_info
     
     @property
     def votes_path(self):

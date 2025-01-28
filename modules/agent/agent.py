@@ -45,7 +45,7 @@ class Agent:
         """
         return self.ask(prompt, **kwargs)
         
-    def exe(self, *text, path='./', **kwargs):
+    def executor(self, *text, path='./', **kwargs):
         text = ' '.join(list(map(str, text)))
         prompt = f"""
         GOAL

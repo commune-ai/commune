@@ -195,14 +195,17 @@ class Server:
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         latency = c.time() - float(headers['time'])
         if c.is_generator(result):
-            output = ''
+            c.print(f"Generator({result})")
+            # get a hash for the generator
+            output = str(result)
             def generator_wrapper(generator):
                 for item in generator:
-                    output += str(item)
                     yield item
-            result = EventSourceResponse(generator_wrapper(result))
+            result = EventSourceResponse(generator_wrapper(result))       
         else:
-            output =  self.serializer.serialize(result)
+            output = result 
+
+        output =  self.serializer.serialize(output)
             
         if not self.free:
             data = {

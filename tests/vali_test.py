@@ -2,7 +2,7 @@
 import commune as c
 import pandas as pd
 
-Vali = c.module('vali')
+
 def test(  
              n=2, 
              tag = 'vali_test_net',  
@@ -13,6 +13,7 @@ def test(
              path = '/tmp/commune/vali_test',
              network='local'
              ):
+        Vali  = c.module('vali')
         test_miners = [f'{miner}::{tag}{i}' for i in range(n)]
         modules = test_miners
         search = tag

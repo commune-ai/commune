@@ -94,7 +94,7 @@ class Manager:
     def kill_many(self, search=None, verbose:bool = True, timeout=10):
         futures = []
         for name in c.servers(search=search):
-            f = c.submit(c.kill, dict(name=name, verbose=verbose), return_future=True, timeout=timeout)
+            f = c.submit(c.kill, dict(name=name, verbose=verbose), timeout=timeout)
             futures.append(f)
         return c.wait(futures)
     

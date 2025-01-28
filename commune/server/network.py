@@ -75,10 +75,7 @@ class Network(c.Module):
     def server_exists(self, name:str, **kwargs) -> bool:
         servers = self.servers(**kwargs)
         return bool(name in servers)
-    
-    def networks(self) -> List[str]:
-        return ['local', 'subspace', 'subtensor']
 
     def infos(self, *args, **kwargs) -> Dict:
-        return [c.call(url+'/info') for name, url in self.namespace(*args, **kwargs).items()]
+        return self.modules(*args, **kwargs)
 
