@@ -116,7 +116,7 @@ class Server:
                 break
         port = port or c.free_port()
         while c.port_used(port):
-            port = c.free_port(port)
+            port = c.free_port()
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
         self.module.port = port
