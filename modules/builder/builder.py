@@ -12,16 +12,9 @@ class Builder:
                  key = None,
                 **kwargs):
         
-        self.model = c.module('model.openrouter')(model=model)
+        self.model = c.module('agent')(model=model)
         self.models = self.model.models()
         self.key = c.get_key(key)
-
-    def process_text(self, text):
-        for ch in text.split(' '):
-
-            if len(ch) > 0 and ch[0] in ['.', '/', '~'] and os.path.exists(ch):
-                text = text.replace(ch, str(c.file2text(ch)))
-        return text
     
     def build(self, 
                  text, 
@@ -59,7 +52,6 @@ class Builder:
             """
         if len(extra_text) > 0:
             text = ' '.join(list(map(str, [text] +list(extra_text))))
-        text = self.process_text(text)
         prompt = prompt + text
         output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
         return self.process_output(output, path=path)

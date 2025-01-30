@@ -10,12 +10,11 @@ import asyncio
 
 class Server:
     network = 'subspace'
-    max_user_data_age = 3600 # the lifetime of the user call data
+    max_user_history_age = 3600 # the lifetime of the user call data
     max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
     helper_functions  = ['info', 'schema', 'functions', 'forward'] # the helper functions
     function_attributes =['endpoints', 'functions', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
-    manager = c.module("server.manager")()
-    net = {'local': c.module('server.network')()}
+    server_network =  c.module('server.network')()
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
@@ -92,7 +91,7 @@ class Server:
          # add the endpoints to the app
         self.app.post("/{fn}")(forward)
         c.print(f'Served(name={self.module.name}, url={self.module.url}, key={self.module.key.key_address})', color='purple')
-        self.manager.add_server(name=self.module.name, url=self.module.url, key=self.module.key.ss58_address)
+        self.server_network.add_server(name=self.module.name, url=self.module.url, key=self.module.key.ss58_address)
         print(f'Network: {self.network}')
         uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
     
@@ -132,14 +131,13 @@ class Server:
         return {'success':True, 'message':f'Set functions to {functions}'}
         
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
-        m = self.manager
         name = self.module.name
         for k in port_attributes:
             if hasattr(self.module, k):
                 port = getattr(self.module, k)
                 break
         if port in [None, 'None']:
-            namespace = self.manager.namespace()
+            namespace = self.server_network.namespace()
             if name in namespace:
                 m.kill(name)
                 try:
@@ -225,6 +223,9 @@ class Server:
 
     def  resolve_path(self, path):
         return  c.storage_path + '/' + self.module_name() + '/' + path
+    @classmethod
+    def processes(cls):
+        return cls.server_network.processes()
 
     state = {}
     def sync_network(self, network=None):
@@ -265,7 +266,7 @@ class Server:
         future = c.submit(c.logs, [name])
 
         while time_waiting < timeout:
-                namespace = cls.net['local'].namespace(network=network, max_age=max_age)
+                namespace = cls.server_network.namespace(network=network, max_age=max_age)
                 if name in namespace:
                     try:
                         result = c.call(namespace[name]+'/info')
@@ -300,7 +301,7 @@ class Server:
         if remote and isinstance(module, str):
             rkwargs = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
             rkwargs['remote'] = False
-            cls.manager.start( module="server", fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
+            cls.server_network.start( module="server", fn='serve', name=name, kwargs=rkwargs, cwd=cwd)
             return cls.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
 
@@ -317,19 +318,23 @@ class Server:
 
     @classmethod
     def kill_all(cls): 
-        return cls.manager.kill_all()
+        return cls.server_network.kill_all()
 
     @classmethod
     def kill(cls, name, **kwargs):
-        return cls.manager.kill(name, **kwargs)
+        return cls.server_network.kill(name, **kwargs)
 
     @classmethod
     def server_exists(cls, name):
-        return cls.net['local'].server_exists(name)
+        return cls.server_network.server_exists(name)
+
+    @classmethod
+    def servers(cls, **kwargs):
+        return cls.server_network.servers(**kwargs)
 
     @classmethod
     def logs(cls, name, **kwargs):
-        return cls.manager.logs(name, **kwargs)
+        return cls.server_network.logs(name, **kwargs)
 
     def is_admin(self, key_address):
         return c.is_admin(key_address)
@@ -379,11 +384,6 @@ class Server:
                     'cost': self.module.fn2cost.get(fn, 1)
                     }
 
-    def users(self):
-        try:
-            return os.listdir(self.history_path)
-        except:
-            return []
     
     def user_call_path2latency(self, key_address):
         user_paths = self.call_paths(key_address)
@@ -397,13 +397,13 @@ class Server:
     def call_rate(self, key_address, max_age = 60):
         path2latency = self.user_call_path2latency(key_address)
         for path, latency  in path2latency.items():
-            if latency > self.max_user_data_age:
-                c.print(f'RemovingUserPath(path={path} latency(s)=({latency}/{self.max_user_data_age})')
+            if latency > self.max_user_history_age:
+                c.print(f'RemovingUserPath(path={path} latency(s)=({latency}/{self.max_user_history_age})')
                 if os.path.exists(path):
                     os.remove(path)
         return len(self.call_paths(key_address))
 
-    def user_data(self, key_address, stream=False):
+    def user_history(self, key_address, stream=False):
         call_paths = self.call_paths(key_address)
         if stream:
             def stream_fn():
@@ -417,8 +417,8 @@ class Server:
         user2fn2calls = {}
         for user in self.users():
             user2fn2calls[user] = {}
-            for user_data in self.user_data(user):
-                fn = user_data['fn']
+            for user_history in self.user_history(user):
+                fn = user_history['fn']
                 user2fn2calls[user][fn] = user2fn2calls[user].get(fn, 0) + 1
         return user2fn2calls
 
@@ -429,16 +429,19 @@ class Server:
     def users(self):
         return os.listdir(self.history_path)
 
-    
-    def history(self, user):
-        return self.user_data(user)
-
+    def history(self, module=None , simple=True):
+        module = module or self.module.name
+        all_history = {}
+        users = self.users()
+        for user in users:
+            all_history[user] = self.user_history(user)
+            if simple:
+                all_history[user].pop('output')
+        return all_history
     @classmethod
     def all_history(cls, module=None):
         self = cls(module=module, run_api=False)
         all_history = {}
-        for user in self.users():
-            all_history[user] = self.history(user)
         return all_history
 
     def path2time(self, path:str) -> float:

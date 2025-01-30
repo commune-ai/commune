@@ -16,11 +16,11 @@ class Agent:
 
     def generate(self,  
                  text = 'whats 2+2?' , 
-                 model= 'anthropic/claude-3.5-sonnet',  
-                 temperature= 0.5, 
+                 model= 'anthropic/claude-3.5-sonnet', 
+                 temperature= 0.5,
                  max_tokens= 1000000,
                  stream=True,  ):
-        # text = self.process_text(text)
+        text = self.process_text(text)
         return self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
     
     forward = generate

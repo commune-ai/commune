@@ -424,23 +424,8 @@ def get_env(key:str):
 def cwd():
     return os.getcwd()
 
-def stream_output(process, verbose=True):
-    try:
-        modes = ['stdout', 'stderr']
-        for mode in modes:
-            pipe = getattr(process, mode)
-            if pipe == None:
-                continue
-            # print byte wise
-            for ch in iter(lambda: pipe.read(1), b''):
-                ch = ch.decode('utf-8')
-                if verbose:
-                    print(ch, end='')
-                yield ch
-    except Exception as e:
-        print(e)
-    finally:
-        kill_process(process)
+
+
 
 def proc(command:str,  *extra_commands, verbose:bool = False, **kwargs):
     process = subprocess.Popen(shlex.split(command, *extra_commands), 
@@ -450,56 +435,105 @@ def proc(command:str,  *extra_commands, verbose:bool = False, **kwargs):
     streamer = stream_output(process, verbose=verbose)
     return streamer
 
-def cmd(command:Union[str, list],
-                *args,
-                verbose:bool = False , 
-                env:Dict[str, str] = {}, 
-                sudo:bool = False,
-                password: bool = None,
-                bash : bool = False,
-                return_process: bool = False,
-                stream: bool =  False,
-                color : str = 'white',
-                cwd : str = None,
-                **kwargs) -> 'subprocess.Popen':
 
+
+def cmd(
+    command: Union[str, list],
+    *args,
+    verbose: bool = False,
+    env: Dict[str, str] = None,
+    sudo: bool = False,
+    password: str = None,
+    bash: bool = False,
+    return_process: bool = False,
+    stream: bool = False,
+    color: str = 'white',
+    cwd: str = None,
+    **kwargs
+) -> 'subprocess.Popen':
+    """
+    Execute a shell command with various options and handle edge cases.
+    """
     import commune as c
+    def stream_output(process, verbose=True):
+        """Stream output from process pipes."""
+        try:
+            modes = ['stdout', 'stderr']
+            for mode in modes:
+                pipe = getattr(process, mode)
+                if pipe is None:
+                    continue
+                
+                # Read bytewise
+                while True:
+                    ch = pipe.read(1)
+                    if not ch:
+                        break
+                    try:
+                        ch_decoded = ch.decode('utf-8')
+                        if verbose:
+                            print(ch_decoded, end='', flush=True)
+                        yield ch_decoded
+                    except UnicodeDecodeError:
+                        continue
+        finally:
+            kill_process(process)
 
-    if len(args) > 0:
-        command = ' '.join([command] + list(args))
+    try:
+        # Handle command construction
+        if isinstance(command, list):
+            command = ' '.join(command)
+        
+        if args:
+            command = ' '.join([command] + list(map(str, args)))
 
-    sudo = bool(password != None)
+        # Handle sudo
+        if password is not None:
+            sudo = True
+        if sudo:
+            command = f'sudo {command}'
 
-    if sudo:
-        command = f'sudo {command}'
+        # Handle bash execution
+        if bash:
+            command = f'bash -c "{command}"'
 
-    if bash:
-        command = f'bash -c "{command}"'
+        # Handle working directory
+        cwd = c.resolve_path(c.pwd() if cwd is None else cwd)
 
-    cwd = c.resolve_path(c.pwd() if cwd == None else cwd)
-    
-    env = {**os.environ, **env}
+        # Handle environment variables
+        if env is None:
+            env = {}
+        env = {**os.environ, **env}
 
-    process = subprocess.Popen(shlex.split(command),
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.STDOUT,
-                                cwd = cwd,
-                                env=env, **kwargs)
-    if return_process:
-        return process
+        # Create process
+        process = subprocess.Popen(
+            shlex.split(command),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=cwd,
+            env=env,
+            **kwargs
+        )
 
-    streamer = stream_output(process)
+        if return_process:
+            return process
 
-    if stream:
-        return streamer
-    else:
-        text = ''
-        for ch in streamer:
-            text += ch
+        # Handle output streaming
+        streamer = stream_output(process)
 
-    return text
+        if stream:
+            return streamer
+        else:
+            # Collect all output
+            text = ''
+            for ch in streamer:
+                text += ch
+            return text
 
-
+    except Exception as e:
+        if verbose:
+            print(f"Error executing command: {str(e)}")
+        raise
 def determine_type( x):
     x_type = type(x)
     x_type_name = x_type.__name__.lower()

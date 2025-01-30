@@ -48,7 +48,6 @@ class c:
         "client": 'server.client',
         'network': 'server.network',
         'local': 'server.network',
-        'network.local': 'server.network',
         }
     splitters = [':', '/', '.']
     route_cache = None
@@ -1580,7 +1579,7 @@ class c:
     add_module = new_module
 
     def build(self, *args, **kwargs):
-        return c.module('builder')().forward(*args, **kwargs)
+        return c.module('builder')().build(*args, **kwargs)
     
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:

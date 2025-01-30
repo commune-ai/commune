@@ -2035,7 +2035,6 @@ class Subspace(c.Module):
         return balances
     
     def my_balance(self, batch_size=128, timeout=120, max_age=6000, update=False, num_connections=10):
-        self.set_connections(num_connections=num_connections)
         path = self.resolve_path(f'{self.network}/my_balance')
         balances = c.get(path, None, update=update, max_age=max_age)
         if balances == None:
@@ -2055,13 +2054,16 @@ class Subspace(c.Module):
             balances = {}
             progress_bar = c.tqdm(total=n, desc='Getting Balances')
             for f in c.as_completed(future2hash.keys(), timeout=timeout):
-                batch_hash = future2hash[f]
-                balances_batch = f.result()
-                addresses_batch = hash2batch[batch_hash]
-                for address, balance in zip(addresses_batch, balances_batch):
-                    balances[address] = balance[1].value['data']['free']
-                    progress_bar.update(1)
-                    # c.print(f'Balance for {address}: {balance} ({counter}/{len(addresses)})')
+                try:
+                    batch_hash = future2hash[f]
+                    balances_batch = f.result()
+                    addresses_batch = hash2batch[batch_hash]
+                    for address, balance in zip(addresses_batch, balances_batch):
+                        balances[address] = balance[1].value['data']['free']
+                        progress_bar.update(1)
+                        # c.print(f'Balance for {address}: {balance} ({counter}/{len(addresses)})')
+                except Exception as e:
+                    print(e)
             address2key = c.address2key()
             balances = {address2key.get(k, k):v for k,v in balances.items()}
             c.put(path, balances)    
