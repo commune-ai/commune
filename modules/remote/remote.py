@@ -319,7 +319,7 @@ class Remote(c.Module):
         for name, address in list(namespace.items())[:n]:
             if address == None:
                 raise Exception(f'Address for {name} not found')
-            logs = c.call(address, 'logs', name, mode='local')
+            logs = c.call(address, 'logs', name, stream=False)
             c.print(f'[bold yellow]{name}[/bold yellow]')
             c.print('\n'.join(logs.split('\n')[-10:]))
 

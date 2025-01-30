@@ -35,11 +35,9 @@ class Server:
         params : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
         network = 'local', # the network the server is running on
-        gate_network = 'subspace', # the network the gate is running on
         # -- ADVANCED PARAMETERS --
         gate:str = None, # the .network used for incentives
         free : bool = False, # if the server is free (checks signature)
-        crypto_type: Union[int, str] = 'sr25519', # the crypto type of the key
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
@@ -54,15 +52,14 @@ class Server:
                 if '::' in str(module):
                     module, tag = name.split('::') 
             name = name or module
-            params = params or {}
-            self.module = c.module(module)(**params)
+            self.module = c.module(module)(**(params or {}))
             self.module.name = name 
-            self.module.key = c.get_key(key or name, crypto_type=crypto_type)
+            self.module.key = c.get_key(key or name)
             self.serializer = c.module(serializer)()
             self.set_port(port)
             self.set_functions(functions) 
             self.ensure_env()
-            self.gate = gate or Gate(module=self.module, network=gate_network, history_path=history_path or self.resolve_path(f'history/{self.module.name}'))
+            self.gate = gate or Gate(module=self.module, history_path=history_path or self.resolve_path(f'history/{self.module.name}'))
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             def forward(fn: str, request: Request):
@@ -117,18 +114,9 @@ class Server:
             if hasattr(self.module, k):
                 port = getattr(self.module, k)
                 break
-        if port in [None, 'None']:
-            namespace = self.namespace()
-            if name in namespace:
-                self.kill(name)
-                try:
-                    port =  int(namespace.get(self.module.name).split(':')[-1])
-                except:
-                    port = c.free_port()
-            else:
-                port = c.free_port()
+        port = port or c.free_port()
         while c.port_used(port):
-            c.kill_port(port)
+            port = c.free_port(port)
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
         self.module.port = port
@@ -217,22 +205,20 @@ class Server:
         time_waiting = 0
         # rotating status thing
         c.print(f'waiting for {name} to start...', color='cyan')
-        future = c.submit(c.logs, [name])
-
         while time_waiting < timeout:
-                namespace = cls.namespace(network=network, max_age=max_age)
-                if name in namespace:
-                    try:
-                        result = c.call(namespace[name]+'/info')
-                        if 'key' in result:
-                            c.print(f'{name} is running', color='green')
-                        result.pop('schema', None)
-                        return result
-                    except Exception as e:
-                        c.print(f'Error getting info for {name} --> {e}', color='red')
-                c.sleep(sleep_interval)
+            namespace = cls.namespace(network=network, max_age=max_age)
+            if name in namespace:
+                try:
+                    result = c.call(namespace[name]+'/info')
+                    if 'key' in result:
+                        c.print(f'{name} is running', color='green')
+                    result.pop('schema', None)
+                    return result
+                except Exception as e:
+                    c.print(f'Error getting info for {name} --> {e}', color='red')
+            c.sleep(sleep_interval)
                 
-                time_waiting += sleep_interval
+            time_waiting += sleep_interval
         future.cancel()
         raise TimeoutError(f'Waited for {timeout} seconds for {name} to start')
 
@@ -287,6 +273,9 @@ class Server:
     
     def killall(self, **kwargs):
         return self.kill_all(**kwargs)
+
+    pm2_dir_logs = c.home_path + '/.pm2/logs'
+
     
     def logs_path_map(self, name=None):
         logs_path_map = {}
@@ -302,43 +291,38 @@ class Server:
     
     def rm_logs( self, name):
         name = self.resolve_process_name(name)
-        logs_map = self.logs_path_map(name)
-        for k in logs_map.keys():
-            c.rm(logs_map[k])
+        for m in ['out', 'error']:
+            c.rm(self.get_logs_path(name, m))
 
-    def logs(self, module:str,  tail: int =100,   mode: str ='cmd', **kwargs):
+    def get_logs_path(self, name:str, mode='out')->str:
+        name = self.resolve_process_name(name)
+        return f'{self.pm2_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
+
+    def logs(self, module:str,  tail: int =100, stream=True, **kwargs):
         module = self.resolve_process_name(module)
-        if mode == 'local':
+        if stream:
+            return c.cmd(f"pm2 logs {module}", verbose=True)
+        else:
             text = ''
-            for m in ['out','error']:
+            for m in ['out', 'error']:
                 # I know, this is fucked 
-                path = f'{self.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
+                path = self.get_logs_path(module, m)
                 try:
                     text +=  c.get_text(path, tail=tail)
                 except Exception as e:
                     c.print('ERROR GETTING LOGS -->' , e)
                     continue
             return text
-        elif mode == 'cmd':
-            return c.cmd(f"pm2 logs {module}", verbose=True)
-        else:
-            raise NotImplementedError(f'mode {mode} not implemented')
-
-
     def get_server_port(self, name:str,  tail:int=100, **kwargs):
-        logs = self.logs(name, tail=tail, mode='local', **kwargs)
-        lines = logs.split('\n')
-        reverse_lines = lines[::-1]
+        logs = self.logs(name, tail=tail, stream=False, **kwargs)
         port = None
-        for i, line in enumerate(reverse_lines):
-            print(line)
-            if f'Served(' in line:
+        for i, line in enumerate(logs.split('\n')[::-1]):
+            if f'Served(' in line and 'url=' in line:
                 return int(line.split('url=')[1].split(' ')[0].split(',')[0].split(':')[-1])
         return None
 
     def get_server_url(self, name:str,  tail:int=100, **kwargs):
-        port = self.get_server_port(name, tail=tail, **kwargs)
-        return f'0.0.0.0:{port}'
+        return f'0.0.0.0:{self.get_server_port(name, tail=tail, **kwargs)}'
     
     def kill_many(self, search=None, verbose:bool = True, timeout=10):
         futures = []
@@ -358,11 +342,10 @@ class Server:
         namespace = {s: u for s, u in zip(servers, urls)}
         return namespace
 
-    
     def serve_background(self, 
                   fn: str = 'serve',
-                   module:str = None,  
-                   name:Optional[str]=None, 
+                   name:Optional[str] = None, 
+                   module:str = 'server',  
                    params: dict = None,
                    interpreter:str='python3', 
                    autorestart: bool = True,
@@ -370,16 +353,15 @@ class Server:
                    run_fn: str = 'run_fn',
                    cwd : str = None,
                    env : Dict[str, str] = None,
-                   refresh:bool=True , ):
+                   refresh:bool=True ):
         params['remote'] = False
         env = env or {}
         if '/' in fn:
             module, fn = fn.split('/')
-        module = module or self.module_name()
-        name = name or module
-        process_name = self.resolve_process_name(name)
-        if self.exists(process_name) and refresh:
+        if self.server_exists(module):
             self.kill(name)
+
+        process_name = self.resolve_process_name(name)
         cmd = f"pm2 start {c.filepath()} --name {process_name} --interpreter {interpreter} -f"
         cmd = cmd  if autorestart else ' --no-autorestart' 
         params_str = json.dumps({'module': module ,  'fn': fn, 'params': params or {}}).replace('"', "'")
@@ -414,7 +396,7 @@ class Server:
             name = self.process_prefix + name
         return name
         
-    def exists(self, name:str, **kwargs) -> bool:
+    def process_exists(self, name:str, **kwargs) -> bool:
         name = self.resolve_process_name(name)
         return name in self.processes(**kwargs)
 
@@ -425,7 +407,6 @@ class Server:
             c.cmd('npm install -g pm2')
             c.cmd('pm2 update')
         return {'success':True, 'message':f'Ensured env '}
-
 
     def set_network(self, 
                     network:str, 
@@ -498,9 +479,6 @@ class Server:
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
-
-
-    
 
 if __name__ == '__main__':
     Server.run()
