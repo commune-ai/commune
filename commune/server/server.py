@@ -113,10 +113,11 @@ class Server:
         for k in port_attributes:
             if hasattr(self.module, k):
                 port = getattr(self.module, k)
+                c.kill_port(port)
                 break
         port = port or c.free_port()
         while c.port_used(port):
-            port = c.free_port()
+            c.kill_port(port)
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
         self.module.port = port

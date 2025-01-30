@@ -904,6 +904,7 @@ class Subspace(c.Module):
         """
 
         key = self.resolve_key(key)
+        
         c.print(f'Calling(module={module} fn={fn} network={self.network} key={key.key_address} params={params}', color='blue')
 
         if key is None and not unsigned:
@@ -1085,6 +1086,7 @@ class Subspace(c.Module):
         params = {"dest": dest, "value": self.to_nanos(amount)}
         return self.compose_call( module="Balances", fn="transfer_keep_alive", params=params, key=key)
     send = transfer
+
     def to_nanos(self, amount):
         return amount * 10**9
     
@@ -1185,25 +1187,16 @@ class Subspace(c.Module):
     def unstake(
         self,
         key: Keypair,
+        dest: Ss58Address ,
         amount: int,
-        dest: Ss58Address = None,
+
     ) -> ExtrinsicReceipt:
         """
         Unstakes the specified amount of tokens from a module key address.
         """
-        if dest == None:
-            print('Didnt specify destination, unstaking from first module')
-            stake_to = self.get_staketo(key)
-            for k,v in stake_to.items():
-                if v >= amount:
-                    print(f'Didnt specify destination, unstaking {amount} from {k}')
-                    dest = k
-                    break
-        params = {"amount":  self.to_nanos(amount), "module_key": dest}
+        params = {"amount":  amount*(10**9), "module_key": dest}
         return self.compose_call(fn="remove_stake", params=params, key=key)
     
-
-
     def update_modules( self, subnet: str, timeout: int=60) -> ExtrinsicReceipt:
         modules = self.my_modules(subnet)
         futures = []
