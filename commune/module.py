@@ -44,10 +44,8 @@ class c:
         'r' :  'remote',
         's' :  'subspace',
         'subspace': 'subspace', 
-        'namespace': 'network', 
         "client": 'server.client',
-        'network': 'server.network',
-        'local': 'server.network',
+        'local': 'server',
         }
     splitters = [':', '/', '.']
     route_cache = None
@@ -247,7 +245,7 @@ class c:
         return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
 
     @classmethod
-    def run_fn(cls,fn:str, args:list = None, kwargs:dict= None, module:str = None) -> Any:
+    def run_fn(cls,fn:str, params=None, args=None, kwargs=None, module:str = None) -> Any:
         if '/' in fn:
             module, fn = fn.split('/')
         module = c.module(module)
@@ -256,6 +254,11 @@ class c:
         if is_self_method:
             module = module()
         fn_obj =  getattr(module, fn)
+        params = params or {}
+        if isinstance(params, list):
+            args = params
+        elif isinstance(params, dict):
+            kwargs = params
         args = args or []
         kwargs = kwargs or {}
         return fn_obj(*args, **kwargs)

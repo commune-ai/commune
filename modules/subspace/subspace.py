@@ -56,7 +56,7 @@ class Subspace(c.Module):
         wait_for_finalization: bool = False,
         test = False,
         ws_options = {},
-        timeout: int | None = None,
+        timeout: int  = None,
         net = None,
     ):
         self.set_network(network=net or network, # add a little shortcut,
@@ -93,7 +93,7 @@ class Subspace(c.Module):
                         num_connections: int = 1,
                         ws_options: dict[str, int] = {},
                         wait_for_finalization: bool = False,
-                        timeout: int | None = None ):
+                        timeout: int  = None ):
         if network in ['subspace']:
             network = 'main'
 
@@ -126,7 +126,7 @@ class Subspace(c.Module):
         return url    
 
     @contextmanager
-    def get_conn(self, timeout: float | None = None, init: bool = False):
+    def get_conn(self, timeout: float = None, init: bool = False):
         """
         Context manager to get a connection from the pool.
 
@@ -161,7 +161,7 @@ class Subspace(c.Module):
         self,
         storage: str,
         queries: list[tuple[str, list[Any]]],
-        block_hash: str | None,
+        block_hash: str,
     ):
 
         send: list[tuple[str, list[Any]]] = []
@@ -251,7 +251,7 @@ class Subspace(c.Module):
         Note:
             No explicit return value as results are appended to the provided 'results' list.
         """
-        results: list[str | dict[Any, Any]] = []
+        results: list[str ] = []
         with self.get_conn(init=True) as substrate:
             try:
 
@@ -384,7 +384,7 @@ class Subspace(c.Module):
         # smaller_requests = self._make_request_smaller(batch_requests)
         request_id = 0
         with ThreadPoolExecutor() as executor:
-            futures: list[Future[list[str | dict[Any, Any]]]] = []
+            futures: list[Future[list[str]]] = []
             for chunk in [batch_requests]:
                 request_ids: list[int] = []
                 batch_payload: list[Any] = []
@@ -461,7 +461,7 @@ class Subspace(c.Module):
         request_id = 0
 
         with ThreadPoolExecutor() as executor:
-            futures: list[Future[list[str | dict[Any, Any]]]] = []
+            futures: list[Future[list[str]]] = []
             for idx, macro_chunk in enumerate(chunk_requests):
                 _, mutated_chunk_info = split_chunks(macro_chunk, chunk_requests, idx)
             for chunk in mutated_chunk_info:
@@ -529,7 +529,7 @@ class Subspace(c.Module):
             {'storage_function_name': {decoded_key: decoded_value, ...}, ...}
         """
 
-        def get_item_key_value(item_key: tuple[Any, ...] | Any) -> tuple[Any, ...] | Any:
+        def get_item_key_value(item_key: tuple[Any, ...]) -> tuple[Any, ...]:
             if isinstance(item_key, tuple):
                 return tuple(k.value for k in item_key)
             return item_key.value
@@ -614,7 +614,7 @@ class Subspace(c.Module):
 
     def query_batch(
         self, functions: dict[str, list[tuple[str, list[Any]]]],
-        block_hash: str | None = None,
+        block_hash: str = None,
         verbose=False,
     ) -> dict[str, str]:
         """
@@ -664,7 +664,7 @@ class Subspace(c.Module):
     def query_batch_map(
         self,
         functions: dict[str, list[tuple[str, list[Any]]]],
-        block_hash: str | None = None,
+        block_hash: str = None,
         path = None,
         max_age=None,
         update=False,
@@ -691,8 +691,8 @@ class Subspace(c.Module):
         multi_result: dict[str, dict[Any, Any]] = {}
 
         def recursive_update(
-            d: dict[str, dict[T1, T2] | dict[str, Any]],
-            u: Mapping[str, dict[Any, Any] | str],
+            d: dict[str, dict[T1, T2]],
+            u: Mapping[str, dict[Any, Any]],
         ) -> dict[str, dict[T1, T2]]:
             for k, v in u.items():
                 if isinstance(v, dict):
@@ -787,7 +787,7 @@ class Subspace(c.Module):
         max_age=60,
         update=False,
         block = None,
-        block_hash: str | None = None,
+        block_hash: str = None,
     ) -> dict[Any, Any]:
         """
         Queries a storage map from a network node.
@@ -868,10 +868,10 @@ class Subspace(c.Module):
         self,
         fn: str,
         params: dict[str, Any],
-        key: Keypair | None,
+        key: Keypair,
         module: str = "SubspaceModule",
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool | None = True,
+        wait_for_finalization: bool = True,
         sudo: bool = False,
         tip = 0,
         nonce=None,
@@ -965,9 +965,9 @@ class Subspace(c.Module):
         threshold: int,
         module: str = "SubspaceModule",
         wait_for_inclusion: bool = True,
-        wait_for_finalization: bool | None = None,
+        wait_for_finalization: bool = None,
         sudo: bool = False,
-        era: dict[str, int] | None = None,
+        era: dict[str, int] = None,
     ) -> ExtrinsicReceipt:
         """
         Composes and submits a multisignature call to the network node.
@@ -1132,7 +1132,7 @@ class Subspace(c.Module):
     def my_tokens(self, min_value=0):
         my_stake = self.my_stake()
         my_balance = self.my_balance()
-        my_tokens =  {k:my_stake.get(k,0) + my_balance.get(k,0) for k in set(my_stake) | set(my_balance)}
+        my_tokens =  {k:my_stake.get(k,0) + my_balance.get(k,0) for k in set(my_stake)}
         return dict(sorted({k:v for k,v in my_tokens.items() if v > min_value}.items(), key=lambda x: x[1], reverse=True))
         
     def my_total(self):
@@ -1226,7 +1226,7 @@ class Subspace(c.Module):
         key: str,
         name: str=None,
         address: str = None ,
-        metadata: str | None = None,
+        metadata: str = None,
         delegation_fee: int = None,
         validator_weight_fee = None,
         subnet = 0,
@@ -1257,10 +1257,10 @@ class Subspace(c.Module):
         self,
         name: str,
         subnet: str = "Rootnet",
-        url: str | None = None,
+        url: str = None,
         module_key = None, 
         key: Keypair = None,
-        metadata: str | None = 'NA',
+        metadata: str = 'NA',
         wait_for_finalization = True,
         public = False,
     ) -> ExtrinsicReceipt:
@@ -1328,14 +1328,14 @@ class Subspace(c.Module):
     def reg(self, key: Keypair, subnet: int=0):
         return self.register(key=key, subnet=subnet)
     
-    def register_subnet(self, name: str, metadata: str | None = None,  key: Keypair=None) -> ExtrinsicReceipt:
+    def register_subnet(self, name: str, metadata: str = None,  key: Keypair=None) -> ExtrinsicReceipt:
         """
         Registers a new subnet in the network.
 
         Args:
             key (Keypair): The keypair used for registering the subnet.
             name (str): The name of the subnet to be registered.
-            metadata (str | None, optional): Additional metadata for the subnet. Defaults to None.
+            metadata (str, optional): Additional metadata for the subnet. Defaults to None.
 
         Returns:
             ExtrinsicReceipt: A receipt of the subnet registration transaction.
@@ -1707,7 +1707,7 @@ class Subspace(c.Module):
         self,
         key: Keypair,
         params: NetworkParams,
-        cid: str | None,
+        cid: str,
     ) -> ExtrinsicReceipt:
         """
         Submits a proposal for altering the global network parameters.
@@ -1892,7 +1892,7 @@ class Subspace(c.Module):
         )
         return applications
 
-    def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]] | None:
+    def weights(self, subnet: int = 0, extract_value: bool = False ) -> dict[int, list[tuple[int, int]]]:
         subnet = self.resolve_subnet(subnet)
         weights_dict = self.query_map("Weights",[subnet],extract_value=extract_value, module='SubnetEmissionModule')
         return weights_dict
@@ -2023,8 +2023,8 @@ class Subspace(c.Module):
         return self.subnet_names()
 
     def get_balances(
-        self, key_addresses=None, extract_value: bool = False, block_hash: str | None = None
-    ) -> dict[str, dict[str, int | dict[str, int | float]]]:
+        self, key_addresses=None, extract_value: bool = False, block_hash: str = None
+    ) -> dict[str, dict[str, int ]]:
         """
         Retrieves a mapping of account balances within the network.
         """
@@ -2132,7 +2132,7 @@ class Subspace(c.Module):
             subnet = str(subnet)
         return n[subnet]
     
-    def total_stake(self, block_hash: str | None = None) -> int:
+    def total_stake(self, block_hash: str = None) -> int:
         """
         Retrieves a mapping of total stakes for keys on the network.
         """
@@ -2229,20 +2229,20 @@ class Subspace(c.Module):
         result = self.query("Account", module="System", params=[addr])
         return self.format_amount(result["data"]["free"], fmt=fmt)
 
-    def block(self) -> dict[Any, Any] | None:
+    def block(self) -> dict[Any, Any]:
         """
         Retrieves information about a specific block in the network.
         """
-        block_hash: str | None = None
+        block_hash: str = None
 
         with self.get_conn() as substrate:
-            block: dict[Any, Any] | None = substrate.get_block_number(  # type: ignore
+            block: dict[Any, Any] = substrate.get_block_number(  # type: ignore
                 block_hash  # type: ignore
             )
 
         return block
 
-    def existential_deposit(self, block_hash: str | None = None) -> int:
+    def existential_deposit(self, block_hash: str = None) -> int:
         """
         Retrieves the existential deposit value for the network.
         """
@@ -2326,7 +2326,7 @@ class Subspace(c.Module):
             key = c.get_key( key )
         return key
 
-    def params(self, subnet = None, block_hash: str | None = None, max_age=tempo,  update=False) -> dict[int, SubnetParamsWithEmission]:
+    def params(self, subnet = None, block_hash: str = None, max_age=tempo,  update=False) -> dict[int, SubnetParamsWithEmission]:
         """
         Gets all subnets info on the network
         """            

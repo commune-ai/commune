@@ -20,9 +20,9 @@ class OpenRouter(c.Module):
         Args:
             model (OPENAI_MODES): The OpenAI model to use.
             api_key (API_KEY): The API key for authentication.
-            base_url (str | None, optional): can be used for openrouter api calls
-            timeout (float | None, optional): The timeout value for the client. Defaults to None.
-            max_retries (int | None, optional): The maximum number of retries for the client. Defaults to None.
+            base_url (str, optional): can be used for openrouter api calls
+            timeout (float, optional): The timeout value for the client. Defaults to None.
+            max_retries (int, optional): The maximum number of retries for the client. Defaults to None.
         """
 
         self.prompt = None
@@ -115,7 +115,7 @@ class OpenRouter(c.Module):
 
         Args:
             api_key (str): The API key for authentication.
-            timeout (float | None, optional): The timeout value for the client. Defaults to None.
+            timeout (float, optional): The timeout value for the client. Defaults to None.
             max_retries (int, optional): The maximum number of retries for the client. Defaults to 0.
 
         """

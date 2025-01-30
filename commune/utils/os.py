@@ -455,7 +455,7 @@ def cmd(
     Execute a shell command with various options and handle edge cases.
     """
     import commune as c
-    def stream_output(process, verbose=True):
+    def stream_output(process, verbose=verbose):
         """Stream output from process pipes."""
         try:
             modes = ['stdout', 'stderr']

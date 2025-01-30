@@ -132,14 +132,14 @@ class SubnetParams(TypedDict):
     founder_share: int
     incentive_ratio: int
     founder: Ss58Address
-    maximum_set_weight_calls_per_epoch: int | None
-    bonds_ma: int | None
+    maximum_set_weight_calls_per_epoch: int 
+    bonds_ma: int 
     immunity_period: int
     governance_config: GovernanceConfiguration
-    min_validator_stake: int | None
-    max_allowed_validators: int | None
+    min_validator_stake: int 
+    max_allowed_validators: int
     module_burn_config: BurnConfiguration
-    subnet_metadata: str | None
+    subnet_metadata: str 
 
 
 class DisplaySubnetParams(TypedDict):
@@ -153,14 +153,14 @@ class DisplaySubnetParams(TypedDict):
     founder_share: int
     incentive_ratio: int
     founder: Ss58Address
-    maximum_set_weight_calls_per_epoch: int | None
+    maximum_set_weight_calls_per_epoch: int 
     bonds_ma: int
     immunity_period: int
     governance_config: DisplayGovernanceConfiguration
     min_validator_stake: float
-    max_allowed_validators: int | None
+    max_allowed_validators: int 
     module_burn_config: DisplayBurnConfiguration
-    subnet_metadata: str | None
+    subnet_metadata: str
     emission: float
 
 # redundant "TypedDict" inheritance because of pdoc warns.
@@ -186,7 +186,7 @@ class ModuleInfo(TypedDict):
     last_update: int  # block number
     stake: int
     delegation_fee: int
-    metadata: str | None
+    metadata: str
 
 
 class ModuleInfoWithBalance(ModuleInfo):
@@ -194,7 +194,7 @@ class ModuleInfoWithBalance(ModuleInfo):
 
 
 class ModuleInfoWithOptionalBalance(ModuleInfo):
-    balance: int | None
+    balance: int 
 
 
 class ChainTransactionError(Exception):

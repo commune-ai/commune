@@ -55,7 +55,7 @@ class Vali(c.Module):
                     search:str=None, 
                     path:str=None, 
                      update = False):
-        self.network = network or 'local'
+        self.network = network or 'server'
         self.subnet = subnet or 0
         if '/' in self.network:
             self.network, self.subnet = self.network.split('/')
@@ -224,6 +224,10 @@ class Vali(c.Module):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
+
+    
+    def test(self):
+        return c.module('vali')
 
 
     

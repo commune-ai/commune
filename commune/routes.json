@@ -78,21 +78,6 @@
     "remote": [
         "host2ssh"
     ],
-    "network": [
-        "networks",
-        "rm_server",
-        "server_exists",
-        "add_server",
-        "has_server",
-        "add_servers",
-        "rm_servers",
-        "rm_server",
-        "namespace",
-        "infos",
-        "get_address",
-        "servers",
-        "name2address"
-    ],
     "app": [
         "start_app",
         "app",
@@ -124,7 +109,17 @@
         "processes", 
         "kill", 
         "kill_all",
-        "logs"
+        "logs",
+        "networks",
+        "rm_server",
+        "server_exists",
+        "add_server",
+        "has_server",
+        "add_servers",
+        "rm_servers",
+        "rm_server",
+        "namespace",
+        "servers"
     ],
 
     "docker":
