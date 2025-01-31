@@ -8,7 +8,6 @@ setup(
     long_description_content_type="text/markdown",
     license="MIT",
     author="Commune AI Organization",
-    author_email="developer@communeai.org",
     packages=find_packages(),
     include_package_data=True,
     package_data={
