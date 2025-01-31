@@ -14,24 +14,14 @@ class Agent:
         self.prompt = prompt
         self.model = c.module('model.openrouter')(model=model, **kwargs)
 
-    def generate(self,  
-                 text = 'whats 2+2?' , 
-                 model= 'anthropic/claude-3.5-sonnet', 
-                 temperature= 0.5,
-                 max_tokens= 1000000,
-                 stream=True,  ):
+    def generate(self, text = 'whats 2+2?' , model= 'anthropic/claude-3.5-sonnet',  temperature= 0.5, max_tokens= 1000000, stream=True ):
         text = self.process_text(text)
         return self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
     
     forward = generate
 
     def ask(self, *text, **kwargs): 
-        text = ' '.join(list(map(str, text)))
-        text = self.process_text(text)
-        module = kwargs.get('module', None)
-        if module != None:
-            text = c.code(module) + text 
-        return self.generate(text, **kwargs)
+        return self.generate(' '.join(list(map(str, text))), **kwargs)
     
     def edit(self,  *args, file='./',**kwargs):
         text = ' '.join([c.file2text(file)] + list(args))
