@@ -121,7 +121,7 @@ class MultiModalVectorStore:
         results = []
         
         # Determine which indexes to search
-        indexes_to_search = ['text', 'image', 'audio'] if cross_modal else ``
+        indexes_to_search = ['text', 'image', 'audio'] if cross_modal else ''
         
         for idx_type in indexes_to_search:
             index = getattr(self, f"{idx_type}_index")
