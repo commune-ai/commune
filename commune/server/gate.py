@@ -21,17 +21,17 @@ import asyncio
 
 class Gate:
 
-    def __init__(self, module, network='subspace', max_network_age=60, history_path=None, max_user_history_age=60):
-        self.module = module
+    def __init__(self, module=None, network='subspace', max_network_age=60, history_path=None, max_user_history_age=60):
+        self.module = module or 'module'
         self.max_network_age = max_network_age
         self.sync_network(network)
-        self.history_path = history_path or self.resolve_path('gate')
+        self.history_path = history_path or self.resolve_path('history')
         self.max_user_history_age = max_user_history_age
 
 
     @classmethod
     def resolve_path(cls, path):
-        return  c.storage_path + '/server.gate/' + path
+        return  c.resolve_path(c.storage_path + '/server.gate/' + path)
 
     state = {}
     def sync_network(self, network=None):
@@ -151,8 +151,8 @@ class Gate:
     def users(self):
         return os.listdir(self.history_path)
 
-    def history(self, module=None , simple=True):
-        module = module or self.module.name
+    def history(self, module='module' , simple=True):
+        module = module
         all_history = {}
         users = self.users()
         for user in users:

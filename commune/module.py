@@ -396,8 +396,7 @@ class c:
     def is_pwd(cls, module:str = None):
         module = c.module(module) if module != None else cls
         return module.dirpath() == c.pwd()
-
-
+        
     # local update  
     @classmethod
     def update(cls,  ):
@@ -617,7 +616,7 @@ class c:
             if not path_exists(path):
                 return {'success':False, 'message':f'{path} does not exist'}
         if os.path.isdir(path):
-            return shutil.rmtree(path)
+            shutil.rmtree(path)
         if os.path.isfile(path):
             os.remove(path)
         assert not os.path.exists(path), f'{path} was not removed'
@@ -716,7 +715,6 @@ class c:
            return_full_path:bool = True):
         """
         provides a list of files in the path 
-
         this path is relative to the module path if you dont specifcy ./ or ~/ or /
         which means its based on the module path
         """
@@ -921,13 +919,17 @@ class c:
         return fn2schema
 
     @classmethod
-    def code(cls, module = None, search=None, *args, **kwargs):
+    def code(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
             util2path = cls.util2path()
             if module in util2path:
                 module = util2path[module]
         obj = cls.resolve_module(module)
-        return inspect.getsource(obj)
+
+        dirpath = c.dirpath(obj) # the directory path of the module
+        path = dirpath if c.is_module_folder(obj) else path # whether the module is a folder
+        code =  c.text(path)
+        return  {k:v for k,v in code.items()}
 
     pycode = code
     @classmethod
@@ -1030,19 +1032,56 @@ class c:
     def n_fns(self, search = None):
         return len(self.fns(search=search))
 
+    @classmethod
+    def resolve_name(cls, module):
+        module = c.shortcuts.get(module, module)
+        if isinstance(module, str):
+            return module
+        return module.__name__
+
+    @classmethod
+    def clear_info_history(cls):
+        return c.rm('info')
+
+    @classmethod
+    def resolve_info_path(self, name):
+        return c.resolve_path('info/' + name)
 
     @classmethod 
-    def info(cls, obj=None, lite=False, key=None):
-        obj = cls.resolve_module(obj)
-        code = c.code(obj)
-        schema = c.schema(obj)
-        name = c.module_name(obj)
-        founder = c.founder().address
-        key = c.get_key(name).address
-        code_hash = c.hash(code)
-        info =  {'code': code, 'schema': schema, 'name': name, 'key': key,  'founder': founder, 'code_hash': code_hash}
-
+    def info(cls, module, 
+            lite: bool =False, 
+            max_age : Optional[int]=None, 
+            lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
+            keep_last_n : int = 10,
+            update: bool =False, **kwargs):
+        module = c.resolve_module(module)
+        name = c.module_name(module)
+        path = c.resolve_path('info/' + name)
+        info = c.get(path, None, max_age=max_age, update=update)
+        if info == None:
+            code = c.code(module)
+            schema = c.schema(module)
+            founder = c.founder().address
+            key = c.get_key(name).address
+            info =  {
+                    'code': code, 
+                    'schema': schema, 
+                    'name': name, 
+                    'key': key,  
+                    'founder': founder, 
+                    'hash': c.hash(code), 
+                    'time': time.time()
+                    }
+            c.put(path, info)
+        if lite:
+            info = {k: v for k,v in info.items() if k in lite_features}
         return  info
+
+    def infos(self, search = None, max_age = None, **kwargs):
+        infos = c.ls('info')
+        if search != None:
+            infos = [i for i in infos if search in i]
+        return [c.get(i, max_age=max_age) for i in infos]
     fn_n = n_fns
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -1459,10 +1498,8 @@ class c:
         Returns true if the module exists
         '''
         try:
-            module = c.shortcuts.get(module, module)
             path = c.name2path(module)
-            print(path)
-            module_exists = os.path.exists(c.name2path(module))
+            module_exists = os.path.exists(path)
             if not module_exists:
                 module_exists = bool(c.object_exists(path))
         except Exception as e:

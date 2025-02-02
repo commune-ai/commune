@@ -14,9 +14,9 @@ class Agent:
         self.prompt = prompt
         self.model = c.module('model.openrouter')(model=model, **kwargs)
 
-    def generate(self, text = 'whats 2+2?' , model= 'c s',  temperature= 0.5, max_tokens= 1000000, stream=True , process_text=True):
+    def generate(self, text = 'whats 2+2?' ,  temperature= 0.5, max_tokens= 1000000, stream=True , process_text=True, **kwargs):
         text = self.process_text(text) if process_text else text
-        return self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
+        return self.model.generate(text, stream=stream,max_tokens=max_tokens,temperature=temperature,  **kwargs)
     
     forward = generate
 

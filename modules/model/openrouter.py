@@ -65,6 +65,7 @@ class OpenRouter(c.Module):
         history = history or []
         prompt = prompt or self.prompt
         message = message + prompt if prompt else message
+        print('model', model)
         model = self.resolve_model(model)
         model_info = self.get_model_info(model)
         num_tokens = len(message)

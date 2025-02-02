@@ -77,7 +77,7 @@ class Reduce:
         return file2lines
     
     def forward(self,  options,  
-              query='most relevant modules', 
+              query='most relevant information', 
               output_format="DICT(data:list[[idx:str, score:float]])",  
               anchor = 'OUTPUT', 
               n=10,  
