@@ -12,6 +12,7 @@ class Cli:
             argv = ['vs']
         fn_obj = self.get_fn(argv)
         params = self.get_params(argv)
+        print(f'Calling({fn_obj})')
         output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         latency = time.time() - t0
         print(f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅')

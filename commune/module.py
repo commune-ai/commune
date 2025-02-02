@@ -334,8 +334,6 @@ class c:
         return :
             a list of files in the path
         """
-        if c.module_exists(path):
-            path = c.dirpath(path)
         if cls.module_name == 'module':
             path = path or './'
         else:
@@ -1849,6 +1847,7 @@ class c:
         files =  c.files(path)
         readmes = [f for f in files if f.endswith('.md')]
         return readmes
+    
     def docs(self, path='./', search=None):
         files =  c.files(path)
         readmes = [f for f in files if f.endswith('.md')]
