@@ -306,6 +306,10 @@ class Key(c.Module):
     def n(cls, search=None, **kwargs):
         return len(cls.key2address(search, **kwargs))
 
+    @property
+    def addy(self):
+        return self.address
+
     @classmethod
     def address2key(cls, search:Optional[str]=None, update:bool=False):
         address2key =  { v: k for k,v in cls.key2address(update=update).items()}

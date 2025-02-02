@@ -41,7 +41,7 @@ class App(c.Module):
             module = module + '.app'
         module_class = c.module(module)
         cmd = cmd or f'streamlit run {module_class.filepath()} --server.port {port}'
-        return cmd
+        return c.cmd(cmd)
 
     start_app = app = start
 

@@ -84,7 +84,7 @@ class Gate:
             if self.module.free: 
                 return True
             stake = 0
-            assert fn in self.module.functions , f"Function {fn} not in endpoints={self.module.functions}"
+            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
             request_staleness = c.time() - float(headers['time'])
             assert  request_staleness < max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
             auth = {'params': params, 'time': str(headers['time'])}

@@ -102,7 +102,7 @@ class c:
         module.code = lambda *args, **kwargs : c.code(module)
         module.code_hash = lambda *args, **kwargs : c.code_hash(module)
         module.schema = lambda *args, **kwargs : c.schema(module)
-        module.functions = module.fns = lambda *args, **kwargs : c.fns(module)
+        module.fns = module.fns = lambda *args, **kwargs : c.fns(module)
         module.fn2code = lambda *args, **kwargs : c.fn2code(module)
         module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
         module.config = lambda *args, **kwargs : c.config(module)
@@ -195,11 +195,10 @@ class c:
             if fn_splitter in obj:
                 fn = obj.split(fn_splitter)[-1]
                 obj = fn_splitter.join(obj.split(fn_splitter)[:-1])
+                obj =  getattr(obj(), fn)
             else:
                 fn = None
             obj =  c.module(obj)
-            if fn != None:
-                return getattr(obj(), fn)
         assert obj != None, f'Object {obj} does not exist'
         return obj
 
@@ -281,19 +280,30 @@ class c:
             return args[1:]
 
     @classmethod
-    def is_module_file(cls, module = None) -> bool:
-        if module != None:
-            cls = c.module(module)
-        dirpath = cls.dirpath()
-        filepath = cls.filepath()
+    def is_module_file(cls, module = None, exts=['py', 'rs', 'ts'], folder_filenames=['module', 'agent']) -> bool:
+        dirpath = c.dirpath(module)
+        filepath = c.filepath(module)
+        for ext in exts:
+            for fn in folder_filenames:
+                if filepath.endswith(f'/{fn}.{ext}'):
+                    return False
         return bool(dirpath.split('/')[-1] != filepath.split('/')[-1].split('.')[0])
+
+    @classmethod
+    def module2isfolder(cls): 
+        module2isfolder = {}
+        for m in c.modules():
+            try:
+                module2isfolder[m] = c.is_module_folder(m)
+            except Exception as e:
+                pass
+        return module2isfolder    
+
 
 
     @classmethod
     def is_module_folder(cls,  module = None) -> bool:
-        if module != None:
-            cls = c.module(module)
-        return not cls.is_file_module()
+        return not c.is_module_file(module)
     
     is_folder_module = is_module_folder 
 
@@ -386,11 +396,7 @@ class c:
     def is_pwd(cls, module:str = None):
         module = c.module(module) if module != None else cls
         return module.dirpath() == c.pwd()
-    
-    def __repr__(self) -> str:
-        return f'<{self.class_name()}'
-    def __str__(self) -> str:
-        return f'<{self.class_name()}'
+
 
     # local update  
     @classmethod
@@ -482,6 +488,7 @@ class c:
             splitter = '/' if  is_module else '/'
             for fn in fns:
                 fn2route[fn] =  module + splitter + fn
+        fn2route = dict(sorted({k: v for k, v in fn2route.items() if v != ''}.items(), key=lambda x: x[0]))
         return fn2route
 
     @classmethod
@@ -874,15 +881,17 @@ class c:
     def module_schema(cls, module = None):
         module = cls.resolve_module(module)
         module_schema = {}
-        for fn in c.functions(module):
+        for fn in c.fns(module):
             schema = c.schema(getattr(module, fn))
             module_schema[fn] = schema
         return module_schema
 
     fn2cost = {}
 
+
+
     @classmethod
-    def schema(cls, fn:str = '__init__', **kwargs)->dict:
+    def fn_schema(cls, fn:str = '__init__', **kwargs)->dict:
         '''
         Get function schema of function in cls
         '''     
@@ -894,10 +903,22 @@ class c:
 
         for k,v in dict(inspect.signature(fn)._parameters).items():
             schema[k] = {
-                    'default': "_empty"  if v.default == inspect._empty else v.default, 
-                    'type': str(type(v.default)).split("'")[1]  if v.default == inspect._empty and v.default != None else v.annotation.__name__
+                    'value': "_empty"  if v.default == inspect._empty else v.default, 
+                    'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
             }
         return schema
+
+
+    @classmethod
+    def schema(cls, fn:str = '__init__', **kwargs)->dict:
+        '''
+        Get function schema of function in cls
+        '''     
+        fn2schema = {}
+        fns = c.fns(cls)
+        for fn in fns:
+            fn2schema[fn] = c.fn_schema(getattr(cls, fn))
+        return fn2schema
 
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs):
@@ -906,7 +927,6 @@ class c:
             if module in util2path:
                 module = util2path[module]
         obj = cls.resolve_module(module)
-        
         return inspect.getsource(obj)
 
     pycode = code
@@ -955,7 +975,7 @@ class c:
         Gets the self methods in a class
         '''
         obj = obj or cls
-        functions =  c.functions(obj)
+        functions =  c.fns(obj)
         signature_map = {f:c.get_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
     
@@ -1002,14 +1022,27 @@ class c:
             functions = [f for f in functions if not f.startswith('__') and not f.startswith('_')]
         return functions
     
-    @classmethod
-    def functions(cls, obj=None, search = None, include_parents = True):
-        obj = cls.resolve_module(obj)
-        return c.fns(obj=obj, search=search, include_parents=include_parents)
+    # @classmethod
+    # def fns(cls, obj=None, search = None, include_parents = True):
+    #     obj = cls.resolve_module(obj)
+    #     return c.fns(obj=obj, search=search, include_parents=include_parents)
  
     def n_fns(self, search = None):
         return len(self.fns(search=search))
-    
+
+
+    @classmethod 
+    def info(cls, obj=None, lite=False, key=None):
+        obj = cls.resolve_module(obj)
+        code = c.code(obj)
+        schema = c.schema(obj)
+        name = c.module_name(obj)
+        founder = c.founder().address
+        key = c.get_key(name).address
+        code_hash = c.hash(code)
+        info =  {'code': code, 'schema': schema, 'name': name, 'key': key,  'founder': founder, 'code_hash': code_hash}
+
+        return  info
     fn_n = n_fns
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -1427,6 +1460,8 @@ class c:
         '''
         try:
             module = c.shortcuts.get(module, module)
+            path = c.name2path(module)
+            print(path)
             module_exists = os.path.exists(c.name2path(module))
             if not module_exists:
                 module_exists = bool(c.object_exists(path))
@@ -1619,6 +1654,10 @@ class c:
     def root_key(cls):
         return cls.get_key()
 
+    @classmethod
+    def founder(cls):
+        return c.get_key()
+
     def repo2path(self, search=None):
         repo2path = {}
         for p in c.ls('~/'): 
@@ -1645,6 +1684,19 @@ class c:
         path = os.path.abspath(path or  '~/'+repo.split('/')[-1])
         cmd =  f'git clone {repo} {path}'
         return c.cmd(cmd, verbose=True)
+
+
+    def clone_modules(self, repo:str = 'commune-ai/modules', path:str=None, **kwargs):
+        c.clone(repo, path=path, **kwargs)
+        # remove the .git folder
+        c.rm(path + '/.git')
+        return c.cmd(cmd, verbose=True)
+    
+    def save_modules(self, repo:str = 'commune-ai/modules', path:str=None, **kwargs):
+        c.clone(repo, path=path, **kwargs)
+        # remove the .git folder
+        c.rm(path + '/.git')
+        return c.cmd(cmd, verbose=True)
     
     def copy_module(self,module:str, path:str):
         code = c.code(module)
@@ -1667,15 +1719,26 @@ class c:
     
     @classmethod
     def module2fns(cls, path=None):
-        path = path or cls.dirpath()
-        tree = c.get_tree(path)
+        
+        tree = c.get_tree(path or cls.libpath)
         module2fns = {}
         for m,m_path in tree.items():
-            if '.modules.' in m_path:
-                continue
             try:
                 module2fns[m] = c.module(m).fns()
             except Exception as e:
+                pass
+        return module2fns
+
+    
+    @classmethod
+    def module2schema(cls, path=None):
+        tree = c.get_tree(path or cls.libpath)
+        module2fns = {}
+        for m,m_path in tree.items():
+            try:
+                module2fns[m] = c.schema(m)
+            except Exception as e:
+                print(e)
                 pass
         return module2fns
 

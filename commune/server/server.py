@@ -91,19 +91,19 @@ class Server:
                     functions[i] = fn.__name__
         function_attributes = [fa for fa in self.function_attributes if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list)]
         assert len(function_attributes) == 1 , f'{function_attributes} is too many funcitonal attributes, choose one dog'
-        functions = getattr(self.module, function_attributes[0])
+        fns = getattr(self.module, function_attributes[0])
         self.module.schema = {fn: c.schema(getattr(self.module, fn )) for fn in functions if hasattr(self.module, fn)}
         self.module.free = self.free
-        self.module.functions = sorted(list(set(functions + self.helper_functions)))
+        self.module.fns = sorted(list(set(functions + self.helper_functions)))
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
-        c.print(f'Functions({self.module.functions} fn2cost={self.module.fn2cost} free={self.free})')
+        c.print(f'Functions({self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
         self.module.info = {
             "name": self.module.name,
             "url": self.module.url,
             "key": self.module.key.ss58_address,
             "time": c.time(),
-            "functions": self.module.functions,
+            "fns": self.module.fns,
             "schema": self.module.schema,
         }
         return {'success':True, 'message':f'Set functions to {functions}'}

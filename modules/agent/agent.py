@@ -14,8 +14,8 @@ class Agent:
         self.prompt = prompt
         self.model = c.module('model.openrouter')(model=model, **kwargs)
 
-    def generate(self, text = 'whats 2+2?' , model= 'anthropic/claude-3.5-sonnet',  temperature= 0.5, max_tokens= 1000000, stream=True ):
-        text = self.process_text(text)
+    def generate(self, text = 'whats 2+2?' , model= 'c s',  temperature= 0.5, max_tokens= 1000000, stream=True , process_text=True):
+        text = self.process_text(text) if process_text else text
         return self.model.generate(text, stream=stream, model=model, max_tokens=max_tokens,temperature=temperature )
     
     forward = generate
@@ -35,7 +35,7 @@ class Agent:
         """
         return self.ask(prompt, **kwargs)
         
-    def executor(self, *text, path='./', **kwargs):
+    def exe(self, *text, path='./', **kwargs):
         text = ' '.join(list(map(str, text)))
         prompt = f"""
         GOAL
@@ -192,9 +192,8 @@ class Agent:
         you suggest in the feedback
         CODE: 
         {code}
-
-        OUTPUT FORMAT ONLY BETWEEN THE TAGS SO WE CAN PARSE
-        <OUTPUT>INT(score=INT, feedback:STR, suggestions=List[dict(improvement:STR, delta:INT)]])</OUTPUT>
+        OUTPUT_FORMAT:
+        <OUTPUT>DICT(score:int, feedback:str, suggestions=List[dict(improvement:str, delta:int)]])</OUTPUT>
         """
         output = ''
         for ch in  self.generate(prompt, **kwargs):
@@ -203,7 +202,37 @@ class Agent:
             if '</OUTPUT>' in output:
                 break
         return json.loads(output.split('<OUTPUT>')[1].split('</OUTPUT>')[0])
-    
-    # def find_fns(self):
-    #     fns = []
 
+    def resolve_path(self, path):
+        return os.path.abspath(c.storage_dir() + '/' + 'agent/' + path)
+
+
+
+    def addkey(self, module, key):
+        return c.module('apikey')().add(key)
+
+
+    def desc(self, module, max_age=0):
+        code= c.code(module)
+        code_hash = c.hash(code)
+        path = self.resolve_path(f'summary/{module}.json')
+        output = c.get(path, max_age=max_age)
+        if output != None:
+            return output
+
+        prompt = {
+                "task": "summarize the following into tupples and make sure you compress as much as oyu can",
+                "code": code,
+                "hash": code_hash,
+                }
+        output = ''
+        for ch in self.generate(str(prompt), process_text=False):
+            output += ch
+            print(ch, end='')
+        c.put(path, output)
+        print('Writing to path -->', path)
+        return output
+
+
+    def api_key(self, module):
+        return c.module('apikey')(module=module).get_key()

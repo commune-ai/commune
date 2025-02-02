@@ -115,7 +115,7 @@ class Cli:
         print(f'Calling({module}/{fn}, path={filepath})', color='yellow')
         module = c.module(module)
         if not hasattr(module, fn):
-            return {'error': f'module::{fn} does not exist', 'success': False}
+            return {'error': f'module/{fn} does not exist', 'success': False}
         fn_obj = getattr(module, fn)
         initialize_module_class = isinstance(fn, property) or 'self' in c.get_args(fn_obj)
         module = module(**init_kwargs) if initialize_module_class else module

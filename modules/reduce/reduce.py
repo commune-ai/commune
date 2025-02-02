@@ -49,7 +49,7 @@ class Reduce:
             data = json.loads(data)
             return data
         except:
-            return data
+            return c
 
     def file2text(self, path):
         file2text = {}
@@ -76,7 +76,7 @@ class Reduce:
             file2lines[file] = found_lines
         return file2lines
     
-    def query(self,  options,  
+    def forward(self,  options,  
               query='most relevant modules', 
               output_format="DICT(data:list[[idx:str, score:float]])",  
               anchor = 'OUTPUT', 
@@ -117,9 +117,12 @@ class Reduce:
     
         return output
 
-    def files(self, path='./',  query='the file that is the core of this folder',  n=10, model='anthropic/claude-3.5-sonnet-20240620:beta'):
-        files =  self.query(options=c.files(path), query=query, n=n, model=model)
-        return [c.abspath(path+k) for k in files]
+    def files(self, path='./',  query='the file that is the core of this folder',  n=30, model='anthropic/claude-3.5-sonnet-20240620:beta'):
+        files = c.files(path)
+        home = os.path.expanduser('~')
+        files = [file.replace(home, '~') for file in files if home in file]
+        files =  self.query(options=files, query=query, n=n, model=model)
+        return files
 
     def modules(self,  query='the filel that is the core of commune', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
         return self.query(options=c.modules(), query=query, model=model)

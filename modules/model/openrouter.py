@@ -57,7 +57,7 @@ class OpenRouter(c.Module):
             temperature (float): The sampling temperature to use.
 
         Returns:
-            Generator[str] | str: A generator for streaming responses or the full streamed response.
+        Generator[str] | str: A generator for streaming responses or the full streamed response.
         """
         prompt = prompt or system_prompt
         if len(extra_text) > 0:
