@@ -20,6 +20,8 @@ class Find:
 
         front_anchor = f"<OUTPUT>"
         back_anchor = f"</OUTPUT>"
+        if isinstance(options, dict):
+            options  = list(options.keys())
         idx2options = {i:option for i, option in enumerate(options)}
         home_path = c.resolve_path('~')
         for idx, option in idx2options.items():
@@ -98,7 +100,20 @@ class Find:
         module2fns = []
         return self.forward(options=c.get_modules(), query=query, model=model, context=c.module2fns())
 
-    def
-
     def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
         return self.forward(query=query, options=c.get_utils(), model=model)
+
+    
+    def fn(self, query:str='something that i can find functions in', *extra_query, module2fns = None):
+        query =' '.join([query] +list(extra_query))
+        if module2fns is None:
+            module2fns = c.module2fns()
+        options = []
+        for module, fns in module2fns.items():
+            for fn in fns:
+                options += [f"{module}/{fn}"]
+        context  = f'''
+        {c.text(c.docs_path)}
+        '''
+        
+        return self.forward(query=query, options=options)

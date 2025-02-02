@@ -34,7 +34,7 @@ class git(c.Module):
     def content(url='LambdaLabsML/examples/main/stable-diffusion-finetuning/pokemon_finetune.ipynb', prefix='https://raw.githubusercontent.com'):
         return c.module('web')().page_content(f'{prefix}/{url}')
     
-    submodule_path = c.reponame + '/repos'
+    submodule_path = c.repo_name + '/repos'
     def add_submodule(self, url, name=None, prefix=submodule_path):
         if name == None:
             name = url.split('/')[-1].split('.')[0].lower()

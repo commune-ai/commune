@@ -110,11 +110,12 @@ class Server:
         
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         name = self.module.name
-        for k in port_attributes:
-            if hasattr(self.module, k):
-                port = getattr(self.module, k)
-                c.kill_port(port)
-                break
+        if port == None:
+            for k in port_attributes:
+                if hasattr(self.module, k):
+                    port = getattr(self.module, k)
+                    c.kill_port(port)
+                    break
         port = port or c.free_port()
         while c.port_used(port):
             c.kill_port(port)

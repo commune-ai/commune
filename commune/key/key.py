@@ -66,6 +66,11 @@ class Key(c.Module):
     def short_address(self):
         n = 4
         return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
+
+    @property
+    def shorty(self):
+        n = 4
+        return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
         
     def set_crypto_type(self, crypto_type):
         crypto_type = self.resolve_crypto_type(crypto_type)
@@ -781,7 +786,7 @@ class Key(c.Module):
         return cls.get_key(key).mnemonic
 
     def __str__(self):
-        return f'<Key(address={self.key_address} type={self.crypto_type_name} path={self.path})>'
+        return f'<Key(address={self.key_address} crypto_type={self.crypto_type_name})>'
     
     def save(self, path=None):
         if path == None:
@@ -865,14 +870,6 @@ class Key(c.Module):
             crypto_type = crypto_type.lower()
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)  
-
-
-
-# if __name__ == "__main__":      
-#     Key.run()
-
-
-
 
 
 

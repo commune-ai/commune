@@ -332,7 +332,7 @@ def ensure_libs(libs: List[str] = None, verbose:bool=False):
 
 def version( lib:str=None):
     import commune as c
-    lib = lib or c.reponame
+    lib = lib or c.repo_name
     lines = [l for l in c.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
     if len(lines)>0:
         return lines[0].split(' ')[-1].strip()
@@ -378,7 +378,7 @@ jupyter = enable_jupyter
 
 def pip_list(lib=None):
     import commune as c
-    lib = lib or c.reponame
+    lib = lib or c.repo_name
     pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
     if lib != None:
         pip_list = [l for l in pip_list if l.startswith(lib)]

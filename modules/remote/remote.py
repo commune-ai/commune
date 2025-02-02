@@ -342,7 +342,7 @@ class Remote(c.Module):
     
 
     def setup(self,**kwargs):
-        repo_url = c.reponame_url()
+        repo_url = c.repo_name_url()
         c.print(self.cmd(f'git clone {repo_url}', **kwargs))
         c.print(self.cmd(f'apt ', **kwargs))
         c.print(self.cmd(f'cd commune && pip install -e .', **kwargs))

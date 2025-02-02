@@ -13,14 +13,12 @@ import nest_asyncio
 nest_asyncio.apply()
 
 class c:
-
-
     org = 'commune-ai' # the organization
-    reponame  = lib = __file__.split('/')[-2]# the name of the library
+    repo_name  = lib = __file__.split('/')[-2]# the name of the library
     cost = 1 
     description = """This is a module"""
     base_module = 'module' # the base module
-    giturl = f'https://github.com/{org}/{reponame}.git' # tge gutg
+    giturl = f'https://github.com/{org}/{repo_name}.git' # tge gutg
     default_fn = 'forward' # default function
     free = False # if the server is free 
     endpoints = ['ask', 'generate', 'forward']
@@ -32,8 +30,8 @@ class c:
     default_ip = local_ip = loopback = '0.0.0.0'   
     home_path  = os.path.expanduser('~') # the home path
     repo_path  = os.path.dirname(root_path) # the path to the repo
-    docs_path = reponame + '/docs'
-    storage_path = os.path.expanduser(f'~/.{reponame}')
+    docs_path = repo_path + '/docs'
+    storage_path = os.path.expanduser(f'~/.{repo_name}')
     modules_path = os.path.dirname(__file__) + '/modules'
 
     cache = {} # cache for module objects
@@ -64,7 +62,7 @@ class c:
                verbose=False,
                tree:dict=None ) -> str:
         path = path or 'module'
-        if path in ['module', c.reponame[0]]:
+        if path in ['module', c.repo_name[0]]:
             return c
         t0 = c.time()
         path = path.replace('/','.')
@@ -336,6 +334,8 @@ class c:
         return :
             a list of files in the path
         """
+        if c.module_exists(path):
+            path = c.dirpath(path)
         if cls.module_name == 'module':
             path = path or './'
         else:
@@ -1048,7 +1048,7 @@ class c:
         return c.resolve_path('info/' + name)
 
     @classmethod 
-    def info(cls, module, 
+    def info(cls, module:str='module', 
             lite: bool =False, 
             max_age : Optional[int]=None, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
@@ -1225,13 +1225,13 @@ class c:
         Parameters:
             path (str): The module path
         """
-        name = c.shortcuts.get(name, nsme)
-        if simple.endswith(extension):
-            simple = simple[:-len(extension)]
+        name = c.shortcuts.get(name, name)
+        if name.endswith(extension):
+            name = name[:-len(extension)]
         path = None
         pwd = c.pwd()
         path_options = []
-        simple = simple.replace('/', '.')
+        name = name.replace('/', '.')
         # create all of the possible paths by combining the ignore_prefixes with the simple path
         dir_paths = list([pwd+ '/' + x for x in ignore_prefixes]) # local first
         dir_paths += list([c.libpath + '/' + x for x in ignore_prefixes]) # add libpath stuff
@@ -1240,13 +1240,13 @@ class c:
             if dir_path.endswith('/'):
                 dir_path = dir_path[:-1]
             # '/' count how many times the path has been split
-            module_dirpath = dir_path + '/' + simple.replace('.', '/')
+            module_dirpath = dir_path + '/' + name.replace('.', '/')
             if os.path.isdir(module_dirpath):
-                simple_filename = simple.replace('.', '_')
-                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module'] + simple.split('.') + ['__init__']
+                simple_filename = name.replace('.', '_')
+                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module'] + name.split('.') + ['__init__']
                 path_options +=  [module_dirpath + '/' + f  for f in filename_options]  
             else:
-                module_filepath = dir_path + '/' + simple.replace('.', '/') 
+                module_filepath = dir_path + '/' + name.replace('.', '/') 
                 path_options += [module_filepath]
 
             for p in path_options:
@@ -1254,7 +1254,7 @@ class c:
                 if os.path.exists(p):
                     p_text = c.get_text(p)
                     path =  p
-                    if c.reponame in p_text and 'class ' in p_text or '  def ' in p_text:
+                    if c.repo_name in p_text and 'class ' in p_text or '  def ' in p_text:
                         break
             if path != None:
                 break
@@ -1722,7 +1722,6 @@ class c:
         cmd =  f'git clone {repo} {path}'
         return c.cmd(cmd, verbose=True)
 
-
     def clone_modules(self, repo:str = 'commune-ai/modules', path:str=None, **kwargs):
         c.clone(repo, path=path, **kwargs)
         # remove the .git folder
@@ -1753,7 +1752,7 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True  
-    
+                
     @classmethod
     def module2fns(cls, path=None):
         
@@ -1844,7 +1843,6 @@ class c:
                     fn2error[fn] = {'success': False, 'msg': str(e)}
         if len(fn2error) > 0:
             raise Exception(f'Errors: {fn2error}')
-        
         return fn2result
 
     def readmes(self, path='./', search=None):

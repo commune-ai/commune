@@ -29,6 +29,44 @@ class Gate:
         self.max_user_history_age = max_user_history_age
 
 
+
+    def forward(self, 
+                fn:str, 
+                params:dict,  
+                headers:dict, 
+                multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}, 
+                rates : Dict[str, int]= {'local': 10000, 'owner': 10000, 'admin': 10000}, # the maximum rate  ):
+                max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
+            ) -> bool:
+            role = self.get_user_role(headers['key'])
+            if role == 'admin':
+                return True
+            if self.module.free: 
+                return True
+            stake = 0
+            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
+            request_staleness = c.time() - float(headers['time'])
+            assert  request_staleness < max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
+            auth = {'params': params, 'time': str(headers['time'])}
+            assert c.verify(auth=auth,signature=headers['signature'], address=headers['key']), 'Invalid signature'
+            role = self.get_user_role(headers['key'])
+            if role in rates:
+                rate_limit = rates[role]
+            else:
+                stake = self.state['stake'].get(headers['key'], 0) * self.multipliers['stake']
+                stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) * multipliers['stake_to']
+                stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) * multipliers['stake_from']
+                stake = stake + stake_to + stake_from
+                raet_limit = rates['stake'] / self.module.fn2cost.get(fn, 1)
+                rate_limit =  min(raet_limit, rates['max'])
+            rate = self.call_rate(headers['key'])
+            assert rate <= rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
+            return {'rate': rate, 
+                    'rate_limit': rate_limit, 
+                    'cost': self.module.fn2cost.get(fn, 1)
+                    }
+
+    
     @classmethod
     def resolve_path(cls, path):
         return  c.resolve_path(c.storage_path + '/server.gate/' + path)
@@ -70,43 +108,6 @@ class Gate:
             return 'local'
         return 'stake'
 
-    def forward(self, 
-                fn:str, 
-                params:dict,  
-                headers:dict, 
-                multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}, 
-                rates : Dict[str, int]= {'local': 10000, 'owner': 10000, 'admin': 10000}, # the maximum rate  ):
-                max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
-            ) -> bool:
-            role = self.get_user_role(headers['key'])
-            if role == 'admin':
-                return True
-            if self.module.free: 
-                return True
-            stake = 0
-            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
-            request_staleness = c.time() - float(headers['time'])
-            assert  request_staleness < max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
-            auth = {'params': params, 'time': str(headers['time'])}
-            assert c.verify(auth=auth,signature=headers['signature'], address=headers['key']), 'Invalid signature'
-            role = self.get_user_role(headers['key'])
-            if role in rates:
-                rate_limit = rates[role]
-            else:
-                stake = self.state['stake'].get(headers['key'], 0) * self.multipliers['stake']
-                stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) * multipliers['stake_to']
-                stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) * multipliers['stake_from']
-                stake = stake + stake_to + stake_from
-                raet_limit = rates['stake'] / self.module.fn2cost.get(fn, 1)
-                rate_limit =  min(raet_limit, rates['max'])
-            rate = self.call_rate(headers['key'])
-            assert rate <= rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
-            return {'rate': rate, 
-                    'rate_limit': rate_limit, 
-                    'cost': self.module.fn2cost.get(fn, 1)
-                    }
-
-    
     def user_call_path2latency(self, key_address):
         user_paths = self.call_paths(key_address)
         t1 = c.time()

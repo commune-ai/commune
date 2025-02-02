@@ -6,12 +6,25 @@ print = c.print
 class Cli:
     desc = 'commune cli for running functions'
     def forward(self):
+        t0 = time.time()
         argv = sys.argv[1:]
         if len(argv) == 0:
             argv = ['vs']
-        fn = self.get_fn(argv)
-        args, kwargs = self.get_args_kwargs(argv)
-        return self.run_fn(fn, args, kwargs)
+        fn_obj = self.get_fn(argv)
+        params = self.get_params(argv)
+        output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
+        latency = time.time() - t0
+        print(f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅')
+        is_generator = c.is_generator(output)
+        if is_generator:
+            for item in output:
+                if isinstance(item, dict):
+                    print(item)
+                else:
+                    print(item, end='')
+        else:
+            print(output)
+        return output
 
     def parse_type(self, x):
         x = str(x)
@@ -57,7 +70,7 @@ class Cli:
                     pass
         return x
 
-    def get_args_kwargs(self, argv):
+    def get_params(self, argv):
         args = []
         kwargs = {}
         parsing_kwargs = False
@@ -69,7 +82,7 @@ class Cli:
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
                 args.append(self.parse_type(arg))
-        return args, kwargs
+        return {'args': args, 'kwargs': kwargs}
 
 
     def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module'):
@@ -90,16 +103,16 @@ class Cli:
                     init_kwargs[key] = self.parse_type(v)
                 continue
         # get the function object
-        if  '/' in fn and '::' in fn:
-            fn_splitter = '::'
-            module = fn.split(fn_splitter)[0]
-            fn = fn.split(fn_splitter)[-1]
-        elif '/' in fn:
-            fn_splitter = '/'
-            module = fn_splitter.join(fn.split(fn_splitter)[:-1])
-            fn = fn.split(fn_splitter)[-1]
+        for splitter in ['::', '/']:
+            if splitter in fn:
+                module = splitter.join(fn.split(splitter)[:-1])
+                module = module.replace(splitter, '.')
+                fn = fn.split(splitter)[-1]
+                break
         else:
             module = default_module
+        if module.endswith('.py'):
+            module = module[:-3]
         if module in c.shortcuts:
             old_module = module
             module = c.shortcuts[module]
@@ -113,24 +126,8 @@ class Cli:
         fn_obj = getattr(module, fn)
         fn_args = c.get_args(fn_obj)
         # initialize the module class if it is a property or if 'self' is in the arguments
-        if isinstance(fn, property) or 'self' in c.get_args(fn_obj):
+        if isinstance(fn_obj, property) or 'self' in c.get_args(fn_obj):
             module = module(**init_kwargs)
         return getattr(module, fn)
 
-    def run_fn(self, fn_obj, args, kwargs):
-        # call the function
-        t0 = time.time()
-        output = fn_obj(*args, **kwargs) if callable(fn_obj) else fn_obj
-        latency = time.time() - t0
-        is_error =  c.is_error(output)
-        print(f'❌Error({latency:.3f}sec)❌' if is_error else f'✅Result({latency:.3f}s)✅')
-        is_generator = c.is_generator(output)
-        if is_generator:
-            for item in output:
-                if isinstance(item, dict):
-                    print(item)
-                else:
-                    print(item, end='')
-        else:
-            print(output)
-        return output
+ 
