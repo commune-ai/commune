@@ -319,6 +319,7 @@ class c:
         if not isinstance(key, str) and hasattr(key,"module_name" ):
             key = key.module_name()
         return Key.get_key(key, **kwargs)
+        
 
     @classmethod
     def key(cls,key:str = None , **kwargs) -> None:
@@ -695,7 +696,7 @@ class c:
         return path
     
     @classmethod
-    def abspath(cls, path:str):
+    def abspath(cls, path:str = './'):
         return os.path.abspath(os.path.expanduser(path))
     
     @classmethod
@@ -748,7 +749,7 @@ class c:
         encrypt = encrypt or password != None
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
-        data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}            
+        data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}    
         cls.put_json(k, data)
         return {'k': k, 'data_size': cls.sizeof(v), 'encrypted': encrypt, 'timestamp': time.time()}
     
@@ -1046,22 +1047,22 @@ class c:
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
             update: bool =False, **kwargs):
-        module = c.resolve_module(module)
-        name = c.module_name(module)
-        path = c.resolve_info_path(name)
+
+        path = c.resolve_info_path(module)
+        print(module, path)
         info = c.get(path, None, max_age=max_age, update=update)
         if info == None:
-            path = c.dirpath(module) if c.is_module_folder(module) else c.filepath(module)
-            code = c.text(path)
+            module_path = c.dirpath(module) if c.is_module_folder(module) else c.filepath(module)
+            code = c.text(module_path)
             if isinstance(code, str):
-                code = {path: code}
+                code = {module_path: code}
             schema = c.schema(module)
             founder = c.founder().address
-            key = c.get_key(name).address
+            key = c.get_key(module).address
             info =  {
                     'code': code, 
                     'schema': schema, 
-                    'name': name, 
+                    'name': module, 
                     'key': key,  
                     'founder': founder, 
                     'hash': c.hash(code), 
@@ -1282,76 +1283,10 @@ class c:
         return path
 
     @classmethod
-    def path2name(cls,  
-                    path:str, 
-                    ignore_prefixes = ['src', 
-                                       'commune', 
-                                       'modules', 
-                                       'commune.modules',
-                                       'module'],
-                    module_folder_filnames = ['__init__', 'main', 'module'],
-                    module_extension = 'py',
-                    ignore_suffixes = ['module'],
-                    name_map = {'commune': 'module'},
-                    compress_path = True,
-                    verbose = False,
-                    **kwargs
-                    ) -> str:
-        
-        path  = os.path.abspath(path)
-        path_filename_with_extension = path.split('/')[-1] # get the filename with extension     
-        path_extension = path_filename_with_extension.split('.')[-1] # get the extension
-        assert path_extension == module_extension, f'Invalid extension {path_extension} for path {path}'
-        path_filename = path_filename_with_extension[:-len(path_extension)-1] # remove the extension
-        path_filename_chunks = path_filename.split('_')
-        path_chunks = path.split('/')
-
-        if path.startswith(c.libpath):
-            path = path[len(c.libpath):]
-        else:
-            pwd = c.pwd()
-            if path.startswith(pwd):
-                path = path[len(pwd):]
-            else:
-                raise ValueError(f'Path {path} is not in libpath {c.libpath} or pwd {pwd}') 
-        dir_chunks = path.split('/')[:-1] if '/' in path else []
-        is_module_folder = all([bool(chunk in dir_chunks) for chunk in path_filename_chunks])
-        is_module_folder = is_module_folder or (path_filename in module_folder_filnames)
-        if is_module_folder:
-            path = '/'.join(path.split('/')[:-1])
-        path = path[1:] if path.startswith('/') else path
-        path = path.replace('/', '.')
-        module_extension = '.'+module_extension
-        if path.endswith(module_extension):
-            path = path[:-len(module_extension)]
-        if compress_path:
-            path_chunks = path.split('.')
-            simple_path = []
-            for chunk in path_chunks:
-                if chunk not in simple_path:
-                    simple_path += [chunk]
-            simple_path = '.'.join(simple_path)
-        else:
-            simple_path = path
-        for prefix in ignore_prefixes:
-            prefix += '.'
-            if simple_path.startswith(prefix) and simple_path != prefix:
-                simple_path = simple_path[len(prefix):]
-                c.print(f'Prefix {prefix} in path {simple_path}', color='yellow', verbose=verbose)
-        # FILTER SUFFIXES
-        for suffix in ignore_suffixes:
-            suffix = '.' + suffix
-            if simple_path.endswith(suffix) and simple_path != suffix:
-                simple_path = simple_path[:-len(suffix)]
-                c.print(f'Suffix {suffix} in path {simple_path}', color='yellow', verbose=verbose)
-        # remove leading and trailing dots
-        if simple_path.startswith('.'):
-            simple_path = simple_path[1:]
-        if simple_path.endswith('.'):
-            simple_path = simple_path[:-1]
-        simple_path = name_map.get(simple_path, simple_path)
-        return simple_path
-
+    def path2name(self, path):
+        objectpath = c.path2objectpath(path)
+        name = c.objectpath2name(objectpath)
+        return name
     @classmethod
     def classes(cls, path='./', depth=8, 
                      class_prefix = 'class ', 
@@ -1380,7 +1315,6 @@ class c:
                 if ' ' in new_class:
                     continue
                 classes += [new_class]
-
         if file_path.startswith(c.home_path):
             file_path = file_path[len(c.home_path)+1:]
         if '/' in file_path:
@@ -1439,7 +1373,7 @@ class c:
         return fns
     
     @classmethod
-    def objects(cls, path:str = './', depth=10, search=None, **kwargs):
+    def objs(cls, path:str = './', depth=10, search=None, **kwargs):
         classes = c.classes(path,depth=depth)
         functions = c.path2functions(path)
         if search != None:
@@ -1447,7 +1381,10 @@ class c:
         object_paths = functions + classes
         return object_paths
 
-    objs = objects
+    @classmethod
+    def objects(cls, path:str = './', depth=10, search=None, **kwargs):
+        return c.objs(path=path, depth=depth, search=search, **kwargs)
+
     @classmethod
     def ensure_sys_path(cls, paths:List[str] = None):
         paths = paths or [ c.pwd()]
@@ -1552,7 +1489,6 @@ class c:
 
         if path.endswith('.'):
             path = path[:-1]
-
         if '_' in file_name:
             file_chunks =  file_name.split('_')
             if all([c in path for c in file_chunks]):
@@ -1564,13 +1500,13 @@ class c:
         for avoid_suffix in ['module']:
             if path.endswith('.' + avoid_suffix):
                 path = path[:-len(avoid_suffix)-1]
+        if len(path) == 0:
+            return file_name
         return path
 
     @classmethod
     def local_modules(cls, search=None, **kwargs):
         return list(c.local_tree(search=search, **kwargs).keys())
-    
-
 
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):

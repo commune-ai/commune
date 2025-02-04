@@ -362,6 +362,16 @@ def get_file_size( path:str):
     return os.path.getsize(path)
     
 
+def get_files( path ='./', files_only:bool = True, recursive:bool=True):
+    import glob
+    path = os.path.abspath(os.path.expanduser(path))
+    if os.path.isdir(path) and not path.endswith('**'):
+        path = os.path.join(path, '**')
+    paths = glob.glob(path, recursive=recursive)
+    if files_only:
+        paths =  list(filter(lambda f:os.path.isfile(f), paths))
+    return sorted(paths)
+
 
 def type2files( path:str='./', **kwargs):
     files = get_files(path, **kwargs)

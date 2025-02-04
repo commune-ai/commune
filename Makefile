@@ -7,7 +7,7 @@ stop:
 	${SCRIPTS_PATH}/stop.sh 
 enter:
 	${SCRIPTS_PATH}/enter.sh
-test:
+tests:
 	${SCRIPTS_PATH}/test.sh
 freshtest:
 	make build && make test
