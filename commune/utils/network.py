@@ -1,6 +1,12 @@
 
 from typing import *
 import os
+import sys
+import subprocess
+import psutil
+import socket
+import time
+
 def port_free( *args, **kwargs) -> bool:
     return not port_used(*args, **kwargs)
 
@@ -231,45 +237,46 @@ def unreserve_ports(*ports, var_path='reserved_ports' ):
     c.put(var_path, reserved_ports)
     return c.reserved_ports()
 
-def kill_port(port):
-    import socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+def kill_port(port, timeout=10):
     try:
-        sock.bind(('0.0.0.0', port))
-    except socket.error:
-        print(f"Port {port} is in use")
-    finally:
-        sock.close()
-
-    if port_used(port):
-
-        import os
-        # kill it without lsof
+        # Check operating system
+        operating_system = sys.platform
         
-
-
-
-
-
+        if operating_system == "windows":
+            # Windows command
+            command = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
+            subprocess.run(command, shell=True)
         
-
-
+        elif operating_system in ["linux", "darwin"]:  # Linux or MacOS
+            # Unix command
+            command = f"lsof -i tcp:{port} | grep LISTEN | awk '{{print $2}}' | xargs kill -9"
+            subprocess.run(command, shell=True)
+        t0 = time.time()
+        while port_used(port):
+            if time.time() - t0 > timeout:
+                raise Exception(f'Timeout for killing port {port}')
+        
+        print(f"Process on port {port} has been killed")
+        return True
     
-    assert port_used(port) == False, f'Port {port} is still in use'
-
-    return port
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+    
 
 
 def kill_ports(ports = None, *more_ports):
+    import commune as c
     ports = ports or used_ports()
     if isinstance(ports, int):
         ports = [ports]
     if '-' in ports:
         ports = list(range([int(p) for p in ports.split('-')]))
     ports = list(ports) + list(more_ports)
-    for port in ports:
-        kill_port(port)
-    return check_used_ports()
+    for p in ports:
+        kill_port(p)
+    return used_ports()
 
 def is_port_public(port:int, ip:str=None, timeout=0.5):
     import socket

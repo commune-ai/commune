@@ -80,17 +80,7 @@ class Builder:
                 color = c.random_color()
         return {'path': path, 'msg': 'File written successfully'}
 
-    
-    def prompt_args(self):
-        # get all of the names of the variables in the prompt
-        prompt = self.prompt
-        variables = []
-        for line in prompt.split('\n'):
-            if '{' in line and '}' in line:
-                variable = line.split('{')[1].split('}')[0]
-                variables.append(variable)
-        return list(set(variables))
-    
+
     def utils_path(self):
         return os.path.dirname(__file__) + '/utils.py'
 

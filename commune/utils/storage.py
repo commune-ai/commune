@@ -377,26 +377,6 @@ def type2files( path:str='./', **kwargs):
 def type2filecount( path:str='./', **kwargs):
     return {k: len(v) for k,v in type2files(path, **kwargs).items()}
 
-def get_files( path ='./', 
-              search=None,
-              avoid_terms = None,
-              include_terms = None,
-               recursive:bool = True, files_only:bool = True):
-    import glob
-    path = os.path.abspath(path)
-    if os.path.isdir(path):
-        path = os.path.join(path, '**')
-    paths = glob.glob(path, recursive=recursive)
-    if files_only:
-        paths =  list(filter(lambda f:os.path.isfile(f), paths))
-    if avoid_terms != None:
-        paths = [p for p in paths if not any([term in p for term in avoid_terms])]
-    if include_terms != None:
-        paths = [p for p in paths if any([term in p for term in include_terms])]
-    if search != None:
-        paths = [p for p in paths if search in p]
-    return paths
-
 def abspath(path:str):
     return os.path.abspath(os.path.expanduser(path))
 

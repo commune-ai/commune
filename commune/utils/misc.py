@@ -11,9 +11,10 @@ def tqdm(*args, **kwargs):
     return tqdm(*args, **kwargs)
 
 def find_word( word:str, path='./')-> str:
+    import os
     import commune as c
     path = os.path.abspath(path)
-    files = get_files(path)
+    files = c.files(path)
     progress = c.tqdm(len(files))
     found_files = {}
     for f in files:
@@ -24,7 +25,6 @@ def find_word( word:str, path='./')-> str:
             lines = text.split('\n')
         except Exception as e:
             continue
-        
         line2text = {i:line for i, line in enumerate(lines) if word in line}
         found_files[f[len(path)+1:]]  = line2text
         progress.update(1)

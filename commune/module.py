@@ -32,7 +32,7 @@ class c:
     repo_path  = os.path.dirname(root_path) # the path to the repo
     docs_path = repo_path + '/docs'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
-    modules_path = os.path.dirname(__file__) + '/modules'
+    modules_path = libpath + '/modules'
 
     cache = {} # cache for module objects
     shortcuts =  {
@@ -118,6 +118,21 @@ class c:
     @classmethod
     def objectpath(cls, obj=None) -> str:
         return c.classes(cls.filepath(obj))[-1]
+
+    @classmethod 
+    def obj2code(self, path='./', search=None):
+        obj2code = {}
+        for obj in c.objs(path):
+            if search != None and str(search) not in obj:
+                continue
+                
+            try:
+                obj2code[obj] = c.code(obj)
+            except:
+                pass
+        return obj2code.keys()
+
+            
 
     def file2size(self, path:str='./', reverse=True) -> int:
         file2size =  {k:len(str(v)) for k,v in c.file2text(path).items()}
@@ -617,7 +632,7 @@ class c:
     def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
         import glob
         path = cls.resolve_path(path)
-        if os.path.isdir(path):
+        if os.path.isdir(path) and not path.endswith('**'):
             path = os.path.join(path, '**')
         paths = glob.glob(path, recursive=recursive)
         if files_only:
@@ -1864,6 +1879,26 @@ class c:
         files =  c.files(path)
         readmes = [f for f in files if f.endswith('.md')]
         return {k.replace(c.abspath('~') +'/', '~/'):c.get_text(k) for k in readmes}
+
+    home_modules_path = os.path.expanduser('~/modules')
+    
+    def export_modules(self, path=home_modules_path):
+        fromto_path = []
+        avoid_terms =['__pycache__']
+        for f in c.glob(c.modules_path):
+            print(f)
+            if any([term in f for term in avoid_terms]):
+                continue
+            to_f = c.home_modules_path + '/' + f[len(c.modules_path) + 1:]
+            fromto_path += [[f, to_f]]
+
+        return fromto_path
+
+
+    def fixit(self):
+        avoid_terms = ['routes.json']
+        return [c.rm(f) for f in c.files() if f.endswith('.json')  if not any([at in f for at in avoid_terms])]
+
 c.add_routes()
 Module = c # Module is alias of c
 if __name__ == "__main__":

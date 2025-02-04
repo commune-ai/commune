@@ -14,8 +14,7 @@ class Client:
                  network: Optional[bool] = 'local', 
                  **kwargs):
         self.key  = c.get_key(key, create_if_not_exists=True)
-        self.namespace = c.namespace(network=network)
-        self.url = module if c.is_url(module) else self.namespace.get(module)
+        self.url = module if c.is_url(module) else c.namespace().get(module,module)
         self.session = requests.Session()
         
     @classmethod
@@ -24,7 +23,7 @@ class Client:
                 *args,
                 kwargs = None,
                 params = None,
-                module : str = 'module',
+                module : str = None,
                 network:str = 'local',
                 key: Optional[str] = None, # defaults to module key (c.default_key)
                 timeout=40,
@@ -54,10 +53,11 @@ class Client:
     def get_url(self, fn, mode='http'):
         if '/' in str(fn):  
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
-            if url in self.namespace:
-                url = self.namespace[url]
+            if not c.is_url(url):
+                url = c.namespace().get(url, url)
         else:
             url = self.url
+        assert c.is_url(url), f'{url}'
         url = url if url.startswith(mode) else f'{mode}://{url}'
         return f"{url}/{fn}/"
 
@@ -72,8 +72,7 @@ class Client:
                 args = params
             else:
                 raise Exception(f'Invalid params {params}')
-        params =  {"args": args, "kwargs": kwargs}
-        return params
+        return {"args": args, "kwargs": kwargs}
 
     def forward(self, 
                 fn  = 'info', 

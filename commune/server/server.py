@@ -108,15 +108,24 @@ class Server:
             "time": c.time(),
             "schema": {fn: c.fn_schema(getattr(module, fn )) for fn in module.fns if hasattr(module, fn)},
         }
+
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         name = self.module.name
         if port == None:
-            for k in port_attributes:
-                if hasattr(self.module, k):
-                    port = getattr(self.module, k)
-                    c.kill_port(port)
-                    break
-        port = port or c.free_port()
+            in_port_attribute = any([k for k in port_attributes])
+            if in_port_attribute:
+                for k in port_attributes:
+                    if hasattr(self.module, k):
+                        port = getattr(self.module, k)
+                        c.kill_port(port)
+                        break
+            else:
+                port = port or c.free_port()
+                namespace = self.namespace()
+                if name in namespace:
+                    port = int(namespace.get(name).split(':')[-1])
+        if str(port) == 'None':
+            port = c.free_port()
         while c.port_used(port):
             c.kill_port(port)
             c.sleep(1)
@@ -197,7 +206,7 @@ class Server:
     def processes(cls):
         return self.processes()
 
-    def wait_for_server(cls,
+    def wait_for_server(self,
                           name: str ,
                           network: str = 'local',
                           timeout:int = 600,
@@ -208,7 +217,7 @@ class Server:
         # rotating status thing
         c.print(f'waiting for {name} to start...', color='cyan')
         while time_waiting < timeout:
-            namespace = cls.namespace(network=network, max_age=max_age)
+            namespace = self.namespace(network=network, max_age=max_age)
             if name in namespace:
                 try:
                     result = c.call(namespace[name]+'/info')
@@ -217,7 +226,7 @@ class Server:
                     result.pop('schema', None)
                     return result
                 except Exception as e:
-                    c.print(f'Error getting info for {name} --> {e}', color='red')
+                    c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
             c.sleep(sleep_interval)
             # c.print(c.logs(name, tail=10, mode='local'))
                 
@@ -256,7 +265,7 @@ class Server:
     def test(cls, **kwargs):
         from .test import Test
         return Test().test()
-    
+
     def kill(self, name:str, verbose:bool = True, **kwargs):
         process_name = self.resolve_process_name(name)
         try:
@@ -361,10 +370,12 @@ class Server:
         env = env or {}
         if '/' in fn:
             module, fn = fn.split('/')
-        if self.server_exists(module):
-            self.kill(name)
-
+        name = name or module
         process_name = self.resolve_process_name(name)
+
+        if self.process_exists(process_name):
+            self.kill(process_name)
+
         cmd = f"pm2 start {c.filepath()} --name {process_name} --interpreter {interpreter} -f"
         cmd = cmd  if autorestart else ' --no-autorestart' 
         params_str = json.dumps({'module': module ,  'fn': fn, 'params': params or {}}).replace('"', "'")

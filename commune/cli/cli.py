@@ -5,6 +5,8 @@ import commune as c
 print = c.print
 class Cli:
     desc = 'commune cli for running functions'
+    def __init__(self):
+        self.forward()
     def forward(self):
         t0 = time.time()
         argv = sys.argv[1:]
@@ -85,7 +87,7 @@ class Cli:
         return {'args': args, 'kwargs': kwargs}
 
 
-    def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module'):
+    def get_fn(self, argv:list, init_kwargs:dict={}, default_fn:str='forward', default_module:str='module', helper_fns=['code']):
         if len(argv) == 0:
             fn = default_fn
         else:
