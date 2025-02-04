@@ -231,18 +231,34 @@ def unreserve_ports(*ports, var_path='reserved_ports' ):
     c.put(var_path, reserved_ports)
     return c.reserved_ports()
 
-def kill_port(port:int):
-    r""" Kills a process running on the passed port.
-        Args:
-            port  (:obj:`int` `required`):
-                The port to kill the process on.
-    """
+def kill_port(port):
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        os.system(f'kill -9 $(lsof -t -i:{port})')
-    except Exception as e:
-        print(e)
-        return False
-    return True
+        sock.bind(('0.0.0.0', port))
+    except socket.error:
+        print(f"Port {port} is in use")
+    finally:
+        sock.close()
+
+    if port_used(port):
+
+        import os
+        # kill it without lsof
+        
+
+
+
+
+
+        
+
+
+    
+    assert port_used(port) == False, f'Port {port} is still in use'
+
+    return port
+
 
 def kill_ports(ports = None, *more_ports):
     ports = ports or used_ports()

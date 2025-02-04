@@ -24,7 +24,7 @@ class Server:
     network = 'subspace'
     max_user_history_age = 3600 # the lifetime of the user call data
     max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
-    helper_functions  = ['info', 'schema', 'functions', 'forward'] # the helper functions
+    helper_functions  = ['info', 'forward'] # the helper functions
     function_attributes =['endpoints', 'functions', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
         self, 
@@ -92,22 +92,22 @@ class Server:
         function_attributes = [fa for fa in self.function_attributes if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list)]
         assert len(function_attributes) == 1 , f'{function_attributes} is too many funcitonal attributes, choose one dog'
         fns = getattr(self.module, function_attributes[0])
-        self.module.schema = {fn: c.schema(getattr(self.module, fn )) for fn in functions if hasattr(self.module, fn)}
-        self.module.free = self.free
         self.module.fns = sorted(list(set(functions + self.helper_functions)))
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
-        c.print(f'Functions({self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
-        self.module.info = {
-            "name": self.module.name,
-            "url": self.module.url,
-            "key": self.module.key.ss58_address,
-            "time": c.time(),
-            "fns": self.module.fns,
-            "schema": self.module.schema,
-        }
+        c.print(f'Functions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
+        # info about the server
+        self.module.info = self.get_info(self.module)
         return {'success':True, 'message':f'Set functions to {functions}'}
         
+    def get_info(self, module):
+        return {
+            "name": module.name,
+            "url": module.url,
+            "key": module.key.ss58_address,
+            "time": c.time(),
+            "schema": {fn: c.fn_schema(getattr(module, fn )) for fn in module.fns if hasattr(module, fn)},
+        }
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         name = self.module.name
         if port == None:
@@ -219,6 +219,7 @@ class Server:
                 except Exception as e:
                     c.print(f'Error getting info for {name} --> {e}', color='red')
             c.sleep(sleep_interval)
+            # c.print(c.logs(name, tail=10, mode='local'))
                 
             time_waiting += sleep_interval
         future.cancel()
@@ -264,7 +265,7 @@ class Server:
             result =  {'message':f'Killed {process_name}', 'success':True}
         except Exception as e:
             result =  {'message':f'Error killing {process_name}', 'success':False, 'error':e}
-        c.rm_server(name)
+        self.rm_server(name)
         return result
     
     def kill_all(self, verbose:bool = True, timeout=20):
@@ -367,7 +368,7 @@ class Server:
         cmd = f"pm2 start {c.filepath()} --name {process_name} --interpreter {interpreter} -f"
         cmd = cmd  if autorestart else ' --no-autorestart' 
         params_str = json.dumps({'module': module ,  'fn': fn, 'params': params or {}}).replace('"', "'")
-        cmd = cmd +  f' -- --fn {run_fn} --params "{params_str}"'
+        cmd = cmd +  f' -- --fn {run_fn} --kwargs  "{params_str}"'
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
 

@@ -113,8 +113,7 @@ class c:
 
     @classmethod
     def filepath(cls, obj=None) -> str:
-        obj = cls.resolve_module(obj)
-        return inspect.getfile(obj)
+        return inspect.getfile(cls.resolve_module(obj))
     
     @classmethod
     def objectpath(cls, obj=None) -> str:
@@ -188,16 +187,10 @@ class c:
         return c.obj('commune.utils.log.is_error')(*text, **kwargs)
     @classmethod
     def resolve_module(cls, obj:str = None, default=None, fn_splitter='/', **kwargs):
-        obj = obj or cls._obj or default or cls
         if isinstance(obj, str):
-            if fn_splitter in obj:
-                fn = obj.split(fn_splitter)[-1]
-                obj = fn_splitter.join(obj.split(fn_splitter)[:-1])
-                obj =  getattr(obj(), fn)
-            else:
-                fn = None
-            obj =  c.module(obj)
-        assert obj != None, f'Object {obj} does not exist'
+            obj = c.module(obj)
+        if obj == None:
+            obj = cls
         return obj
 
     @classmethod
@@ -321,7 +314,7 @@ class c:
     
     @classmethod
     def files(cls, 
-              path=None, 
+              path='./', 
               search:str = None, 
               avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
               **kwargs) -> List[str]:
@@ -872,20 +865,7 @@ class c:
                         
                             parents += [pp]
         return parents
-    
-    @classmethod
-    def module_schema(cls, module = None):
-        module = cls.resolve_module(module)
-        module_schema = {}
-        for fn in c.fns(module):
-            schema = c.schema(getattr(module, fn))
-            module_schema[fn] = schema
-        return module_schema
-
     fn2cost = {}
-
-
-
     @classmethod
     def fn_schema(cls, fn:str = '__init__', **kwargs)->dict:
         '''
@@ -893,7 +873,7 @@ class c:
         '''     
         schema = {}
 
-        fn = cls.get_fn(fn)
+        fn = c.get_fn(fn)
         if not callable(fn):
             return {'fn_type': 'property', 'type': type(fn).__name__}
 
@@ -906,28 +886,27 @@ class c:
 
 
     @classmethod
-    def schema(cls, fn:str = '__init__', **kwargs)->dict:
+    def schema(cls, module = None, fn:str = '__init__', **kwargs)->dict:
         '''
         Get function schema of function in cls
         '''     
-        fn2schema = {}
-        fns = c.fns(cls)
+        schema = {}
+        module = c.resolve_module(module)
+        fns = c.fns(module)
         for fn in fns:
-            fn2schema[fn] = c.fn_schema(getattr(cls, fn))
-        return fn2schema
+            schema[fn] = c.fn_schema(getattr(module, fn))
+        return schema
 
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
-            util2path = cls.util2path()
-            if module in util2path:
-                module = util2path[module]
-        obj = cls.resolve_module(module)
-
-        dirpath = c.dirpath(obj) # the directory path of the module
-        path = dirpath if c.is_module_folder(obj) else path # whether the module is a folder
-        code =  c.text(path)
-        return  {k:v for k,v in code.items()}
+            if isinstance(module, str) and '/' in module:
+                fn = module.split('/')[-1]
+                module = '/'.join(module.split('/')[:-1])
+                module = getattr(c.module(module), fn)
+            else:
+                module = cls.resolve_module(module)
+        return inspect.getsource(module)
 
     pycode = code
     @classmethod
@@ -1054,10 +1033,13 @@ class c:
             update: bool =False, **kwargs):
         module = c.resolve_module(module)
         name = c.module_name(module)
-        path = c.resolve_path('info/' + name)
+        path = c.resolve_info_path(name)
         info = c.get(path, None, max_age=max_age, update=update)
         if info == None:
-            code = c.code(module)
+            path = c.dirpath(module) if c.is_module_folder(module) else c.filepath(module)
+            code = c.text(path)
+            if isinstance(code, str):
+                code = {path: code}
             schema = c.schema(module)
             founder = c.founder().address
             key = c.get_key(name).address
@@ -1074,6 +1056,30 @@ class c:
         if lite:
             info = {k: v for k,v in info.items() if k in lite_features}
         return  info
+
+
+    module2info_path = 'info/module2info'
+    module2error_path = 'info/module2error'
+    def module2info(self, search=None, max_age = 1000, update=False):
+        module2info = {}
+        path = self.module2info_path
+        error_path = self.module2error_path
+        module2error = c.get(error_path, {})
+        module2info = c.get(path, module2info, max_age=max_age, update=update)
+        if len(module2info) == 0:
+            for m in c.modules():
+                try:
+                    module2info[m] = c.info(m)
+                except Exception as e:
+                    module2error[m] = c.detailed_error(e)
+                    pass
+            c.put(path, module2info)
+            c.put(error_path, module2error)
+        return module2info
+
+    def module2error(self ):
+        return  c.get(self.module2error_path, {})
+
 
     def infos(self, search = None, max_age = None, **kwargs):
         infos = c.ls('info')
@@ -1112,11 +1118,13 @@ class c:
 
 
     @classmethod
-    def get_fn(cls, fn:str, splitters=[":", "/"]) -> 'Callable':
+    def get_fn(cls, fn:str, splitters=[":", "/"], default_fn='forward') -> 'Callable':
         """
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
+            if fn.endswith('/'):
+                fn += default_fn
             fn_obj = None
             module = cls
             for splitter in splitters:
@@ -1455,20 +1463,24 @@ class c:
 
     
     @classmethod
-    def get_object(cls, key:str, splitters=['/', '::',  '.'], **kwargs)-> Any:
+    def get_object(cls, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
         ''' Import an object from a string with the format of {module_path}.{object}'''
         module_path = None
         object_name = None
         for splitter in splitters:
-            if splitter in key:
-                module_path = '.'.join(key.split(splitter)[:-1])
-                object_name = key.split(splitter)[-1]
-                break
+            key = key.replace(splitter, '.')
+        
+        module_path = '.'.join(key.split('.')[:-1])
+        object_name = key.split('.')[-1]
+        
         if isinstance(key, str) and key.endswith('.py') and c.path_exists(key):
             key = c.path2objectpath(key)
         assert module_path != None and object_name != None, f'Invalid key {key}'
         module_obj = c.import_module(module_path)
-        return  getattr(module_obj, object_name)
+        try:
+            return  getattr(module_obj, object_name)
+        except Exception as e:
+            return c.import_module(key)
     
     @classmethod
     def obj(cls, key:str, **kwargs)-> Any:
@@ -1543,6 +1555,8 @@ class c:
     def local_modules(cls, search=None, **kwargs):
         return list(c.local_tree(search=search, **kwargs).keys())
     
+
+
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.libpath, depth=depth, **kwargs)
@@ -1802,8 +1816,6 @@ class c:
     def epoch(self, *args, **kwargs):
         return c.mod('vali')().epoch(*args, **kwargs)
 
-    def e(self, *args, **kwargs):
-        return c.mod('vali')().epoch(*args, **kwargs)
 
     def routes_from_to(self):
         routes = c.routes

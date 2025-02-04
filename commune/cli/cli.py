@@ -12,7 +12,6 @@ class Cli:
             argv = ['vs']
         fn_obj = self.get_fn(argv)
         params = self.get_params(argv)
-        print(f'Calling({fn_obj})')
         output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         latency = time.time() - t0
         print(f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅')
@@ -103,6 +102,8 @@ class Cli:
                     argv.remove(arg)
                     init_kwargs[key] = self.parse_type(v)
                 continue
+        if fn.endswith('/'):
+            fn += 'forward'
         # get the function object
         for splitter in ['::', '/']:
             if splitter in fn:
@@ -114,13 +115,15 @@ class Cli:
             module = default_module
         if module.endswith('.py'):
             module = module[:-3]
+        shortcut = False
         if module in c.shortcuts:
             old_module = module
             module = c.shortcuts[module]
+            shortcut = True
             print(f'ShortcutEnabled({old_module} -> {module})', color='yellow')
-        
+
         filepath = c.filepath(module).replace(c.home_path, '~')    
-        print(f'Calling({module}/{fn}, path={filepath})', color='yellow')
+        print(f'Calling({module}/{fn}, path={filepath} shortcut={shortcut})', color='yellow')
         module = c.module(module)
         if not hasattr(module, fn):
             return {'error': f'module/{fn} does not exist', 'success': False}

@@ -124,10 +124,9 @@
 
     "docker":
         ["ps"],
-
-
     "subspace": [
-        "s2e",
+        "e",
+        "emissions",
         "transfer_stake",
         "stake_transfer",
         "switch",

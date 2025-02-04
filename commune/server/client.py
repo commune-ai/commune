@@ -14,7 +14,8 @@ class Client:
                  network: Optional[bool] = 'local', 
                  **kwargs):
         self.key  = c.get_key(key, create_if_not_exists=True)
-        self.url = module if c.is_url(module) else c.namespace(network=network).get(module)
+        self.namespace = c.namespace(network=network)
+        self.url = module if c.is_url(module) else self.namespace.get(module)
         self.session = requests.Session()
         
     @classmethod
@@ -29,12 +30,13 @@ class Client:
                 timeout=40,
                 **extra_kwargs) -> None:
         
-        if '/' in str(fn):
-            module = '.'.join(fn.split('/')[:-1])
-            fn = fn.split('/')[-1]
-        else:
-            module = fn 
-            fn = 'info'
+        if not fn.startswith('http'):
+            if '/' in str(fn):
+                module = '.'.join(fn.split('/')[:-1])
+                fn = fn.split('/')[-1]
+            else:
+                module = fn 
+                fn = 'info'
         kwargs = (params or kwargs) or {}
         kwargs = {**kwargs, **extra_kwargs}
         return cls(module=module, network=network).forward(fn=fn, 
@@ -52,6 +54,8 @@ class Client:
     def get_url(self, fn, mode='http'):
         if '/' in str(fn):  
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
+            if url in self.namespace:
+                url = self.namespace[url]
         else:
             url = self.url
         url = url if url.startswith(mode) else f'{mode}://{url}'
@@ -113,6 +117,7 @@ class Client:
         elif 'text/plain' in response.headers.get('Content-Type', ''):
             result = response.text
         else:
+            # if the response is not json or text, return the content
             result = response.content
             if response.status_code != 200:
                 raise Exception(result)

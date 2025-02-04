@@ -2237,12 +2237,6 @@ class Subspace(c.Module):
         """
         Retrieves the existential deposit value for the network.
         """
-
-        # with self.get_conn() as substrate:
-        #     result: int = substrate.constant(  #  type: ignore
-        #         "Balances", "ExistentialDeposit", block_hash
-        #     ).value  #  type: ignore
-
         return 1
 
     def voting_power_delegators(self) -> list[Ss58Address]:
@@ -2689,6 +2683,7 @@ class Subspace(c.Module):
     def key2uid(self, subnet=0) -> int:
         subnet = self.resolve_subnet(subnet)
         return {v:k for k,v in self.query_map('Keys', params=[subnet]).items()}
+
     def uid2key(self,subnet=0) -> int:
         key2uid = self.key2uid(subnet)
         return {v:k for k,v in key2uid.items()}  
@@ -2739,16 +2734,16 @@ class Subspace(c.Module):
     def netuids(self,  update=False, block=None) -> Dict[int, str]:
         return list(self.netuid2subnet( update=update, block=block).keys())
 
-    def subnet2emission(self, **kwargs ) -> Dict[str, str]:
+    def emissions(self, **kwargs ) -> Dict[str, str]:
         params = self.params(**kwargs)
-        subnet2emission =  {v:params['emission'] * self.blocks_per_day for v,params in params.items()}
-        netuid2subnet = self.netuid2subnet(**kwargs)
-        netuid2emission = self.netuid2emission(**kwargs)
-        return  dict(sorted({netuid2subnet[k]:v for k,v in netuid2emission.items()}.items(), key=lambda x: x[1], reverse=True))
+        netuid2emission =  {k:params['emission'] * self.blocks_per_day for k,params in params.items()}
+        netuid2subnet = self.netuid2subnet()
+        emissions = {netuid2subnet[k].lower():v/10**9 for k,v in netuid2emission.items()}
+        return  dict(sorted(emissions.items(), key=lambda x: x[1], reverse=True))
 
-    def s2e(self):
-        return self.subnet2emission()
-
+    def e(self):
+        return self.emissions()
+        
     def subnet2netuid(self, **kwargs ) -> Dict[str, str]:
         return {v.lower():k for k,v in self.netuid2subnet(**kwargs).items()}
     name2netuid = subnet2netuid

@@ -123,7 +123,7 @@ class Vali(c.Module):
         module['score'] = score
         module['time'] = t0
         module['latency'] = c.time() - module['time']
-        module['path'] = self.path +'/'+ module['key']
+        module['path'] = self.path +'/'+ module['key'] + '.json'
         return module
 
     def score_batch(self, modules: List[dict]):

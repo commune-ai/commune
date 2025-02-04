@@ -11,7 +11,7 @@ from typing import Callable
 from concurrent.futures._base import Future
 import commune as c
 from .task import Task
-# Task = c.module('executor.task')
+
 NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
 class ThreadPoolExecutor(c.Module):
@@ -36,7 +36,6 @@ class ThreadPoolExecutor(c.Module):
             thread_name_prefix: An optional name prefix to give our threads.
         """
         self.start_time = c.time()
-
         max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
         maxsize = max_workers * 10 or None
         if max_workers <= 0:
