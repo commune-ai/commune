@@ -922,6 +922,8 @@ class c:
                 module = getattr(c.module(module), fn)
             else:
                 module = cls.resolve_module(module)
+        else: 
+            module = cls
         return inspect.getsource(module)
 
     pycode = code
@@ -1222,88 +1224,37 @@ class c:
         return 'static'
 
     @classmethod
-    def name2path(cls, 
-                    name:str,
-                    extension = '.py',
-                    ignore_prefixes = ['', 
-                                       'src', 
-                                      'commune', 
-                                      'commune/module', 
-                                      'commune/modules', 
-                                      'modules', 
-                                      'module',
-                                      'blocks', 
-                                      'agents', 
-                                      'commune/agents'],
-                    **kwargs) -> bool:
-        """
-        converts the module path to a file path
-
-        for example 
-
-        model.openai.gpt3 -> model/openai/gpt3.py, model/openai/gpt3_module.py, model/openai/__init__.py 
-        model.openai -> model/openai.py or model/openai_module.py or model/__init__.py
-
-        Parameters:
-            path (str): The module path
-        """
-        name = c.shortcuts.get(name, name)
-        if name.endswith(extension):
-            name = name[:-len(extension)]
-        path = None
-        pwd = c.pwd()
-        path_options = []
-        name = name.replace('/', '.')
-        # create all of the possible paths by combining the ignore_prefixes with the simple path
-        dir_paths = list([pwd+ '/' + x for x in ignore_prefixes]) # local first
-        dir_paths += list([c.libpath + '/' + x for x in ignore_prefixes]) # add libpath stuff
-
-        for dir_path in dir_paths:
-            if dir_path.endswith('/'):
-                dir_path = dir_path[:-1]
-            # '/' count how many times the path has been split
-            module_dirpath = dir_path + '/' + name.replace('.', '/')
-            if os.path.isdir(module_dirpath):
-                simple_filename = name.replace('.', '_')
-                filename_options = [simple_filename, simple_filename + '_module', 'module_'+ simple_filename] + ['module'] + name.split('.') + ['__init__']
-                path_options +=  [module_dirpath + '/' + f  for f in filename_options]  
-            else:
-                module_filepath = dir_path + '/' + name.replace('.', '/') 
-                path_options += [module_filepath]
-
-            for p in path_options:
-                p = p if p.endswith(extension) else p + extension
-                if os.path.exists(p):
-                    p_text = c.get_text(p)
-                    path =  p
-                    if c.repo_name in p_text and 'class ' in p_text or '  def ' in p_text:
-                        break
-            if path != None:
-                break
-        return path
-
-    @classmethod
     def path2name(self, path):
-        objectpath = c.path2objectpath(path)
-        name = c.objectpath2name(objectpath)
-        return name
+        if c.modules_path in path:
+            path = path.replace(c.modules_path + '/', '')
+        if path.startswith(c.pwd()):
+            path = path.replace(c.pwd() + '/', '')
+        elif path.startswith(c.rootpath):
+            path = path.replace(c.rootpath + '/', '')
+        if path.endswith('.py'):
+            path = path[:-3]
+        if path.startswith(c.repo_name):
+            path = path.replace(c.repo_name + '/', '')
+        return path.replace('/', '.')
+      
     @classmethod
-    def classes(cls, path='./', depth=8, 
+    def path2classes(cls, path='./', depth=8, 
                      class_prefix = 'class ', 
                      file_extension = '.py',
                      class_suffix = ':', **kwargs):
         path = os.path.abspath(path)
         if os.path.isdir(path):
-            classes = []
+            path2classes = {}
             if depth == 0:
-                return []
+                return {}
             for p in c.ls(path):
-                if os.path.isdir(p):
-                    classes += cls.classes(p, depth=depth-1)
-                elif p.endswith(file_extension):
-                    p_classes =  cls.classes(p)
-                    classes += p_classes
-            return classes
+                try:
+                    for k,v in cls.path2classes(p).items():
+                        if len(v) > 0:
+                            path2classes[k] = v
+                except Exception as e:
+                    pass
+            return path2classes
         code = cls.get_text(path)
         classes = []
         file_path = cls.path2objectpath(path)
@@ -1319,7 +1270,15 @@ class c:
             file_path = file_path[len(c.home_path)+1:]
         if '/' in file_path:
             file_path = file_path.replace('/', '.')
-        classes = [file_path + '.' + c for c in classes]
+        return {path:  [file_path + '.' + c for c in classes]}
+
+    
+    @classmethod
+    def classes(cls, path='./', depth=8, **kwargs):
+        path2classes =  cls.path2classes(path=path, depth=depth, **kwargs)
+        classes = []
+        for k,v in path2classes.items():
+            classes += v
         return classes
     
 
@@ -1371,6 +1330,7 @@ class c:
                     fn = line.split('def ')[-1].split('(')[0].strip()
                     fns += [fn]
         return fns
+
     
     @classmethod
     def objs(cls, path:str = './', depth=10, search=None, **kwargs):
@@ -1460,10 +1420,8 @@ class c:
         Returns true if the module exists
         '''
         try:
-            path = c.name2path(module)
-            module_exists = os.path.exists(path)
-            if not module_exists:
-                module_exists = bool(c.object_exists(path))
+            tree = c.tree()
+            module_exists =  module in tree
         except Exception as e:
             module_exists =  False
         return module_exists
@@ -1497,11 +1455,8 @@ class c:
             avoid = f'{avoid}.' 
             if avoid in path:
                 path = path.replace(avoid, '')
-        for avoid_suffix in ['module']:
-            if path.endswith('.' + avoid_suffix):
-                path = path[:-len(avoid_suffix)-1]
         if len(path) == 0:
-            return file_name
+            return 'module'
         return path
 
     @classmethod

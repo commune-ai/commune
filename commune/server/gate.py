@@ -20,6 +20,7 @@ import asyncio
 
 
 class Gate:
+    multipliers = {'stake': 1, 'stake_to': 1,'stake_from': 1}
 
     def __init__(self, module=None, network='subspace', max_network_age=60, history_path=None, max_user_history_age=60):
         self.module = module or 'module'
@@ -35,7 +36,7 @@ class Gate:
                 params:dict,  
                 headers:dict, 
                 multipliers : Dict[str, float] = {'stake': 1, 'stake_to': 1,'stake_from': 1}, 
-                rates : Dict[str, int]= {'local': 10000, 'owner': 10000, 'admin': 10000}, # the maximum rate  ):
+                rates : Dict[str, int]= {'local': 10000, 'owner': 10000, 'admin': 10000, 'stake':1}, # the maximum rate  ):
                 max_request_staleness : int = 4 # (in seconds) the time it takes for the request to be too old
             ) -> bool:
             role = self.get_user_role(headers['key'])
@@ -53,7 +54,7 @@ class Gate:
             if role in rates:
                 rate_limit = rates[role]
             else:
-                stake = self.state['stake'].get(headers['key'], 0) * self.multipliers['stake']
+                stake = self.state['stake'].get(headers['key'], 0) * multipliers['stake']
                 stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) * multipliers['stake_to']
                 stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) * multipliers['stake_from']
                 stake = stake + stake_to + stake_from

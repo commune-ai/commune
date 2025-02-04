@@ -74,6 +74,7 @@ class Vali(c.Module):
     
     def score(self, module):
         info = module.info()
+        print(info)
         return int('name' in info)
     
     def set_score(self, score):
