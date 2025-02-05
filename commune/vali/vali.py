@@ -9,7 +9,6 @@ class Vali(c.Module):
     epoch_time = 0
     vote_time = 0 # the time of the last vote (for voting networks)
     epochs = 0 # the number of epochs
-
     def __init__(self,
                     network= 'local', # for local subspace:test or test # for testnet subspace:main or main # for mainnet
                     search : Optional[str] =  None, # (OPTIONAL) the search string for the network 
@@ -214,8 +213,9 @@ class Vali(c.Module):
             df = df[page*page_size:(page+1)*page_size]
         return df
 
+
     def module_paths(self):
-        return c.ls(self.path)
+        return c.ls(self.path) # fam
     
     @classmethod
     def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):

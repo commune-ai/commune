@@ -1049,8 +1049,9 @@ class c:
         return c.resolve_path('info/' + name)
 
     @classmethod 
-    def info(cls, module:str='module', 
+    def info(cls, module:str='module',  # fam
             lite: bool =False, 
+
             max_age : Optional[int]=None, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
@@ -1104,12 +1105,14 @@ class c:
     def module2error(self ):
         return  c.get(self.module2error_path, {})
 
-
     def infos(self, search = None, max_age = None, **kwargs):
         infos = c.ls('info')
         if search != None:
             infos = [i for i in infos if search in i]
         return [c.get(i, max_age=max_age) for i in infos]
+    def module2hash(self, search = None, max_age = None, **kwargs):
+        infos = self.infos(search=search, max_age=max_age, **kwargs)
+        return {i['name']: i['hash'] for i in infos if 'name' in i}
     fn_n = n_fns
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
@@ -1300,17 +1303,17 @@ class c:
 
     @classmethod
     def path2name(cls, path):
-
         name = cls.path2objectpath(path)
         name_chunks = []
         for chunk in name.split('.'):
+            if chunk in ['modules', 'agents']:
+                continue
             if chunk not in name_chunks:
                 name_chunks += [chunk]
         if name_chunks[0] == c.repo_name:
             name_chunks = name_chunks[1:]
         return '.'.join(name_chunks)
 
-    
     @classmethod
     def objectpath2path(cls, objectpath:str, **kwargs) -> str:
         options  = [c.libpath, c.pwd()]
@@ -1551,6 +1554,16 @@ class c:
             modules = [m for m in modules if search in m]     
         return modules
     blocks = mods = modules
+
+    @classmethod
+    def check_info(cls,info, features=['key', 'hash', 'time', 'founder', 'name', 'schema']):
+        try:
+            assert isinstance(info, dict), 'info is not a dictionary'
+            for feature in features:
+                assert feature in info, f'{feature} not in info'
+        except Exception as e:
+            return False
+        return True
 
     @classmethod
     def new_module( cls,
