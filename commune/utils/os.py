@@ -587,3 +587,14 @@ def argv( include_script:bool = False):
         return args
     else:
         return args[1:]
+
+    processes = get_processes_on_ports()
+    if port in processes:
+        try:
+            process = psutil.Process(processes['pid'])
+            process.kill()
+            print(f"Successfully killed process on port {port}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            print(f"Could not kill process on port {port}")
+    else:
+        print(f"No process found on port {port}")

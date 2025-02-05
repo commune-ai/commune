@@ -35,7 +35,7 @@ class Transformer( nn.Module, c.Module):
         nn.Module.__init__(self)
         self.model = AutoModelForCausalLM.from_pretrained(model)  
         self.tokenizer =  tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-        self.optimizer = c.import_object(optimizer) (self.model.parameters(), lr=lr)
+        self.optimizer = c.obj(optimizer) (self.model.parameters(), lr=lr)
         self.resolve_device(device)
         self.set_fine_tuning_params(num_layers=num_layers)
 

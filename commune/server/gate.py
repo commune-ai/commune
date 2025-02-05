@@ -22,15 +22,13 @@ import asyncio
 class Gate:
     multipliers = {'stake': 1, 'stake_to': 1,'stake_from': 1}
 
-    def __init__(self, module=None, network='subspace', max_network_age=60, history_path=None, max_user_history_age=60):
+    def __init__(self, module=None, network='subspace', max_network_age=60, history_path=None, max_history_age=60):
         self.module = module or 'module'
         self.max_network_age = max_network_age
         self.sync_network(network)
         self.history_path = history_path or self.resolve_path('history')
-        self.max_user_history_age = max_user_history_age
-
-
-
+        self.max_history_age = max_history_age
+        c.thread(self.sync_loop)
     def forward(self, 
                 fn:str, 
                 params:dict,  
@@ -121,8 +119,8 @@ class Gate:
     def call_rate(self, key_address, max_age = 60):
         path2latency = self.user_call_path2latency(key_address)
         for path, latency  in path2latency.items():
-            if latency > self.max_user_history_age:
-                c.print(f'RemovingUserPath(path={path} latency(s)=({latency}/{self.max_user_history_age})')
+            if latency > self.max_history_age:
+                c.print(f'RemovingUserPath(path={path} latency(s)=({latency}/{self.max_history_age})')
                 if os.path.exists(path):
                     os.remove(path)
         return len(self.call_paths(key_address))
@@ -198,7 +196,6 @@ class Gate:
         app.add_middleware(Middleware, max_bytes=max_bytes)
         app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
         return app
-
 
     def save_data(self, data):
         call_data_path = self.get_call_data_path(f'{data["key"]}/{data["fn"]}/{c.time()}.json') 

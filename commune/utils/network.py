@@ -578,3 +578,4 @@ def is_url( address:str) -> bool:
     conds.append(':' in address)
     conds.append(c.is_int(address.split(':')[-1]))
     return all(conds)
+

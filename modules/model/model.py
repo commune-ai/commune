@@ -42,7 +42,7 @@ class Model(nn.Module, c.Module):
         optimizer_map = {'adam':'torch.optim.Adam'}
         optimizer = optimizer_map.get(optimizer, optimizer)
         params = model.parameters()
-        optimizer = c.import_object(optimizer)(params,**kwargs) 
+        optimizer = c.obj(optimizer)(params,**kwargs) 
         return optimizer
         
     def set_lr(self, lr:float):

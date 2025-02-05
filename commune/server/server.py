@@ -22,10 +22,10 @@ from .gate import Gate
 class Server:
     pm2_dir = c.home_path + '/.pm2'
     network = 'subspace'
-    max_user_history_age = 3600 # the lifetime of the user call data
+    max_history_age = 3600 # the lifetime of the user call data
     max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
     helper_functions  = ['info', 'forward'] # the helper functions
-    function_attributes =['endpoints', 'functions', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
+    function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
@@ -35,7 +35,6 @@ class Server:
         params : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
         network = 'local', # the network the server is running on
-        # -- ADVANCED PARAMETERS --
         gate:str = None, # the .network used for incentives
         free : bool = False, # if the server is free (checks signature)
         serializer: str = 'serializer', # the serializer used for the data
@@ -58,7 +57,6 @@ class Server:
             self.serializer = c.module(serializer)()
             self.set_port(port)
             self.set_functions(functions) 
-            self.ensure_env()
             self.gate = gate or Gate(module=self.module, history_path=history_path or self.resolve_path(f'history/{self.module.name}'))
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
@@ -90,9 +88,8 @@ class Server:
                     setattr(self, fn.__name__, fn)
                     functions[i] = fn.__name__
         function_attributes = [fa for fa in self.function_attributes if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list)]
-        assert len(function_attributes) == 1 , f'{function_attributes} is too many funcitonal attributes, choose one dog'
-        fns = getattr(self.module, function_attributes[0])
-        self.module.fns = sorted(list(set(functions + self.helper_functions)))
+        functions = getattr(self.module, function_attributes[0])
+        self.module.functions = self.module.fns = sorted(list(set(functions + self.helper_functions)))
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
         assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
         c.print(f'Functions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
@@ -120,10 +117,11 @@ class Server:
                         c.kill_port(port)
                         break
             else:
-                port = port or c.free_port()
                 namespace = self.namespace()
                 if name in namespace:
                     port = int(namespace.get(name).split(':')[-1])
+                port = port or c.free_port()
+
         if str(port) == 'None':
             port = c.free_port()
         while c.port_used(port):
@@ -131,7 +129,7 @@ class Server:
             c.sleep(1)
             print(f'Waiting for port {port} to be free')
         self.module.port = port
-        self.module.url = self.module.url = '0.0.0.0:' + str(self.module.port)
+        self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
     
     def get_params(self, request: Request) -> dict:
@@ -147,7 +145,6 @@ class Server:
             kwargs = dict(params)
         return {'args': args, 'kwargs': kwargs} 
     
-
     def get_headers(self, request: Request):
         headers = dict(request.headers)
         headers['time'] = float(headers.get('time', c.time()))
@@ -223,7 +220,6 @@ class Server:
                     result = c.call(namespace[name]+'/info')
                     if 'key' in result:
                         c.print(f'{name} is running', color='green')
-                    result.pop('schema', None)
                     return result
                 except Exception as e:
                     c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
@@ -251,7 +247,7 @@ class Server:
         params = {**(params or {}), **extra_params}
         if remote and isinstance(module, str):
             params = {k : v for k, v  in c.locals2kwargs(locals()).items()  if k not in ['extra_params', 'response', 'namespace']}
-            self.serve_background(module="server", fn='serve', name=name, params=params, cwd=cwd)
+            self.run_process(module="server", fn='serve', name=name, params=params, cwd=cwd)
             return self.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
 
@@ -266,7 +262,7 @@ class Server:
         from .test import Test
         return Test().test()
 
-    def kill(self, name:str, verbose:bool = True, **kwargs):
+    def kill(self, name:str, verbose:bool = True, rm_server=True, **kwargs):
         process_name = self.resolve_process_name(name)
         try:
             c.cmd(f"pm2 delete {process_name}", verbose=False)
@@ -274,7 +270,8 @@ class Server:
             result =  {'message':f'Killed {process_name}', 'success':True}
         except Exception as e:
             result =  {'message':f'Error killing {process_name}', 'success':False, 'error':e}
-        self.rm_server(name)
+        if rm_server:
+            self.rm_server(name)
         return result
     
     def kill_all(self, verbose:bool = True, timeout=20):
@@ -348,13 +345,14 @@ class Server:
 
     def urls(self, search=None,  **kwargs) -> List[str]:
         return [self.get_server_url(s) for s in self.servers(search=search, **kwargs)]
+        
     def namespace(self, search=None,  max_age:int = None, update:bool = False, **kwargs) -> dict:
         servers = self.servers(search=search, **kwargs)
         urls = self.urls(search=search, **kwargs)
         namespace = {s: u for s, u in zip(servers, urls)}
         return namespace
 
-    def serve_background(self, 
+    def run_process(self, 
                   fn: str = 'serve',
                    name:Optional[str] = None, 
                    module:str = 'server',  
@@ -366,15 +364,16 @@ class Server:
                    cwd : str = None,
                    env : Dict[str, str] = None,
                    refresh:bool=True ):
+        self.ensure_env()
         params['remote'] = False
         env = env or {}
         if '/' in fn:
             module, fn = fn.split('/')
         name = name or module
+        
         process_name = self.resolve_process_name(name)
-
         if self.process_exists(process_name):
-            self.kill(process_name)
+            self.kill(process_name, rm_server=False)
 
         cmd = f"pm2 start {c.filepath()} --name {process_name} --interpreter {interpreter} -f"
         cmd = cmd  if autorestart else ' --no-autorestart' 
@@ -383,13 +382,6 @@ class Server:
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
 
-    def reserve_background(self, name:str):
-        assert name in self.processes()
-        c.print(f'Restarting {name}', color='cyan')
-        c.cmd(f"pm2 restart {name}", verbose=False)
-        self.rm_logs(name)  
-        return {'success':True, 'message':f'Restarted {name}'}
-    
     def processes(self, search=None,  **kwargs) -> List[str]:
         output_string = c.cmd('pm2 status')
         processes = []

@@ -612,7 +612,7 @@ class Key(c.Module):
         """
         return cls(private_key=private_key, crypto_type=crypto_type)
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False, to_str=False) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -631,7 +631,7 @@ class Key(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-
+            
         if not self.private_key:
             raise Exception('No private key set to create signatures')
         if self.crypto_type == KeyType.SR25519:
@@ -642,7 +642,8 @@ class Key(c.Module):
             signature = ecdsa_sign(self.private_key, data)
         else:
             raise Exception("Crypto type not supported")
-        
+        if to_str:
+            return '0x' + signature.hex()
         if to_json:
             return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
@@ -657,24 +658,19 @@ class Key(c.Module):
                ) -> bool:
         """
         Verifies data with specified signature
-
         Parameters
         ----------
         data: data to be verified in `Scalebytes`, bytes or hex string format
         signature: signature in bytes or hex string format
         public_key: public key in bytes or hex string format
-
-        Returns
-        -------
-        True if data is signed with this Key, otherwise False
         """
         data = c.copy(data)
 
         if isinstance(data, dict):
             if 'data' in data and 'signature' in data and 'address' in data:
-                signature = data.pop('signature')
-                address = data.pop('address', address)
-                data = data.pop('data')
+                signature = data['signature']
+                address = data['address']
+                data = data['data']
             else:
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
@@ -700,11 +696,11 @@ class Key(c.Module):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
         if type(data) is ScaleBytes:
             data = bytes(data.data)
-        elif data[0:2] == '0x':
+        elif data[0:2] == '0x': # hex string
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-        if type(signature) is str and signature[0:2] == '0x':
+        if isinstance(signature,str) and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
@@ -725,8 +721,6 @@ class Key(c.Module):
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
-
-
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:

@@ -74,7 +74,7 @@ class c:
         if (obj_path in c.module_cache):
             module = c.module_cache[obj_path]
         else:
-            module = c.import_object(obj_path)
+            module = c.obj(obj_path)
             module = c.obj2module(module) # if the model
             c.module_cache[obj_path] = module
         if params != None:
@@ -367,7 +367,7 @@ class c:
     
     @classmethod
     def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
-        return '0x'+c.get_key(key).sign(data, **kwargs).hex()
+        return c.get_key(key).sign(data, **kwargs)
     
     @classmethod
     def verify(cls, auth, key=None, **kwargs ) -> bool:  
@@ -452,7 +452,7 @@ class c:
         utils = obj.util2path()
         def wrapper_fn2(fn, *args, **kwargs):
             try:
-                fn = c.import_object(fn)
+                fn = c.obj(fn)
                 return fn(*args, **kwargs)
             except : 
                 fn = fn.split('.')[-1]
@@ -515,7 +515,7 @@ class c:
         def fn_generator(*args, route, **kwargs):
             def fn(*args, **kwargs):
                 try:
-                    fn_obj = c.import_object(route)
+                    fn_obj = c.obj(route)
                 except: 
                     if '/' in route:
                         module = '/'.join(route.split('/')[:-1])
@@ -892,12 +892,18 @@ class c:
         fn = c.get_fn(fn)
         if not callable(fn):
             return {'fn_type': 'property', 'type': type(fn).__name__}
-
+        inout_schema = {}
         for k,v in dict(inspect.signature(fn)._parameters).items():
-            schema[k] = {
+            inout_schema[k] = {
                     'value': "_empty"  if v.default == inspect._empty else v.default, 
                     'type': '_empty' if v.default == inspect._empty else str(type(v.default)).split("'")[1] 
             }
+        output_schema = {
+            'value': None,
+            'type': str(fn.__annotations__.get('return', None) if hasattr(fn, '__annotations__') else None)
+        }
+        schema['input'] = inout_schema
+        schema['output'] = output_schema
         return schema
 
 
@@ -1223,26 +1229,6 @@ class c:
 
         return 'static'
 
-    @classmethod
-    def path2name(self, path):
-        if c.modules_path in path:
-            path = path.replace(c.modules_path + '/', '')
-        if path.startswith(c.pwd()):
-            path = path.replace(c.pwd() + '/', '')
-        elif path.startswith(c.rootpath):
-            path = path.replace(c.rootpath + '/', '')
-        if path.endswith('.py'):
-            path = path[:-3]
-        if path.startswith(c.repo_name):
-            path = path.replace(c.repo_name + '/', '')
-        name =  path.replace('/', '.')
-        chunks = []
-        for chunk in name.split('.'):
-            if chunk not in chunks:
-                chunks += [chunk]
-        return '.'.join(chunks)
-            
-
       
     @classmethod
     def path2classes(cls, path='./', depth=8, 
@@ -1250,6 +1236,7 @@ class c:
                      file_extension = '.py',
                      class_suffix = ':', **kwargs):
         path = os.path.abspath(path)
+
         if os.path.isdir(path):
             path2classes = {}
             if depth == 0:
@@ -1262,8 +1249,10 @@ class c:
                 except Exception as e:
                     pass
             return path2classes
+
         code = cls.get_text(path)
         classes = []
+
         file_path = cls.path2objectpath(path)
         for line in code.split('\n'):
             if line.startswith(class_prefix) and line.strip().endswith(class_suffix):
@@ -1288,7 +1277,6 @@ class c:
             classes += v
         return classes
     
-
     @staticmethod
     def round(x, sig=6, small_value=1.0e-9):
         import math
@@ -1296,7 +1284,6 @@ class c:
         rounds a number to a certain number of significant figures
         """
         return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-
 
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
@@ -1309,6 +1296,20 @@ class c:
         if path.endswith('.py'):
             path = path[:-3]
         return path.replace('__init__.', '.')
+        
+
+    @classmethod
+    def path2name(cls, path):
+
+        name = cls.path2objectpath(path)
+        name_chunks = []
+        for chunk in name.split('.'):
+            if chunk not in name_chunks:
+                name_chunks += [chunk]
+        if name_chunks[0] == c.repo_name:
+            name_chunks = name_chunks[1:]
+        return '.'.join(name_chunks)
+
     
     @classmethod
     def objectpath2path(cls, objectpath:str, **kwargs) -> str:
@@ -1415,7 +1416,7 @@ class c:
         # better way to check if an object exists?
 
         try:
-            c.import_object(path, verbose=verbose)
+            c.obj(path, verbose=verbose)
             return True
         except Exception as e:
             return False
@@ -1686,7 +1687,6 @@ class c:
                 pass
         return module2fns
 
-    
     @classmethod
     def module2schema(cls, path=None):
         tree = c.get_tree(path or cls.libpath)
@@ -1724,7 +1724,6 @@ class c:
 
     def epoch(self, *args, **kwargs):
         return c.mod('vali')().epoch(*args, **kwargs)
-
 
     def routes_from_to(self):
         routes = c.routes
@@ -1785,13 +1784,7 @@ class c:
                 continue
             to_f = c.home_modules_path + '/' + f[len(c.modules_path) + 1:]
             fromto_path += [[f, to_f]]
-
         return fromto_path
-
-
-    def fixit(self):
-        avoid_terms = ['routes.json']
-        return [c.rm(f) for f in c.files() if f.endswith('.json')  if not any([at in f for at in avoid_terms])]
 
 c.add_routes()
 Module = c # Module is alias of c
