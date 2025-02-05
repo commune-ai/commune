@@ -362,7 +362,7 @@ def get_file_size( path:str):
     return os.path.getsize(path)
     
 
-def get_files( path ='./', files_only:bool = True, recursive:bool=True):
+def get_files( path ='./', files_only:bool = True, recursive:bool=True, avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'package.lock', 'egg-info', 'Cargo.lock', 'artifacts', 'yarn.lock', 'cache/', 'target/debug', 'node_modules']):
     import glob
     path = os.path.abspath(os.path.expanduser(path))
     if os.path.isdir(path) and not path.endswith('**'):
@@ -370,6 +370,8 @@ def get_files( path ='./', files_only:bool = True, recursive:bool=True):
     paths = glob.glob(path, recursive=recursive)
     if files_only:
         paths =  list(filter(lambda f:os.path.isfile(f), paths))
+    if avoid_terms:
+        paths = list(filter(lambda f: not any([term in f for term in avoid_terms]), paths))
     return sorted(paths)
 
 

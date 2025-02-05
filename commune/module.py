@@ -1235,7 +1235,14 @@ class c:
             path = path[:-3]
         if path.startswith(c.repo_name):
             path = path.replace(c.repo_name + '/', '')
-        return path.replace('/', '.')
+        name =  path.replace('/', '.')
+        chunks = []
+        for chunk in name.split('.'):
+            if chunk not in chunks:
+                chunks += [chunk]
+        return '.'.join(chunks)
+            
+
       
     @classmethod
     def path2classes(cls, path='./', depth=8, 
@@ -1439,12 +1446,8 @@ class c:
             if chunk in path:
                 continue
             path += chunk + '.'
-        if file_name.endswith('_module'):
-            path = '.'.join(path.split('.')[:-1])
-        
         if path.startswith(c.lib + '.'):
             path = path[len(c.lib)+1:]
-
         if path.endswith('.'):
             path = path[:-1]
         if '_' in file_name:
