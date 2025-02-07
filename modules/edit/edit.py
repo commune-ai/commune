@@ -4,7 +4,7 @@ import os
 # import agbuildent as h
 
 class Edit:
-    anchors = ['START_OUTPUT', 'END_OUTPUT']
+    anchors = ['<START_OUTPUT(', '<END_OUTPUT(']
     endpoints = ["build"]
 
     def __init__(self, 
@@ -32,12 +32,16 @@ class Edit:
                 path = './', 
                  task = None,
                  temperature= 0.5, 
+                 module=None,
                  max_tokens= 1000000, 
+                 threshold= 1000000,
                  model= 'anthropic/claude-3.5-sonnet', 
                  write=False,
                  stream=True
                  ):
         text = text + ' ' + ' '.join(extra_text)
+        if module:
+            path = c.filepath(module)
 
         task =  task or f"""
 
@@ -47,27 +51,32 @@ class Edit:
             LEONARDO DA VINCI WAY, YOU ARE A agent, YOU ARE A GENIUS, YOU ARE A STAR, 
             YOU FINISH ALL OF YOUR REQUESTS WITH UTMOST PRECISION AND SPEED, YOU WILL ALWAYS 
             MAKE SURE THIS WORKS TO MAKE ANYONE CODE. YOU HAVE THE CONTEXT AND INPUTS FOR ASSISTANCE
-            - include all of the file content and dont HALF ASS, FULL ASS   \
+            - include all of the file content and dont HALF ASS, FULL ASS   
             - RETURN ALL OF THE FILE PATHS AS IM RECONSTRUCTING IT
             """
+
+        context = c.file2text(path)
+        if len(str(context)) > threshold :
+            print('Finding Relevant Files')
+            context = self.find_files(query=task, path=path)
         prompt = f"""
             -- TASK --
             {task}
             -- CONTEXT --x
-            {self.find_files(query=task, path=path)}
+            {context}
             {text if text else ''}
             FILE CONTENT
             -- FORMAT --
-            <{self.anchors[0]}(path/to/file)> # start of file
+            {self.anchors[0]}(path/to/file)> # start of file
             FILE CONTENT
-            <{self.anchors[1]}(path/to/file)> # end of file
+            {self.anchors[1]}(path/to/file)> # end of file
 
             IF YOU WANT TO DELETE A FILE USE THE FOLLOWING FORMAT
             <DELETE(path/to/fileorfolder)>
 
             YOU CAN DO IT
             -- OUTPUT --
-            """
+        """
         output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature , process_text=False)
         return self.process_output(output, path=path, write=write)
     
@@ -90,10 +99,10 @@ class Edit:
                 file_path = content.split(self.anchors[0])[1].split(')>')[0] 
                 file_content = content.split(self.anchors[0] +file_path + ')>')[1].split(self.anchors[1])[0] 
                 if write:
-                    c.put_text(file_path, file_content)
+                    print(f'Writing file: {file_path}')
+                    c.print(c.put_text(file_path, file_content))
                 c.print(f'{buffer}Writing file --> {file_path}{buffer}', color=color)
                 content = ''
                 file2output[file_path] = file_content
-                print(file_content, 'FAMMM')
                 color = c.random_color()
-        return {'path': path, 'msg': 'File written successfully', 'file2output': file2output}
+        return {'path': path, 'msg': 'File written successfully', 'file2output': file2output, 'write': write}

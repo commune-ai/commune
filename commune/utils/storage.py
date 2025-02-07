@@ -12,8 +12,6 @@ def str2python(input)-> dict:
 
     return output_dict
 
-
-
 def get_folder_contents_advanced(url='commune-ai/commune.git', 
                                  host_url = 'https://github.com/',
                                  auth_token=None):
