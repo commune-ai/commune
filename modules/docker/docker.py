@@ -4,12 +4,17 @@ import pandas as pd
 from typing import List, Dict, Union
 import commune as c
 
-class Docker:
+class Docker(c.Module):
     
-    def dockerfile(self, path = c.repo_name): 
-        path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
-        return c.get_text(path)
-    
+    def file(self, path = './'): 
+        files = self.files(path)
+        if len(files) > 0:
+            return c.get_text(files[0])
+        return {'msg': f'no dockerfile founder in {path}'}
+
+    def files(self, path='./'):
+        return [f for f in c.files(path) if f.endswith('Dockerfile')]
+
     def resolve_repo_path(self, path):
         if path is None:
             path = c.repo_name
@@ -20,21 +25,6 @@ class Docker:
                 path = os.path.abspath(path)
         return path
 
-    def resolve_docker_compose_path(self,path = None):
-        path = self.resolve_repo_path(path)
-        return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
-
-    
-    def docker_compose(self, path = c.repo_name): 
-        docker_compose_path = self.resolve_docker_compose_path(path)
-        return c.load_yanl(docker_compose_path)
-
-    
-    def resolve_docker_path(self, path = None):
-        path = self.resolve_repo_path(path)
-        return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
-    
-    
     def build(self, path = None , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
         path = c.resolve_path(path)
         
@@ -47,20 +37,12 @@ class Docker:
         return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
     
     def kill(self, name, sudo=False, verbose=True, prune=False):
+        # 
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         if prune:
             c.cmd('docker container prune', sudo=sudo, verbose=verbose)
         return {'status': 'killed', 'name': name}
-
-    
-    def kill_many(self, name, sudo=False, verbose=True):
-        servers = self.ps(name)
-        for server in servers:
-            self.kill(server, sudo=sudo, verbose=verbose)
-            c.print(f'killed {server}', verbose=verbose)
-        return {'status': 'killed', 'name': name}
-
     
     def kill_all(self, sudo=False, verbose=True):
         servers = self.ps()
@@ -92,34 +74,10 @@ class Docker:
         c.cmd(f'usermod -aG docker $USER', sudo=sudo, verbose=verbose)
         c.cmd(f'chmod 666 /var/run/docker.sock', sudo=sudo, verbose=verbose)
 
-
-
-    
-
     
     def containers(self,  sudo:bool = False):
         return [container['name'] for container in self.ps(sudo=sudo)]
-    
-     
-    def chmod_scripts(self):
-        c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
-
-
-    def install_gpus(self):
-        self.chmod_scripts()
-        c.cmd('./run/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
-
-    def install(self):
-        self.chmod_scripts()
-        c.cmd('./run/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
-
-    def install_docker_compose(self, sudo=False):
-        return c.cmd('apt install docker-compose', verbose=True, sudo=True)
-    # def build_commune(self, sudo=False):
-    #     self.build(path=self.libpath, sudo=sudo)
-
-    
     def images(self, to_records=True):
         text = c.cmd('docker images', verbose=False)
         df = []
@@ -153,8 +111,6 @@ class Docker:
                 
         return {'success': True, 'responses': responses }
     
-
-    
     def image2id(self, image=None):
         image2id = {}
         df = self.images()
@@ -165,9 +121,9 @@ class Docker:
         return id
             
     
-    def deploy(self, 
-                    image : str,
-                    cmd : str  = 'ls',
+    def run(self, 
+                    path : str = './',
+                    cmd : str  = None,
                     volumes:List[str] = None,
                     name: str = None,
                     gpus:list=False,
@@ -177,66 +133,72 @@ class Docker:
                     ports:Dict[str, int]=None,
                     net : str = 'host',
                     daemon:bool = True,
+                    cwd = None,
                     run: bool = True):
         
         '''
         Arguments:
 
         '''
-        if name is None:
-            name = image
+        name2file = self.name2file(path)
+        file2name = self.file2name(path)
+        if not 'Dockerfile' in path:
+            path = self.files(path)[0]
+        if path in file2name:
+            image = file2name[path]
+            cwd = cwd or os.path.dirname(path)
+        else:
+            cwd = cwd or c.pwd()
+            image = path
+        
+        name = name or image
+        dcmd = f'docker run'
+    
+        if daemon:
+            dcmd += ' -d'
 
-        docker_cmd = f'docker run'
 
-        docker_cmd += f' --net {net} '
+        dcmd += f' --net {net}'
 
         if build:
             self.build(image, tag=name)
         
-        if daemon:
-            docker_cmd += ' -d '
 
         if isinstance(gpus, list):
             gpus = ','.join(map(str, gpus))  
-            docker_cmd += f' --gpus \'"device={gpus}"\''   
+            dcmd += f' --gpus \'"device={gpus}"\''   
         elif isinstance(gpus, str):
-            docker_cmd += f' --gpus "{gpus}"'
+            dcmd += f' --gpus "{gpus}"'
         else:
             pass
-        
-        # ADD THE SHM SIZE
-        # what is this?
+
         if shm_size != None:
-            docker_cmd += f' --shm-size {shm_size}'
+            dcmd += f' --shm-size {shm_size}'
         
         if ports != None:
-            for external_port, internal_port in ports.items():
-                docker_cmd += f' -p {external_port}:{internal_port}'
+            if isinstance(ports, str):
+                ports  = [ports]
+            elif isinstance(ports, dict):
+                ports = [f'{k}:{v}' for k, v in ports.items()]
+            
+            ports = ' '.join([f'-p {p}' for p in ports])
+            dcmd += f' {ports}'
 
         # ADD THE VOLUMES
-        if volumes is not None:
+        if volumes != None:
             if isinstance(volumes, str):
                 volumes = [volumes]
-            if isinstance(volumes, list):
-                docker_cmd += ' '.join([f' -v {v}' for v in volumes])
             elif isinstance(volumes, dict):
-                for v_from, v_to in volumes.items():
-                    docker_cmd += f' -v {v_from}:{v_to}'
-
-        docker_cmd += f' --name {name} {image}'
-
+                volumes = [f'{k}:{v}' for k, v in volumes.items()]
+            else: 
+                raise Exception(f'{volumes} not supported')
+            volumes = ' '.join([f'-v {v}' for v in volumes])
+            dcmd += f' {volumes}'
+        dcmd += f' --name {name} {image}'
         if cmd is not None:
-            docker_cmd += f' bash -c "{cmd}"'
-        
-        c.print(docker_cmd)
-        # text_output =  c.cmd(docker_cmd, sudo=sudo, output_text=True)
+            dcmd += f' bash -c "{cmd}"'
+        return {'cmd': dcmd, 'cwd': cwd}
 
-        # if 'Conflict. The container name' in text_output:
-        #     contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
-        #     c.cmd(f'docker rm -f {contianer_id}', verbose=True)
-        #     text_output = c.cmd(docker_cmd, verbose=True)
-        # self.update()
-       
     
     def psdf(self, load=True, save=False, idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
@@ -260,9 +222,7 @@ class Docker:
         df.set_index(idx_key, inplace=True)
         return df   
 
-    
     def ps(self, search = None, df:bool = False):
-
         psdf = self.psdf()
         paths =  psdf['names'].tolist()
         if search != None:
@@ -273,114 +233,29 @@ class Docker:
         return paths
 
     
-    def name2dockerfile(self, path = None):
-       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
+    def name2file(self, path = None):
+       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.files(path)}
     
     
-    def resolve_dockerfile(self, name):
+    def file2name(self, path = None):
+       return {v:k for k,v in self.name2file(path).items()}
+    
+    
+    def resolve_file(self, name):
         if name == None:
             name = 'commune'
         
         if c.path_exists(name):
             return name
-        name2dockerfile = self.name2dockerfile()
-        if name in name2dockerfile:
-            return name2dockerfile[name]
+        name2file = self.name2file()
+        if name in name2file:
+            return name2file[name]
         else:
             raise ValueError(f'Could not find docker file for {name}')
         
-    get_dockerfile = resolve_dockerfile
-
-    
-    def compose_paths(self, path = None):
-       if path is None:
-           path = c.libpath + '/'
-       return [l for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
-    
-    
-    def name2compose(self, path=None):
-        compose_paths = self.compose_paths(path)
-        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in compose_paths}
-    
-    
-    def get_compose_path(self, path:str):
-        path = self.name2compose().get(path, path)
-        return path
-
-    
-    def get_compose(self, path:str):
-        path = self.get_compose_path(path)
-        return c.load_yaml(path)
-
-    
-    def put_compose(self, path:str, compose:dict):
-        path = self.get_compose_path(path)
-        return c.save_yaml(path, compose)
-    
-
-    # 
-    # def down(self, path='frontend'):
-    #     path = self.get_compose_path(path)
-    #     return c.cmd('docker-compose -f {path} down', verbose=True)
-
-    
-    def compose(self, 
-                path: str,
-                compose: Union[str, dict, None] = None,
-                daemon:bool = True,
-                verbose:bool = True,
-                dash:bool = True,
-                cmd : str = None,
-                build: bool = False,
-                project_name: str = None,
-                cwd : str = None,
-                down: bool = False
-                ):
- 
-
-        cmd = f'docker-compose' if dash else f'docker compose'
-
-        path = self.get_compose_path(path)
-        if compose == None:
-            compose = self.get_compose(path)
-        
-        if isinstance(path, str):
-            compose = self.get_compose(path)
-        
-
-        if project_name != None:
-            cmd += f' --project-name {project_name}'
-        c.print(f'path: {path}', verbose=verbose)
-        tmp_path = path + '.tmp'
-        cmd +=  f' -f {tmp_path} up'
-
-        if daemon:
-            cmd += ' -d'
+    get_file = resolve_file
 
 
-        c.print(f'cmd: {cmd}', verbose=verbose)
-        # save the config to the compose path
-        c.print(compose)
-        c.save_yaml(tmp_path, compose)
-        if cwd is None:
-            assert os.path.exists(path), f'path {path} does not exist'
-            cwd = os.path.dirname(path)
-        if build:
-            c.cmd(f'docker-compose -f {tmp_path} build', verbose=True, cwd=cwd)
-            
-        text_output = c.cmd(cmd, verbose=True)
-
-        if 'Conflict. The container name' in text_output:
-            contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
-            c.cmd(f'docker rm -f {contianer_id}', verbose=True)
-            text_output = c.cmd(cmd, verbose=True)
-
-        if "unknown shorthand flag: 'f' in -f" in text_output:
-            cmd = cmd.replace('docker compose', 'docker-compose')
-            text_output = c.cmd(cmd, verbose=True)
-
-        c.rm(tmp_path)
-    
     def rm_container(self, name):
         c.cmd(f'docker rm -f {name}', verbose=True)
 
@@ -400,40 +275,23 @@ class Docker:
     
     def login(self, username:str, password:str):
         c.cmd(f'docker login -u {username} -p {password}', verbose=True)
-
     
     def logout(self, image:str):
         c.cmd(f'docker logout {image}', verbose=True)
 
-    
-    def dockerfiles(self, path = None):
+    def files(self, path = None):
         if path is None:
             path = c.libpath + '/'
-        dockerfiles = []
+        files = []
         for l in c.walk(path):
             if l.endswith('Dockerfile'):
-                c.print(l)
-                dockerfiles.append(l)
-        return dockerfiles
+                files.append(l)
+        return files
     
-
-    def name2dockerfile(self, path = None):
+    def name2file(self, path = None):
         if path is None:
             path = self.libpath + '/'
-        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
-    
-
-    
-    def dashboard(self):
-        self = self()
-        import streamlit as st
-        containers = self.psdf()
-        name2dockerfile = self.name2dockerfile()
-        names = list(name2dockerfile.keys())
-        name = st.selectbox('Dockerfile', names)
-        dockerfile = name2dockerfile[name]
-        dockerfile_text = c.get_text(dockerfile)
-        st.code(dockerfile_text)
+        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.files(path)}
 
     def prune(self):
         return c.cmd('docker container prune')

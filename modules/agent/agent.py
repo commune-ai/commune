@@ -233,6 +233,9 @@ class Agent:
         print('Writing to path -->', path)
         return output
 
+    def edit(self, *args, **kwargs):
+        return c.module('edit')().forward(*args, **kwargs)
+
 
     def api_key(self, module):
         return c.module('apikey')(module=module).get_key()

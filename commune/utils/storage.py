@@ -404,7 +404,7 @@ def file2text(path = './', avoid_terms = ['__pycache__',
                                 'target/debug',
                                 'node_modules'],
                 avoid_paths = ['~', '/tmp', '/var', '/proc', '/sys', '/dev'],
-                relative=True,  **kwargs):
+                relative=False,  **kwargs):
     
     path = os.path.abspath(os.path.expanduser(path))
     assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
@@ -419,7 +419,15 @@ def file2text(path = './', avoid_terms = ['__pycache__',
         except Exception as e:
             continue
     if relative:
-        return {k[len(path)+1:]:v for k,v in file2text.items()}
+        home_path = os.path.abspath(os.path.expanduser('~'))
+
+        results = {}
+        for k,v in file2text.items():
+            if k.startswith(home_path):
+                k = '~'+path[len(home_path):] 
+                results[k] = v
+        return results
+
     return file2text
 
 

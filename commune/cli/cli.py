@@ -3,6 +3,7 @@ import time
 import sys
 import commune as c
 print = c.print
+
 class Cli:
     desc = 'commune cli for running functions'
     def __init__(self):
@@ -76,7 +77,7 @@ class Cli:
         args = []
         kwargs = {}
         parsing_kwargs = False
-        for arg in c.copy(argv):
+        for arg in argv:
             if '=' in arg:
                 parsing_kwargs = True
                 key, value = arg.split('=')
@@ -94,7 +95,7 @@ class Cli:
             fn = argv.pop(0).replace('-', '_')
 
         init_kwargs = {}
-        for arg in c.copy(argv):
+        for arg in argv:
             if arg.startswith('--'): # init kwargs
                 k = arg[len('--'):].split('=')[0]
                 if k in helper_fns: 
@@ -128,7 +129,9 @@ class Cli:
         print(f'Calling({module}/{fn}, path={filepath} shortcut={shortcut})', color='yellow')
         module = c.module(module)
         if not hasattr(module, fn):
-            return {'error': f'module/{fn} does not exist', 'success': False}
+            module = module()
+            if not hasattr(module, fn):
+                return {'error': f'module/{fn} does not exist', 'success': False}
         fn_obj = getattr(module, fn)
         fn_args = c.get_args(fn_obj)
         # initialize the module class if it is a property or if 'self' is in the arguments

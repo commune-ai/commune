@@ -10,25 +10,32 @@ class Find:
     def forward(self,  
               options: list[str] = [],  
               query='most relevant', 
-              rules = '''only output the IDX:int  and score OF AT MOST {n}
-                         BUT YOU DONT NEED TO FOR SIMPLICITY''',
+              rules = '''''',
                output_format="DICT(data:list[[idx:int, score:float]])",
               n=10,  
+              trials = 3,
               threshold=0.5,
               context = None,
               model='anthropic/claude-3.5-sonnet-20240620:beta'):
 
-        front_anchor = f"<OUTPUT>"
-        back_anchor = f"</OUTPUT>"
+
+        if trials > 0 :
+            try:
+                return self.forward(options=options, query=query, rules=rules, output_format=output_format, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+            except Exception as e:
+                print(e)
+                if trials == 0:
+                    raise e
+                else:
+                    return self.forward(options=options, query=query, rules=rules, output_format=output_format, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+
+
+        anchors = [f"<START_JSON_RESULT>", f"<END_JSON_RESULT>"]
+
         if isinstance(options, dict):
             options  = list(options.keys())
         idx2options = {i:option for i, option in enumerate(options)}
-        home_path = c.resolve_path('~')
-        for idx, option in idx2options.items():
-            if option.startswith(home_path):
-                idx2options[idx] = option.replace(home_path, '~/')
-
-        print(f"Querying {query} with options {options}")
+        print(f"Querying {query} options={len(options)}")
         prompt = f"""
         QUERY
         {query}
@@ -37,23 +44,25 @@ class Find:
         OPTIONS 
         {idx2options} 
         RULES 
-        {rules}
+        only output the IDX:int  and score OF AT MOST {n}
+        BUT YOU DONT NEED TO FOR SIMPLICITY TO NOT RETURN WITH COMMENTS
         OUTPUT
         (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
-        <OUTPUT>{output_format}</OUTPUT>
+        {anchors[0]}{output_format}{anchors[1]}
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
             print(ch, end='')
             output += ch
-            if ch == front_anchor:
+            if ch == anchors[1]:
                 break
         if '```json' in output:
             output = output.split('```json')[1].split('```')[0]
-        elif front_anchor in output:
-            output = output.split(front_anchor)[1].split(back_anchor)[0]
+        elif anchors[0] in output:
+            output = output.split(anchors[0])[1].split(anchors[1])[0]
         else:
             output = output
+        print(output, 'FAM')
         output = json.loads(output)
         assert len(output) > 0
         output = [options[idx] for idx, score in output["data"]  if len(options) > idx and score > threshold]
@@ -89,12 +98,8 @@ class Find:
                model='anthropic/claude-3.5-sonnet-20240620:beta', 
                n=30):
         files =  c.files(path)
-        homepath = c.resolve_path('~/')
-        for i, file in enumerate(files):
-            if file.startswith(homepath):
-                files[i] = file.replace(homepath, '~/')
         files =  self.forward(options=files, query=query, n=n, model=model)
-        return [c.abspath(path+k) for k in files]
+        return [c.abspath(k) for k in files]
 
     def modules(self,  query='', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
         module2fns = []

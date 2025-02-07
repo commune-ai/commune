@@ -15,6 +15,7 @@ class Builder:
         self.model = c.module('agent')(model=model)
         self.models = self.model.models()
         self.key = c.get_key(key)
+
     
     def forward(self, 
                  text, 
@@ -85,4 +86,4 @@ class Builder:
         return os.path.dirname(__file__) + '/utils.py'
 
     def utils(self):
-        return c.path2functions(self.utils_path())
+        return c.path2fns(self.utils_path())

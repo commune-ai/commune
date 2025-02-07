@@ -17,13 +17,12 @@ import uvicorn
 import os
 import json
 import asyncio
-from .gate import Gate
 
 class Server:
+
+    tempo : int = 10, # (in seconds) the maximum age of the history
     pm2_dir = c.home_path + '/.pm2'
-    network = 'subspace'
-    max_history_age = 3600 # the lifetime of the user call data
-    max_network_age: int = 60 #  (in seconds) the time it takes for. the network to refresh
+    pm2_logs_dir = pm2_dir + '/logs'
     helper_functions  = ['info', 'forward'] # the helper functions
     function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
@@ -35,38 +34,43 @@ class Server:
         params : dict = None, # the kwargs for the module
         port: Optional[int] = None, # the port the server is running on
         network = 'local', # the network the server is running on
-        gate:str = None, # the .network used for incentives
         free : bool = False, # if the server is free (checks signature)
         serializer: str = 'serializer', # the serializer used for the data
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
-        run_api = False, # if the server should be run
+        run_api = False, # if the server should be ru
+        stake_network='subspace',
+        tempo:int = 60 ,
+        max_request_staleness : int = 4, # (in seconds) the time it takes for the request to be too old
+        rates:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000, 'stake': 10000}
         ) -> 'Server':
         self.set_network(network)
+        module = module or 'module'
+        if isinstance(module, str):
+            if '::' in str(module):
+                name = module
+                module, tag = name.split('::') 
+        name = name or module
+        self.module = c.module(module)(**(params or {}))
+        self.module.name = name 
+        self.module.key = c.get_key(key or name)
+        self.tempo = tempo
+        self.history_path = history_path or self.resolve_path('history')
+        self.address2key =  c.address2key()
+        self.max_request_staleness = max_request_staleness
+        self.rates = rates
 
-        # default to false but enabled with c serve
         if run_api:
-            module = module or 'module'
-            if isinstance(module, str):
-                if '::' in str(module):
-                    module, tag = name.split('::') 
-            name = name or module
-            self.module = c.module(module)(**(params or {}))
-            self.module.name = name 
-            self.module.key = c.get_key(key or name)
-            self.serializer = c.module(serializer)()
             self.set_port(port)
             self.set_functions(functions) 
-            self.gate = gate or Gate(module=self.module, history_path=history_path or self.resolve_path(f'history/{self.module.name}'))
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
+            self.serializer = c.module(serializer)()
             def forward(fn: str, request: Request):
                 return self.forward(fn, request)
-            self.gate.set_middleware(self.app)
+            self.set_middleware(self.app)
             self.app.post("/{fn}")(forward)
-            c.print(f'Served(name={self.module.name}, url={self.module.url}, key={self.module.key.key_address})', color='purple')
-            self.add_server(name=self.module.name, url=self.module.url, key=self.module.key.ss58_address)
-            print(f'Network: {self.network}')
+            c.print(f'Served(url={self.module.url}, name={self.module.name}, key={self.module.key.key_address})', color='purple')
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
 
     @classmethod
@@ -87,15 +91,15 @@ class Server:
                     print('Adding function -->', f)
                     setattr(self, fn.__name__, fn)
                     functions[i] = fn.__name__
-        function_attributes = [fa for fa in self.function_attributes if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list)]
-        functions = getattr(self.module, function_attributes[0])
+        for fa in self.function_attributes:
+            if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
+                functions = getattr(self.module, self.function_attributes[0]) 
+                break       
         self.module.functions = self.module.fns = sorted(list(set(functions + self.helper_functions)))
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
-        assert isinstance(self.module.fn2cost, dict), f'fn2cost must be a dict, not {type(self.module.fn2cost)}'
-        c.print(f'Functions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
-        # info about the server
+        c.print(f'SetFunctions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         self.module.info = self.get_info(self.module)
-        return {'success':True, 'message':f'Set functions to {functions}'}
+        return self.module.info
         
     def get_info(self, module):
         return {
@@ -151,6 +155,9 @@ class Server:
         headers['key'] = headers.get('key', headers.get('url', None))
         return headers
 
+    def get_byte_size(self, data):
+        return len(str(data).encode('utf-8'))
+
     def forward(self, fn:str, request: Request, catch_exception:bool=True) -> dict:
         if catch_exception:
             try:
@@ -161,47 +168,39 @@ class Server:
         module = self.module
         params = self.get_params(request)
         headers = self.get_headers(request)
-        gate_info = self.gate.forward(fn=fn, params=params, headers=headers)   
+        gate_info = self.gate(fn=fn, params=params, headers=headers)   
         is_admin = bool(c.is_admin(headers['key']))
         is_owner = bool(headers['key'] == self.module.key.ss58_address)    
+        param_size = len(str(params))
+        c.print(f'Request(fn={fn} params={params} client={headers["key"]})')
         if hasattr(module, fn):
             fn_obj = getattr(module, fn)
         else:
             raise Exception(f"{fn} not found in {self.module.name}")
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        latency = c.time() - float(headers['time'])
+        time_delta = c.time() - float(headers['time'])
         if c.is_generator(result):
-            c.print(f"Generator({result})")
-            # get a hash for the generator
             output = str(result)
             def generator_wrapper(generator):
                 for item in generator:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))       
         else:
-            output = result 
-
-        output =  self.serializer.serialize(output)
-            
-        if not self.free:
             data = {
                     'url': self.module.url, # the url of the server
                     'fn': fn, # the function you are calling
                     'params': params, # the data of the request
-                    'output': output, # the response
-                    'time': headers["time"], # the time of the request
-                    'latency': latency, # the latency of the request
-                    'key': headers['key'], # the key of the user
+                    'output': self.serializer.serialize(result), # the response
+                    'time': headers.get("time", None), # the time of the request
+                    'time_delta': time_delta, # the time_delta of the request
                     'cost': self.module.fn2cost.get(fn, 1), # the cost of the function
+                    'user_key': headers.get('key', None), # the key of the user
+                    'user_signature': headers.get('signature', None), # the signature of the user
+                    'server_key': self.module.key.ss58_address, # the signature of the server
                 }
-
-            self.gate.save_data(data)
+            data['server_signature'] = c.sign(data, self.module.key)
+            self.save_data(data)
         return result
-
-    def  resolve_path(self, path):
-        return  c.storage_path + '/' + self.module_name() + '/' + path
-    def processes(cls):
-        return self.processes()
 
     def wait_for_server(self,
                           name: str ,
@@ -251,17 +250,6 @@ class Server:
             return self.wait_for_server(name)
         return Server(module=module, name=name, functions=functions, params=params, port=port,  key=key, run_api=1)
 
-    def add_endpoint(self, name, fn):
-        setattr(self, name, fn)
-        self.endpoints.append(name)
-        assert hasattr(self, name), f'{name} not added to {self.__class__.__name__}'
-        return {'success':True, 'message':f'Added {fn} to {self.__class__.__name__}'}
-
-    @classmethod
-    def test(cls, **kwargs):
-        from .test import Test
-        return Test().test()
-
     def kill(self, name:str, verbose:bool = True, rm_server=True, **kwargs):
         process_name = self.resolve_process_name(name)
         try:
@@ -270,8 +258,6 @@ class Server:
             result =  {'message':f'Killed {process_name}', 'success':True}
         except Exception as e:
             result =  {'message':f'Error killing {process_name}', 'success':False, 'error':e}
-        if rm_server:
-            self.rm_server(name)
         return result
     
     def kill_all(self, verbose:bool = True, timeout=20):
@@ -283,31 +269,31 @@ class Server:
     def killall(self, **kwargs):
         return self.kill_all(**kwargs)
 
-    pm2_dir_logs = c.home_path + '/.pm2/logs'
-
     
     def logs_path_map(self, name=None):
         logs_path_map = {}
-        for l in c.ls(f'{self.pm2_dir}/logs/'):
+        for l in c.ls(self.pm2_logs_dir):
             key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
             logs_path_map[key] = logs_path_map.get(key, []) + [l]
         for k in logs_path_map.keys():
             logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
         if name != None:
+            name = self.resolve_process_name(name)
             return logs_path_map.get(name, {})
         return logs_path_map
-
     
     def rm_logs( self, name):
-        name = self.resolve_process_name(name)
+        logs_path_map = self.logs_path_map(name)
         for m in ['out', 'error']:
             c.rm(self.get_logs_path(name, m))
+        return {'success':True, 'message':f'Removed logs for {name}'}
 
     def get_logs_path(self, name:str, mode='out')->str:
+        assert mode in ['out', 'error'], f'Invalid mode {mode}'
         name = self.resolve_process_name(name)
         return f'{self.pm2_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
 
-    def logs(self, module:str,  tail: int =100, stream=True, **kwargs):
+    def logs(self, module:str, top=None, tail: int =None , stream=False, **kwargs):
         module = self.resolve_process_name(module)
         if stream:
             return c.cmd(f"pm2 logs {module}", verbose=True)
@@ -317,18 +303,26 @@ class Server:
                 # I know, this is fucked 
                 path = self.get_logs_path(module, m)
                 try:
-                    text +=  c.get_text(path, tail=tail)
+                    text +=  c.get_text(path)
                 except Exception as e:
                     c.print('ERROR GETTING LOGS -->' , e)
-                    continue
-            return text
+            if top != None:
+                text = '\n'.join(text.split('\n')[:top])
+            if tail != None:
+                text = '\n'.join(text.split('\n')[-tail:])
+        return text
+
     def get_server_port(self, name:str,  tail:int=100, **kwargs):
         logs = self.logs(name, tail=tail, stream=False, **kwargs)
         port = None
         for i, line in enumerate(logs.split('\n')[::-1]):
-            if f'Served(' in line and 'url=' in line:
+            if'Served(' in  line or 'url=' in line:
                 return int(line.split('url=')[1].split(' ')[0].split(',')[0].split(':')[-1])
-        return None
+        return 
+
+    def namesace(self, **kwargs) -> dict:
+        
+        return {s: self.get_server_port(s) for s in self.servers()}        
 
     def get_server_url(self, name:str,  tail:int=100, **kwargs):
         return f'0.0.0.0:{self.get_server_port(name, tail=tail, **kwargs)}'
@@ -346,7 +340,7 @@ class Server:
     def urls(self, search=None,  **kwargs) -> List[str]:
         return [self.get_server_url(s) for s in self.servers(search=search, **kwargs)]
         
-    def namespace(self, search=None,  max_age:int = None, update:bool = False, **kwargs) -> dict:
+    def namespace(self, search=None, **kwargs) -> dict:
         servers = self.servers(search=search, **kwargs)
         urls = self.urls(search=search, **kwargs)
         namespace = {s: u for s, u in zip(servers, urls)}
@@ -427,16 +421,33 @@ class Server:
         self.network_path = self.resolve_path(self.network)
         self.modules_path =  f'{self.network_path}/modules'
         self.process_prefix = process_prefix + '/' + network + '/'
-
-
         return {'network': self.network, 
                 'tempo': self.tempo, 
                 'n': self.n,
                 'network_path': self.network_path}
-    
+
     def params(self,*args,  **kwargs):
         return { 'network': self.network, 'tempo' : self.tempo,'n': self.n}
 
+    def history_modules(self, search=None,  **kwargs):
+        modules = os.listdir(self.history_path)
+        if search != None:
+            modules = [m for m in modules if search in m]
+        return modules
+    def most_recent_call_path(self, module='module',search=None,  **kwargs):
+        paths = self.call_paths(module)
+        path2time = {p: self.get_path_time(p) for p in paths}
+        return max(path2time, key=path2time.get)
+
+    def most_recent_call_time(self, module='module',search=None,  **kwargs):
+        return self.get_path_time(self.most_recent_call_path(module=module, search=search, **kwargs))
+    
+    def time2date(self, time:float):
+        import datetime
+        return datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
+
+    def most_recent_call_date(self, module='module',search=None,  **kwargs):
+        return self.time2date(self.most_recent_call_time(module=module, search=search, **kwargs))
     def modules(self, 
                 search=None, 
                 max_age=None, 
@@ -446,45 +457,159 @@ class Server:
                 **kwargs):
         modules = c.get(self.modules_path, max_age=max_age or self.tempo, update=update)
         if modules == None:
-            modules = []
-            urls = ['0.0.0.0'+':'+str(p) for p in c.used_ports()]
-            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in urls]
-            try:
-                for f in c.as_completed(futures, timeout=timeout):
-                    data = f.result()
-                    if all([k in data for k in features]):
-                        modules.append({k: data[k] for k in features})
-            except Exception as e:
-                c.print('Error getting modules', e)
-                modules = []
+            futures  = [c.submit(c.call, [s + '/info'], timeout=timeout) for s in self.urls()]
+            modules = c.wait(futures, timeout=timeout)
             c.put(self.modules_path, modules)
         if search != None:
             modules = [m for m in modules if search in m['name']]
         return modules
-
-    def namespace(self, search=None,  max_age:int = None, update:bool = False, **kwargs) -> dict:
-        processes = self.processes(search=search, **kwargs)
-        modules = self.modules(search=search, max_age=max_age, update=update, **kwargs)
-        processes = [ p.replace(self.process_prefix, '') for p in processes if p.startswith(self.process_prefix)]
-        namespace = {m['name']: m['url'] for m in modules if m['name'] in processes}
-        return namespace
-
-    def add_server(self, name:str, url:str, key:str) -> None:
-        modules = self.modules()
-        modules.append( {'name': name, 'url': url, 'key': key})
-        c.put(self.modules_path, modules)
-        return {'success': True, 'msg': f'Block {name}.'}
-    
-    def rm_server(self, name:str, features=['name', 'key', 'url']) -> Dict:
-        modules = self.modules()
-        modules = [m for m in modules if not any([m[f] == name for f in features])]
-        c.put(self.modules_path, modules)
-
+        
     def resolve_network(self, network:str) -> str:
         return network or self.network
     
     def server_exists(self, name:str, **kwargs) -> bool:
         return bool(name in self.servers(**kwargs))
+
+    def set_middleware(self, app, max_bytes=1000000):
+    
+        from starlette.middleware.base import BaseHTTPMiddleware
+        class Middleware(BaseHTTPMiddleware):
+            def __init__(self, app, max_bytes: int = 1000000):
+                super().__init__(app)
+                self.max_bytes = max_bytes
+            async def dispatch(self, request: Request, call_next):
+                content_length = request.headers.get('content-length')
+                if content_length:
+                    if int(content_length) > self.max_bytes:
+                        return JSONResponse(status_code=413, content={"error": "Request too large"})
+                body = await request.body()
+                if len(body) > self.max_bytes:
+                    return JSONResponse(status_code=413, content={"error": "Request too large"})
+                response = await call_next(request)
+                return response
+        app.add_middleware(Middleware, max_bytes=max_bytes)
+        app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+        return app
+
+
+
+    def gate(self, 
+                fn:str, 
+                params:dict,  
+                headers:dict, 
+            ) -> bool:
+            role = self.get_user_role(headers['key'])
+            if role == 'admin':
+                return True
+
+            if self.module.free: 
+                return True
+            stake = 0
+            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
+            request_staleness = c.time() - float(headers['time'])
+            assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {self.max_request_staleness}s (MAX)" 
+            data = {'params': params, 'time': str(headers['time'])}
+            assert c.verify(data=data,signature=headers['signature'], address=headers['key']), 'Invalid signature'
+            if role in self.rates:
+                rate_limit = self.rates[role]
+            else:
+                stake = self.state['stake'].get(headers['key'], 0) 
+                stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) 
+                stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) 
+                stake = stake + stake_to + stake_from
+                rate_limit = stake / self.module.fn2cost.get(fn, 1)
+            rate = self.call_rate(self.module.name+'/'+headers['key'])
+            cost = self.module.fn2cost.get(fn, 1)
+            rate = rate / cost
+            assert rate <= rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
+            return {'rate': rate, 
+                    'rate_limit': rate_limit, 
+                    'cost': cost,
+                    }
+    state = {}
+    def sync(self):
+        self.address2key =  c.address2key()
+        self.state = c.get(self.network_path, None, max_age=self.tempo)
+        if self.state == None:
+            def sync():
+                self.network_module = c.module(self.network)()
+                self.state = self.network_module.state()
+            c.thread(sync)
+        return {'network':self.network}
+
+    def sync_loop(self):
+        while True:
+            c.sleep(self.tempo/2)
+            try:
+                r = self.sync()
+            except Exception as e:
+                r = c.detailed_error(e)
+                c.print('Error in sync_loop -->', r, color='red')
+
+    def is_admin(self, address):
+        return c.is_admin(address)
+
+    def get_user_role(self, address, module=None):
+        module = module or self.module
+        if c.is_admin(address):
+            return 'admin'
+        if address == module.key.ss58_address:
+            return 'owner'
+        if address in self.address2key:
+            return 'local'
+        return 'stake'
+
+    def path2age(self, address='module'):
+        user_paths = self.call_paths(address)
+        user_path2time = {p: self.get_path_age(p) for p in user_paths}
+        return user_path2time
+
+    def get_path_age(self, path:str) -> float:
+        return c.time() - self.get_path_time(path)
+
+    def call_rate(self, address):
+        path2age = self.path2age(address)
+        for path, age  in path2age.items():
+            if age > self.tempo:
+                if os.path.exists(path):
+                    os.remove(path)
+        return len(self.call_paths(address))
+
+    def history(self, address='module'):
+        call_paths = self.call_paths(address)
+        return [c.get(call_path) for call_path in call_paths ]
+
+    def call_paths(self, address = 'module' ):
+        path = self.history_path + '/' + address
+        user_paths = c.glob(path)
+        return sorted(user_paths, key=self.get_path_time)
+
+    def calls(self, address = 'module' ):
+        return len(self.call_paths(address))
+
+    def users(self, module='module'):
+        return c.ls(self.history_path + '/' + module)
+
+    def logs2port(self, name:str):
+        name = self.resolve_process_name(name)
+        for row in self.logs(name).split('/n'):
+            if 'url=' in row:
+                return int(row.split('url=')[1].split(':')[-1])
+        
+    #     return c.logs(name, top=10, mode='local') 
+    def get_path_time(self, path:str) -> float:
+        try:
+            x = float(path.split('/')[-1].split('.')[0])
+        except Exception as e:
+            x = 0
+        return x
+        return Middleware
+
+    def save_data(self, data):
+        call_data_path = self.history_path + '/' + self.module.name + '/' +  (f'{data["user_key"]}/{data["fn"]}/{c.time()}.json') 
+        print('Saving data to', call_data_path)
+        c.put(call_data_path, data)
+        return call_data_path
 
 if __name__ == '__main__':
     Server.run()
