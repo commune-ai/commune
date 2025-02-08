@@ -24,14 +24,15 @@ class Vali(c.Module):
         self.timeout = timeout
         self.batch_size = batch_size
         self.set_key(key)
-        self.sync_network(network=network, 
-                          tempo=tempo, 
-                          search=search, 
-                          path=path, 
-                          update=update)
+        self.set_net(network=network, tempo=tempo,  search=search,  path=path, update=update)
         self.set_score(score)
         c.thread(self.run_loop) if run_loop else ''
     init_vali = __init__
+
+
+    @classmethod
+    def resolve_path(cls, path):
+        return c.storage_path + f'/vali/{path}'
 
     def set_score(self, score=None):
         if score == None:
@@ -48,33 +49,37 @@ class Vali(c.Module):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
 
-    def sync_network(self, network:str = None, 
-                    subnet:str=None, 
+    def set_net(self, 
+                    network:str = None, 
                     tempo:int=60, 
                     search:str=None, 
                     path:str=None, 
-                     update = False):
+                    update = False):
         self.network = network or 'server'
-        self.subnet = subnet or 0
+        self.subnet = 'main'
         if '/' in self.network:
-            self.network, self.subnet = self.network.split('/')
-        self.network_module = c.module(self.network)() 
+            self.network, self.subnet = network.split('/')
+        self.path = os.path.abspath(path or self.resolve_path(f'{self.network}/{self.subnet}'))
+        self.netmod = c.module(self.network)() 
         self.tempo = tempo or 60
-        self.search = search or None
-        self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
-        self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo, update=update)
-        self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo, update=update)
-        self.modules = [m for m in self.modules if self.search in m['name']] if self.search else self.modules
-        self.n  = len(self.modules)  
-        self.network_info = {'n': self.n, 'network': self.network  ,  'subnet': self.subnet, 'params': self.params}
-        c.print(f'Network({self.network_info})')
-        return self.network_info
+        self.search = search
+        self.sync_net()
+        c.print(f'Network(net={self.network} path={self.path})')
+        return {'success': True, 'msg': 'Network set', 'network': self.network, 'path': self.path}
+
+    def sync_net(self, max_age=None, update=False):
+        max_age = max_age or self.tempo
+        self.params = self.netmod.params(subnet=self.subnet, max_age=max_age)
+        self.modules = self._modules = self.netmod.modules(subnet=self.subnet, max_age=max_age)
+        if self.search:
+            self.modules = [m for m in self.modules if any(str(self.search) in str(v) for v in m.values())]
+        return self.params
     
     def score(self, module):
         info = module.info()
         return int('name' in info)
     
-    def set_score(self, score):
+    def set_score(self, score: Union['callable', int]= None):
         if callable(score):
             setattr(self, 'score', score )
         assert callable(self.score), f'SCORE NOT SET {self.score}'
@@ -90,33 +95,28 @@ class Vali(c.Module):
     def time_until_next_epoch(self):
         return int(self.epoch_time + self.tempo - c.time())
 
+    _clients = {}
     def get_client(self, module:dict) -> 'commune.Client':
-        if not hasattr(self, '_clients'):
-            self._clients = {}
+        if isinstance(module, str):
+            module = c.call(module)
+
         feature2type = {'name': str, 'url': str, 'key': str}
         for f, t in feature2type.items():
             assert f in module, f'Module missing {f}'
-            assert isinstance(module[f], t), f'Module {f} is not {t}'
-        if isinstance(module, str):
-            module = self.network_module.get_module(module)
-        if module['key'] in self._clients:
-            client =  self._clients[module['key']]
-        else:
-            if isinstance(module, str):
-                url = module
-            else:
-                url = module['url']
-            client =  c.client(url, key=self.key)
-            self._clients[module['key']] = client
-        return client
+            assert isinstance(module[f], t), f'Module {f} is not {t} {module}'
+
+        if module['key'] not in self._clients:
+            self._clients[module['key']] =  c.client(module['url'], key=self.key)
+        return  self._clients[module['key']]
+
 
     def score_module(self,  module:dict, **kwargs):
         client = self.get_client(module) # the client
         t0 = c.time() # the timestamp
+        score = 0 
         try:
             score = self.score(client, **kwargs)
         except Exception as e:
-            score = 0
             module['error'] = c.detailed_error(e)
         module['score'] = score
         module['time'] = t0
@@ -130,7 +130,6 @@ class Vali(c.Module):
             futures = [c.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
-                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     results.append(m)
@@ -140,14 +139,15 @@ class Vali(c.Module):
 
     def epoch(self):
         next_epoch = self.time_until_next_epoch
-        self.sync_network()
-        c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
-        batches = [self.modules[i:i+self.batch_size] for i in range(0, self.n, self.batch_size)]
+        self.sync_net(update=1)
+        n = len(self.modules)
+        c.print(f'Epoch(network={self.network} epoch={self.epochs} n_modules={n})', color='yellow')
+        batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
         results = []
         n_batches = len(batches)
         for i, batch in enumerate(batches):
-            c.print(f'Batch(i={i}/{n_batches})', color='yellow')
+            c.print(f'Batch(i={i}/{n_batches} batch_size={len(batch)})', color='yellow')
             results += self.score_batch(batch)
             progress.update(1)
         self.epochs += 1
@@ -160,7 +160,7 @@ class Vali(c.Module):
         return self.path + f'/votes'
 
     def vote(self, results):
-        voting_network = bool(hasattr(self.network_module, 'vote'))
+        voting_network = bool(hasattr(self.netmod, 'vote'))
         if not voting_network :
             return {'success': False, 'msg': f'NOT VOTING NETWORK({self.network})'}
         vote_staleness = c.time() - self.vote_time
@@ -174,7 +174,7 @@ class Vali(c.Module):
                 continue
             params['modules'].append(m['key'])
             params['weights'].append(m['score'])
-        return self.network_module.vote(**params)
+        return self.netmod.vote(**params)
     
     def scoreboard(self,
                     keys = ['name', 'score', 'latency',  'url', 'key'],
@@ -212,17 +212,17 @@ class Vali(c.Module):
         return c.ls(self.path) # fam
     
     @classmethod
-    def run_epoch(cls, network='local', run_loop=False, update=False, **kwargs):
-        return  cls(network=network, run_loop=run_loop, update=update, **kwargs).epoch()
+    def run_epoch(cls, network='local', **kwargs):
+        kwargs['run_loop'] = False
+        return  cls(network=network,**kwargs).epoch()
     
     def refresh_scoreboard(self):
         path = self.path
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
 
-    
 
-
+    @staticmethod
     def test(  
                 n=2, 
                 tag = 'vali_test_net',  
@@ -254,8 +254,3 @@ class Vali(c.Module):
             for miner in modules:
                 c.print(c.kill(miner))
             return {'success': True, 'msg': 'subnet test passed'}
-
-        
-
-
-        

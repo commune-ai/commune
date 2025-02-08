@@ -13,7 +13,7 @@ class Find:
               options: list[str] = [],  
               query='most relevant', 
               rules = '''''',
-               output_format="DICT(data:LIST[LIST[idx:INT, score:INT]])",
+               output_format="DICT(data:LIST[DICT(idx:INT, score:INT)])",
               n=10,  
               trials = 3,
               threshold=0.5,
@@ -64,10 +64,9 @@ class Find:
             output = output.split(anchors[0])[1].split(anchors[1])[0]
         else:
             output = output
-        print(output, 'FAM')
         output = json.loads(output)
         assert len(output) > 0
-        output = [options[idx] for  idx, score in output["data"]  if len(options) > idx and score > threshold]
+        output = [options[r['idx']] for  r in output["data"]  if len(options) > r['idx'] and r['score'] > threshold]
         return output
 
 
@@ -97,7 +96,7 @@ class Find:
     def files(self,
               query='the file that is the core of this folder',
                path='./',  
-               model=None, 
+               model='google/gemini-2.0-flash-001', 
                n=30):
         model = model or self.model
         files =  c.files(path)

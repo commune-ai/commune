@@ -67,3 +67,6 @@ def test_serving_with_different_key(module = 'module', timeout=10):
     assert not c.key_exists(key_name)
     assert not c.server_exists(module_name)
     return {'success': True, 'msg': 'server test passed'}
+
+def test_executor():
+    c.module('executor')().test()

@@ -40,7 +40,9 @@ class Server:
         history_path: Optional[str] = None, # the path to the user data
         run_api = False, # if the server should be ru
         stake_network='subspace',
+        executor = 'server.executor', 
         tempo:int = 60 ,
+        max_timeout:int = 10, # (in seconds) the maximum time to wait for a response
         max_request_staleness : int = 4, # (in seconds) the time it takes for the request to be too old
         rates:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000, 'stake': 10000}
         ) -> 'Server':
@@ -59,15 +61,17 @@ class Server:
         self.address2key =  c.address2key()
         self.max_request_staleness = max_request_staleness
         self.rates = rates
+        self.max_timeout = max_timeout
 
         if run_api:
+            self.executor = c.module(executor)()
             self.set_port(port)
             self.set_functions(functions) 
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
             self.serializer = c.module(serializer)()
             def forward(fn: str, request: Request):
-                return self.forward(fn, request)
+                return c.wait(self.executor.submit(self.forward, params=[fn, request]), timeout=self.max_timeout)
             self.set_middleware(self.app)
             self.app.post("/{fn}")(forward)
             c.print(f'Served(url={self.module.url}, name={self.module.name}, key={self.module.key.key_address})', color='purple')
@@ -567,17 +571,13 @@ class Server:
                     os.remove(path)
         return len(self.call_paths(address))
 
-    def history(self, address='module'):
-        call_paths = self.call_paths(address)
-        return [c.get(call_path) for call_path in call_paths ]
-
     def call_paths(self, address = '' ):
         path = self.history_path + '/' + address
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
 
     def history(self, address = 'module' ):
-        return [c.get(self.history_path + '/' + address + '/' + p) for p in c.ls(self.history_path + '/' + address)]
+        return c.df([c.get_json(p)["data"] for p in self.call_paths(address)])
 
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))
@@ -600,6 +600,17 @@ class Server:
         c.put(call_data_path, data)
         return call_data_path
 
+
+    def fleet(self, module, n=1, tag=None, **kwargs):
+        futures = []
+        if tag != None:
+            module = f'{module}::{tag}'
+        for i in range(n):
+            futures += [c.submit(c.serve, dict(module=module, name=f'{module}{i}'))]
+        for f in c.as_completed(futures):
+            c.print(f.result())
+        return  {'message':f'Launched {n} servers for {module}', 'namespace':self.namespace()}
+        
 if __name__ == '__main__':
     Server.run()
 

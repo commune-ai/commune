@@ -15,7 +15,8 @@
         "s" :  "subspace",
         "subspace": "subspace", 
         "client": "server.client",
-        "local": "server"
+        "local": "server",
+        "executor": "server.executor"
         },
     "routes": {
             "vali": [
@@ -120,7 +121,7 @@
                 "rm_user"
             ],
             "server": [
-                
+                "fleet",
                 "serve",
                 "wait_for_server", 
                 "endpoint", 

@@ -64,8 +64,6 @@ You can restart or kill a served module using the `restart()` and `kill()` metho
 c.restart('demo')  # Restart the module which will run bxack on the same port
 ```
 
-
-
 SERIALIZER
 
 The serializer is responsible for making sure the object is json serializable
@@ -102,6 +100,9 @@ def serialize_{type}(obj: {type}) -> Dict[str, Any]:
 def deserialize_{type}(data: Dict[str, Any]) -> {type}:
     return {type}(data["value"])
 ```
+
+
+
 
 Now when that type is encoutered, the serializer will use the `serialize_{type}` and `deserialize_{type}` functions to serialize and deserialize the object.
 

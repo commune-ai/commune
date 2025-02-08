@@ -57,7 +57,11 @@ class c:
         simp_path = path
         obj_path = tree.get(path, path)
         if not (obj_path in c.module_cache) or not cache:
-            module = c.obj2module(c.obj(obj_path)) # if the model
+            try:
+                module = c.obj2module(c.obj(obj_path)) # if the model
+            except Exception as e:
+                c.tree(update=1)
+                module = c.obj2module(c.obj(obj_path))
             c.module_cache[obj_path] = module
         module = c.module_cache[obj_path]
         if params != None:
@@ -943,6 +947,10 @@ class c:
         code_map = {k[len(dirpath+'/'): ]:v for k,v in code_map.items()}
         print(dirpath)
         return code_map
+
+    @classmethod
+    def code_hash(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+        return c.hash(c.code_map(module=module, search=search,**kwargs))
 
     @classmethod
     def codemap(cls, module = None, search=None, **kwargs) -> Union[str, Dict[str, str]]:
