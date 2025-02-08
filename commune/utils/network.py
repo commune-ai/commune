@@ -389,10 +389,7 @@ def get_port(port:int = None)->int:
     while port_used(port):
         port += 1   
     return port 
-
-def port_range():
-    return get_port_range()
-
+    
 def ports() -> List[int]:
     
     return list(range(*get_port_range()))
@@ -405,10 +402,10 @@ def set_port_range(*port_range: list):
     if '-' in port_range[0]:
         port_range = list(map(int, port_range[0].split('-')))
     if len(port_range) ==0 :
-        port_range = c.default_port_range
+        port_range = c.port_range
     elif len(port_range) == 1:
         if port_range[0] == None:
-            port_range = c.default_port_range
+            port_range = c.port_range
     assert len(port_range) == 2, 'Port range must be a list of two integers'        
     for port in port_range:
         assert isinstance(port, int), f'Port {port} range must be a list of integers'
@@ -475,11 +472,11 @@ def ip__str__(ip_type:int, ip_str:str, port:int):
 
 def get_port_range(port_range: list = None) -> list:
     import commune as c
-    port_range = c.get('port_range', c.default_port_range)
+    port_range = c.get('port_range', c.port_range)
     if isinstance(port_range, str):
         port_range = list(map(int, port_range.split('-')))
     if len(port_range) == 0:
-        port_range = c.default_port_range
+        port_range = c.port_range
     port_range = list(port_range)
     assert isinstance(port_range, list), 'Port range must be a list'
     assert isinstance(port_range[0], int), 'Port range must be a list of integers'

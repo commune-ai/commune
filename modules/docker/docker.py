@@ -182,3 +182,16 @@ class Docker(c.Module):
         output = c.cmd(cmd, verbose=False)
         return pd.read_csv(pd.StringIO(output), sep=r'\s+')
 
+    def ps(self) -> List[str]:
+        """List all running Docker containers."""
+        text = c.cmd('docker ps')
+        ps = []
+        for i, line in enumerate(text.split('\n')):
+            if not line.strip():
+                continue
+            if i > 0:
+                ps.append(line.split()[1])
+        return ps
+
+
+

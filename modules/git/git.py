@@ -11,9 +11,9 @@ class git(c.Module):
         self.repo_url = repo_url
         self.api_base = "https://api.github.com"
         self.repo_path = self._get_repo_path()
-    def is_repo(self, libpath:str ):
+    def is_repo(self, lib_path:str ):
         # has the .git folder
-        return c.cmd(f'ls -a {libpath}').count('.git') > 0
+        return c.cmd(f'ls -a {lib_path}').count('.git') > 0
 
     @staticmethod
     def clone(repo_url:str, target_directory:str = None, branch=None):
@@ -47,7 +47,7 @@ class git(c.Module):
     @classmethod
     def pull(cls, stash:bool = False, cwd=None):
         if cwd is None:
-            cwd = c.libpath
+            cwd = c.lib_path
         if stash:
             c.cmd('git stash', cwd=cwd)
         c.cmd('git pull', cwd=cwd)
@@ -56,7 +56,7 @@ class git(c.Module):
     @classmethod
     def push(cls, msg:str='update', cwd=None):
         if cwd is None:
-            cwd = c.libpath
+            cwd = c.lib_path
         c.cmd(f'git add .', cwd=cwd)
         c.cmd(f'git commit -m "{msg}"', bash=True, cwd=cwd)
         c.cmd(f'git push', cwd=cwd)
@@ -64,7 +64,7 @@ class git(c.Module):
     @classmethod
     def status(cls, cwd=None):
         if cwd is None:
-            cwd = c.libpath
+            cwd = c.lib_path
         return c.cmd(f'git status', cwd=cwd, verbose=False)
 
         
@@ -89,23 +89,23 @@ class git(c.Module):
             cls.push()
 
     @classmethod
-    def repo_url(cls, libpath:str = None) -> str:
-        llibpath = cls.resolve_libpath(libpath)
-        return c.cmd('git remote -v',cwd=libpath, verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
+    def repo_url(cls, lib_path:str = None) -> str:
+        llib_path = cls.resolve_lib_path(lib_path)
+        return c.cmd('git remote -v',cwd=lib_path, verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
     
     @classmethod
-    def commit_hash(cls, libpath:str = None):
-        libpath = cls.resolve_libpath(libpath)
-        return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
+    def commit_hash(cls, lib_path:str = None):
+        lib_path = cls.resolve_lib_path(lib_path)
+        return c.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
 
-    def reset_hard(self, libpath:str = None):
-        libpath = self.resolve_libpath(libpath)
-        return c.cmd('git reset --hard', cwd=libpath, verbose=False)
+    def reset_hard(self, lib_path:str = None):
+        lib_path = self.resolve_lib_path(lib_path)
+        return c.cmd('git reset --hard', cwd=lib_path, verbose=False)
     
-    def resolve_libpath(self, libpath:str = None):
-        if libpath == None:
-            libpath = c.libpath
-        return libpath
+    def resolve_lib_path(self, lib_path:str = None):
+        if lib_path == None:
+            lib_path = c.lib_path
+        return lib_path
     
     @classmethod
     def merge_remote_repo(cls, remote_name:str, remote_url:str, remote_branch:str, local_branch:str, cwd=None):

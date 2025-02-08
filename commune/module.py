@@ -12,45 +12,33 @@ from typing import *
 import nest_asyncio
 nest_asyncio.apply()
 
+
+config = json.load(open(__file__.replace(__file__.split('/')[-1], 'config.json')))
+
 class c:
-    org = 'commune-ai' # the organization
-    repo_name  = lib = __file__.split('/')[-2]# the name of the library
-    cost = 1 
-    description = """This is a module"""
-    base_module = 'module' # the base module
-    giturl = f'https://github.com/{org}/{repo_name}.git' # tge gutg
-    default_fn = 'forward' # default function
-    free = False # if the server is free 
-    endpoints = ['ask', 'generate', 'forward']
+
+    # config attributes
+    code_url = config["code_url"]
+    org = config['org'] # the organization
+    repo_name  = config['name']# the name of the library
+    description = config['description'] # the description of the library
+    free = config["free"] # if the server is free 
+    endpoints = config['endpoints']
     core_features = ['module_name', 'module_class',  'filepath', 'dirpath']
-    rootpath = root_path  = '/'.join(__file__.split('/')[:-1]) 
-    libpath = lib_path = os.path.dirname(root_path) # the path to the library
-    testpath = test_path = libpath + '/tests'
-    homepath = home_path  = os.path.expanduser('~') # the home path
-    repopath = repo_path  = os.path.dirname(root_path) # the path to the repo
+    port_range = config['port_range'] # the port range between 50050 and 50150
+    shortcuts = config["shortcuts"]
+    routes = config['routes']
+
+    # path attributes
+    root_path  = os.path.dirname(__file__)
+    repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
+    lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
+    home_path  = os.path.expanduser('~') # the home path
+    test_path = lib_path + '/tests'
+    modules_path = lib_path + '/modules'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
-    default_port_range = [50050, 50150] # the port range between 50050 and 50150
-    modules_path = libpath + '/modules'
-
     cache = {} # cache for module objects
-    shortcuts =  {
-        'openai' : 'model.openai',
-        'openrouter':  'model.openrouter',
-        'or' : 'model.openrouter',
-        'r' :  'remote',
-        's' :  'subspace',
-        'subspace': 'subspace', 
-        "client": 'server.client',
-        'local': 'server',
-        }
-    splitters = [':', '/', '.']
-    route_cache = None
-    _obj = None
 
-    def giturl(self, path:str='./') -> str:
-        path = self.resolve_path(path or self.libpath)
-        return c.cmd(f'git remote get-url origin', cwd=path)
-        
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -67,18 +55,15 @@ class c:
         path = c.shortcuts.get(path, path)
         tree = tree or c.tree()
         simp_path = path
-        path = tree.get(path, path)
-        obj_path = path
-        if (obj_path in c.module_cache):
-            module = c.module_cache[obj_path]
-        else:
-            module = c.obj(obj_path)
-            module = c.obj2module(module) # if the model
+        obj_path = tree.get(path, path)
+        if not (obj_path in c.module_cache) or not cache:
+            module = c.obj2module(c.obj(obj_path)) # if the model
             c.module_cache[obj_path] = module
+        module = c.module_cache[obj_path]
         if params != None:
             module = module(**params)
         loadtime = c.time() - t0
-        c.print(f'Module(simp_path={obj_path}, obj_path={obj_path}, t={loadtime:.2f}s') if verbose else ''
+        c.print(f'Module(simp_path={obj_path} obj_path={obj_path} t(s)={loadtime:.2f}') if verbose else ''
         return module
     
     get_agent = block =  get_block = get_module =  mod =  module
@@ -149,6 +134,11 @@ class c:
         file2size =  {k:len(str(v)) for k,v in c.file2text(path).items()}
         file2size = dict(sorted(file2size.items(), key=lambda x: x[1], reverse=reverse))
         return file2size
+
+
+    def filehash(self, path:str='./', reverse=True) -> int:
+        path = c.abspath(path)
+        return c.hash({k[len(path)+1:]:v for k,v in c.file2text(path).items()})
     
     @classmethod
     def dirpath(cls, obj=None) -> str:
@@ -163,7 +153,7 @@ class c:
         return c.path2name(module_file)
     path  = name = module_name 
     def vs(self, path = None):
-        path = path or c.libpath
+        path = path or c.lib_path
         path = os.path.abspath(path)
         return c.cmd(f'code {path}')
     
@@ -178,8 +168,7 @@ class c:
 
     @classmethod
     def config_path(cls, obj = None) -> str:
-        obj = obj or cls
-        return obj.filepath()[:-3] + '.yaml'
+        return c.dirpath(obj) + '/config.json'
 
     @classmethod
     def sandbox(cls, path='./', filename='sandbox.py'):
@@ -255,10 +244,10 @@ class c:
         return getattr(module, argv.fn)(*argv.args, **argv.kwargs)     
         
     @classmethod
-    def commit_hash(cls, libpath:str = None):
-        if libpath == None:
-            libpath = c.libpath
-        return c.cmd('git rev-parse HEAD', cwd=libpath, verbose=False).split('\n')[0].strip()
+    def commit_hash(cls, lib_path:str = None):
+        if lib_path == None:
+            lib_path = c.lib_path
+        return c.cmd('git rev-parse HEAD', cwd=lib_path, verbose=False).split('\n')[0].strip()
 
     @classmethod
     def fn(cls,fn:str, params=None, args=None, kwargs=None, module:str = None) -> Any:
@@ -284,7 +273,7 @@ class c:
     def forward(self, *args, **kwargs):
         return c.ask(*args, **kwargs)
     
-    tests_path = f'{libpath}/tests'
+    tests_path = f'{lib_path}/tests'
         # return c.cmd(f'pytest {c.tests_path}',  stream=1, *args, **kwargs)
     
     @classmethod
@@ -487,14 +476,7 @@ class c:
 
     @classmethod
     def get_routes(cls):
-        if not hasattr(cls, 'routes'):
-            routes_path = os.path.dirname(__file__)+ '/routes.json'
-            from .utils.os import get_yaml
-            routes = get_yaml(path=path, default=default, **kwargs)
-        else:
-            routes = getattr(cls, 'routes')
-            if callable(routes):
-                routes = routes()
+        routes = cls.routes
         for util in  c.utils():
             k = '.'.join(util.split('.')[:-1])
             v = util.split('.')[-1]
@@ -520,15 +502,13 @@ class c:
     @classmethod
     def add_routes(cls, routes:dict=None):
 
-        cls.routes = c.get_json(__file__.replace(__file__.split('/')[-1], 'routes.json'))
-
         """
         This ties other modules into the current module.
         The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
         This allows you to call the function as if it were a method of the current module.
         for example
         """
-        routes = routes or cls.get_routes()
+        routes = cls.get_routes()
         t0 = time.time()
         # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
         # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
@@ -597,11 +577,11 @@ class c:
         return self.config
 
     @classmethod
-    def config(cls, module=None, to_munch=True, fn='__init__') -> 'Munch':
+    def config(cls, module=None, to_munch=False, fn='__init__') -> 'Munch':
         module = module or cls
         path = module.config_path()
         if os.path.exists(path):
-            config = c.load_yaml(path)
+            config = c.get_json(path)
         else:
             config =  c.get_params(getattr(module, fn)) if hasattr(module, fn) else {}
         return c.dict2munch(config) if to_munch else config
@@ -1280,6 +1260,28 @@ class c:
 
         return 'static'
 
+    @classmethod
+    def path2class2fns(cls, path:str = './', tolist=True, **kwargs):
+        path = os.path.abspath(path)
+        path2class2fns = {}
+        for path, classes in c.path2classes(path=path).items():
+            try:
+                path2class2fns[path] = {}
+                for cl in classes:
+                    path2class2fns[path][cl] = c.fns(cl)
+            except Exception as e:
+                pass
+        if tolist:
+            class2fns = []
+            for k,v in path2class2fns.items():
+                for class_name,fn_list in v.items():
+                    class2fns += [f'{class_name}/{fn}' for fn in fn_list]
+                    
+            return class2fns
+        return path2class2fns
+
+                
+
       
     @classmethod
     def path2classes(cls, path='./',
@@ -1341,7 +1343,7 @@ class c:
     @classmethod
     def path2objectpath(cls, path:str, **kwargs) -> str:
         path = os.path.abspath(path)
-        dir_prefixes  = [c.libpath , c.pwd()]
+        dir_prefixes  = [c.lib_path , c.pwd()]
         for dir_prefix in dir_prefixes:
             if path.startswith(dir_prefix):
                 path =   path[len(dir_prefix) + 1:].replace('/', '.')
@@ -1366,7 +1368,7 @@ class c:
 
     @classmethod
     def objectpath2path(cls, objectpath:str, **kwargs) -> str:
-        options  = [c.libpath, c.pwd()]
+        options  = [c.lib_path, c.pwd()]
         for option in options:
             path = option + '/' + objectpath.replace('.', '/') + '.py'
             if os.path.exists(path):
@@ -1503,14 +1505,10 @@ class c:
             if chunk in path:
                 continue
             path += chunk + '.'
-        if path.startswith(c.lib + '.'):
-            path = path[len(c.lib)+1:]
+        if path.startswith(c.repo_name + '.'):
+            path = path[len(c.repo_name)+1:]
         if path.endswith('.'):
             path = path[:-1]
-        if '_' in file_name:
-            file_chunks =  file_name.split('_')
-            if all([c in path for c in file_chunks]):
-                path = '.'.join(path.split('.')[:-1])
         for avoid in avoid_terms:
             avoid = f'{avoid}.' 
             if avoid in path:
@@ -1527,11 +1525,11 @@ class c:
 
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
-        return c.get_tree(c.libpath, depth=depth, **kwargs)
+        return c.get_tree(c.lib_path, depth=depth, **kwargs)
         
     @classmethod
     def core_tree(cls, **kwargs):
-        tree =  c.get_tree(c.libpath, **kwargs)
+        tree =  c.get_tree(c.lib_path, **kwargs)
         return {k:v for k,v in tree.items() if 'modules.' not in v}
     @classmethod
     def local_tree(cls , depth=4, **kwargs):
@@ -1560,6 +1558,7 @@ class c:
     def tree(cls, search=None,  max_age=60,update=False, **kwargs):
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
+        modules_tree = c.modules_tree(update=update, max_age=max_age)
         # overlap the local tree over the lib tree
         tree = {**lib_tree, **local_tree}
         if search != None:
@@ -1571,7 +1570,7 @@ class c:
         return c.get_tree(c.modules_path, search=search, **kwargs)
     @classmethod
     def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
-        object_paths = cls.classes(cls.libpath, depth=depth )
+        object_paths = cls.classes(clslib_path, depth=depth )
         object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
             object_paths = [p for p in object_paths if search in p]
@@ -1756,7 +1755,7 @@ class c:
     @classmethod
     def module2fns(cls, path=None):
         
-        tree = c.get_tree(path or cls.libpath)
+        tree = c.get_tree(path or clslib_path)
         module2fns = {}
         for m,m_path in tree.items():
             try:
@@ -1767,7 +1766,7 @@ class c:
 
     @classmethod
     def module2schema(cls, path=None):
-        tree = c.get_tree(path or cls.libpath)
+        tree = c.get_tree(path or clslib_path)
         module2fns = {}
         for m,m_path in tree.items():
             try:
@@ -1800,8 +1799,12 @@ class c:
                 fn2module[f] = m
         return fn2module
 
-    def epoch(self, *args, **kwargs):
-        return c.mod('vali')().epoch(*args, **kwargs)
+    def epoch(self, *args, epochs=1, **kwargs):
+        epoch2result = {}
+        vali = c.module('vali')(tempo=10)
+        for i in range(epochs):
+            epoch2result[i] = vali.epoch(*args, **kwargs)
+        return epoch2result
 
     def routes_from_to(self):
         routes = c.routes
@@ -1851,20 +1854,7 @@ class c:
         readmes = [f for f in files if f.endswith('.md')]
         return {k.replace(c.abspath('~') +'/', '~/'):c.get_text(k) for k in readmes}
 
-    home_modules_path = os.path.expanduser('~/modules')
     
-    def export_modules(self, path=home_modules_path):
-        fromto_path = []
-        avoid_terms =['__pycache__']
-        for f in c.glob(c.modules_path):
-            print(f)
-            if any([term in f for term in avoid_terms]):
-                continue
-            to_f = c.home_modules_path + '/' + f[len(c.modules_path) + 1:]
-            fromto_path += [[f, to_f]]
-        return fromto_path
-
-
     def app(self,
            module:str = 'agent', 
            name : Optional[str] = None,
@@ -1876,6 +1866,10 @@ class c:
             module = module + '.app'
         module_class = c.module(module)
         return c.cmd(f'streamlit run {module_class.filepath()} --server.port {port}')
+
+    def code_url(self, path:str='./') -> str:
+        path = self.resolve_path(path or self.lib_path)
+        return c.cmd(f'git remote get-url origin', cwd=path)
 
 c.add_routes()
 Module = c # Module is alias of c

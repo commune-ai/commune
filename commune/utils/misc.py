@@ -358,7 +358,7 @@ def pip_install(lib:str= None,
         c.print(f'Installing {lib} Module from local directory')
         lib = c.resolve_module(lib).dirpath()
     if lib == None:
-        lib = c.libpath
+        lib = c.lib_path
 
     if c.path_exists(lib):
         cmd = f'pip install -e'

@@ -64,7 +64,6 @@ class Vali(c.Module):
         self.path = os.path.abspath(path or self.resolve_path(f'{network}/{subnet}' if subnet else network))
         self.modules = self.network_module.modules(subnet=self.subnet, max_age=self.tempo, update=update)
         self.params = self.network_module.params(subnet=self.subnet, max_age=self.tempo, update=update)
-        self.tempo =  self.tempo or (self.params['tempo'] * self.network_module.block_time)//2
         self.modules = [m for m in self.modules if self.search in m['name']] if self.search else self.modules
         self.n  = len(self.modules)  
         self.network_info = {'n': self.n, 'network': self.network  ,  'subnet': self.subnet, 'params': self.params}
@@ -141,10 +140,6 @@ class Vali(c.Module):
 
     def epoch(self):
         next_epoch = self.time_until_next_epoch
-        progress = c.tqdm(total=next_epoch, desc='Next Epoch')
-        for _ in  range(next_epoch):
-            progress.update(1)
-            c.sleep(1)
         self.sync_network()
         c.print(f'Epoch(network={self.network} epoch={self.epochs} n={self.n})', color='yellow')
         batches = [self.modules[i:i+self.batch_size] for i in range(0, self.n, self.batch_size)]

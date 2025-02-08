@@ -21,8 +21,8 @@ import asyncio
 class Server:
 
     tempo : int = 10, # (in seconds) the maximum age of the history
-    pm2_dir = c.home_path + '/.pm2'
-    pm2_logs_dir = pm2_dir + '/logs'
+    pm_dir = c.home_path + '/.pm2'
+    pm2_logs_dir = pm_dir + '/logs'
     helper_functions  = ['info', 'forward'] # the helper functions
     function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
@@ -269,29 +269,22 @@ class Server:
     def killall(self, **kwargs):
         return self.kill_all(**kwargs)
 
-    
-    def logs_path_map(self, name=None):
-        logs_path_map = {}
-        for l in c.ls(self.pm2_logs_dir):
-            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
-            logs_path_map[key] = logs_path_map.get(key, []) + [l]
-        for k in logs_path_map.keys():
-            logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(logs_path_map[k])}
-        if name != None:
-            name = self.resolve_process_name(name)
-            return logs_path_map.get(name, {})
-        return logs_path_map
-    
-    def rm_logs( self, name):
-        logs_path_map = self.logs_path_map(name)
-        for m in ['out', 'error']:
-            c.rm(self.get_logs_path(name, m))
-        return {'success':True, 'message':f'Removed logs for {name}'}
+
+    def get_logs_path(self, name:str, mode='out')->str:
+
+        assert mode in ['out', 'error'], f'Invalid mode {mode}'
+        name = self.resolve_process_name(name)
+        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-')
 
     def get_logs_path(self, name:str, mode='out')->str:
         assert mode in ['out', 'error'], f'Invalid mode {mode}'
         name = self.resolve_process_name(name)
-        return f'{self.pm2_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
+        return f'{self.pm_dir}/logs/{name.replace("/", "-")}-{mode}.log'.replace(':', '-').replace('_', '-') 
+ 
+    def rm_logs( self, name):
+        for m in ['out', 'error']:
+            c.rm(self.get_logs_path(name, m))
+        return {'success':True, 'message':f'Removed logs for {name}'}
 
     def logs(self, module:str, top=None, tail: int =None , stream=False, **kwargs):
         module = self.resolve_process_name(module)
@@ -318,11 +311,12 @@ class Server:
         for i, line in enumerate(logs.split('\n')[::-1]):
             if'Served(' in  line or 'url=' in line:
                 return int(line.split('url=')[1].split(' ')[0].split(',')[0].split(':')[-1])
-        return 
+        return port
 
-    def namesace(self, **kwargs) -> dict:
-        
-        return {s: self.get_server_port(s) for s in self.servers()}        
+    def namespace(self,  search=None, **kwargs) -> dict:
+        servers = self.servers(search=search)
+        urls = self.urls()
+        return {s: u for s, u in zip(servers, urls)}
 
     def get_server_url(self, name:str,  tail:int=100, **kwargs):
         return f'0.0.0.0:{self.get_server_port(name, tail=tail, **kwargs)}'
@@ -339,13 +333,7 @@ class Server:
 
     def urls(self, search=None,  **kwargs) -> List[str]:
         return [self.get_server_url(s) for s in self.servers(search=search, **kwargs)]
-        
-    def namespace(self, search=None, **kwargs) -> dict:
-        servers = self.servers(search=search, **kwargs)
-        urls = self.urls(search=search, **kwargs)
-        namespace = {s: u for s, u in zip(servers, urls)}
-        return namespace
-
+    
     def run_process(self, 
                   fn: str = 'serve',
                    name:Optional[str] = None, 
@@ -364,15 +352,14 @@ class Server:
         if '/' in fn:
             module, fn = fn.split('/')
         name = name or module
-        
         process_name = self.resolve_process_name(name)
         if self.process_exists(process_name):
             self.kill(process_name, rm_server=False)
-
+        params_str = json.dumps({'module': module , 'fn': fn, 'params': params or {}}).replace('"','\\"')
         cmd = f"pm2 start {c.filepath()} --name {process_name} --interpreter {interpreter} -f"
         cmd = cmd  if autorestart else ' --no-autorestart' 
-        params_str = json.dumps({'module': module ,  'fn': fn, 'params': params or {}}).replace('"', "'")
         cmd = cmd +  f' -- --fn {run_fn} --kwargs  "{params_str}"'
+        print(cmd)
         stdout = c.cmd(cmd, env=env, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
 
@@ -434,6 +421,7 @@ class Server:
         if search != None:
             modules = [m for m in modules if search in m]
         return modules
+
     def most_recent_call_path(self, module='module',search=None,  **kwargs):
         paths = self.call_paths(module)
         path2time = {p: self.get_path_time(p) for p in paths}
@@ -463,6 +451,11 @@ class Server:
         if search != None:
             modules = [m for m in modules if search in m['name']]
         return modules
+
+    def module2called(self, search=None, max_age=None, **kwargs):
+        modules = self.modules(search=search, max_age=max_age)
+        module2called = {m['name']: self.calls(m['name']) for m in modules}
+        return module2called
         
     def resolve_network(self, network:str) -> str:
         return network or self.network
@@ -501,7 +494,6 @@ class Server:
             role = self.get_user_role(headers['key'])
             if role == 'admin':
                 return True
-
             if self.module.free: 
                 return True
             stake = 0
@@ -579,10 +571,13 @@ class Server:
         call_paths = self.call_paths(address)
         return [c.get(call_path) for call_path in call_paths ]
 
-    def call_paths(self, address = 'module' ):
+    def call_paths(self, address = '' ):
         path = self.history_path + '/' + address
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
+
+    def history(self, address = 'module' ):
+        return [c.get(self.history_path + '/' + address + '/' + p) for p in c.ls(self.history_path + '/' + address)]
 
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))
@@ -590,12 +585,6 @@ class Server:
     def users(self, module='module'):
         return c.ls(self.history_path + '/' + module)
 
-    def logs2port(self, name:str):
-        name = self.resolve_process_name(name)
-        for row in self.logs(name).split('/n'):
-            if 'url=' in row:
-                return int(row.split('url=')[1].split(':')[-1])
-        
     #     return c.logs(name, top=10, mode='local') 
     def get_path_time(self, path:str) -> float:
         try:

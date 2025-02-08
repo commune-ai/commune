@@ -7,15 +7,11 @@ class Edit:
     anchors = ['<START_OUTPUT(', '<END_OUTPUT(']
     endpoints = ["build"]
 
-    def __init__(self, 
-                 model = None,
-                 key = None,
-                **kwargs):
-
+    def __init__(self, model='google/gemini-2.0-flash-001', key = None,**kwargs):
         self.model = c.module('agent')(model=model)
         self.models = self.model.models()
         self.key = c.get_key(key)
-
+        
     def find_files(self, query:str='the file that is the core of this folder', path:str='./', model:str='anthropic/claude-3.5-sonnet-20240620:beta', n:int=30):
         file2content = {}
         for p in c.fn('find/files', params=dict(query=query, path=path, model=model, n=n)):
@@ -35,11 +31,12 @@ class Edit:
                  module=None,
                  max_tokens= 1000000, 
                  threshold= 1000000,
-                 model= 'anthropic/claude-3.5-sonnet', 
+                 
+                 model= 'google/gemini-2.0-flash-001', 
                  write=False,
                  stream=True
                  ):
-        text = text + ' ' + ' '.join(extra_text)
+        text = text + ' ' + ' '.join(list(map(str, extra_text)))
         if module:
             path = c.filepath(module)
 
@@ -55,10 +52,7 @@ class Edit:
             - RETURN ALL OF THE FILE PATHS AS IM RECONSTRUCTING IT
             """
 
-        context = c.file2text(path)
-        if len(str(context)) > threshold :
-            print('Finding Relevant Files')
-            context = self.find_files(query=task, path=path)
+        context = self.find_files(query=task, path=path)
         prompt = f"""
             -- TASK --
             {task}

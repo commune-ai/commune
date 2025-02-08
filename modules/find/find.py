@@ -7,18 +7,20 @@ import json
 import os
 
 class Find:
+    model='google/gemini-2.0-flash-001'
+
     def forward(self,  
               options: list[str] = [],  
               query='most relevant', 
               rules = '''''',
-               output_format="DICT(data:list[[idx:int, score:float]])",
+               output_format="DICT(data:LIST[LIST[idx:INT, score:INT]])",
               n=10,  
               trials = 3,
               threshold=0.5,
               context = None,
-              model='anthropic/claude-3.5-sonnet-20240620:beta'):
+              model=None):
 
-
+        model = model or self.model
         if trials > 0 :
             try:
                 return self.forward(options=options, query=query, rules=rules, output_format=output_format, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
@@ -65,7 +67,7 @@ class Find:
         print(output, 'FAM')
         output = json.loads(output)
         assert len(output) > 0
-        output = [options[idx] for idx, score in output["data"]  if len(options) > idx and score > threshold]
+        output = [options[idx] for  idx, score in output["data"]  if len(options) > idx and score > threshold]
         return output
 
 
@@ -95,8 +97,9 @@ class Find:
     def files(self,
               query='the file that is the core of this folder',
                path='./',  
-               model='anthropic/claude-3.5-sonnet-20240620:beta', 
+               model=None, 
                n=30):
+        model = model or self.model
         files =  c.files(path)
         files =  self.forward(options=files, query=query, n=n, model=model)
         return [c.abspath(k) for k in files]
