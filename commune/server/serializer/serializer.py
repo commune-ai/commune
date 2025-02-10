@@ -99,7 +99,7 @@ class Serializer(c.Module):
             return False
 
     def serializer_map(self):
-        type_path = self.dirpath()
+        type_path = self.dirpath() + '/types'
         module_paths = c.objects(type_path)
         return {p.split('.')[-2]: c.obj(p)() for p in module_paths}
 

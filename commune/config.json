@@ -7,8 +7,9 @@
     "free": false,
     "endpoints": ["ask", "generate", "forward"],
     "port_range":  [50050, 50150],
-    "shortcuts": {
-        "openai" : "model.openai",
+
+    "shortcuts": { 
+        "openai" : "model.openai", 
         "openrouter":  "model.openrouter",
         "or" : "model.openrouter",
         "r" :  "remote",
@@ -16,8 +17,11 @@
         "subspace": "subspace", 
         "client": "server.client",
         "local": "server",
-        "executor": "server.executor"
+        "executor": "server.executor", 
+        "serv": "server", 
+        "serializer": "server.serializer"
         },
+
     "routes": {
             "vali": [
                 "run_epoch",
@@ -34,12 +38,10 @@
                 "parse_args"
             ],
             "streamlit": [
-                "set_page_config",
-                "load_style",
-                "st_load_css"
+                "set_page_config"
             ],
             "docker": [
-                "containers",
+                "ps",
                 "dlogs",
                 "images"
             ],

@@ -1,26 +1,18 @@
 import commune as c
 import time
 import os
-# import agbuildent as h
 
 class Edit:
     anchors = ['<START_OUTPUT(', '<END_OUTPUT(']
     endpoints = ["build"]
+    model='google/gemini-2.0-flash-001'
 
-    def __init__(self, model='google/gemini-2.0-flash-001', key = None,**kwargs):
-        self.model = c.module('agent')(model=model)
-        self.models = self.model.models()
+
+    def __init__(self, model, key = None,**kwargs):
+        self.agent = c.module('agent')(model=model or self.model)
+        self.models = self.agent.models()
         self.key = c.get_key(key)
-        
-    def find_files(self, query:str='the file that is the core of this folder', path:str='./', model:str='anthropic/claude-3.5-sonnet-20240620:beta', n:int=30):
-        file2content = {}
-        for p in c.fn('find/files', params=dict(query=query, path=path, model=model, n=n)):
-            try:
-                file2content[p] = c.get_text(p)
-            except Exception as e:
-                continue
-            
-        return file2content
+     
 
     def forward(self,
                 text = 'edit the file',
@@ -71,9 +63,18 @@ class Edit:
             YOU CAN DO IT
             -- OUTPUT --
         """
-        output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature , process_text=False)
+        output =  self.agent.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature , process_text=False)
         return self.process_output(output, path=path, write=write)
-    
+      
+    def find_files(self, query:str='the file that is the core of this folder', path:str='./', model:str='anthropic/claude-3.5-sonnet-20240620:beta', n:int=30):
+        file2content = {}
+        for p in c.fn('find/files', params=dict(query=query, path=path, model=model, n=n)):
+            try:
+                file2content[p] = c.get_text(p)
+            except Exception as e:
+                continue
+        return file2content
+
     def process_output(self, response, path=None, write=False):
         if path == None:
             return response

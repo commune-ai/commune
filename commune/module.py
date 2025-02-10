@@ -634,14 +634,18 @@ class c:
         return {'success':True, 'message':f'{path} removed'}
     
     @classmethod
-    def glob(cls,  path =None, files_only:bool = True, recursive:bool=True):
+    def glob(cls,  path =None, files_only:bool = True, depth=None, recursive:bool=True):
         import glob
         path = cls.resolve_path(path)
         if os.path.isdir(path) and not path.endswith('**'):
             path = os.path.join(path, '**')
-        paths = glob.glob(path, recursive=recursive)
+        if depth != None:
+            paths = glob.glob(path, recursive=False)
+        else:
+            paths = glob.glob(path, recursive=recursive)
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
+        
         return paths
     
     @classmethod
@@ -1529,7 +1533,10 @@ class c:
     
     @classmethod
     def local_modules(cls, search=None, **kwargs):
-        return list(c.local_tree(search=search, **kwargs).keys())
+        return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
+
+    
+
 
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
@@ -1856,6 +1863,10 @@ class c:
         files =  c.files(path)
         readmes = [f for f in files if f.endswith('.md')]
         return readmes
+
+    def readme2text(self, path='./', search=None):
+        readmes = self.readmes(path=path, search=search)
+        return {r:c.get_text(r) for r in readmes}
     
     def docs(self, path='./', search=None):
         files =  c.files(path)

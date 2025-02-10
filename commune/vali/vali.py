@@ -56,10 +56,11 @@ class Vali(c.Module):
                     path:str=None, 
                     update = False):
         self.network = network or 'server'
-        self.subnet = 'main'
+        self.subnet = None
         if '/' in self.network:
             self.network, self.subnet = network.split('/')
-        self.path = os.path.abspath(path or self.resolve_path(f'{self.network}/{self.subnet}'))
+        if self.subnet == None:
+            self.path = os.path.abspath(path or self.resolve_path(f'{self.network}/{self.subnet}' if self.subnet else self.network))
         self.netmod = c.module(self.network)() 
         self.tempo = tempo or 60
         self.search = search
@@ -87,8 +88,14 @@ class Vali(c.Module):
 
     def run_loop(self):
         while True:
+            if self.time_until_next_epoch > 0:
+                progress = c.tqdm(total=self.time_until_next_epoch, desc='Time Until Next Progress')
+                for i in range(self.time_until_next_epoch):
+                    progress.update(1)
+                    c.sleep(1)
+
             try:
-                self.epoch()
+                c.print(c.df(self.epoch()))
             except Exception as e:
                 c.print('XXXXXXXXXX EPOCH ERROR ----> XXXXXXXXXX ',c.detailed_error(e), color='red')
     @property
@@ -130,6 +137,7 @@ class Vali(c.Module):
             futures = [c.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
+                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     results.append(m)
@@ -138,16 +146,15 @@ class Vali(c.Module):
         return results
 
     def epoch(self):
-        next_epoch = self.time_until_next_epoch
         self.sync_net(update=1)
         n = len(self.modules)
-        c.print(f'Epoch(network={self.network} epoch={self.epochs} n_modules={n})', color='yellow')
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
+        num_batches = len(batches)
+        c.print(f'Epoch(network={self.network} epoch={self.epochs} batch_size={self.batch_size} n={n} num_batches={num_batches})', color='yellow')
         progress = c.tqdm(total=len(batches), desc='Evaluating Modules')
         results = []
-        n_batches = len(batches)
         for i, batch in enumerate(batches):
-            c.print(f'Batch(i={i}/{n_batches} batch_size={len(batch)})', color='yellow')
+            c.print(f'Batch(i={i}/{num_batches} batch_size={len(batch)})', color='yellow')
             results += self.score_batch(batch)
             progress.update(1)
         self.epochs += 1

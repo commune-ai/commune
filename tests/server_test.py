@@ -69,4 +69,4 @@ def test_serving_with_different_key(module = 'module', timeout=10):
     return {'success': True, 'msg': 'server test passed'}
 
 def test_executor():
-    c.module('executor')().test()
+    return c.module('executor')().test()
