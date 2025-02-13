@@ -14,7 +14,7 @@ docker run -d \
   --network=host \
   --restart unless-stopped \
   --privileged --shm-size 4g \
-  -v $REPO:/$REPO -v ~/.$REPO:/root/.$REPO \
+  -v $REPO:/app -v ~/.$REPO:/root/.$REPO \
   -v /var/run/docker.sock:/var/run/docker.sock \
   $REPO
 

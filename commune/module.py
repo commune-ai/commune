@@ -12,14 +12,11 @@ from typing import *
 import nest_asyncio
 nest_asyncio.apply()
 
-
 config = json.load(open(__file__.replace(__file__.split('/')[-1], 'config.json')))
 
 class c:
-
     # config attributes
     code_url = config["code_url"]
-    org = config['org'] # the organization
     repo_name  = config['name']# the name of the library
     description = config['description'] # the description of the library
     free = config["free"] # if the server is free 
@@ -34,7 +31,8 @@ class c:
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
     test_path = lib_path + '/tests'
-    modules_path = root_path + '/modules'
+    modules_path = (lib_path + '/modules') if os.path.exists(lib_path + '/modules') else root_path + '/module'
+    home_modules_path = home_path + '/modules'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
     cache = {} # cache for module objects
 
@@ -46,7 +44,7 @@ class c:
                trials=1, 
                verbose=False,
                tree:dict=None ) -> str:
-        path = path or 'module'
+        path = path or 'mget_object_boundsodule'
         if path in ['module', c.repo_name[0]]:
             return c
         t0 = time.time()
@@ -186,6 +184,18 @@ class c:
     def is_object_module(cls, obj) -> bool:
         return all([hasattr(obj, k) for k in c.core_features])
 
+    @staticmethod
+    def config_paths(path='./'):
+        return c.files(path, search='config.json')
+
+    @classmethod
+    def config_keys(cls, path='./'):
+        return list(cls.config().keys())
+
+    @staticmethod
+    def json_paths(path='./'):
+        return c.files(path, endswith='.json')
+
     @classmethod
     def is_admin(cls, key:str) -> bool:
         return c.get_key().key_address == key
@@ -315,6 +325,8 @@ class c:
               path='./', 
               search:str = None, 
               avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
+              endswith:str = None,
+              startswith:str = None,
               **kwargs) -> List[str]:
         """
         Lists all files in the path
@@ -325,15 +337,27 @@ class c:
         return :
             a list of files in the path
         """
-        if cls.module_name == 'module':
-            path = path or './'
-        else:
-            path = path or cls.storage_dir()
         files =c.glob(path, **kwargs)
         files = [f for f in files if not any([at in f for at in avoid_terms])]
         if search != None:
-            files = [f for f in files if search in files]
+            files = [f for f in files if search in f]
         return files
+
+
+    def file2objs(self, path:str = './', **kwargs) -> Dict[str, Any]:
+        obj2file = {}
+        for file in c.files(path):
+            try:                
+                if not file.endswith('.py'):
+                    continue  
+                objs =  c.objs(file)
+                if len(objs) > 0:
+                    obj2file[file] = objs
+            except Exception as e:
+                print(f'Error loading {file} {e}')
+                pass
+        return obj2file
+
 
     @classmethod
     def num_files(cls, path='./',  **kwargs) -> List[str]: 
@@ -351,14 +375,7 @@ class c:
     def sign(cls, data:dict  = None, key: str = None, **kwargs) -> bool:
         return c.get_key(key).sign(data, **kwargs)
     
-    @classmethod
-    def signtest(cls, data:dict  = 'None', key: str = None, **kwargs) -> bool:
-        key = c.get_key(key)
-        signature = key.sign(data, **kwargs)
-        return c.verify(data=data, signature=signature, address=key.ss58_address)
-    
 
-    
     @classmethod
     def verify(cls, data, key=None, **kwargs ) -> bool:  
         return c.get_key(key).verify(data, **kwargs)
@@ -689,6 +706,7 @@ class c:
     @classmethod
     def ls(cls, path:str = '', 
            search = None,
+           include_hidden = False, 
            return_full_path:bool = True):
         """
         provides a list of files in the path 
@@ -703,6 +721,8 @@ class c:
         if return_full_path:
             ls_files = [os.path.abspath(os.path.join(path,f)) for f in ls_files]
         ls_files = sorted(ls_files)
+        
+
         if search != None:
             ls_files = list(filter(lambda x: search in x, ls_files))
         return ls_files
@@ -892,16 +912,20 @@ class c:
 
     @classmethod
     def code(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        if module != None:
-            if isinstance(module, str) and '/' in module:
-                fn = module.split('/')[-1]
-                module = '/'.join(module.split('/')[:-1])
-                module = getattr(c.module(module), fn)
-            else:
-                module = cls.resolve_module(module)
-        else: 
-            module = cls
-        return inspect.getsource(module)
+        module = module or cls
+        if isinstance(module, str) and '/' in module:
+            if module.startswith('/'):
+                module = 'module' + module
+            fn = module.split('/')[-1]
+            module = '/'.join(module.split('/')[:-1])
+            obj = getattr(c.module(module), fn)
+        else:
+            try:
+                obj = cls.resolve_module(module)
+            except Exception as e:
+                print(f'Error {e}')
+                obj = cls
+        return inspect.getsource(obj)
 
     @classmethod
     def code_map(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
@@ -933,6 +957,8 @@ class c:
         else: 
             module = cls
         return inspect.getsource(module)
+
+
 
     @classmethod
     def module_hash(cls, module=None,  *args, **kwargs):
@@ -1126,34 +1152,30 @@ class c:
 
 
     @classmethod
-    def get_fn(cls, fn:str, splitters=[":", "/"], default_fn='forward') -> 'Callable':
+    def get_fn(cls, fn:str, splitter='/', default_fn='forward') -> 'Callable':
         """
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            if fn.startswith('/'):
+            if fn.startswith(splitter):
                 return getattr(c.module()(), fn.split('/')[-1])
-            if fn.endswith('/'):
-                fn += default_fn
+            elif fn.endswith(splitter):
+                fn = default_fn
             fn_obj = None
             module = cls
-            for splitter in splitters:
-                if splitter in fn:
-                    module_name= splitter.join(fn.split(splitter)[:-1])
-                    fn_name = fn.split(splitter)[-1]
-                    if c.module_exists(module_name):
-                        module = c.get_module(module_name)
-                        fn_obj =  getattr(module, fn_name)
-            if hasattr(cls, fn):
-                fn2route = cls.fn2route() 
-                if fn in fn2route:
-                    return c.obj(fn2route[fn])
-                fn_obj =  getattr(cls, fn)
+            if splitter in fn:
+                module_name= splitter.join(fn.split(splitter)[:-1])
+                fn_name = fn.split(splitter)[-1]
+                if c.module_exists(module_name):
+                    module = c.get_module(module_name)
+                    fn_obj =  getattr(module, fn_name)
             elif c.object_exists(fn):
                 fn_obj =  c.obj(fn)
             args = c.get_args(fn_obj)
             if 'self' in args:
                 fn_obj = getattr(module(), fn.split('/')[-1])
+
+            
         else:
             fn_obj = fn
         # assert fn_obj != None, f'{fn} is not a function or object'
@@ -1490,6 +1512,10 @@ class c:
         return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
 
     @classmethod
+    def home_modules(cls, search=None, **kwargs):
+        return list(c.get_tree(c.home_path, search=search, **kwargs).keys())
+
+    @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.lib_path, depth=depth, **kwargs)
         
@@ -1678,7 +1704,7 @@ class c:
                 
     @classmethod
     def module2fns(cls, path=None):
-        tree = c.get_tree(path or clslib_path)
+        tree = c.get_tree(path or cls.lib_path)
         module2fns = {}
         for m,m_path in tree.items():
             try:
@@ -1687,9 +1713,12 @@ class c:
                 pass
         return module2fns
 
+
+
+
     @classmethod
     def module2schema(cls, path=None):
-        tree = c.get_tree(path or clslib_path)
+        tree = c.get_tree(path or cls.lib_path)
         module2fns = {}
         for m,m_path in tree.items():
             try:
@@ -1784,6 +1813,44 @@ class c:
     def code_url(self, path:str='./') -> str:
         path = self.resolve_path(path or self.lib_path)
         return c.cmd(f'git remote get-url origin', cwd=path)
+
+    @classmethod
+    def getsourcelines(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+        if module != None:
+            if isinstance(module, str) and '/' in module:
+                fn = module.split('/')[-1]
+                module = '/'.join(module.split('/')[:-1])
+                module = getattr(c.module(module), fn)
+            else:
+                module = cls.resolve_module(module)
+        else: 
+            module = cls
+        return inspect.getsourcelines(module)
+
+    @classmethod
+    def get_object_bounds(cls, obj=None) -> List[int]:
+        """
+        Gets the starting and ending line numbers of an object in its source code.
+        
+        Args:
+            obj: The object to get bounds for. Defaults to cls if None.
+            
+        Returns:
+            Tuple of (start_line, end_line) line numbers
+        """
+        import inspect
+        
+        if obj is None:
+            obj = cls
+            
+        try:
+            # Get source lines and line number
+            source_lines, start_line = c.getsourcelines(obj)
+            end_line = start_line + len(source_lines) - 1
+            return [start_line, end_line]
+        except Exception as e:
+            print(e, 'Error getting object bounds')
+            return [None, None]
 
 c.add_routes()
 Module = c # Module is alias of c

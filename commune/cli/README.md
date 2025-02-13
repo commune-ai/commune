@@ -142,6 +142,10 @@ c # takes you to commune by doing c code ./
 ```
 
 
+getting code
+
+c code module/code # gets the code of module/code module
+c schema /code gets the code of the module key
 
 
 

@@ -7,7 +7,7 @@ import json
 import os
 
 class Find:
-    model='google/gemini-2.0-flash-001'
+    model='anthropic/claude-3.5-sonnet'
 
     def forward(self,  
               options: list[str] = [],  
@@ -15,8 +15,8 @@ class Find:
               n=10,  
               trials = 3,
               min_score=0,
-              max_score=100,
-              threshold=90,
+              max_score=9,
+              threshold=5,
               context = None,
               model=None):
 
@@ -48,12 +48,11 @@ class Find:
         THRESHOLD:{threshold}
         DO NOT RETURN THE OPTIONS THAT SCORE BELOW THRESHOLD({threshold})
         BE CONSERVATIVE WITH YOUR SCORING TO SAVE TIME
-        THE MINIMUM SCORE IS 0 AND THE MAXIMUM SCORE IS 100
+        THE MINIMUM SCORE IS 0 AND THE MAXIMUM SCORE IS 10
         --OUTPUT_FORMAT--
-        (RETURN ONLY IN JSON FORMAT SO IT CAN BE PARSED EASILY BETWEEN THE ANCHORS, RESPOND IN FULL JSON FORMAT)
-        {anchors[0]}DICT(data:LIST(idx:INT, score:INT)]){anchors[1]}
+        {anchors[0]}DICT(data:LIST[LIST[idx:INT, score:INT]]]){anchors[1]}
+        MAKE SURE YOU RETURN IT THE JSON FORMAT BETWEEN THE ANCHORS AND NOTHING ELSE TO FUCK UP 
         --OUTPUT--
-        '''json
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
@@ -61,23 +60,16 @@ class Find:
             output += ch
             if ch == anchors[1]:
                 break
-        if '```json' in output:
-            output = output.split('```json')[1].split('```')[0]
-        elif anchors[0] in output:
+        if anchors[0] in output:
             output = output.split(anchors[0])[1].split(anchors[1])[0]
         else:
             output = output
+        print(output)
         output = json.loads(output)
         assert len(output) > 0
-        output = [options[idx] for  idx, score in output["data"]  if len(options) > idx and score > threshold]
+        output = [idx2options[idx] for idx, score in output['data'] if score >= threshold]
         return output
 
-
-    def file2text(self, path):
-        file2text = {}
-        for file in self.files(path=path):
-            file2text[file] = c.get_text(file)
-        return file2text
         
     @classmethod
     def lines(self,  search:str=None, path:str='./') -> list[str]:
@@ -99,31 +91,26 @@ class Find:
     def files(self,
               query='the file that is the core of this folder',
                path='./',  
-               model='google/gemini-2.0-flash-001', 
+               model=None, 
                n=30):
         model = model or self.model
-        files =  c.files(path)
-        files =  self.forward(options=files, query=query, n=n, model=model)
-        return files
-        return [c.abspath(k) for k in files]
+        options = self.forward(options=c.files(path), query=query, n=n, model=model)
+        return options
 
     def modules(self,  query='', **kwargs): 
         return self.forward(options=c.get_modules(), query=query,**kwargs)
 
-    def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
-        return self.forward(query=query, options=c.get_utils(), model=model)
+    def utils(self, query='i want something that does ls', **kwargs):
+        return self.forward(query=query, options=c.get_utils(), **kwargs)
+
 
     
-    def fn(self, query:str='something that i can find functions in', *extra_query, module2fns = None):
-        query =' '.join([query] +list(extra_query))
-        if module2fns is None:
-            module2fns = c.module2fns()
+    def fns(self, query:str='something that i can find functions in', **kwargs):
+        module2fns = c.module2fns()
         options = []
         for module, fns in module2fns.items():
             for fn in fns:
                 options += [f"{module}/{fn}"]
         context  = f'''
-        {c.text(c.docs_path)}
         '''
-        
         return self.forward(query=query, options=options)

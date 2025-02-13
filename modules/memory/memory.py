@@ -14,8 +14,7 @@ class Memory:
     def check_storage(self, value:str):
         return len(self.memory) + len(value) <= self.max_bytes
 
-    def put(self, value):
-        
+
 
     def get(self, key):
         return self.memory.get(key, 0)

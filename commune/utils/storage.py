@@ -342,24 +342,17 @@ def type2filecount( path:str='./', **kwargs):
 def abspath(path:str):
     return os.path.abspath(os.path.expanduser(path))
 
-def file2text(path = './', avoid_terms = ['__pycache__', 
-                                '.git', 
-                                '.ipynb_checkpoints', 
-                                'package.lock',
-                                'egg-info',
-                                'Cargo.lock',
-                                'artifacts',
-                                'yarn.lock',
-                                'cache/',
-                                'target/debug',
-                                'node_modules'],
+def file2text(path = './', 
+              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'package.lock','egg-info', 'Cargo.lock', 'artifacts', 'yarn.lock','cache/','target/debug','node_modules'],
                 avoid_paths = ['~', '/tmp', '/var', '/proc', '/sys', '/dev'],
-                relative=False,  **kwargs):
+                relative=False, 
+                 **kwargs):
     
     path = os.path.abspath(os.path.expanduser(path))
     assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
     file2text = {}
     for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
+        
         if os.path.isdir(file):
             continue
         try:
@@ -379,7 +372,6 @@ def file2text(path = './', avoid_terms = ['__pycache__',
         return results
 
     return file2text
-
 
 def cp( path1:str, path2:str, refresh:bool = False):
     import shutil

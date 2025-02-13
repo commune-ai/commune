@@ -1,8 +1,8 @@
 {
-    "org": "commune-ai",
     "name": "commune",
     "version": "0.0.1",
-    "code_url": "https://github.com/{org}/{repo_name}.git", 
+    "code_url": "https://github.com/commune-ai/commune.git", 
+    "app_url": "localhost:3000",
     "description": "A commune module",
     "free": false,
     "endpoints": ["forward"],
@@ -60,7 +60,7 @@
                 "serializer_map"
             ],
             "key": [
-                "sign_test",
+                "signtest",
                 "rename_key",
                 "ss58_encode",
                 "ss58_decode",

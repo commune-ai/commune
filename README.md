@@ -127,3 +127,8 @@ This README provides:
 7. Development guide
 
 All references to core modules and documentation are included with proper links. The structure is clean and easy to navigate while providing comprehensive information about the system's capabilities.
+
+
+
+config details 
+

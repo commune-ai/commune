@@ -29,9 +29,8 @@ RUN usermod -aG docker root
 EXPOSE 2375
 
 # MODULE ENVIRONMENT
-WORKDIR /commune
+WORKDIR /app
 COPY . .
 RUN pip install -e ./
-WORKDIR /app
 
 ENTRYPOINT [ "tail", "-f", "/dev/null"]

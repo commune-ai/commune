@@ -1,7 +1,7 @@
 import commune as c
 import os
 class Docs:
-    def ask(self, *question, 
+    def forward(self, *question, 
                 model='anthropic/claude-3.5-sonnet', 
                 **kwargs ) -> int:
         question = ' '.join(list(map(str, question)))

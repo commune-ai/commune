@@ -14,8 +14,8 @@ class Cli:
         argv = sys.argv[1:]
         if len(argv) == 0:
             argv = ['vs']
-        fn_obj = self.get_fn(argv)
-        params = self.get_params(argv)
+        fn_obj = self.get_fn(argv) # get the function object
+        params = self.get_params(argv) # get the parameters
         output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         latency = time.time() - t0
         print(f'❌Error({latency:.3f}sec)❌' if self.is_error(output) else f'✅Result({latency:.3f}s)✅')
@@ -127,17 +127,18 @@ class Cli:
             print(f'ShortcutEnabled({old_module} -> {module})', color='yellow')
 
         filepath = c.filepath(module).replace(c.home_path, '~')    
-        print(f'Calling({module}/{fn}, path={filepath} shortcut={shortcut})', color='yellow')
+        print(f'Call({module}/{fn}, path={filepath} shortcut={shortcut})', color='yellow')
+
         module = c.module(module)
+        fn_obj = getattr(module, fn)
+        if isinstance(fn_obj, property) or 'self' in c.get_args(fn_obj):
+            module = module(**init_kwargs)
         if not hasattr(module, fn):
             module = module()
             if not hasattr(module, fn):
                 return {'error': f'module/{fn} does not exist', 'success': False}
-        fn_obj = getattr(module, fn)
         fn_args = c.get_args(fn_obj)
         # initialize the module class if it is a property or if 'self' is in the arguments
-        if isinstance(fn_obj, property) or 'self' in c.get_args(fn_obj):
-            module = module(**init_kwargs)
         return getattr(module, fn)
 
     
