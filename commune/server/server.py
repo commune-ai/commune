@@ -20,9 +20,8 @@ import asyncio
 
 class Server:
 
-    tempo : int = 10, # (in seconds) the maximum age of the history
+    freedom_attributes=['free', 'free_mode', 'freedom', 'freemee', 'freeme']
     pm_dir = c.home_path + '/.pm2'
-    pm2_logs_dir = pm_dir + '/logs'
     helper_functions  = ['info', 'forward'] # the helper functions
     function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
@@ -37,11 +36,11 @@ class Server:
         free : bool = False, # if the server is free (checks signature)
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
-        run_api = False, # if the server should be ru
-        executor = 'server.executor',  # the executor for the server
-        serializer = 'server.serializer', # the serializer for the server
+        run_api = False, # if the server should be run as an api
+        executor = 'server.executor',  # the executor for the server to run the functions
+        serializer = 'server.serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
         tempo:int = 60 , # (in seconds) the maximum age of the history
-        max_timeout:int = 10, # (in seconds) the maximum time to wait for a response
+        task_timeout:int = 10, # (in seconds) the maximum time to wait for a response
         ) -> 'Server':
         self.set_network(network)
         module = module or 'module'
@@ -54,37 +53,38 @@ class Server:
         self.module.name = name 
         self.module.key = c.get_key(key or name)
         self.history_path = history_path or self.resolve_path('history')
-        self.address2key =  c.address2key()
-        self.set_functions(functions) 
         if run_api:
-            self.max_timeout = max_timeout
+            self.address2key =  c.address2key()
+            self.serializer = c.module(serializer)()
+            self.executor = c.module(executor)()
+            self.set_functions(functions) 
             self.set_port(port)
+            self.module.info = self.get_info(self.module)
             self.loop = asyncio.get_event_loop()
             self.app = FastAPI()
-            self.serializer = c.module(serializer)()
-            self.module.info = self.get_info(self.module)
-            self.executor = c.module(executor)()
+            self.set_middleware(self.app)
             def forward(fn: str, request: Request):
                 try:
-                    result =  c.wait(self.executor.submit(self.forward, params=[fn, request]), timeout=self.max_timeout)
+                    result =  c.wait(self.executor.submit(self.forward, params={"fn": fn, "request":request}), timeout=task_timeout)
                 except Exception as e:
                     result =  c.detailed_error(e)
                 return result
-            self.set_middleware(self.app)
             self.app.post("/{fn}")(forward)
             c.print(f'Served(url={self.module.url}, name={self.module.name}, key={self.module.key.key_address})', color='purple')
             uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-    def forward(self, fn:str, request: Request) -> dict:
+            
+    def forward(self, fn:str, request: dict) -> dict:
         t0 = c.time()
-        module = self.module
-        params = self.get_params(request)
-        headers = self.get_headers(request)
+        request = self.get_request(request) # process the request
+        params = request['params']
+        headers = request['headers']
         rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
         rate = self.rate(self.module.name+'/'+headers['key'])
         assert rate < rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
         c.print(f'Request(fn={fn} params={params} client={headers["key"]} size={len(str(params))})', color='green')
-        fn_obj = getattr(module, fn)
+        fn_obj = getattr(self.module, fn)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
+        c.print(request, result)
         fn_latency = c.time() - float(t0)
         net_latency = t0 - float(headers['time']) # the latency of the request (in seconds) by subtracting the time the request was made from the current time
         if c.is_generator(result):
@@ -107,7 +107,7 @@ class Server:
                     'client': headers['key'], # the address of the caller
                     'server': self.module.key.ss58_address, # the signature of the server
                 }
-            call_data['server_signature'] = c.sign(call_data, self.module.key)
+            call_data['server_signature'] = c.sign(call_data, key=self.module.key, mode='str')
             self.save_call_data(call_data)
         return result
 
@@ -115,10 +115,10 @@ class Server:
     def resolve_path(cls, path):
         return  c.storage_path + '/server/' + path
             
-    def set_functions(self,  functions:Optional[List[str]] ):
-        self.free = any([(hasattr(self.module, k) and self.module.free)  for k in ['free', 'free_mode']])
+    def set_functions(self,  functions:Optional[List[str]]):
+        self.free = any([(hasattr(self.module, k) and self.module.free)  for k in self.freedom_attributes])
         if self.free:
-            c.print('THE FOUNDING FATHERS WOULD BE PROUD OF YOU SON OF A BITCH', color='red')
+            c.print('YOUVE ENABLED AMURICA --> FREEDOM', color='red')
         else:
             if hasattr(self.module, 'free'):
                 self.free = self.module.free
@@ -139,13 +139,15 @@ class Server:
         return {'functions': self.module.fns, 'fn2cost': self.module.fn2cost, 'free': self.free}
         
     def get_info(self, module):
-        return {
+        info =  {
             "name": module.name,
             "url": module.url,
             "key": module.key.ss58_address,
             "time": c.time(),
             "schema": {fn:c.fn_schema(getattr(module, fn)) for fn in module.fns},
         }
+        print(info)
+        return info
 
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
         name = self.module.name
@@ -171,11 +173,20 @@ class Server:
         self.module.port = port
         self.module.url = f'0.0.0.0:{self.module.port}' 
         return {'success':True, 'message':f'Set port to {port}'}
+    max_request_staleness = 4
     
-    def get_params(self, request: Request) -> dict:
+    def get_request(self, request: Request) -> dict:
+        headers = dict(request.headers)
+        headers['time'] = float(headers.get('time', c.time()))
+        headers['key'] = headers.get('key', headers.get('url', None))
+        max_request_staleness : int = 4, # (in seconds) the time it takes for the request to be too old
+        request_staleness = c.time() - float(headers['time'])
+        assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
+
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
+        c.verify(params, address=headers['key'], signature=headers['signature'])
         assert isinstance(params, dict), f'Params must be a dict, not {type(params)}'
         if len(params) == 2 and 'args' in params and 'kwargs' in params :
             kwargs = dict(params.get('kwargs')) 
@@ -183,13 +194,8 @@ class Server:
         else:
             args = []
             kwargs = dict(params)
-        return {'args': args, 'kwargs': kwargs} 
-    
-    def get_headers(self, request: Request):
-        headers = dict(request.headers)
-        headers['time'] = float(headers.get('time', c.time()))
-        headers['key'] = headers.get('key', headers.get('url', None))
-        return headers
+        params = {"args": args, "kwargs": kwargs}
+        return {"params": params, "headers": headers}
 
     def get_byte_size(self, data):
         return len(str(data).encode('utf-8'))
@@ -202,15 +208,12 @@ class Server:
                           sleep_interval: int = 1) -> bool :
         
         time_waiting = 0
-        # rotating status thing
         c.print(f'waiting for {name} to start...', color='cyan')
         while time_waiting < timeout:
             namespace = self.namespace(network=network, max_age=max_age)
             if name in namespace:
                 try:
                     result = c.call(namespace[name]+'/info')
-                    if 'key' in result:
-                        c.print(f'{name} is running', color='green')
                     return result
                 except Exception as e:
                     c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
@@ -252,7 +255,7 @@ class Server:
         return result
     
     def kill_all(self, verbose:bool = True, timeout=20):
-        servers = self.processes()
+        servers = self.procs()
         futures = [c.submit(self.kill, kwargs={'name':s, 'update': False}) for s in servers]
         results = c.wait(futures, timeout=timeout)
         return results
@@ -275,8 +278,10 @@ class Server:
             c.rm(self.get_logs_path(name, m))
         return {'success':True, 'message':f'Removed logs for {name}'}
 
-    def logs(self, module:str, top=None, tail: int =None , stream=False, **kwargs):
+    def logs(self, module:str, top=None, tail: int =None , stream=True, **kwargs):
         module = self.resolve_process_name(module)
+        if tail or top:
+            stream = False
         if stream:
             return c.cmd(f"pm2 logs {module}", verbose=True)
         else:
@@ -294,7 +299,7 @@ class Server:
                 text = '\n'.join(text.split('\n')[-tail:])
         return text
 
-    def get_server_port(self, name:str,  tail:int=100, **kwargs):
+    def get_port(self, name:str,  tail:int=100, **kwargs):
         logs = self.logs(name, tail=tail, stream=False, **kwargs)
         port = None
         tag = 'Uvicorn running on '
@@ -304,25 +309,17 @@ class Server:
         return port
 
     def namespace(self,  search=None, **kwargs) -> dict:
-        servers = self.servers(search=search)
-        urls = self.urls()
-        return {s: u for s, u in zip(servers, urls)}
+        namespace =  {s: u for s, u in zip(self.servers(), self.urls())}
+        return {k:v for k, v in namespace.items() if search in k} if search != None else namespace
 
-    def get_server_url(self, name:str,  tail:int=100, **kwargs):
-        return f'0.0.0.0:{self.get_server_port(name, tail=tail, **kwargs)}'
-    
-    def kill_many(self, search=None, verbose:bool = True, timeout=10):
-        futures = []
-        for name in c.servers(search=search):
-            f = c.submit(c.kill, dict(name=name, verbose=verbose), timeout=timeout)
-            futures.append(f)
-        return c.wait(futures)
+    def get_url(self, name:str,  tail:int=100, **kwargs):
+        return f'0.0.0.0:{self.get_port(name, tail=tail, **kwargs)}'
 
     def servers(self, search=None,  **kwargs) -> List[str]:
-        return [ p[len(self.process_prefix):] for p in self.processes(search=search, **kwargs) if p.startswith(self.process_prefix)]
+        return [ p[len(self.process_prefix):] for p in self.procs(search=search, **kwargs) if p.startswith(self.process_prefix)]
 
     def urls(self, search=None,  **kwargs) -> List[str]:
-        return [self.get_server_url(s) for s in self.servers(search=search, **kwargs)]
+        return [self.get_url(s) for s in self.servers(search=search, **kwargs)]
     
     def run_process(self, 
                   fn: str = 'serve',
@@ -346,20 +343,20 @@ class Server:
         stdout = c.cmd(cmd, verbose=verbose, cwd=cwd)
         return {'success':True, 'msg':f'Launched {module}',  'cmd': cmd, 'stdout':stdout}
 
-    def processes(self, search=None,  **kwargs) -> List[str]:
+    def procs(self, search=None,  **kwargs) -> List[str]:
         output_string = c.cmd('pm2 status')
-        processes = []
+        procs = []
         tag = ' default '
         for line in output_string.split('\n'):
             if  tag in line:
                 name = line.split(tag)[0].strip()
                 name = name.split(' ')[-1]
-                processes += [name]
+                procs += [name]
         if search != None:
             search = self.resolve_process_name(search)
-            processes = [m for m in processes if search in m]
-        processes = sorted(list(set(processes)))
-        return processes
+            procs = [m for m in procs if search in m]
+        procs = sorted(list(set(procs)))
+        return procs
 
     def resolve_process_name(self, name:str, **kwargs) -> str:
         if  name != None and not name.startswith(self.process_prefix):
@@ -368,7 +365,7 @@ class Server:
         
     def process_exists(self, name:str, **kwargs) -> bool:
         name = self.resolve_process_name(name)
-        return name in self.processes(**kwargs)
+        return name in self.procs(**kwargs)
 
     def ensure_env(self,**kwargs):
         '''ensure that the environment variables are set for the process'''
@@ -440,6 +437,7 @@ class Server:
                 super().__init__(app)
                 self.max_bytes = max_bytes
             async def dispatch(self, request: Request, call_next):
+                print(request)
                 content_length = request.headers.get('content-length')
                 if content_length:
                     if int(content_length) > self.max_bytes:
@@ -453,35 +451,26 @@ class Server:
         app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
         return app
 
+
     def rate_limit(self, 
                 fn:str, 
                 params:dict,  
                 headers:dict, 
-                gate_network:str = 'subspace', # the network to gate on
+                network:str = 'subspace', # the network to gate on
                 role2rate:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000}, # the rate limits for each role
-                max_request_staleness : int = 4, # (in seconds) the time it takes for the request to be too old
                 stake_per_call:int = 1000, # the amount of stake required per call
-                module=None
-
             ) -> dict:
         if self.module.free: 
             return True
-        request_staleness = c.time() - float(headers['time'])
-        assert  request_staleness < max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
-        assert c.verify(data={'params': params, 'time': str(headers['time'])}, signature=headers['signature'], address=headers['key']), 'Invalid signature'
         role = self.get_user_role(headers['key'])
         if role != 'admin':
             assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
         if role in role2rate:
             rate_limit = role2rate[role]
         else:
-            path = self.resolve_path(f'{network}/gate')
-            self.state = c.get(path, {}, max_age=self.tempo)
+            path = self.resolve_path(f'rate_limiter/{network}/{role}')
             if self.state == None:
-                def sync_gate():
-                    self.state = c.module(gate_network)().state()
-                    c.put(path, self.state)
-                c.thread(sync)
+                self.state = c.module(network)().state()
             stake = self.state['stake'].get(headers['key'], 0) 
             stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) 
             stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) 
@@ -514,7 +503,7 @@ class Server:
         for path, age  in path2age.items():
             if age > self.tempo:
                 if os.path.exists(path):
-                    print(f'Removing {path}')
+                    print(f'Removing({path})')
                     os.remove(path)
         return len(self.call_paths(address))
 
@@ -535,7 +524,6 @@ class Server:
     def user2calls(self, module='module'):  
         return {u: self.calls(module+'/'+u) for u in self.users(module)}
 
-    #     return c.logs(name, top=10, mode='local') 
     def get_path_time(self, path:str) -> float:
         try:
             x = float(path.split('/')[-1].split('.')[0])
@@ -565,7 +553,3 @@ class Server:
         for f in c.as_completed(futures):
             c.print(f.result())
         return  {'message':f'Launched {n} servers for {module}', 'namespace':self.namespace()}
-
-if __name__ == '__main__':
-    Server.run()
-

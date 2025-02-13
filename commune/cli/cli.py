@@ -2,6 +2,7 @@ import sys
 import time
 import sys
 import commune as c
+from typing import Any
 print = c.print
 
 class Cli:
@@ -17,7 +18,7 @@ class Cli:
         params = self.get_params(argv)
         output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         latency = time.time() - t0
-        print(f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅')
+        print(f'❌Error({latency:.3f}sec)❌' if self.is_error(output) else f'✅Result({latency:.3f}s)✅')
         is_generator = c.is_generator(output)
         if is_generator:
             for item in output:
@@ -139,4 +140,16 @@ class Cli:
             module = module(**init_kwargs)
         return getattr(module, fn)
 
- 
+    
+    @staticmethod
+    def is_error( x:Any):
+        """
+        The function checks if the result is an error
+        The error is a dictionary with an error key set to True
+        """
+        if isinstance(x, dict):
+            if 'error' in x and x['error'] == True:
+                return True
+            if 'success' in x and x['success'] == False:
+                return True
+        return False

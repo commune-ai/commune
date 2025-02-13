@@ -105,19 +105,6 @@ def sizeof( obj):
     return result
 
 
-
-def mv(path1, path2):
-    assert os.path.exists(path1), path1
-    if not os.path.isdir(path2):
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
-    shutil.move(path1, path2)
-    assert os.path.exists(path2), path2
-    assert not os.path.exists(path1), path1
-    return {'success': True, 'msg': f'Moved {path1} to {path2}'}
-
-
 def file2chars( path='./', fmt='b') -> int:
     import commune as c
     files = c.glob(path)
@@ -141,18 +128,6 @@ def find_largest_folder(directory: str = '~/'):
 
     return largest_folder, largest_size
 
-
-def get_folder_size(folder_path:str='/'):
-    folder_path = resolve_path(folder_path)
-    """Calculate the total size of all files in the folder."""
-    total_size = 0
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if not os.path.islink(file_path):
-                total_size += os.path.getsize(file_path)
-    return total_size
-
 def file2size( path='./', fmt='b') -> int:
     import commune as c
     files = c.glob(path)
@@ -162,27 +137,9 @@ def file2size( path='./', fmt='b') -> int:
     file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
     return file2size
 
-def cp(path1:str, path2:str, refresh:bool = False):
-    import shutil
-    # what if its a folder?
-    assert os.path.exists(path1), path1
-    if refresh == False:
-        assert not os.path.exists(path2), path2
-    
-    path2_dirpath = os.path.dirname(path2)
-    if not os.path.isdir(path2_dirpath):
-        os.makedirs(path2_dirpath, exist_ok=True)
-        assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
 
-    if os.path.isdir(path1):
-        shutil.copytree(path1, path2)
-
-    elif os.path.isfile(path1):
-        
-        shutil.copy(path1, path2)
-    else:
-        raise ValueError(f'path1 is not a file or a folder: {path1}')
-    return path2
+def path_exists(path:str):
+    return os.path.exists(path)
 
 def get_folder_size( folder_path:str='/'):
     folder_path = os.path.abspath(folder_path)
@@ -349,11 +306,6 @@ def wordinfolder( word:str, path:str='./')-> bool:
             return True
         progress.update(1)
     return False
-
-def resolve_path(path):
-    path = os.path.expanduser(path)
-    path = os.path.abspath(path)
-    return path
 
 def get_file_size( path:str):
     path = os.path.abspath(path)

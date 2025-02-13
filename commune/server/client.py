@@ -46,26 +46,6 @@ class Client:
                                                             timeout=timeout, 
                                                             key=key)
 
-    @staticmethod
-    def client(module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
-        class ClientVirtual:
-            def __init__(self, client):
-                self.client = client
-            def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
-                return self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
-            def __getattr__(self, key):
-                if key in [ 'client', 'remote_call'] :
-                    return getattr(self, key)
-                else:
-                    return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
-        client = Client(module=module)
-        return ClientVirtual(client) if virtual else client
-        return client
-
-    @staticmethod
-    def connect( module, **kwargs):
-        return Client.client(module, **kwargs)
-
     def get_url(self, fn:str, mode='http'):
         if '/' in str(fn):  
             url, fn = '/'.join(fn.split('/')[:-1]), fn.split('/')[-1]
@@ -78,7 +58,10 @@ class Client:
         url = f"{url}/{fn}/"
         return url
 
-    def get_params(self,params: Union[list, dict] = None, args = None, kwargs = None):
+    def get_request(self,params: Union[list, dict] = None, 
+                    key = None,
+                    args = None, 
+                    kwargs = None):
         params = params or {}
         args = args or []
         kwargs = kwargs or {}
@@ -89,7 +72,21 @@ class Client:
                 args = params
             else:
                 raise Exception(f'Invalid params {params}')
-        return {"args": args, "kwargs": kwargs}
+        params = {"args": args, "kwargs": kwargs}
+
+        time_str = str(c.time())
+        headers =  {
+            'key': key.ss58_address,
+            'crypto_type': str(key.crypto_type),
+            'time': time_str,
+            'signature':  key.sign({'params': params, 'time': time_str}).hex(),
+            'Content-Type': 'application/json',
+        } 
+
+
+        return {'params': params, 'headers': headers}
+    
+        
 
     def forward(self, 
                 fn  = 'info', 
@@ -105,19 +102,18 @@ class Client:
                 
         key = self.resolve_key(key)
         url = self.get_url(fn=fn, mode=mode)
-        params = self.get_params(params=params, args=args, kwargs=kwargs )
-        headers =self.get_header(params=params, key=key)
-        response = self.session.post(url, json=params, headers=headers, timeout=timeout, stream=stream)
-        result = self.process_response(response)
-        return result
     
+        request = self.get_request(params=params, key=key, args=args, kwargs=kwargs  )
+        print(request, url)
+        response = self.session.post(
+                                url, 
+                                json=request['params'], 
+                                headers=request['headers'], 
+                                timeout=timeout, 
+                                stream=stream
+                                )
+        return self.process_response(response)
 
-    def __del__(self):
-        try:
-            if hasattr(self, 'session'):
-                asyncio.run(self.session.close())
-        except:
-            pass
         
     def resolve_key(self,key=None):
         if key == None:
@@ -157,17 +153,6 @@ class Client:
         except Exception as e:
             yield c.detailed_error(e)
 
-    def get_header(self, params, key: 'Key'):
-        time_str = str(c.time())
-        return {
-            'key': key.ss58_address,
-            'crypto_type': str(key.crypto_type),
-            'time': time_str,
-            'Content-Type': 'application/json',
-            'signature':  key.sign({'params': params, 'time': time_str}).hex()
-        } 
-    
-
     @staticmethod
     def is_url( url:str) -> bool:
         if not isinstance(url, str):
@@ -179,3 +164,37 @@ class Client:
         conds.append(':' in url)
         conds.append(c.is_int(url.split(':')[-1]))
         return all(conds)
+
+    @staticmethod
+    def client(module:str = 'module', network : str = 'local', virtual:bool = True, **kwargs):
+        """
+        Create a client instance.
+        """
+        
+        class ClientVirtual:
+            def __init__(self, client):
+                self.client = client
+            def remote_call(self, *args, remote_fn, timeout:int=10, key=None, **kwargs):
+                return self.client.forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout, key=key)
+            def __getattr__(self, key):
+                if key in [ 'client', 'remote_call'] :
+                    return getattr(self, key)
+                else:
+                    return lambda *args, **kwargs : self.remote_call(*args, remote_fn=key, **kwargs)
+        client = Client(module=module)
+        return ClientVirtual(client) if virtual else client
+        return client
+
+    @staticmethod
+    def connect( module:str, **kwargs):
+        """
+        Connect to a module and return a client instance.
+        """
+        return Client.client(module, **kwargs)
+    
+    def __del__(self):
+        try:
+            if hasattr(self, 'session'):
+                asyncio.run(self.session.close())
+        except:
+            pass

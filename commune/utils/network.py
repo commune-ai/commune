@@ -7,40 +7,8 @@ import psutil
 import socket
 import time
 
-def port_free( *args, **kwargs) -> bool:
-    return not port_used(*args, **kwargs)
-
 def port_available(port:int, ip:str ='0.0.0.0'):
     return not port_used(port=port, ip=ip)
-
-def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
-    '''
-    Get availabel ports out of port range
-    
-    Args:
-        ports: list of ports
-        ip: ip address
-    
-    '''
-    import commune as c
-    port_range = resolve_port_range(port_range=port_range)
-    if ports == None:
-        ports = list(range(*port_range))
-    
-    async def check_port(port, ip):
-        return port_used(port=port, ip=ip)
-    
-    used_ports = []
-    jobs = []
-    for port in ports: 
-        jobs += [check_port(port=port, ip=ip)]
-            
-    results = c.wait(jobs)
-    for port, result in zip(ports, results):
-        if isinstance(result, bool) and result:
-            used_ports += [port]
-        
-    return used_ports
 
 
 def resolve_ip(ip=None, external:bool=True) -> str:
@@ -51,18 +19,6 @@ def resolve_ip(ip=None, external:bool=True) -> str:
             ip = '0.0.0.0'
     assert isinstance(ip, str)
     return ip
-
-
-
-def resolve_port(port:int=None, **kwargs):
-    '''
-    Resolves the port and finds one that is available
-    '''
-    if port == None or port == 0:
-        port = free_port(port, **kwargs)
-    if port_used(port):
-        port = free_port(port, **kwargs)
-    return int(port)
 
 
 
@@ -110,29 +66,6 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
 
 def has_free_ports(n:int = 1, **kwargs):
     return len(free_ports(n=n, **kwargs)) > 0
-
-
-def ip_version(str_val: str) -> int:
-    import netaddr
-    r""" Returns the ip version (IPV4 or IPV6).
-        arg:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Returns:
-            int_val  (:type:`int128`, `required`):
-                The ip version (Either 4 or 6 for IPv4/IPv6)
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed str_val is not a valid ip string value.
-    """
-    return int(netaddr.IPAddress(str_val).version)
-
-def ip__str__(ip_type:int, ip_str:str, port:int):
-    """ Return a formatted ip string
-    """
-    return "/ipv%i/%s:%i" % (ip_type, ip_str, port)
 
 def external_ip( default_ip='0.0.0.0') -> str:
     import commune as c
@@ -346,9 +279,6 @@ def free_port(ports = None,
 get_available_port = free_port
 
 
-get_used_ports = used_ports
-
-
 
 def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
     import commune as c
@@ -412,24 +342,6 @@ def set_port_range(*port_range: list):
     assert port_range[0] < port_range[1], 'Port range must be a list of integers'
     c.put('port_range', port_range)
     return port_range
-
-
-def int_to_ip(int_val: int) -> str:
-    r""" Maps an integer to a unique ip-string 
-        Args:
-            int_val  (:type:`int128`, `required`):
-                The integer representation of an ip. Must be in the range (0, 3.4028237e+38).
-
-        Returns:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed int_vals is not a valid ip int value.
-    """
-    import netaddr
-    return str(netaddr.IPAddress(int_val))
 
 def ip_to_int(str_val: str) -> int:
     r""" Maps an ip-string to a unique integer.
@@ -544,24 +456,6 @@ def int_to_ip(int_val: int) -> str:
     """
     import netaddr
     return str(netaddr.IPAddress(int_val))
- 
-def ip_to_int(str_val: str) -> int:
-    r""" Maps an ip-string to a unique integer.
-        arg:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Returns:
-            int_val  (:type:`int128`, `required`):
-                The integer representation of an ip. Must be in the range (0, 3.4028237e+38).
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed str_val is not a valid ip string value.
-    """
-    import netaddr
-    return int(netaddr.IPAddress(str_val))
-
 
 
 def is_url( address:str) -> bool:

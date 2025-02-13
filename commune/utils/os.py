@@ -1,20 +1,15 @@
 
 import os
 import urllib
-import requests
 from loguru import logger
 from typing import *
 import netaddr
-import os
 import shutil
 import subprocess
 import shlex
 import sys
-from typing import *
 import random
 import os
-import sys
-from typing import *
 import glob 
 import requests
 import json
@@ -38,22 +33,11 @@ def system_info():
 def is_mac():
     return sys.platform == 'darwin'
 
-def kill_process(pid):
-    import signal
-    if isinstance(pid, str):
-        pid = int(pid)
-    os.kill(pid, signal.SIGKILL)
-
-kill_pid = kill_process
-
 def run_command(command:str):
     process = subprocess.run(shlex.split(command), 
                         stdout=subprocess.PIPE, 
                         universal_newlines=True)
     return process
-
-def path_exists(path:str):
-    return os.path.exists(path)
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
@@ -63,15 +47,6 @@ def check_pid(pid):
         return False
     else:
         return True
-
-def kill_process(pid):
-    import signal
-    if isinstance(pid, str):
-        pid = int(pid)
-    os.kill(pid, signal.SIGKILL)
-
-def path_exists(path:str):
-    return os.path.exists(path)
 
 def ensure_path(path):
     """
@@ -84,27 +59,11 @@ def ensure_path(path):
 
     return path
 
-def seed_everything(seed: int) -> None:
-    import torch, random
-    import numpy as np
-    "seeding function for reproducibility"
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
 
 def cpu_count():
     return os.cpu_count()
 
 num_cpus = cpu_count
-
-
-def get_env(key:str):
-    return os.environ.get(key)
-
-
 
 def set_cwd(path:str):
     return os.chdir(path)
@@ -126,90 +85,15 @@ def memory_usage_info(fmt='gb'):
 
     return response
 
-def memory_info(fmt='gb'):
-    import psutil
-    """
-    Returns the current memory usage and total memory of the system.
-    """
-    # Get memory statistics
-    memory_stats = psutil.virtual_memory()
-
-    # Total memory in the system
-    response = {
-        'total': memory_stats.total,
-        'available': memory_stats.available,
-        'used': memory_stats.total - memory_stats.available,
-        'free': memory_stats.available,
-        'active': memory_stats.active,
-        'inactive': memory_stats.inactive,
-        'percent': memory_stats.percent,
-        'ratio': memory_stats.percent/100,
-    }
-
-    for key, value in response.items():
-        if key in ['percent', 'ratio']:
-            continue
-        response[key] = format_data_size(value, fmt=fmt)    
-
-    return response
-
-
-def virtual_memory_available():
-    import psutil
-    return psutil.virtual_memory().available
-
-
-def virtual_memory_total():
-    import psutil
-    return psutil.virtual_memory().total
-
-
-def virtual_memory_percent():
-    import psutil
-    return psutil.virtual_memory().percent
-
-
 def cpu_type():
     import platform
     return platform.processor()
-
 
 def cpu_info():
     return {
         'cpu_count': cpu_count(),
         'cpu_type': cpu_type(),
     }
-
-def cpu_usage(self):
-    import psutil
-    # get the system performance data for the cpu
-    cpu_usage = psutil.cpu_percent()
-    return cpu_usage
-
-
-def gpu_memory():
-    import torch
-    return torch.cuda.memory_allocated()
-
-def num_gpus():
-    import torch
-    return torch.cuda.device_count()
-
-def gpus():
-    return list(range(num_gpus()))
-
-def add_rsa_key(b=2048, t='rsa'):
-    return cmd(f"ssh-keygen -b {b} -t {t}")
-    
-def kill_process(process):
-    import signal
-    pid = process.pid
-    process.stdout.close()
-    process.send_signal(signal.SIGINT)
-    process.wait()
-    return {'success': True, 'msg': 'process killed', 'pid': pid}
-    # sys.exit(0)
-
 
 def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
     assert type(x) in [int, float, str], f'x must be int or float, not {type(x)}'
@@ -229,23 +113,6 @@ def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
     
     return x
 
-def disk_info(path:str = '/', fmt:str='gb'):
-    path = resolve_path(path)
-    import shutil
-    response = shutil.disk_usage(path)
-    response = {
-        'total': response.total,
-        'used': response.used,
-        'free': response.free,
-    }
-    for key, value in response.items():
-        response[key] = format_data_size(value, fmt=fmt)
-    return response
-
-
-def cuda_available() -> bool:
-    import torch
-    return torch.cuda.is_available()
 
 def hardware(fmt:str='gb'):
     return {
@@ -254,18 +121,6 @@ def hardware(fmt:str='gb'):
         'disk': disk_info(fmt=fmt),
         'gpu': gpu_info(fmt=fmt),
     }
-
-def getcwd(*args,  **kwargs):
-    return os.getcwd(*args, **kwargs)
-
-def argv(include_script:bool = False):
-    import sys
-    args = sys.argv
-    if include_script:
-        return args
-    else:
-        return args[1:]
-
 
 def sys_path():
     return sys.path
@@ -287,8 +142,6 @@ def memory_usage(fmt='gb'):
     scale = fmt2scale.get(fmt)
     return (process.memory_info().rss // 1024) / scale
 
-
-from typing import *
 def num_gpus():
     import torch
     return torch.cuda.device_count()
@@ -323,19 +176,6 @@ def gpu_info( fmt='gb') -> Dict[int, Dict[str, float]]:
             gpu_info[key] = format_data_size(value, fmt=fmt)
         gpu_info_map[gpu_id] = gpu_info
     return gpu_info_map
-
-def most_used_gpu():
-    most_used_gpu = max(free_gpu_memory().items(), key=lambda x: x[1])[0]
-    return most_used_gpu
-
-def most_used_gpu_memory():
-    most_used_gpu = max(free_gpu_memory().items(), key=lambda x: x[1])[1]
-    return most_used_gpu
-    
-
-def least_used_gpu():
-    least_used_gpu = min(free_gpu_memory().items(), key=lambda x: x[1])[0]
-    return least_used_gpu
 
 def disk_info( path:str = '/', fmt:str='gb'):
     import shutil
@@ -598,3 +438,7 @@ def argv( include_script:bool = False):
             print(f"Could not kill process on port {port}")
     else:
         print(f"No process found on port {port}")
+
+
+def listdir(path:str='./'):
+    return os.listdir(path)

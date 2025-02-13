@@ -6,8 +6,7 @@ import commune as c
 import subprocess
 import json
 
-
-class Docker(c.Module):
+class Docker:
     """
     A module for interacting with Docker.
     """
@@ -82,12 +81,13 @@ class Docker(c.Module):
             return {'status': 'error', 'tag': tag, 'error': str(e)}
 
     def run(self,
-            path: str = './',
+            image: str = './',
             cmd: Optional[str] = None,
             volumes: Optional[Union[List[str], Dict[str, str], str]] = None,
             name: Optional[str] = None,
             gpus: Union[List[int], str, bool] = False,
             shm_size: str = '100g',
+            entrypoint = 'tail -f /dev/null',
             sudo: bool = False,
             build: bool = True,
             ports: Optional[Dict[str, int]] = None,
@@ -117,12 +117,7 @@ class Docker(c.Module):
             Dict[str, Any]: A dictionary containing the command and working directory.
         """
         dcmd = ['docker', 'run']
-
-        if daemon:
-            dcmd.append('-d')
-
         dcmd.extend(['--net', net])
-
         # Handle GPU configuration
         if isinstance(gpus, list):
             dcmd.append(f'--gpus "device={",".join(map(str, gpus))}"')
@@ -130,17 +125,16 @@ class Docker(c.Module):
             dcmd.append(f'--gpus "{gpus}"')
         elif gpus is True:
             dcmd.append(f'--gpus all')
-
-
         # Configure shared memory
         if shm_size:
             dcmd.extend(['--shm-size', shm_size])
-
         # Handle port mappings
         if ports:
+            if isinstance(ports, list):
+                ports = {port: port for port in ports}
             for host_port, container_port in ports.items():
                 dcmd.extend(['-p', f'{host_port}:{container_port}'])
-
+            
         # Handle volume mappings
         if volumes:
             if isinstance(volumes, str):
@@ -159,48 +153,30 @@ class Docker(c.Module):
         if name:
             dcmd.extend(['--name', name])
 
-        # Add image name
-        dcmd.append(path)
+        # # Add command if specified
+        # if entrypoint: 
+        #     dcmd.extend(f' --entrypoint {entrypoint}')
 
         # Add command if specified
         if cmd:
-            dcmd.extend(['bash', '-c', cmd])
+
+            dcmd.append(cmd)
+
+        if daemon:
+            dcmd.append('-d')
+
+        # Add image name
+        dcmd.append(image)
 
         command_str = ' '.join(dcmd)
-        try:
-            if sudo:
-                command_str = 'sudo ' + command_str
-            
-            process = subprocess.Popen(command_str, shell=True, cwd=cwd or os.getcwd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            return_code = process.returncode
 
-            result = {
-                'cmd': command_str,
-                'cwd': cwd or os.getcwd(),
-                'stdout': stdout.decode('utf-8'),
-                'stderr': stderr.decode('utf-8'),
-                'return_code': return_code
-            }
-            
-            if return_code != 0:
-                c.print(f"Command failed with error: {stderr.decode('utf-8')}", color='red')
-                result['status'] = 'error'
-            else:
-                result['status'] = 'success'
-            return result
 
-        except Exception as e:
-            c.print(f"Error running command: {e}", color='red')
-            return {
-                'cmd': command_str,
-                'cwd': cwd or os.getcwd(),
-                'stdout': '',
-                'stderr': str(e),
-                'return_code': -1,
-                'status': 'error'
-            }
+        self.kill(name)
+        return c.cmd(command_str, verbose=True)
 
+    def exists(self, name: str) -> bool:
+        return name in self.ps()
+        
     def kill(self, name: str, sudo: bool = False, verbose: bool = True, prune: bool = False) -> Dict[str, str]:
         """
         Kill and remove a container.
@@ -322,7 +298,10 @@ class Docker(c.Module):
         except Exception as e:
             return f"Error pruning: {e}"
 
-    def stats(self, container: Optional[str] = None) -> pd.DataFrame:
+    def resolve_path(self, path: str) -> str:
+        return '/tmp/docker/' + path
+
+    def stats(self, container: Optional[str], max_age=10, update=False) -> pd.DataFrame:
         """
         Get container resource usage statistics.
 
@@ -332,16 +311,38 @@ class Docker(c.Module):
         Returns:
             pd.DataFrame: A DataFrame containing the container statistics.
         """
-        cmd = f'docker stats --no-stream {container if container else ""}'
-        try:
+        path = self.resolve_path(f'docker_stats/{container}.json')
+        stats = c.get(path, [], max_age=max_age, update=update)
+        if stats == []:
+            cmd = f'docker stats --no-stream {container if container else ""}'
             output = c.cmd(cmd, verbose=False)
-            # Handle empty output gracefully
-            if not output.strip():
-                return pd.DataFrame()  # Return an empty DataFrame
-            return pd.read_csv(pd.StringIO(output), sep=r'\s+')
-        except Exception as e:
-            c.print(f"Error fetching stats: {e}", color='red')
-            return pd.DataFrame()  # Return an empty DataFrame in case of error
+            lines = output.split('\n')
+            headers = lines[0].split('  ')
+            lines = [line.split('   ') for line in lines[1:] if line.strip()]
+            lines = [[col.strip().replace(' ', '') for col in line if col.strip()] for line in lines]
+            headers = [header.strip().replace(' %', '') for header in headers if header.strip()]
+            data = pd.DataFrame(lines, columns=headers)
+            stats = []
+            for k, v in data.iterrows():
+                row = {header: v[header] for header in headers}
+                if 'MEM USAGE / LIMIT' in row:
+                    print(row)
+                    mem_usage, mem_limit = row.pop('MEM USAGE / LIMIT').split('/')
+                    row['MEM_USAGE'] = mem_usage
+                    row['MEM_LIMIT'] = mem_limit
+                c.print(row)
+                row['ID'] = row.pop('CONTAINER ID')
+
+                for prefix in ['NET', 'BLOCK']:
+                    if f'{prefix} I/O' in row:
+                        net_in, net_out = row.pop(f'{prefix} I/O').split('/')
+                        row[f'{prefix}_IN'] = net_in
+                        row[f'{prefix}_OUT'] = net_out
+                
+                row = {_k.lower(): _v for _k, _v in row.items()}
+                stats.append(row)
+                c.put(path, stats)
+        return stats
 
     def ps(self) -> List[str]:
         """
@@ -364,3 +365,7 @@ class Docker(c.Module):
         except Exception as e:
             c.print(f"Error listing containers: {e}", color='red')
             return []
+
+
+    def name2stats(self):
+        return {name: self.stats(name) for name in self.ps()}

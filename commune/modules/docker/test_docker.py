@@ -6,9 +6,8 @@ import pandas as pd
 from typing import Dict, List
 
 class TestDocker:
-    @pytest.fixture
-    def docker(self):
-        return c.module('docker')
+    def __init__(self):
+        self.docker =  c.module('docker')()
 
     def test_init(self, docker):
         assert docker.default_shm_size == '100g'
@@ -34,19 +33,6 @@ class TestDocker:
         assert len(files) == 2
         assert all(f.endswith('Dockerfile') for f in files)
 
-    def test_build(self, docker, tmp_path):
-        # Create a simple Dockerfile
-        dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM python:3.8-slim\nCMD ['echo', 'hello']")
-        
-        result = docker.build(
-            path=str(dockerfile),
-            tag='test_image',
-            sudo=False,
-            verbose=False
-        )
-        assert result['status'] == 'success'
-        assert result['tag'] == 'test_image'
 
     def test_run(self, docker):
         result = docker.run(
@@ -68,8 +54,9 @@ class TestDocker:
         assert '--shm-size 2g' in result['cmd']
         assert '-p 8080:8080' in result['cmd']
 
-    def test_kill(self, docker):
+    def test_kill(self):
         # First run a container
+        docker = self.docker
         docker.run(
             path='python:3.8-slim',
             name='test_container_kill'

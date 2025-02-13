@@ -84,6 +84,7 @@ else
 fi
 
 
+# install commune
 if [ "$IS_INSTALLED" == "False" ]; then
     echo "Installing commune"
     pip3 install -e .

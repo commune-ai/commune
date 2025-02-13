@@ -1,8 +1,9 @@
 
 
 import commune as c
+import os
 
-def test():
+def test_serilizer():
     self = c.module('serializer')()
     import torch, time
     data_list = [
@@ -38,6 +39,7 @@ def test_basics() -> dict:
     c.print(servers)
     name = f'module::test'
     c.serve(name)
+    assert name in c.servers()
     c.kill(name)
     assert name not in c.servers()
     return {'success': True, 'msg': 'server test passed'}
@@ -48,10 +50,10 @@ def test_serving(name = 'module::test'):
     r = module.info()
     assert 'name' in r, f"get failed {r}"
     c.kill(name)
-    assert name not in c.servers(update=1)
+    assert name not in c.servers()
     return {'success': True, 'msg': 'server test passed'}
 
-def test_serving_with_different_key(module = 'module', timeout=10):
+def test_serving_with_different_key(module = 'module', timeout=2):
     tag = 'test_serving_with_different_key'
     key_name = module + '::'+ tag
     module_name =  module + '::'+ tag + '_b' 
@@ -60,7 +62,7 @@ def test_serving_with_different_key(module = 'module', timeout=10):
     c.print(c.serve(module_name, key=key_name))
     key = c.get_key(key_name)
     c.sleep(2)
-    info = c.call(f'{module_name}/info', timeout=2)
+    info = c.call(f'{module_name}/info', timeout=timeout)
     assert info.get('key', None) == key.ss58_address , f" {info}"
     c.kill(module_name)
     c.rm_key(key_name)
@@ -70,3 +72,4 @@ def test_serving_with_different_key(module = 'module', timeout=10):
 
 def test_executor():
     return c.module('executor')().test()
+

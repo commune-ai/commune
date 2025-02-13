@@ -304,24 +304,6 @@ def round_decimals( x:Union[float, int], decimals: int=6, small_value: float=1.0
     return round(x, decimals)
 
 
-
-
-def munch2dict( x:'Munch', recursive:bool=True)-> dict:
-    from munch import Munch
-
-    '''
-    Turn munch object  into dictionary
-    '''
-    if isinstance(x, Munch):
-        x = dict(x)
-        for k,v in x.items():
-            if isinstance(v, Munch) and recursive:
-                x[k] = munch2dict(v)
-    return x 
-to_dict = munch2dict
-
-
-
 required_libs = []
 
 def ensure_libs(libs: List[str] = None, verbose:bool=False):
@@ -478,9 +460,6 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
             if isinstance(v, Munch) and recursive:
                 x[k] = munch2dict(v)
     return x 
-
-def munch( x:Dict) -> 'Munch':
-    return dict2munch(x)
 
 def time(  t=None) -> float:
     from time import time

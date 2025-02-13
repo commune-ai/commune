@@ -5,25 +5,20 @@ import os
 class Edit:
     anchors = ['<START_OUTPUT(', '<END_OUTPUT(']
     endpoints = ["build"]
-    model='google/gemini-2.0-flash-001'
 
-
-    def __init__(self, model, key = None,**kwargs):
+    def __init__(self, model='google/gemini-2.0-flash-001',**kwargs):
         self.agent = c.module('agent')(model=model or self.model)
         self.models = self.agent.models()
-        self.key = c.get_key(key)
-     
 
     def forward(self,
                 text = 'edit the file',
                 *extra_text,
-                path = './', 
+                path = None, 
                  task = None,
                  temperature= 0.5, 
                  module=None,
                  max_tokens= 1000000, 
                  threshold= 1000000,
-                 
                  model= 'google/gemini-2.0-flash-001', 
                  write=False,
                  stream=True
@@ -43,8 +38,11 @@ class Edit:
             - include all of the file content and dont HALF ASS, FULL ASS   
             - RETURN ALL OF THE FILE PATHS AS IM RECONSTRUCTING IT
             """
-
-        context = self.find_files(query=task, path=path)
+        context = None
+        if context == None and path!=None:
+            context = self.find_files(query=task, path=path)
+        if path == None:
+            write = False
         prompt = f"""
             -- TASK --
             {task}
@@ -63,10 +61,10 @@ class Edit:
             YOU CAN DO IT
             -- OUTPUT --
         """
-        output =  self.agent.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature , process_text=False)
+        output =  self.agent.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature , process_text=True)
         return self.process_output(output, path=path, write=write)
       
-    def find_files(self, query:str='the file that is the core of this folder', path:str='./', model:str='anthropic/claude-3.5-sonnet-20240620:beta', n:int=30):
+    def find_files(self, query:str='the file that is the core of this folder', path:str='./', model:str='google/gemini-2.0-flash-001', n:int=30):
         file2content = {}
         for p in c.fn('find/files', params=dict(query=query, path=path, model=model, n=n)):
             try:

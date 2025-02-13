@@ -293,6 +293,10 @@ class Key(c.Module):
         return key2address
 
     @classmethod
+    def get_key_address(cls, key):
+        return cls.get_key(key).ss58_address
+
+    @classmethod
     def deregister_key(cls, key):
         key2address = cls.key2address()
         if key in key2address:
@@ -612,7 +616,12 @@ class Key(c.Module):
         """
         return cls(private_key=private_key, crypto_type=crypto_type)
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False, to_str=False) -> bytes:
+
+    def encode_data_for_signing(self, data: Union[bytes, str]) -> bytes:
+
+        return data
+
+    def sign(self, data: Union[ScaleBytes, bytes, str], mode='bytes') -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -623,6 +632,8 @@ class Key(c.Module):
         signature in bytes
 
         """
+
+        # process
         if not isinstance(data, str):
             data = python2str(data)
         if type(data) is ScaleBytes:
@@ -631,7 +642,6 @@ class Key(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-            
         if not self.private_key:
             raise Exception('No private key set to create signatures')
         if self.crypto_type == KeyType.SR25519:
@@ -642,11 +652,22 @@ class Key(c.Module):
             signature = ecdsa_sign(self.private_key, data)
         else:
             raise Exception("Crypto type not supported")
-        if to_str:
+        
+        if mode in ['str', 'hex']:
             return '0x' + signature.hex()
+        elif mode in ['dict', 'json']:
+            return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
+        elif mode == 'bytes':
+            return signature
+        else:
+            raise ValueError(f'invalid mode {mode}')
+
         if to_json:
             return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
+
+
+
 
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
@@ -674,26 +695,16 @@ class Key(c.Module):
             else:
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
-       
-        if max_age != None:
-            if isinstance(data, int):
-                staleness = c.timestamp() - int(data)
-            elif 'timestamp' in data or 'time' in data:
-                timestamp = data.get('timestamp', data.get('time'))
-                staleness = c.timestamp() - int(timestamp)
-            else:
-                raise ValueError('data should be a timestamp or a dict with a timestamp key')
-            assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
-        
+
         if not isinstance(data, str):
             data = python2str(data)
-        if address != None:
-            if self.valid_ss58_address(address):
-                public_key = ss58_decode(address)
+        if address != None and self.valid_ss58_address(address):
+            public_key = ss58_decode(address)
         if public_key == None:
             public_key = self.public_key
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
+
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x': # hex string
@@ -721,6 +732,14 @@ class Key(c.Module):
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
+
+
+    def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module') -> dict:
+        signature = c.sign(data, key=key)
+        key_address = self.get_key_address(key)
+        valid =  c.verify(data, signature=signature, address=key_address )
+        assert valid, 'failed to verify'
+        return {'signature':signature, 'address':self.get_key_address(key), 'key':key , 'data':data, 'valid':valid}
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:

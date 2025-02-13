@@ -5,9 +5,8 @@
     "code_url": "https://github.com/{org}/{repo_name}.git", 
     "description": "A commune module",
     "free": false,
-    "endpoints": ["ask", "generate", "forward"],
+    "endpoints": ["forward"],
     "port_range":  [50050, 50150],
-
     "shortcuts": { 
         "openai" : "model.openai", 
         "openrouter":  "model.openrouter",
@@ -26,7 +25,8 @@
             "vali": [
                 "run_epoch",
                 "setup_vali",
-                "from_module"
+                "from_module",
+                ["epoch", "run_epoch"]
             ],
             "py": [
                 "envs", 
@@ -52,8 +52,7 @@
                 "client"
             ],
             "repo": [
-                "is_repo",
-                "repos"
+                "is_repo"
             ],
             "serializer": [
                 "serialize",
@@ -61,18 +60,16 @@
                 "serializer_map"
             ],
             "key": [
+                "sign_test",
                 "rename_key",
                 "ss58_encode",
                 "ss58_decode",
                 "key2mem",
-                "key_info_map",
                 "key_info",
                 "valid_ss58_address",
                 "add_key",
                 "str2key",
                 "pwd2key",
-                "mems",
-                "switch_key",
                 "mv_key",
                 "add_keys",
                 "key_exists",
@@ -90,37 +87,17 @@
                 "save_keys",
                 "load_key",
                 "load_keys",
-                "get_signer",
                 "encrypt_file",
                 "decrypt_file",
                 "get_key_for_address",
                 "resolve_key_address",
                 "ticket"
             ],
-            "remote": [
-                "host2ssh"
-            ],
             "app": [
                 "start_app",
-                "app",
                 "apps",
                 "app2info",
                 "kill_app"
-            ],
-            "user": [
-                "role2users",
-                "is_user",
-                "get_user",
-                "update_user",
-                "get_role",
-                "refresh_users",
-                "user_exists",
-                "is_admin",
-                "admins",
-                "add_admin",
-                "rm_admin",
-                "num_roles",
-                "rm_user"
             ],
             "server": [
                 "fleet",
@@ -139,7 +116,6 @@
                 "has_server",
                 "add_servers",
                 "rm_servers",
-                "rm_server",
                 "namespace",
                 "servers"
             ],
@@ -147,6 +123,7 @@
             "docker":
                 ["ps"],
             "subspace": [
+                ["s2e", "subnet2emission"], 
                 "e",
                 "emissions",
                 "transfer_stake",
@@ -155,13 +132,11 @@
                 "switchnet",
                 "subnet",
                 "update_module",
-                "subnet_params_map",
                 "staketo", 
                 "network",
                 "get_staketo", 
                 "stakefrom",
                 "get_stakefrom",
-                "switch_network",
                 "key2balance",
                 "subnets",
                 "send",
@@ -176,17 +151,9 @@
                 "balance",
                 "get_balance",
                 "get_stake",
-                "get_stake_to",
-                "get_stake_from",
                 "my_stake_to",
-                "netuid2subnet",
-                "subnet2netuid",
                 "is_registered",
-                "update_subnet",
-                "my_subnets", 
-                "register_subnet",
-                "registered_subnets",
-                "registered_netuids"
+                "update_subnet"
             ],
             "agent": [ "models",  "model2info", "reduce", "generate"],
             "builder": ["build"]

@@ -12,45 +12,48 @@ class Find:
     def forward(self,  
               options: list[str] = [],  
               query='most relevant', 
-              rules = '''''',
-               output_format="DICT(data:LIST[DICT(idx:INT, score:INT)])",
               n=10,  
               trials = 3,
-              threshold=0.5,
+              min_score=0,
+              max_score=100,
+              threshold=90,
               context = None,
               model=None):
 
         model = model or self.model
         if trials > 0 :
             try:
-                return self.forward(options=options, query=query, rules=rules, output_format=output_format, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+                return self.forward(options=options, query=query, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
             except Exception as e:
                 print(e)
                 if trials == 0:
                     raise e
                 else:
-                    return self.forward(options=options, query=query, rules=rules, output_format=output_format, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
-
-
-        anchors = [f"<START_JSON_RESULT>", f"<END_JSON_RESULT>"]
-
+                    return self.forward(options=options, query=query,  n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+        anchors = [f"<START_JSON>", f"</END_JSON>"]
         if isinstance(options, dict):
             options  = list(options.keys())
         idx2options = {i:option for i, option in enumerate(options)}
-        print(f"Querying {query} options={len(options)}")
         prompt = f"""
-        QUERY
+        --QUERY--
         {query}
-        CONTEXT
-        {context}
-        OPTIONS 
+        CONTEXT{context}
+        --OPTIONS--
         {idx2options} 
-        RULES 
+        --RULES--
         only output the IDX:int  and score OF AT MOST {n}
         BUT YOU DONT NEED TO FOR SIMPLICITY TO NOT RETURN WITH COMMENTS
-        OUTPUT
-        (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
-        {anchors[0]}{output_format}{anchors[1]}
+        MIN_SCORE:{min_score}
+        MAX_SCORE:{max_score}
+        THRESHOLD:{threshold}
+        DO NOT RETURN THE OPTIONS THAT SCORE BELOW THRESHOLD({threshold})
+        BE CONSERVATIVE WITH YOUR SCORING TO SAVE TIME
+        THE MINIMUM SCORE IS 0 AND THE MAXIMUM SCORE IS 100
+        --OUTPUT_FORMAT--
+        (RETURN ONLY IN JSON FORMAT SO IT CAN BE PARSED EASILY BETWEEN THE ANCHORS, RESPOND IN FULL JSON FORMAT)
+        {anchors[0]}DICT(data:LIST(idx:INT, score:INT)]){anchors[1]}
+        --OUTPUT--
+        '''json
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
@@ -66,7 +69,7 @@ class Find:
             output = output
         output = json.loads(output)
         assert len(output) > 0
-        output = [options[r['idx']] for  r in output["data"]  if len(options) > r['idx'] and r['score'] > threshold]
+        output = [options[idx] for  idx, score in output["data"]  if len(options) > idx and score > threshold]
         return output
 
 
@@ -101,11 +104,11 @@ class Find:
         model = model or self.model
         files =  c.files(path)
         files =  self.forward(options=files, query=query, n=n, model=model)
+        return files
         return [c.abspath(k) for k in files]
 
-    def modules(self,  query='', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
-        module2fns = []
-        return self.forward(options=c.get_modules(), query=query, model=model, context=c.module2fns())
+    def modules(self,  query='', **kwargs): 
+        return self.forward(options=c.get_modules(), query=query,**kwargs)
 
     def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
         return self.forward(query=query, options=c.get_utils(), model=model)
