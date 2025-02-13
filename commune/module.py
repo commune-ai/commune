@@ -1051,7 +1051,6 @@ class c:
             update: bool =False, **kwargs):
             
         path = c.resolve_info_path(module)
-        print(module, path)
         info = c.get(path, None, max_age=max_age, update=update)
         if info == None:
             code = c.code_map(module)
@@ -1078,8 +1077,8 @@ class c:
     module2error_path = 'info/module2error'
     def module2info(self, search=None, max_age = 1000, update=False):
         module2info = {}
-        path = self.module2info_path
-        error_path = self.module2error_path
+        path = c.resolve_path(self.module2info_path)
+        error_path = c.resolve_path(self.module2error_path)
         module2error = c.get(error_path, {})
         module2info = c.get(path, module2info, max_age=max_age, update=update)
         if len(module2info) == 0:
@@ -1537,7 +1536,7 @@ class c:
         return c.get_tree(c.modules_path, search=search, **kwargs)
     @classmethod
     def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
-        object_paths = cls.classes(clslib_path, depth=depth )
+        object_paths = cls.classes(c.lib_path, depth=depth )
         object_paths = [cls.objectpath2name(p) for p in object_paths if all([avoid not in p for avoid in avoid_folder_terms])]
         if search != None:
             object_paths = [p for p in object_paths if search in p]

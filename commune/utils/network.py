@@ -53,7 +53,7 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
     
     try:
         import commune as c
-        path = 'ip'
+        path = c.resolve_path('ip')
         ip = c.get(path, None, max_age=max_age, update=update)
         if ip == None:
             ip = external_ip()
@@ -136,40 +136,6 @@ def external_ip( default_ip='0.0.0.0') -> str:
         return ip
 
     return default_ip
-
-
-def unreserve_port(port:int, 
-                    var_path='reserved_ports'):
-    import commune as c
-    reserved_ports =  c.get(var_path, {}, root=True)
-    
-    port_info = reserved_ports.pop(port,None)
-    if port_info == None:
-        port_info = reserved_ports.pop(str(port),None)
-    
-    output = {}
-    if port_info != None:
-        c.put(var_path, reserved_ports, root=True)
-        output['msg'] = 'port removed'
-    else:
-        output['msg'] =  f'port {port} doesnt exist, so your good'
-
-    output['reserved'] =  c.reserved_ports()
-    return output
-
-def unreserve_ports(*ports, var_path='reserved_ports' ):
-    import commune as c
-    reserved_ports =  c.get(var_path, {})
-    if len(ports) == 0:
-        # if zero then do all fam, tehe
-        ports = list(reserved_ports.keys())
-    elif len(ports) == 1 and isinstance(ports[0],list):
-        ports = ports[0]
-    ports = list(map(str, ports))
-    reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-    c.put(var_path, reserved_ports)
-    return c.reserved_ports()
-
 
 def kill_port(port, timeout=10):
     try:
