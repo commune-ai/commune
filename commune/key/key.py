@@ -41,12 +41,10 @@ from .utils import (extract_derive_path,
                      ecdsa_sign, 
                      ecdsa_verify)
 
-
 class KeyType:
     ED25519 = 0
     SR25519 = 1
     ECDSA = 2
-
 
 class Key(c.Module):
 

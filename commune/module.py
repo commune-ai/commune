@@ -30,8 +30,9 @@ class c:
     repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
-    test_path = lib_path + '/tests'
-    modules_path = (lib_path + '/modules') if os.path.exists(lib_path + '/modules') else root_path + '/module'
+    modules_path =  lib_path + '/modules'  \
+        if os.path.exists(lib_path + '/modules') \
+        else root_path + '/module'
     home_modules_path = home_path + '/modules'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
     cache = {} # cache for module objects

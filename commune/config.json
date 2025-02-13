@@ -20,7 +20,6 @@
         "serv": "server", 
         "serializer": "server.serializer"
         },
-
     "routes": {
             "vali": [
                 "run_epoch",
