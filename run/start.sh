@@ -13,12 +13,11 @@ docker run -d \
   --name $NAME \
   --network=host \
   --restart unless-stopped \
-  --privileged --shm-size 4g \
+  --privileged \
+  --shm-size 4g \
   -v $REPO:/app -v ~/.$REPO:/root/.$REPO \
-  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /var/run/docker.sock:/var/run/docker.sock \ 
   $REPO
-
-CONTAINER_ID=$(docker ps -q -f name=$NAME)
-echo "STARTING(name=$NAME repo=$REPO container=$CONTAINER_ID)"
+echo "STARTING(name=$NAME repo=$REPO)"
 
 
