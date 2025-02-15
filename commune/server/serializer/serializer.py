@@ -71,7 +71,8 @@ class Serializer(c.Module):
             return bytes(data, mode)
         elif mode in ['hex']:
             return bytes.fromhex(data)
-
+        else:
+            raise Exception(f'{mode} not supported')
 
     def process_output(self, result, mode = 'str'):
         """

@@ -45,7 +45,7 @@ class c:
                trials=1, 
                verbose=False,
                tree:dict=None ) -> str:
-        path = path or 'mget_object_boundsodule'
+        path = path or 'module'
         if path in ['module', c.repo_name[0]]:
             return c
         t0 = time.time()
@@ -671,6 +671,7 @@ class c:
         Abspath except for when the path does not have a
         leading / or ~ or . in which case it is appended to the storage dir
         '''
+    
         storage_dir = storage_dir or cls.storage_dir()
         if path == None :
             return storage_dir
@@ -840,7 +841,6 @@ class c:
         '''
         Returns the code of a function
         '''
-
         fn = cls.get_fn(fn)      
         return inspect.getsource(fn)       
     
@@ -872,6 +872,7 @@ class c:
                             parents += [pp]
         return parents
     fn2cost = {}
+
     @classmethod
     def fn_schema(cls, fn:str = '__init__', **kwargs)->dict:
         '''
@@ -894,6 +895,7 @@ class c:
         }
         schema['input'] = inout_schema
         schema['output'] = output_schema
+        schema['docs'] = fn.__doc__
         return schema
 
 
@@ -915,11 +917,7 @@ class c:
     def code(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         module = module or cls
         if isinstance(module, str) and '/' in module:
-            if module.startswith('/'):
-                module = 'module' + module
-            fn = module.split('/')[-1]
-            module = '/'.join(module.split('/')[:-1])
-            obj = getattr(c.module(module), fn)
+            obj = c.get_fn(module)
         else:
             try:
                 obj = cls.resolve_module(module)
@@ -929,23 +927,23 @@ class c:
         return inspect.getsource(obj)
 
     @classmethod
-    def code_map(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+    def codemap(cls, module = None , search=None, *args, **kwargs) ->  Dict[str, str]:
         module = module or cls.module_name()
         dirpath = c.dirpath(module)
         path = dirpath if c.is_module_folder(module) else c.filepath(module)
         code_map = c.file2text(path)
         code_map = {k[len(dirpath+'/'): ]:v for k,v in code_map.items()}
-        print(dirpath)
         return code_map
 
     @classmethod
-    def codemap(cls, module = None, search=None, **kwargs) -> Union[str, Dict[str, str]]:
-        return c.code_map(module=module, search=search,**kwargs)
+    def code_map(cls, module , search=None, *args, **kwargs) ->  Dict[str, str]:
+        return c.codemap(module=module, search=search,**kwargs)
 
     @classmethod
-    def code_hash(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+    def codehash(cls, module , search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         return c.hash(c.code_map(module=module, search=search,**kwargs))
 
+    code_hash = codehash
     @classmethod
     def getsource(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
         if module != None:
@@ -959,8 +957,6 @@ class c:
             module = cls
         return inspect.getsource(module)
 
-
-
     @classmethod
     def module_hash(cls, module=None,  *args, **kwargs):
         return c.hash(c.code(module or cls.module_name(), **kwargs))
@@ -969,11 +965,15 @@ class c:
         return c.hash(c.code(module or cls.module_name(), **kwargs))
 
     @classmethod
+    def codehashmap(cls, module=None,  *args, **kwargs):
+        return {k:c.hash(v) for k,v in c.code_map(module or cls.module_name(), **kwargs).items()}
+
+    @classmethod
     def dir(cls, module=None, search=None, **kwargs):
+
         module = cls.resolve_module(module)
         if search != None:
             return [f for f in dir(module) if search in f]
-            
         return dir(module)
 
     @classmethod
@@ -1161,7 +1161,8 @@ class c:
             if fn.startswith(splitter):
                 return getattr(c.module()(), fn.split('/')[-1])
             elif fn.endswith(splitter):
-                fn = default_fn
+                module = c.module(fn[:-1])
+                return getattr(module, default_fn)
             fn_obj = None
             module = cls
             if splitter in fn:
@@ -1484,8 +1485,9 @@ class c:
         return module_exists
     
     @classmethod
-    def objectpath2name(cls, p, 
-                        avoid_terms=['modules', 'agents', 'module']):
+    def objectpath2name(cls, 
+                        p:str,
+                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', ]):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -1508,6 +1510,8 @@ class c:
             return 'module'
         return path
 
+    def prohibit_home(self):
+        assert c.pwd() != c.home_path, 'Cannot run cli in home directory, please change if you want to run'
     @classmethod
     def local_modules(cls, search=None, **kwargs):
         return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
@@ -1686,7 +1690,8 @@ class c:
         import datetime
         return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    def ask(self, *args, **kwargs):
+    @classmethod
+    def ask(cls, *args, **kwargs):
         return c.module("agent")().ask(*args, **kwargs) 
 
     def clone(self, repo:str = 'commune-ai/commune', path:str=None, **kwargs):
@@ -1828,8 +1833,12 @@ class c:
             module = cls
         return inspect.getsourcelines(module)
 
+    def getdocs(self, module:str = 'module', search=None, **kwargs):
+        code = c.code(module)
+        return c.ask( search=search, **kwargs)
+
     @classmethod
-    def get_object_bounds(cls, obj=None) -> List[int]:
+    def filebounds(cls, obj=None) -> List[int]:
         """
         Gets the starting and ending line numbers of an object in its source code.
         
@@ -1852,6 +1861,51 @@ class c:
         except Exception as e:
             print(e, 'Error getting object bounds')
             return [None, None]
+
+    def test_fn(self, fn:str, *args, **kwargs):
+        fn = c.get_fn(fn)
+        return fn(*args, **kwargs)
+        
+
+    def _rm_fn(self, fn:str = 'test_fn' , module=None):
+        """
+        rm the function from the module from the code
+        you can specify it either as a function or a string
+        """
+        if '/' in fn:
+            fn = fn.split('/')[-1]
+            module = '/'.join(fn.split('/')[:-1])
+        else:
+            module = 'module'
+        filepath  = c.filepath(module)
+        text = c.get_text(filepath)
+        filebounds = c.filebounds(module + '/' + fn)
+        start_line, end_line = filebounds
+
+        text = '\n'.join(text.split('\n')[:start_line-1] + text.split('\n')[end_line:])
+        c.put_text(filepath, text)
+        return 
+
+    def _add_fn(self, fn:str = 'test_fn' , module=None):
+        """
+        rm the function from the module from the code
+        you can specify it either as a function or a string
+        """
+        if '/' in fn:
+            fn = fn.split('/')[-1]
+            module = '/'.join(fn.split('/')[:-1])
+        else:
+            module = 'module'
+        filepath  = c.filepath(module)
+        text = c.get_text(filepath)
+        filebounds = c.filebounds(module + '/' + fn)
+        start_line, end_line = filebounds
+
+        text = '\n'.join(text.split('\n')[:start_line-1] + text.split('\n')[end_line:])
+        c.put_text(filepath, text)
+
+
+        
 
 c.add_routes()
 Module = c # Module is alias of c

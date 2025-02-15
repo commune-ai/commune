@@ -106,10 +106,10 @@ class Find:
 
     
     def fns(self, query:str='something that i can find functions in', **kwargs):
-        module2fns = c.module2fns()
+        module2schema = c.module2schema()
         options = []
-        for module, fns in module2fns.items():
-            for fn in fns:
+        for module, schema in module2schema.items():
+            for fn in schema.keys():
                 options += [f"{module}/{fn}"]
         context  = f'''
         '''

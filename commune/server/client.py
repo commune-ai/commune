@@ -104,7 +104,6 @@ class Client:
         url = self.get_url(fn=fn, mode=mode)
     
         request = self.get_request(params=params, key=key, args=args, kwargs=kwargs  )
-        print(request, url)
         response = self.session.post(
                                 url, 
                                 json=request['params'], 

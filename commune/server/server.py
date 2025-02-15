@@ -78,13 +78,13 @@ class Server:
         request = self.get_request(request) # process the request
         params = request['params']
         headers = request['headers']
+        client_key_address = headers['key']
         rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
         rate = self.rate(self.module.name+'/'+headers['key'])
         assert rate < rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
-        c.print(f'Request(fn={fn} params={params} client={headers["key"]} size={len(str(params))})', color='green')
+        c.print(f'Request(fn={fn} params={params} client={client_key_address} size={len(str(params))})', color='green')
         fn_obj = getattr(self.module, fn)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        c.print(request, result)
         fn_latency = c.time() - float(t0)
         net_latency = t0 - float(headers['time']) # the latency of the request (in seconds) by subtracting the time the request was made from the current time
         if c.is_generator(result):
@@ -94,19 +94,15 @@ class Server:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))       
         else:
-            call_data = {
-                    'url': self.module.url, # the url of the server
-                    'fn': fn, # the function you are calling
-                    'params': params, # the data of the request
-                    'headers': headers, # the headers of the request
-                    'output': self.serializer.serialize(result), # the response
-                    'fn_latency': fn_latency, # the fn_latency of the request
-                    'net_latency': net_latency, # the latency of the request from the client
-                    'rate': rate, # the rate of the request
-                    'rate_limit': rate_limit, # the rate limit of the request
-                    'client': headers['key'], # the address of the caller
-                    'server': self.module.key.ss58_address, # the signature of the server
-                }
+            call_data = headers
+            call_data['fn'] = fn
+            call_data['params'] = params
+            call_data['output'] = result
+            call_data['fn_latency'] = fn_latency
+            call_data['net_latency'] = net_latency
+            call_data['rate'] = rate
+            call_data['rate_limit'] = rate_limit
+            call_data['server'] = self.module.key.ss58_address
             call_data['server_signature'] = c.sign(call_data, key=self.module.key, mode='str')
             self.save_call_data(call_data)
         return result
@@ -133,7 +129,8 @@ class Server:
             if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
                 functions = getattr(self.module, self.function_attributes[0]) 
                 break       
-        self.module.functions = self.module.fns = sorted(list(set(functions + self.helper_functions)))
+        # does not start with _ and is not a private function
+        self.module.functions = self.module.fns = [fn for fn in sorted(list(set(functions + self.helper_functions))) if not fn.startswith('_')]
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
         c.print(f'SetFunctions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         return {'functions': self.module.fns, 'fn2cost': self.module.fn2cost, 'free': self.free}
@@ -182,7 +179,6 @@ class Server:
         max_request_staleness : int = 4, # (in seconds) the time it takes for the request to be too old
         request_staleness = c.time() - float(headers['time'])
         assert  request_staleness < self.max_request_staleness, f"Request is too old ({request_staleness}s > {max_request_staleness}s (MAX)" 
-
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
@@ -530,13 +526,12 @@ class Server:
         except Exception as e:
             x = 0
         return x
-        return Middleware
 
     def save_call_data(self, data):
         """
         Save the call data to the history path.
         """
-        address = self.module.name + '/'  + data["headers"]["key"]
+        address = self.module.name + '/'  + data["key"]
         calls_t0 = self.calls(address)
         call_data_path = self.history_path + '/' + address +  (f'/{data["fn"]}/{c.time()}.json') 
         c.put(call_data_path, data)
