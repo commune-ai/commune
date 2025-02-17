@@ -16,7 +16,7 @@ class StreamlitWatchdog(c.Module):
 
     @staticmethod
     @st.cache_data
-    def install_monitor(path=c.libpath, recursive=True):
+    def install_monitor(path=c.lib_path, recursive=True):
         # Because we use st.cache, this code will be executed only once,
         # so we won't get a new Watchdog thread each time the script runs.
 

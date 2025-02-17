@@ -132,11 +132,20 @@ c call module/ask hey stream=1
 ```
 
 
+c cmd 
+
+
 Tricks 
 
 ```bash
-c # takes you to commune
+c # takes you to commune by doing c code ./
 ```
+
+
+getting code
+
+c code module/code # gets the code of module/code module
+c schema /code gets the code of the module key
 
 
 

@@ -42,8 +42,8 @@ class OpenRouter(c.Module):
         prompt: str =  None,
         system_prompt: str = None,
         stream: bool = False,
-        model:str = 'claude-3-sonnet',
-        max_tokens: int = 100000,
+        model:str = 'anthropic/claude-3.5-sonnet',
+        max_tokens: int = 10000000,
         temperature: float = 1.0,
     ) -> str :
         """
@@ -57,7 +57,7 @@ class OpenRouter(c.Module):
             temperature (float): The sampling temperature to use.
 
         Returns:
-            Generator[str] | str: A generator for streaming responses or the full streamed response.
+        Generator[str] | str: A generator for streaming responses or the full streamed response.
         """
         prompt = prompt or system_prompt
         if len(extra_text) > 0:
@@ -65,6 +65,7 @@ class OpenRouter(c.Module):
         history = history or []
         prompt = prompt or self.prompt
         message = message + prompt if prompt else message
+        print('model', model)
         model = self.resolve_model(model)
         model_info = self.get_model_info(model)
         num_tokens = len(message)

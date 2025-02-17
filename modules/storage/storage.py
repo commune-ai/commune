@@ -2,6 +2,7 @@
 
 import commune as c
 class Storage(c.Module):
+    fns = ['put', 'get', 'info']
     def __init__(self, path='storage'):
         self.path = self.resolve_path(path)
     def put(self, k, v):

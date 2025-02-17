@@ -1,0 +1,162 @@
+{
+    "name": "commune",
+    "version": "0.0.1",
+    "code_url": "https://github.com/commune-ai/commune.git", 
+    "app_url": "localhost:3000",
+    "description": "A commune module",
+    "free": false,
+    "endpoints": ["forward"],
+    "port_range":  [50050, 50150],
+    "shortcuts": { 
+        "openai" : "model.openai", 
+        "openrouter":  "model.openrouter",
+        "or" : "model.openrouter",
+        "r" :  "remote",
+        "s" :  "subspace",
+        "subspace": "subspace", 
+        "client": "server.client",
+        "local": "server",
+        "executor": "server.executor", 
+        "serv": "server", 
+        "serializer": "server.serializer"
+        },
+    "routes": {
+            "vali": [
+                "run_epoch",
+                "setup_vali",
+                "from_module",
+                ["epoch", "run_epoch"]
+            ],
+            "py": [
+                "envs", 
+                "env2cmd", 
+                "create_env", 
+                "env2path"
+                ],
+            "cli": [
+                "parse_args"
+            ],
+            "streamlit": [
+                "set_page_config"
+            ],
+            "docker": [
+                "ps",
+                "dlogs",
+                "images"
+            ],
+            "client": [
+                "call",
+                "call_search",
+                "connect",
+                "client"
+            ],
+            "repo": [
+                "is_repo"
+            ],
+            "serializer": [
+                "serialize",
+                "deserialize",
+                "serializer_map"
+            ],
+            "key": [
+                "signtest",
+                "rename_key",
+                "ss58_encode",
+                "ss58_decode",
+                "key2mem",
+                "key_info",
+                "valid_ss58_address",
+                "add_key",
+                "str2key",
+                "pwd2key",
+                "mv_key",
+                "add_keys",
+                "key_exists",
+                "ls_keys",
+                "rm_key",
+                "key_encrypted",
+                "encrypt_key",
+                "get_keys",
+                "rm_keys",
+                "key2address",
+                "key_addresses",
+                "address2key",
+                "is_key",
+                "new_key",
+                "save_keys",
+                "load_key",
+                "load_keys",
+                "encrypt_file",
+                "decrypt_file",
+                "get_key_for_address",
+                "resolve_key_address",
+                "ticket"
+            ],
+            "app": [
+                "start_app",
+                "apps",
+                "app2info",
+                "kill_app"
+            ],
+            "server": [
+                "fleet",
+                "serve",
+                "wait_for_server", 
+                "endpoint", 
+                "is_endpoint",
+                "processes", 
+                "kill", 
+                "kill_all",
+                "logs",
+                "networks",
+                "rm_server",
+                "server_exists",
+                "add_server",
+                "has_server",
+                "add_servers",
+                "rm_servers",
+                "namespace",
+                "servers"
+            ],
+        
+            "docker":
+                ["ps"],
+            "subspace": [
+                ["s2e", "subnet2emission"], 
+                "e",
+                "emissions",
+                "transfer_stake",
+                "stake_transfer",
+                "switch",
+                "switchnet",
+                "subnet",
+                "update_module",
+                "staketo", 
+                "network",
+                "get_staketo", 
+                "stakefrom",
+                "get_stakefrom",
+                "key2balance",
+                "subnets",
+                "send",
+                "my_keys",
+                "transfer",
+                "multistake",
+                "stake",
+                "unstake",
+                "register",
+                "subnet_params",
+                "global_params",
+                "balance",
+                "get_balance",
+                "get_stake",
+                "my_stake_to",
+                "is_registered",
+                "update_subnet"
+            ],
+            "agent": [ "models",  "model2info", "reduce", "generate"],
+            "builder": ["build"]
+        }
+        
+    
+}

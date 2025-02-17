@@ -7,62 +7,69 @@ import json
 import os
 
 class Find:
+    model='anthropic/claude-3.5-sonnet'
+
     def forward(self,  
               options: list[str] = [],  
               query='most relevant', 
-              rules = '''only output the IDX:int  and score OF AT MOST {n}
-                         BUT YOU DONT NEED TO FOR SIMPLICITY''',
-               output_format="DICT(data:list[[idx:int, score:float]])",
               n=10,  
-              threshold=0.5,
+              trials = 3,
+              min_score=0,
+              max_score=9,
+              threshold=5,
               context = None,
-              model='anthropic/claude-3.5-sonnet-20240620:beta'):
+              model=None):
 
-        front_anchor = f"<OUTPUT>"
-        back_anchor = f"</OUTPUT>"
+        model = model or self.model
+        if trials > 0 :
+            try:
+                return self.forward(options=options, query=query, n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+            except Exception as e:
+                print(e)
+                if trials == 0:
+                    raise e
+                else:
+                    return self.forward(options=options, query=query,  n=n, trials=trials-1, threshold=threshold, context=context, model=model)
+        anchors = [f"<START_JSON>", f"</END_JSON>"]
+        if isinstance(options, dict):
+            options  = list(options.keys())
         idx2options = {i:option for i, option in enumerate(options)}
-        home_path = c.resolve_path('~')
-        for idx, option in idx2options.items():
-            if option.startswith(home_path):
-                idx2options[idx] = option.replace(home_path, '~/')
-
-        print(f"Querying {query} with options {options}")
         prompt = f"""
-        QUERY
+        --QUERY--
         {query}
-        CONTEXT
-        {context}
-        OPTIONS 
+        CONTEXT{context}
+        --OPTIONS--
         {idx2options} 
-        RULES 
-        {rules}
-        OUTPUT
-        (JSON ONLY AND ONLY RESPOND WITH THE FOLLOWING INCLUDING THE ANCHORS SO WE CAN PARSE) 
-        <OUTPUT>{output_format}</OUTPUT>
+        --RULES--
+        only output the IDX:int  and score OF AT MOST {n}
+        BUT YOU DONT NEED TO FOR SIMPLICITY TO NOT RETURN WITH COMMENTS
+        MIN_SCORE:{min_score}
+        MAX_SCORE:{max_score}
+        THRESHOLD:{threshold}
+        DO NOT RETURN THE OPTIONS THAT SCORE BELOW THRESHOLD({threshold})
+        BE CONSERVATIVE WITH YOUR SCORING TO SAVE TIME
+        THE MINIMUM SCORE IS 0 AND THE MAXIMUM SCORE IS 10
+        --OUTPUT_FORMAT--
+        {anchors[0]}DICT(data:LIST[LIST[idx:INT, score:INT]]]){anchors[1]}
+        MAKE SURE YOU RETURN IT THE JSON FORMAT BETWEEN THE ANCHORS AND NOTHING ELSE TO FUCK UP 
+        --OUTPUT--
         """
         output = ''
         for ch in c.ask(prompt, model=model): 
             print(ch, end='')
             output += ch
-            if ch == front_anchor:
+            if ch == anchors[1]:
                 break
-        if '```json' in output:
-            output = output.split('```json')[1].split('```')[0]
-        elif front_anchor in output:
-            output = output.split(front_anchor)[1].split(back_anchor)[0]
+        if anchors[0] in output:
+            output = output.split(anchors[0])[1].split(anchors[1])[0]
         else:
             output = output
+        print(output)
         output = json.loads(output)
         assert len(output) > 0
-        output = [options[idx] for idx, score in output["data"]  if len(options) > idx and score > threshold]
+        output = [idx2options[idx] for idx, score in output['data'] if score >= threshold]
         return output
 
-
-    def file2text(self, path):
-        file2text = {}
-        for file in self.files(path=path):
-            file2text[file] = c.get_text(file)
-        return file2text
         
     @classmethod
     def lines(self,  search:str=None, path:str='./') -> list[str]:
@@ -84,21 +91,26 @@ class Find:
     def files(self,
               query='the file that is the core of this folder',
                path='./',  
-               model='anthropic/claude-3.5-sonnet-20240620:beta', 
+               model=None, 
                n=30):
-        files =  c.files(path)
-        homepath = c.resolve_path('~/')
-        for i, file in enumerate(files):
-            if file.startswith(homepath):
-                files[i] = file.replace(homepath, '~/')
-        files =  self.forward(options=files, query=query, n=n, model=model)
-        return [c.abspath(path+k) for k in files]
+        model = model or self.model
+        options = self.forward(options=c.files(path), query=query, n=n, model=model)
+        return options
 
-    def modules(self,  query='', model='anthropic/claude-3.5-sonnet-20240620:beta'): 
-        module2fns = []
-        return self.forward(options=c.get_modules(), query=query, model=model, context=c.module2fns())
+    def modules(self,  query='', **kwargs): 
+        return self.forward(options=c.get_modules(), query=query,**kwargs)
 
-    def
+    def utils(self, query='i want something that does ls', **kwargs):
+        return self.forward(query=query, options=c.get_utils(), **kwargs)
 
-    def utils(self, query='confuse the gradients', model='anthropic/claude-3.5-sonnet-20240620:beta'):
-        return self.forward(query=query, options=c.get_utils(), model=model)
+
+    
+    def fns(self, query:str='something that i can find functions in', **kwargs):
+        module2schema = c.module2schema()
+        options = []
+        for module, schema in module2schema.items():
+            for fn in schema.keys():
+                options += [f"{module}/{fn}"]
+        context  = f'''
+        '''
+        return self.forward(query=query, options=options)

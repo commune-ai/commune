@@ -1,442 +1,371 @@
 
 import os
 import pandas as pd
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Optional, Any
 import commune as c
+import subprocess
+import json
 
 class Docker:
-    
-    def dockerfile(self, path = c.reponame): 
-        path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
-        return c.get_text(path)
-    
-    def resolve_repo_path(self, path):
-        if path is None:
-            path = c.reponame
+    """
+    A module for interacting with Docker.
+    """
+
+    def __init__(self):
+        self.default_shm_size = '100g'
+        self.default_network = 'host'
+
+    def file(self, path: str = './') -> Union[str, Dict[str, str]]:
+        """
+        Get content of the first Dockerfile found in path.
+
+        Args:
+            path (str): The path to search for Dockerfiles.
+
+        Returns:
+            Union[str, Dict[str, str]]: The content of the Dockerfile or an error message.
+        """
+        files = self.files(path)
+        if files:
+            try:
+                return c.get_text(files[0])
+            except Exception as e:
+                return {'error': f'Failed to read Dockerfile: {e}'}
         else:
-            if not path.startswith('/') or not path.startswith('~') or not path.startswith('.'):
-                path = c.reponame + '/' + path
-            else:
-                path = os.path.abspath(path)
-        return path
+            return {'msg': f'No Dockerfile found in {path}'}
 
-    def resolve_docker_compose_path(self,path = None):
-        path = self.resolve_repo_path(path)
-        return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
+    def files(self, path: str = './') -> List[str]:
+        """
+        Find all Dockerfiles in the given path.
 
-    
-    def docker_compose(self, path = c.reponame): 
-        docker_compose_path = self.resolve_docker_compose_path(path)
-        return c.load_yanl(docker_compose_path)
+        Args:
+            path (str): The path to search.
 
-    
-    def resolve_docker_path(self, path = None):
-        path = self.resolve_repo_path(path)
-        return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
-    
-    
-    def build(self, path = None , tag = None , sudo=False, verbose=True, no_cache=False, env={}):
+        Returns:
+            List[str]: A list of Dockerfile paths.
+        """
+        return [f for f in c.walk(path) if f.endswith('Dockerfile')]
+
+    def build(self,
+              path: Optional[str] = None,
+              tag: Optional[str] = None,
+              sudo: bool = False,
+              verbose: bool = True,
+              no_cache: bool = False,
+              env: Dict[str, str] = {}) -> Dict[str, Any]:
+        """
+        Build a Docker image from a Dockerfile.
+
+        Args:
+            path (Optional[str]): Path to the Dockerfile. Defaults to None.
+            tag (Optional[str]): Tag for the image. Defaults to None.
+            sudo (bool): Use sudo. Defaults to False.
+            verbose (bool): Enable verbose output. Defaults to True.
+            no_cache (bool): Disable cache during build. Defaults to False.
+            env (Dict[str, str]): Environment variables. Defaults to {}.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the status, tag, and result of the build.
+        """
         path = c.resolve_path(path)
-        
-        if tag is None:
-            tag = path.split('/')[-2]
+        tag = tag or path.split('/')[-2]
 
         cmd = f'docker build -t {tag} .'
         if no_cache:
             cmd += ' --no-cache'
-        return c.cmd(cmd, sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
-    
-    def kill(self, name, sudo=False, verbose=True, prune=False):
-        c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
-        c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
-        if prune:
-            c.cmd('docker container prune', sudo=sudo, verbose=verbose)
-        return {'status': 'killed', 'name': name}
 
-    
-    def kill_many(self, name, sudo=False, verbose=True):
-        servers = self.ps(name)
-        for server in servers:
-            self.kill(server, sudo=sudo, verbose=verbose)
-            c.print(f'killed {server}', verbose=verbose)
-        return {'status': 'killed', 'name': name}
+        try:
+            result = c.cmd(cmd, sudo=sudo, env=env, cwd=os.path.dirname(path), verbose=verbose)
+            return {'status': 'success', 'tag': tag, 'result': result}
+        except Exception as e:
+            return {'status': 'error', 'tag': tag, 'error': str(e)}
 
-    
-    def kill_all(self, sudo=False, verbose=True):
-        servers = self.ps()
-        for server in servers:
-            self.kill(server, sudo=sudo, verbose=verbose)
-            c.print(f'killed {server}', verbose=verbose)
-        return {'status': 'killed'}
-    
-    def rm(self, name, sudo=False, verbose=True):
-        c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
-        return {'status': 'removed', 'name': name}
+    def run(self,
+            image: str = './',
+            cmd: Optional[str] = None,
+            volumes: Optional[Union[List[str], Dict[str, str], str]] = None,
+            name: Optional[str] = None,
+            gpus: Union[List[int], str, bool] = False,
+            shm_size: str = '100g',
+            entrypoint = 'tail -f /dev/null',
+            sudo: bool = False,
+            build: bool = True,
+            ports: Optional[Dict[str, int]] = None,
+            net: str = 'host',
+            daemon: bool = True,
+            cwd: Optional[str] = None,
+            env_vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """
+        Run a Docker container with advanced configuration options.
 
-    
-    def exists(self, name:str):
-        return name in self.ps()
+        Args:
+            path (str): Path to Dockerfile or image name.
+            cmd (Optional[str]): Command to run in container.
+            volumes (Optional[Union[List[str], Dict[str, str], str]]): Volume mappings.
+            name (Optional[str]): Container name.
+            gpus (Union[List[int], str, bool]): GPU configuration.
+            shm_size (str): Shared memory size.
+            sudo (bool): Use sudo.
+            build (bool): Build image before running.
+            ports (Optional[Dict[str, int]]): Port mappings.
+            net (str): Network mode.
+            daemon (bool): Run in daemon mode.
+            cwd (Optional[str]): Working directory.
+            env_vars (Optional[Dict[str, str]]): Environment variables.
 
-    
-    def rm_sudo(self, sudo:bool=True, verbose:bool=True):
-        '''
-        To remove the requirement for sudo when using Docker, you can configure Docker to run without superuser privileges. Here's how you can do it:
-        Create a Docker group (if it doesn't exist) and add your user to that group:
-        bash
-        Copy code
-        sudo groupadd docker
-        sudo usermod -aG docker $USER
-        return c.cmd(f'docker rm -f {name}', sudo=True)
-        '''
-        c.cmd(f'groupadd docker', sudo=sudo, verbose=verbose)
-        c.cmd(f'usermod -aG docker $USER', sudo=sudo, verbose=verbose)
-        c.cmd(f'chmod 666 /var/run/docker.sock', sudo=sudo, verbose=verbose)
-
-
-
-    
-
-    
-    def containers(self,  sudo:bool = False):
-        return [container['name'] for container in self.ps(sudo=sudo)]
-    
-     
-    def chmod_scripts(self):
-        c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
-
-
-
-    def install_gpus(self):
-        self.chmod_scripts()
-        c.cmd('./run/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
-
-    def install(self):
-        self.chmod_scripts()
-        c.cmd('./run/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
-
-    def install_docker_compose(self, sudo=False):
-        return c.cmd('apt install docker-compose', verbose=True, sudo=True)
-    # def build_commune(self, sudo=False):
-    #     self.build(path=self.libpath, sudo=sudo)
-
-    
-    def images(self, to_records=True):
-        text = c.cmd('docker images', verbose=False)
-        df = []
-        cols = []
-        for i, l in enumerate(text.split('\n')):
-            if len(l) > 0:
-                if i == 0:
-                    cols = [_.strip().replace(' ', '_').lower() for _ in l.split('  ') if len(_) > 0]
-                else:
-                    df.append([_.strip() for _ in l.split('  ') if len(_) > 0])
-        df = pd.DataFrame(df, columns=cols) 
-        if to_records:
-            return df.to_records()
-        return df
-    
-    def rm_image(self, image_id):
-        response = {'success': False, 'image_id': image_id}
-        c.cmd(f'docker image rm -f {image_id}', verbose=True)
-        response['success'] = True
-        return response
-
-    def rm_images(self, search:List[str]=None):
-        image_records = self.images(to_records=False)
-        responses = []
-        for i, image_record in image_records.iterrows():
-            image_dict = image_record.to_dict()
-
-            if search == None or str(search.lower()) in image_dict['repository']:
-                r = self.rm_image(image_dict['image_id'])
-                responses.append(r)
-                
-        return {'success': True, 'responses': responses }
-    
-
-    
-    def image2id(self, image=None):
-        image2id = {}
-        df = self.images()
-        for  i in range(len(df)):
-            image2id[df['REPOSITORY'][i]] = df['IMAGE_ID'][i]
-        if image != None:
-            id = image2id[image]
-        return id
-            
-    
-    def deploy(self, 
-                    image : str,
-                    cmd : str  = 'ls',
-                    volumes:List[str] = None,
-                    name: str = None,
-                    gpus:list=False,
-                    shm_size : str='100g',
-                    sudo:bool = False,
-                    build:bool = True,
-                    ports:Dict[str, int]=None,
-                    net : str = 'host',
-                    daemon:bool = True,
-                    run: bool = True):
-        
-        '''
-        Arguments:
-
-        '''
-        if name is None:
-            name = image
-
-        docker_cmd = f'docker run'
-
-        docker_cmd += f' --net {net} '
-
-        if build:
-            self.build(image, tag=name)
-        
-        if daemon:
-            docker_cmd += ' -d '
-
+        Returns:
+            Dict[str, Any]: A dictionary containing the command and working directory.
+        """
+        dcmd = ['docker', 'run']
+        dcmd.extend(['--net', net])
+        # Handle GPU configuration
         if isinstance(gpus, list):
-            gpus = ','.join(map(str, gpus))  
-            docker_cmd += f' --gpus \'"device={gpus}"\''   
+            dcmd.append(f'--gpus "device={",".join(map(str, gpus))}"')
         elif isinstance(gpus, str):
-            docker_cmd += f' --gpus "{gpus}"'
-        else:
-            pass
-        
-        # ADD THE SHM SIZE
-        # what is this?
-        if shm_size != None:
-            docker_cmd += f' --shm-size {shm_size}'
-        
-        if ports != None:
-            for external_port, internal_port in ports.items():
-                docker_cmd += f' -p {external_port}:{internal_port}'
-
-        # ADD THE VOLUMES
-        if volumes is not None:
+            dcmd.append(f'--gpus "{gpus}"')
+        elif gpus is True:
+            dcmd.append(f'--gpus all')
+        # Configure shared memory
+        if shm_size:
+            dcmd.extend(['--shm-size', shm_size])
+        # Handle port mappings
+        if ports:
+            if isinstance(ports, list):
+                ports = {port: port for port in ports}
+            for host_port, container_port in ports.items():
+                dcmd.extend(['-p', f'{host_port}:{container_port}'])
+            
+        # Handle volume mappings
+        if volumes:
             if isinstance(volumes, str):
                 volumes = [volumes]
-            if isinstance(volumes, list):
-                docker_cmd += ' '.join([f' -v {v}' for v in volumes])
             elif isinstance(volumes, dict):
-                for v_from, v_to in volumes.items():
-                    docker_cmd += f' -v {v_from}:{v_to}'
+                volumes = [f'{k}:{v}' for k, v in volumes.items()]
+            for volume in volumes:
+                dcmd.extend(['-v', volume])
 
-        docker_cmd += f' --name {name} {image}'
+        # Handle environment variables
+        if env_vars:
+            for key, value in env_vars.items():
+                dcmd.extend(['-e', f'{key}={value}'])
 
-        if cmd is not None:
-            docker_cmd += f' bash -c "{cmd}"'
-        
-        c.print(docker_cmd)
-        # text_output =  c.cmd(docker_cmd, sudo=sudo, output_text=True)
+        # Set container name
+        if name:
+            dcmd.extend(['--name', name])
 
-        # if 'Conflict. The container name' in text_output:
-        #     contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
-        #     c.cmd(f'docker rm -f {contianer_id}', verbose=True)
-        #     text_output = c.cmd(docker_cmd, verbose=True)
-        # self.update()
-       
-    
-    def psdf(self, load=True, save=False, idx_key ='container_id'):
-        output_text = c.cmd('docker ps', verbose=False)
+        # # Add command if specified
+        # if entrypoint: 
+        #     dcmd.extend(f' --entrypoint {entrypoint}')
 
-        rows = []
-        for i, row in enumerate(output_text.split('\n')[:-1]):
-            if i == 0:
-                columns = [l.lower().strip().replace(' ', '_') for l in row.split('   ') if len(l) > 0]
-            else:
-                NA_SPACE = "           "
-                if len(row.split(NA_SPACE)) > 1:
-                    row_splits = row.split(NA_SPACE)
-                    row = row_splits[0] + '  NA  ' + ' '.join(row_splits[1:])
-                row = [_.strip() for _ in row.split('  ') if len(_) > 0]
-                if len(row) == len(columns):
-                    rows.append(row)
-                else:
-                    c.print(rows)
+        # Add command if specified
+        if cmd:
 
-        df = pd.DataFrame(rows, columns=columns)
-        df.set_index(idx_key, inplace=True)
-        return df   
-
-    
-    def ps(self, search = None, df:bool = False):
-
-        psdf = self.psdf()
-        paths =  psdf['names'].tolist()
-        if search != None:
-            paths = [p for p in paths if p != None and search in p]
-        if df:
-            return psdf
-        paths = sorted(paths)
-        return paths
-
-    
-    def name2dockerfile(self, path = None):
-       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
-    
-    
-    def resolve_dockerfile(self, name):
-        if name == None:
-            name = 'commune'
-        
-        if c.path_exists(name):
-            return name
-        name2dockerfile = self.name2dockerfile()
-        if name in name2dockerfile:
-            return name2dockerfile[name]
-        else:
-            raise ValueError(f'Could not find docker file for {name}')
-        
-    get_dockerfile = resolve_dockerfile
-
-    
-    def compose_paths(self, path = None):
-       if path is None:
-           path = c.libpath + '/'
-       return [l for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
-    
-    
-    def name2compose(self, path=None):
-        compose_paths = self.compose_paths(path)
-        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in compose_paths}
-    
-    
-    def get_compose_path(self, path:str):
-        path = self.name2compose().get(path, path)
-        return path
-
-    
-    def get_compose(self, path:str):
-        path = self.get_compose_path(path)
-        return c.load_yaml(path)
-
-    
-    def put_compose(self, path:str, compose:dict):
-        path = self.get_compose_path(path)
-        return c.save_yaml(path, compose)
-    
-
-    # 
-    # def down(self, path='frontend'):
-    #     path = self.get_compose_path(path)
-    #     return c.cmd('docker-compose -f {path} down', verbose=True)
-
-    
-    def compose(self, 
-                path: str,
-                compose: Union[str, dict, None] = None,
-                daemon:bool = True,
-                verbose:bool = True,
-                dash:bool = True,
-                cmd : str = None,
-                build: bool = False,
-                project_name: str = None,
-                cwd : str = None,
-                down: bool = False
-                ):
- 
-
-        cmd = f'docker-compose' if dash else f'docker compose'
-
-        path = self.get_compose_path(path)
-        if compose == None:
-            compose = self.get_compose(path)
-        
-        if isinstance(path, str):
-            compose = self.get_compose(path)
-        
-
-        if project_name != None:
-            cmd += f' --project-name {project_name}'
-        c.print(f'path: {path}', verbose=verbose)
-        tmp_path = path + '.tmp'
-        cmd +=  f' -f {tmp_path} up'
+            dcmd.append(cmd)
 
         if daemon:
-            cmd += ' -d'
+            dcmd.append('-d')
+
+        # Add image name
+        dcmd.append(image)
+
+        command_str = ' '.join(dcmd)
 
 
-        c.print(f'cmd: {cmd}', verbose=verbose)
-        # save the config to the compose path
-        c.print(compose)
-        c.save_yaml(tmp_path, compose)
-        if cwd is None:
-            assert os.path.exists(path), f'path {path} does not exist'
-            cwd = os.path.dirname(path)
-        if build:
-            c.cmd(f'docker-compose -f {tmp_path} build', verbose=True, cwd=cwd)
-            
-        text_output = c.cmd(cmd, verbose=True)
+        self.kill(name)
+        return c.cmd(command_str, verbose=True)
 
-        if 'Conflict. The container name' in text_output:
-            contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
-            c.cmd(f'docker rm -f {contianer_id}', verbose=True)
-            text_output = c.cmd(cmd, verbose=True)
+    def exists(self, name: str) -> bool:
+        return name in self.ps()
+        
+    def kill(self, name: str, sudo: bool = False, verbose: bool = True, prune: bool = False) -> Dict[str, str]:
+        """
+        Kill and remove a container.
 
-        if "unknown shorthand flag: 'f' in -f" in text_output:
-            cmd = cmd.replace('docker compose', 'docker-compose')
-            text_output = c.cmd(cmd, verbose=True)
+        Args:
+            name (str): The name of the container.
+            sudo (bool): Use sudo.
+            verbose (bool): Enable verbose output.
+            prune (bool): Prune unused Docker resources.
 
-        c.rm(tmp_path)
-    
-    def rm_container(self, name):
-        c.cmd(f'docker rm -f {name}', verbose=True)
+        Returns:
+            Dict[str, str]: A dictionary containing the status and name of the container.
+        """
+        try:
+            c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
+            c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+            if prune:
+                self.prune()
+            return {'status': 'killed', 'name': name}
+        except Exception as e:
+            return {'status': 'error', 'name': name, 'error': str(e)}
 
-    
-    def logs(self, name, sudo=False, follow=False, verbose=False, tail:int=2):
-        cmd = f'docker  logs {name} {"-f" if follow else ""} --tail {tail}'
-        return c.cmd(cmd, verbose=verbose)
+    def kill_all(self, sudo: bool = False, verbose: bool = True) -> Dict[str, str]:
+        """
+        Kill all running containers.
 
-    def log_map(self, search=None):
-        nodes = self.ps(search=search)
-        return {name: self.logs(name) for name in nodes}
+        Args:
+            sudo (bool): Use sudo.
+            verbose (bool): Enable verbose output.
 
-    
-    def tag(self, image:str, tag:str):
-        c.cmd(f'docker tag {image} {tag}', verbose=True)
-        c.cmd(f'docker push {tag}', verbose=True)
-    
-    def login(self, username:str, password:str):
-        c.cmd(f'docker login -u {username} -p {password}', verbose=True)
+        Returns:
+            Dict[str, str]: A dictionary indicating the status of the operation.
+        """
+        try:
+            for container in self.ps():
+                self.kill(container, sudo=sudo, verbose=verbose)
+            return {'status': 'all_containers_killed'}
+        except Exception as e:
+            return {'status': 'error', 'error': str(e)}
 
-    
-    def logout(self, image:str):
-        c.cmd(f'docker logout {image}', verbose=True)
+    def images(self, to_records: bool = True) -> Union[pd.DataFrame, Any]:
+        """
+        List all Docker images.
 
-    
-    def dockerfiles(self, path = None):
-        if path is None:
-            path = c.libpath + '/'
-        dockerfiles = []
-        for l in c.walk(path):
-            if l.endswith('Dockerfile'):
-                c.print(l)
-                dockerfiles.append(l)
-        return dockerfiles
-    
+        Args:
+            to_records (bool): Convert to records.
 
-    def name2dockerfile(self, path = None):
-        if path is None:
-            path = self.libpath + '/'
-        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in self.dockerfiles(path)}
-    
+        Returns:
+            Union[pd.DataFrame, Any]: A DataFrame or records of Docker images.
+        """
+        try:
+            text = c.cmd('docker images', verbose=False)
+            rows = []
+            cols = []
 
-    
-    def dashboard(self):
-        self = self()
-        import streamlit as st
-        containers = self.psdf()
-        name2dockerfile = self.name2dockerfile()
-        names = list(name2dockerfile.keys())
-        name = st.selectbox('Dockerfile', names)
-        dockerfile = name2dockerfile[name]
-        dockerfile_text = c.get_text(dockerfile)
-        st.code(dockerfile_text)
+            for i, line in enumerate(text.split('\n')):
+                if not line.strip():
+                    continue
+                if i == 0:
+                    cols = [col.strip().lower().replace(' ', '_') for col in line.split() if col]
+                else:
+                    rows.append([col.strip() for col in line.split() if col])
 
-    def prune(self):
-        return c.cmd('docker container prune')
+            df = pd.DataFrame(rows, columns=cols)
+            return df.to_records() if to_records else df
+        except Exception as e:
+            c.print(f"Error listing images: {e}", color='red')
+            return {'status': 'error', 'error': str(e)}
 
-    def start_docker(self):
-        return c.cmd('systemctl start docker')
+    def logs(self,
+             name: str,
+             sudo: bool = False,
+             follow: bool = False,
+             verbose: bool = False,
+             tail: int = 100,
+             since: Optional[str] = None) -> str:
+        """
+        Get container logs with advanced options.
+
+        Args:
+            name (str): The name of the container.
+            sudo (bool): Use sudo.
+            follow (bool): Follow the logs.
+            verbose (bool): Enable verbose output.
+            tail (int): Number of lines to tail.
+            since (Optional[str]): Show logs since timestamp.
+
+        Returns:
+            str: The container logs.
+        """
+        cmd = ['docker', 'logs']
+
+        if follow:
+            cmd.append('-f')
+        if tail:
+            cmd.extend(['--tail', str(tail)])
+        if since:
+            cmd.extend(['--since', since])
+
+        cmd.append(name)
+        try:
+            return c.cmd(' '.join(cmd), verbose=verbose)
+        except Exception as e:
+            return f"Error fetching logs: {e}"
+
+    def prune(self, all: bool = False) -> str:
+        """
+        Prune Docker resources.
+
+        Args:
+            all (bool): Prune all unused resources.
+
+        Returns:
+            str: The result of the prune command.
+        """
+        cmd = 'docker system prune -f' if all else 'docker container prune -f'
+        try:
+            return c.cmd(cmd)
+        except Exception as e:
+            return f"Error pruning: {e}"
+
+    def resolve_path(self, path: str) -> str:
+        return '/tmp/docker/' + path
+
+    def stats(self, container: Optional[str], max_age=10, update=False) -> pd.DataFrame:
+        """
+        Get container resource usage statistics.
+
+        Args:
+            container (Optional[str]): The name of the container.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the container statistics.
+        """
+        path = self.resolve_path(f'docker_stats/{container}.json')
+        stats = c.get(path, [], max_age=max_age, update=update)
+        if stats == []:
+            cmd = f'docker stats --no-stream {container if container else ""}'
+            output = c.cmd(cmd, verbose=False)
+            lines = output.split('\n')
+            headers = lines[0].split('  ')
+            lines = [line.split('   ') for line in lines[1:] if line.strip()]
+            lines = [[col.strip().replace(' ', '') for col in line if col.strip()] for line in lines]
+            headers = [header.strip().replace(' %', '') for header in headers if header.strip()]
+            data = pd.DataFrame(lines, columns=headers)
+            stats = []
+            for k, v in data.iterrows():
+                row = {header: v[header] for header in headers}
+                if 'MEM USAGE / LIMIT' in row:
+                    print(row)
+                    mem_usage, mem_limit = row.pop('MEM USAGE / LIMIT').split('/')
+                    row['MEM_USAGE'] = mem_usage
+                    row['MEM_LIMIT'] = mem_limit
+                c.print(row)
+                row['ID'] = row.pop('CONTAINER ID')
+
+                for prefix in ['NET', 'BLOCK']:
+                    if f'{prefix} I/O' in row:
+                        net_in, net_out = row.pop(f'{prefix} I/O').split('/')
+                        row[f'{prefix}_IN'] = net_in
+                        row[f'{prefix}_OUT'] = net_out
+                
+                row = {_k.lower(): _v for _k, _v in row.items()}
+                stats.append(row)
+                c.put(path, stats)
+        return stats
+
+    def ps(self) -> List[str]:
+        """
+        List all running Docker containers.
+
+        Returns:
+            List[str]: A list of container names.
+        """
+        try:
+            text = c.cmd('docker ps')
+            ps = []
+            for i, line in enumerate(text.split('\n')):
+                if not line.strip():
+                    continue
+                if i > 0:
+                    parts = line.split()
+                    if len(parts) > 0:  # Check if there are any parts in the line
+                        ps.append(parts[-1])
+            return ps
+        except Exception as e:
+            c.print(f"Error listing containers: {e}", color='red')
+            return []
+
+
+    def name2stats(self):
+        return {name: self.stats(name) for name in self.ps()}

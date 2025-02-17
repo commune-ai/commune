@@ -15,8 +15,9 @@ class Builder:
         self.model = c.module('agent')(model=model)
         self.models = self.model.models()
         self.key = c.get_key(key)
+
     
-    def build(self, 
+    def forward(self, 
                  text, 
                  *extra_text, 
                  task = None,
@@ -32,7 +33,6 @@ class Builder:
             LEONARDO DA VINCI WAY, YOU ARE A agent, YOU ARE A GENIUS, YOU ARE A STAR, 
             YOU FINISH ALL OF YOUR REQUESTS WITH UTMOST PRECISION AND SPEED, YOU WILL ALWAYS 
             MAKE SURE THIS WORKS TO MAKE ANYONE CODE. YOU HAVE THE CONTEXT AND INPUTS FOR ASSISTANCE
-
             - Please use  to name the repository and
             - This is a a full repository construction and please
             - INCLUDE A README.md AND a scripts folder with the build.sh 
@@ -55,6 +55,7 @@ class Builder:
         prompt = prompt + text
         output =  self.model.generate(prompt, stream=stream, model=model, max_tokens=max_tokens, temperature=temperature )
         return self.process_output(output, path=path)
+    
     
     def process_output(self, response, path=None):
         if path == None:
@@ -79,19 +80,10 @@ class Builder:
                 content = ''
                 color = c.random_color()
         return {'path': path, 'msg': 'File written successfully'}
-    
-    def prompt_args(self):
-        # get all of the names of the variables in the prompt
-        prompt = self.prompt
-        variables = []
-        for line in prompt.split('\n'):
-            if '{' in line and '}' in line:
-                variable = line.split('{')[1].split('}')[0]
-                variables.append(variable)
-        return list(set(variables))
-    
+
+
     def utils_path(self):
         return os.path.dirname(__file__) + '/utils.py'
 
     def utils(self):
-        return c.path2functions(self.utils_path())
+        return c.path2fns(self.utils_path())

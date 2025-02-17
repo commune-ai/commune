@@ -246,68 +246,7 @@ class Plot(c.Module):
     def line_seperator(cls, text='-', length=50):
         st.write(text*length)
       
-    @classmethod
-    def function2streamlit(cls, 
-                           module = None,
-                           fn:str = '__init__',
-                           fn_schema = None, 
-                           extra_defaults:dict=None,
-                           cols:list=None,
-                           skip_keys = ['self', 'cls']):
-        
-        key_prefix = f'{module}.{c.random_word()}'
-        if module == None:
-            module = cls
-            
-        elif isinstance(module, str):
-            module = c.module(module)
-        extra_defaults = {} if extra_defaults is None else extra_defaults
-        
-        if fn_schema == None:
 
-            fn_schema = module.schema(defaults=True, include_parents=True)[fn]
-            if fn == '__init__':
-                config = module.config(to_munch=False)
-                extra_defaults = config
-            kwargs = {}
-            fn_schema['default'].pop('self', None)
-            fn_schema['default'].pop('cls', None)
-            fn_schema['default'].update(extra_defaults)
-            fn_schema['default'].pop('config', None)
-            fn_schema['default'].pop('kwargs', None)
-            
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
-        if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
-        cols = st.columns(cols)
-
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            if fn_key in skip_keys:
-                continue
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if 'Munch' in k_type or 'Dict' in k_type:
-                    k_type = 'Dict'
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
-                continue
-            
-
-            random_word = c.random_word()
-            col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}.{random_word}')
-     
-        kwargs = cls.process_kwargs(kwargs, fn_schema)       
-        
-        return kwargs
-
-   
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         

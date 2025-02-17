@@ -1,40 +1,14 @@
 
 from typing import *
 import os
-def port_free( *args, **kwargs) -> bool:
-    return not port_used(*args, **kwargs)
+import sys
+import subprocess
+import psutil
+import socket
+import time
 
 def port_available(port:int, ip:str ='0.0.0.0'):
     return not port_used(port=port, ip=ip)
-
-def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
-    '''
-    Get availabel ports out of port range
-    
-    Args:
-        ports: list of ports
-        ip: ip address
-    
-    '''
-    import commune as c
-    port_range = resolve_port_range(port_range=port_range)
-    if ports == None:
-        ports = list(range(*port_range))
-    
-    async def check_port(port, ip):
-        return port_used(port=port, ip=ip)
-    
-    used_ports = []
-    jobs = []
-    for port in ports: 
-        jobs += [check_port(port=port, ip=ip)]
-            
-    results = c.wait(jobs)
-    for port, result in zip(ports, results):
-        if isinstance(result, bool) and result:
-            used_ports += [port]
-        
-    return used_ports
 
 
 def resolve_ip(ip=None, external:bool=True) -> str:
@@ -45,18 +19,6 @@ def resolve_ip(ip=None, external:bool=True) -> str:
             ip = '0.0.0.0'
     assert isinstance(ip, str)
     return ip
-
-
-
-def resolve_port(port:int=None, **kwargs):
-    '''
-    Resolves the port and finds one that is available
-    '''
-    if port == None or port == 0:
-        port = free_port(port, **kwargs)
-    if port_used(port):
-        port = free_port(port, **kwargs)
-    return int(port)
 
 
 
@@ -91,7 +53,7 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
     
     try:
         import commune as c
-        path = 'ip'
+        path = c.resolve_path('ip')
         ip = c.get(path, None, max_age=max_age, update=update)
         if ip == None:
             ip = external_ip()
@@ -104,29 +66,6 @@ def ip(max_age=None, update:bool = False, **kwargs) -> str:
 
 def has_free_ports(n:int = 1, **kwargs):
     return len(free_ports(n=n, **kwargs)) > 0
-
-
-def ip_version(str_val: str) -> int:
-    import netaddr
-    r""" Returns the ip version (IPV4 or IPV6).
-        arg:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Returns:
-            int_val  (:type:`int128`, `required`):
-                The ip version (Either 4 or 6 for IPv4/IPv6)
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed str_val is not a valid ip string value.
-    """
-    return int(netaddr.IPAddress(str_val).version)
-
-def ip__str__(ip_type:int, ip_str:str, port:int):
-    """ Return a formatted ip string
-    """
-    return "/ipv%i/%s:%i" % (ip_type, ip_str, port)
 
 def external_ip( default_ip='0.0.0.0') -> str:
     import commune as c
@@ -198,62 +137,45 @@ def external_ip( default_ip='0.0.0.0') -> str:
 
     return default_ip
 
-
-def unreserve_port(port:int, 
-                    var_path='reserved_ports'):
-    import commune as c
-    reserved_ports =  c.get(var_path, {}, root=True)
-    
-    port_info = reserved_ports.pop(port,None)
-    if port_info == None:
-        port_info = reserved_ports.pop(str(port),None)
-    
-    output = {}
-    if port_info != None:
-        c.put(var_path, reserved_ports, root=True)
-        output['msg'] = 'port removed'
-    else:
-        output['msg'] =  f'port {port} doesnt exist, so your good'
-
-    output['reserved'] =  c.reserved_ports()
-    return output
-
-def unreserve_ports(*ports, var_path='reserved_ports' ):
-    import commune as c
-    reserved_ports =  c.get(var_path, {})
-    if len(ports) == 0:
-        # if zero then do all fam, tehe
-        ports = list(reserved_ports.keys())
-    elif len(ports) == 1 and isinstance(ports[0],list):
-        ports = ports[0]
-    ports = list(map(str, ports))
-    reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-    c.put(var_path, reserved_ports)
-    return c.reserved_ports()
-
-def kill_port(port:int):
-    r""" Kills a process running on the passed port.
-        Args:
-            port  (:obj:`int` `required`):
-                The port to kill the process on.
-    """
+def kill_port(port, timeout=10):
     try:
-        os.system(f'kill -9 $(lsof -t -i:{port})')
+        # Check operating system
+        operating_system = sys.platform
+        
+        if operating_system == "windows":
+            # Windows command
+            command = f"for /f \"tokens=5\" %a in ('netstat -aon ^| find \":{port}\"') do taskkill /F /PID %a"
+            subprocess.run(command, shell=True)
+        
+        elif operating_system in ["linux", "darwin"]:  # Linux or MacOS
+            # Unix command
+            command = f"lsof -i tcp:{port} | grep LISTEN | awk '{{print $2}}' | xargs kill -9"
+            subprocess.run(command, shell=True)
+        t0 = time.time()
+        while port_used(port):
+            if time.time() - t0 > timeout:
+                raise Exception(f'Timeout for killing port {port}')
+        
+        print(f"Process on port {port} has been killed")
+        return True
+    
     except Exception as e:
-        print(e)
+        print(f"Error: {e}")
         return False
-    return True
+    
+
 
 def kill_ports(ports = None, *more_ports):
+    import commune as c
     ports = ports or used_ports()
     if isinstance(ports, int):
         ports = [ports]
     if '-' in ports:
         ports = list(range([int(p) for p in ports.split('-')]))
     ports = list(ports) + list(more_ports)
-    for port in ports:
-        kill_port(port)
-    return check_used_ports()
+    for p in ports:
+        kill_port(p)
+    return used_ports()
 
 def is_port_public(port:int, ip:str=None, timeout=0.5):
     import socket
@@ -323,9 +245,6 @@ def free_port(ports = None,
 get_available_port = free_port
 
 
-get_used_ports = used_ports
-
-
 
 def used_ports(ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
     import commune as c
@@ -366,10 +285,7 @@ def get_port(port:int = None)->int:
     while port_used(port):
         port += 1   
     return port 
-
-def port_range():
-    return get_port_range()
-
+    
 def ports() -> List[int]:
     
     return list(range(*get_port_range()))
@@ -382,34 +298,16 @@ def set_port_range(*port_range: list):
     if '-' in port_range[0]:
         port_range = list(map(int, port_range[0].split('-')))
     if len(port_range) ==0 :
-        port_range = c.default_port_range
+        port_range = c.port_range
     elif len(port_range) == 1:
         if port_range[0] == None:
-            port_range = c.default_port_range
+            port_range = c.port_range
     assert len(port_range) == 2, 'Port range must be a list of two integers'        
     for port in port_range:
         assert isinstance(port, int), f'Port {port} range must be a list of integers'
     assert port_range[0] < port_range[1], 'Port range must be a list of integers'
     c.put('port_range', port_range)
     return port_range
-
-
-def int_to_ip(int_val: int) -> str:
-    r""" Maps an integer to a unique ip-string 
-        Args:
-            int_val  (:type:`int128`, `required`):
-                The integer representation of an ip. Must be in the range (0, 3.4028237e+38).
-
-        Returns:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed int_vals is not a valid ip int value.
-    """
-    import netaddr
-    return str(netaddr.IPAddress(int_val))
 
 def ip_to_int(str_val: str) -> int:
     r""" Maps an ip-string to a unique integer.
@@ -452,11 +350,11 @@ def ip__str__(ip_type:int, ip_str:str, port:int):
 
 def get_port_range(port_range: list = None) -> list:
     import commune as c
-    port_range = c.get('port_range', c.default_port_range)
+    port_range = c.get('port_range', c.port_range)
     if isinstance(port_range, str):
         port_range = list(map(int, port_range.split('-')))
     if len(port_range) == 0:
-        port_range = c.default_port_range
+        port_range = c.port_range
     port_range = list(port_range)
     assert isinstance(port_range, list), 'Port range must be a list'
     assert isinstance(port_range[0], int), 'Port range must be a list of integers'
@@ -524,24 +422,6 @@ def int_to_ip(int_val: int) -> str:
     """
     import netaddr
     return str(netaddr.IPAddress(int_val))
- 
-def ip_to_int(str_val: str) -> int:
-    r""" Maps an ip-string to a unique integer.
-        arg:
-            str_val (:tyep:`str`, `required):
-                The string representation of an ip. Of form *.*.*.* for ipv4 or *::*:*:*:* for ipv6
-
-        Returns:
-            int_val  (:type:`int128`, `required`):
-                The integer representation of an ip. Must be in the range (0, 3.4028237e+38).
-
-        Raises:
-            netaddr.core.AddrFormatError (Exception):
-                Raised when the passed str_val is not a valid ip string value.
-    """
-    import netaddr
-    return int(netaddr.IPAddress(str_val))
-
 
 
 def is_url( address:str) -> bool:
@@ -555,3 +435,4 @@ def is_url( address:str) -> bool:
     conds.append(':' in address)
     conds.append(c.is_int(address.split(':')[-1]))
     return all(conds)
+

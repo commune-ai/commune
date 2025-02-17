@@ -86,7 +86,7 @@ class Py(c.Module):
         return activation_script
     
 
-    def run(self, path=c.reponamepath+'/modules/sandbox.py', env="bt"):
+    def run(self, path=c.repo_name+'/modules/sandbox.py', env="bt"):
         env = self.get_env(env)
         env_path = os.path.join(self.venv_path, env, 'bin' if os.name == 'posix' else 'Scripts')
         # run the script with the selected environment without activating it

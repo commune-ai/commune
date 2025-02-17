@@ -11,9 +11,10 @@ def tqdm(*args, **kwargs):
     return tqdm(*args, **kwargs)
 
 def find_word( word:str, path='./')-> str:
+    import os
     import commune as c
     path = os.path.abspath(path)
-    files = get_files(path)
+    files = c.files(path)
     progress = c.tqdm(len(files))
     found_files = {}
     for f in files:
@@ -24,7 +25,6 @@ def find_word( word:str, path='./')-> str:
             lines = text.split('\n')
         except Exception as e:
             continue
-        
         line2text = {i:line for i, line in enumerate(lines) if word in line}
         found_files[f[len(path)+1:]]  = line2text
         progress.update(1)
@@ -304,24 +304,6 @@ def round_decimals( x:Union[float, int], decimals: int=6, small_value: float=1.0
     return round(x, decimals)
 
 
-
-
-def munch2dict( x:'Munch', recursive:bool=True)-> dict:
-    from munch import Munch
-
-    '''
-    Turn munch object  into dictionary
-    '''
-    if isinstance(x, Munch):
-        x = dict(x)
-        for k,v in x.items():
-            if isinstance(v, Munch) and recursive:
-                x[k] = munch2dict(v)
-    return x 
-to_dict = munch2dict
-
-
-
 required_libs = []
 
 def ensure_libs(libs: List[str] = None, verbose:bool=False):
@@ -332,7 +314,7 @@ def ensure_libs(libs: List[str] = None, verbose:bool=False):
 
 def version( lib:str=None):
     import commune as c
-    lib = lib or c.reponame
+    lib = lib or c.repo_name
     lines = [l for l in c.cmd(f'pip3 list', verbose=False).split('\n') if l.startswith(lib)]
     if len(lines)>0:
         return lines[0].split(' ')[-1].strip()
@@ -358,7 +340,7 @@ def pip_install(lib:str= None,
         c.print(f'Installing {lib} Module from local directory')
         lib = c.resolve_module(lib).dirpath()
     if lib == None:
-        lib = c.libpath
+        lib = c.lib_path
 
     if c.path_exists(lib):
         cmd = f'pip install -e'
@@ -378,7 +360,7 @@ jupyter = enable_jupyter
 
 def pip_list(lib=None):
     import commune as c
-    lib = lib or c.reponame
+    lib = lib or c.repo_name
     pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
     if lib != None:
         pip_list = [l for l in pip_list if l.startswith(lib)]
@@ -478,9 +460,6 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
             if isinstance(v, Munch) and recursive:
                 x[k] = munch2dict(v)
     return x 
-
-def munch( x:Dict) -> 'Munch':
-    return dict2munch(x)
 
 def time(  t=None) -> float:
     from time import time

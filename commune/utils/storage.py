@@ -2,16 +2,52 @@
 from typing import *
 import os
 
-def str2python(input)-> dict:
-    import json
-    assert isinstance(input, str), 'input must be a string, got {}'.format(input)
-    try:
-        output_dict = json.loads(input)
-    except json.JSONDecodeError as e:
-        return input
 
-    return output_dict
 
+
+def str2python(x):
+    x = str(x)
+    if isinstance(x, str) :
+        if x.startswith('py(') and x.endswith(')'):
+            try:
+                return eval(x[3:-1])
+            except:
+                return x
+    if x.lower() in ['null'] or x == 'None':  # convert 'null' or 'None' to None
+        return None 
+    elif x.lower() in ['true', 'false']: # convert 'true' or 'false' to bool
+        return bool(x.lower() == 'true')
+    elif x.startswith('[') and x.endswith(']'): # this is a list
+        try:
+            list_items = x[1:-1].split(',')
+            # try to convert each item to its actual type
+            x =  [str2python(item.strip()) for item in list_items]
+            if len(x) == 1 and x[0] == '':
+                x = []
+            return x
+        except:
+            # if conversion fails, return as string
+            return x
+    elif x.startswith('{') and x.endswith('}'):
+        # this is a dictionary
+        if len(x) == 2:
+            return {}
+        try:
+            dict_items = x[1:-1].split(',')
+            # try to convert each item to a key-value pair
+            return {key.strip(): str2python(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+        except:
+            # if conversion fails, return as string
+            return x
+    else:
+        # try to convert to int or float, otherwise return as string
+        
+        for type_fn in [int, float]:
+            try:
+                return type_fn(x)
+            except ValueError:
+                pass
+    return x
 
 
 def get_folder_contents_advanced(url='commune-ai/commune.git', 
@@ -107,19 +143,6 @@ def sizeof( obj):
     return result
 
 
-
-def mv(path1, path2):
-    assert os.path.exists(path1), path1
-    if not os.path.isdir(path2):
-        path2_dirpath = os.path.dirname(path2)
-        if not os.path.isdir(path2_dirpath):
-            os.makedirs(path2_dirpath, exist_ok=True)
-    shutil.move(path1, path2)
-    assert os.path.exists(path2), path2
-    assert not os.path.exists(path1), path1
-    return {'success': True, 'msg': f'Moved {path1} to {path2}'}
-
-
 def file2chars( path='./', fmt='b') -> int:
     import commune as c
     files = c.glob(path)
@@ -143,18 +166,6 @@ def find_largest_folder(directory: str = '~/'):
 
     return largest_folder, largest_size
 
-
-def get_folder_size(folder_path:str='/'):
-    folder_path = resolve_path(folder_path)
-    """Calculate the total size of all files in the folder."""
-    total_size = 0
-    for root, dirs, files in os.walk(folder_path):
-        for file in files:
-            file_path = os.path.join(root, file)
-            if not os.path.islink(file_path):
-                total_size += os.path.getsize(file_path)
-    return total_size
-
 def file2size( path='./', fmt='b') -> int:
     import commune as c
     files = c.glob(path)
@@ -164,27 +175,9 @@ def file2size( path='./', fmt='b') -> int:
     file2size = dict(sorted(file2size.items(), key=lambda item: item[1]))
     return file2size
 
-def cp(path1:str, path2:str, refresh:bool = False):
-    import shutil
-    # what if its a folder?
-    assert os.path.exists(path1), path1
-    if refresh == False:
-        assert not os.path.exists(path2), path2
-    
-    path2_dirpath = os.path.dirname(path2)
-    if not os.path.isdir(path2_dirpath):
-        os.makedirs(path2_dirpath, exist_ok=True)
-        assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
 
-    if os.path.isdir(path1):
-        shutil.copytree(path1, path2)
-
-    elif os.path.isfile(path1):
-        
-        shutil.copy(path1, path2)
-    else:
-        raise ValueError(f'path1 is not a file or a folder: {path1}')
-    return path2
+def path_exists(path:str):
+    return os.path.exists(path)
 
 def get_folder_size( folder_path:str='/'):
     folder_path = os.path.abspath(folder_path)
@@ -352,15 +345,22 @@ def wordinfolder( word:str, path:str='./')-> bool:
         progress.update(1)
     return False
 
-def resolve_path(path):
-    path = os.path.expanduser(path)
-    path = os.path.abspath(path)
-    return path
-
 def get_file_size( path:str):
     path = os.path.abspath(path)
     return os.path.getsize(path)
     
+
+def get_files( path ='./', files_only:bool = True, recursive:bool=True, avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'package.lock', 'egg-info', 'Cargo.lock', 'artifacts', 'yarn.lock', 'cache/', 'target/debug', 'node_modules']):
+    import glob
+    path = os.path.abspath(os.path.expanduser(path))
+    if os.path.isdir(path) and not path.endswith('**'):
+        path = os.path.join(path, '**')
+    paths = glob.glob(path, recursive=recursive)
+    if files_only:
+        paths =  list(filter(lambda f:os.path.isfile(f), paths))
+    if avoid_terms:
+        paths = list(filter(lambda f: not any([term in f for term in avoid_terms]), paths))
+    return sorted(paths)
 
 
 def type2files( path:str='./', **kwargs):
@@ -377,47 +377,20 @@ def type2files( path:str='./', **kwargs):
 def type2filecount( path:str='./', **kwargs):
     return {k: len(v) for k,v in type2files(path, **kwargs).items()}
 
-def get_files( path ='./', 
-              search=None,
-              avoid_terms = None,
-              include_terms = None,
-               recursive:bool = True, files_only:bool = True):
-    import glob
-    path = os.path.abspath(path)
-    if os.path.isdir(path):
-        path = os.path.join(path, '**')
-    paths = glob.glob(path, recursive=recursive)
-    if files_only:
-        paths =  list(filter(lambda f:os.path.isfile(f), paths))
-    if avoid_terms != None:
-        paths = [p for p in paths if not any([term in p for term in avoid_terms])]
-    if include_terms != None:
-        paths = [p for p in paths if any([term in p for term in include_terms])]
-    if search != None:
-        paths = [p for p in paths if search in p]
-    return paths
-
 def abspath(path:str):
     return os.path.abspath(os.path.expanduser(path))
 
-def file2text(path = './', avoid_terms = ['__pycache__', 
-                                '.git', 
-                                '.ipynb_checkpoints', 
-                                'package.lock',
-                                'egg-info',
-                                'Cargo.lock',
-                                'artifacts',
-                                'yarn.lock',
-                                'cache/',
-                                'target/debug',
-                                'node_modules'],
+def file2text(path = './', 
+              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'package.lock','egg-info', 'Cargo.lock', 'artifacts', 'yarn.lock','cache/','target/debug','node_modules'],
                 avoid_paths = ['~', '/tmp', '/var', '/proc', '/sys', '/dev'],
-                relative=True,  **kwargs):
+                relative=False, 
+                 **kwargs):
     
     path = os.path.abspath(os.path.expanduser(path))
     assert all([not os.path.abspath(k) in path for k in avoid_paths]), f'path {path} is in avoid_paths'
     file2text = {}
     for file in get_files(path, recursive=True, avoid_terms=avoid_terms , **kwargs):
+        
         if os.path.isdir(file):
             continue
         try:
@@ -427,9 +400,16 @@ def file2text(path = './', avoid_terms = ['__pycache__',
         except Exception as e:
             continue
     if relative:
-        return {k[len(path)+1:]:v for k,v in file2text.items()}
-    return file2text
+        home_path = os.path.abspath(os.path.expanduser('~'))
 
+        results = {}
+        for k,v in file2text.items():
+            if k.startswith(home_path):
+                k = '~'+path[len(home_path):] 
+                results[k] = v
+        return results
+
+    return file2text
 
 def cp( path1:str, path2:str, refresh:bool = False):
     import shutil

@@ -11,8 +11,11 @@ fi
 
 docker run -d \
   --name $NAME \
-  --network=host --restart unless-stopped --privileged --shm-size 4g \
-  -v $REPO:/$REPO -v ~/.$REPO:/root/.$REPO \
+  --network=host \
+  --restart unless-stopped \
+  --privileged --shm-size 4g \
+  -v $REPO:/app -v ~/.$REPO:/root/.$REPO \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   $REPO
 
 CONTAINER_ID=$(docker ps -q -f name=$NAME)

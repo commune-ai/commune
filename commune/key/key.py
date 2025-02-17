@@ -41,12 +41,10 @@ from .utils import (extract_derive_path,
                      ecdsa_sign, 
                      ecdsa_verify)
 
-
 class KeyType:
     ED25519 = 0
     SR25519 = 1
     ECDSA = 2
-
 
 class Key(c.Module):
 
@@ -64,6 +62,11 @@ class Key(c.Module):
 
     @property
     def short_address(self):
+        n = 4
+        return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
+
+    @property
+    def shorty(self):
         n = 4
         return self.ss58_address[:n] + '...' + self.ss58_address[-n:]
         
@@ -144,7 +147,7 @@ class Key(c.Module):
             key_json = cls.encrypt(data=key_json, password=password)
         c.print(cls.put(path, key_json))
         assert cls.key_exists(path), f'key does not exist at {path}'
-        return {'success': True, 'path':path, 'key':key}
+        return {'success': True, 'path':path, 'key':key.key_address}
     
     @classmethod
     def mv_key(cls, path, new_path):
@@ -188,7 +191,7 @@ class Key(c.Module):
             
     @classmethod
     def key_info(cls, path='module', **kwargs):
-        return cls.get_key_json(path)
+        return cls.get_key_data(path)
     
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):
@@ -251,6 +254,8 @@ class Key(c.Module):
             else:
                 raise ValueError(f'key does not exist at --> {path}')
         key_json = cls.get(path)
+        if isinstance(key_json, str):
+            key_json = key_json.replace("'", '"')
         # if key is encrypted, decrypt it
         if cls.is_encrypted(key_json):
             key_json = c.decrypt(data=key_json, password=password)
@@ -261,7 +266,8 @@ class Key(c.Module):
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
         return key
-        
+
+            
     @classmethod
     def get_keys(cls, search=None, clean_failed_keys=False):
         keys = {}
@@ -305,6 +311,10 @@ class Key(c.Module):
     @classmethod
     def n(cls, search=None, **kwargs):
         return len(cls.key2address(search, **kwargs))
+
+    @property
+    def addy(self):
+        return self.address
 
     @classmethod
     def address2key(cls, search:Optional[str]=None, update:bool=False):
@@ -353,9 +363,16 @@ class Key(c.Module):
         return key_path
 
     @classmethod
-    def get_key_json(cls, key):
+    def get_key_data(cls, key):
         key_path =  cls.storage_dir() + '/' + key + '.json'
-        return c.get(key_path)
+        output =  c.get(key_path)
+        if not isinstance(output, str):
+            print(f'failed to get key data for {key}', output)
+        # if single quoted json, convert to double quoted json string and load
+        if isinstance(output, str):
+            output = output.replace("'", '"')
+        return json.loads(output) if isinstance(output, str) else output
+
 
     @classmethod
     def rm_key(cls, key=None):
@@ -603,7 +620,12 @@ class Key(c.Module):
         """
         return cls(private_key=private_key, crypto_type=crypto_type)
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], to_json = False) -> bytes:
+
+    def encode_data_for_signing(self, data: Union[bytes, str]) -> bytes:
+
+        return data
+
+    def sign(self, data: Union[ScaleBytes, bytes, str], mode='bytes') -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -614,6 +636,9 @@ class Key(c.Module):
         signature in bytes
 
         """
+        data = c.copy(data)
+
+        # process
         if not isinstance(data, str):
             data = python2str(data)
         if type(data) is ScaleBytes:
@@ -622,7 +647,6 @@ class Key(c.Module):
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-
         if not self.private_key:
             raise Exception('No private key set to create signatures')
         if self.crypto_type == KeyType.SR25519:
@@ -634,9 +658,21 @@ class Key(c.Module):
         else:
             raise Exception("Crypto type not supported")
         
+        if mode in ['str', 'hex']:
+            return '0x' + signature.hex()
+        elif mode in ['dict', 'json']:
+            return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
+        elif mode == 'bytes':
+            return signature
+        else:
+            raise ValueError(f'invalid mode {mode}')
+
         if to_json:
             return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
+
+
+
 
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
@@ -648,54 +684,39 @@ class Key(c.Module):
                ) -> bool:
         """
         Verifies data with specified signature
-
         Parameters
         ----------
         data: data to be verified in `Scalebytes`, bytes or hex string format
         signature: signature in bytes or hex string format
         public_key: public key in bytes or hex string format
-
-        Returns
-        -------
-        True if data is signed with this Key, otherwise False
         """
         data = c.copy(data)
 
         if isinstance(data, dict):
             if 'data' in data and 'signature' in data and 'address' in data:
-                signature = data.pop('signature')
-                address = data.pop('address', address)
-                data = data.pop('data')
+                signature = data['signature']
+                address = data['address']
+                data = data['data']
             else:
                 assert signature != None, 'signature not found in data'
                 assert address != None, 'address not found in data'
-       
-        if max_age != None:
-            if isinstance(data, int):
-                staleness = c.timestamp() - int(data)
-            elif 'timestamp' in data or 'time' in data:
-                timestamp = data.get('timestamp', data.get('time'))
-                staleness = c.timestamp() - int(timestamp)
-            else:
-                raise ValueError('data should be a timestamp or a dict with a timestamp key')
-            assert staleness < max_age, f'data is too old, {staleness} seconds old, max_age is {max_age}'
-        
+
         if not isinstance(data, str):
             data = python2str(data)
-        if address != None:
-            if self.valid_ss58_address(address):
-                public_key = ss58_decode(address)
+        if address != None and self.valid_ss58_address(address):
+            public_key = ss58_decode(address)
         if public_key == None:
             public_key = self.public_key
         if isinstance(public_key, str):
             public_key = bytes.fromhex(public_key.replace('0x', ''))
+
         if type(data) is ScaleBytes:
             data = bytes(data.data)
-        elif data[0:2] == '0x':
+        elif data[0:2] == '0x': # hex string
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
-        if type(signature) is str and signature[0:2] == '0x':
+        if isinstance(signature,str) and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
         elif type(signature) is str:
             signature = bytes.fromhex(signature)
@@ -718,6 +739,12 @@ class Key(c.Module):
         return verified
 
 
+    def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module') -> dict:
+        signature = c.sign(data, key=key)
+        key_address = self.get_key_address(key)
+        valid =  c.verify(data, signature=signature, address=key_address )
+        assert valid, 'failed to verify'
+        return {'signature':signature, 'address':self.get_key_address(key), 'key':key , 'data':data, 'valid':valid}
 
     def resolve_encryption_password(self, password:str=None) -> str:
         if password == None:
@@ -727,6 +754,7 @@ class Key(c.Module):
         return hashlib.sha256(password).digest()
 
     def encrypt(self, data, password=None):
+        data = c.copy(data)
         if not isinstance(data, str):
             data = str(data)
         password = self.resolve_encryption_password(password)
@@ -745,12 +773,17 @@ class Key(c.Module):
         data = data[:-ord(data[len(data)-1:])].decode('utf-8')
         return data
 
+
+
     @classmethod
     def encrypt_key(cls, path = 'test.enc', password=None):
         assert cls.key_exists(path), f'file {path} does not exist'
         assert not cls.is_key_encrypted(path), f'{path} already encrypted'
-        data = cls.get(path)
+        data = cls.get_key_data(path)
+        print(data, type(data))
         enc_text = {'data': c.encrypt(data, password=password), 
+                    "key_address": data['ss58_address'],
+                    "crypto_type": data['crypto_type'],
                     'encrypted': True}
         cls.put(path, enc_text)
         return {'number_of_characters_encrypted':len(enc_text), 'path':path }
@@ -777,7 +810,7 @@ class Key(c.Module):
         return cls.get_key(key).mnemonic
 
     def __str__(self):
-        return f'<Key(address={self.key_address} type={self.crypto_type_name} path={self.path})>'
+        return f'<Key(address={self.key_address} crypto_type={self.crypto_type_name})>'
     
     def save(self, path=None):
         if path == None:
@@ -861,14 +894,6 @@ class Key(c.Module):
             crypto_type = crypto_type.lower()
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)  
-
-
-
-# if __name__ == "__main__":      
-#     Key.run()
-
-
-
 
 
 

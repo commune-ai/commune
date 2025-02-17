@@ -1,5 +1,6 @@
 import commune as c
 import json
+import os
 
 class Serializer(c.Module):
 
@@ -70,7 +71,8 @@ class Serializer(c.Module):
             return bytes(data, mode)
         elif mode in ['hex']:
             return bytes.fromhex(data)
-
+        else:
+            raise Exception(f'{mode} not supported')
 
     def process_output(self, result, mode = 'str'):
         """
@@ -98,8 +100,11 @@ class Serializer(c.Module):
         else:
             return False
 
+    def dirpath(self):
+        return os.path.dirname(__file__)
+
     def serializer_map(self):
-        type_path = self.dirpath()
+        type_path = self.dirpath() + '/types'
         module_paths = c.objects(type_path)
         return {p.split('.')[-2]: c.obj(p)() for p in module_paths}
 
