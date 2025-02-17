@@ -55,12 +55,33 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
 mypy = "^1.8.0"
+flake8 = "^7.0.0"
+isort = "^5.13.2"
+pytest-cov = "^4.1.0"
 
 [tool.poetry.scripts]
 c = "commune.cli:main"
 
 [tool.mypy]
 files = ["commune"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 88
+
+[tool.black]
+line-length = 88
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = "E203"
+exclude = [".git", "__pycache__", "build", "dist"]
 
 [build-system]
 requires = ["poetry-core"]
