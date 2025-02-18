@@ -215,6 +215,5 @@ class App(c.Module):
         users = [u.split('/')[-1] for u in c.ls(self.history_path)]
         return users
 
-
 if __name__ == '__main__':
     App().run()

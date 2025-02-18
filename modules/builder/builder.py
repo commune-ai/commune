@@ -3,7 +3,7 @@ import time
 import os
 # import agbuildent as h
 
-class Builder:
+class Build:
     anchor = 'OUTPUT'
     endpoints = ["build"]
 

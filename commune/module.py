@@ -11,7 +11,6 @@ from copy import deepcopy
 from typing import *
 import nest_asyncio
 nest_asyncio.apply()
-
 config = json.load(open(__file__.replace(__file__.split('/')[-1], 'config.json')))
 
 class c:
@@ -25,18 +24,19 @@ class c:
     port_range = config['port_range'] # the port range between 50050 and 50150
     shortcuts = config["shortcuts"]
     routes = config['routes']
+
     # path attributes
     root_path  = os.path.dirname(__file__)
     repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
-    modules_path =  lib_path + '/modules'  \
-        if os.path.exists(lib_path + '/modules') \
-        else root_path + '/module'
+
+     # the path to the modules
+    modules_path =  lib_path + '/modules'  if os.path.exists(lib_path + '/modules') else root_path + '/module'
     home_modules_path = home_path + '/modules'
+    temp_modules_path = lib_path + '/modules/temp'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
     cache = {} # cache for module objects
-
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -53,19 +53,29 @@ class c:
         path = c.shortcuts.get(path, path)
         tree = tree or c.tree()
         simp_path = path
-        obj_path = tree.get(path, path)
-        if not (obj_path in c.module_cache) or not cache:
+        module = tree.get(path, path)
+        cache_id = c.hash(module)
+        if (not cache_id in c.module_cache) or not cache:
             try:
-                module = c.obj2module(c.obj(obj_path)) # if the model
+                module = c.obj2module(c.obj(module)) # if the model
             except Exception as e:
                 c.tree(update=1)
-                module = c.obj2module(c.obj(obj_path))
-            c.module_cache[obj_path] = module
-        module = c.module_cache[obj_path]
+                try:
+                    module = c.obj2module(c.obj(module))
+                except Exception as e: 
+                    repo2path = c.repo2path()
+                    if module in repo2path:
+                        sys.path.append(repo2path[module])
+                        module = c.obj2module(c.obj(module))
+                    else:
+                        raise Exception(f'Error loading module {module} {e}')
+                        
+            c.module_cache[cache_id] = module
+        module = c.module_cache[cache_id]
         if params != None:
             module = module(**params)
         loadtime = c.time() - t0
-        c.print(f'Module(simp_path={obj_path} obj_path={obj_path} t(s)={loadtime:.2f}') if verbose else ''
+        c.print(f'Module(name={obj_path} objpath={obj_path} loadtime={loadtime:.2f}') if verbose else ''
         return module
     
     get_agent = block =  get_block = get_module =  mod =  module
@@ -76,19 +86,27 @@ class c:
         if c.is_object_module(obj):
             return module
         c.print(f'obj2module({obj})', verbose=verbose)
-
         module.resolve_module = lambda *args, **kwargs : c.resolve_module(module)
         module.module_name = lambda *args, **kwargs : c.module_name(module)
         module.storage_dir = lambda *args, **kwargs : c.storage_dir(module)
         module.filepath = lambda *args, **kwargs : c.filepath(module)
         module.dirpath = lambda *args, **kwargs : c.dirpath(module)
         module.code = lambda *args, **kwargs : c.code(module)
+        module.info = lambda *args, **kwargs: c.info(module)
         module.code_hash = lambda *args, **kwargs : c.code_hash(module)
         module.schema = lambda *args, **kwargs : c.schema(module)
         module.fns = lambda *args, **kwargs : c.fns(module)
-        module.fn2code = lambda *args, **kwargs : c.fn2code(module)
-        module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
-        module.config = lambda *args, **kwargs : c.config(module)
+
+        if not hasattr(module, 'code'):
+            module.code = lambda *args, **kwargs : c.code(module)
+        if not hasattr(module, 'fn2code'):
+            module.fn2code = lambda *args, **kwargs : c.fn2code(module)
+        if not hasattr(module, 'fn2hash'): 
+            module.fn2hash = lambda *args, **kwargs : c.fn2hash(module)
+        if not hasattr(module, 'config_path'):
+            module.config_path = lambda *args, **kwargs : c.config_path(module)
+        if not hasattr(module, 'config'):
+            module.config = lambda *args, **kwargs : c.config(module)
         return module
 
     @classmethod
@@ -168,10 +186,9 @@ class c:
         return {'success': False, 'message': 'sandbox not found'}
     
     sand = sandbox
-
+    cache_path = f'{storage_path}/cache'
     module_cache = {}
     _obj = None
-
 
     def syspath(self):
         return sys.path
@@ -206,10 +223,10 @@ class c:
 
     @classmethod
     def resolve_module(cls, obj:str = None, default=None, fn_splitter='/', **kwargs):
-        if isinstance(obj, str):
-            obj = c.module(obj)
         if obj == None:
             obj = cls
+        elif isinstance(obj, str):
+            obj = c.module(obj)
         return obj
 
     @classmethod
@@ -556,7 +573,7 @@ class c:
             globals_input[k] = v     
         for f in c.class_functions(c) + c.static_functions(c):
             globals_input[f] = getattr(c, f)
-        for f in c.self_functions(c):
+        for f in c.classify_fns(c, mode='self'):
             def wrapper_fn(f, *args, **kwargs):
                 fn = getattr(Module(), f)
                 return fn(*args, **kwargs)
@@ -896,6 +913,9 @@ class c:
         schema['input'] = inout_schema
         schema['output'] = output_schema
         schema['docs'] = fn.__doc__
+        schema['path'] = inspect.getfile(fn)
+        schema['filebounds'] = inspect.getsourcelines(fn)
+        schema['filebounds'] = {'start': schema['filebounds'][1], 'end': len(schema['filebounds'][0]) + schema['filebounds'][1], 'length': len(schema['filebounds'][0])}
         return schema
 
 
@@ -913,17 +933,20 @@ class c:
             schema[fn] = c.fn_schema(getattr(module, fn))
         return schema
 
+        
     @classmethod
-    def code(cls, module = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        module = module or cls
-        if isinstance(module, str) and '/' in module:
-            obj = c.get_fn(module)
+    def resolve_obj(cls, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+        if obj == None:
+            obj = cls
+        if isinstance(obj, str) and '/' in obj:
+            obj = c.get_fn(obj)
         else:
-            try:
-                obj = cls.resolve_module(module)
-            except Exception as e:
-                print(f'Error {e}')
-                obj = cls
+            obj = cls.resolve_module(obj)
+        return obj
+
+    @classmethod
+    def code(cls, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
+        obj = cls.resolve_obj(obj)
         return inspect.getsource(obj)
 
     @classmethod
@@ -1066,6 +1089,8 @@ class c:
 
     @classmethod
     def resolve_info_path(self, name):
+        if not isinstance(name, str):
+            name = str(name)
         return c.resolve_path('info/' + name)
 
     @classmethod 
@@ -1075,7 +1100,8 @@ class c:
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,
             relative=True,
-            update: bool =False, **kwargs):
+            update: bool =False, 
+            **kwargs):
             
         path = c.resolve_info_path(module)
         info = c.get(path, None, max_age=max_age, update=update)
@@ -1182,17 +1208,10 @@ class c:
             fn_obj = fn
         # assert fn_obj != None, f'{fn} is not a function or object'
         return fn_obj
-        
-    @classmethod
-    def self_functions(cls, obj=None, search = None):
-        obj = obj or cls
-        fns =  c.classify_fns(obj)['self']
-        if search != None:
-            fns = [f for f in fns if search in f]
-        return fns
 
     @classmethod
     def classify_fns(cls, obj= None, mode=None):
+        assert mode in ['cls', 'self']
         method_type_map = {}
         obj = cls.resolve_module(obj)
         for attr_name in dir(obj):
@@ -1487,7 +1506,8 @@ class c:
     @classmethod
     def objectpath2name(cls, 
                         p:str,
-                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', ]):
+                        avoid_terms=['modules', 'agents', 'module', '_modules', '_agents', ],
+                        avoid_suffixes = ['module', 'mod']):
         chunks = p.split('.')
         if len(chunks) < 2:
             return None
@@ -1508,10 +1528,10 @@ class c:
                 path = path.replace(avoid, '')
         if len(path) == 0:
             return 'module'
+        for avoid in avoid_suffixes:
+            if path.endswith(avoid) and path != avoid:
+                path = path[:-(1+len(avoid))]
         return path
-
-    def prohibit_home(self):
-        assert c.pwd() != c.home_path, 'Cannot run cli in home directory, please change if you want to run'
     @classmethod
     def local_modules(cls, search=None, **kwargs):
         return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
@@ -1573,13 +1593,6 @@ class c:
             object_paths = [p for p in object_paths if search in p]
         return sorted(list(set(object_paths)))
 
-    @classmethod
-    def core_code(cls, search=None, depth=10000, **kwargs):
-        return {k:c.code(k) for k in cls.core_modules(search=search, depth=depth, **kwargs)}
-
-    def core_size(self, search=None, depth=10000, **kwargs):
-        return {k:len(c.code(k)) for k in self.core_modules(search=search, depth=depth, **kwargs)}
-    
     def module2size(self, search=None, depth=10000, **kwargs):
         module2size = {}
         module2code = c.module2code(search=search, depth=depth, **kwargs)
@@ -1668,7 +1681,8 @@ class c:
     def founder(cls):
         return c.get_key()
 
-    def repo2path(self, search=None):
+    @classmethod
+    def repo2path(cls, search=None):
         repo2path = {}
         for p in c.ls('~/'): 
             if os.path.exists(p+'/.git'):
@@ -1707,6 +1721,10 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True  
+
+    def help(self, module:str, search=None):
+        module = c.module(module)
+        return module.help(search=search)
                 
     @classmethod
     def module2fns(cls, path=None):
@@ -1718,9 +1736,6 @@ class c:
             except Exception as e:
                 pass
         return module2fns
-
-
-
 
     @classmethod
     def module2schema(cls, path=None):
@@ -1766,42 +1781,16 @@ class c:
                 assert  fn not in from_to_map, f'Function {route}  already exists in {from_to_map[fn]}'
                 from_to_map[fn] = m + '/' + fn
         return from_to_map
-    
-    def run_test(self, module=None, parallel=True):
-        module = module or self
-        fns = [f for f in dir(module) if 'test_' in f]
-        fn2result = {}
-        fn2error = {}
-        if parallel:
-            future2fn = {}
-            for fn in fns:
-                future = c.submit(getattr(module, fn))
-                future2fn[future] = fn
-            for future in c.as_completed(future2fn):
-                fn = future2fn[future]
-                try:
-                    result = future.result()
-                    fn2result[fn] = result
-                except Exception as e:
-                    fn2error[fn] = {'success': False, 'msg': str(e)}
-        else:
-            for fn in fns:
-                try:
-                    result = getattr(module, fn)()
-                    fn2result[fn] = result
-                except Exception as e:
-                    fn2error[fn] = {'success': False, 'msg': str(e)}
-        if len(fn2error) > 0:
-            raise Exception(f'Errors: {fn2error}')
-        return fn2result
 
-    def readmes(self, path='./', search=None):
+    @staticmethod
+    def readmes( path='./', search=None):
         files =  c.files(path)
         readmes = [f for f in files if f.endswith('.md')]
         return readmes
 
-    def readme2text(self, path='./', search=None):
-        readmes = self.readmes(path=path, search=search)
+    @classmethod
+    def readme2text(path='./', search=None):
+        readmes = c.readmes(path=path, search=search)
         return {r:c.get_text(r) for r in readmes}
 
     def app(self,
@@ -1903,9 +1892,6 @@ class c:
 
         text = '\n'.join(text.split('\n')[:start_line-1] + text.split('\n')[end_line:])
         c.put_text(filepath, text)
-
-
-        
 
 c.add_routes()
 Module = c # Module is alias of c

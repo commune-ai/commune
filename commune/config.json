@@ -3,11 +3,13 @@
     "version": "0.0.1",
     "code_url": "https://github.com/commune-ai/commune.git", 
     "app_url": "localhost:3000",
-    "description": "A commune module",
+    "description": "A module is a folder of code that consists of at least an api and optionally an app interface.",
     "free": false,
     "endpoints": ["forward"],
     "port_range":  [50050, 50150],
     "shortcuts": { 
+        
+        "do": "docker",
         "openai" : "model.openai", 
         "openrouter":  "model.openrouter",
         "or" : "model.openrouter",
@@ -116,7 +118,8 @@
                 "add_servers",
                 "rm_servers",
                 "namespace",
-                "servers"
+                "servers", 
+                "history"
             ],
         
             "docker":

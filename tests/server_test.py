@@ -3,7 +3,7 @@
 import commune as c
 import os
 
-def test_serilizer():
+def test_serializer():
     self = c.module('serializer')()
     import torch, time
     data_list = [

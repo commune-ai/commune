@@ -17,6 +17,17 @@ c {module_name}/{function_name} *args **kwargs
 c module/ls ./
 ```
 
+The root module is specified as the module that is closest to the commune/ repo in this case its commune/module.py
+
+by default the module is isgnored in the naming convention to add ease 
+
+Naming simplifications in commune
+
+commune/module.py --> commune
+storage/module.py --> storage
+storage/storage/module.py -> storage
+
+
 if you specifiy a root function in module, then you can call the module directly. 
 ```bash
 c {function_name} *args **kwargs
@@ -141,12 +152,18 @@ Tricks
 c # takes you to commune by doing c code ./
 ```
 
-
 getting code
 
 c code module/code # gets the code of module/code module
 c schema /code gets the code of the module key
 
+
+cool shortcuts
+
+
+c module/ cals the module forward function
+c module/forward calls the forward cuntion
+c module/add a=1 b=1 equals c module/add 1 1 
 
 
 Limitatons

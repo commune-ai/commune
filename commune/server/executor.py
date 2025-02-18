@@ -32,7 +32,6 @@ class Task:
         self.priority = priority # the priority of the task
         self.data = None # the result of the task
         self.latency = None
-    
         self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
         # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.path = os.path.abspath(path) if path != None else None

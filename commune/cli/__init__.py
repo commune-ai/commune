@@ -1,4 +1,4 @@
 from .cli import Cli  
 def main():
-    Cli()
+    Cli().forward()
     

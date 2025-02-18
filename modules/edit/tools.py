@@ -49,7 +49,7 @@ def add_file(path:str, content:str):
     with open(path, 'w') as f:
         f.write(content)
     return path 
-def add_lines_between(path:str, before_text:str, after_text:str, content:str):
+def add_between(path:str, before_text:str, after_text:str, content:str):
     """Add lines between two pieces of text in a file"""
     backup_file(path)
     text = c.get_text(path)

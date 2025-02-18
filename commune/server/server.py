@@ -141,7 +141,7 @@ class Server:
             "url": module.url,
             "key": module.key.ss58_address,
             "time": c.time(),
-            "schema": {fn:c.fn_schema(getattr(module, fn)) for fn in module.fns},
+            "schema": {fn:c.fn_schema(getattr(module, fn)) for fn in module.fns if hasattr(module, fn)},
         }
         print(info)
         return info
@@ -182,7 +182,7 @@ class Server:
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
-        c.verify(params, address=headers['key'], signature=headers['signature'])
+        assert c.verify({'params': params, 'time': str(headers['time'])}, address=headers['key'], signature=headers['signature'])
         assert isinstance(params, dict), f'Params must be a dict, not {type(params)}'
         if len(params) == 2 and 'args' in params and 'kwargs' in params :
             kwargs = dict(params.get('kwargs')) 
@@ -509,7 +509,13 @@ class Server:
         return sorted(user_paths, key=self.get_path_time)
 
     def history(self, address = 'module' ):
-        return c.df([c.get_json(p)["data"] for p in self.call_paths(address)])
+        return [c.get_json(p)["data"] for p in self.call_paths(address)]
+
+    def clear_history(self, address = 'module' ):
+        paths = self.call_paths(address)
+        for p in paths:
+            c.rm(p)
+        return {'message':f'Cleared {len(paths)} paths for {address}'}
 
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))

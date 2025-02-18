@@ -7,12 +7,11 @@ print = c.print
 
 class Cli:
     desc = 'cli for running functions'
-    def __init__(self, safety=True):
-        if safety :
-            c.prohibit_home()
-        self.forward()
-        
+    safety = True
+
     def forward(self):
+        if self.safety:
+            assert c.pwd() != c.home_path, 'Cannot run cli in home directory, please change if you want to run'
         t0 = time.time()
         argv = sys.argv[1:]
         if len(argv) == 0:
@@ -31,7 +30,6 @@ class Cli:
                     print(item, end='')
         else:
             print(output)
-        return output
 
     def get_params(self, argv):
         args = []
@@ -71,8 +69,10 @@ class Cli:
         if module.endswith('.py'):
             module = module[:-3]
         if module in c.shortcuts:
+            old_module = module
             module = c.shortcuts[module]
-            print(f'shorty({old_module} -> { c.shortcuts[module]})', color='yellow')
+            print(f'NameShortcut({old_module} -> {module})', color='yellow')
+
         filepath = c.filepath(module).replace(c.home_path, '~')    
         print(f'Call({module}/{fn}, path={filepath})', color='yellow')
         module = c.module(module)

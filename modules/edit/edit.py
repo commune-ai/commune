@@ -4,8 +4,7 @@ import time
 import os
 import json
 from typing import Dict, Any, Union
-from .tools import add_lines, delete_lines, delete_file, add_file, add_lines_between
-
+from .tools import add_file, delete_file, add_between, delete_between
 class Edit:
     # Anchors for parsing model output
     fn_anchor = 'FN_CALL'
@@ -16,7 +15,7 @@ class Edit:
 
     def __init__(self, 
                 model = 'anthropic/claude-3.5-sonnet',
-                tools=[add_file, delete_file]):
+                tools=[add_file, delete_file, add_between, delete_between]):
         self.model = model
         self.agent = c.module('agent')(model=self.model)
         self.models = self.agent.models()
@@ -50,9 +49,10 @@ class Edit:
         fn_docs = "\n".join([f"{name}: {schema}" for name, schema in self.tool2schema.items()])
         
         prompt = f"""
-            ---TASK---
+            ---GOAL---
             You are an expert code editor. You will suggest changes to files using the available tools:
             ---CONTEXT---
+            {text}
             {context}
             ---TOOLS---
             {fn_docs}
@@ -60,6 +60,7 @@ class Edit:
             - Provide complete solutions
             - Call tools in a logical sequence
             - Each function call will be confirmed by the user
+            - make sure to add before you delete
             MAKE SURE THE OUTPOUT JSON IS BETWEEN THE ANCHORS: 
             DO NOT MENTION THE ANCHORS WITHIN THE ANCHORS FOR PARSING
             MAKE SURE TO PASS THE NAME OF EACH PARAM, THE TYPE AND THE VALUE UNDERNEATH
@@ -185,8 +186,11 @@ class Edit:
                         if input("Proceed with this operation? (y/n): ").lower() == 'y':
                             result = self.execute_operation(op)
                             results.append(result)
-                            status_color = 'green' if result['status'] == 'success' else 'red'
-                            c.print(f"Operation {result['status']}", color=status_color)
+                            failed = result['status'] == 'failed'
+                            if failed:
+                                c.print(f"Operation failed: {result['error']}", color='red')
+                            else:
+                                c.print(f"Operation {result['status']}", color='green')
                         else:
                             results.append({
                                 "operation": fn_name,

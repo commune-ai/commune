@@ -10,29 +10,11 @@ class Docker:
     """
     A module for interacting with Docker.
     """
+    default_shm_size = '100g'
+    default_network = 'host'
 
     def __init__(self):
-        self.default_shm_size = '100g'
-        self.default_network = 'host'
-
-    def file(self, path: str = './') -> Union[str, Dict[str, str]]:
-        """
-        Get content of the first Dockerfile found in path.
-
-        Args:
-            path (str): The path to search for Dockerfiles.
-
-        Returns:
-            Union[str, Dict[str, str]]: The content of the Dockerfile or an error message.
-        """
-        files = self.files(path)
-        if files:
-            try:
-                return c.get_text(files[0])
-            except Exception as e:
-                return {'error': f'Failed to read Dockerfile: {e}'}
-        else:
-            return {'msg': f'No Dockerfile found in {path}'}
+        pass
 
     def files(self, path: str = './') -> List[str]:
         """
