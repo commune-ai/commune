@@ -15,45 +15,53 @@ import time
 class Task:
     def __init__(self, 
                 fn:str,
-                args:list, 
-                kwargs:dict, 
+                params:dict, 
                 timeout:int=10, 
                 priority:int=1, 
                 path = None, 
                 **extra_kwargs):
         
-        self.future = Future()
         self.fn = fn # the function to run
+        self.set_params(params)
         self.start_time = time.time() # the time the task was created
-        self.end_time = None
-        self.args = args # the arguments of the task
-        self.kwargs = kwargs # the arguments of the task
+        self.end_time = 0
         self.timeout = timeout # the timeout of the task
         self.priority = priority # the priority of the task
         self.data = None # the result of the task
-        self.latency = None
-        self.fn_name = fn.__name__ if fn != None else str(fn) # the name of the function
-        # for the sake of simplicity, we'll just add all the extra kwargs to the task object
         self.path = os.path.abspath(path) if path != None else None
         self.status = 'pending' # pending, running, done
+        self.future = Future()
 
+    def set_params(self, params):
+        self.params = params
+        if 'args' in self.params and 'kwargs' in self.params:
+            self.params['args'], self.params['kwargs'] = self.params.get('args', []), self.params.get('kwargs', {})
+        else:
+            if isinstance(params, dict) and len(params) > 0:
+                self.params = dict(args=[], kwargs=params)
+            elif isinstance(params, list) and len(params) > 0:
+                self.params = dict(args=params, kwargs={})
+        return self.params
     @property
     def lifetime(self) -> float:
         return time.time() - self.start_time
+
+
+    @property
+    def latency(self) -> float:
+        return self.end_time - self.start_time
+    
 
     @property
     def state(self) -> dict:
         return {
             'fn': self.fn.__name__,
-            'args': self.args,
-            'kwargs': self.kwargs,
+            'params': self.params,
             'timeout': self.timeout,
             'start_time': self.start_time, 
             'end_time': self.end_time,
-            'latency': self.latency,
             'priority': self.priority,
             'status': self.status,
-            'data': self.data, 
         }
     
     def run(self):
@@ -64,7 +72,7 @@ class Task:
         if (not self.future.set_running_or_notify_cancel()) or (time.time() - self.start_time) > self.timeout:
             self.future.set_exception(TimeoutError('Task timed out'))
         try:
-            data = self.fn(*self.args, **self.kwargs)
+            data = self.fn(*self.params['args'], **self.params['kwargs'])
             self.status = 'complete'
         except Exception as e:
             data = c.detailed_error(e)
@@ -78,7 +86,6 @@ class Task:
             self.save(self.path, self.state)
         
         self.end_time = c.time()
-        self.latency = self.end_time - self.start_time
         self.data = data       
 
     def result(self) -> object:
@@ -114,7 +121,7 @@ class Task:
 
 
 
-NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
+NULL_ENTRY = (sys.maxsize, Task(None, {}))
 
 
 class ThreadPoolExecutor(c.Module):
@@ -205,7 +212,7 @@ class ThreadPoolExecutor(c.Module):
             priority = kwargs.get("priority", priority)
             if "priority" in kwargs:
                 del kwargs["priority"]
-            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout, path=path)
+            task = Task(fn=fn, params=dict(args=args, kwargs=kwargs), timeout=timeout, path=path)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task

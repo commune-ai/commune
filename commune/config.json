@@ -121,7 +121,6 @@
                 "servers", 
                 "history"
             ],
-        
             "docker":
                 ["ps"],
             "subspace": [
@@ -139,7 +138,6 @@
                 "get_staketo", 
                 "stakefrom",
                 "get_stakefrom",
-                "key2balance",
                 "subnets",
                 "send",
                 "my_keys",

@@ -73,8 +73,7 @@ class Client:
             else:
                 raise Exception(f'Invalid params {params}')
         params = {"args": args, "kwargs": kwargs}
-
-        time_str = str(c.time())
+        time_str = str(c.time()) # get the current time
         headers =  {
             'key': key.ss58_address,
             'crypto_type': str(key.crypto_type),

@@ -2,9 +2,6 @@
 from typing import *
 import os
 
-
-
-
 def str2python(x):
     x = str(x)
     if isinstance(x, str) :
@@ -349,7 +346,6 @@ def get_file_size( path:str):
     path = os.path.abspath(path)
     return os.path.getsize(path)
     
-
 def get_files( path ='./', files_only:bool = True, recursive:bool=True, avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'package.lock', 'egg-info', 'Cargo.lock', 'artifacts', 'yarn.lock', 'cache/', 'target/debug', 'node_modules']):
     import glob
     path = os.path.abspath(os.path.expanduser(path))

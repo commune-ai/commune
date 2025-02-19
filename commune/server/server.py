@@ -37,7 +37,7 @@ class Server:
         run_api = False, # if the server should be run as an api
         executor = 'server.executor',  # the executor for the server to run the functions
         serializer = 'server.serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
-        tempo:int = 60 , # (in seconds) the maximum age of the history
+        tempo:int = 10000 , # (in seconds) the maximum age of the history
         task_timeout:int = 10, # (in seconds) the maximum time to wait for a response
         ) -> 'Server':
         self.set_network(network)
@@ -83,7 +83,6 @@ class Server:
         c.print(f'Request(fn={fn} params={params} client={client_key_address} size={len(str(params))})', color='green')
         fn_obj = getattr(self.module, fn)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        fn_latency = c.time() - float(t0)
         net_latency = t0 - float(headers['time']) # the latency of the request (in seconds) by subtracting the time the request was made from the current time
         if c.is_generator(result):
             output = str(result)
@@ -92,18 +91,29 @@ class Server:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))       
         else:
-            call_data = headers
-            call_data['fn'] = fn
-            call_data['params'] = params
-            call_data['output'] = result
-            call_data['fn_latency'] = fn_latency
-            call_data['net_latency'] = net_latency
-            call_data['rate'] = rate
-            call_data['rate_limit'] = rate_limit
-            call_data['server'] = self.module.key.ss58_address
-            call_data['server_signature'] = c.sign(call_data, key=self.module.key, mode='str')
-            self.save_call_data(call_data)
-        return result
+            data = {}
+            data['fn'] = fn
+            data['params'] = params # the parameters of the call
+            data['result'] = result # the result of the call
+            data['time'] = c.time() # the time the call was made
+            data["time_delta"] = data['time'] - float(headers['time']) # the time it took to process the reques
+            data['cost'] = self.module.fn2cost.get(fn, 1) # the cost of the call
+            data['caller'] = headers # the headers of the request
+            data_hash = c.hash(data)
+            data['server'] = {
+                              'data_hash' : data_hash,# the hash of the data
+                              'key': self.module.key.ss58_address, 
+                              'signature': c.sign(data_hash, key=self.module.key, mode='str'), # hex string of the data,
+                              'time': c.time()
+                              }
+            # save the call data
+            address = self.module.name + '/'  + data['caller']["key"]
+            calls_t0 = self.calls(address) # the number of calls before the call
+            call_data_path = self.history_path + '/' + address +  (f'/{data["fn"]}/{data["time"]}.json') 
+            c.put(call_data_path, data) # save the call data
+            calls_t1 = self.calls(address) # the number of calls after the call
+            assert calls_t1 == calls_t0 + 1, f'Expected {calls_t0+1} calls, but got {calls_t1}' 
+        return result 
 
     @classmethod
     def resolve_path(cls, path):
@@ -134,6 +144,8 @@ class Server:
         # does not start with _ and is not a private function
         self.module.functions = self.module.fns = [fn for fn in sorted(list(set(functions + self.helper_functions))) if not fn.startswith('_')]
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
+        if callable(self.module.fn2cost):
+            self.module.fn2cost = self.module.fn2cost()
         c.print(f'SetFunctions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         return {'functions': self.module.fns, 'fn2cost': self.module.fn2cost, 'free': self.free}
         
@@ -145,7 +157,6 @@ class Server:
             "time": c.time(),
             "schema": {fn:c.fn_schema(getattr(module, fn)) for fn in module.fns if hasattr(module, fn)},
         }
-        print(info)
         return info
 
     def set_port(self, port:Optional[int]=None, port_attributes = ['port', 'server_port']):
@@ -317,6 +328,9 @@ class Server:
     def servers(self, search=None,  **kwargs) -> List[str]:
         return [ p[len(self.process_prefix):] for p in self.procs(search=search, **kwargs) if p.startswith(self.process_prefix)]
 
+
+    
+
     def urls(self, search=None,  **kwargs) -> List[str]:
         return [self.get_url(s) for s in self.servers(search=search, **kwargs)]
     
@@ -450,7 +464,6 @@ class Server:
         app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
         return app
 
-
     def rate_limit(self, 
                 fn:str, 
                 params:dict,  
@@ -497,12 +510,12 @@ class Server:
     def get_path_age(self, path:str) -> float:
         return c.time() - self.get_path_time(path)
 
-    def rate(self, address):
+    def rate(self, address:str):
         path2age = self.path2age(address)
         for path, age  in path2age.items():
             if age > self.tempo:
                 if os.path.exists(path):
-                    print(f'Removing({path})')
+                    print(f'RemovingStalePath(age={age} tempo={self.tempo}) --> {path}')
                     os.remove(path)
         return len(self.call_paths(address))
 
@@ -520,14 +533,22 @@ class Server:
             c.rm(p)
         return {'message':f'Cleared {len(paths)} paths for {address}'}
 
+
+
+
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))
 
-    def users(self, module='module'):
+
+
+    def callers(self, module='module'):
         return [p.split('/')[-1] for p in c.ls(self.history_path + '/' + module)]
         
-    def user2calls(self, module='module'):  
-        return {u: self.calls(module+'/'+u) for u in self.users(module)}
+    def caller2calls(self, module='module'):  
+        return {u: self.calls(module+'/'+u) for u in self.callers(module)}
+
+    def clear_module_history(self, module='module'):
+        return os.system(f'rm -r {self.history_path}/{module}/*')
 
     def get_path_time(self, path:str) -> float:
         try:
@@ -536,17 +557,6 @@ class Server:
             x = 0
         return x
 
-    def save_call_data(self, data):
-        """
-        Save the call data to the history path.
-        """
-        address = self.module.name + '/'  + data["key"]
-        calls_t0 = self.calls(address)
-        call_data_path = self.history_path + '/' + address +  (f'/{data["fn"]}/{c.time()}.json') 
-        c.put(call_data_path, data)
-        calls_t1 = self.calls(address)
-        assert calls_t1 == calls_t0 + 1, f'Expected {calls_t0+1} calls, but got {calls_t1}'
-        return call_data_path
 
     def fleet(self, module, n=1, tag=None, **kwargs):
         futures = []

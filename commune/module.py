@@ -1095,7 +1095,7 @@ class c:
 
     @classmethod 
     def info(cls, module:str='module',  # fam
-            lite: bool =False, 
+            lite: bool =True, 
             max_age : Optional[int]=None, 
             lite_features : List[str] = ['schema', 'name', 'key', 'founder', 'hash', 'time'],
             keep_last_n : int = 10,

@@ -22,6 +22,7 @@ class Hub:
                 'remove', 
                 'update', 
                 'test', 
+                'get_module',
                 'info', 
                 'functions']
     modules_path = __file__.replace(__file__.split('/')[-1], 'modules')
