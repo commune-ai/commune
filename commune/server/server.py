@@ -20,10 +20,8 @@ import asyncio
 
 class Server:
 
-    freedom_attributes=['free', 'free_mode', 'freedom', 'freemee', 'freeme']
     pm_dir = c.home_path + '/.pm2'
     helper_functions  = ['info', 'forward'] # the helper functions
-    function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
     def __init__(
         self, 
         module: Union[c.Module, object] = None,
@@ -111,8 +109,12 @@ class Server:
     def resolve_path(cls, path):
         return  c.storage_path + '/server/' + path
             
-    def set_functions(self,  functions:Optional[List[str]]):
-        self.free = any([(hasattr(self.module, k) and self.module.free)  for k in self.freedom_attributes])
+    def set_functions(self,  
+                functions:Optional[List[str]], 
+                freedom_attributes=['free', 'free_mode', 'freedom', 'freemee', 'freeme'],
+                function_attributes =['endpoints', 'functions', 'expose', "exposed_functions",'server_functions', 'public_functions', 'pubfns'] # the attributes for the functions
+):
+        self.free = any([(hasattr(self.module, k) and self.module.free)  for k in freedom_attributes])
         if self.free:
             c.print('YOUVE ENABLED AMURICA --> FREEDOM', color='red')
         else:
@@ -125,9 +127,9 @@ class Server:
                     print('Adding function -->', f)
                     setattr(self, fn.__name__, fn)
                     functions[i] = fn.__name__
-        for fa in self.function_attributes:
+        for fa in function_attributes:
             if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
-                functions = getattr(self.module, self.function_attributes[0]) 
+                functions = getattr(self.module, function_attributes[0]) 
                 break       
         # does not start with _ and is not a private function
         self.module.functions = self.module.fns = [fn for fn in sorted(list(set(functions + self.helper_functions))) if not fn.startswith('_')]
@@ -182,7 +184,8 @@ class Server:
         params = self.loop.run_until_complete(request.json())
         params = self.serializer.deserialize(params) 
         params = json.loads(params) if isinstance(params, str) else params
-        assert c.verify({'params': params, 'time': str(headers['time'])}, address=headers['key'], signature=headers['signature'])
+        if not self.free:
+            assert c.verify({'params': params, 'time': str(headers['time'])}, address=headers['key'], signature=headers['signature'])
         assert isinstance(params, dict), f'Params must be a dict, not {type(params)}'
         if len(params) == 2 and 'args' in params and 'kwargs' in params :
             kwargs = dict(params.get('kwargs')) 
@@ -457,7 +460,7 @@ class Server:
                 stake_per_call:int = 1000, # the amount of stake required per call
             ) -> dict:
         if self.module.free: 
-            return True
+            return 100000000
         role = self.get_user_role(headers['key'])
         if role != 'admin':
             assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"

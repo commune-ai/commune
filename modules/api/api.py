@@ -11,9 +11,11 @@ import requests
 from .utils import load_json, save_json, logs
 
 class Hub:
+    tempo = 600
     port = 8000
     app_name =  __file__.split('/')[-3] + '_app' 
     model='anthropic/claude-3.5-sonnet'
+    free = True
     endpoints = [
                 'modules', 
                 'add_module', 
@@ -24,6 +26,39 @@ class Hub:
                 'functions']
     modules_path = __file__.replace(__file__.split('/')[-1], 'modules')
     
+
+
+    def modules(self, tempo=None, update=False, lite=True, page=1, page_size=100, verbose=True):
+        modules =  c.get_modules() 
+        tempo = tempo or self.tempo
+        params_id = c.hash({'lite': lite})
+        path = self.resolve_path(f'modules/{params_id}')
+        module_infos = c.get(path,[], max_age=tempo, update=update)
+        modules = c.modules()
+        progress = c.tqdm(modules, desc="Loading modules", unit="module")
+        if len(module_infos) > 0:
+            return module_infos
+        else:
+            # return modules
+            modules = sorted(modules, key=lambda x: x.lower())
+            for module in modules:
+                try:
+                    module_infos += [self.get_module(module, lite=lite, max_age=tempo, update=update)]
+                    progress.update(1)
+                except Exception as e:
+                    if verbose:
+                        print(e)
+        c.put(path, module_infos)
+        return module_infos
+
+    def names(self):
+        return [m['name'] for m in self.modules()]
+
+    def get_module(self, module:str, **kwargs):
+        info =  c.info(module, **kwargs)
+        prefix = info['name'].split('.')[0]
+        return info
+
     def get_module_path(self, module):
         return f"{self.modules_path}/{module}.json"
 
@@ -71,33 +106,7 @@ class Hub:
         return {"message": "All modules removed"}
     
     def resolve_path(self, path):
-        return '~/.hub/api/' + path
-
-    def modules(self, tempo=600, update=False, lite=True, page=1, page_size=100, verbose=False):
-        modules =  c.get_modules() 
-        params_id = c.hash({'lite': lite})
-        path = self.resolve_path(f'modules/{params_id}')
-        module_infos = c.get(path,[], max_age=tempo, update=update)
-        modules = c.modules()
-        progress = c.tqdm(modules, desc="Loading modules", unit="module")
-        if len(module_infos) > 0:
-            return module_infos
-        else:
-            # return modules
-            modules = sorted(modules, key=lambda x: x.lower())
-            for module in modules:
-                try:
-                    module_infos += [self.get_module(module, lite=lite)]
-                    progress.update(1)
-                except Exception as e:
-                    if verbose:
-                        print(e)
-        c.put(path, module_infos)
-        
-        return module_infos
-
-    def get_module(self, module:str, **kwargs):
-        return c.info(module, **kwargs)
+        return os.path.expanduser('~/.hub/api/') + path
 
     def info(self, module:str, **kwargs):
         return c.info(module, **kwargs)
