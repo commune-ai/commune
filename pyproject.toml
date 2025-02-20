@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "commai"
-version = "0.0.1"
+version = "0.0.2"
 description = "Gobal toolbox that allows you to connect, and verify your tools"
 authors = ["commune ai organization <contact@communeai.org>"]
 license = "MIT"
