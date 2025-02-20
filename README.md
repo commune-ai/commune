@@ -54,7 +54,7 @@ Basic CLI usage:
 ### With pip
 
 ```bash
-pip install commune
+pip install commai
 ```
 
 ### From source
@@ -65,11 +65,6 @@ cd commune
 pip install -e .
 ```
 
-### From pypi
-
-```bash
-pip install commune
-```
 
 ### Development setup
 
