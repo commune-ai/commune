@@ -24,7 +24,7 @@ class Vali(c.Module):
         self.timeout = timeout
         self.batch_size = batch_size
         self.set_key(key)
-        self.set_net(network=network, tempo=tempo,  search=search,  path=path, update=update)
+        self.set_network(network=network, tempo=tempo,  search=search,  path=path, update=update)
         self.set_score(score)
         c.thread(self.run_loop) if run_loop else ''
     init_vali = __init__
@@ -49,7 +49,7 @@ class Vali(c.Module):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
 
-    def set_net(self, 
+    def set_network(self, 
                     network:str = None, 
                     tempo:int=60, 
                     search:str=None, 
@@ -105,7 +105,8 @@ class Vali(c.Module):
     _clients = {}
     def get_client(self, module:dict) -> 'commune.Client':
         if isinstance(module, str):
-            module = c.call(module)
+            module = c.call(module, key=self.key)
+            print(module)
 
         feature2type = {'name': str, 'url': str, 'key': str}
         for f, t in feature2type.items():

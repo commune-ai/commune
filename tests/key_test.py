@@ -70,15 +70,15 @@ def test_signing():
     assert self.verify('test',sig, self.public_key)
     return {'success':True}
 
-def test_key_encryption(password='1234'):
-    path = 'test.enc'
-    Key.add_key('test.enc', refresh=True)
+def test_key_encryption(path = 'test.enc', password='1234'):
+    Key.add_key(path, refresh=True)
     assert Key.is_key_encrypted(path) == False, f'file {path} is encrypted'
     Key.encrypt_key(path, password=password)
     assert Key.is_key_encrypted(path) == True, f'file {path} is not encrypted'
     Key.decrypt_key(path, password=password)
     assert Key.is_key_encrypted(path) == False, f'file {path} is encrypted'
-    Key.rm(path)
+    Key.rm_key(path)
+    assert not Key.key_exists(path), f'file {path} not deleted'
     print('file deleted', path, c.path_exists, 'fam')
     assert not c.path_exists(path), f'file {path} not deleted'
     return {'success': True, 'msg': 'test_key_encryption passed'}

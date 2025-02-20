@@ -4,7 +4,7 @@ import json
 import openai
 import commune as c
 
-class OpenRouter(c.Module):
+class OpenRouter:
 
     def __init__(
         self,
@@ -130,18 +130,22 @@ class OpenRouter(c.Module):
         )
         return {"status": "success", "base_url": base_url}
     
+
+    @staticmethod
+    def resolve_path(path):
+        return c.storage_path + '/openrouter/' + path
+
     def model2info(self, search: str = None, path='models', max_age=100, update=False):
-        models = self.get(path, default={}, max_age=max_age, update=update)
+        path = self.resolve_path(path)
+        models = c.get(path, default={}, max_age=max_age, update=update)
         if len(models) == 0:
             print('Updating models...')
             url = 'https://openrouter.ai/api/v1/models'
             response = requests.get(url)
             models = json.loads(response.text)['data']
-            self.put(path, models)
-    
+            c.put(path, models)
         models = self.filter_models(models, search=search)
-        models = {m['id']:m for m in models}
-        return models
+        return {m['id']:m for m in models}
     
     def models(self, search: str = None, path='models', max_age=60, update=False):
         return list(self.model2info(search=search, path=path, max_age=max_age, update=update).keys())
@@ -168,8 +172,16 @@ class OpenRouter(c.Module):
         models = [m for m in models if any([s in m['id'] for s in search])]
         return [m for m in models]
     
-
     def pricing(self, search: str = None , **kwargs):
         pricing =  [{'name': k , **v['pricing']} for k,v in self.model2info(search=search, **kwargs).items()]
         return c.df(pricing).sort_values('completion', ascending=False)
     
+
+    def test(self):
+        response  =  self.forward('Hello, how are you?', stream=False)
+        print(response)
+        assert isinstance(response, str)
+        print('Test passed')
+        stream_response = self.forward('Hello, how are you?', stream=True)
+        print(next(stream_response))
+        return {'status': 'success'}

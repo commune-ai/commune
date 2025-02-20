@@ -14,12 +14,12 @@ class Agent:
         self.prompt = prompt
         self.model = c.module('model.openrouter')(model=model, **kwargs)
 
-    def generate(self, text = 'whats 2+2?' ,  temperature= 0.5, max_tokens= 1000000, stream=True , process_text=True, **kwargs):
+    def forward(self, text = 'whats 2+2?' ,  temperature= 0.5, max_tokens= 1000000, stream=True , process_text=True, **kwargs):
         text = self.process_text(text) if process_text else text
-        return self.model.generate(text, stream=stream,max_tokens=max_tokens,temperature=temperature,  **kwargs)
+        return self.model.forward(text, stream=stream,max_tokens=max_tokens,temperature=temperature,  **kwargs)
 
     def ask(self, *text, **kwargs): 
-        return self.generate(' '.join(list(map(str, text))), **kwargs)
+        return self.forward(' '.join(list(map(str, text))), **kwargs)
     
     def edit(self,  *args, file='./',**kwargs):
         text = ' '.join([c.file2text(file)] + list(args))
@@ -196,7 +196,7 @@ class Agent:
         <OUTPUT>DICT(score:int, feedback:str, suggestions=List[dict(improvement:str, delta:int)]])</OUTPUT>
         """
         output = ''
-        for ch in  self.generate(prompt, **kwargs):
+        for ch in  self.forward(prompt, **kwargs):
             output += ch
             print(ch, end='')
             if '</OUTPUT>' in output:
@@ -226,7 +226,7 @@ class Agent:
                 "hash": code_hash,
                 }
         output = ''
-        for ch in self.generate(str(prompt), process_text=False):
+        for ch in self.forward(str(prompt), process_text=False):
             output += ch
             print(ch, end='')
         c.put(path, output)
@@ -258,7 +258,7 @@ class Agent:
         """
 
         output = ''
-        for ch in self.generate(prompt, **kwargs):
+        for ch in self.forward(prompt, **kwargs):
             output += ch
             print(ch, end='')
             if anchors[1] in output:

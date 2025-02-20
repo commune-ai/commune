@@ -46,7 +46,7 @@ class KeyType:
     SR25519 = 1
     ECDSA = 2
 
-class Key(c.Module):
+class Key:
 
     crypto_type_map = {k.lower():v for k,v in KeyType.__dict__.items()}
     ss58_format = 42
@@ -106,7 +106,6 @@ class Key(c.Module):
             private_key = self.new_key(crypto_type=crypto_type).private_key
         if type(private_key) == str:
             private_key = c.str2bytes(private_key)
-        crypto_type = self.resolve_crypto_type(crypto_type)
         if crypto_type == KeyType.SR25519:
             if len(private_key) != 64:
                 private_key = sr25519.pair_from_seed(private_key)[1]
@@ -134,25 +133,30 @@ class Key(c.Module):
         self.crypto_type_name = self.crypto_type2name(self.crypto_type)
         return {'key_address':key_address, 'crypto_type':crypto_type}
 
+
     @classmethod
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
+        
+        path = cls.resolve_path(path)
         if cls.key_exists(path) and not refresh :
             c.print(f'key already exists at {path}')
-            key_json = cls.get(path)
+            key_json = c.get(path)
             if key_json != None:
-                return cls.from_json(cls.get(path))
+                return cls.from_json(key_json)
         key = cls.new_key(mnemonic=mnemonic, private_key=private_key, **kwargs)
         key_json = key.to_json()
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        c.print(cls.put(path, key_json))
+        c.print(c.put(path, key_json))
         assert cls.key_exists(path), f'key does not exist at {path}'
         return {'success': True, 'path':path, 'key':key.key_address}
     
     @classmethod
     def mv_key(cls, path, new_path):
+        path = cls.get_key_path(path)
+        new_path = cls.get_key_path(new_path)
         assert cls.key_exists(path), f'key does not exist at {path}'
-        cls.put(new_path, cls.get_key(path).to_json())
+        c.put(new_path, cls.get_key(path).to_json())
         cls.rm_key(path)
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         assert not cls.key_exists(path), f'key still exists at {path}'
@@ -162,7 +166,8 @@ class Key(c.Module):
     @classmethod
     def copy_key(cls, path, new_path):
         assert cls.key_exists(path), f'key does not exist at {path}'
-        cls.put(new_path, cls.get_key(path).to_json())
+        new_path = cls.resolve_path(new_path)
+        c.put(new_path, cls.get_key(path).to_json())
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         assert cls.get_key(path) == cls.get_key(new_path), f'key does not match'
         new_key = cls.get_key(new_path)
@@ -192,6 +197,15 @@ class Key(c.Module):
     @classmethod
     def key_info(cls, path='module', **kwargs):
         return cls.get_key_data(path)
+
+
+    @classmethod
+    def resolve_path(cls, path:str) -> str:
+        path = str(path)
+        prefix = c.storage_path + '/key'
+        if not path.startswith(prefix):
+            path = prefix + '/' + path
+        return path
     
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):
@@ -253,7 +267,7 @@ class Key(c.Module):
                 c.print(f'key does not exist, generating new key -> {path}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
-        key_json = cls.get(path)
+        key_json = cls.get_key_data(path)
         if isinstance(key_json, str):
             key_json = key_json.replace("'", '"')
         # if key is encrypted, decrypt it
@@ -285,12 +299,12 @@ class Key(c.Module):
         
     @classmethod
     def key2address(cls, search=None, max_age=None, update=False, **kwargs):
-        path = 'key2address'
-        key2address = cls.get(path, None, max_age=max_age, update=update)
+        path = cls.resolve_path('key2address')
+        key2address = c.get(path, None, max_age=max_age, update=update)
         if key2address == None:
             key2address = {}
             key2address =  { k: v.ss58_address for k,v  in cls.get_keys(search).items()}
-            cls.put(path, key2address)
+            c.put(path, key2address)
         return key2address
 
     @classmethod
@@ -298,7 +312,7 @@ class Key(c.Module):
         key2address = cls.key2address()
         if key in key2address:
             key2address.pop(key)
-            cls.put('key2address', key2address)
+            c.put(cls.resolve_path('key2address'), key2address)
         return {'deregistered':key}
     
     @classmethod
@@ -329,7 +343,7 @@ class Key(c.Module):
     get_addy = get_address
     @classmethod
     def key_paths(cls):
-        return cls.ls()
+        return c.ls(c.storage_path + '/key')
     address_seperator = '_address='
     @classmethod
     def key2path(cls) -> dict:
@@ -353,33 +367,33 @@ class Key(c.Module):
     
     @classmethod
     def key_exists(cls, key, **kwargs):
-        
-        path = cls.get_key_path(key)
-        return os.path.exists(path)
+        return os.path.exists(cls.get_key_path(key))
     
     @classmethod
     def get_key_path(cls, key):
-        key_path = cls.storage_dir() + '/' + key + '.json'
-        return key_path
+        path = cls.resolve_path(key)
+        if not path.endswith('.json'):
+            path += '.json'
+        return path
 
     @classmethod
     def get_key_data(cls, key):
-        key_path =  cls.storage_dir() + '/' + key + '.json'
+        key_path =  cls.get_key_path(key)
         output =  c.get(key_path)
-        if not isinstance(output, str):
-            print(f'failed to get key data for {key}', output)
         # if single quoted json, convert to double quoted json string and load
         if isinstance(output, str):
             output = output.replace("'", '"')
         return json.loads(output) if isinstance(output, str) else output
-
 
     @classmethod
     def rm_key(cls, key=None):
         key2path = cls.key2path()
         keys = list(key2path.keys())
         if key not in keys:
-            raise Exception(f'key {key} not found, available keys: {keys}')
+            if key in key2path.values():
+                key = [k for k,v in key2path.items() if v == key][0]
+            else:
+                raise Exception(f'key {key} not found, available keys: {keys}')
         c.rm(key2path[key])
         return {'deleted':[key]}
         
@@ -475,9 +489,7 @@ class Key(c.Module):
                 seed_hex=binascii.hexlify(bytearray(bip39_to_mini_secret(mnemonic, "", cls.language_code))).decode("ascii"),
                 crypto_type=crypto_type,
             )
-        
         keypair.mnemonic = mnemonic
-
         return keypair
 
     from_mnemonic = from_mem = from_mnemonic
@@ -671,9 +683,6 @@ class Key(c.Module):
             return {'data':data.decode(),'crypto_type':self.crypto_type,'signature':signature.hex(),'address': self.ss58_address}
         return signature
 
-
-
-
     def verify(self, 
                data: Union[ScaleBytes, bytes, str, dict], 
                signature: Union[bytes, str] = None,
@@ -738,7 +747,6 @@ class Key(c.Module):
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
         return verified
 
-
     def sign_test(self, data: Union[ScaleBytes, bytes, str],key = 'module') -> dict:
         signature = c.sign(data, key=key)
         key_address = self.get_key_address(key)
@@ -773,34 +781,32 @@ class Key(c.Module):
         data = data[:-ord(data[len(data)-1:])].decode('utf-8')
         return data
 
-
-
     @classmethod
     def encrypt_key(cls, path = 'test.enc', password=None):
+        path = cls.resolve_path(path)
         assert cls.key_exists(path), f'file {path} does not exist'
         assert not cls.is_key_encrypted(path), f'{path} already encrypted'
-        data = cls.get_key_data(path)
-        print(data, type(data))
-        enc_text = {'data': c.encrypt(data, password=password), 
+        data = c.get(path)
+        enc_text = {'data': c.encrypt(c.copy(data), password=password), 
                     "key_address": data['ss58_address'],
                     "crypto_type": data['crypto_type'],
                     'encrypted': True}
-        cls.put(path, enc_text)
+        c.put(path, enc_text)
         return {'number_of_characters_encrypted':len(enc_text), 'path':path }
     
     @classmethod
     def is_key_encrypted(cls, key, data=None):
-        data = data or cls.get(key)
+        data = data or c.get(cls.resolve_path(key))
         return cls.is_encrypted(data)
     
     @classmethod
     def decrypt_key(cls, path = 'test.enc', password=None, key=None):
         assert cls.key_exists(path), f'file {path} does not exist'
         assert cls.is_key_encrypted(path), f'{path} not encrypted'
-        data = cls.get(path)
+        data = cls.get_key_data(path)
         assert cls.is_encrypted(data), f'{path} not encrypted'
         dec_text =  c.decrypt(data['data'], password=password)
-        cls.put(path, dec_text)
+        c.put(cls.resolve_path(path), dec_text)
         assert not cls.is_key_encrypted(path), f'failed to decrypt {path}'
         loaded_key = c.get_key(path)
         return { 'path':path , 'key_address': loaded_key.ss58_address,'crypto_type': loaded_key.crypto_type}

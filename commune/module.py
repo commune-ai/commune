@@ -759,7 +759,8 @@ class c:
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
         data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}    
-        cls.put_json(k, data)
+        k = cls.resolve_path(k)
+        c.put_json(k, data)
         return {'k': k, 'encrypted': encrypt, 'timestamp': time.time()}
     
     @classmethod
@@ -770,7 +771,6 @@ class c:
             full :bool = False, 
             update :bool = False,
             password : str = None,
-            time_features = ['timestamp', 'time'],
             verbose = False,
             **kwargs) -> Any:
         
@@ -778,8 +778,8 @@ class c:
         Puts a value in sthe config, with the option to encrypt it
         Return the value
         '''
-        data = cls.get_json(k,default=default, **kwargs)
-
+        k = cls.resolve_path(k)
+        data = c.get_json(k,default=default, **kwargs)
         if password != None:
             assert data['encrypted'] , f'{k} is not encrypted'
             data['data'] = c.decrypt(data['data'], password=password)
@@ -788,9 +788,10 @@ class c:
             return default
         if update:
             max_age = 0
+
         if max_age != None:
             timestamp = 0
-            for k in time_features:
+            for k in ['timestamp', 'time']:
                 if k in data:
                     timestamp = data[k]
                     break
@@ -803,15 +804,10 @@ class c:
             if isinstance(data, dict):
                 if 'data' in data:
                     data = data['data']
+            if isinstance(data, str) and data.startswith('{') and data.endswith('}'):
+                data = data.replace("'",'"')
+                data = json.loads(data)
         return data
-    
-    def get_age(self, k:str) -> int:
-        data = self.get_json(k)
-        timestamp = data.get('timestamp', None)
-        if timestamp != None:
-            age = int(time.time() - timestamp)
-            return age
-        return -1
     
     @classmethod
     def get_text(cls, path: str, **kwargs ) -> str:
