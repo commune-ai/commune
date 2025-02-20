@@ -1,13 +1,15 @@
 
 
 import commune as c
-class Store(c.Module):
+import os
+
+class Store:
     fns = ['put', 'get']
-    def __init__(self, path='storage'):
-        self.path = self.resolve_path(path)
+    def __init__(self, path='~/.commune/storage/'):
+        self.path = os.path.abspath(os.path.expanduser(path))
     
     def resolve_path(self, path):
-        return c.resolve_path('~/.commune/storage/' + path)
+        return c.resolve_path(self.path + path)
     
     def get_item_path(self, item):
         return self.resolve_path(item + '.json')
@@ -24,11 +26,11 @@ class Store(c.Module):
         k = self.get_item_path(k)
         return c.rm(k)
 
-    def ls(self, path):
+    def ls(self, path = './'):
         return c.ls(self.resolve_path(path))
 
-    def items(self, path='./'):
-        return c.ls(self.resolve_path(path))
+    def exists(self, path):
+        return c.exists(self.resolve_path(path))
 
     def glob(self, path = './'):
         return c.glob(self.resolve_path(path))
@@ -36,13 +38,14 @@ class Store(c.Module):
     def hash(self, path):
         return c.hash(self.get(path))
     
-    def test(self):
-        self.put('test', {'a':1})
-        assert self.get('test') == {'a':1}
-        c.hash(self.get('test')) == self.hash('test')
-        self.rm('test')
+    def test(self, key='test', value={'a':1}):
+        self.put(key, value)
+        assert self.get(key) == value
+        assert c.hash(self.get(key)) == self.hash(key)
+        self.rm(key)
         assert self.get('test') == None
         print('Store test passed')
-        return {'status':'pass'}
-
+        return {
+            'status': 'pass'
+        }
 

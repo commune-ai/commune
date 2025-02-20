@@ -56,7 +56,7 @@ class Hub:
         return [m['name'] for m in self.modules()]
 
     def get_module(self, module:str, **kwargs):
-        info =  c.info(module, **kwargs)
+        info =  c.info(module, lite=False, **kwargs)
         prefix = info['name'].split('.')[0]
         return info
 
@@ -110,7 +110,7 @@ class Hub:
         return os.path.expanduser('~/.hub/api/') + path
 
     def info(self, module:str, **kwargs):
-        return c.info(module, **kwargs)
+        return c.info(module,  **kwargs)
 
     def add_module(self, 
                    name  = "module", 
