@@ -1247,11 +1247,11 @@ class Subspace(c.Module):
     def register(
         self,
         name: str,
-        subnet: str = "Rootnet",
         url: str = None,
         module_key = None, 
         key: Keypair = None,
         metadata: str = 'NA',
+        subnet: str = "General",
         wait_for_finalization = True,
         public = False,
     ) -> ExtrinsicReceipt:
@@ -1963,8 +1963,8 @@ class Subspace(c.Module):
         Retrieves a mapping of subnet names within the network.
         """
         subnet_names =  self.query_map("SubnetNames", extract_value=extract_value, max_age=max_age, update=update, block=block)
-    
-        return {int(k):v for k,v in subnet_names.items()}
+
+        return  [str(v.lower()) for k,v in subnet_names.items()]
 
     def subnet_map(self, max_age=10, update=False, **kwargs) -> dict[int, str]:
         """

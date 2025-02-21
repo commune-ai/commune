@@ -18,6 +18,10 @@ class Agent:
         text = self.process_text(text) if process_text else text
         return self.model.forward(text, stream=stream,max_tokens=max_tokens,temperature=temperature,  **kwargs)
 
+
+    def generate(self, text, **kwargs):
+        return self.forward(text, **kwargs)
+
     def ask(self, *text, **kwargs): 
         return self.forward(' '.join(list(map(str, text))), **kwargs)
     

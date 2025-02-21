@@ -45,6 +45,7 @@ class OpenRouter:
         model:str = 'anthropic/claude-3.5-sonnet',
         max_tokens: int = 10000000,
         temperature: float = 1.0,
+        **kwargs
     ) -> str :
         """
         Generates a response using the OpenAI language model.

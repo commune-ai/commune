@@ -102,8 +102,6 @@ class Find:
 
     def utils(self, query='i want something that does ls', **kwargs):
         return self.forward(query=query, options=c.get_utils(), **kwargs)
-
-
     
     def fns(self, query:str='something that i can find functions in', **kwargs):
         module2schema = c.module2schema()

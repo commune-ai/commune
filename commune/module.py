@@ -48,8 +48,7 @@ class c:
         path = path or 'module'
         if path in ['module', c.repo_name[0]]:
             return c
-        t0 = time.time()
-        path = path.replace('/','.')
+        t0 = time.time()        
         path = c.shortcuts.get(path, path)
         tree = tree or c.tree()
         simp_path = path
@@ -142,6 +141,7 @@ class c:
             except:
                 pass
         return obj2hash
+
 
 
     def filehash(self, path:str='./', reverse=True) -> int:
@@ -759,7 +759,6 @@ class c:
         if encrypt or password != None:
             v = c.encrypt(v, password=password)
         data = {'data': v, 'encrypted': encrypt, 'timestamp': time.time()}    
-        k = cls.resolve_path(k)
         c.put_json(k, data)
         return {'k': k, 'encrypted': encrypt, 'timestamp': time.time()}
     
@@ -942,9 +941,7 @@ class c:
 
     @classmethod
     def code(cls, obj = None, search=None, *args, **kwargs) -> Union[str, Dict[str, str]]:
-        obj = cls.resolve_obj(obj)
-        return inspect.getsource(obj)
-
+        return inspect.getsource(c.resolve_obj(obj))
     @classmethod
     def codemap(cls, module = None , search=None, *args, **kwargs) ->  Dict[str, str]:
         module = module or cls.module_name()
@@ -982,18 +979,6 @@ class c:
     @classmethod
     def code_hash(cls, module=None,  *args, **kwargs):
         return c.hash(c.code(module or cls.module_name(), **kwargs))
-
-    @classmethod
-    def codehashmap(cls, module=None,  *args, **kwargs):
-        return {k:c.hash(v) for k,v in c.code_map(module or cls.module_name(), **kwargs).items()}
-
-    @classmethod
-    def dir(cls, module=None, search=None, **kwargs):
-
-        module = cls.resolve_module(module)
-        if search != None:
-            return [f for f in dir(module) if search in f]
-        return dir(module)
 
     @classmethod
     def get_params(cls, fn):
@@ -1039,6 +1024,13 @@ class c:
         return [fn for fn in dir(cls) if cls.is_property(fn)]
     
     parents = get_parents
+
+
+    def dir(self, obj=None, search=None, *args, **kwargs):
+        obj = c.resolve_obj(obj)
+        if search != None:
+            return [f for f in dir(obj) if search in f]
+        return dir(obj)
     
     @classmethod
     def fns(cls, 
@@ -1089,6 +1081,8 @@ class c:
             name = str(name)
         return c.resolve_path('info/' + name)
 
+
+
     @classmethod 
     def info(cls, module:str='module',  # fam
             lite: bool =True, 
@@ -1103,7 +1097,6 @@ class c:
         info = c.get(path, None, max_age=max_age, update=update)
         if info == None:
             code = c.code_map(module)
-
             schema = c.schema(module)
             founder = c.founder().address
             key = c.get_key(module).address
@@ -1120,6 +1113,16 @@ class c:
         if lite:
             info = {k: v for k,v in info.items() if k in lite_features}
         return  info
+
+    def get_tags(self,module=None, search=None, **kwargs):
+        tags = []
+        module =  c.resolve_module(module)
+        if hasattr(module, 'tags'):
+            tags = module.tags
+        assert isinstance(tags, list), f'{module} does not have tags'
+        if search != None:
+            tags = [t for t in tags if search in t]
+        return tags
 
 
     module2info_path = 'info/module2info'
@@ -1272,6 +1275,12 @@ class c:
             return class2fns_list
            
         return class2fns
+
+
+    def has_pwd_module(self):
+        module_name = ['module', 'mod', 'agent', 'block']
+        pwd = c.pwd()
+        return os.path.exists(pwd + '/{}.py')
 
         
     @classmethod
@@ -1534,7 +1543,7 @@ class c:
 
     @classmethod
     def home_modules(cls, search=None, **kwargs):
-        return list(c.get_tree(c.home_path, search=search, **kwargs).keys())
+        return list(c.get_tree(c.home_modules_path, search=search, **kwargs).keys())
 
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
@@ -1603,10 +1612,10 @@ class c:
 
     @classmethod
     def modules(cls, search=None, cache=True, max_age=60, update=False, **extra_kwargs)-> List[str]:
-        modules = cls.get('modules', max_age=max_age, update=update)
+        modules = c.get('modules', max_age=max_age, update=update)
         if not cache or modules == None:
             modules =  cls.get_modules(search=None, **extra_kwargs)
-            cls.put('modules', modules)
+            c.put('modules', modules)
         if search != None:
             modules = [m for m in modules if search in m]     
         return modules
@@ -1818,9 +1827,9 @@ class c:
             module = cls
         return inspect.getsourcelines(module)
 
-    def getdocs(self, module:str = 'module', search=None, **kwargs):
+    def getdocs(self, module:str = 'module' , search=None, **kwargs):
         code = c.code(module)
-        return c.ask( search=search, **kwargs)
+        return c.ask(code + 'make a document thats better', search=search, process_text=True, **kwargs)
 
     @classmethod
     def filebounds(cls, obj=None) -> List[int]:
@@ -1835,8 +1844,7 @@ class c:
         """
         import inspect
         
-        if obj is None:
-            obj = cls
+        obj = c.resolve_obj(obj)
             
         try:
             # Get source lines and line number

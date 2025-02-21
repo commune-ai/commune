@@ -1,5 +1,5 @@
 <p align="center">
- <img src="https://communeai.org/logo-asci.svg" width="352" height="59" alt="Commune AI" style="max-width: 100%;">
+ <img src="https://raw.githubusercontent.com/commune-ai/commune/refs/heads/main/.github/assets/logo-asci.svg" width="490" height="60" alt="Commune AI" style="max-width: 100%;">
 </p>
 
 # Commune: Modular Consensus System
@@ -64,6 +64,8 @@ git clone https://github.com/commune-ai/commune.git
 cd commune
 pip install -e .
 ```
+
+### From pypi
 
 ```bash
 pip install commune
@@ -159,8 +161,8 @@ c logs <module>           # View logs
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Contributing Guide](https://github.com/commune-ai/commune/blob/main/CONTRIBUTING.md) for details.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](https://github.com/commune-ai/commune/blob/main/LICENCE)

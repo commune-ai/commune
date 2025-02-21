@@ -52,7 +52,6 @@ class Server:
         self.module.key = c.get_key(key or name)
         self.history_path = history_path or self.resolve_path('history')
         if run_api:
-            self.address2key =  c.address2key()
             self.serializer = c.module(serializer)()
             self.executor = c.module(executor)()
             self.set_functions(functions) 
@@ -79,7 +78,7 @@ class Server:
         client_key_address = headers['key']
         rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
         rate = self.rate(self.module.name+'/'+headers['key'])
-        assert rate < rate_limit, f'RateLimitExceeded({rate}>{rate_limit})'     
+        assert rate < rate_limit, f'RateLimitExceeded(rate={rate} limit={rate_limit})'     
         c.print(f'Request(fn={fn} params={params} client={client_key_address} size={len(str(params))})', color='green')
         fn_obj = getattr(self.module, fn)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
@@ -472,35 +471,41 @@ class Server:
                 role2rate:dict = {'admin': 100000000, 'owner': 10000000, 'local': 1000000}, # the rate limits for each role
                 stake_per_call:int = 1000, # the amount of stake required per call
             ) -> dict:
-        if self.module.free: 
-            return 100000000
-        role = self.get_user_role(headers['key'])
+
+        if not hasattr(self, 'address2key'):
+            self.address2key = c.address2key(max_age=self.tempo)
+        if not hasattr(self, 'state'):
+            self.state = None
+        module = self.module
+        if module.free: 
+            role2rate['guest'] = 1000000
+        address = headers['key']
+        if c.is_admin( headers['key']):
+            role =  'admin'
+        elif address == module.key.ss58_address:
+            role =  'owner'
+        elif address in self.address2key:
+            role =  'local'
+        else:
+            role = 'guest'
         if role != 'admin':
-            assert fn in self.module.fns , f"Function {fn} not in endpoints={self.module.fns}"
+            assert fn in module.fns , f"Function {fn} not in endpoints={module.fns}"
         if role in role2rate:
             rate_limit = role2rate[role]
         else:
-            path = self.resolve_path(f'rate_limiter/{network}/{role}')
+            path = self.resolve_path(f'rate_limiter/{network}_state')
+            self.state = c.get(path, max_age=self.tempo)
             if self.state == None:
                 self.state = c.module(network)().state()
+            # the amount of stake the user has as a module only
             stake = self.state['stake'].get(headers['key'], 0) 
-            stake_to = (sum(self.state['stake_to'].get(headers['key'], {}).values())) 
-            stake_from = self.state['stake_from'].get(self.module.key.ss58_address, {}).get(headers['key'], 0) 
-            stake = stake + stake_to + stake_from
+            stake_to_me = self.state['stake_from'].get(module.key.ss58_address, {}).get(headers['key'], 0) 
+            stake = stake + stake_to_me
             rate_limit = stake / stake_per_call
-        cost = self.module.fn2cost.get(fn, 1)
-        rate_limit = rate_limit / cost
+        rate_limit = rate_limit / module.fn2cost.get(fn, 1)
         return rate_limit
         
-    def get_user_role(self, address, module=None):
-        module = module or self.module
-        if c.is_admin(address):
-            return 'admin'
-        if address == module.key.ss58_address:
-            return 'owner'
-        if address in self.address2key:
-            return 'local'
-        return 'stake'
+
 
     def path2age(self, address='module'):
         user_paths = self.call_paths(address)
@@ -524,8 +529,17 @@ class Server:
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
 
-    def history(self, address = 'module' ):
-        return [c.get_json(p)["data"] for p in self.call_paths(address)]
+    def history(self, address = 'module' , df=1):
+        history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
+        if df:
+            df =  c.df(history)
+            features = ['fn', 'cost', 'caller', 'time', 'time_delta']
+            shorten_key = lambda x: x[:3] + '...' + x[-2:]
+            df['time'] = df['time'].apply(lambda x: self.time2date(x))
+            df = df[features]
+            return df
+
+        return history
 
     def clear_history(self, address = 'module' ):
         paths = self.call_paths(address)
@@ -533,13 +547,8 @@ class Server:
             c.rm(p)
         return {'message':f'Cleared {len(paths)} paths for {address}'}
 
-
-
-
     def calls(self, address = 'module' ):
         return len(self.call_paths(address))
-
-
 
     def callers(self, module='module'):
         return [p.split('/')[-1] for p in c.ls(self.history_path + '/' + module)]

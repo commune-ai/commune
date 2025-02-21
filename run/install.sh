@@ -50,7 +50,6 @@ fi
 echo "Python3 installed"
 
 # ensure pip
-
 if ! command -v pip3 &> /dev/null
 then
     if [ "$OS_NAME" == "Linux" ]; then
@@ -73,6 +72,27 @@ echo "Pip3 installed"
 # ensure the repo is installed as a python package by ckeckiing "pip list | grep $REPO_NAME" 
 
 echo "Installed $REPO_NAME as a python package"
+
+
+# ensure docker is installed
+
+if ! command -v docker &> /dev/null
+then
+    if [ "$OS_NAME" == "Linux" ]; then
+        echo "Linux"
+        sudo apt update
+        sudo apt install docker.io -y
+    fi
+    if [ "$OS_NAME" == "Darwin" ]; then
+        echo "Mac"
+        brew install docker
+    fi
+    if [ "$OS_NAME" == "Windows" ]; then
+        echo "Windows"
+        choco install docker
+    fi
+fi
+
 
 # is commune installed
 

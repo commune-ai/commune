@@ -30,7 +30,6 @@ from eth_keys.datatypes import Signature, PrivateKey
 from eth_utils import to_checksum_address, keccak as eth_utils_keccak
 from ecdsa.curves import SECP256k1
 
-
 BIP39_PBKDF2_ROUNDS = 2048
 BIP39_SALT_MODIFIER = "mnemonic"
 BIP32_PRIVDEV = 0x80000000
@@ -39,7 +38,6 @@ BIP32_SEED_MODIFIER = b'Bitcoin seed'
 ETH_DERIVATION_PATH = "m/44'/60'/0'/0"
 JUNCTION_ID_LEN = 32
 RE_JUNCTION = r'(\/\/?)([^/]+)'
-
 
 class PublicKey:
     def __init__(self, private_key):
@@ -284,7 +282,6 @@ class DeriveJunction:
                 chain_code = bytes(path_scale.data.data.ljust(32, b'\x00'))
 
         return cls(chain_code=chain_code, is_hard=is_hard)
-
 
 def extract_derive_path(derive_path: str):
 

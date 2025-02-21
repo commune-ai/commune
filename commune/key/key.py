@@ -46,6 +46,7 @@ class KeyType:
     SR25519 = 1
     ECDSA = 2
 
+
 class Key:
 
     crypto_type_map = {k.lower():v for k,v in KeyType.__dict__.items()}
@@ -132,7 +133,6 @@ class Key:
         self.crypto_type = crypto_type
         self.crypto_type_name = self.crypto_type2name(self.crypto_type)
         return {'key_address':key_address, 'crypto_type':crypto_type}
-
 
     @classmethod
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, private_key=None, **kwargs):
@@ -307,32 +307,13 @@ class Key:
             c.put(path, key2address)
         return key2address
 
-    @classmethod
-    def deregister_key(cls, key):
-        key2address = cls.key2address()
-        if key in key2address:
-            key2address.pop(key)
-            c.put(cls.resolve_path('key2address'), key2address)
-        return {'deregistered':key}
-    
-    @classmethod
-    def register_key(cls, key):
-        key2address = cls.key2address()
-        key2address[key] = key.ss58_address
-        cls.put('key2address', key2address)
-        return {'registered':key}
-    
-    @classmethod
-    def n(cls, search=None, **kwargs):
-        return len(cls.key2address(search, **kwargs))
-
     @property
     def addy(self):
         return self.address
 
     @classmethod
-    def address2key(cls, search:Optional[str]=None, update:bool=False):
-        address2key =  { v: k for k,v in cls.key2address(update=update).items()}
+    def address2key(cls, search:Optional[str]=None, update:bool=False, max_age=None, **kwargs):
+        address2key =  { v: k for k,v in cls.key2address(update=update,max_age=max_age).items()}
         if search != None :
             return {k:v for k,v in address2key.items() if search in k}
         return address2key
@@ -367,7 +348,8 @@ class Key:
     
     @classmethod
     def key_exists(cls, key, **kwargs):
-        return os.path.exists(cls.get_key_path(key))
+        key_exists = os.path.exists(cls.get_key_path(key))
+        return key_exists
     
     @classmethod
     def get_key_path(cls, key):
@@ -816,7 +798,11 @@ class Key:
         return cls.get_key(key).mnemonic
 
     def __str__(self):
-        return f'<Key(address={self.key_address} crypto_type={self.crypto_type_name})>'
+        __str__ =  f'<Key(address={self.key_address}'
+        if hasattr(self, 'path'):
+            __str__ += f' path={self.path}'
+        __str__ += f' crypto_type={self.crypto_type_name}>'
+        return __str__
     
     def save(self, path=None):
         if path == None:
@@ -862,14 +848,18 @@ class Key:
             address = key
         return address
 
-    def storage_migration(self): 
+    def migration(self, write=True): 
         key2path = self.key2path()
         new_key2path = {}
         for k_name, k_path in key2path.items():
             try:
                 key = c.get_key(k_name)
-                new_k_path = '/'.join(k_path.split('/')[:-1]) + '/' + f'{k_name}_address={key.ss58_address}_type={key.crypto_type}.json'
+                new_k_path = '/'.join(k_path.split('/')[:-1]) + '/' + f'{k_name}/{key.ss58_address}.json'
                 new_key2path[k_name] = new_k_path
+                print(f'migrating {k_path} to {new_k_path}')
+                # c.mv(k_path, new_k_path)
+                # assert os.path.exists(new_k_path), f'failed to migrate {k_name} to {new_k_path}'
+                # assert not os.path.exists(k_path), f'failed to remove {k_path}'
             except Exception as e:
                 c.print(f'failed to migrate {k_name} due to {e}', color='red')
                 
@@ -901,6 +891,16 @@ class Key:
             crypto_type = cls.crypto_name2type(crypto_type)
         return int(crypto_type)  
 
+
+    def version(self):
+        path = self.get_key_path('module')
+        if os.path.isdir(path):
+            return 1
+        return 0
+
+
+
+    
 
 
 

@@ -25,7 +25,7 @@ class Edit:
     def forward(self,
                 text='edit the file',
                 *extra_text,
-                path=os.path.dirname(__file__),
+                path='./commune',
                 task=None,
                 temperature=0.5,
                 module=None,
