@@ -32,11 +32,38 @@ class c:
     home_path  = os.path.expanduser('~') # the home path
 
      # the path to the modules
-    modules_path =  lib_path + '/modules'  if os.path.exists(lib_path + '/modules') else root_path + '/module'
-    home_modules_path = home_path + '/modules'
+    # modules_path =  lib_path + '/modules'  if os.path.exists(lib_path + '/modules') else root_path + '/module'
+    modules_path = home_path + '/modules'
     temp_modules_path = lib_path + '/modules/temp'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
     cache = {} # cache for module objects
+
+    def push_module(self, module='subspace', p1:str = '~/commune/modules', p2='~/modules', **kwargs) -> Dict:
+        """
+        Merges the files in the directory
+        """
+        p1_path = os.path.join(p1, p1_path)
+        p2_path = os.path.join(p2, module)
+        assert os.path.exists(p1_path), f'{p1_path} does not exist'
+        if os.path.exists(p2_path):
+            p1_hash = c.filehash(p1_path)
+            p2_hash = c.filehash(p2_path)
+            shutil.rmtree(p2_path)
+        shutil.copytree(p1_path, p2_path)
+        assert os.path.exists(p2_path), f'{p2_path} does not exist'
+        assert not os.path.exists(p1_path), f'{p1_path} still exists'
+        return dir_list
+
+
+    def merge_modules(self, path='./modules', to_path='~/modules', **kwargs) -> Dict:
+        to_path = os.path.expanduser(to_path)
+        path = os.path.abspath(path)
+        for p in os.listdir(path):
+            p_path = os.path.join(path, p)
+            to_p_path = os.path.join(to_path, p)
+            print(p_path,'-->' , to_p_path)
+        return {'success': True, 'message': 'modules merged', 'path': to_path}
+
     @classmethod
     def module(cls, 
                path:str = 'module', 
@@ -56,26 +83,38 @@ class c:
         cache_id = c.hash(module)
         if (not cache_id in c.module_cache) or not cache:
             try:
-                module = c.obj2module(c.obj(module)) # if the model
+                module_obj = c.obj2module(c.obj(module)) # if the model
             except Exception as e:
                 c.tree(update=1)
                 try:
-                    module = c.obj2module(c.obj(module))
+                    module_obj = c.obj2module(c.obj(module))
                 except Exception as e: 
                     repo2path = c.repo2path()
                     if module in repo2path:
                         sys.path.append(repo2path[module])
-                        module = c.obj2module(c.obj(module))
+                        module_obj = c.obj2module(c.obj(module))
                     else:
-                        raise Exception(f'Error loading module {module} {e}')
+                        module_path = c.modules_path + '/'+ simp_path.replace('.','/')
+                        module_exists = os.path.exists(module_path) and os.path.isdir(module_path)
+
+                        module.replace('modules.', '')
+                        print(f'Error loading module {module} {e}')
+                        if module_exists:
+                            sys.path.append(c.modules_path)
+    
+                            module_obj = c.obj2module(c.obj(module))
+      
+                        else:
+                            raise Exception(f'Error loading module {module} {e}')
                         
-            c.module_cache[cache_id] = module
-        module = c.module_cache[cache_id]
+            c.module_cache[cache_id] = module_obj
+        module_obj = c.module_cache[cache_id]
         if params != None:
-            module = module(**params)
+            module_obj = module_obj(**params)
         loadtime = c.time() - t0
+        
         c.print(f'Module(name={obj_path} objpath={obj_path} loadtime={loadtime:.2f}') if verbose else ''
-        return module
+        return module_obj
     
     get_agent = block =  get_block = get_module =  mod =  module
     
@@ -143,8 +182,8 @@ class c:
         return obj2hash
 
 
-
-    def filehash(self, path:str='./', reverse=True) -> int:
+    @staticmethod
+    def filehash(path:str='./', reverse=True) -> int:
         path = c.abspath(path)
         return c.hash({k[len(path)+1:]:v for k,v in c.file2text(path).items()})
     
@@ -360,6 +399,32 @@ class c:
         if search != None:
             files = [f for f in files if search in f]
         return files
+
+
+    @classmethod
+    def dirfiles(cls, 
+              path='./', 
+              search:str = None, 
+              avoid_terms = ['__pycache__', '.git', '.ipynb_checkpoints', 'node_modules', 'artifacts', 'egg-info'], 
+              endswith:str = None,
+              startswith:str = None,
+              **kwargs) -> List[str]:
+        """
+        Lists all files in the path
+        params:
+            path: the path to search
+            search: the term to search for
+            avoid_terms: the terms to avoid
+        return :
+            a list of files in the path
+        """
+        import glob
+        files =glob.glob(path + '/**', recursive=True)
+        files = [os.path.abspath(f)  for f in files if not any([at in f for at in avoid_terms])]
+        if search != None:
+            files = [f for f in files if search in f]
+        return files
+
 
 
     def file2objs(self, path:str = './', **kwargs) -> Dict[str, Any]:
@@ -596,8 +661,7 @@ class c:
 
     @classmethod
     def config(cls, module=None, to_munch=False, fn='__init__') -> 'Munch':
-        module = module or cls
-        path = module.config_path()
+        path = c.config_path(module)
         if os.path.exists(path):
             config = c.get_json(path)
         else:
@@ -819,7 +883,7 @@ class c:
     @classmethod
     def text(cls, path: str = './', **kwargs ) -> str:
         # Get the absolute path of the file
-        path = cls.resolve_path(path)
+        path = c.abspath(path)
         assert not c.home_path == path, f'Cannot read {path}'
         if os.path.isdir(path):
             return c.file2text(path)
@@ -1325,9 +1389,7 @@ class c:
                 file_path = file_path.replace('/', '.')
             if relative:
                 path = self.path2relative(path)
-            path2classes =  {path:  [file_path + '.' + c for c in classes]}
-
-
+            path2classes =  {path:  [file_path + '.' + cl for cl in classes]}
         if tolist: 
             classes = []
             for k,v in path2classes.items():
@@ -1385,16 +1447,7 @@ class c:
         if name_chunks[0] == c.repo_name:
             name_chunks = name_chunks[1:]
         return '.'.join(name_chunks)
-
-    @classmethod
-    def objectpath2path(cls, objectpath:str, **kwargs) -> str:
-        options  = [c.lib_path, c.pwd()]
-        for option in options:
-            path = option + '/' + objectpath.replace('.', '/') + '.py'
-            if os.path.exists(path):
-                return path
-        raise ValueError(f'Path not found for objectpath {objectpath}')
-
+        
     @classmethod
     def path2fns(cls, path = './', tolist=False, **kwargs):
         fns = []
@@ -1421,11 +1474,10 @@ class c:
         return path2fns
 
     @classmethod
-    def objs(cls, path:str = './', depth=10, search=None, **kwargs):
+    def objs(cls, path:str = './', depth=10, search=None, **kwargs) -> List[str]:
         classes = c.classes(path,depth=depth)
         functions = c.path2fns(path, tolist=True)
         objs = functions + classes
-
         if search != None:
             objs = [f for f in objs if search in f]
         return objs
@@ -1435,22 +1487,20 @@ class c:
         return c.objs(path=path, depth=depth, search=search, **kwargs)
 
     @classmethod
-    def ensure_sys_path(cls, paths:List[str] = None):
-        paths = paths or [ c.pwd()]
+    def ensure_sys_path(cls):
         if not hasattr(c, 'included_pwd_in_path'):
             c.included_pwd_in_path = False
         if  not c.included_pwd_in_path:
+            paths = [ c.pwd(), c.modules_path]
             for p in paths:
                 if not p in sys.path:
-                    sys.path = [p] + sys.path
-            sys.path = list(set(sys.path))
+                    sys.path.insert(0, p)
             c.included_pwd_in_path = True
         return sys.path
 
     @classmethod
     def import_module(cls, import_path:str ) -> 'Object':
         from importlib import import_module
-        c.ensure_sys_path()
         return import_module(import_path)
 
     @classmethod
@@ -1463,6 +1513,8 @@ class c:
 
     @classmethod
     def obj(cls, key:str, splitters=['/', '::', '.'], **kwargs)-> Any:
+        
+
         ''' Import an object from a string with the format of {module_path}.{object}'''
         module_path = None
         object_name = None
@@ -1542,13 +1594,9 @@ class c:
         return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
 
     @classmethod
-    def home_modules(cls, search=None, **kwargs):
-        return list(c.get_tree(c.home_modules_path, search=search, **kwargs).keys())
-
-    @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.lib_path, depth=depth, **kwargs)
-        
+
     @classmethod
     def core_tree(cls, **kwargs):
         tree =  c.get_tree(c.lib_path, **kwargs)
@@ -1581,15 +1629,17 @@ class c:
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
         modules_tree = c.modules_tree(update=update, max_age=max_age)
-        # overlap the local tree over the lib tree
-        tree = {**lib_tree, **local_tree}
+        tree = {**lib_tree, **modules_tree, **local_tree}
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
         
     @classmethod
     def modules_tree(cls, search=None, **kwargs):
-        return c.get_tree(c.modules_path, search=search, **kwargs)
+        tree =  c.get_tree(c.modules_path, search=search, **kwargs)
+        # tree = {k.replace('modules.',''):v for k,v in tree.items() }
+        return tree
+
     @classmethod
     def core_modules(cls, search=None, depth=10000, avoid_folder_terms = ['modules.'], **kwargs):
         object_paths = cls.classes(c.lib_path, depth=depth )
@@ -1679,10 +1729,6 @@ class c:
         return c.util(util)(*args, **kwargs)
 
     @classmethod
-    def root_key(cls):
-        return cls.get_key()
-
-    @classmethod
     def founder(cls):
         return c.get_key()
 
@@ -1713,6 +1759,11 @@ class c:
     def ask(cls, *args, **kwargs):
         return c.module("agent")().ask(*args, **kwargs) 
 
+    @classmethod
+    def ai(cls, *args, **kwargs):
+        return c.module("agent")().ask(*args, **kwargs) 
+
+
     def clone(self, repo:str = 'commune-ai/commune', path:str=None, **kwargs):
         gitprefix = 'https://github.com/'
         if not repo.startswith(gitprefix):
@@ -1726,6 +1777,9 @@ class c:
         for path in c.files(path): 
             if path.endswith('.py'):
                 return True  
+
+    def has_modules(self, path:str):
+        return path in c.get_tree(c.modules_path)
 
     def help(self, module:str, search=None):
         module = c.module(module)

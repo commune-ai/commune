@@ -49,6 +49,7 @@ class KeyType:
 
 class Key:
 
+    default_key= 'module'
     crypto_type_map = {k.lower():v for k,v in KeyType.__dict__.items()}
     ss58_format = 42
     crypto_type =  'sr25519'
@@ -161,17 +162,17 @@ class Key:
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         assert not cls.key_exists(path), f'key still exists at {path}'
         new_key = cls.get_key(new_path)
-        return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
+        return {'success': True, 'from': path , 'to': new_path}
     
     @classmethod
-    def copy_key(cls, path, new_path):
+    def cp_key(cls, path, new_path):
         assert cls.key_exists(path), f'key does not exist at {path}'
-        new_path = cls.resolve_path(new_path)
-        c.put(new_path, cls.get_key(path).to_json())
-        assert cls.key_exists(new_path), f'key does not exist at {new_path}'
-        assert cls.get_key(path) == cls.get_key(new_path), f'key does not match'
+        path_key = cls.get_key(path)
+        c.put(new_path, cls.get_key_data(path))
         new_key = cls.get_key(new_path)
-        return {'success': True, 'from': path , 'to': new_path, 'key': new_key}
+        assert cls.key_exists(new_path), f'key does not exist at {new_path}'
+        assert path_key.key_address == new_key.key_address, f'key does not match'
+        return {'success': True, 'from': path , 'to': new_path, 'key': new_key.key_address}
 
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
@@ -184,15 +185,17 @@ class Key:
 
         return response
     
-    def key2encrypted(self):
-        keys = self.keys()
+    @classmethod
+    def key2encrypted(cls):
+        keys = cls.keys()
         key2encrypted = {}
         for k in keys:
             key2encrypted[k] = self.is_key_encrypted(k)
         return key2encrypted
     
-    def encrypted_keys(self):
-        return [k for k,v in self.key2encrypted().items() if v == True]
+    @classmethod
+    def encrypted_keys(cls):
+        return [k for k,v in cls.key2encrypted().items() if v == True]
             
     @classmethod
     def key_info(cls, path='module', **kwargs):
@@ -206,6 +209,17 @@ class Key:
         if not path.startswith(prefix):
             path = prefix + '/' + path
         return path
+
+    @classmethod
+    def root_key(cls):
+        return cls.get_key(cls.default_key)
+
+    @classmethod
+    def set_root_key(cls, key):
+        if not cls.key_exists(key):
+            cls.add_key(key)
+        assert cls.key_exists(key), f'key {key} does not exist'
+        return cls.mv_key(key, cls.default_key)
     
     @classmethod
     def save_keys(cls, path='saved_keys.json', **kwargs):

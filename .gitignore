@@ -7,6 +7,8 @@ __pycache__/**
 *.pyc
 env/
 
+./modules/
+
 # benchmark results
 benchmarks/results/
 benchmarks/results/*
