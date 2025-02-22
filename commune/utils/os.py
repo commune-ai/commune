@@ -338,7 +338,7 @@ def cmd(
             command = f'bash -c "{command}"'
 
         # Handle working directory
-        cwd = c.resolve_path(c.pwd() if cwd is None else cwd)
+        cwd = os.getcwd() if cwd is None else cwd
 
         # Handle environment variables
         if env is None:

@@ -30,12 +30,11 @@ class c:
     repo_path  = os.path.dirname(os.path.dirname(__file__)) # the path to the repo
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
-
-     # the path to the modules
-    # modules_path =  lib_path + '/modules'  if os.path.exists(lib_path + '/modules') else root_path + '/module'
     modules_path = home_path + '/modules'
-    temp_modules_path = lib_path + '/modules/temp'
+    local_modules_path = lib_path + '/modules'
+    home_modules_path = home_path + '/modules'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
+
     cache = {} # cache for module objects
 
     def push_module(self, module='subspace', p1:str = '~/commune/modules', p2='~/modules', **kwargs) -> Dict:
@@ -578,72 +577,6 @@ class c:
                 fn2route[fn] =  module + splitter + fn
         fn2route = dict(sorted({k: v for k, v in fn2route.items() if v != ''}.items(), key=lambda x: x[0]))
         return fn2route
-
-    @classmethod
-    def add_routes(cls, routes:dict=None):
-
-        """
-        This ties other modules into the current module.
-        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
-        This allows you to call the function as if it were a method of the current module.
-        for example
-        """
-        routes = cls.get_routes()
-        t0 = time.time()
-        # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
-        # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
-        def fn_generator(*args, route, **kwargs):
-            def fn(*args, **kwargs):
-                try:
-                    fn_obj = c.obj(route)
-                except: 
-                    if '/' in route:
-                        module = '/'.join(route.split('/')[:-1])
-                        fn = route.split('/')[-1]
-                    module = c.module(module)
-                    fn_obj = getattr(module, fn)
-                    if c.classify_fn(fn_obj) == 'self':
-                        fn_obj = getattr(module(), fn)
-                if callable(fn_obj):
-                    return fn_obj(*args, **kwargs)
-                else:
-                    return fn_obj
-            return fn(*args, **kwargs)
-
-        for module, fns in routes.items():
-            for fn in fns: 
-                if isinstance(fn, list):
-                    to_fn = fn[1]
-                    fn = fn[0]
-                if isinstance(fn, dict):
-                    to_fn = fn['to']
-                    fn = fn['from']
-                if isinstance(fn, str):
-                    to_fn = fn
-        
-                if hasattr(cls, to_fn):
-                    print(f'Warning: {to_fn} already exists')
-                else:
-                    fn_obj = partial(fn_generator, route=module + '/' + fn) 
-                    fn_obj.__name__ = fn
-                    setattr(cls, to_fn, fn_obj)
-        latency = time.time() - t0
-        return {'success': True, 'msg': 'enabled routes', 'latency': latency}
-
-    @classmethod
-    def add_to_globals(cls, globals_input:dict = None):
-        from functools import partial
-        globals_input = globals_input or {}
-        for k,v in c.__dict__.items():
-            globals_input[k] = v     
-        for f in c.class_functions(c) + c.static_functions(c):
-            globals_input[f] = getattr(c, f)
-        for f in c.classify_fns(c, mode='self'):
-            def wrapper_fn(f, *args, **kwargs):
-                fn = getattr(Module(), f)
-                return fn(*args, **kwargs)
-            globals_input[f] = partial(wrapper_fn, f)
-        return globals_input
 
     def set_config(self, config:Optional[Union[str, dict]]=None ) -> 'Munch':
         '''
@@ -1951,7 +1884,91 @@ class c:
         text = '\n'.join(text.split('\n')[:start_line-1] + text.split('\n')[end_line:])
         c.put_text(filepath, text)
 
+    @classmethod
+    def resolve_modules(cls):
+        local_modules_path = cls.local_modules_path
+        home_modules_path = cls.home_modules_path
+        
+        if not os.path.exists(local_modules_path):
+            print(f'Modules resolved to {home_modules_path}')
+            if os.path.exists(home_modules_path):
+                c.cmd(f'cp -r {home_modules_path} {local_modules_path}')
+            else:
+                c.cmd(f'git clone {config["modules_code_url"]} {local_modules_path}')
+        assert os.path.exists(local_modules_path)
+        return {'success':True, 'message':f'Modules resolved to {local_modules_path}', 'path':local_modules_path, 'home_path':home_modules_path}
+
+    @classmethod
+    def add_routes(cls, routes:dict=None):
+
+        """
+        This ties other modules into the current module.
+        The way it works is that it takes the module name and the function name and creates a partial function that is bound to the module.
+        This allows you to call the function as if it were a method of the current module.
+        for example
+        """
+        routes = cls.get_routes()
+        t0 = time.time()
+        # WARNING : THE PLACE HOLDERS MUST NOT INTERFERE WITH THE KWARGS OTHERWISE IT WILL CAUSE A BUG IF THE KWARGS ARE THE SAME AS THE PLACEHOLDERS
+        # THE PLACEHOLDERS ARE NAMED AS module_ph and fn_ph AND WILL UNLIKELY INTERFERE WITH THE KWARGS
+        def fn_generator(*args, route, **kwargs):
+            def fn(*args, **kwargs):
+                try:
+                    fn_obj = c.obj(route)
+                except: 
+                    if '/' in route:
+                        module = '/'.join(route.split('/')[:-1])
+                        fn = route.split('/')[-1]
+                    module = c.module(module)
+                    fn_obj = getattr(module, fn)
+                    if c.classify_fn(fn_obj) == 'self':
+                        fn_obj = getattr(module(), fn)
+                if callable(fn_obj):
+                    return fn_obj(*args, **kwargs)
+                else:
+                    return fn_obj
+            return fn(*args, **kwargs)
+
+        for module, fns in routes.items():
+            for fn in fns: 
+                if isinstance(fn, list):
+                    to_fn = fn[1]
+                    fn = fn[0]
+                if isinstance(fn, dict):
+                    to_fn = fn['to']
+                    fn = fn['from']
+                if isinstance(fn, str):
+                    to_fn = fn
+        
+                if hasattr(cls, to_fn):
+                    print(f'Warning: {to_fn} already exists')
+                else:
+                    fn_obj = partial(fn_generator, route=module + '/' + fn) 
+                    fn_obj.__name__ = fn
+                    setattr(cls, to_fn, fn_obj)
+        latency = time.time() - t0
+        return {'success': True, 'msg': 'enabled routes', 'latency': latency}
+
+    @classmethod
+    def add_globals(cls, globals_input:dict = None):
+        """
+        add the functions and classes of the module to the global namespace
+        """
+        from functools import partial
+        globals_input = globals_input or {}
+        for k,v in c.__dict__.items():
+            globals_input[k] = v     
+        for f in c.class_functions(c) + c.static_functions(c):
+            globals_input[f] = getattr(c, f)
+        for f in c.classify_fns(c, mode='self'):
+            def wrapper_fn(f, *args, **kwargs):
+                fn = getattr(Module(), f)
+                return fn(*args, **kwargs)
+            globals_input[f] = partial(wrapper_fn, f)
+        return globals_input
+
 c.add_routes()
+c.resolve_modules()
 Module = c # Module is alias of c
 if __name__ == "__main__":
     Module.run()
