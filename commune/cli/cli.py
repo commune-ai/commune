@@ -4,7 +4,6 @@ import sys
 import commune as c
 from typing import Any
 print = c.print
-
 class Cli:
     desc = 'cli for running functions'
     safety = True
@@ -67,7 +66,6 @@ class Cli:
             output = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
         except Exception as e:
             output = c.detailed_error(e)
-
         if self.ai_enabled:
             output = c.ask(output)
         latency = time.time() - t0

@@ -2,7 +2,6 @@
 REPO_NAME=$(basename $(pwd))
 OS_NAME=$(uname)
 echo "REPO_NAME: $REPO_NAME OS_NAME: $OS_NAME"
-
 # show its stats of the hard
 
 if ! command -v npm &> /dev/null

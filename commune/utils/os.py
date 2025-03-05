@@ -14,7 +14,6 @@ import glob
 import requests
 import json
 
-
 def osname():
     return os.name
 

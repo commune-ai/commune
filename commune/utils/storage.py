@@ -1,7 +1,7 @@
 
 from typing import *
 import os
-
+import json
 def str2python(x):
     x = str(x)
     if isinstance(x, str) :
@@ -46,36 +46,6 @@ def str2python(x):
                 pass
     return x
 
-
-def get_folder_contents_advanced(url='commune-ai/commune.git', 
-                                 host_url = 'https://github.com/',
-                                 auth_token=None):
-    try:
-        headers = {
-            'Accept': 'application/json',
-            'User-Agent': 'Python Script'
-        }
-        if not url.startswith(host_url):
-            url = host_url + url
-        
-        if auth_token:
-            headers['Authorization'] = f'token {auth_token}'
-        
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        
-        # Parse JSON response
-        content = response.json()
-        
-        # If it's a GitHub API response, it will be a list of files/folders
-        if isinstance(content, list):
-            return json.dumps(content, indent=2)
-        return response.text
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return None
-
 def file2hash(path='./'):
     import commune as c
     file2hash = {}
@@ -83,8 +53,6 @@ def file2hash(path='./'):
     for k,v in c.file2text(path).items():
         file2hash[k] = c.hash(v)
     return file2hash
-
-
 
 def locals2kwargs(locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['cls','self']) -> dict:
     locals_dict = locals_dict or {}
@@ -117,8 +85,45 @@ def walk(path='./', depth=2):
             pass
     return results
 
+def put_text(path:str, text:str) -> dict:
+    # Get the absolute path of the file
+    dirpath = os.path.dirname(path)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath, exist_ok=True)
+    # Write the text to the file
+    with open(path, 'w') as file:
+        file.write(text)
+    # get size
+    return {'success': True, 'path': f'{path}', 'size': len(text)*8}
 
+def get_text( path: str, **kwargs ) -> str:
+    # Get the absolute path of the file
+    with open(path, 'r') as file:
+        content = file.read()
+    return content
 
+def put_json(path:str, data:dict, key=None) -> dict:
+    if not path.endswith('.json'):
+        path = path + '.json'
+    data = json.dumps(data) if not isinstance(data, str) else data
+    dirpath = os.path.dirname(path)
+    if not os.path.exists(dirpath):
+        os.makedirs(dirpath, exist_ok=True)
+    with open(path, 'w') as file:
+        file.write(data)
+    return {'success': True, 'path': f'{path}', 'size': len(data)*8}
+    
+def get_json(path, default=None):
+    if not path.endswith('.json'):
+        path = path + '.json'
+    if not os.path.exists(path):
+        return default
+    try:
+        with open(path, 'r') as file:
+            data = json.load(file)
+    except Exception as e:
+        return default
+    return data
 def get_num_files( directory):
     num_files = 0
     for root, _, files in os.walk(directory):
@@ -450,6 +455,8 @@ def path2text( path:str, relative=False):
         path2text = {os.path.relpath(k, pwd):v for k,v in path2text.items()}
     return path2text
 
-
 def textsize( path: str = './', **kwargs ) -> str:
     return len(str(cls.text(path)))
+
+def num_files(path='./',  **kwargs) -> List[str]: 
+    return len(cls.files(path))

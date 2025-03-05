@@ -433,3 +433,8 @@ c set_port_range 8000 9000 # set the port range to 8000-9000
 ```
 
 
+
+The modules folder
+
+The modules folder is default in ~/modules and contains the code from any module you import 
+it is by default stored in ~/modules which can differ depending on your system (inside docker it is /root) while on a macbook its /home/{username}, you can define this by c.home_path

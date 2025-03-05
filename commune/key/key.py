@@ -77,8 +77,6 @@ class Key:
         if crypto_type != self.crypto_type:
             kwargs = {
                 'private_key': self.private_key,
-                'ss58_format': self.ss58_format,
-                'path': self.path, 
                 'crypto_type': crypto_type # update crypto_type
             }
             return self.set_private_key(**kwargs)
@@ -112,12 +110,12 @@ class Key:
             if len(private_key) != 64:
                 private_key = sr25519.pair_from_seed(private_key)[1]
             public_key = sr25519.public_from_secret_key(private_key)
-            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
+            key_address = ss58_encode(public_key, ss58_format=Key.ss58_format)
         elif crypto_type == KeyType.ED25519:       
             private_key = private_key[:32]    
             assert len(private_key) == 32  
             public_key, private_key = ed25519_zebra.ed_from_seed(private_key)
-            key_address = ss58_encode(public_key, ss58_format=self.ss58_format)
+            key_address = ss58_encode(public_key, ss58_format=Key.ss58_format)
         elif crypto_type == KeyType.ECDSA:
             private_key = private_key[0:32]
             assert len(private_key) == 32
@@ -262,19 +260,14 @@ class Key:
                 path:str,
                 password:str=None, 
                 create_if_not_exists:bool = True, 
+                prompt_password:bool = False,
                 crypto_type=crypto_type, 
                 **kwargs):
-        for k in ['crypto_type', 'type']:
-            if k in kwargs:
-                crypto_type = kwargs.pop(k)
-                break
+        if 'type' in kwargs:
+            crypto_type = kwargs.pop('type')
         if hasattr(path, 'key_address'):
-            key =  path
-            return key
+            return path
         path = path or 'module'
-        # if ss58_address is provided, get key from address
-        if cls.valid_ss58_address(path):
-            path = cls.address2key().get(path)
         if not cls.key_exists(path):
             if create_if_not_exists:
                 key = cls.add_key(path, **kwargs)
@@ -286,10 +279,10 @@ class Key:
             key_json = key_json.replace("'", '"')
         # if key is encrypted, decrypt it
         if cls.is_encrypted(key_json):
+            if prompt_password and password == None:
+                password = input(f'enter password to decrypt {path} ')
             key_json = c.decrypt(data=key_json, password=password)
-            if key_json == None:
-                c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'})
-            return None
+
         key_json = json.loads(key_json) if isinstance(key_json, str) else key_json
         key =  cls.from_json(key_json, crypto_type=crypto_type)
         key.path = path
@@ -514,13 +507,13 @@ class Key:
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
         
-        ss58_address = ss58_encode(public_key, cls.ss58_format)
+        ss58_address = ss58_encode(public_key, Key.ss58_format)
 
         kwargs =  dict(
             ss58_address=ss58_address, 
             public_key=public_key, 
             private_key=private_key,
-            ss58_format=cls.ss58_format,
+            ss58_format=Key.ss58_format,
               crypto_type=crypto_type, 
         )
         
@@ -530,7 +523,7 @@ class Key:
         key= cls.from_uri(password, crypto_type=1, **kwargs)
         key.set_crypto_type(crypto_type)
         return key
-    
+
     str2key = pwd2key = password2key = from_password = from_password
 
     @classmethod
@@ -830,7 +823,7 @@ class Key:
         Checks if the given address is a valid ss58 address.
         """
         try:
-            return is_valid_ss58_address( address , valid_ss58_format=cls.ss58_format )
+            return is_valid_ss58_address( address , valid_ss58_format=Key.ss58_format )
         except Exception as e:
             return False
           

@@ -2,6 +2,7 @@
 
 from typing import *
 import random 
+import commune as c
 def copy( data: Any) -> Any:
     import copy
     return copy.deepcopy(data)
@@ -461,16 +462,17 @@ def munch2dict( x:'Munch', recursive:bool=True)-> dict:
                 x[k] = munch2dict(v)
     return x 
 
-def time(  t=None) -> float:
-    from time import time
-    return time()
-def timestamp(  t=None) -> float:
-    return int(time())
-def time2datetime( t:float):
-    import commune as c
-    return c.util('time.time2datetime')(t)
+def time(t=None) -> float:
+    import time
+    return time.time()
 
-time2date = time2datetime
+def timestamp(t=None) -> float:
+    return int(time())
+
+def time2date(self, time:float=None):
+    import datetime
+    time = time or time()
+    return datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
 
 def datetime2time( x:str):
     import datetime
@@ -483,3 +485,12 @@ def search_dict(d:dict = 'k,d', search:str = {'k.d': 1}) -> dict:
         if search in k.lower():
             new_d[k] = v
     return new_d
+
+def module2size(search=None, depth=10000, **kwargs):
+    import commune as c
+    module2size = {}
+    module2code = c.module2code(search=search, depth=depth, **kwargs)
+    for k,v in module2code.items():
+        module2size[k] = len(v)
+    module2size = dict(sorted(module2size.items(), key=lambda x: x[1], reverse=True))
+    return module2size

@@ -1,4 +1,3 @@
-import commune as c
 from typing import *
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,20 +5,16 @@ from sse_starlette.sse import EventSourceResponse
 import uvicorn
 import os
 import json
-import asyncio
 import os
-import commune as c
-from typing import *
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from sse_starlette.sse import EventSourceResponse
-import uvicorn
 import os
 import json
 import asyncio
+import commune as c
 
 class Server:
 
+    executor = 'server.executor' # the executor for the server to run the functions
+    serializer = 'server.serializer' # the serializer for the server serializes and deserializes the data for the server if it is not a string
     pm_dir = c.home_path + '/.pm2'
     helper_functions  = ['info', 'forward'] # the helper functions
     def __init__(
@@ -35,54 +30,48 @@ class Server:
         middleware: Optional[callable] = None, # the middleware for the server
         history_path: Optional[str] = None, # the path to the user data
         run_api = False, # if the server should be run as an api
-        executor = 'server.executor',  # the executor for the server to run the functions
-        serializer = 'server.serializer', # the serializer for the server serializes and deserializes the data for the server if it is not a string
         tempo:int = 10000 , # (in seconds) the maximum age of the history
-        task_timeout:int = 10, # (in seconds) the maximum time to wait for a response
+        timeout:int = 10, # (in seconds) the maximum time to wait for a response
         ) -> 'Server':
-        self.set_network(network)
-        module = module or 'module'
-        if isinstance(module, str):
-            if '::' in str(module):
-                name = module
-                module, tag = name.split('::') 
-        name = name or module
-        self.module = c.module(module)(**(params or {}))
-        self.module.name = name 
-        self.module.key = c.get_key(key or name)
-        self.history_path = history_path or self.resolve_path('history')
+        self.set_module(module=module, name=name, key=key, params=params, functions=functions, network=network)
         if run_api:
-            self.serializer = c.module(serializer)()
-            self.executor = c.module(executor)()
-            self.set_functions(functions) 
-            self.set_port(port)
-            self.module.info = self.get_info(self.module)
-            self.loop = asyncio.get_event_loop()
-            self.app = FastAPI()
-            self.set_middleware(self.app)
-            def forward(fn: str, request: Request):
-                try:
-                    result =  c.wait(self.executor.submit(self.forward, params={"fn": fn, "request":request}), timeout=task_timeout)
-                except Exception as e:
-                    result =  c.detailed_error(e)
-                return result
-            self.app.post("/{fn}")(forward)
-            c.print(f'Served(url={self.module.url}, name={self.module.name}, key={self.module.key.key_address})', color='purple')
-            uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
-            
-    def forward(self, fn:str, request: dict) -> dict:
-        t0 = c.time()
+            self.run_api(port=port, timeout=timeout)
+
+    def run_api(self, 
+                port:Optional[int] = None, 
+                timeout:int = 10):
+        self.set_port(port)
+        self.module.info = self.get_info(self.module)
+        self.loop = asyncio.get_event_loop()
+        self.app = FastAPI()
+        self.set_middleware(self.app)
+        self.serializer = c.module(self.serializer)()
+        self.executor = c.module(self.executor)()
+        def forward(fn: str, request: Request):
+            return self.send_request(fn, request)
+        self.app.post("/{fn}")(forward)
+        c.print(f'Served(url={self.module.url}, name={self.module.name}, key={self.module.key.key_address})', color='purple')
+        uvicorn.run(self.app, host='0.0.0.0', port=self.module.port, loop='asyncio')
+
+    def send_request(self, fn, request, timeout=10):
         request = self.get_request(request) # process the request
         params = request['params']
         headers = request['headers']
-        client_key_address = headers['key']
         rate_limit = self.rate_limit(fn=fn, params=params, headers=headers)   
         rate = self.rate(self.module.name+'/'+headers['key'])
-        assert rate < rate_limit, f'RateLimitExceeded(rate={rate} limit={rate_limit})'     
-        c.print(f'Request(fn={fn} params={params} client={client_key_address} size={len(str(params))})', color='green')
+        assert rate < rate_limit, f'RateLimitExceeded(rate={rate} limit={rate_limit})' 
+        params = {"fn": fn, "request":request} 
+        future = self.executor.submit(self.forward, params, priority=rate_limit)
+        return c.wait(future, timeout=timeout)
+        
+    def forward(self, fn:str, request:dict) -> dict:   
+        params = request['params']
+        headers = request['headers']
+        t0 = c.time()
+        c.print(f'Request(fn={fn} params={params} client={headers["key"]} size={len(str(params))})', color='green')
         fn_obj = getattr(self.module, fn)
         result = fn_obj(*params['args'], **params['kwargs']) if callable(fn_obj) else fn_obj
-        net_latency = t0 - float(headers['time']) # the latency of the request (in seconds) by subtracting the time the request was made from the current time
+        t1 = c.time()
         if c.is_generator(result):
             output = str(result)
             def generator_wrapper(generator):
@@ -90,29 +79,72 @@ class Server:
                     yield item
             result = EventSourceResponse(generator_wrapper(result))       
         else:
-            data = {}
-            data['fn'] = fn
-            data['params'] = params # the parameters of the call
-            data['result'] = result # the result of the call
-            data['time'] = c.time() # the time the call was made
-            data["time_delta"] = data['time'] - float(headers['time']) # the time it took to process the reques
-            data['cost'] = self.module.fn2cost.get(fn, 1) # the cost of the call
-            data['caller'] = headers # the headers of the request
-            data_hash = c.hash(data)
+            data = {
+                'fn': fn,
+                'params': params,
+                'headers': headers , 
+                'result': result, 
+                'time': t1, # the time the request was made
+                'duration': t1 - float(headers['time']), # the duration of the request (in seconds) by subtracting the time the request was made from the current time
+                'cost': fn_obj.__dict__['__cost__'] if callable(fn_obj) else 1, # the cost of the function
+            }
             data['server'] = {
-                              'data_hash' : data_hash,# the hash of the data
-                              'key': self.module.key.ss58_address, 
-                              'signature': c.sign(data_hash, key=self.module.key, mode='str'), # hex string of the data,
-                              'time': c.time()
-                              }
-            # save the call data
-            address = self.module.name + '/'  + data['caller']["key"]
-            calls_t0 = self.calls(address) # the number of calls before the call
-            call_data_path = self.history_path + '/' + address +  (f'/{data["fn"]}/{data["time"]}.json') 
-            c.put(call_data_path, data) # save the call data
-            calls_t1 = self.calls(address) # the number of calls after the call
-            assert calls_t1 == calls_t0 + 1, f'Expected {calls_t0+1} calls, but got {calls_t1}' 
+                'key': self.module.key.ss58_address,
+                'signature': c.sign(c.hash(data), key=self.module.key, mode='str')
+            }
+            self.save_call(data)
         return result 
+
+    def save_call(self, data:dict):
+        address = self.module.name + '/'  + data['headers']["key"]
+        calls_t0 = self.calls(address) # the number of calls before the call
+        call_data_path = self.history_path + '/' + address +  f'/{data["fn"]}/{data["time"]}.json'
+        c.put(call_data_path, data) # save the call data
+        calls_t1 = self.calls(address) # the number of calls after the call
+        assert calls_t1 == calls_t0 + 1, f'Expected {calls_t0+1} calls, but got {calls_t1}' 
+        return {'success':True, 'message':f'Saved call data to {call_data_path}'}
+
+    def set_module(self, 
+                    module: Union[c.Module, object] = None, 
+                    name: Optional[str] = None, 
+                    key:Optional[str] = None, 
+                    params: Optional[dict] = None, 
+                    functions: Optional[List[str]] = None,
+                    history_path: Optional[str] = None,
+                    network: str = 'local'
+                    ):
+        """
+        Set the module for the server
+        Args:
+            module (Union[c.Module, object]): the module to serve
+            name (Optional[str]): the name of the server
+            key (Optional[str]): the key for the server
+            params (Optional[dict]): the kwargs for the module
+            history_path (Optional[str]): the path to the user data
+        Returns:
+            dict: the module information
+        """
+
+        self.set_network(network)
+        module = module or 'module'
+        if isinstance(module, str):
+            if '::' in str(module):
+                name = module
+                module, tag = name.split('::') 
+        self.module = c.module(module)(**(params or {}))
+        self.module.name = name = name or module 
+        self.module.key = c.get_key(key or name)
+        self.history_path = history_path or self.resolve_path('history')
+        self.set_functions(functions) 
+    
+        return {
+                'module': self.module, 
+                'name': name, 
+                'key': self.module.key.ss58_address, 
+                'params': params, 
+                'functions': self.module.fns,
+                'history_path': self.history_path
+                }
 
     @classmethod
     def resolve_path(cls, path):
@@ -125,7 +157,7 @@ class Server:
 ):
         self.free = any([(hasattr(self.module, k) and self.module.free)  for k in freedom_attributes])
         if self.free:
-            c.print('YOUVE ENABLED AMURICA --> FREEDOM', color='red')
+            c.print('YOUVE ENABLED AMURICA --> FREEDOM', color='red') 
         else:
             if hasattr(self.module, 'free'):
                 self.free = self.module.free
@@ -134,8 +166,9 @@ class Server:
             for i, fn in enumerate(functions):
                 if callable(fn):
                     print('Adding function -->', f)
-                    setattr(self, fn.__name__, fn)
+                    setattr(self.module, fn.__name__, fn)
                     functions[i] = fn.__name__
+        
         for fa in function_attributes:
             if hasattr(self.module, fa) and isinstance(getattr(self.module, fa), list):
                 functions = getattr(self.module, function_attributes[0]) 
@@ -143,8 +176,17 @@ class Server:
         # does not start with _ and is not a private function
         self.module.functions = self.module.fns = [fn for fn in sorted(list(set(functions + self.helper_functions))) if not fn.startswith('_')]
         self.module.fn2cost = self.module.fn2cost  if hasattr(self.module, 'fn2cost') else {}
-        if callable(self.module.fn2cost):
-            self.module.fn2cost = self.module.fn2cost()
+        schema = {}
+        for fn in self.module.fns:
+            self.module.fn2cost[fn] = self.module.fn2cost.get(fn, 1)
+            cost = self.module.fn2cost[fn]
+            fn_obj = getattr(self.module, fn)
+            fn_obj.__dict__['__cost__'] = cost
+            setattr(self.module, fn, fn_obj)
+            schema[fn] = c.fn_schema(fn_obj)
+            print(f'AddedFunction(fn={fn} cost={cost})')
+
+        self.module.schema = schema
         c.print(f'SetFunctions(fns={self.module.fns} fn2cost={self.module.fn2cost} free={self.free})')
         return {'functions': self.module.fns, 'fn2cost': self.module.fn2cost, 'free': self.free}
         
@@ -214,7 +256,8 @@ class Server:
                           network: str = 'local',
                           timeout:int = 600,
                           max_age = 1,
-                          sleep_interval: int = 1) -> bool :
+                          sleep_interval: int = 1,
+                          verbose=False) -> bool :
         
         time_waiting = 0
         c.print(f'waiting for {name} to start...', color='cyan')
@@ -225,7 +268,7 @@ class Server:
                     result = c.call(namespace[name]+'/info')
                     return result
                 except Exception as e:
-                    c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red')
+                    c.print(f'Error getting info for {name} --> {c.detailed_error(e)}', color='red', verbose=verbose)
             c.sleep(sleep_interval)
             c.print(c.logs(name, tail=10))
             time_waiting += sleep_interval
@@ -411,10 +454,6 @@ class Server:
 
     def most_recent_call_time(self, module='module',search=None,  **kwargs):
         return self.get_path_time(self.most_recent_call_path(module=module, search=search, **kwargs))
-        
-    def time2date(self, time:float):
-        import datetime
-        return datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d %H:%M:%S')
 
     def modules(self, 
                 search=None, 
@@ -529,13 +568,13 @@ class Server:
         user_paths = c.glob(path)
         return sorted(user_paths, key=self.get_path_time)
 
-    def history(self, address = 'module' , df=1):
+    def history(self, address = 'module' , df=0):
         history =  [c.get_json(p)["data"] for p in self.call_paths(address)]
         if df:
             df =  c.df(history)
-            features = ['fn', 'cost', 'caller', 'time', 'time_delta']
+            features = ['fn', 'cost', 'caller', 'time', 'duration']
             shorten_key = lambda x: x[:3] + '...' + x[-2:]
-            df['time'] = df['time'].apply(lambda x: self.time2date(x))
+            # df['time'] = df['time'].apply(lambda x: self.time2date(x))
             df = df[features]
             return df
 
@@ -545,6 +584,7 @@ class Server:
         paths = self.call_paths(address)
         for p in paths:
             c.rm(p)
+        assert len(self.call_paths(address)) == 0, f'Failed to clear paths for {address}'
         return {'message':f'Cleared {len(paths)} paths for {address}'}
 
     def calls(self, address = 'module' ):
@@ -557,7 +597,7 @@ class Server:
         return {u: self.calls(module+'/'+u) for u in self.callers(module)}
 
     def clear_module_history(self, module='module'):
-        return os.system(f'rm -r {self.history_path}/{module}/*')
+        return os.system(f'rm -r {self.history_path}/{module}')
 
     def get_path_time(self, path:str) -> float:
         try:
@@ -565,15 +605,3 @@ class Server:
         except Exception as e:
             x = 0
         return x
-
-
-    def fleet(self, module, n=1, tag=None, **kwargs):
-        futures = []
-        if tag != None:
-            module = f'{module}::{tag}'
-        for i in range(n):
-            futures += [c.submit(c.serve, dict(module=module, name=f'{module}{i}'))]
-        for f in c.as_completed(futures):
-            c.print(f.result())
-        return  {'message':f'Launched {n} servers for {module}', 'namespace':self.namespace()}
-        

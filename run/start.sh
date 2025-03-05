@@ -1,5 +1,8 @@
+# starts the container with the name of the current directory
 
-REPO=$(basename $(pwd))
+
+REPO=$(basename $(pwd)) # get the name of the current directory
+# if no argument is passed, start the container with the name of the current directory
 if [ -z $1 ]; then
   NAME=$REPO
 else
@@ -14,7 +17,7 @@ docker run -d \
   --network=host \
   --restart unless-stopped \
   --privileged --shm-size 4g \
-  -v $REPO:/app -v ~/.$REPO:/root/.$REPO \
+  -v $REPO:/root/$REPO -v ~/.$REPO:/root/.$REPO \
   -v /var/run/docker.sock:/var/run/docker.sock \
   $REPO
 
@@ -22,3 +25,5 @@ CONTAINER_ID=$(docker ps -q -f name=$NAME)
 echo "STARTING(name=$NAME repo=$REPO container=$CONTAINER_ID)"
 
 
+
+# Path: run/stop.sh

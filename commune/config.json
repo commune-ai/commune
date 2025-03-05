@@ -16,7 +16,6 @@
         "r" :  "remote",
         "s" :  "subspace",
         "subspace": "subspace", 
-        "bt": "bittensor",
         "client": "server.client",
         "local": "server",
         "executor": "server.executor", 
