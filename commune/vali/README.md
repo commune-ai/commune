@@ -40,7 +40,7 @@ Generates a performance scoreboard.
 
 ```python
 board = vali.scoreboard(
-    keys=['name', 'score', 'latency', 'address', 'key'],
+    keys=['name', 'score', 'duration', 'address', 'key'],
     ascending=True,
     by='score'
 )

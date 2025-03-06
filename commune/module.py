@@ -16,7 +16,6 @@ config = json.load(open(__file__.replace(__file__.split('/')[-1], 'config.json')
 class c:
 
     # config attributes
-    code_url = config["code_url"]
     repo_name  = config['name']# the name of the library
     description = config['description'] # the description of the library
     free = config["free"] # if the server is free 
@@ -32,24 +31,9 @@ class c:
     lib_path = os.path.dirname(os.path.dirname(__file__)) # the path to the library
     home_path  = os.path.expanduser('~') # the home path
     modules_path = lib_path + '/modules'
+    app_path = lib_path + '/app'
     storage_path = os.path.expanduser(f'~/.{repo_name}')
     cache = {} # cache for module objects
-
-    def push_module(self, module='subspace', p1:str = '~/commune/modules', p2='~/modules', **kwargs) -> Dict:
-        """
-        Merges the files in the directory
-        """
-        p1_path = os.path.join(p1, p1_path)
-        p2_path = os.path.join(p2, module)
-        assert os.path.exists(p1_path), f'{p1_path} does not exist'
-        if os.path.exists(p2_path):
-            p1_hash = c.filehash(p1_path)
-            p2_hash = c.filehash(p2_path)
-            shutil.rmtree(p2_path)
-        shutil.copytree(p1_path, p2_path)
-        assert os.path.exists(p2_path), f'{p2_path} does not exist'
-        assert not os.path.exists(p1_path), f'{p1_path} still exists'
-        return dir_list
 
     def merge_modules(self, path='./modules', to_path='~/modules', **kwargs) -> Dict:
         to_path = os.path.expanduser(to_path)
@@ -80,11 +64,12 @@ class c:
                 module_obj = c.obj2module(c.obj(module)) # if the model
             except Exception as e:
                 tree = c.tree(update=1)
-                matching_keys = [k for k in tree.keys() if path in k] # 
-                print(f'Found {matching_keys} matching keys for {path}')
-                if len(matching_keys) > 0:
-                    print(f'Found {matching_keys} matching keys')
-                    module = tree[matching_keys[0]]
+                if not module in tree:
+                    matching_keys = [k for k in tree.keys() if module in k] # 
+                    if len(matching_keys) > 0:                        
+                        if any([path == k for k in matching_keys]):
+                            return [c.module(k) for k in matching_keys]
+                        module = tree[matching_keys[0]]
                 sys.path.insert(0, c.pwd())
                 module_obj = c.obj2module(c.obj(module))
 
@@ -753,7 +738,7 @@ class c:
         Return the value
         '''
         k = cls.resolve_path(k)
-        data = c.get_json(k,default=default, **kwargs)
+        data = c.get_json(k, default=default, **kwargs)
         if password != None:
             assert data['encrypted'] , f'{k} is not encrypted'
             data['data'] = c.decrypt(data['data'], password=password)
@@ -762,7 +747,6 @@ class c:
             return default
         if update:
             max_age = 0
-
         if max_age != None:
             timestamp = 0
             for k in ['timestamp', 'time']:
@@ -1166,6 +1150,20 @@ class c:
             return False
         return callable(fn)
 
+    @classmethod
+    def submit(cls, 
+                fn, 
+                params = None,
+                kwargs: dict = None, 
+                args:list = None, 
+                timeout:int = 40, 
+                module: str = None,
+                mode:str='thread',
+                max_workers : int = 100,
+                ):
+        fn = c.get_fn(fn)
+        executor = c.module('executor')(max_workers=max_workers, mode=mode) 
+        return executor.submit(fn=fn, params=params, args=args, kwargs=kwargs, timeout=timeout)
 
     @classmethod
     def get_fn(cls, fn:str, splitter='/', default_fn='forward') -> 'Callable':
@@ -1499,6 +1497,9 @@ class c:
     def m(self):
         """enter modules path in vscode"""
         return c.cmd(f'code {c.modules_path}')
+    def a(self):
+        """enter modules path in vscode"""
+        return c.cmd(f'code {c.app_path}')
 
     @classmethod
     def module_exists(cls, module:str, **kwargs) -> bool:
@@ -1581,7 +1582,7 @@ class c:
         local_tree = c.local_tree(update=update, max_age=max_age)
         lib_tree = c.lib_tree(update=update, max_age=max_age)
         modules_tree = c.modules_tree(update=update, max_age=max_age)
-        tree = {**modules_tree, **lib_tree, **local_tree }
+        tree = {**modules_tree, **local_tree, **lib_tree }
         if search != None:
             tree = {k:v for k,v in tree.items() if search in k}
         return tree
@@ -1806,7 +1807,7 @@ class c:
 
     @staticmethod
     def configs( path='./'):
-        return [f for f in  c.files(path) if f.endswith('config.json')]
+        return [f for f in  c.files(path) if f.endswith('/config.json')]
 
     @staticmethod
     def readme2text(path='./', search=None):
@@ -1866,24 +1867,6 @@ class c:
             print(e, 'Error getting object bounds')
             return [None, None]
 
-    @classmethod
-    def sync_modules(cls,path=None, code_url=None, update=False, max_age=1000):
-        code_url = code_url or config['modules_code_url']
-        path = c.abspath(path or c.modules_path)
-        t0 = c.time()
-        sync_modules_flag = c.get(f'sync_modules_flag', None, max_age=max_age, update=update)
-        if sync_modules_flag == None:
-            c.cmd(f'git clone {config["modules_code_url"]} {path}')
-        else:
-            c.cmd(f'git pull', cwd=path)
-        return {
-                'success':True, 
-                'path': path, 
-                'latency':c.time() - t0,
-                'msg':'modules synced',
-                "max_age": max_age,
-                "update": update
-                }
 
     @classmethod
     def add_routes(cls, routes:dict=None, verbose=False):
@@ -1934,8 +1917,8 @@ class c:
                     fn_obj = partial(fn_generator, route=module + '/' + fn) 
                     fn_obj.__name__ = fn
                     setattr(cls, to_fn, fn_obj)
-        latency = time.time() - t0
-        return {'success': True, 'msg': 'enabled routes', 'latency': latency}
+        duration = time.time() - t0
+        return {'success': True, 'msg': 'enabled routes', 'duration': duration}
 
     @classmethod
     def add_globals(cls, globals_input:dict = None):
@@ -1956,14 +1939,56 @@ class c:
         return globals_input
 
     @classmethod
-    def init_module(cls, module:str = 'module', **kwargs):
+    def sync(cls, module:str = 'module', max_age=10000, update=False, **kwargs):
         """
         Initialize the module
         """
         c.add_routes()
-        c.sync_modules()
+        def sync_module(module_name, module_code_url):
+            module_path = c.lib_path + '/' + module_name.replace('.','/')
+            if not os.path.exists(module_path):
+                os.makedirs(module_path, exist_ok=True)
+            shortengit = lambda x: ('/'.join(x.split('/')[-2:]))
+            shortenpath = lambda x: x if not x.startswith(c.lib_path) else x[len(c.lib_path)+1:]
+            c.print(f'Syncing({shortenpath(module_path)} <-- {shortengit(module_code_url)})')
+            if os.path.exists(module_path+'/.git'):
+                c.cmd(f'git pull', cwd=module_path)
+            else:
+                c.cmd(f'git clone {module_code_url} {module_path}')
+            return True
+        tqdm = c.tqdm(len(config['modules'].items()), desc='Syncing Modules')
+        for module_name, module_code_url in config['modules'].items():
+            modules_flag_path = 'sync_modules/' + module_name
+            modules_flag = c.get(modules_flag_path, max_age=max_age, update=update)
+            if modules_flag != None:
+                continue
+            sync_module(module_name, module_code_url)
+            c.put(modules_flag_path, True)
+            tqdm.update(1)
+        return {'success': True, 'msg': 'synced config'}
 
-c.init_module()
+
+    def add_tags(self, module='openrouter', goal='RETURN TAGS AS A LIST AS THE CONTENT'):
+        text = f'''
+        --CONTENT--
+        {c.code_map(module)}
+        --GOAL--
+        {goal}
+        --FORMAT--
+        <START_OUTPUT>JSON(data=['tag1', 'tag2'])<END_OUTPUT>
+
+
+        '''
+        model = c.module('openrouter')()
+        output = ''
+        for ch in  model.forward(text,process_text=False, stream=1):
+            print(ch)
+            output += ch
+        
+        output = output.split('START_OUTPUT>')[-1].split('<END_OUTPUT')[0]
+        return json.loads(output)
+
+c.sync()
 Module = c # Module is alias of c
 if __name__ == "__main__":
     Module.run()

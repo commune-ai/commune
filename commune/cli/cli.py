@@ -68,8 +68,8 @@ class Cli:
             output = c.detailed_error(e)
         if self.ai_enabled:
             output = c.ask(output)
-        latency = time.time() - t0
-        print(f'❌Error({latency:.3f}sec)❌' if c.is_error(output) else f'✅Result({latency:.3f}s)✅')
+        duration = time.time() - t0
+        print(f'❌Error({duration:.3f}sec)❌' if c.is_error(output) else f'✅Result({duration:.3f}s)✅')
         is_generator = c.is_generator(output)
         if is_generator:
             for item in output:

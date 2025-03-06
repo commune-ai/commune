@@ -6,7 +6,8 @@ __pycache__/**
 *$py.class
 *.pyc
 env/
-
+app/
+chain/
 modules/
 
 # benchmark results

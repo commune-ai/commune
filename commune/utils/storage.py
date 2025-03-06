@@ -65,8 +65,6 @@ def locals2kwargs(locals_dict:dict, kwargs_keys=['kwargs'], remove_arguments=['c
         kwargs.update( locals_dict.pop(k, {}) or {})
     return kwargs
 
-
-
 def walk(path='./', depth=2):
     import commune as c
     results = []

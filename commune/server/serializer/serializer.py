@@ -2,10 +2,10 @@ import commune as c
 import json
 import os
 
-class Serializer(c.Module):
+class Serializer:
 
     list_types = [list, set, tuple] # shit that you can turn into lists for json
-    iterable_types = [list, set, tuple, dict] # 
+    iterable_types = [list, set, tuple, dict] # the iterablel types
     json_serializable_types = [int, float, str, bool, type(None)]
 
     def serialize(self,x:dict, mode = 'dict', copy_value = True):

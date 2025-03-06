@@ -56,20 +56,6 @@ def wait(futures:list, timeout:int = None, generator:bool=False, return_dict:boo
     return get_results(futures)
 
 
-def submit(
-            fn, 
-            params = None,
-            kwargs: dict = None, 
-            args:list = None, 
-            timeout:int = 40, 
-            module: str = None,
-            mode:str='thread',
-            max_workers : int = 100,
-            ):
-    import commune as c
-    fn = c.get_fn(fn)
-    executor = c.module('executor')(max_workers=max_workers, mode=mode) 
-    return executor.submit(fn=fn, params=params, args=args, kwargs=kwargs, timeout=timeout)
 
 def as_completed(futures:list, timeout:int=10, **kwargs):
     import concurrent

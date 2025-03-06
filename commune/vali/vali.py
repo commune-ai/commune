@@ -27,24 +27,13 @@ class Vali:
         self.set_network(network=network, tempo=tempo,  search=search,  path=path, update=update)
         self.set_score(score)
         c.thread(self.run_loop) if run_loop else ''
+    
     init_vali = __init__
-
 
     @classmethod
     def resolve_path(cls, path):
         return c.storage_path + f'/vali/{path}'
 
-    def set_score(self, score=None):
-        if score == None:
-            score = self.score
-        if isinstance(score, str):
-            score = c.get_fn(score)
-        if callable(score):
-            setattr(self, 'score', score )
-        c.print(f'Score({self.score})')
-        assert callable(self.score), f'SCORE NOT SET {self.score}'
-        return {'success': True, 'msg': 'Score function set'}
-    
     def set_key(self, key):
         self.key = c.get_key(key or self.module_name())
         return {'success': True, 'msg': 'Key set', 'key': self.key}
@@ -63,17 +52,12 @@ class Vali:
             self.path = os.path.abspath(path or self.resolve_path(f'{self.network}/{self.subnet}' if self.subnet else self.network))
         self.netmod = c.module(self.network)() 
         self.tempo = tempo or 60
-        self.search = search
-        self.sync_net()
-        c.print(f'Network(net={self.network} path={self.path})')
-        return {'success': True, 'msg': 'Network set', 'network': self.network, 'path': self.path}
-
-    def sync_net(self, max_age=None, update=False):
-        max_age = max_age or self.tempo
+        max_age = self.tempo
         self.params = self.netmod.params(subnet=self.subnet, max_age=max_age)
         self.modules = self._modules = self.netmod.modules(subnet=self.subnet, max_age=max_age)
-        if self.search:
-            self.modules = [m for m in self.modules if any(str(self.search) in str(v) for v in m.values())]
+        if search:
+            self.modules = [m for m in self.modules if any(str(search) in str(v) for v in m.values())]
+        c.print(f'Network(net={self.network} path={self.path})')
         return self.params
     
     def score(self, module):
@@ -106,8 +90,6 @@ class Vali:
     def get_client(self, module:dict) -> 'commune.Client':
         if isinstance(module, str):
             module = c.call(module, key=self.key)
-            print(module)
-
         feature2type = {'name': str, 'url': str, 'key': str}
         for f, t in feature2type.items():
             assert f in module, f'Module missing {f}'
@@ -116,7 +98,6 @@ class Vali:
         if module['key'] not in self._clients:
             self._clients[module['key']] =  c.client(module['url'], key=self.key)
         return  self._clients[module['key']]
-
 
     def score_module(self,  module:dict, **kwargs):
         client = self.get_client(module) # the client
@@ -128,7 +109,7 @@ class Vali:
             module['error'] = c.detailed_error(e)
         module['score'] = score
         module['time'] = t0
-        module['latency'] = c.time() - module['time']
+        module['duration'] = c.time() - module['time']
         module['path'] = self.path +'/'+ module['key'] + '.json'
         return module
 
@@ -138,7 +119,6 @@ class Vali:
             futures = [c.submit(self.score_module, [m], timeout=self.timeout) for m in modules]   
             for f in c.as_completed(futures, timeout=self.timeout):
                 m = f.result()
-                print(m)
                 if m.get('score', 0) > 0:
                     c.put_json(m['path'], m)
                     results.append(m)
@@ -146,11 +126,7 @@ class Vali:
             c.print(f'ERROR({c.detailed_error(e)})', color='red')
         return results
 
-    def forward(self):
-        return self.epoch()
-
     def epoch(self):
-        self.sync_net(update=1)
         n = len(self.modules)
         batches = [self.modules[i:i+self.batch_size] for i in range(0, n, self.batch_size)]
         num_batches = len(batches)
@@ -164,6 +140,8 @@ class Vali:
         self.epochs += 1
         self.epoch_time = c.time()
         self.vote(results)
+        for r in results: 
+            r.pop('schema', None)
         return results
     
     @property
@@ -188,7 +166,7 @@ class Vali:
         return self.netmod.vote(**params)
     
     def scoreboard(self,
-                    keys = ['name', 'score', 'latency',  'url', 'key'],
+                    keys = ['name', 'score', 'duration',  'url', 'key'],
                     ascending = True,
                     by = 'score',
                     to_dict = False,
@@ -218,7 +196,6 @@ class Vali:
             df = df[page*page_size:(page+1)*page_size]
         return df
 
-
     def module_paths(self):
         return c.ls(self.path) # fam
     
@@ -232,10 +209,8 @@ class Vali:
         c.rm(path)
         return {'success': True, 'msg': 'Leaderboard removed', 'path': path}
 
-
     @staticmethod
-    def test(  
-                n=2, 
+    def test(   n=2, 
                 tag = 'vali_test_net',  
                 miner='module', 
                 trials = 5,
@@ -255,7 +230,6 @@ class Vali:
             for m in modules:
                 assert m in namespace, f'Miner not in namespace {m}'
             vali = Vali(network=network, search=search, path=path, update=update, tempo=tempo, run_loop=False)
-            print(vali.modules)
             scoreboard = []
             while len(scoreboard) < n:
                 c.sleep(1)

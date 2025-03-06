@@ -1,9 +1,12 @@
 {
     "name": "commune",
-    "version": "0.0.1",
-    "code_url": "https://github.com/commune-ai/commune.git", 
-    "modules_code_url": "https://github.com/commune-ai/modules.git", 
-    "app_url": "localhost:3000",
+    "version": "0.0.1", 
+    "code_url":  "https://github.com/commune-ai/commune.git",
+    "modules": {
+        "modules": "https://github.com/commune-ai/modules.git",
+        "app": "https://github.com/commune-ai/app.git",
+        "chain": "https://github.com/commune-ai/chain.git"
+    },
     "description": "A module is a folder of code that consists of at least an api and optionally an app interface.",
     "free": false,
     "endpoints": ["forward"],
