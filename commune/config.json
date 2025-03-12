@@ -5,11 +5,11 @@
         "code": "commune-ai/commune.git",
         "app": "communeai.org"
     },
-    "modules": {
-        "modules": "commune-ai/modules",
-        "app": "commune-ai/app",
-        "chain": "commune-ai/chain"
-    },
+    "modules": [
+        "commune-ai/modules",
+        "commune-ai/app",
+        "commune-ai/chain"
+    ],
     "endpoints": ["forward", "info"],
     "port_range":  [50050, 50150],
     "shortcuts": { 

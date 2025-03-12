@@ -82,13 +82,7 @@ class c:
             obj.config = lambda *args, **kwargs : c.config(obj)
         return obj
     @classmethod
-    def module(cls, 
-               path:str = 'module', 
-               params : dict = None, 
-               trials=1, 
-               verbose=False,
-               cache=True, **kwargs ) -> str:
-        
+    def module(cls,path:str = 'module',  params : dict = None,  verbose=False,cache=True,  **kwargs ) -> str:
         t0 = time.time()  
         path = path or 'module'
         if path in ['module', c.repo_name[0]]:
@@ -97,7 +91,6 @@ class c:
         tree = c.tree()
         simp_path = path
         module = tree.get(path, path)
-
         if not cache or (not module in c.module_cache):
             if not module in tree:
                 tree = c.tree(update=1)
@@ -202,6 +195,9 @@ class c:
 
     @classmethod
     def config_path(cls, obj = None) -> str:
+        global config_path
+        if obj in [None, 'module']:
+            return config_path
         json_path =  c.dirpath(obj) + '/config.json'
         yaml_path =  c.dirpath(obj) + '/config.yaml'
         if os.path.exists(json_path):
@@ -1215,26 +1211,31 @@ class c:
         Gets the function from a string or if its an attribute 
         """
         if isinstance(fn, str):
-            if fn.startswith(splitter):
-                return getattr(c.module()(), fn.split('/')[-1])
-            elif fn.endswith(splitter):
+            if fn.startswith('/'):
+                fn = 'module' + fn
+            elif fn.endswith('/'):
                 module = c.module(fn[:-1])
+                fn = default_fn
                 return getattr(module, default_fn)
             fn_obj = None
             module = cls
-            if splitter in fn:
-                module_name= splitter.join(fn.split(splitter)[:-1])
-                fn_name = fn.split(splitter)[-1]
-                if c.module_exists(module_name):
-                    module = c.get_module(module_name)
-                    fn_obj =  getattr(module, fn_name)
+            if '/' in fn:
+                module = c.module('/'.join(fn.split('/')[:-1]))
+                fn = fn.split('/')[-1]
             elif c.object_exists(fn):
                 fn_obj =  c.obj(fn)
+            else:
+                raise Exception(f'{fn} is not a function or object')
+            fn_obj = getattr(module, fn)
             args = c.get_args(fn_obj)
             if 'self' in args:
-                fn_obj = getattr(module(), fn.split('/')[-1])
-        else:
+                module = module()
+                fn_obj = getattr(module, fn)
+  
+        elif callable(fn):
             fn_obj = fn
+        else:
+            raise Exception(f'{fn} is not a function or object')
         # assert fn_obj != None, f'{fn} is not a function or object'
         if params != None:
             return fn_obj(**params)
@@ -1584,10 +1585,11 @@ class c:
             if path.endswith(avoid) and path != avoid:
                 path = path[:-(1+len(avoid))]
         return path
+
     @classmethod
     def local_modules(cls, search=None, **kwargs):
         return list(c.local_tree(c.pwd(), search=search, **kwargs).keys())
-
+    lmods = local_modules
     @classmethod
     def lib_tree(cls, depth=10, **kwargs):
         return c.get_tree(c.lib_path, depth=depth, **kwargs)
@@ -1842,19 +1844,34 @@ class c:
         test_fns = [f for f in dir(Test) if f.startswith('test_') or f == 'test']
         test = Test()
         futures = []
+        future2fn = {}
         for fn in test_fns:
             print(f'Testing({fn})')
             future = c.submit(getattr(test, fn), timeout=timeout)
-            futures += [future]
+            future2fn[future] = fn
         results = []
-        for future in c.as_completed(futures, timeout=timeout):
+
+        failed_resilts = []
+
+        for future in c.as_completed(future2fn, timeout=timeout):
             print(future.result())
-            results += [future.result()]
+            fn = future2fn.pop(future)
+            result = future.result()
+            is_successful = all([not c.is_error(r) for r in result])
+            if is_successful:
+                results += [result]
+            else:
+                raise Exception(f'Failed Test {fn} {result}')
+
         return results
 
 
     @classmethod
     def testmod(cls, module='module', timeout=50):
+        """
+
+        Test the module
+        """
 
         if c.module_exists(module + '.test'):
             module = module + '.test'
@@ -2045,7 +2062,29 @@ class c:
         return url
 
     @staticmethod
-    def sync_module(name, url, max_age=10000, update=False):
+    def sync_module(url, max_age=10000, update=False):
+        """ 
+        Syncs a module from a git repository
+
+        params:
+            url:
+                - can be a string
+                - a dictionary with the keys 'name' and 'url'
+                -  a list with the first element being the url and the second element being the name
+                
+        returns:
+            - True if the module was synced
+            - False if the module was not synced
+
+        """
+        if isinstance(url, str):
+            name = url.split('/')[-1].replace('.git', '')
+        elif isinstance(url, dict):
+            name = url['name']
+            url = url['url']
+        elif isinstance(url, list):
+            url = url[0]
+            name = url[1]
         modules_flag_path = 'sync_modules/' + name
         modules_flag = c.get(modules_flag_path, max_age=max_age, update=update)
         if modules_flag != None:
@@ -2064,10 +2103,10 @@ class c:
         return True
 
     @staticmethod
-    def sync_modules(max_age=100, update=False):
+    def sync_modules(max_age=10, update=False):
         results = []
-        for module_name, module_url in config['modules'].items():
-            results.append(c.sync_module(module_name, module_url, max_age=max_age, update=update))
+        for url in config['modules']:
+            results.append(c.sync_module(url, max_age=max_age, update=update))
         return results
 
     def add_tags(self, module='openrouter', goal='RETURN TAGS AS A LIST AS THE CONTENT'):
@@ -2107,7 +2146,7 @@ class c:
         return c.ask(code, prompt=prompt, search=search)
 
     @classmethod
-    def sync(cls, module:str = 'module', max_age=1000, update=False, **kwargs):
+    def sync(cls, module:str = 'module', max_age=10, update=False, **kwargs):
         """
         Initialize the module
         """
